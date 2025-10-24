@@ -1,0 +1,514 @@
+ai3security:
+  advisor:
+    enabled: true  # Advisor 시스템 활성화 (기본값)
+    chain-profile: STANDARD  # 체인 프로파일 설정
+    security:
+      enabled: true  # Security Context Advisor 활성화
+      order: 50      # 실행 순서 (낮을수록 먼저 실행)
+      require-authentication: false  # 인증 필수 여부
+    soar:
+      enabled: true  # SOAR Advisor 활성화
+      order: 100     # Security Context Advisor 이후 실행
+      approval:
+        enabled: true
+        timeout: 300  # 승인 타임아웃 (초)
+  
+  # 시뮬레이션 데이터 설정
+  simulation:
+    data:
+      enabled: false  # 시뮬레이션 데이터 생성 활성화
+      clear-existing: false  # 기존 데이터 삭제 여부 (주의: true시 모든 데이터 삭제)
+
+# Security Plane Agent 스케줄러 설정
+security:
+  # Zero Trust 설정
+  zerotrust:
+    enabled: true
+    mode: TRUST  # STANDARD(기본), TRUST(Redis 조회), REALTIME(실시간 AI)
+    sampling:
+      rate: 1.0  # 이벤트 샘플링 비율 (1.0 = 100%)
+    anomaly:
+      detection:
+        enabled: true
+
+    # Zero Trust HOT Path 설정 (외부기관 피드백 반영)
+    hotpath:
+      enabled: true  # Zero Trust HOT Path 평가 활성화 (HCAD 통합)
+
+      # Anti-Evasion 샘플링 설정
+      sampling:
+        random:
+          floor: 0.01  # Pure Random Floor 최소값 (1%)
+          ceiling: 0.03  # Pure Random Floor 최대값 (3%)
+        cache:
+          ttl-seconds: 60  # 샘플링 결과 캐시 TTL (1분)
+
+      # 신호 불일치 탐지 설정
+      signal:
+        inconsistency:
+          default-stddev-threshold: 0.15  # 표준편차 기본 임계값
+          default-outlier-threshold: 0.25  # Mahalanobis Distance 기본 임계값
+
+        # 직교 신호 수집 설정
+        orthogonal:
+          network:
+            recent-requests-window: 60  # 네트워크 신호 윈도우 (초)
+          crypto:
+            history-size: 100  # TLS 핑거프린트 이력 크기
+          timing:
+            bucket-count: 7  # 타이밍 엔트로피 버킷 수
+            interval-history-size: 100  # 타이밍 간격 이력 크기
+
+      # 적응형 임계값 시스템 (CUSUM 기반)
+      adaptive:
+        cusum:
+          threshold: 5.0  # CUSUM 임계값
+          slack: 0.5  # 허용 오차 (K)
+        baseline:
+          window-size: 100  # 베이스라인 계산 윈도우
+          min-observations: 30  # 최소 관측 수
+        threshold:
+          min-trust-score: 0.7  # 최소 신뢰 점수
+        ttl:
+          state-hours: 24  # CUSUM 상태 TTL (24시간)
+          observation-hours: 168  # 관측 데이터 TTL (7일)
+
+      # 공격 모드 히스테리시스 설정
+      attack-mode:
+        suspected:
+          enter-threshold: 0.7  # SUSPECTED 진입 임계값
+          exit-threshold: 0.5   # SUSPECTED 탈출 임계값
+        confirmed:
+          enter-threshold: 0.85  # CONFIRMED 진입 임계값
+          exit-threshold: 0.6    # CONFIRMED 탈출 임계값
+        min-duration-minutes: 15  # 최소 지속 시간 (15분)
+        rate-limit:
+          window-minutes: 5  # Rate Limit 윈도우 (5분)
+          max-transitions: 3  # 최대 전환 횟수
+        ttl:
+          state-hours: 24  # 상태 TTL (24시간)
+          history-days: 7   # 이력 TTL (7일)
+
+      # 누적 위험 계산 설정
+      risk:
+        # 7차원 신호 가중치
+        weight:
+          layer1: 0.1      # Layer1 (TLS 핑거프린트)
+          layer2: 0.1      # Layer2 (HTTP 헤더)
+          layer3: 0.1      # Layer3 (유사도)
+          layer4: 0.1      # Layer4 (Cross-Validation)
+          network: 0.2     # Network 신호
+          crypto: 0.2      # Crypto 신호
+          timing: 0.2      # Timing 신호
+
+        # 패널티 설정
+        penalty:
+          inconsistency: 0.3  # 신호 불일치 패널티
+          layer3-warning: 0.2  # Layer3 경고 패널티
+
+        # 임계값 설정
+        threshold:
+          layer3-warning: 0.7  # Layer3 경고 임계값
+
+        # 시간 감쇠 설정
+        decay:
+          factor: 0.9  # 감쇠 계수 (90%)
+
+        # 위험 레벨 임계값
+        level:
+          medium: 0.4    # MEDIUM 레벨 시작
+          high: 0.6      # HIGH 레벨 시작
+          critical: 0.8  # CRITICAL 레벨 시작
+
+      # Honeypot 패턴 분석 설정 (Phase 1)
+      honeypot:
+        access:
+          frequency:
+            threshold: 10  # 빈도 임계값 (60초 이내 10회)
+            window-seconds: 60  # 분석 윈도우 (60초)
+          diversity:
+            threshold: 5  # 다양성 임계값 (5개 이상 서로 다른 리소스)
+          sequential:
+            window-seconds: 30  # 순차 패턴 윈도우 (30초)
+        cache:
+          ttl-seconds: 60  # 접근 이력 캐시 TTL (60초)
+        weight:
+          frequency: 0.4      # 빈도 분석 가중치
+          diversity: 0.35     # 다양성 분석 가중치
+          sequential: 0.25    # 순차 패턴 가중치
+
+  # Security Event Publishing 설정 (AI 기반 익명 사용자 위협 평가)
+  event:
+    publishing:
+      enabled: true  # 이벤트 발행 활성화
+
+      # 익명 사용자 이벤트 발행 전략 (AI 기반)
+      # 핵심 설계 원칙:
+      # 1. HCAD 유사도 = AI 계산 결과이므로 신뢰 (재계산 안함)
+      # 2. IP 위협 점수 = Cold Path AI 학습 결과만 조회
+      # 3. 규칙 기반 계산 완전 제거 (경로, User-Agent, 시간대 등)
+      # 4. Hot Path는 AI 결과 조회만, Cold Path AI가 진짜 분석 담당
+      anonymous:
+        enabled: true  # 익명 사용자 이벤트 발행 (AI 기반 샘플링)
+
+      # 이벤트 발행 제외 URI 목록 (쉼표 구분)
+      exclude-uris: /actuator,/health,/metrics
+
+      # 정상 요청 샘플링 (레거시, 향후 제거 예정)
+      normal-sampling-rate: 0.1
+      suspicious-threshold: 0.9
+    # MFA 정책 임계값 설정
+    thresholds:
+      skip: 0.3        # 위협 점수 < 0.3: MFA 생략
+      optional: 0.5    # 위협 점수 0.3-0.5: 선택적 MFA
+      required: 0.7    # 위협 점수 0.5-0.7: 필수 MFA
+      strict: 0.9      # 위협 점수 0.7-0.9: 강화된 MFA
+                       # 위협 점수 > 0.9: 차단
+    # Redis 성능 설정
+    redis:
+      timeout: 5       # Redis 조회 타임아웃 (ms)
+      cache:
+        enabled: true
+        ttl: 1         # 로컬 캐시 TTL (초)
+        maxSize: 10000 # 최대 캐시 항목 수
+
+  # 세션 위협 관리 설정
+  session:
+    threat:
+      # 위협 레벨별 TTL 설정 (초)
+      monitoring:
+        ttl: 3600        # 모니터링 상태 유지 시간 (1시간)
+      grace-period:
+        ttl: 300         # Grace Period 기본 시간 (5분)
+        warning-at: 120  # 경고 표시 시점 (2분 남았을 때)
+      delayed-invalidation:
+        ttl: 30          # 지연 무효화 시간 (30초)
+        critical: 15     # 긴급 무효화 시간 (15초)
+      # 위협 점수 임계값
+      thresholds:
+        monitoring: 0.5      # 모니터링 시작 임계값
+        grace-period: 0.7    # Grace Period 시작 임계값
+        invalidation: 0.9    # 즉시 무효화 임계값
+
+  # Step-Up 재인증 설정
+  stepup:
+    max-attempts: 3        # 최대 재인증 시도 횟수
+    lockout-duration: 300  # 계정 잠금 시간 (5분)
+    mfa:
+      enabled: true        # MFA 재인증 활성화
+      timeout: 120         # MFA 코드 입력 제한 시간 (2분)
+  
+  # 자율 학습 시스템 설정
+  autonomous:
+    learning:
+      enabled: true
+      evolution:
+        confidence-threshold: 0.8  # 정책 진화 신뢰도 임계값
+        slow-policy-threshold-ms: 1000  # 느린 정책 임계값 (밀리초)
+        evaluation-interval-hours: 6  # 평가 주기 (시간)
+        max-proposals: 100  # 최대 제안 수
+      metrics:
+        collection:
+          enabled: true
+          threat-level-threshold: 20  # 위협 레벨 계산 기준
+        usage:
+          enabled: true
+          cleanup-days: 90  # 오래된 메트릭 정리 기준 (일)
+      integration:
+        access-governance:
+          enabled: true
+          analysis-interval-hours: 24  # 권한 분석 주기
+
+  # Security Plane Agent 임계값 설정 (HCAD 유사도 기반)
+  plane:
+    agent:
+      # HOT Path 임계값 (similarity > 0.70)
+      # - HCAD 벡터 유사도만으로 충분히 정상 판단 가능
+      # - 추가 AI 분석 불필요 (비용 절감)
+      # - 예상 분포: 전체 요청의 90%
+      similarity-threshold: 0.70
+
+      # Layer 1 임계값 (0.55 < similarity ≤ 0.70)
+      # - TinyLlama LLM 기반 빠른 분석 (20-50ms)
+      # - 경량 AI 모델로 추가 검증
+      # - 예상 분포: 전체 요청의 6%
+      # - 비용: $0.0001/req
+      layer1-threshold: 0.55
+
+      # Layer 2 임계값 (0.40 < similarity ≤ 0.55)
+      # - Llama3.1:8b LLM 기반 상세 분석 (100-300ms)
+      # - 중급 AI 모델로 맥락 검증
+      # - 예상 분포: 전체 요청의 3%
+      # - 비용: $0.001/req
+      layer2-threshold: 0.40
+
+      # Layer 3 (similarity ≤ 0.40)
+      # - Claude Sonnet LLM 기반 전문가 분석 (1-5s)
+      # - 최고급 AI 모델로 종합 판단
+      # - 예상 분포: 전체 요청의 1%
+      # - 비용: $0.02/req
+
+  # Cold Path 이벤트 처리 설정
+  coldpath:
+    strategy:
+      selection: adaptive  # adaptive, all, priority
+    decay:
+      enabled: true
+      # 시간 단위 (시간 감쇠 반감기)
+    ttl:
+      hours: 24  # Redis TTL
+
+    # Cold Path 용량 관리 (Zero Trust HOT Path 통합)
+    capacity:
+      max-queue-size: 10000  # 최대 큐 크기
+      warning-threshold: 0.7  # 경고 임계값 (70%)
+      critical-threshold: 0.9  # 위험 임계값 (90%)
+      degradation-rate: 0.5  # Graceful Degradation 거부율 (50%)
+      queue-expiration-seconds: 300  # 큐 만료 시간 (5분)
+
+  # Layer3 피드백 통합 설정
+  feedback:
+    risk-score:
+      indexing-threshold: 7.0  # Layer3 피드백 인덱싱 시작 임계값
+      hot-sync-threshold: 8.0  # Hot Path 동기화 임계값
+      high-risk-threshold: 8.0  # 고위험 판정 임계값
+    redis:
+      pattern-key-prefix: "layer3:pattern:"  # Layer3 패턴 Redis 키 prefix
+      feedback-key-prefix: "layer3:feedback:"  # Layer3 피드백 Redis 키 prefix
+    pattern:
+      max-recent-patterns: 10  # 최근 패턴 최대 개수
+  
+  # Kafka 토픽 설정
+  kafka:
+    topic:
+      authorization: security-authorization-events
+      authentication: auth-events  # Collector와 일치하도록 변경
+      incident: security-incident-events
+      threat: threat-indicators  # Collector의 threat-indicators와 일치
+      audit: security-audit-events
+      general: security-events  # Collector의 security-events와 일치
+      dlq: security-events-dlq  # Dead Letter Queue
+
+  # Redis 채널 및 스트림 설정
+  redis:
+    channel:
+      authorization: "security:authorization:events"
+      authentication: "security:events"  # Collector와 일치하도록 변경
+      incident: "security:incidents"  # Collector의 security:incidents와 일치
+      threat: "security:threats"  # Collector의 security:threats와 일치
+      audit: "security:audit:events"
+      general: "security:events"  # Collector의 security:events와 일치
+    stream:
+      authorization: "security:stream:authorization"
+      authentication: "security:stream:authentication"  # 인증 이벤트 전용 스트림
+      incident: "security:stream:incident"
+      threat: "security:stream:threat"
+      audit: "security:stream:audit"
+      general: "security:stream:general"
+      maxlen: 10000  # 스트림당 최대 10,000개 이벤트 보관
+    ttl:
+      minutes: 60  # 기본 TTL 60분
+  
+# OpenTelemetry 비활성화 (개발 환경)
+opentelemetry:
+  enabled: false
+
+otel:
+  sdk:
+    disabled: true
+  traces:
+    exporter: none
+  metrics:
+    exporter: none
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /actuator
+  endpoint:
+    prometheus:
+      access: unrestricted
+    metrics:
+      access: unrestricted
+  tracing:
+    enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+    tracing:
+      endpoint: http://localhost:4317
+spring:
+  # 프로파일 설정
+  profiles:
+    include:
+      - llm  # application-llm.yml 파일 포함
+      - hcad  # application-hcad.yml 파일 포함
+
+  # Kafka 설정
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: security-plane-consumer  # Listener와 통일
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: 500
+      enable-auto-commit: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+    listener:
+      # type: batch - 제거 (KafkaSecurityEventCollector는 단일 메시지 처리)
+      concurrency: 3
+      ack-mode: manual
+  
+  ai:
+    # LLM 설정은 application-llm.yml 파일에서 관리됨
+    # profile include를 통해 자동으로 로드됨
+
+    # Spring AI VectorStore 설정
+    vectorstore:
+      pgvector:
+        # 인덱스 설정
+        index-type: HNSW  # HNSW 또는 IVFFLAT
+        distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
+        dimensions: 1024  # 벡터 차원 수 (128-3072)
+
+        # 배치 처리 설정
+        batch-size: 100  # 배치당 문서 수
+        parallel-threads: 4  # 병렬 처리 스레드 수
+
+        # 검색 기본값
+        top-k: 100  # 기본 검색 결과 개수
+        similarity-threshold: 0.75  # 기본 유사도 임계값
+
+        # HNSW 인덱스 파라미터
+        hnsw:
+          m: 16  # 노드당 최대 연결 수 (4-64)
+          ef-construction: 64  # 인덱스 생성 시 탐색 범위 (10-500)
+          ef-search: 100  # 검색 시 탐색 범위 (10-500)
+
+        # IVFFLAT 인덱스 파라미터
+        ivfflat:
+          lists: 100  # 클러스터 수 (1-10000)
+          probes: 10  # 검색할 리스트 수 (1-1000)
+
+        # 문서 처리 설정
+        document:
+          chunk-size: 1000  # 청크 크기 (토큰 수)
+          chunk-overlap: 200  # 청크 오버랩 (토큰 수)
+          enrich-metadata: true  # 메타데이터 강화 활성화
+          extract-keywords: true  # 키워드 추출 활성화
+          generate-summary: false  # 요약 생성 활성화
+
+      # 디버깅 설정
+      debug:
+        filter-logging: false  # 필터 표현식 디버그 로깅 활성화
+
+    # Spring AI MCP 표준 설정
+    mcp:
+      client:
+        enabled: true
+        name: "ai3security-client"
+        version: "1.0.0"
+        type: SYNC
+        request-timeout: 30s
+        
+        # STDIO Transport (로컬 MCP 서버용)
+        stdio:
+          enabled: true
+          servers-configuration: "classpath:/mcp-servers-config.json"
+          root-change-notification: true
+          
+        # SSE Transport (원격 MCP 서버용)
+        sse:
+          enabled: false
+          connections:
+            security-server:
+              url: "http://localhost:9090"
+              
+        # MCP Tool Callback 자동 구성
+        toolcallback:
+          enabled: true
+          
+        # Brave Search 특별 설정
+        brave-search:
+          enabled: true
+          
+        # AI3Security 로컬 서버 설정
+        local-security:
+          enabled: true
+          
+      server:
+        enabled: false  # 기본적으로 비활성화 (필요시 활성화)
+        name: "ai3security-server"
+        version: "1.0.0" 
+        type: SYNC
+        stdio: false
+        sse-message-endpoint: "/mcp/message"
+        resource-change-notification: true
+        tool-change-notification: true
+        prompt-change-notification: true
+
+# SOAR 파이프라인 설정
+soar:
+  # 알림 설정
+  notification:
+    email:
+      enabled: true
+      base-url: ${SOAR_BASE_URL:http://localhost:8080}
+      from: ${MAIL_FROM:noreply@ai3security.com}
+    websocket:
+      enabled: true
+      topic-prefix: /topic/soar
+    sse:
+      enabled: true
+      timeout: 300000  # 5분
+    priority-routing:
+      critical: [EMAIL, WEBSOCKET, SSE]
+      high: [EMAIL, WEBSOCKET, SSE]
+      medium: [WEBSOCKET, SSE]
+      low: [WEBSOCKET]
+  
+  pipeline:
+    # Tool-Aware 프롬프트 시스템 활성화
+    tool-aware-prompt:
+      enabled: true  # Tool-Aware 프롬프트 생성 활성화
+      include-risk-levels: true  # 도구 위험도 정보 포함
+      include-approval-policy: true  # 승인 정책 정보 포함
+      include-usage-examples: true  # 도구 사용 예시 포함
+      max-tools-in-prompt: 20  # 프롬프트에 포함할 최대 도구 수
+    
+    # 도구 컨텍스트 설정
+    tool-context:
+      cache-enabled: true  # 도구 정보 캐싱 활성화
+      cache-ttl: 3600  # 캐시 TTL (초)
+      track-execution-history: true  # 도구 실행 이력 추적
+      max-history-size: 100  # 최대 이력 크기
+    
+    # 도구 통합 설정
+    tool-integration:
+      auto-discover: true  # 도구 자동 발견
+      validate-on-startup: true  # 시작 시 도구 검증
+      log-tool-metadata: true  # 도구 메타데이터 로깅
+
+# 로깅 설정
+logging:
+  level:
+#    io.spring.aicore: ERROR
+    io.spring.aicore.soar: DEBUG
+    org.springframework.ai.mcp: DEBUG
+    # 이벤트 발행/수신 디버그 로깅 추가
+    io.spring.aicore.autonomous.event.publisher: DEBUG
+    io.spring.aicore.autonomous.event.listener: DEBUG
+    io.spring.aicore.security.plane: DEBUG
+    io.spring.aicore.autonomous.zerotrust: DEBUG
+    # Kafka 및 Redis 디버그 로깅
+    org.springframework.kafka: DEBUG
+    org.springframework.data.redis: DEBUG
+    root: INFO

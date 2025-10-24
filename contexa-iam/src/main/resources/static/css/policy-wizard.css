@@ -1,0 +1,238 @@
+/* 전체 위자드 컨테이너 */
+.wizard-container {
+    background-color: #0f172a !important;
+    color: white !important;
+    border-radius: 1rem !important;
+    padding: 2rem !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 스텝 아이템 - @apply 대신 일반 CSS 속성 사용 */
+.step-item {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+/* 스텝 원형 아이콘 */
+.step-circle {
+    width: 3.5rem !important;
+    height: 3.5rem !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: bold !important;
+    font-size: 1.25rem !important;
+    transition: all 0.3s ease !important;
+    background: rgba(30, 41, 59, 0.8) !important;
+    border: 2px solid #334155 !important;
+    color: #94a3b8 !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+/* 스텝 라벨 */
+.step-label {
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    margin-top: 0.75rem !important;
+    transition: all 0.3s ease !important;
+    color: #94a3b8 !important;
+    letter-spacing: 0.025em !important;
+}
+
+/* 스텝 연결선 */
+.step-connector {
+    flex: 1 !important;
+    height: 2px !important;
+    background: linear-gradient(90deg, #334155, #475569, #334155) !important;
+    margin: 0 1rem !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.step-connector::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: -100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: linear-gradient(90deg, transparent, #6366f1, transparent) !important;
+    transition: left 0.5s ease !important;
+}
+
+/* Active State - 인디고 네온 효과 */
+.step-item.step-active .step-circle {
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    color: white !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.6), inset 0 0 15px rgba(99, 102, 241, 0.3) !important;
+    border-color: #6366f1 !important;
+    animation: pulse-active 2s infinite !important;
+}
+
+@keyframes pulse-active {
+    0%, 100% {
+        box-shadow: 0 0 30px rgba(99, 102, 241, 0.6), inset 0 0 15px rgba(99, 102, 241, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(99, 102, 241, 0.8), inset 0 0 20px rgba(99, 102, 241, 0.4);
+    }
+}
+
+.step-item.step-active .step-label {
+    color: #818cf8 !important;
+    font-weight: 700 !important;
+}
+
+/* Complete State - 그린 그라데이션 */
+.step-item.step-complete .step-circle {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    color: white !important;
+    border-color: #10b981 !important;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.5) !important;
+}
+
+.step-item.step-complete .step-label {
+    color: #34d399 !important;
+}
+
+.step-item.step-complete + .step-connector::before {
+    left: 0 !important;
+    background: linear-gradient(90deg, transparent, #10b981, transparent) !important;
+}
+
+/* Inactive State */
+.step-item.step-inactive .step-circle {
+    background: rgba(30, 41, 59, 0.5) !important;
+    color: #475569 !important;
+    border-color: #334155 !important;
+}
+
+.step-item.step-inactive .step-label {
+    color: #475569 !important;
+}
+
+/* 위자드 카드 */
+.wizard-card {
+    display: none;
+    animation: fadeInUp 0.5s ease-out;
+    background: rgba(30, 41, 59, 0.5) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(71, 85, 105, 0.5) !important;
+    border-radius: 1rem !important;
+    padding: 2rem !important;
+    margin-top: 2rem !important;
+}
+
+.wizard-card.active {
+    display: block;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 위자드 내부 요소들 */
+.wizard-card h3 {
+    color: white !important;
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    margin-bottom: 1.5rem !important;
+    background: linear-gradient(135deg, #818cf8, #6366f1) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+.wizard-card .form-group {
+    margin-bottom: 1.5rem !important;
+}
+
+.wizard-card label {
+    color: #cbd5e1 !important;
+    font-weight: 600 !important;
+    margin-bottom: 0.5rem !important;
+    display: block !important;
+}
+
+.wizard-card input,
+.wizard-card select,
+.wizard-card textarea {
+    background: rgba(15, 23, 42, 0.8) !important;
+    border: 1px solid #334155 !important;
+    color: white !important;
+    border-radius: 0.5rem !important;
+    padding: 0.75rem 1rem !important;
+    width: 100% !important;
+    transition: all 0.3s ease !important;
+}
+
+.wizard-card input:focus,
+.wizard-card select:focus,
+.wizard-card textarea:focus {
+    outline: none !important;
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+    background: rgba(15, 23, 42, 0.9) !important;
+}
+
+/* 버튼 스타일 */
+.wizard-nav-buttons {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-top: 2rem !important;
+    padding-top: 2rem !important;
+    border-top: 1px solid #334155 !important;
+}
+
+.wizard-btn {
+    padding: 0.75rem 2rem !important;
+    border-radius: 0.5rem !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease !important;
+    cursor: pointer !important;
+    border: none !important;
+}
+
+.wizard-btn-prev {
+    background: rgba(71, 85, 105, 0.5) !important;
+    color: #cbd5e1 !important;
+}
+
+.wizard-btn-prev:hover {
+    background: rgba(71, 85, 105, 0.8) !important;
+    transform: translateX(-2px) !important;
+}
+
+.wizard-btn-next,
+.wizard-btn-complete {
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4) !important;
+}
+
+.wizard-btn-next:hover,
+.wizard-btn-complete:hover {
+    transform: translateX(2px) !important;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6) !important;
+}
+
+.wizard-btn-complete {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4) !important;
+}
+
+.wizard-btn-complete:hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6) !important;
+}

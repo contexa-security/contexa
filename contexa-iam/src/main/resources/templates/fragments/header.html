@@ -1,0 +1,153 @@
+<!-- header.html -->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<div th:fragment="header">
+    <header class="shadow-2xl relative overflow-hidden" style="background: linear-gradient(135deg, #050810 0%, #0a0f1c 50%, #0f172a 100%); border-bottom: 2px solid #1e293b;">
+        <div class="absolute inset-0 bg-gradient-to-r from-violet-600/5 via-transparent to-indigo-600/5"></div>
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 relative z-10">
+            <h1 class="text-xl font-black tracking-tight">
+                <a th:href="@{/}" class="hover:text-indigo-400 transition-all duration-300 bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent hover:from-indigo-300 hover:to-purple-300">
+                    Security Auth Platform
+                </a>
+            </h1>
+            <nav class="header-actions flex items-center space-x-2">
+                <a id="homeLink" th:href="@{/admin}" class="nav-link group">
+                    <span class="nav-icon"><i class="fas fa-home"></i></span>
+                    <span>Home</span>
+                    <span class="nav-glow"></span>
+                </a>
+
+                <th:block sec:authorize="isAnonymous()">
+                    <a id="loginLink" th:href="@{/login}" class="nav-link group">
+                        <span class="nav-icon"><i class="fas fa-sign-in-alt"></i></span>
+                        <span>로그인</span>
+                        <span class="nav-glow"></span>
+                    </a>
+                    <a id="registerLink" th:href="@{/register}" class="nav-link group">
+                        <span class="nav-icon"><i class="fas fa-user-plus"></i></span>
+                        <span>회원가입</span>
+                        <span class="nav-glow"></span>
+                    </a>
+                </th:block>
+
+                <th:block sec:authorize="isAuthenticated()">
+                    <a id="usersLink" th:href="@{/users}" class="nav-link group">
+                        <span class="nav-icon"><i class="fas fa-users"></i></span>
+                        <span>사용자 정보</span>
+                        <span class="nav-glow"></span>
+                    </a>
+                    <a id="adminLink" th:href="@{/admin}" class="nav-link group nav-admin">
+                        <span class="nav-icon"><i class="fas fa-shield-alt"></i></span>
+                        <span>관리자</span>
+                        <span class="nav-glow"></span>
+                    </a>
+                    <a id="logoutLink" href="#" class="nav-link group nav-logout">
+                        <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                        <span>로그아웃</span>
+                        <span class="nav-glow"></span>
+                    </a>
+                </th:block>
+            </nav>
+        </div>
+    </header>
+    <style>
+        .nav-link {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #cbd5e1;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            transition: all 0.3s ease;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-icon {
+            width: 1.25rem;
+            height: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            color: #94a3b8;
+            transition: all 0.3s ease;
+        }
+
+        .nav-glow {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.4), transparent);
+            transition: left 0.6s ease;
+            pointer-events: none;
+        }
+
+        .nav-link:hover {
+            color: white;
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .nav-link:hover .nav-icon {
+            color: #818cf8;
+            filter: drop-shadow(0 0 4px currentColor);
+        }
+
+        .nav-link:hover .nav-glow {
+            left: 100%;
+        }
+
+        .nav-admin {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        .nav-admin:hover {
+            background: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.5);
+        }
+
+        .nav-logout {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .nav-logout:hover {
+            background: rgba(239, 68, 68, 0.4);
+            border-color: rgba(239, 68, 68, 0.5);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.5);
+        }
+
+        /* 헤더 배경 애니메이션 효과 */
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <script th:src="@{/js/logout.js}"></script>
+</div>
+</body>
+</html>

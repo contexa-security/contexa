@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOAR 승인 요청 타임아웃</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .timeout-icon {
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .warning-box h2 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .info-section {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .info-row {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .info-label {
+            font-weight: 600;
+            width: 150px;
+            color: #495057;
+        }
+        .info-value {
+            flex: 1;
+            color: #212529;
+        }
+        .action-section {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+        .action-section h3 {
+            margin-top: 0;
+            color: #004085;
+        }
+        .action-section ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .action-section li {
+            margin: 5px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            text-align: center;
+            margin: 20px auto;
+            display: block;
+            width: fit-content;
+        }
+        .btn:hover {
+            background-color: #5a67d8;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏰ 승인 요청 타임아웃</h1>
+        </div>
+        
+        <div class="content">
+            <div class="timeout-icon">⏱️</div>
+            
+            <div class="warning-box">
+                <h2>승인 요청이 만료되었습니다</h2>
+                <p>지정된 시간 내에 처리되지 않아 자동으로 취소되었습니다.</p>
+            </div>
+            
+            <div class="info-section">
+                <div class="info-row">
+                    <div class="info-label">승인 ID</div>
+                    <div class="info-value" th:text="${approvalId}">APR-2024-001</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">도구명</div>
+                    <div class="info-value" th:text="${toolName}">NetworkScanner</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">만료 시간</div>
+                    <div class="info-value" th:text="${timestamp}">2024-01-15 10:40:00</div>
+                </div>
+            </div>
+            
+            <div class="action-section">
+                <h3>다음 단계</h3>
+                <ul>
+                    <li>이 도구 실행이 여전히 필요한 경우, 새로운 승인 요청을 생성해야 합니다.</li>
+                    <li>타임아웃 설정을 조정하려면 시스템 관리자에게 문의하세요.</li>
+                    <li>긴급한 경우, 대체 수동 절차를 수행할 수 있습니다.</li>
+                </ul>
+            </div>
+            
+            <a th:href="${baseUrl + '/admin/soar-approvals'}" class="btn">
+                승인 대시보드로 이동
+            </a>
+            
+            <p style="text-align: center; color: #6c757d; font-size: 14px;">
+                자주 타임아웃이 발생한다면, 승인 정책 설정을 검토해 주세요.
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p>
+                이 메일은 AI3Security SOAR 시스템에서 자동으로 발송되었습니다.<br>
+                문의사항: <a href="mailto:support@ai3security.com">support@ai3security.com</a>
+            </p>
+            <p style="font-size: 12px; margin-top: 10px;">
+                <a th:href="${baseUrl}">AI3Security SOAR</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

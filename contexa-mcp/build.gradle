@@ -1,0 +1,16 @@
+bootJar.enabled = true
+jar.enabled = false
+
+dependencies {
+    implementation project(':contexa-common')
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server'
+    implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
+//    implementation("org.springframework.security:spring-security-oauth2-authorization-server:2.0.0-M2")
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

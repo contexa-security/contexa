@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>MFA - OTT 코드 요청</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script> /* Tailwind config */ </script>
+    <script th:src="@{/js/toast.js}"></script>
+    <th:block th:if="${_csrf != null}">
+        <meta name="_csrf" th:content="${_csrf.token}" />
+        <meta name="_csrf_header" th:content="${_csrf.headerName}" />
+    </th:block>
+</head>
+<body class="flex flex-col min-h-screen bg-app-light-gray">
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50"></div>
+<main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+    <div class="w-full max-w-md bg-white p-8 sm:p-10 rounded-xl shadow-2xl">
+        <div class="text-center mb-6">
+            <h2 class="mt-4 text-3xl font-bold text-app-primary">이메일 인증 코드 요청</h2>
+        </div>
+        <p class="text-center text-slate-600 mb-8">
+            MFA 인증을 위해 코드를 받을 이메일 주소를 확인 후 전송 버튼을 눌러주세요.
+        </p>
+        <form id="mfaOttRequestCodeForm" method="POST" th:action="@{/mfa/ott/generate}" class="space-y-6">
+            <div>
+                <label for="mfaOttEmail" class="block text-sm font-medium text-app-dark-gray">이메일 주소 (Username):</label>
+                <input type="email" id="mfaOttEmail" name="username" readonly
+                       class="mt-1 block w-full px-4 py-2.5 bg-gray-100 border border-app-border rounded-lg shadow-sm sm:text-sm" />
+            </div>
+            <div id="mfaOttRequestMessage" class="text-sm text-center min-h-[1.25rem]"></div>
+            <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <div>
+                <button type="submit" id="sendMfaOttCodeBtn" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent">
+                    인증 코드 전송 요청
+                </button>
+            </div>
+        </form>
+        <div class="mt-6 text-center">
+            <a th:href="@{/mfa/select-factor}" class="text-sm text-slate-600 hover:text-app-accent hover:underline">다른 인증 수단 선택</a>
+        </div>
+    </div>
+</main>
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:src="@{/js/mfa-ott-request-code.js}"></script> </body>
+</html>

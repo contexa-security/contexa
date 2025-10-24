@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOAR Tool Approval Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .status-bar {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-connected {
+            background-color: #10b981;
+            animation: pulse 2s infinite;
+        }
+        .status-disconnected {
+            background-color: #ef4444;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .approval-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .approval-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        .tool-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .tool-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        .risk-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .risk-critical {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .risk-high {
+            background-color: #fed7aa;
+            color: #9a3412;
+        }
+        .risk-medium {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        .risk-low {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .tool-details {
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: #f9fafb;
+            border-radius: 8px;
+        }
+        .detail-row {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        .detail-label {
+            font-weight: 600;
+            width: 120px;
+            color: #6b7280;
+        }
+        .detail-value {
+            flex: 1;
+            color: #1f2937;
+            font-family: 'Courier New', monospace;
+        }
+        .arguments-box {
+            background-color: #1f2937;
+            color: #10b981;
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-approve {
+            background-color: #10b981;
+            color: white;
+            flex: 1;
+        }
+        .btn-approve:hover {
+            background-color: #059669;
+        }
+        .btn-deny {
+            background-color: #ef4444;
+            color: white;
+            flex: 1;
+        }
+        .btn-deny:hover {
+            background-color: #dc2626;
+        }
+        .reason-input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            animation: slideIn 0.3s;
+            z-index: 1000;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .notification-success {
+            background-color: #10b981;
+        }
+        .notification-error {
+            background-color: #ef4444;
+        }
+        .notification-info {
+            background-color: #3b82f6;
+        }
+        #approvalQueue {
+            min-height: 200px;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        .empty-state svg {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SOAR Tool Approval Dashboard</h1>
+        
+        <div class="status-bar">
+            <div>
+                <span id="connectionStatus">
+                    <span class="status-indicator status-disconnected"></span>
+                    <span>Disconnected</span>
+                </span>
+            </div>
+            <div>
+                <strong>Session:</strong> <span id="sessionId">-</span>
+            </div>
+            <div>
+                <strong>Pending:</strong> <span id="pendingCount">0</span>
+            </div>
+        </div>
+
+        <div id="approvalQueue">
+            <div class="empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <p>No pending approval requests</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let stompClient = null;
+        let sessionId = null;
+        const pendingApprovals = new Map();
+
+        // Subscribe to a specific approval ID result topic
+        function subscribeToSpecificApproval(approvalId) {
+            if (stompClient && stompClient.connected) {
+                stompClient.subscribe('/topic/soar/approval-results/' + approvalId, function(message) {
+                    console.log('Received specific approval result for ' + approvalId + ':', message.body);
+                    handleApprovalStatus(JSON.parse(message.body));
+                });
+            }
+        }
+        
+        function connect() {
+            const socket = new SockJS('/ws-soar');
+            stompClient = Stomp.over(socket);
+            
+            stompClient.connect({}, function(frame) {
+                console.log('Connected: ' + frame);
+                sessionId = frame.headers['user-name'] || 'anonymous';
+                updateConnectionStatus(true);
+                
+                // Subscribe to SOAR approval broadcast topic
+                stompClient.subscribe('/topic/soar/approvals', function(message) {
+                    console.log('Received approval request:', message.body);
+                    handleApprovalRequest(JSON.parse(message.body));
+                });
+                
+                // Subscribe to approval results broadcast
+                stompClient.subscribe('/topic/soar/approval-results', function(message) {
+                    console.log('Received approval result:', message.body);
+                    handleApprovalStatus(JSON.parse(message.body));
+                });
+                
+                // Subscribe to user-specific notifications (if needed)
+                // Currently not used by server but kept for future use
+                stompClient.subscribe('/user/queue/notifications', function(message) {
+                    console.log('Received notification:', message.body);
+                    showNotification(JSON.parse(message.body));
+                });
+                
+                // Send heartbeat to keep connection alive
+                setInterval(function() {
+                    if (stompClient && stompClient.connected) {
+                        stompClient.send('/app/soar/heartbeat', {}, JSON.stringify({ 
+                            timestamp: new Date().toISOString(),
+                            sessionId: sessionId
+                        }));
+                    }
+                }, 30000); // Every 30 seconds
+                
+            }, function(error) {
+                console.error('STOMP error: ' + error);
+                updateConnectionStatus(false);
+                setTimeout(connect, 5000); // Reconnect after 5 seconds
+            });
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const indicator = statusEl.querySelector('.status-indicator');
+            const text = statusEl.querySelector('span:last-child');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-connected';
+                text.textContent = 'Connected';
+                document.getElementById('sessionId').textContent = sessionId || 'anonymous';
+            } else {
+                indicator.className = 'status-indicator status-disconnected';
+                text.textContent = 'Disconnected';
+                document.getElementById('sessionId').textContent = '-';
+            }
+        }
+
+        function handleApprovalRequest(request) {
+            console.log('Approval request received:', request);
+            
+            // Map server format to expected format
+            const approvalRequest = {
+                requestId: request.approvalId || request.requestId,
+                toolName: request.toolName,
+                toolType: request.type || 'function',
+                sessionId: sessionId,
+                requestTime: request.timestamp || new Date(),
+                reason: request.description || request.actionDescription || 'Tool execution requested',
+                riskLevel: request.riskLevel || 'MEDIUM',
+                arguments: request.parameters || request.arguments || {}
+            };
+            
+            // Subscribe to specific approval result topic
+            subscribeToSpecificApproval(approvalRequest.requestId);
+            
+            // Add to pending approvals
+            pendingApprovals.set(approvalRequest.requestId, approvalRequest);
+            updatePendingCount();
+            
+            // Create approval card
+            const card = createApprovalCard(approvalRequest);
+            
+            // Remove empty state if exists
+            const emptyState = document.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            // Add card to queue
+            document.getElementById('approvalQueue').appendChild(card);
+            
+            // Show notification
+            showNotification({
+                type: 'info',
+                message: `New approval request: ${request.toolName}`
+            });
+        }
+
+        function createApprovalCard(request) {
+            const card = document.createElement('div');
+            card.className = 'approval-card';
+            card.id = `approval-${request.requestId}`;
+            
+            const riskClass = `risk-${request.riskLevel.toLowerCase()}`;
+            
+            card.innerHTML = `
+                <div class="tool-header">
+                    <div class="tool-name">${request.toolName}</div>
+                    <span class="risk-badge ${riskClass}">${request.riskLevel}</span>
+                </div>
+                <div class="tool-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Tool Type:</span>
+                        <span class="detail-value">${request.toolType || 'function'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Session ID:</span>
+                        <span class="detail-value">${request.sessionId}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Request Time:</span>
+                        <span class="detail-value">${new Date(request.requestTime).toLocaleString()}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Reason:</span>
+                        <span class="detail-value">${request.reason || 'Tool execution requested'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Arguments:</span>
+                    </div>
+                    <div class="arguments-box">
+                        ${JSON.stringify(request.arguments, null, 2)}
+                    </div>
+                </div>
+                <input type="text" class="reason-input" placeholder="Enter reason for approval/denial (optional)" 
+                       id="reason-${request.requestId}">
+                <div class="action-buttons">
+                    <button class="btn btn-approve" onclick="approveRequest('${request.requestId}')">
+                        Approve
+                    </button>
+                    <button class="btn btn-deny" onclick="denyRequest('${request.requestId}')">
+                        Deny
+                    </button>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        function approveRequest(requestId) {
+            const reason = document.getElementById(`reason-${requestId}`).value;
+            sendApprovalResponse(requestId, true, reason);
+        }
+
+        function denyRequest(requestId) {
+            const reason = document.getElementById(`reason-${requestId}`).value || 'Request denied by user';
+            sendApprovalResponse(requestId, false, reason);
+        }
+
+        function sendApprovalResponse(requestId, approved, reason) {
+            const response = {
+                approvalId: requestId,
+                approved: approved,
+                comment: reason,
+                reviewer: sessionId
+            };
+            
+            // Send to the correct WebSocket endpoint
+            stompClient.send('/app/soar/approve/' + requestId, {}, JSON.stringify(response));
+            
+            // Remove card from UI
+            const card = document.getElementById(`approval-${requestId}`);
+            if (card) {
+                card.style.opacity = '0.5';
+                card.querySelector('.action-buttons').innerHTML = 
+                    `<div style="text-align: center; width: 100%; color: ${approved ? '#10b981' : '#ef4444'};">
+                        ${approved ? 'Approved' : 'Denied'}
+                    </div>`;
+                
+                setTimeout(() => card.remove(), 2000);
+            }
+            
+            // Remove from pending
+            pendingApprovals.delete(requestId);
+            updatePendingCount();
+            
+            // Check if queue is empty
+            if (pendingApprovals.size === 0) {
+                setTimeout(() => {
+                    if (pendingApprovals.size === 0) {
+                        document.getElementById('approvalQueue').innerHTML = `
+                            <div class="empty-state">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                <p>No pending approval requests</p>
+                            </div>
+                        `;
+                    }
+                }, 2100);
+            }
+        }
+
+        function handleApprovalStatus(status) {
+            console.log('Approval status update:', status);
+            showNotification({
+                type: status.approved ? 'success' : 'error',
+                message: `Tool ${status.toolName}: ${status.approved ? 'Approved' : 'Denied'}`
+            });
+        }
+
+        function updatePendingCount() {
+            document.getElementById('pendingCount').textContent = pendingApprovals.size;
+        }
+
+        function showNotification(notification) {
+            const notifEl = document.createElement('div');
+            notifEl.className = `notification notification-${notification.type}`;
+            notifEl.textContent = notification.message;
+            
+            document.body.appendChild(notifEl);
+            
+            setTimeout(() => {
+                notifEl.style.animation = 'slideIn 0.3s reverse';
+                setTimeout(() => notifEl.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize connection on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            connect();
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', function() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='역할 계층 목록')}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+            <div class="mb-8 flex flex-col sm:flex-row justify-between items-center">
+                <h1 class="text-3xl font-bold text-app-primary mb-4 sm:mb-0">역할 계층 목록</h1>
+                <a th:href="@{/admin/role-hierarchies/register}" class="px-6 py-2.5 bg-app-accent text-white font-medium text-xs leading-tight uppercase rounded shadow-md hover:bg-app-accent-hover hover:shadow-lg focus:bg-app-accent-hover focus:shadow-lg focus:outline-none focus:ring-0 active:bg-blue-800 active:shadow-lg transition duration-150 ease-in-out">
+                    새 계층 등록
+                </a>
+            </div>
+
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full w-full text-sm text-left text-app-dark-gray">
+                    <thead class="text-xs text-white uppercase bg-app-secondary">
+                    <tr>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">ID</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">계층 문자열</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">설명</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">활성화 여부</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">관리</th>
+                    </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-app-border">
+                    <tr th:each="hierarchy : ${hierarchies}">
+                        <td class="py-4 px-6" th:text="${hierarchy.id}">1</td>
+                        <td class="py-4 px-6" th:text="${hierarchy.hierarchyString}">ROLE_A > ROLE_B</td>
+                        <td class="py-4 px-6" th:text="${hierarchy.description}">기본 계층</td>
+                        <td class="py-4 px-6">
+                            <span th:if="${hierarchy.isActive}" class="text-success font-semibold">활성</span>
+                            <span th:unless="${hierarchy.isActive}" class="text-slate-500">비활성</span>
+                        </td>
+                        <td class="py-4 px-6">
+                            <a th:href="@{/admin/role-hierarchies/{id}(id=${hierarchy.id})}" class="text-app-accent hover:underline mr-3">수정</a>
+                            <a th:href="@{/admin/role-hierarchies/delete/{id}(id=${hierarchy.id})}" class="text-error hover:underline" onclick="return confirm('정말로 이 계층을 삭제하시겠습니까?');">삭제</a>
+                            <form th:if="${!hierarchy.isActive}" th:action="@{/admin/role-hierarchies/{id}/activate(id=${hierarchy.id})}" method="post" class="inline-block ml-3">
+                                <button type="submit" class="text-green-600 hover:underline text-sm" onclick="return confirm('정말로 이 계층을 활성화하시겠습니까? (기존 활성 계층은 비활성화됩니다)');">활성화</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(hierarchies)}">
+                        <td colspan="5" class="py-4 px-6 text-center text-slate-500">
+                            표시할 역할 계층이 없습니다.
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div th:if="${errorMessage}" class="mt-6 text-center text-error">
+                <p th:text="${errorMessage}"></p>
+            </div>
+            <div th:if="${message}" class="mt-6 text-center text-success">
+                <p th:text="${message}"></p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/toast.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        // initAuth 함수는 init-auth.js에 정의되어 전역으로 노출됨
+        if (typeof window.initAuth === 'function') {
+            window.initAuth();
+        }
+        // 토스트 메시지 표시
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+    /*]]>*/
+</script>
+</body>
+</html>

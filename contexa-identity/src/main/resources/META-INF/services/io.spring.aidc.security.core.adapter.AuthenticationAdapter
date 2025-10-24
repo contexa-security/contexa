@@ -1,0 +1,6 @@
+io.spring.aidc.security.core.adapter.auth.FormAuthenticationAdapter
+io.spring.aidc.security.core.adapter.auth.RestAuthenticationAdapter
+io.spring.aidc.security.core.adapter.auth.MfaRestAuthenticationAdapter
+io.spring.aidc.security.core.adapter.auth.OttAuthenticationAdapter
+io.spring.aidc.security.core.adapter.auth.PasskeyAuthenticationAdapter
+io.spring.aidc.security.core.adapter.auth.MfaAuthenticationAdapter

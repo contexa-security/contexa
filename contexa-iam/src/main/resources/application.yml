@@ -1,0 +1,302 @@
+security:
+  # Zero Trust 설정 (aiam 모듈)
+  zerotrust:
+    enabled: true
+    mode: TRUST  # STANDARD(기본), TRUST(Redis 조회), REALTIME(실시간 AI)
+    
+ai3security:
+  synthesis:
+    dynamic-threat-response:
+      llm-model: gpt-4-turbo
+      default-token-usage: 2000
+      max-token-usage: 4000
+      base-confidence-score: 0.7
+      success-bonus: 0.1
+      high-threat-reduction-bonus: 0.1
+      low-false-positive-bonus: 0.1
+      max-confidence-score: 0.95
+      processing-timeout-seconds: 60
+      async-processing-timeout-seconds: 120
+    static-access-optimization:
+      default-automation-level: SEMI_AUTOMATED
+      base-confidence-score: 0.7
+      large-dataset-bonus: 0.1
+      critical-priority-bonus: 0.15
+      high-priority-bonus: 0.1
+      specific-target-bonus: 0.05
+      max-confidence-score: 0.95
+      large-dataset-threshold: 10
+      effective-days-delay: 7
+      default-review-period: 90days
+      default-expiration-policy: AUTO_RENEW
+    ml-model:
+      threat-prediction-endpoint: http://localhost:8090/api/v1/threat/predict
+      access-prediction-endpoint: http://localhost:8090/api/v1/access/predict
+      policy-effect-endpoint: http://localhost:8090/api/v1/policy/effect
+      threat-model-version: v2.1.0
+      access-model-version: v1.8.0
+      policy-model-version: v1.5.0
+      connection-timeout-ms: 5000
+      read-timeout-ms: 30000
+      max-retries: 3
+      retry-delay-ms: 1000
+      enable-fallback: true
+      fallback-strategy: HEURISTIC
+    metrics:
+      enabled: true
+      prefix: ai3security.synthesis
+      publish-percentile-histogram: true
+      error-rate-threshold: 0.05
+      latency-threshold-ms: 5000
+      throughput-threshold: 100
+  advisor:
+    enabled: false  # Advisor 시스템 활성화 (기본값)
+    chain-profile: STANDARD  # 체인 프로파일 설정
+    security:
+      enabled: true  # Security Context Advisor 활성화
+      order: 50      # 실행 순서 (낮을수록 먼저 실행)
+      require-authentication: false  # 인증 필수 여부
+    soar:
+      enabled: false  # SOAR Advisor 활성화
+      order: 100     # Security Context Advisor 이후 실행
+      approval:
+        enabled: true
+        timeout: 300  # 승인 타임아웃 (초)
+
+# Spring 설정
+spring:
+  profiles:
+    active: local, hcad  # 로컬 개발환경 프로파일 (distributed -> local 변경)
+  main:
+    web-application-type: servlet
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: leaven73@gmail.com        # 발송용 계정
+    password: kyilbzbhynwnndwp  # Gmail 앱 비밀번호 or OAuth2 토큰
+    protocol: smtp
+    default-encoding: UTF-8
+
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            trust: smtp.gmail.com
+  threads:
+    virtual:
+      enabled: false
+  mvc:
+    async:
+      request-timeout: 300000 # 5분 (밀리초)
+  datasource:
+    url: jdbc:postgresql://localhost:5432/identity
+    username: admin
+    password: 1111
+    hikari:
+      auto-commit: false
+    driver-class-name: org.postgresql.Driver
+
+  ai:
+    etl:
+      batch-size: 100
+      parallel-readers: 4
+      chunk-size: 1000
+      chunk-overlap: 200
+      behavior:
+        retention-days: 90
+    # MCP Server Configuration
+    mcp:
+      server:
+        enabled: true
+        name: AI3Security MCP Server
+        version: 1.0.0
+        type: SYNC  # 동기 서버
+        sse-message-endpoint: /mcp/message  # SSE 엔드포인트
+        stdio: false  # HTTP/SSE 모드 사용 (STDIO 모드 비활성화)
+        resource-change-notification: true
+        tool-change-notification: true
+        prompt-change-notification: true
+      
+      client:
+        enabled: true
+        toolcallback:
+          enabled: true  # MCP 도구 자동 등록
+        sse:
+          connections:
+            local-server:
+              url: http://localhost:9090  # 로컬 MCP 서버 연결
+            
+    chat:
+      model:
+        priority: ollama,anthropic,openai  # 원하는 순서로 변경 가능
+
+      embedding:
+        model:
+          priority: ollama,openai  # 원하는 순서로 변경 가능
+
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        enabled: false
+        options:
+          model: claude-sonnet-4-20250514
+          temperature: 0.3  # JSON 생성에는 낮은 temperature가 좋음
+
+    ollama:
+      base-url: http://127.0.0.1:11434
+      embedding:
+        enabled: false
+        model: mxbai-embed-large
+      chat:
+        options:
+          # Tool Calling을 지원하는 모델 옵션들:
+          model: llama3.1:8b    # Tool Calling 지원 (권장)
+          # model: mistral:7b   # Tool Calling 지원 (대안)
+          # model: qwen2.5:7b   # Tool Calling 지원 (대안)
+          # model: exaone3.5    # Tool Calling 미지원 ❌
+          temperature: 0.3      # 🚀 빠른 응답을 위해 낮춤 (0.7 → 0.3)
+          timeout: 10s          # 🚀 AI 호출 타임아웃 10초 명시
+#          keep_alive: -1
+
+    # OpenAI는 embedding용으로만 사용
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      base-url: https://api.openai.com
+      chat:
+        enabled: false  # chat 비활성화, embedding만 사용
+      embedding:
+        enabled: true
+        options:
+          model: text-embedding-3-small
+
+    vectorstore:
+      pgvector:
+        table-name: vector_store
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
+        dimensions: 1536
+        initialize-schema: true
+        max-document-batch-size: 10000
+        observation:
+          enabled: true  # ⭐ Observation 활성화
+          include-query-request: true  # 검색 요청 정보 포함
+          include-query-response: true  # 검색 응답 정보 포함
+
+  jpa:
+    database: POSTGRESQL
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update  # production: validate, development: update (스키마 자동 업데이트)
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: update
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        connection:
+          provider_disables_autocommit: true
+        query:
+          in_clause_parameter_padding: true
+    show-sql: false
+
+  jackson:
+    serialization:
+      fail-on-self-references: false
+      fail-on-empty-beans: false  # 직렬화 불가능한 객체 문제 방지
+    deserialization:
+      fail-on-unknown-properties: false  # 알 수 없는 프로퍼티 허용
+
+  auth:
+    mfa:
+      session-timeout-ms: 600000      # 10분
+      max-retry-attempts: 5
+      minimum-delay-ms: 500
+      circuit-breaker-failure-threshold: 5
+      detailed-logging-enabled: true
+      metrics-enabled: true
+      audit-logging-enabled: true
+      session-storage-type: redis
+
+  cache:
+    type: redis
+    redis:
+      cache-null-values: false # null 값 캐싱 여부
+      time-to-live: 3600000 # 1시간 (밀리초)
+
+  # Spring Data Redis 설정
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      #      password: # Redis 비밀번호 (필요한 경우)
+      timeout: 200000
+      # 연결 풀 설정
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 5s
+      # SSL 설정
+      ssl:
+        enabled: false
+
+logging:
+  level:
+    # WebSocket 및 메시징 디버깅
+    org.springframework.web.socket: DEBUG
+    org.springframework.messaging: DEBUG
+    org.springframework.web.socket.messaging: DEBUG
+    org.springframework.web.socket.config: DEBUG
+    org.springframework.messaging.simp: DEBUG
+    org.springframework.messaging.simp.broker: DEBUG
+    org.springframework.messaging.simp.stomp: DEBUG
+    org.springframework.messaging.support: DEBUG
+    io.spring.iam.aiam.config: DEBUG
+    io.spring.iam.aiam.controller: DEBUG
+    io.spring.aicore.soar.event: DEBUG
+    # Spring Boot AutoConfiguration 디버깅
+    org.springframework.boot.autoconfigure: DEBUG
+    org.springframework.ai.mcp: DEBUG
+    # Redisson 로깅 레벨 조정
+    org.redisson: INFO  # DEBUG → INFO로 변경
+    org.redisson.connection: INFO  # TRACE → INFO로 변경
+    org.redisson.client: INFO  # TRACE → INFO로 변경
+    # Spring Boot 시작 로깅
+    org.springframework.boot: INFO  # DEBUG → INFO로 변경
+    # Redis 관련 로깅
+    org.springframework.data.redis: INFO  # DEBUG → INFO로 변경
+    io.spring.redis: DEBUG
+    # Hibernate SQL 로깅
+    org.hibernate.SQL: DEBUG
+    # 파라미터 바인딩 값 로깅
+    org.hibernate.type.descriptor.sql.BasicBinder: DEBUG
+    # 결과 추출 로깅
+    org.hibernate.type.descriptor.sql.BasicExtractor: DEBUG
+    # QueryDSL 로깅
+    com.querydsl.sql: DEBUG
+    com.querydsl.jpa: DEBUG
+    # Spring Transaction 로깅
+    org.springframework.transaction: DEBUG
+    # JPA Transaction 로깅
+    org.springframework.orm.jpa: DEBUG
+    org.hibernate.orm.jdbc.bind: DEBUG
+    # AI Core 디버깅
+    io.spring.aicore.components.prompt: DEBUG
+    io.spring.aicore.pipeline: DEBUG
+    io.spring.aicore.llm: DEBUG
+#    io.spring.aicore: ERROR
+    io.spring.iam.aiam.labs: DEBUG
+    org.springframework.messaging.simp.annotation: DEBUG
+
+# 기본 위험 평가 (빠른 응답)
+risk:
+  engine:
+    default-score: 50
+    business-hours-bonus: -10
+    internal-network-bonus: -20

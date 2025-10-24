@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='MFA - Passkey 인증')}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray"
+      th:data-mfa-passkey-assertion-options-url="${mfaPasskeyAssertionOptionsUrl}"
+      th:data-mfa-passkey-processing-url="${mfaPasskeyProcessingUrl}">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+        <div class="w-full max-w-md bg-white p-8 sm:p-10 rounded-xl shadow-2xl text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-auto text-app-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 class="mt-4 text-3xl font-bold text-app-primary mb-4">Passkey 인증 (MFA)</h2>
+            <p class="text-slate-600 mb-8">
+                <strong id="usernameDisplayPasskey" class="font-semibold text-app-accent" th:text="${usernameForDisplay ?: '사용자'}">사용자</strong>님, 등록된 Passkey (생체 정보 또는 보안키)를 사용하여 2차 인증을 완료하세요.
+            </p>
+            <button id="mfaPasskeyVerifyBtn"
+                    class="w-full flex items-center justify-center px-6 py-3.5 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12zm-1-5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
+                Passkey로 인증
+            </button>
+            <div id="passkeyMessage" class="mt-4 text-sm min-h-[1.25rem]">
+                <p th:if="${errorMessage}" class="text-error font-medium" th:text="${errorMessage}"></p>
+            </div>
+            <div class="mt-6 text-center">
+                <a th:href="@{/mfa/select-factor}" class="text-sm text-slate-600 hover:text-app-accent hover:underline">다른 인증 수단 선택</a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:src="@{/js/mfa-verify-passkey.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const usernameForPasskeyMfa = /*[[${usernameForDisplay}]]*/ sessionStorage.getItem('mfaUsername');
+    const usernameDisplayElPasskey = document.getElementById('usernameDisplayPasskey');
+    if (usernameDisplayElPasskey && usernameForPasskeyMfa) {
+        usernameDisplayElPasskey.textContent = usernameForPasskeyMfa;
+    }
+
+    const mfaSessionIdForPasskeyMfa = sessionStorage.getItem("mfaSessionId");
+    if (!mfaSessionIdForPasskeyMfa && typeof showToast === 'function') {
+        showToast("MFA 세션 정보를 찾을 수 없습니다. 다시 로그인 해주세요.", "error", 3000);
+    }
+
+    const urlParamsPasskey = new URLSearchParams(window.location.search);
+    const errorParamPasskey = urlParamsPasskey.get('error');
+    const passkeyMessageDivMfa = document.getElementById("passkeyMessage");
+    const modelErrorMessagePasskey = /*[[${errorMessage}]]*/ null;
+
+
+    if (passkeyMessageDivMfa) {
+        if (modelErrorMessagePasskey) {
+            passkeyMessageDivMfa.innerHTML = `<p class="text-error font-medium">${modelErrorMessagePasskey}</p>`;
+        } else if (errorParamPasskey) {
+            let displayErrorMessage = "Passkey 인증 중 오류가 발생했습니다.";
+            if (errorParamPasskey === 'invalid_passkey_challenge_context') {
+                displayErrorMessage = "잘못된 Passkey 인증 요청입니다. 다시 시도해주세요.";
+            } else if (errorParamPasskey === 'passkey_verification_failed') {
+                displayErrorMessage = "Passkey 인증에 실패했습니다. 등록된 기기가 맞는지 확인해주세요.";
+            }
+            passkeyMessageDivMfa.innerHTML = `<p class="text-error font-medium">${displayErrorMessage}</p>`;
+            if (typeof showToast === 'function') showToast(displayErrorMessage, 'error');
+        }
+    }
+    /*]]>*/
+</script>
+</body>
+</html>

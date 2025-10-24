@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='SOAR 분석')}"></th:block>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            --danger-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --dark-bg: rgba(15, 23, 42, 0.95);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+        }
+
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.6s ease;
+        }
+
+        .page-title {
+            font-size: 3rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: #94a3b8;
+            font-size: 1.2rem;
+        }
+
+        /* Input Section Styles */
+        .input-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.8s ease;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .section-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-gradient);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        /* Form Styles */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            color: #cbd5e1;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(71, 85, 105, 0.4);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: #e2e8f0;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            background: rgba(30, 41, 59, 0.9);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* Quick Action Buttons */
+        .quick-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-action-btn {
+            padding: 0.5rem 1rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 0.5rem;
+            color: #a5b4fc;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .quick-action-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: #6366f1;
+            color: #c7d2fe;
+            transform: translateY(-2px);
+        }
+
+        /* Analyze Button */
+        .analyze-button {
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 1rem;
+            padding: 1rem 2rem;
+            color: white;
+            font-size: 1.125rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+        }
+
+        .analyze-button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
+        }
+
+        .analyze-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Results Section */
+        .results-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            display: none;
+            animation: fadeIn 0.8s ease;
+            position: relative;
+            z-index: 10;
+        }
+
+        .results-section.show {
+            display: block;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .result-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            border-radius: 0.5rem;
+            color: #86efac;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .result-content {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .result-section {
+            margin-bottom: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .result-section-title {
+            color: #a5b4fc;
+            font-size: 0.875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .analysis-text {
+            color: #e2e8f0;
+            font-size: 1rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .recommendations-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .recommendation-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-left: 3px solid #6366f1;
+            border-radius: 0.5rem;
+            color: #e2e8f0;
+        }
+
+        .recommendation-icon {
+            color: #a5b4fc;
+            margin-top: 0.125rem;
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .tool-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            border-radius: 0.5rem;
+            color: #86efac;
+            font-size: 0.875rem;
+        }
+
+        .metadata-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .metadata-label {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metadata-value {
+            color: #e2e8f0;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        /* New Professional UI Styles */
+        .analysis-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .analysis-card {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 1rem;
+            overflow: hidden;
+            animation: slideIn 0.5s ease;
+        }
+
+        .analysis-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .card-header i {
+            color: #a5b4fc;
+            font-size: 1.25rem;
+        }
+
+        .card-header h4 {
+            flex: 1;
+            margin: 0;
+            color: #e2e8f0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .threat-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .threat-critical {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+        }
+
+        .threat-high {
+            background: rgba(251, 146, 60, 0.2);
+            border: 1px solid rgba(251, 146, 60, 0.4);
+            color: #fdba74;
+        }
+
+        .threat-medium {
+            background: rgba(250, 204, 21, 0.2);
+            border: 1px solid rgba(250, 204, 21, 0.4);
+            color: #fde047;
+        }
+
+        .threat-low {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.4);
+            color: #86efac;
+        }
+
+        .threat-unknown {
+            background: rgba(107, 114, 128, 0.2);
+            border: 1px solid rgba(107, 114, 128, 0.4);
+            color: #9ca3af;
+        }
+
+        .count-badge {
+            padding: 0.25rem 0.5rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 0.5rem;
+            color: #a5b4fc;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        .playbook-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .playbook-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            border-radius: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .playbook-item:hover {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateX(4px);
+        }
+
+        .playbook-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem;
+            height: 2rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 50%;
+            color: #a5b4fc;
+            font-size: 0.875rem;
+            font-weight: 700;
+        }
+
+        .playbook-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border-radius: 0.5rem;
+            color: #c7d2fe;
+        }
+
+        .playbook-details {
+            flex: 1;
+        }
+
+        .playbook-name {
+            color: #e2e8f0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        .playbook-desc {
+            color: #94a3b8;
+            font-size: 0.8125rem;
+            line-height: 1.4;
+        }
+
+        .playbook-status {
+            color: #86efac;
+        }
+
+        .results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .results-list li {
+            padding: 0.75rem;
+            background: rgba(30, 41, 59, 0.5);
+            border-left: 3px solid rgba(99, 102, 241, 0.5);
+            border-radius: 0.5rem;
+            color: #e2e8f0;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .summary-text {
+            color: #e2e8f0;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .next-steps {
+            padding: 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 0.75rem;
+            color: #cbd5e1;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(71, 85, 105, 0.3);
+        }
+
+        .export-btn {
+            padding: 0.75rem 1.5rem;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 0.75rem;
+            color: #a5b4fc;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .export-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+            border-color: #6366f1;
+            color: #c7d2fe;
+            transform: translateY(-2px);
+        }
+
+        .tool-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            border-radius: 0.75rem;
+            transition: all 0.3s ease;
+        }
+
+        .tool-card:hover {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(34, 197, 94, 0.3);
+            transform: translateY(-4px);
+        }
+
+        .tool-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 3rem;
+            height: 3rem;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 50%;
+            color: #86efac;
+            font-size: 1.25rem;
+        }
+
+        .tool-name {
+            color: #e2e8f0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .tool-status {
+            color: #86efac;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        /* Notification Styles */
+        .notification {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(99, 102, 241, 0.4);
+            border-radius: 0.75rem;
+            color: #e2e8f0;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            opacity: 0;
+            transform: translateY(-1rem);
+            transition: all 0.3s ease;
+            z-index: 10000;
+            backdrop-filter: blur(10px);
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .notification-success {
+            border-color: rgba(34, 197, 94, 0.4);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .notification-error {
+            border-color: rgba(239, 68, 68, 0.4);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .notification-info {
+            border-color: rgba(99, 102, 241, 0.4);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        /* Status color classes */
+        .status-success {
+            color: #86efac;
+        }
+
+        .status-failed {
+            color: #fca5a5;
+        }
+
+        .status-completed {
+            color: #86efac;
+        }
+
+        /* Animations */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(1rem);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .playbook-item {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .export-buttons {
+                flex-direction: column;
+            }
+
+            .metadata-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tools-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+        }
+
+        /* Loading State */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .loading-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 1.5rem;
+            padding: 3rem;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(99, 102, 241, 0.2);
+            border-top: 4px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1.5rem;
+        }
+
+        .loading-text {
+            color: #e2e8f0;
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .loading-subtext {
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 1rem;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div th:insert="~{fragments/header :: header}"></div>
+
+    <main class="flex">
+        <div th:insert="~{fragments/admin-menu :: menu}"></div>
+
+        <div class="flex-1">
+            <div class="main-container">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <h1 class="page-title">SOAR 분석 시스템</h1>
+                    <p class="page-subtitle">AI 기반 보안 오케스트레이션 및 자동 대응</p>
+                </div>
+
+                <!-- Input Section -->
+                <div class="input-section">
+                    <div class="section-header">
+                        <div class="section-icon">
+                            <i class="fas fa-shield-alt text-white text-xl"></i>
+                        </div>
+                        <h2 class="section-title">보안 인시던트 정보 입력</h2>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <button onclick="fillSampleIncident('phishing')" class="quick-action-btn">
+                            <i class="fas fa-fish mr-2"></i>피싱 샘플
+                        </button>
+                        <button onclick="fillSampleIncident('ransomware')" class="quick-action-btn">
+                            <i class="fas fa-lock mr-2"></i>랜섬웨어 샘플
+                        </button>
+                        <button onclick="fillSampleIncident('ddos')" class="quick-action-btn">
+                            <i class="fas fa-network-wired mr-2"></i>DDoS 샘플
+                        </button>
+                        <button onclick="clearAllInputs()" class="quick-action-btn">
+                            <i class="fas fa-eraser mr-2"></i>초기화
+                        </button>
+                    </div>
+
+                    <!-- Input Form -->
+                    <form id="soarForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">인시던트 ID</label>
+                                <input type="text" id="incidentIdInput" class="form-input" 
+                                       placeholder="예: INC-2024-001" value="INC-2024-CRITICAL-001">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">위협 유형</label>
+                                <input type="text" id="threatTypeInput" class="form-input" 
+                                       placeholder="예: Unauthorized Access" value="Active Cyber Attack - Botnet C&C Communication">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">심각도</label>
+                                <select id="severityInput" class="form-select">
+                                    <option value="LOW">LOW</option>
+                                    <option value="MEDIUM">MEDIUM</option>
+                                    <option value="HIGH">HIGH</option>
+                                    <option value="CRITICAL" selected>CRITICAL</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">조직 ID</label>
+                                <input type="text" id="organizationIdInput" class="form-input" 
+                                       placeholder="예: org_12345" value="org_acme_corp">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">인시던트 상세 설명</label>
+                            <textarea id="descriptionInput" class="form-textarea" 
+                                      placeholder="인시던트에 대한 상세한 설명을 입력하세요...">긴급! 악성 IP 185.220.101.45 에서 무차별 대입 공격이 진행 중입니다. 30분 동안 500회 이상의 로그인 실패 후 admin@company.com 계정이 탈취되었습니다. 해당 IP는 알려진 봇넷 C&C 서버이며, 내부 시스템에서 의심스러운 프로세스 cryptominer.exe가 실행 중입니다.</textarea>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">영향받는 자산</label>
+                                <input type="text" id="affectedAssetsInput" class="form-input" 
+                                       placeholder="쉼표로 구분 (예: server1, server2)" 
+                                       value="mail.company.com, crm.company.com, vpn-gateway-01">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">탐지 소스</label>
+                                <input type="text" id="detectedSourceInput" class="form-input" 
+                                       placeholder="예: SIEM, EDR" value="Splunk SIEM, CrowdStrike EDR">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">AI 분석 요청 (선택사항)</label>
+                            <textarea id="userQueryInput" class="form-textarea" 
+                                      placeholder="AI에게 요청할 추가 분석 내용을 입력하세요...">이 인시던트의 근본 원인을 분석하고, 즉각적인 대응 방안과 장기적인 예방 조치를 제시해주세요. 특히 다음 도구들을 활용해주세요: threat_intelligence, log_analysis, network_scan, ip_blocking, network_isolation, process_kill, session_termination</textarea>
+                        </div>
+
+                        <button type="button" id="analyzeSoarBtn" class="analyze-button">
+                            <i class="fas fa-robot"></i>
+                            <span id="btnText">AI SOAR 분석 시작</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" class="results-section">
+                    <div class="result-header">
+                        <div class="section-header" style="border: none; padding: 0; margin: 0;">
+                            <div class="section-icon">
+                                <i class="fas fa-chart-line text-white text-xl"></i>
+                            </div>
+                            <h2 class="section-title">분석 결과</h2>
+                        </div>
+                        <div id="resultStatus" class="result-status">
+                            <i class="fas fa-check-circle"></i>
+                            <span>분석 완료</span>
+                        </div>
+                    </div>
+
+                    <!-- Analysis Result -->
+                    <div class="result-section">
+                        <h3 class="result-section-title">
+                            <i class="fas fa-microscope"></i>
+                            AI 분석 결과
+                        </h3>
+                        <div class="result-content">
+                            <div id="analysisResult" class="analysis-text"></div>
+                        </div>
+                    </div>
+
+                    <!-- Recommendations -->
+                    <div id="recommendationsSection" class="result-section" style="display: none;">
+                        <h3 class="result-section-title">
+                            <i class="fas fa-lightbulb"></i>
+                            권장 조치사항
+                        </h3>
+                        <ul id="recommendationsList" class="recommendations-list"></ul>
+                    </div>
+
+                    <!-- Executed Tools -->
+                    <div id="toolsSection" class="result-section" style="display: none;">
+                        <h3 class="result-section-title">
+                            <i class="fas fa-tools"></i>
+                            실행된 보안 도구
+                        </h3>
+                        <div id="toolsGrid" class="tools-grid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">AI 분석 진행 중...</div>
+            <div class="loading-subtext">보안 도구를 실행하고 있습니다</div>
+        </div>
+    </div>
+
+    <div th:insert="~{fragments/footer :: footer}"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2/lib/stomp.min.js"></script>
+    
+    <!-- SOAR Enhanced System Dependencies -->
+    <script th:src="@{/js/soar-error-handler.js}"></script>
+    <script th:src="@{/js/soar-state-manager.js}"></script>
+    <script th:src="@{/js/soar-websocket-enhanced.js}"></script>
+    <script th:src="@{/js/soar-approval-modal.js}"></script>
+    <script th:src="@{/js/soar-approval-handler.js}"></script>
+    <script th:src="@{/js/soar-monitoring-dashboard.js}"></script>
+    <script th:src="@{/js/soar-manager.js}"></script>
+    
+    <!-- Main SOAR Analysis Enhanced -->
+    <script th:src="@{/js/soar-analysis-enhanced.js}"></script>
+    
+    <!-- Helper Functions -->
+    <script>
+        // 샘플 인시던트 데이터 채우기
+        function fillSampleIncident(type) {
+            const samples = {
+                phishing: {
+                    incidentId: 'INC-PHISH-' + Date.now(),
+                    threatType: 'Phishing Attack',
+                    description: '의심스러운 피싱 이메일이 발견되었습니다. 사용자가 악성 링크를 클릭했을 가능성이 있습니다.',
+                    affectedAssets: 'mail-server-01, user-workstation-05',
+                    detectedSource: 'Email Security Gateway',
+                    severity: 'HIGH',
+                    organizationId: 'org_default',
+                    userQuery: '피싱 이메일 분석 및 대응 방안 수립'
+                },
+                ransomware: {
+                    incidentId: 'INC-RANSOM-' + Date.now(),
+                    threatType: 'Ransomware',
+                    description: '랜섬웨어 감염이 의심되는 시스템이 발견되었습니다. 파일 암호화 활동이 감지되었습니다.',
+                    affectedAssets: 'file-server-02, backup-server-01',
+                    detectedSource: 'EDR Solution',
+                    severity: 'CRITICAL',
+                    organizationId: 'org_default',
+                    userQuery: '랜섬웨어 격리 및 복구 절차 실행'
+                },
+                ddos: {
+                    incidentId: 'INC-DDOS-' + Date.now(),
+                    threatType: 'DDoS Attack',
+                    description: '웹 서버에 대한 대규모 DDoS 공격이 감지되었습니다. 서비스 가용성이 위협받고 있습니다.',
+                    affectedAssets: 'web-server-cluster, load-balancer-01',
+                    detectedSource: 'Network IDS',
+                    severity: 'HIGH',
+                    organizationId: 'org_default',
+                    userQuery: 'DDoS 공격 차단 및 트래픽 필터링'
+                }
+            };
+            
+            const sample = samples[type];
+            if (sample) {
+                document.getElementById('incidentIdInput').value = sample.incidentId;
+                document.getElementById('threatTypeInput').value = sample.threatType;
+                document.getElementById('descriptionInput').value = sample.description;
+                document.getElementById('affectedAssetsInput').value = sample.affectedAssets;
+                document.getElementById('detectedSourceInput').value = sample.detectedSource;
+                document.getElementById('severityInput').value = sample.severity;
+                document.getElementById('organizationIdInput').value = sample.organizationId;
+                document.getElementById('userQueryInput').value = sample.userQuery;
+            }
+        }
+        
+        // 모든 입력 필드 초기화
+        function clearAllInputs() {
+            document.getElementById('incidentIdInput').value = '';
+            document.getElementById('threatTypeInput').value = '';
+            document.getElementById('descriptionInput').value = '';
+            document.getElementById('affectedAssetsInput').value = '';
+            document.getElementById('detectedSourceInput').value = '';
+            document.getElementById('severityInput').value = 'MEDIUM';
+            document.getElementById('organizationIdInput').value = 'org_default';
+            document.getElementById('userQueryInput').value = '';
+        }
+    </script>
+</body>
+</html>

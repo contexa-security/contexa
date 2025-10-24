@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI3Security - 이중 모드 시뮬레이션 결과</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+    <style>
+        :root {
+            --unprotected-color: #ef4444;
+            --protected-color: #10b981;
+            --neutral-color: #6b7280;
+            --warning-color: #f59e0b;
+            --dark-bg: rgba(15, 23, 42, 0.95);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(148, 163, 184, 0.8);
+            --border-color: rgba(71, 85, 105, 0.3);
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--text-primary);
+        }
+
+        .dashboard-header {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .campaign-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .mode-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .mode-unprotected {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--unprotected-color);
+            border: 1px solid var(--unprotected-color);
+        }
+
+        .mode-protected {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--protected-color);
+            border: 1px solid var(--protected-color);
+        }
+
+        .comparison-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .comparison-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .security-score {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .score-circle {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 10px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .score-value {
+            font-size: 3rem;
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        .score-grade {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .effectiveness-bar {
+            position: relative;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .effectiveness-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--unprotected-color), var(--warning-color), var(--protected-color));
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 1rem;
+            color: white;
+            font-weight: bold;
+            transition: width 1s ease;
+        }
+
+        .attack-comparison {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 2rem;
+            align-items: center;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .attack-result {
+            text-align: center;
+        }
+
+        .vs-indicator {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-secondary);
+        }
+
+        .success-rate {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-top: 0.5rem;
+        }
+
+        .data-breach-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .breach-critical {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--unprotected-color);
+        }
+
+        .breach-prevented {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--protected-color);
+        }
+
+        .recommendation-item {
+            padding: 1rem;
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 3px solid #3b82f6;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: bold;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .improvement-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .improvement-positive {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--protected-color);
+        }
+
+        .improvement-negative {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--unprotected-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="campaign-info">
+            <div>
+                <h2>이중 모드 시뮬레이션 결과</h2>
+                <p class="text-secondary mb-0">캠페인 ID: <span id="campaignId">-</span></p>
+            </div>
+            <div class="d-flex gap-3">
+                <div class="mode-indicator mode-unprotected">
+                    <i class="fas fa-shield-virus"></i> 무방비 모드
+                </div>
+                <div class="mode-indicator mode-protected">
+                    <i class="fas fa-shield-alt"></i> 방어 모드
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+        <!-- 전체 보안 점수 -->
+        <div class="comparison-card">
+            <div class="row">
+                <div class="col-md-4 text-center">
+                    <h4 class="mb-4">전체 보안 효과성</h4>
+                    <div class="security-score">
+                        <div class="score-circle"></div>
+                        <div>
+                            <div class="score-value" id="overallScore">0</div>
+                            <div class="score-grade" id="scoreGrade">-</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <h4 class="mb-4">핵심 지표</h4>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>공격 차단률</span>
+                            <span id="preventionRate">0%</span>
+                        </div>
+                        <div class="effectiveness-bar">
+                            <div class="effectiveness-fill" id="preventionBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>데이터 보호율</span>
+                            <span id="protectionRate">0%</span>
+                        </div>
+                        <div class="effectiveness-bar">
+                            <div class="effectiveness-fill" id="protectionBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>탐지 효율성</span>
+                            <span id="detectionRate">0%</span>
+                        </div>
+                        <div class="effectiveness-bar">
+                            <div class="effectiveness-fill" id="detectionBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 모드별 비교 -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="comparison-card">
+                    <h4 class="mb-3">
+                        <span class="mode-indicator mode-unprotected">무방비 모드</span>
+                    </h4>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value text-danger" id="unprotectedSuccess">0</div>
+                            <div class="stat-label">공격 성공</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-danger" id="unprotectedBreaches">0</div>
+                            <div class="stat-label">데이터 유출</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-warning" id="unprotectedRecords">0</div>
+                            <div class="stat-label">유출 레코드</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="unprotectedDuration">0ms</div>
+                            <div class="stat-label">평균 시간</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="comparison-card">
+                    <h4 class="mb-3">
+                        <span class="mode-indicator mode-protected">방어 모드</span>
+                    </h4>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value text-success" id="protectedBlocked">0</div>
+                            <div class="stat-label">공격 차단</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-success" id="protectedDetected">0</div>
+                            <div class="stat-label">탐지됨</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value text-info" id="protectedEvents">0</div>
+                            <div class="stat-label">보안 이벤트</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="protectedResponse">0ms</div>
+                            <div class="stat-label">평균 탐지</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 공격 유형별 분석 -->
+        <div class="comparison-card">
+            <h4 class="mb-4">공격 유형별 효과성 분석</h4>
+            <div id="attackTypeAnalysis">
+                <!-- 동적으로 생성됨 -->
+            </div>
+        </div>
+
+        <!-- 데이터 유출 분석 -->
+        <div class="comparison-card">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4 class="mb-3">데이터 유출 현황</h4>
+                    <canvas id="breachChart"></canvas>
+                </div>
+                <div class="col-md-6">
+                    <h4 class="mb-3">민감도별 유출</h4>
+                    <canvas id="sensitivityChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 위험 평가 및 권장사항 -->
+        <div class="comparison-card">
+            <h4 class="mb-3">위험 평가</h4>
+            <div class="alert alert-warning" id="riskAssessment">
+                분석 중...
+            </div>
+
+            <h4 class="mb-3 mt-4">보안 권장사항</h4>
+            <div id="recommendations">
+                <!-- 동적으로 생성됨 -->
+            </div>
+        </div>
+
+        <!-- 실행 버튼 -->
+        <div class="text-center mt-4">
+            <button class="btn btn-primary btn-lg me-2" onclick="runSimulation()">
+                <i class="fas fa-play"></i> 새 시뮬레이션 실행
+            </button>
+            <button class="btn btn-secondary btn-lg" onclick="exportResults()">
+                <i class="fas fa-download"></i> 결과 내보내기
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 차트 초기화
+        const breachCtx = document.getElementById('breachChart').getContext('2d');
+        const breachChart = new Chart(breachCtx, {
+            type: 'bar',
+            data: {
+                labels: ['무방비 모드', '방어 모드'],
+                datasets: [{
+                    label: '데이터 유출 건수',
+                    data: [0, 0],
+                    backgroundColor: [
+                        'rgba(239, 68, 68, 0.6)',
+                        'rgba(16, 185, 129, 0.6)'
+                    ],
+                    borderColor: [
+                        'rgba(239, 68, 68, 1)',
+                        'rgba(16, 185, 129, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.8)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: 'rgba(255, 255, 255, 0.8)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.8)'
+                        }
+                    }
+                }
+            }
+        });
+
+        const sensitivityCtx = document.getElementById('sensitivityChart').getContext('2d');
+        const sensitivityChart = new Chart(sensitivityCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'],
+                datasets: [{
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgba(239, 68, 68, 0.8)',
+                        'rgba(245, 158, 11, 0.8)',
+                        'rgba(59, 130, 246, 0.8)',
+                        'rgba(107, 114, 128, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: 'rgba(255, 255, 255, 0.8)'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 시뮬레이션 결과 로드
+        async function loadSimulationResults(campaignId) {
+            try {
+                const response = await fetch(`/api/simulation/results/${campaignId}`);
+                const data = await response.json();
+
+                updateDashboard(data);
+            } catch (error) {
+                console.error('결과 로드 실패:', error);
+            }
+        }
+
+        // 대시보드 업데이트
+        function updateDashboard(report) {
+            // 캠페인 정보
+            document.getElementById('campaignId').textContent = report.campaignId;
+
+            // 전체 점수
+            const score = report.effectiveness.overallSecurityScore;
+            document.getElementById('overallScore').textContent = Math.round(score);
+            document.getElementById('scoreGrade').textContent = report.effectiveness.grade;
+
+            // 효과성 지표
+            updateEffectivenessBar('prevention', report.effectiveness.attackPreventionRate);
+            updateEffectivenessBar('protection', report.effectiveness.dataProtectionRate);
+            updateEffectivenessBar('detection', report.effectiveness.detectionEfficiency);
+
+            // 무방비 모드 통계
+            document.getElementById('unprotectedSuccess').textContent =
+                report.unprotectedAnalysis.successCount;
+            document.getElementById('unprotectedBreaches').textContent =
+                report.unprotectedAnalysis.dataBreachCount;
+            document.getElementById('unprotectedRecords').textContent =
+                report.unprotectedAnalysis.totalBreachedRecords;
+            document.getElementById('unprotectedDuration').textContent =
+                Math.round(report.unprotectedAnalysis.averageDuration) + 'ms';
+
+            // 방어 모드 통계
+            document.getElementById('protectedBlocked').textContent =
+                report.protectedAnalysis.blockedCount;
+            document.getElementById('protectedDetected').textContent =
+                report.protectedAnalysis.detectedCount;
+            document.getElementById('protectedEvents').textContent =
+                report.protectedAnalysis.securityEventsGenerated;
+            document.getElementById('protectedResponse').textContent =
+                Math.round(report.protectedAnalysis.averageDetectionTimeMs) + 'ms';
+
+            // 공격 유형별 분석
+            updateAttackTypeAnalysis(report.attackTypeAnalysis);
+
+            // 차트 업데이트
+            updateBreachChart(report.dataBreachAnalysis);
+            updateSensitivityChart(report.dataBreachAnalysis);
+
+            // 위험 평가
+            document.getElementById('riskAssessment').textContent = report.riskAssessment;
+
+            // 권장사항
+            updateRecommendations(report.recommendations);
+        }
+
+        function updateEffectivenessBar(type, value) {
+            const percentage = Math.min(100, Math.max(0, value));
+            document.getElementById(type + 'Rate').textContent = percentage.toFixed(1) + '%';
+            document.getElementById(type + 'Bar').style.width = percentage + '%';
+        }
+
+        function updateAttackTypeAnalysis(analysis) {
+            const container = document.getElementById('attackTypeAnalysis');
+            container.innerHTML = '';
+
+            for (const [type, data] of Object.entries(analysis)) {
+                const div = document.createElement('div');
+                div.className = 'attack-comparison';
+
+                const improvement = data.improvement > 0 ?
+                    `<span class="improvement-indicator improvement-positive">
+                        <i class="fas fa-arrow-up"></i> ${data.improvement.toFixed(1)}%
+                    </span>` :
+                    `<span class="improvement-indicator improvement-negative">
+                        <i class="fas fa-arrow-down"></i> ${Math.abs(data.improvement).toFixed(1)}%
+                    </span>`;
+
+                div.innerHTML = `
+                    <div class="attack-result">
+                        <h5>${type}</h5>
+                        <div class="success-rate text-danger">${data.unprotectedSuccessRate.toFixed(1)}%</div>
+                        <small class="text-secondary">공격 성공률</small>
+                    </div>
+                    <div class="vs-indicator">VS</div>
+                    <div class="attack-result">
+                        <h5>${type}</h5>
+                        <div class="success-rate text-success">${data.protectedBlockRate.toFixed(1)}%</div>
+                        <small class="text-secondary">차단률</small>
+                        ${improvement}
+                    </div>
+                `;
+
+                container.appendChild(div);
+            }
+        }
+
+        function updateBreachChart(breachData) {
+            breachChart.data.datasets[0].data = [
+                breachData.unprotectedBreaches,
+                breachData.protectedBreaches
+            ];
+            breachChart.update();
+        }
+
+        function updateSensitivityChart(breachData) {
+            const dist = breachData.sensitivityDistribution || {};
+            sensitivityChart.data.datasets[0].data = [
+                dist.CRITICAL || 0,
+                dist.HIGH || 0,
+                dist.MEDIUM || 0,
+                dist.LOW || 0
+            ];
+            sensitivityChart.update();
+        }
+
+        function updateRecommendations(recommendations) {
+            const container = document.getElementById('recommendations');
+            container.innerHTML = '';
+
+            recommendations.forEach(rec => {
+                const div = document.createElement('div');
+                div.className = 'recommendation-item';
+                div.innerHTML = `<i class="fas fa-lightbulb"></i> ${rec}`;
+                container.appendChild(div);
+            });
+        }
+
+        // 새 시뮬레이션 실행
+        async function runSimulation() {
+            // 시뮬레이션 실행 페이지로 이동
+            window.location.href = '/admin/simulation/dual-mode';
+        }
+
+        // 결과 내보내기
+        async function exportResults() {
+            const campaignId = document.getElementById('campaignId').textContent;
+            window.location.href = `/api/simulation/results/${campaignId}/export`;
+        }
+
+        // URL 파라미터에서 캠페인 ID 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const campaignId = urlParams.get('campaignId');
+
+        if (campaignId) {
+            loadSimulationResults(campaignId);
+        }
+
+        // 자동 새로고침 (10초마다)
+        setInterval(() => {
+            if (campaignId) {
+                loadSimulationResults(campaignId);
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=${permission.id != null ? '권한 수정' : '권한 등록'})}"></th:block>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+        <div class="w-full max-w-lg p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
+            <div class="text-center mb-8">
+                <h2 class="mt-4 text-3xl font-bold text-gradient" th:text="${permission.id != null ? '권한 수정' : '새 권한 등록'}"></h2>
+            </div>
+
+            <form th:action="${permission.id != null ? '/admin/permissions/' + permission.id + '/edit' : '/admin/permissions'}" method="post" th:object="${permission}" class="space-y-5">
+                <input type="hidden" th:field="*{id}" th:if="${permission.id != null}" />
+                <div>
+                    <label for="name" class="block text-sm font-medium" style="color: #cbd5e1;">권한명 (고유값):</label>
+                    <input type="text" id="name" th:field="*{name}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm font-mono" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required />
+                </div>
+                <div>
+                    <label for="friendlyName" class="block text-sm font-medium" style="color: #cbd5e1;">친화적 이름:</label>
+                    <input type="text" id="friendlyName" th:field="*{friendlyName}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
+                </div>
+                <div>
+                    <label for="description" class="block text-sm font-medium" style="color: #cbd5e1;">설명:</label>
+                    <input type="text" id="description" th:field="*{description}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
+                </div>
+                <div>
+                    <label for="targetType" class="block text-sm font-medium" style="color: #cbd5e1;">대상 타입:</label>
+                    <input type="text" id="targetType" th:field="*{targetType}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
+                </div>
+                <div>
+                    <label for="actionType" class="block text-sm font-medium" style="color: #cbd5e1;">행동 타입:</label>
+                    <input type="text" id="actionType" th:field="*{actionType}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
+                </div>
+                <div>
+                    <label for="conditionExpression" class="block text-sm font-medium" style="color: #cbd5e1;">조건 표현식 (SpEL):</label>
+                    <textarea id="conditionExpression" th:field="*{conditionExpression}" rows="3" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm font-mono" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"></textarea>
+                </div>
+
+                <!-- [최종 수정] 기능 선택 UI를 완전히 제거하고, 연결된 리소스 정보만 표시 -->
+                <div th:if="${permission.id != null and permission.managedResourceId != null}">
+                    <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;">연결된 리소스:</label>
+                    <div class="p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
+                        <p class="text-sm font-mono" style="color: #94a3b8;" th:text="${permission.managedResourceIdentifier}"></p>
+                        <a th:href="@{/admin/workbench/resources(keyword=${permission.managedResourceIdentifier})}" class="text-xs hover:underline mt-1 inline-block" style="color: #818cf8;">워크벤치에서 보기 →</a>
+                    </div>
+                    <p class="text-xs mt-1" style="color: #64748b;">권한과 리소스의 연결은 '리소스 워크벤치'에서 관리됩니다.</p>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105" style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);" th:text="${permission.id != null ? '권한 저장' : '권한 등록'}"></button>
+                </div>
+            </form>
+            <div class="mt-6 text-center">
+                <a th:href="@{/admin/permissions}" class="text-sm font-medium hover:underline" style="color: #818cf8;">
+                    권한 목록으로 돌아가기
+                </a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof initAuth === 'function') {
+            initAuth();
+        }
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+    /*]]>*/
+</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${hierarchy.id != null ? '역할 계층 수정' : '역할 계층 등록'})}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+        <div class="w-full max-w-lg bg-white p-8 sm:p-10 rounded-xl shadow-2xl">
+            <div class="text-center mb-8">
+                <h2 class="mt-4 text-3xl font-bold text-app-primary" th:text="${hierarchy.id != null ? '역할 계층 수정' : '새 역할 계층 등록'}"></h2>
+            </div>
+
+            <form th:action="${hierarchy.id != null ? '/admin/role-hierarchies/' + hierarchy.id + '/edit' : '/admin/role-hierarchies'}" method="post" th:object="${hierarchy}" class="space-y-5">
+                <input type="hidden" th:field="*{id}" th:if="${hierarchy.id != null}" />
+                <div>
+                    <label for="hierarchyString" class="block text-sm font-medium text-app-dark-gray">계층 문자열 (예: ROLE_A > ROLE_B\nROLE_B > ROLE_C):</label>
+                    <textarea id="hierarchyString" th:field="*{hierarchyString}" rows="5" class="mt-1 block w-full px-4 py-2.5 bg-white border border-app-border rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" required placeholder="예: ROLE_ADMIN > ROLE_MANAGER&#10;ROLE_MANAGER > ROLE_USER"></textarea>
+                    <p class="text-xs text-slate-500 mt-1">각 줄에 하나의 상위-하위 역할 관계를 정의하고, '>'로 연결하세요. 여러 관계는 줄바꿈으로 구분합니다.</p>
+                </div>
+                <div>
+                    <label for="description" class="block text-sm font-medium text-app-dark-gray">설명:</label>
+                    <input type="text" id="description" th:field="*{description}" class="mt-1 block w-full px-4 py-2.5 bg-white border border-app-border rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" />
+                </div>
+                <div>
+                    <input type="checkbox" id="isActive" th:field="*{isActive}"
+                           class="mr-2 h-4 w-4 text-app-accent border-app-border rounded focus:ring-app-accent" />
+                    <label for="isActive" class="text-sm font-medium text-app-dark-gray">현재 활성화 (하나의 계층만 활성화 가능)</label>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105" th:text="${hierarchy.id != null ? '계층 저장' : '계층 등록'}"></button>
+                </div>
+            </form>
+            <div class="mt-6 text-center">
+                <a th:href="@{/admin/role-hierarchies}" class="text-sm text-app-accent hover:text-app-accent-hover font-medium hover:underline">
+                    역할 계층 목록으로 돌아가기
+                </a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/toast.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof window.initAuth === 'function') {
+            window.initAuth();
+        }
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+    /*]]>*/
+</script>
+</body>
+</html>

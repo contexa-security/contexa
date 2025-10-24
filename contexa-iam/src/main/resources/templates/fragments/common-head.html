@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<th:block th:fragment="head-elements (pageTitle)">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${pageTitle ?: '인증 플랫폼'}">인증 플랫폼</title>
+
+    <!-- Tailwind CSS를 먼저 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'app-primary': '#6366f1',        // 밝은 인디고 (주요 브랜드 색상)
+                        'app-primary-dark': '#4f46e5',  // 진한 인디고
+                        'app-secondary': '#1e293b',     // 진한 슬레이트 (사이드바, 카드 배경)
+                        'app-accent': '#38bdf8',        // 밝은 스카이블루 (포인트 색상)
+                        'app-accent-hover': '#0284c7',  // 진한 스카이블루
+                        'app-dark-bg': '#050810',       // 가장 어두운 배경
+                        'app-dark-bg-secondary': '#0a0f1c', // 두번째 어두운 배경
+                        'app-dark-bg-tertiary': '#0f172a',  // 세번째 어두운 배경
+                        'app-light-gray': '#e2e8f0',    // 밝은 텍스트
+                        'app-dark-gray': '#94a3b8',     // 보조 텍스트
+                        'app-border': '#334155',         // 다크 테두리
+                        'app-input-focus-border': '#6366f1', // 입력 필드 포커스
+                        'error': '#ef4444',             // 빨간색 (오류)
+                        'success': '#22c55e',           // 초록색 (성공)
+                        'info': '#3b82f6',              // 파란색 (정보)
+                        'warning': '#f59e0b'            // 주황색 (경고)
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', '"Noto Sans"', 'sans-serif'],
+                    },
+                    backgroundImage: {
+                        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+                        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+                    },
+                    animation: {
+                        'pulse-glow': 'pulse-glow 2s infinite',
+                        'float': 'float 3s ease-in-out infinite',
+                        'slide-in': 'slideInFromTop 0.6s ease-out',
+                    }
+                },
+                // Important 설정을 추가하여 커스텀 스타일이 우선하도록 함
+                important: false
+            }
+        }
+    </script>
+
+    <!-- 커스텀 CSS를 나중에 로드하여 우선순위 확보 -->
+    <link rel="stylesheet" th:href="@{/css/main.css}" />
+    <link rel="stylesheet" th:href="@{/css/modern-checkbox.css}">
+
+    <!-- Toast JS -->
+    <script th:src="@{/js/toast.js}"></script>
+
+    <!-- CSRF 토큰 -->
+    <th:block th:if="${_csrf != null}">
+        <meta name="_csrf" th:content="${_csrf.token}" />
+        <meta name="_csrf_header" th:content="${_csrf.headerName}" />
+        <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />
+    </th:block>
+
+    <!-- CSS 충돌 해결을 위한 스타일 리셋 -->
+    <style>
+        /* Tailwind 기본 스타일과 커스텀 스타일 간 충돌 방지 */
+        .admin-sidebar * {
+            box-sizing: border-box;
+        }
+
+        /* 특정 컴포넌트에 대한 Tailwind 리셋 방지 */
+        .admin-sidebar ul,
+        .admin-sidebar li {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Font Awesome 아이콘과의 충돌 방지 */
+        .admin-sidebar svg {
+            vertical-align: middle;
+        }
+    </style>
+</th:block>
+</html>

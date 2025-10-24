@@ -1,0 +1,91 @@
+/* TailwindCSS 지시어 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  프로젝트 전반에 걸쳐 적용될 커스텀 기본 스타일이나
+  Tailwind 유틸리티로 만들기 어려운 복잡한 컴포넌트 스타일을 정의할 수 있습니다.
+  하지만 가급적 Tailwind 유틸리티 클래스를 직접 사용하거나,
+  `@apply` 지시어를 통해 컴포넌트 클래스를 만드는 것을 권장합니다.
+*/
+
+/* 예시: 전체 페이지 기본 배경색 및 텍스트 색상 (tailwind.config.js의 theme 확장과 연동 가능) */
+body {
+    @apply bg-app-light-gray text-app-dark-gray font-sans antialiased;
+    /* antialiased: 폰트 렌더링 부드럽게 처리 */
+}
+
+/* 예시: 공통 컨테이너 스타일 */
+.app-layout-container { /* HTML에서 이 클래스를 사용 */
+    @apply container mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+
+/* 예시: 버튼 기본 스타일 (선택 사항 - Tailwind 플러그인 또는 컴포넌트화로 대체 가능) */
+.btn {
+    @apply inline-flex items-center justify-center px-4 py-2 border border-transparent
+    text-sm font-medium rounded-md shadow-sm focus:outline-none
+    focus:ring-2 focus:ring-offset-2 transition-colors duration-150;
+}
+
+.btn-primary {
+    @apply text-white bg-app-accent hover:bg-app-accent-hover focus:ring-app-accent;
+}
+
+.btn-secondary {
+    @apply text-app-dark-gray bg-gray-200 hover:bg-gray-300 focus:ring-gray-400;
+}
+
+.btn-danger {
+    @apply text-white bg-error hover:bg-red-700 focus:ring-error;
+}
+
+/* 예시: 폼 입력 필드 기본 스타일 */
+.form-input {
+    @apply block w-full px-3 py-2 border border-app-border rounded-md
+    shadow-sm placeholder-gray-400
+    focus:outline-none focus:ring-app-input-focus-border focus:border-app-input-focus-border
+    sm:text-sm;
+}
+
+.form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+/* Toast 메시지 스타일 (toast.js와 연동) */
+.toast-success {
+    @apply bg-success;
+}
+.toast-error {
+    @apply bg-error;
+}
+.toast-info {
+    @apply bg-info;
+}
+
+/* MFA 단계별 화면 전환 시 부드러운 효과 (선택 사항) */
+.mfa-step {
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+.mfa-step:not([style*="display:none"]):not([style*="display: none;"]) { /* 보이는 스텝 */
+    opacity: 1;
+    transform: translateX(0);
+}
+.mfa-step[style*="display:none"], .mfa-step[style*="display: none;"] { /* 숨겨진 스텝 (초기 상태) */
+    opacity: 0;
+    transform: translateX(-20px); /* 왼쪽에서 나타나는 효과 */
+    position: absolute; /* 레이아웃 깨짐 방지 */
+    width: 100%; /* 부모 너비 유지 */
+}
+
+
+/* 모바일 화면에서 사이드바 숨김 처리 (JavaScript로 제어할 수도 있음) */
+@media (max-width: 768px) {
+    /* aside 태그 또는 menu 프래그먼트 최상위 div에 'md:block hidden' 클래스 대신 사용 가능 */
+    /*
+    .sidebar-mobile-hidden {
+      display: none;
+    }
+    */
+}

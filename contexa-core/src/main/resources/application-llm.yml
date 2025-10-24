@@ -1,0 +1,386 @@
+# 3계층 LLM 시스템 설정
+# TieredSecurityLLMConfiguration과 매칭되는 설정 파일
+
+spring:
+  ai:
+    # 보안 계층 설정
+    security:
+      # 간소화된 키 구조 (TieredSecurityLLMConfiguration과 일치)
+      layer1:
+        model: tinyllama:latest  # 경량 LLM 모델 (TinyLlama, Phi-2 등)
+        backup:
+          model: phi3:mini  # Layer 1 백업 모델
+      layer2:
+        model: llama3.1:8b  # 중급 LLM 모델
+        backup:
+          model: mistral:7b  # Layer 2 백업 모델
+      layer3:
+        model: llama3.1:8b  # 고급 LLM 모델 (Claude, GPT-4, Mistral Large 등)
+        backup:
+          model: gpt-4  # Layer 3 백업 모델
+
+      # 3계층 시스템 상세 설정 (기존 설정과 호환)
+      tiered:
+        enabled: true  # 3계층 보안 시스템 활성화
+
+        # 처리 비율 설정 (합계 100%)
+        traffic-distribution:
+          layer1-percentage: 98.0  # Layer 1이 처리하는 트래픽 비율
+          layer2-percentage: 1.8   # Layer 2가 처리하는 트래픽 비율
+          layer3-percentage: 0.2   # Layer 3가 처리하는 트래픽 비율
+
+        # Layer 1: 초고속 필터링 (TinyLlama)
+        layer1:
+          enabled: true
+          timeout-ms: 50    # 최대 처리 시간 (밀리초)
+          cache-ttl-seconds: 300  # 캐시 유지 시간
+          embedding-similarity-threshold: 0.85  # 임베딩 유사도 임계값
+
+        # Layer 2: 컨텍스트 분석 (Llama3.1:8b)
+        layer2:
+          enabled: true
+          timeout-ms: 300     # 최대 처리 시간 (밀리초)
+          context-window-minutes: 30  # 컨텍스트 윈도우 크기
+          vector-search-limit: 10     # 벡터 검색 결과 제한
+          behavior-baseline-days: 30  # 행동 기준선 기간
+
+        # Layer 3: 전문가 시스템 (Claude/GPT-4)
+        layer3:
+          enabled: true
+          timeout-ms: 5000     # 최대 처리 시간 (밀리초)
+          enable-soar: true    # SOAR 통합 활성화
+          auto-execute-threshold: 9.5  # 자동 실행 임계값
+
+        # 적응형 라우팅 설정
+        adaptive:
+          enabled: true
+          learning-rate: 0.01    # 적응형 학습률
+          peak-hours-start: 9     # 피크 시간 시작
+          peak-hours-end: 18      # 피크 시간 종료
+
+      # SecurityTaskType -> Tier 매핑 설정
+      mapping:
+        task-to-tier:
+          THREAT_FILTERING: 1
+          QUICK_DETECTION: 1
+          CONTEXTUAL_ANALYSIS: 2
+          BEHAVIOR_ANALYSIS: 2
+          CORRELATION: 2
+          EXPERT_INVESTIGATION: 3
+          INCIDENT_RESPONSE: 3
+          FORENSIC_ANALYSIS: 3
+          SOAR_AUTOMATION: 3
+          APPROVAL_WORKFLOW: 3
+
+        # 태스크별 상세 설정
+        task-configs:
+          SOAR_AUTOMATION:
+            tier: 3
+            analysis-level: DEEP
+            tool-execution-enabled: true
+            prefer-cloud-model: true
+            temperature: 0.7
+            timeout-ms: 10000
+          APPROVAL_WORKFLOW:
+            tier: 3
+            analysis-level: DEEP
+            tool-execution-enabled: true
+            prefer-cloud-model: true
+          THREAT_FILTERING:
+            tier: 1
+            analysis-level: QUICK
+            require-fast-response: true
+            prefer-local-model: true
+            temperature: 0.3
+            timeout-ms: 50
+
+        # 기본 매핑 설정
+        defaults:
+          default-tier: 2
+          default-analysis-level: NORMAL
+
+    # 모델 제공자 설정
+    providers:
+      # Ollama 설정
+      ollama:
+        enabled: true
+        base-url: http://127.0.0.1:11434
+        api:
+          tags: /api/tags
+          generate: /api/generate
+          chat: /api/chat
+          embeddings: /api/embeddings
+          show: /api/show
+        performance:
+          latency-ms: 100
+          timeout-ms: 5000
+          performance-score: 85.0
+          concurrency: 100
+
+        # Ollama 모델 스펙
+        models:
+          tinyllama:latest:
+            display-name: TinyLlama 1.1B
+            version: latest
+            model-size: 1.1B
+            tier: 1
+            capabilities:
+              streaming: true
+              tool-calling: false
+              function-calling: false
+              vision: false
+              multi-modal: false
+              max-tokens: 2048
+              context-window: 2048
+              supports-system-message: true
+            performance:
+              latency-ms: 50
+              throughput-level: HIGH
+              concurrency: 100
+              recommended-timeout-ms: 100
+              performance-score: 85.0
+            cost:
+              cost-per-input-token: 0.0
+              cost-per-output-token: 0.0
+              cost-efficiency: 100.0
+            options:
+              temperature: 0.3
+              top-p: 0.9
+              repetition-penalty: 1.0
+
+          llama3.1:8b:
+            display-name: Llama 3.1 8B
+            version: 8b
+            model-size: 8B
+            tier: 2
+            capabilities:
+              streaming: true
+              tool-calling: false
+              function-calling: false
+              vision: false
+              multi-modal: false
+              max-tokens: 8192
+              context-window: 8192
+              supports-system-message: true
+            performance:
+              latency-ms: 300
+              throughput-level: MEDIUM
+              concurrency: 50
+              recommended-timeout-ms: 500
+              performance-score: 75.0
+            cost:
+              cost-per-input-token: 0.0
+              cost-per-output-token: 0.0
+              cost-efficiency: 100.0
+            options:
+              temperature: 0.5
+              top-p: 0.9
+              repetition-penalty: 1.0
+
+          phi3:mini:
+            display-name: Phi-3 Mini
+            version: mini
+            model-size: 3.8B
+            tier: 1
+            capabilities:
+              streaming: true
+              max-tokens: 4096
+              context-window: 4096
+            performance:
+              latency-ms: 80
+              throughput-level: HIGH
+              concurrency: 80
+              performance-score: 82.0
+
+          mistral:7b:
+            display-name: Mistral 7B
+            version: 7b
+            model-size: 7B
+            tier: 2
+            capabilities:
+              streaming: true
+              max-tokens: 8192
+              context-window: 8192
+            performance:
+              latency-ms: 250
+              throughput-level: MEDIUM
+              performance-score: 78.0
+
+      # Anthropic 설정
+      anthropic:
+        enabled: true
+        base-url: https://api.anthropic.com
+        api:
+          messages-endpoint: /v1/messages
+          models-endpoint: /v1/models
+          max-retries: 3
+          retry-delay-ms: 1000
+
+        # Anthropic 모델 스펙
+        models:
+          llama3.1:8b:
+            display-name: Claude 3 Opus
+            version: llama3.1:8b-20240229
+            tier: 3
+            capabilities:
+              streaming: true
+              tool-calling: true
+              function-calling: true
+              vision: true
+              multi-modal: true
+              max-tokens: 200000
+              context-window: 200000
+              supports-system-message: true
+              max-output-tokens: 4096
+            performance:
+              latency-ms: 5000
+              throughput-level: LOW
+              concurrency: 10
+              recommended-timeout-ms: 30000
+              performance-score: 95.0
+            cost:
+              cost-per-input-token: 0.000015
+              cost-per-output-token: 0.000075
+              cost-efficiency: 50.0
+            options:
+              temperature: 0.7
+              top-p: 0.9
+              top-k: 40
+            metadata:
+              description: "최고 성능, 복잡한 작업에 최적화"
+
+          claude-3-sonnet:
+            display-name: Claude 3 Sonnet
+            version: claude-3-sonnet-20240229
+            tier: 2
+            capabilities:
+              streaming: true
+              tool-calling: true
+              function-calling: true
+              vision: true
+              multi-modal: true
+              max-tokens: 200000
+              context-window: 200000
+              max-output-tokens: 4096
+            performance:
+              latency-ms: 2000
+              throughput-level: MEDIUM
+              concurrency: 20
+              recommended-timeout-ms: 15000
+              performance-score: 80.0
+            cost:
+              cost-per-input-token: 0.000003
+              cost-per-output-token: 0.000015
+              cost-efficiency: 70.0
+            options:
+              temperature: 0.5
+            metadata:
+              description: "균형잡힌 성능과 비용"
+
+          claude-3-haiku:
+            display-name: Claude 3 Haiku
+            version: claude-3-haiku-20240307
+            tier: 1
+            capabilities:
+              streaming: true
+              tool-calling: true
+              vision: true
+              max-tokens: 200000
+              context-window: 200000
+              max-output-tokens: 4096
+            performance:
+              latency-ms: 500
+              throughput-level: HIGH
+              concurrency: 50
+              recommended-timeout-ms: 5000
+              performance-score: 70.0
+            cost:
+              cost-per-input-token: 0.00000025
+              cost-per-output-token: 0.00000125
+              cost-efficiency: 90.0
+            options:
+              temperature: 0.3
+            metadata:
+              description: "빠른 응답, 비용 효율적"
+
+      # OpenAI 설정
+      openai:
+        enabled: true
+        base-url: https://api.openai.com
+
+        # OpenAI 모델 스펙
+        models:
+          gpt-4:
+            display-name: GPT-4
+            version: gpt-4
+            tier: 3
+            capabilities:
+              streaming: true
+              tool-calling: true
+              function-calling: true
+              max-tokens: 128000
+              context-window: 128000
+            performance:
+              latency-ms: 4000
+              throughput-level: LOW
+              performance-score: 90.0
+            cost:
+              cost-per-input-token: 0.00003
+              cost-per-output-token: 0.00006
+              cost-efficiency: 40.0
+
+          gpt-3.5-turbo:
+            display-name: GPT-3.5 Turbo
+            version: gpt-3.5-turbo
+            tier: 2
+            capabilities:
+              streaming: true
+              tool-calling: true
+              max-tokens: 16385
+              context-window: 16385
+            performance:
+              latency-ms: 1000
+              throughput-level: HIGH
+              performance-score: 75.0
+            cost:
+              cost-per-input-token: 0.0000005
+              cost-per-output-token: 0.0000015
+              cost-efficiency: 80.0
+
+      # 프로바이더 매핑 규칙
+      provider-mapping:
+        "llama.*": ollama
+        "tinyllama.*": ollama
+        "mistral.*": ollama
+        "phi.*": ollama
+        "qwen.*": ollama
+        "claude.*": anthropic
+        "gpt.*": openai
+
+      # Tier별 기본값 설정
+      defaults:
+        tier-defaults:
+          1:
+            timeout-ms: 100
+            temperature: 0.3
+            max-tokens: 2048
+            context-window: 2048
+            performance-score: 85.0
+            latency-ms: 50
+            concurrency: 100
+          2:
+            timeout-ms: 500
+            temperature: 0.5
+            max-tokens: 8192
+            context-window: 8192
+            performance-score: 75.0
+            latency-ms: 300
+            concurrency: 50
+          3:
+            timeout-ms: 5000
+            temperature: 0.7
+            max-tokens: 200000
+            context-window: 200000
+            performance-score: 95.0
+            latency-ms: 5000
+            concurrency: 10

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='사용자 목록')}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+            <div class="mb-8 text-center sm:text-left">
+                <h1 class="text-3xl font-bold text-app-primary">사용자 목록</h1>
+                <p class="text-slate-600 mt-1">플랫폼에 등록된 사용자 정보를 확인할 수 있습니다.</p>
+            </div>
+
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table id="usersTable" class="min-w-full w-full text-sm text-left text-app-dark-gray">
+                    <thead class="text-xs text-white uppercase bg-app-secondary">
+                    <tr>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">회원명</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">이메일 (아이디)</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">권한</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">나이</th>
+                    </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-app-border">
+                    <tr id="usersTableLoadingRow">
+                        <td colspan="4" class="py-4 px-6 text-center text-slate-400 italic">
+                            <div class="flex justify-center items-center space-x-2">
+                                <svg class="animate-spin h-5 w-5 text-app-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>사용자 정보를 불러오는 중입니다...</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr id="usersTableEmptyRow" style="display: none;">
+                        <td colspan="4" class="py-4 px-6 text-center text-slate-500">
+                            표시할 사용자가 없습니다.
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-6 text-center">
+                <button id="loadUsersBtn" class="px-6 py-2.5 bg-app-accent text-white font-medium text-xs leading-tight uppercase rounded shadow-md hover:bg-app-accent-hover hover:shadow-lg focus:bg-app-accent-hover focus:shadow-lg focus:outline-none focus:ring-0 active:bg-blue-800 active:shadow-lg transition duration-150 ease-in-out">
+                    사용자 목록 새로고침
+                </button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:src="@{/js/users.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof initAuth === 'function') {
+            initAuth();
+        }
+        // users.js에서 loadUsers 함수를 호출하여 사용자 목록을 가져옵니다.
+        // loadUsersBtn 클릭 이벤트는 users.js 내에 정의되어 있을 것으로 예상됩니다.
+    });
+    /*]]>*/
+</script>
+</body>
+</html>

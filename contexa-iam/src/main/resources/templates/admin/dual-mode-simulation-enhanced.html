@@ -1,0 +1,2544 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI3Security - Zero Trust 컨텍스트 기반 테스팅</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- SockJS and STOMP -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --danger-gradient: linear-gradient(135deg, #FF512F 0%, #DD2476 100%);
+            --warning-gradient: linear-gradient(135deg, #FFB75E 0%, #ED8F03 100%);
+            --success-gradient: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            --dark-bg: rgba(15, 23, 42, 0.95);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --card-hover-bg: rgba(51, 65, 85, 0.9);
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(148, 163, 184, 0.8);
+            --border-color: rgba(71, 85, 105, 0.3);
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--text-primary);
+        }
+
+        .navbar {
+            background: var(--dark-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+        }
+
+        .navbar-brand {
+            color: var(--text-primary) !important;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        .main-container {
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: calc(100vh - 80px);
+            width: 100%;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            text-align: center;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            width: 100%;
+        }
+
+        /* Layout Grid */
+        .testing-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+            width: 100%;
+            justify-content: center;
+            place-content: center;
+        }
+
+        .workflow-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 2rem;
+            min-height: 600px;
+        }
+
+        /* Context Control Panel */
+        .context-control {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Login Form */
+        .login-section {
+            margin-bottom: 2rem;
+        }
+
+        .form-input {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        .form-input option {
+            background: #1e293b;
+            color: var(--text-primary);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        /* Context Presets */
+        .preset-buttons {
+            display: grid;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .preset-btn {
+            background: rgba(71, 85, 105, 0.2);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .preset-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+
+        .preset-btn.active {
+            background: rgba(102, 126, 234, 0.3);
+            border-color: #667eea;
+        }
+
+        /* Context Settings */
+        .context-settings {
+            margin-top: 1rem;
+        }
+
+        .setting-group {
+            margin-bottom: 1rem;
+        }
+
+        .setting-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        /* Scenario Execution */
+        .scenario-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 1.5rem;
+        }
+
+        .scenario-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+        }
+
+        .scenario-tab {
+            background: rgba(71, 85, 105, 0.2);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .scenario-tab.active {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+
+        .scenario-content {
+            display: none;
+        }
+
+        .scenario-content.active {
+            display: block;
+        }
+
+        .scenario-description {
+            background: rgba(71, 85, 105, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-width: 150px;
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn.danger {
+            background: var(--danger-gradient);
+        }
+
+        .action-btn.warning {
+            background: var(--warning-gradient);
+        }
+
+        /* Step Indicator */
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+        }
+
+        .step.active {
+            opacity: 1;
+        }
+
+        .step.completed {
+            opacity: 1;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--border-color);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .step.active .step-number {
+            background: var(--primary-gradient);
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background: #10b981;
+            color: white;
+        }
+
+        .step-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .step.active .step-label {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .step-line {
+            width: 100px;
+            height: 2px;
+            background: var(--border-color);
+            margin: 0 1rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Attack Type Selection */
+        .attack-type-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-top: 2rem;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .attack-type-card {
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            padding: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .attack-type-card:hover {
+            transform: translateY(-5px);
+            border-color: #667eea;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .attack-type-card.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .card-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .attack-type-card h4 {
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .attack-type-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .attack-list {
+            list-style: none;
+            padding: 0;
+            text-align: left;
+        }
+
+        .attack-list li {
+            padding: 0.5rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            background: rgba(71, 85, 105, 0.2);
+            font-size: 0.9rem;
+        }
+
+        .attack-list i {
+            margin-right: 0.5rem;
+            color: #667eea;
+        }
+
+        /* Step Content */
+        .step-content {
+            display: none;
+            width: 100%;
+        }
+
+        .step-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Context Summary */
+        .context-summary {
+            background: rgba(71, 85, 105, 0.2);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .context-summary strong {
+            color: #667eea;
+        }
+
+        /* Real-time Monitoring */
+        .monitoring-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 1.5rem;
+        }
+
+        .threat-meter {
+            position: relative;
+            height: 200px;
+            margin-bottom: 2rem;
+        }
+
+        .threat-gauge {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .threat-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: 700;
+        }
+
+        .threat-label {
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: -1rem;
+        }
+
+        .status-indicators {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .status-item {
+            background: rgba(71, 85, 105, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .status-value {
+            font-weight: 600;
+        }
+
+        .status-value.safe {
+            color: #56ab2f;
+        }
+
+        .status-value.warning {
+            color: #FFB75E;
+        }
+
+        .status-value.danger {
+            color: #ef4444;
+        }
+
+        /* Baseline Vector Monitor */
+        .baseline-monitor {
+            background: rgba(71, 85, 105, 0.15);
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .section-subtitle {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-subtitle i {
+            color: #667eea;
+        }
+
+        .baseline-stats {
+            display: grid;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .baseline-stats .status-item {
+            background: rgba(51, 65, 85, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .baseline-stats .status-item:hover {
+            background: rgba(51, 65, 85, 0.5);
+            transform: translateX(3px);
+        }
+
+        .baseline-stats .status-value.small {
+            font-size: 0.85rem;
+        }
+
+        .status-value.danger {
+            color: #FF512F;
+        }
+
+        /* Event Log */
+        .event-log {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        .event-time {
+            color: var(--text-secondary);
+            margin-right: 0.5rem;
+        }
+
+        .event-message {
+            color: var(--text-primary);
+        }
+
+        .event-message.success {
+            color: #56ab2f;
+        }
+
+        .event-message.danger {
+            color: #FF512F;
+        }
+
+        .event-message.warning {
+            color: #FFB75E;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .testing-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-shield-alt me-2"></i>
+                AI3Security - Zero Trust 컨텍스트 기반 테스팅
+            </a>
+            <div class="ms-auto">
+                <a href="/admin/dashboard" class="btn btn-outline-light">
+                    <i class="fas fa-arrow-left me-2"></i>대시보드
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <h1 class="page-title">
+            <i class="fas fa-fingerprint me-3"></i>
+            Zero Trust 실전 보안 테스트 시스템
+        </h1>
+
+        <!-- Step Indicator -->
+        <div class="step-indicator" style="margin-bottom: 2rem;">
+            <div class="step active" id="step1-indicator">
+                <span class="step-number">1</span>
+                <span class="step-label">공격 유형 선택</span>
+            </div>
+            <div class="step-line"></div>
+            <div class="step" id="step2-indicator">
+                <span class="step-number">2</span>
+                <span class="step-label">컨텍스트 설정</span>
+            </div>
+            <div class="step-line"></div>
+            <div class="step" id="step3-indicator">
+                <span class="step-number">3</span>
+                <span class="step-label">시나리오 실행</span>
+            </div>
+        </div>
+
+        <div class="testing-grid">
+            <!-- Workflow Container (Left) -->
+            <div class="workflow-container">
+                <!-- Step 1: Attack Type Selection -->
+                <div class="step-content active" id="step1-content">
+                    <div class="attack-type-selection">
+                        <h3 class="section-title">
+                            <i class="fas fa-crosshairs me-2"></i>공격 유형 선택
+                        </h3>
+
+                        <div class="attack-type-grid">
+                            <div class="attack-type-card" onclick="selectAttackType('pre-auth')">
+                                <div class="card-icon">
+                                    <i class="fas fa-lock"></i>
+                                </div>
+                                <h4>인증 전 공격</h4>
+                                <p>로그인 시도 단계의 공격</p>
+                                <ul class="attack-list">
+                                    <li><i class="fas fa-hammer"></i> 브루트포스</li>
+                                    <li><i class="fas fa-list"></i> 크리덴셜 스터핑</li>
+                                    <li><i class="fas fa-robot"></i> 봇 공격</li>
+                                </ul>
+                            </div>
+
+                            <div class="attack-type-card" onclick="selectAttackType('post-auth')">
+                                <div class="card-icon">
+                                    <i class="fas fa-user-shield"></i>
+                                </div>
+                                <h4>인증 후 공격</h4>
+                                <p>로그인 이후의 악용 시나리오</p>
+                                <ul class="attack-list">
+                                    <li><i class="fas fa-user-secret"></i> 세션 하이재킹</li>
+                                    <li><i class="fas fa-globe"></i> Impossible Travel</li>
+                                    <li><i class="fas fa-shield-alt"></i> @Protectable 접근</li>
+                                    <li><i class="fas fa-user-tie"></i> 내부자 위협</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- 선택 확인 버튼 추가 -->
+                        <div class="action-buttons mt-4">
+                            <button class="action-btn" onclick="confirmAttackTypeSelection()" style="display: none;" id="confirmSelectionBtn">
+                                <i class="fas fa-check me-2"></i>선택 확인 후 다음 단계로
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                    <!-- Step 2: Context Configuration -->
+                    <div class="step-content" id="step2-content">
+                        <div class="context-configuration">
+                    <h3 class="section-title">
+                        <i class="fas fa-cog me-2"></i>컨텍스트 설정
+                    </h3>
+
+                    <!-- Dynamic Presets based on attack type -->
+                    <div class="context-presets" id="dynamic-presets">
+                        <!-- Will be populated dynamically -->
+                    </div>
+
+                    <!-- Login Section (only for pre-auth) -->
+                    <div class="login-section" id="login-section" style="display: none;">
+                        <h4 class="mb-3">탈취한 계정 정보</h4>
+                        <p style="color: #FFB75E; font-size: 0.9rem; margin-bottom: 1rem;">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            공격자가 탈취한 계정 정보로 로그인을 시도합니다
+                        </p>
+                        <input type="text" id="username" class="form-input" placeholder="탈취한 사용자명" value="admin">
+                        <input type="password" id="password" class="form-input" placeholder="탈취한 비밀번호" value="1234">
+                    </div>
+
+                    <!-- Context Settings -->
+                    <div class="context-settings">
+                        <h4 class="mb-3">상세 설정</h4>
+
+                        <div class="setting-group">
+                            <div class="setting-label">IP 주소</div>
+                            <input type="text" id="contextIp" class="form-input" value="192.168.1.100">
+                        </div>
+
+                        <div class="setting-group">
+                            <div class="setting-label">User-Agent</div>
+                            <select id="contextUserAgent" class="form-input">
+                                <option value="Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0">Chrome - Windows</option>
+                                <option value="Mozilla/5.0 (X11; Linux x86_64) Firefox/115.0">Firefox - Linux</option>
+                                <option value="Mozilla/5.0 (Macintosh; Intel Mac OS X) Safari/16.0">Safari - Mac</option>
+                                <option value="python-requests/2.31.0">Python Requests (봇)</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-group">
+                            <div class="setting-label">언어</div>
+                            <select id="contextLanguage" class="form-input">
+                                <option value="ko-KR">한국어</option>
+                                <option value="en-US">영어</option>
+                                <option value="ru-RU">러시아어</option>
+                                <option value="zh-CN">중국어</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-group">
+                            <div class="setting-label">시뮬레이션 시간</div>
+                            <input type="time" id="contextTime" class="form-input" value="14:00">
+                        </div>
+                    </div>
+
+                    <div class="action-buttons mt-4">
+                        <button class="action-btn" onclick="goToStep(1)">
+                            <i class="fas fa-arrow-left me-2"></i>이전
+                        </button>
+                        <button class="action-btn" onclick="applyContextAndProceed()">
+                            <i class="fas fa-arrow-right me-2"></i>다음
+                        </button>
+                    </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Scenario Execution -->
+                    <div class="step-content" id="step3-content">
+                        <div class="scenario-execution">
+                    <h3 class="section-title">
+                        <i class="fas fa-play-circle me-2"></i>시나리오 실행
+                    </h3>
+
+                    <!-- Pre-Auth Scenarios -->
+                    <div class="scenario-group" id="pre-auth-scenarios" style="display: none;">
+                        <div class="scenario-description">
+                            <h5>인증 전 시나리오</h5>
+                            <p>로그인 시도 시나리오를 선택하세요.</p>
+                            <div class="context-summary" id="context-summary">
+                                <!-- Will be populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- 시나리오 선택 탭 -->
+                        <div class="scenario-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                            <button class="tab-btn active" onclick="selectPreAuthScenario('normal')" id="normal-tab" style="flex: 1; padding: 0.75rem; background: var(--accent-color); border: none; border-radius: 8px; color: white; cursor: pointer;">
+                                <i class="fas fa-user me-2"></i>정상 사용자 로그인
+                            </button>
+                            <button class="tab-btn" onclick="selectPreAuthScenario('attacker')" id="attacker-tab" style="flex: 1; padding: 0.75rem; background: rgba(71, 85, 105, 0.3); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); cursor: pointer;">
+                                <i class="fas fa-user-secret me-2"></i>계정 탈취 공격자
+                            </button>
+                        </div>
+
+                        <!-- 정상 사용자 로그인 폼 -->
+                        <div class="normal-user-login" id="normal-user-login" style="background: rgba(86, 171, 47, 0.1); border: 1px solid #56ab2f; border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+                            <h6 style="color: #56ab2f; margin-bottom: 1rem;">
+                                <i class="fas fa-user-check me-2"></i>정상 사용자 로그인
+                            </h6>
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: var(--text-secondary);">사용자명</label>
+                                <input type="text" id="normal-username" class="form-input" placeholder="사용자명" value="admin" style="width: 100%;">
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: var(--text-secondary);">비밀번호</label>
+                                <input type="password" id="normal-password" class="form-input" placeholder="비밀번호" value="1111" style="width: 100%;">
+                            </div>
+                            <p style="color: #56ab2f; font-size: 0.85rem; margin-bottom: 0;">
+                                <i class="fas fa-info-circle me-1"></i>
+                                정상적인 사용자가 올바른 자격 증명으로 로그인을 시도합니다
+                            </p>
+                            <div class="action-buttons mt-3">
+                                <button class="action-btn" onclick="executeNormalLogin()">
+                                    <i class="fas fa-sign-in-alt me-2"></i>정상 로그인 시도
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 탈취한 계정 정보 입력 폼 -->
+                        <div class="stolen-credentials-form" id="stolen-credentials-form" style="background: rgba(255, 81, 47, 0.1); border: 1px solid #FF512F; border-radius: 8px; padding: 1rem; margin: 1rem 0; display: none;">
+                            <h6 style="color: #FF512F; margin-bottom: 1rem;">
+                                <i class="fas fa-user-secret me-2"></i>탈취한 계정 정보
+                            </h6>
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: var(--text-secondary);">탈취한 사용자명</label>
+                                <input type="text" id="stolen-username" class="form-input" placeholder="탈취한 사용자명" value="admin" style="width: 100%;">
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.9rem; color: var(--text-secondary);">탈취한 비밀번호</label>
+                                <input type="password" id="stolen-password" class="form-input" placeholder="탈취한 비밀번호" value="1234" style="width: 100%;">
+                            </div>
+                            <p style="color: #FFB75E; font-size: 0.85rem; margin-bottom: 0;">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                공격자가 탈취한 계정 정보로 아래 방식으로 공격을 시도합니다
+                            </p>
+                            <div class="action-buttons mt-3">
+                                <button class="action-btn success" onclick="executeStealthLogin()">
+                                    <i class="fas fa-user-check me-2"></i>정상인처럼 로그인 시도
+                                </button>
+                                <button class="action-btn danger" onclick="executeBruteForce()">
+                                    <i class="fas fa-hammer me-2"></i>브루트포스 공격 실행
+                                </button>
+                                <button class="action-btn danger" onclick="executeCredentialStuffing()">
+                                    <i class="fas fa-list me-2"></i>크리덴셜 스터핑 실행
+                                </button>
+                                <button class="action-btn warning" onclick="executeBotAttack()">
+                                    <i class="fas fa-robot me-2"></i>자동화 봇 공격 실행
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Post-Auth Scenarios -->
+                    <div class="scenario-group" id="post-auth-scenarios" style="display: none;">
+                        <div class="scenario-description">
+                            <h5>인증 후 공격 시나리오</h5>
+                            <p>로그인된 세션을 악용하는 시나리오를 실행합니다.</p>
+                            <div class="context-summary" id="auth-context-summary">
+                                <!-- Will be populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- First, need to login -->
+                        <div class="login-required" id="login-required">
+                            <p class="text-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                먼저 정상 로그인이 필요합니다.
+                            </p>
+                            <button class="action-btn" onclick="performNormalLogin()">
+                                <i class="fas fa-sign-in-alt me-2"></i>정상 로그인
+                            </button>
+                        </div>
+
+                        <!-- After login, show attack options -->
+                        <div class="post-auth-attacks" id="post-auth-attacks" style="display: none;">
+                            <div class="action-buttons">
+                                <button class="action-btn warning" onclick="simulateSessionHijacking()">
+                                    <i class="fas fa-user-secret me-2"></i>세션 하이재킹
+                                </button>
+                                <button class="action-btn danger" onclick="simulateImpossibleTravel()">
+                                    <i class="fas fa-globe me-2"></i>Impossible Travel
+                                </button>
+                                <button class="action-btn" onclick="executeProtectableAccess('single')">
+                                    <i class="fas fa-file me-2"></i>@Protectable 단일 접근
+                                </button>
+                                <button class="action-btn warning" onclick="executeProtectableAccess('bulk')">
+                                    <i class="fas fa-database me-2"></i>@Protectable 대량 접근
+                                </button>
+                                <button class="action-btn danger" onclick="executeInsiderThreat()">
+                                    <i class="fas fa-user-tie me-2"></i>내부자 위협 시뮬레이션
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons mt-4">
+                        <button class="action-btn" onclick="goToStep(2)">
+                            <i class="fas fa-arrow-left me-2"></i>이전
+                        </button>
+                        <button class="action-btn" onclick="resetWorkflow()">
+                            <i class="fas fa-redo me-2"></i>처음부터
+                        </button>
+                    </div>
+                        </div>
+                    </div>
+            </div>
+
+            <!-- Right Panel: Real-time Monitoring -->
+            <div class="monitoring-panel">
+                <h3 class="section-title">
+                    <i class="fas fa-chart-line me-2"></i>실시간 모니터링
+                </h3>
+
+                <!-- Threat Meter -->
+                <div class="threat-meter">
+                    <canvas id="threatGauge"></canvas>
+                    <div class="threat-value" id="threatScore">0.0</div>
+                </div>
+                <div class="threat-label">위협 점수</div>
+
+                <!-- Trust Score -->
+                <div class="status-item mt-3">
+                    <span class="status-label">신뢰 점수</span>
+                    <span class="status-value" id="trustScore">1.00</span>
+                </div>
+
+                <!-- Status Indicators -->
+                <div class="status-indicators">
+                    <div class="status-item">
+                        <span class="status-label">경로</span>
+                        <span class="status-value" id="pathStatus">HotPath</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">결정</span>
+                        <span class="status-value safe" id="decisionStatus">ALLOW</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">MFA</span>
+                        <span class="status-value" id="mfaStatus">비활성</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">세션</span>
+                        <span class="status-value safe" id="sessionStatus">활성</span>
+                    </div>
+                </div>
+
+                <!-- WebSocket Status -->
+                <div class="status-item mt-3">
+                    <span class="status-label">WebSocket</span>
+                    <span class="status-value" id="wsStatus">연결 대기</span>
+                </div>
+
+                <!-- Request Counter -->
+                <div class="status-item">
+                    <span class="status-label">요청 수</span>
+                    <span class="status-value" id="requestCount">0</span>
+                </div>
+
+                <!-- ✅ NEW: Baseline Vector Monitor -->
+                <div class="baseline-monitor mt-4">
+                    <h4 class="section-subtitle">
+                        <i class="fas fa-brain me-2"></i>Baseline Vector 학습 상태
+                    </h4>
+                    <div class="baseline-stats">
+                        <div class="status-item">
+                            <span class="status-label">사용자</span>
+                            <span class="status-value" id="baselineUserId">-</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">학습 횟수</span>
+                            <span class="status-value" id="baselineUpdateCount">0</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">신뢰도</span>
+                            <span class="status-value" id="baselineConfidence">0.000</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">벡터 노름</span>
+                            <span class="status-value" id="baselineVectorNorm">0.000</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">평균 간격(초)</span>
+                            <span class="status-value" id="baselineMeanInterval">0.0</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">마지막 업데이트</span>
+                            <span class="status-value small" id="baselineLastUpdated">-</span>
+                        </div>
+                    </div>
+                    <button class="action-btn mt-2 w-100" onclick="checkBaselineVector()">
+                        <i class="fas fa-sync-alt me-2"></i>Baseline 확인
+                    </button>
+                </div>
+
+                <!-- Event Log -->
+                <div class="event-log" id="eventLog" style="margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 1rem;">이벤트 로그</h4>
+                    <div class="event-item">
+                        <span class="event-time">00:00:00</span>
+                        <span class="event-message">시스템 준비 완료</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Global variables
+        let stompClient = null;
+        let currentAttackType = null;
+        let currentStep = 1;
+        let currentContext = {
+            ip: '192.168.1.100',
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0',
+            language: 'ko-KR',
+            time: '14:00',
+            preset: null
+        };
+        let sessionId = null;
+        let isAuthenticated = false;
+        let threatGaugeChart = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeWebSocket();
+            initializeThreatGauge();
+            setupEventListeners();
+            addEventLog('시스템 초기화 완료', 'success');
+
+            // Step 1 자동 활성화
+            goToStep(1);
+        });
+
+        // Initialize WebSocket connection
+        let wsReconnectAttempts = 0;
+        const MAX_WS_RECONNECT_ATTEMPTS = 3;
+
+        function initializeWebSocket() {
+            try {
+                const socket = new SockJS('/ws-soar');
+                stompClient = Stomp.over(socket);
+
+                // 디버그 비활성화 (운영 환경)
+                stompClient.debug = null;
+
+                stompClient.connect({}, function(frame) {
+                    console.log('WebSocket Connected: ' + frame);
+                    wsReconnectAttempts = 0; // 재시도 카운터 리셋
+
+                    document.getElementById('wsStatus').textContent = '연결됨';
+                    document.getElementById('wsStatus').className = 'status-value safe';
+
+                    // Subscribe to behavior events
+                    stompClient.subscribe('/topic/behavior-events', function(event) {
+                        try {
+                            const data = JSON.parse(event.body);
+                            handleBehaviorEvent(data);
+                        } catch (e) {
+                            console.error('Behavior event 처리 오류:', e);
+                        }
+                    });
+
+                    // Subscribe to user-specific events
+                    if (sessionId) {
+                        stompClient.subscribe('/topic/user/' + sessionId, function(event) {
+                            try {
+                                const data = JSON.parse(event.body);
+                                handleUserEvent(data);
+                            } catch (e) {
+                                console.error('User event 처리 오류:', e);
+                            }
+                        });
+                    }
+
+                    addEventLog('✅ WebSocket 연결 성공', 'success');
+                }, function(error) {
+                    console.error('WebSocket Error:', error);
+                    document.getElementById('wsStatus').textContent = '연결 실패';
+                    document.getElementById('wsStatus').className = 'status-value danger';
+
+                    // 재시도 로직
+                    if (wsReconnectAttempts < MAX_WS_RECONNECT_ATTEMPTS) {
+                        wsReconnectAttempts++;
+                        const retryDelay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), 5000);
+
+                        addEventLog(`⚠️ WebSocket 재연결 시도 ${wsReconnectAttempts}/${MAX_WS_RECONNECT_ATTEMPTS} (${retryDelay}ms 후)`, 'warning');
+
+                        setTimeout(() => {
+                            initializeWebSocket();
+                        }, retryDelay);
+                    } else {
+                        addEventLog('❌ WebSocket 연결 실패 - 최대 재시도 횟수 초과', 'danger');
+                        addEventLog('ℹ️ 실시간 이벤트는 수신되지 않지만 기본 기능은 정상 작동합니다', 'info');
+                    }
+                });
+            } catch (error) {
+                console.error('WebSocket 초기화 오류:', error);
+                addEventLog('❌ WebSocket 초기화 실패: ' + error.message, 'danger');
+            }
+        }
+
+        // Initialize threat gauge
+        function initializeThreatGauge() {
+            const ctx = document.getElementById('threatGauge');
+            threatGaugeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [0, 100],
+                        backgroundColor: ['#FF512F', 'rgba(71, 85, 105, 0.2)'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    circumference: 180,
+                    rotation: 270,
+                    cutout: '75%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    }
+                }
+            });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Step-based workflow - event handlers are inline
+        }
+
+        // Step 1: Select Attack Type
+        function selectAttackType(type) {
+            currentAttackType = type;
+
+            // Update UI
+            document.querySelectorAll('.attack-type-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            addEventLog(`공격 유형 선택: ${type === 'pre-auth' ? '인증 전 공격 (계정 탈취)' : '인증 후 공격'}`, 'info');
+
+            // Show confirmation button
+            document.getElementById('confirmSelectionBtn').style.display = 'block';
+        }
+
+        // Confirm attack type selection and proceed
+        function confirmAttackTypeSelection() {
+            if (!currentAttackType) {
+                addEventLog('공격 유형을 먼저 선택하세요', 'warning');
+                return;
+            }
+            goToStep(2);
+        }
+
+        // Navigate between steps
+        function goToStep(step) {
+            console.log('goToStep 함수 호출 - step:', step);
+            currentStep = step;
+
+            // Step에 따라 명확히 표시/숨김 처리
+            const step1 = document.getElementById('step1-content');
+            const step2 = document.getElementById('step2-content');
+            const step3 = document.getElementById('step3-content');
+
+            // 모든 스텝 숨기기
+            if (step1) step1.style.display = 'none';
+            if (step2) step2.style.display = 'none';
+            if (step3) step3.style.display = 'none';
+
+            // 해당 스텝만 표시
+            if (step === 1 && step1) {
+                step1.style.display = 'block';
+                console.log('Step 1 표시됨');
+            } else if (step === 2 && step2) {
+                step2.style.display = 'block';
+                console.log('Step 2 (컨텍스트 설정) 표시됨');
+            } else if (step === 3 && step3) {
+                step3.style.display = 'block';
+                console.log('Step 3 표시됨');
+            }
+
+            // Update step indicators
+            document.querySelectorAll('.step').forEach((s, idx) => {
+                if (idx < step - 1) {
+                    s.classList.add('completed');
+                    s.classList.remove('active');
+                } else if (idx === step - 1) {
+                    s.classList.add('active');
+                    s.classList.remove('completed');
+                } else {
+                    s.classList.remove('active', 'completed');
+                }
+            });
+
+            // Show/hide step content
+            document.querySelectorAll('.step-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            const activeContent = document.getElementById(`step${step}-content`);
+            if (activeContent) {
+                activeContent.classList.add('active');
+                console.log(`Step ${step} 활성화됨`);
+            }
+
+            // Step 2 specific logic
+            if (step === 2) {
+                setupContextPresets();
+            }
+
+            // Step 3 specific logic
+            if (step === 3) {
+                setupScenarioExecution();
+            }
+        }
+
+        // Setup context presets based on attack type
+        function setupContextPresets() {
+            const presetsDiv = document.getElementById('dynamic-presets');
+            const loginSection = document.getElementById('login-section');
+
+            if (currentAttackType === 'pre-auth') {
+                // Pre-auth presets - 인증 전 공격은 계정 탈취 시도
+                loginSection.style.display = 'block'; // 로그인 화면 표시
+                presetsDiv.innerHTML = `
+                    <h4 class="mb-3">공격자 프리셋</h4>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" onclick="applyPresetNew('normal-user')">
+                            <i class="fas fa-user me-2"></i>일반 위치에서 시도
+                        </button>
+                        <button class="preset-btn" onclick="applyPresetNew('tor-attacker')">
+                            <i class="fas fa-user-secret me-2"></i>Tor를 통한 공격
+                        </button>
+                        <button class="preset-btn" onclick="applyPresetNew('bot')">
+                            <i class="fas fa-robot me-2"></i>자동화 봇 공격
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Post-auth presets
+                loginSection.style.display = 'none';
+                presetsDiv.innerHTML = `
+                    <h4 class="mb-3">컨텍스트 프리셋</h4>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" onclick="applyPresetNew('normal-employee')">
+                            <i class="fas fa-user-tie me-2"></i>정상 직원
+                        </button>
+                        <button class="preset-btn" onclick="applyPresetNew('privilege-abuse')">
+                            <i class="fas fa-user-injured me-2"></i>권한 남용 직원
+                        </button>
+                        <button class="preset-btn" onclick="applyPresetNew('compromised')">
+                            <i class="fas fa-user-secret me-2"></i>탈취된 계정
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // Apply new preset based on attack type
+        function applyPresetNew(preset) {
+            // Update UI
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            currentContext.preset = preset;
+
+            // Apply preset values
+            switch(preset) {
+                case 'normal-user':
+                    document.getElementById('contextIp').value = '192.168.1.100';
+                    document.getElementById('contextUserAgent').value = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0';
+                    document.getElementById('contextLanguage').value = 'ko-KR';
+                    document.getElementById('contextTime').value = '14:00';
+                    break;
+
+                case 'tor-attacker':
+                    document.getElementById('contextIp').value = '185.220.101.45'; // Tor exit node
+                    document.getElementById('contextUserAgent').value = 'Mozilla/5.0 (X11; Linux x86_64) Firefox/115.0';
+                    document.getElementById('contextLanguage').value = 'en-US';
+                    document.getElementById('contextTime').value = '03:00';
+                    break;
+
+                case 'bot':
+                    document.getElementById('contextIp').value = '45.142.182.101'; // Known bot IP
+                    document.getElementById('contextUserAgent').selectedIndex = 3; // Python Requests
+                    document.getElementById('contextLanguage').value = 'en-US';
+                    document.getElementById('contextTime').value = '04:30';
+                    break;
+
+                case 'normal-employee':
+                    document.getElementById('contextIp').value = '10.0.1.50'; // Internal IP
+                    document.getElementById('contextUserAgent').value = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0';
+                    document.getElementById('contextLanguage').value = 'ko-KR';
+                    document.getElementById('contextTime').value = '10:00';
+                    break;
+
+                case 'privilege-abuse':
+                    document.getElementById('contextIp').value = '10.0.1.50'; // Same internal IP
+                    document.getElementById('contextUserAgent').value = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0';
+                    document.getElementById('contextLanguage').value = 'ko-KR';
+                    document.getElementById('contextTime').value = '23:00'; // Unusual time
+                    break;
+
+                case 'compromised':
+                    document.getElementById('contextIp').value = '203.104.45.123'; // External IP
+                    document.getElementById('contextUserAgent').value = 'Mozilla/5.0 (X11; Linux x86_64) Firefox/115.0';
+                    document.getElementById('contextLanguage').value = 'ru-RU'; // Suspicious language
+                    document.getElementById('contextTime').value = '02:00';
+                    break;
+            }
+
+            addEventLog(`프리셋 적용: ${preset}`, 'info');
+        }
+
+        // Apply context and proceed
+        function applyContextAndProceed() {
+            // Save current context
+            currentContext = {
+                ip: document.getElementById('contextIp').value,
+                userAgent: document.getElementById('contextUserAgent').value,
+                language: document.getElementById('contextLanguage').value,
+                time: document.getElementById('contextTime').value,
+                preset: currentContext.preset
+            };
+
+            addEventLog('컨텍스트 설정 완료', 'success');
+
+            // Go to Step 3
+            goToStep(3);
+        }
+
+        // Pre-auth scenario selection
+        function selectPreAuthScenario(type) {
+            const normalTab = document.getElementById('normal-tab');
+            const attackerTab = document.getElementById('attacker-tab');
+            const normalForm = document.getElementById('normal-user-login');
+            const attackerForm = document.getElementById('stolen-credentials-form');
+
+            if (type === 'normal') {
+                // 정상 사용자 시나리오
+                normalTab.classList.add('active');
+                normalTab.style.background = 'var(--accent-color)';
+                normalTab.style.color = 'white';
+                normalTab.style.border = 'none';
+
+                attackerTab.classList.remove('active');
+                attackerTab.style.background = 'rgba(71, 85, 105, 0.3)';
+                attackerTab.style.color = 'var(--text-primary)';
+                attackerTab.style.border = '1px solid var(--border-color)';
+
+                normalForm.style.display = 'block';
+                attackerForm.style.display = 'none';
+
+                addEventLog('정상 사용자 로그인 시나리오 선택', 'info');
+            } else {
+                // 공격자 시나리오
+                attackerTab.classList.add('active');
+                attackerTab.style.background = 'var(--accent-color)';
+                attackerTab.style.color = 'white';
+                attackerTab.style.border = 'none';
+
+                normalTab.classList.remove('active');
+                normalTab.style.background = 'rgba(71, 85, 105, 0.3)';
+                normalTab.style.color = 'var(--text-primary)';
+                normalTab.style.border = '1px solid var(--border-color)';
+
+                normalForm.style.display = 'none';
+                attackerForm.style.display = 'block';
+
+                addEventLog('계정 탈취 공격자 시나리오 선택', 'warning');
+            }
+        }
+
+        // Setup scenario execution
+        function setupScenarioExecution() {
+            const preAuthDiv = document.getElementById('pre-auth-scenarios');
+            const postAuthDiv = document.getElementById('post-auth-scenarios');
+
+            // Show context summary
+            const summary = `
+                <strong>IP:</strong> ${currentContext.ip}<br>
+                <strong>User-Agent:</strong> ${currentContext.userAgent}<br>
+                <strong>언어:</strong> ${currentContext.language}<br>
+                <strong>시간:</strong> ${currentContext.time}<br>
+                <strong>프리셋:</strong> ${currentContext.preset || '사용자 정의'}
+            `;
+
+            if (currentAttackType === 'pre-auth') {
+                preAuthDiv.style.display = 'block';
+                postAuthDiv.style.display = 'none';
+                document.getElementById('context-summary').innerHTML = summary;
+
+                // Step 2에서 입력한 값들을 Step 3의 탈취 계정 정보 폼에 복사
+                const username = document.getElementById('username');
+                const password = document.getElementById('password');
+                if (username && password) {
+                    document.getElementById('stolen-username').value = username.value;
+                    document.getElementById('stolen-password').value = password.value;
+                }
+
+                // 기본적으로 정상 사용자 시나리오 선택
+                selectPreAuthScenario('normal');
+            } else {
+                preAuthDiv.style.display = 'none';
+                postAuthDiv.style.display = 'block';
+                document.getElementById('auth-context-summary').innerHTML = summary;
+            }
+        }
+
+        // Execute normal user login
+        // ⚠️ NOTE: 실제 구현은 파일 하단의 Baseline 통합 버전에 있음
+        // 여기서는 placeholder만 유지 (하단에서 재정의됨)
+
+        // Reset workflow
+        function resetWorkflow() {
+            currentStep = 1;
+            currentAttackType = null;
+            currentContext.preset = null;
+            isAuthenticated = false;
+
+            // Reset UI
+            goToStep(1);
+            document.querySelectorAll('.attack-type-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            addEventLog('워크플로우 초기화', 'info');
+        }
+
+        // Perform normal login for post-auth scenarios
+        async function performNormalLogin() {
+            // 로그인 정보 입력 다이얼로그 생성
+            const username = prompt('사용자명을 입력하세요:', 'admin');
+            const password = prompt('비밀번호를 입력하세요:', '1234');
+
+            if (!username || !password) {
+                addEventLog('로그인 취소됨', 'warning');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // 정상 직원 컨텍스트로 로그인
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': currentContext.userAgent,
+                        'Accept-Language': currentContext.language,
+                        'X-Forwarded-For': currentContext.ip
+                    },
+                    credentials: 'include',
+                    body: new URLSearchParams({
+                        username: username,
+                        password: password
+                    })
+                });
+
+                if (response.ok || response.redirected) {
+                    isAuthenticated = true;
+
+                    // 세션 ID 추출
+                    const cookies = document.cookie.split(';');
+                    for (let cookie of cookies) {
+                        if (cookie.trim().startsWith('JSESSIONID=')) {
+                            sessionId = cookie.trim().substring(11);
+                            break;
+                        }
+                    }
+
+                    // Hide login required, show attack options
+                    document.getElementById('login-required').style.display = 'none';
+                    document.getElementById('post-auth-attacks').style.display = 'block';
+
+                    // Update displays
+                    updateContextDisplay();
+                    updateAuthStatusDisplay(username);
+
+                    addEventLog(`정상 로그인 성공: ${username} - 인증 후 공격 시나리오 준비 완료`, 'success');
+                    addEventLog('AuthenticationSuccessEvent 발행됨', 'info');
+
+                    // Subscribe to WebSocket if connected
+                    if (stompClient && stompClient.connected) {
+                        stompClient.subscribe('/topic/user/' + username, handleUserEvent);
+                    }
+                } else {
+                    addEventLog(`로그인 실패 (상태: ${response.status})`, 'danger');
+                    addEventLog('AuthenticationFailureEvent 발행됨', 'warning');
+                }
+            } catch (error) {
+                addEventLog('로그인 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Update context display
+        function updateContextDisplay() {
+            const display = document.getElementById('currentContextDisplay');
+            if (display) {
+                display.textContent = `IP: ${currentContext.ip}, UA: ${currentContext.userAgent}`;
+            }
+        }
+
+        // Update auth status display
+        function updateAuthStatusDisplay(username) {
+            const display = document.getElementById('authStatusDisplay');
+            if (display) {
+                display.textContent = `로그인됨: ${username}`;
+            }
+        }
+
+        // Execute @Protectable access
+        async function executeProtectableAccess(type) {
+            showLoading(true);
+
+            try {
+                const endpoint = type === 'single' ? '/api/protected/customer/1' : '/api/protected/customers/bulk';
+
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': currentContext.userAgent,
+                        'Accept-Language': currentContext.language,
+                        'X-Forwarded-For': currentContext.ip
+                    },
+                    credentials: 'include'
+                });
+
+                const message = type === 'single' ?
+                    '@Protectable 단일 리소스 접근 시도' :
+                    '@Protectable 대량 리소스 접근 시도';
+
+                addEventLog(message, response.ok ? 'success' : 'warning');
+
+                if (!response.ok) {
+                    addEventLog(`Zero Trust 평가 결과: 접근 거부 (신뢰 점수 부족)`, 'danger');
+                }
+            } catch (error) {
+                addEventLog('리소스 접근 실패: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Execute insider threat scenario
+        async function executeInsiderThreat() {
+            showLoading(true);
+
+            try {
+                // 비정상적인 대량 데이터 접근 패턴
+                for (let i = 0; i < 10; i++) {
+                    await fetch(`/api/protected/customer/${i}`, {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': currentContext.userAgent,
+                            'Accept-Language': currentContext.language
+                        },
+                        credentials: 'include'
+                    });
+
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                addEventLog('내부자 위협 패턴 실행 - 대량 데이터 접근 시도', 'warning');
+                addEventLog('SecurityPlaneAgent가 이상 패턴을 감지했습니다', 'danger');
+            } catch (error) {
+                addEventLog('내부자 위협 시뮬레이션 실패: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Execute bot attack
+        async function executeBotAttack() {
+            showLoading(true);
+
+            try {
+                // 봇 패턴: 매우 빠른 연속 로그인 시도
+                for (let i = 0; i < 5; i++) {
+                    await fetch('/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'User-Agent': 'python-requests/2.31.0'
+                        },
+                        body: new URLSearchParams({
+                            username: `bot_user_${i}`,
+                            password: 'password123'
+                        })
+                    });
+                }
+
+                addEventLog('봇 공격 패턴 실행 - 자동화된 로그인 시도', 'warning');
+                addEventLog('HCAD 필터가 봇 패턴을 감지했습니다', 'danger');
+            } catch (error) {
+                addEventLog('봇 공격 실행 실패: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Execute scenario
+        async function executeScenario(scenario) {
+            if (!isAuthenticated) {
+                addEventLog('먼저 로그인하세요', 'warning');
+                return;
+            }
+
+            showLoading(true);
+            addEventLog(`시나리오 실행: ${scenario}`, 'info');
+
+            try {
+                switch(scenario) {
+                    case 'single-access':
+                        await accessSingleCustomer();
+                        break;
+                    case 'bulk-access':
+                        await accessBulkCustomers();
+                        break;
+                    case 'rapid-access':
+                        await simulateRapidAccess();
+                        break;
+                    case 'gradual-escalation':
+                        await simulateGradualEscalation();
+                        break;
+                    case 'after-hours':
+                        await simulateAfterHoursAccess();
+                        break;
+                    case 'mass-exfiltration':
+                        await simulateMassExfiltration();
+                        break;
+                }
+            } catch (error) {
+                addEventLog('시나리오 실행 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // New scenario implementations for session attacks
+        async function simulateSessionHijacking() {
+            if (!isAuthenticated) {
+                addEventLog('로그인된 상태에서만 세션 하이재킹을 시뮬레이션할 수 있습니다', 'warning');
+                return;
+            }
+
+            showLoading(true);
+            addEventLog('세션 하이재킹 공격 시작...', 'warning');
+
+            try {
+                // 실제 공격 실행 요청
+                const response = await fetch('/context-proxy/execute-attack', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    credentials: 'include',
+                    body: new URLSearchParams({
+                        attackType: 'SESSION_HIJACKING'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    if (result.realAttack) {
+                        // 실제 공격이 수행된 경우
+                        addEventLog('실제 세션 하이재킹 공격 수행됨', 'danger');
+                        if (result.hijacked) {
+                            addEventLog('❌ 경고: 세션 하이재킹 성공! 보안 침해 발생', 'danger');
+                            updateThreatScore(95.0);
+                        } else {
+                            addEventLog('✓ 세션 하이재킹 공격 차단됨', 'success');
+                            updateThreatScore(85.0);
+                        }
+                    } else {
+                        // 시뮬레이션된 공격
+                        addEventLog(`세션 하이재킹 탐지: IP 변경 ${result.originalIp} → ${result.hijackedIp}`, 'danger');
+                        updateThreatScore(85.0);
+                    }
+
+                    // SecurityPlaneAgent 이벤트 발행 알림
+                    addEventLog('SecurityEvent 발행됨 - 유형: SESSION_HIJACKING', 'info');
+                } else {
+                    addEventLog('세션 하이재킹 실행 실패: ' + (result.error || '알 수 없는 오류'), 'danger');
+                }
+            } catch (error) {
+                addEventLog('세션 하이재킹 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function simulateImpossibleTravel() {
+            if (!isAuthenticated) {
+                addEventLog('로그인된 상태에서만 Impossible Travel을 시뮬레이션할 수 있습니다', 'warning');
+                return;
+            }
+
+            showLoading(true);
+            addEventLog('Impossible Travel 공격 시나리오 시작...', 'warning');
+
+            try {
+                const response = await fetch('/context-proxy/execute-attack', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    credentials: 'include',
+                    body: new URLSearchParams({
+                        attackType: 'IMPOSSIBLE_TRAVEL'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // 여행 이벤트 표시
+                    if (result.travelEvents) {
+                        result.travelEvents.forEach(event => {
+                            addEventLog(`위치: ${event.location} (IP: ${event.ip})`, 'info');
+                        });
+                    }
+
+                    addEventLog(`❌ Impossible Travel 탐지!`, 'danger');
+                    addEventLog(`거리: ${result.distance || '10,800 km'}`, 'danger');
+                    addEventLog(`시간 차이: ${result.timeGap || '5분'}`, 'danger');
+                    addEventLog(`물리적 가능성: ${result.physicallyPossible === false ? '불가능' : '가능'}`, 'danger');
+
+                    updateThreatScore(90.0);
+
+                    // Zero Trust 대응
+                    addEventLog('Zero Trust 대응: MFA 필수, 세션 재검증 요구', 'warning');
+                    addEventLog('SecurityEvent 발행됨 - 유형: IMPOSSIBLE_TRAVEL', 'info');
+                } else {
+                    addEventLog('Impossible Travel 실행 실패: ' + (result.error || '알 수 없는 오류'), 'danger');
+                }
+            } catch (error) {
+                addEventLog('Impossible Travel 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 탈취한 계정으로 정상인처럼 로그인
+        async function executeStealthLogin() {
+            const stolenUsername = document.getElementById('stolen-username').value || 'admin';
+            const stolenPassword = document.getElementById('stolen-password').value || '1234';
+
+            showLoading(true);
+            addEventLog(`탈취한 계정으로 정상 로그인 시도: ${stolenUsername}`, 'warning');
+            addEventLog(`공격자 컨텍스트 - IP: ${currentContext.ip}, UA: ${currentContext.userAgent.substring(0, 30)}...`, 'info');
+
+            try {
+                // 일반 로그인 엔드포인트 사용하지만 공격자 컨텍스트 유지
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': currentContext.userAgent,
+                        'Accept-Language': currentContext.language,
+                        'X-Forwarded-For': currentContext.ip,
+                        'X-Real-IP': currentContext.ip
+                    },
+                    credentials: 'include',
+                    body: new URLSearchParams({
+                        username: stolenUsername,
+                        password: stolenPassword
+                    })
+                });
+
+                if (response.ok || response.redirected) {
+                    addEventLog(`탈취한 계정으로 로그인 성공: ${stolenUsername}`, 'danger');
+                    addEventLog('⚠️ Zero Trust가 컨텍스트 이상을 감지할 수 있음', 'warning');
+                    addEventLog('AuthenticationSuccessEvent 발행 (이상 컨텍스트 플래그 포함)', 'info');
+
+                    isAuthenticated = true;
+                    sessionStorage.setItem('username', stolenUsername);
+                    updateAuthStatus(stolenUsername);
+
+                    // 위협 점수 상승 - 컨텍스트 이상으로 인해
+                    if (currentContext.preset === 'tor-attacker' || currentContext.preset === 'bot') {
+                        updateThreatScore(75.0);
+                        addEventLog('🔴 높은 위험 컨텍스트 감지됨', 'danger');
+                    } else {
+                        updateThreatScore(50.0);
+                        addEventLog('🟡 중간 위험 컨텍스트', 'warning');
+                    }
+                } else {
+                    const errorData = await response.text();
+                    addEventLog(`❌ 로그인 실패: ${errorData || 'Invalid credentials'}`, 'danger');
+                    addEventLog('AuthenticationFailureEvent 발행됨', 'warning');
+                }
+            } catch (error) {
+                addEventLog('로그인 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 브루트포스 공격 실행
+        async function executeBruteForce() {
+            const targetUser = document.getElementById('stolen-username').value || 'admin';
+
+            showLoading(true);
+            addEventLog(`브루트포스 공격 시작 - 대상: ${targetUser}`, 'danger');
+
+            try {
+                const response = await fetch('/context-proxy/execute-attack', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    credentials: 'include',
+                    body: new URLSearchParams({
+                        attackType: 'BRUTE_FORCE',
+                        targetUser: targetUser
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    if (result.realAttack) {
+                        addEventLog(`실제 브루트포스 공격 수행 - ${result.attempts}회 시도`, 'danger');
+                        if (result.success) {
+                            addEventLog('❌ 경고: 브루트포스 공격 성공! 계정 탈취됨', 'danger');
+                            updateThreatScore(100.0);
+                        } else {
+                            addEventLog(`✓ 브루트포스 공격 차단됨 (${result.attempts}회 시도 후)`, 'success');
+                            updateThreatScore(75.0);
+                        }
+                    }
+
+                    // 다수의 AuthenticationFailureEvent 발행됨
+                    addEventLog('다수의 AuthenticationFailureEvent 발행됨', 'warning');
+                    window.failureCount = (window.failureCount || 0) + (result.attempts || 10);
+                } else {
+                    addEventLog('브루트포스 실행 실패: ' + (result.error || '알 수 없는 오류'), 'danger');
+                }
+            } catch (error) {
+                addEventLog('브루트포스 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 크리덴셜 스터핑 공격 실행
+        async function executeCredentialStuffing() {
+            // 사용자가 입력한 탈취 계정 정보를 첫 번째로 시도
+            const stolenUsername = document.getElementById('stolen-username').value || 'admin';
+            const stolenPassword = document.getElementById('stolen-password').value || '1234';
+
+            showLoading(true);
+            addEventLog('크리덴셜 스터핑 공격 시작 - 유출된 계정 정보 사용', 'danger');
+
+            try {
+                const response = await fetch('/context-proxy/execute-attack', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    credentials: 'include',
+                    body: new URLSearchParams({
+                        attackType: 'CREDENTIAL_STUFFING'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    if (result.realAttack) {
+                        addEventLog(`실제 크리덴셜 스터핑 공격 수행`, 'danger');
+                        addEventLog(`시도: ${result.attempts}회, 성공: ${result.successfulLogins}회`, 'warning');
+
+                        if (result.successfulLogins > 0) {
+                            addEventLog(`❌ 경고: ${result.successfulLogins}개 계정 침해됨!`, 'danger');
+                            updateThreatScore(95.0);
+                        } else {
+                            addEventLog('✓ 모든 크리덴셜 스터핑 시도 차단됨', 'success');
+                            updateThreatScore(70.0);
+                        }
+                    }
+
+                    // 다양한 사용자에 대한 이벤트 발행
+                    addEventLog('다양한 계정에 대한 SecurityEvent 발행됨', 'info');
+                } else {
+                    addEventLog('크리덴셜 스터핑 실행 실패: ' + (result.error || '알 수 없는 오류'), 'danger');
+                }
+            } catch (error) {
+                addEventLog('크리덴셜 스터핑 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showAttackInstructions() {
+            const instructions = `
+<strong>계정 탈취 공격 시나리오 설명</strong>
+
+1. <strong>자격증명 탈취 공격</strong>:
+   - '공격자' 프리셋 선택
+   - admin/1234 입력 후 로그인
+   - Zero Trust가 컨텍스트 이상 탐지
+
+2. <strong>세션 하이재킹</strong>:
+   - 정상 컨텍스트로 로그인
+   - '세션 하이재킹' 버튼 클릭
+   - IP 변경으로 탐지
+
+3. <strong>Impossible Travel</strong>:
+   - 정상 로그인 후
+   - 'Impossible Travel' 버튼 클릭
+   - 물리적 불가능한 이동 탐지
+            `;
+
+            alert(instructions);
+        }
+
+        function updateContextDisplay() {
+            const contextDisplay = document.getElementById('currentContextDisplay');
+            if (contextDisplay) {
+                const preset = document.querySelector('.preset-btn.active')?.dataset.preset || 'custom';
+                contextDisplay.textContent = `${preset} (IP: ${currentContext.ip})`;
+            }
+        }
+
+        function updateAuthStatusDisplay(username) {
+            const authDisplay = document.getElementById('authStatusDisplay');
+            if (authDisplay) {
+                authDisplay.textContent = `${username} 로그인됨`;
+                authDisplay.style.color = '#56ab2f';
+            }
+        }
+
+        async function accessSingleCustomer(customerId = 'CUST001') {
+            // @Protectable로 보호된 실제 API 엔드포인트 접근
+            const headers = {
+                'User-Agent': currentContext.userAgent,
+                'Accept-Language': currentContext.language
+            };
+
+            // 내부자 위협 시나리오를 위한 컨텍스트 추가
+            const contextType = document.querySelector('.preset-btn.active')?.dataset.preset || 'normal';
+            if (contextType === 'insider') {
+                headers['X-Insider-Risk'] = 'true';
+                headers['X-Access-Time'] = currentContext.time;
+            }
+
+            const response = await fetch(`/api/protected/customer/${customerId}`, {
+                method: 'GET',
+                headers: headers,
+                credentials: 'include'
+            });
+
+            try {
+                const result = await response.json();
+
+                if (response.ok) {
+                    addEventLog(`@Protectable 리소스 접근 성공: ${customerId}`, 'success');
+                    updateRequestCount(1);
+
+                    // Zero Trust 신뢰 점수 영향 확인
+                    updateThreatScore(result.threatScore || 0);
+                } else {
+                    addEventLog(`@Protectable 접근 차단: ${result.reason || '권한 없음'}`, 'danger');
+                    updateThreatScore(result.threatScore || 80);
+                }
+
+                return result;
+            } catch (e) {
+                // JSON 파싱 실패 시 (401, 403 등)
+                if (response.status === 401) {
+                    addEventLog('@Protectable 접근 거부: 인증 필요', 'danger');
+                } else if (response.status === 403) {
+                    addEventLog('@Protectable 접근 거부: 권한 부족 (Zero Trust 차단)', 'danger');
+                    updateThreatScore(90);
+                } else {
+                    addEventLog(`@Protectable 접근 오류: ${response.status}`, 'warning');
+                }
+                return { success: false, reason: `HTTP ${response.status}` };
+            }
+        }
+
+        async function accessBulkCustomers() {
+            const response = await fetch('/context-proxy/protected/bulk-access', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    count: 50,
+                    durationMinutes: 5
+                })
+            });
+
+            const result = await response.json();
+
+            addEventLog(`대량 접근: 성공 ${result.successCount}, 차단 ${result.blockedCount}`,
+                        result.blockedCount > 0 ? 'warning' : 'success');
+
+            updateRequestCount(result.totalRequested);
+        }
+
+        async function simulateRapidAccess() {
+            addEventLog('빠른 연속 접근 시작', 'warning');
+
+            for (let i = 1; i <= 10; i++) {
+                await accessSingleCustomer('CUST00' + i);
+                await sleep(500); // 500ms intervals
+            }
+
+            addEventLog('빠른 연속 접근 완료', 'warning');
+        }
+
+        async function simulateGradualEscalation() {
+            addEventLog('내부자 위협: 점진적 데이터 유출 시작', 'warning');
+
+            // 정상적인 업무 패턴으로 시작
+            addEventLog('Phase 1: 정상 업무 활동 시뮬레이션', 'info');
+            for (let i = 1; i <= 3; i++) {
+                await accessSingleCustomer(`CUST00${i}`);
+                await sleep(3000); // 정상적인 간격
+            }
+
+            // 점진적으로 빈도 증가
+            addEventLog('Phase 2: 접근 빈도 증가', 'warning');
+            for (let i = 4; i <= 10; i++) {
+                await accessSingleCustomer(`CUST0${String(i).padStart(2, '0')}`);
+                await sleep(1500); // 짧아진 간격
+            }
+
+            // 대량 접근 시도
+            addEventLog('Phase 3: 비정상적 대량 접근', 'danger');
+            for (let i = 11; i <= 25; i++) {
+                await accessSingleCustomer(`CUST${String(i).padStart(3, '0')}`);
+                await sleep(500); // 매우 빠른 접근
+            }
+
+            addEventLog('내부자 위협 패턴 완료 - Zero Trust가 탐지해야 함', 'danger');
+        }
+
+        async function simulateAfterHoursAccess() {
+            // Set late night time
+            document.getElementById('contextTime').value = '23:30';
+            await applyContext();
+
+            addEventLog('업무 외 시간 접근 시작', 'warning');
+
+            for (let i = 1; i <= 10; i++) {
+                await accessSingleCustomer(`CUST${String(i).padStart(3, '0')}`);
+                await sleep(2000);
+            }
+
+            addEventLog('업무 외 시간 접근 완료', 'warning');
+        }
+
+        async function simulateMassExfiltration() {
+            addEventLog('대량 유출 시도 시작', 'danger');
+
+            await accessBulkCustomers();
+
+            // Additional rapid access
+            for (let i = 0; i < 3; i++) {
+                await accessBulkCustomers();
+                await sleep(1000);
+            }
+
+            addEventLog('대량 유출 시도 완료', 'danger');
+        }
+
+        // Handle behavior event from WebSocket
+        function handleBehaviorEvent(data) {
+            // Update threat score
+            const threatScore = data.riskScore || 0;
+            updateThreatScore(threatScore);
+
+            // Update path status
+            if (threatScore >= 70) {
+                document.getElementById('pathStatus').textContent = 'ColdPath';
+                document.getElementById('pathStatus').className = 'status-value danger';
+            } else {
+                document.getElementById('pathStatus').textContent = 'HotPath';
+                document.getElementById('pathStatus').className = 'status-value safe';
+            }
+
+            // Update decision status
+            updateDecisionStatus(data);
+
+            // Add to event log
+            addEventLog(`${data.activity}: 위험도 ${threatScore.toFixed(1)}`,
+                       threatScore > 70 ? 'danger' : threatScore > 40 ? 'warning' : 'success');
+        }
+
+        // Handle user-specific event
+        function handleUserEvent(data) {
+            console.log('User event:', data);
+
+            if (data.anomalies && data.anomalies.length > 0) {
+                data.anomalies.forEach(anomaly => {
+                    addEventLog(`이상 징후: ${anomaly}`, 'warning');
+                });
+            }
+        }
+
+        // Update threat score display
+        function updateThreatScore(score) {
+            const normalizedScore = Math.min(100, Math.max(0, score));
+
+            // Update text
+            document.getElementById('threatScore').textContent = normalizedScore.toFixed(1);
+
+            // Update gauge
+            if (threatGaugeChart) {
+                threatGaugeChart.data.datasets[0].data = [normalizedScore, 100 - normalizedScore];
+
+                // Change color based on score
+                if (normalizedScore >= 70) {
+                    threatGaugeChart.data.datasets[0].backgroundColor[0] = '#FF512F';
+                } else if (normalizedScore >= 40) {
+                    threatGaugeChart.data.datasets[0].backgroundColor[0] = '#FFB75E';
+                } else {
+                    threatGaugeChart.data.datasets[0].backgroundColor[0] = '#56ab2f';
+                }
+
+                threatGaugeChart.update('none');
+            }
+
+            // Update trust score
+            const trustScore = 1 - (normalizedScore / 100);
+            document.getElementById('trustScore').textContent = trustScore.toFixed(2);
+
+            // Update MFA status
+            if (normalizedScore >= 50) {
+                document.getElementById('mfaStatus').textContent = '필수';
+                document.getElementById('mfaStatus').className = 'status-value warning';
+            } else if (normalizedScore >= 30) {
+                document.getElementById('mfaStatus').textContent = '선택';
+                document.getElementById('mfaStatus').className = 'status-value';
+            } else {
+                document.getElementById('mfaStatus').textContent = '비활성';
+                document.getElementById('mfaStatus').className = 'status-value safe';
+            }
+        }
+
+        // Update decision status
+        function updateDecisionStatus(data) {
+            const threatScore = data.riskScore || 0;
+
+            if (threatScore >= 90) {
+                document.getElementById('decisionStatus').textContent = 'BLOCKED';
+                document.getElementById('decisionStatus').className = 'status-value danger';
+            } else if (threatScore >= 70) {
+                document.getElementById('decisionStatus').textContent = 'MFA_REQUIRED';
+                document.getElementById('decisionStatus').className = 'status-value warning';
+            } else {
+                document.getElementById('decisionStatus').textContent = 'ALLOW';
+                document.getElementById('decisionStatus').className = 'status-value safe';
+            }
+        }
+
+        // Update request count
+        function updateRequestCount(count) {
+            const currentCount = parseInt(document.getElementById('requestCount').textContent) || 0;
+            const newCount = currentCount + (count || 1);
+            document.getElementById('requestCount').textContent = newCount;
+
+            // Update session status based on activity
+            if (newCount > 100) {
+                document.getElementById('sessionStatus').textContent = '의심';
+                document.getElementById('sessionStatus').className = 'status-value danger';
+            } else if (newCount > 50) {
+                document.getElementById('sessionStatus').textContent = '주의';
+                document.getElementById('sessionStatus').className = 'status-value warning';
+            }
+        }
+
+        // Add event to log
+        function addEventLog(message, type = 'info') {
+            const eventLog = document.getElementById('eventLog');
+            const time = new Date().toLocaleTimeString('ko-KR');
+
+            const eventItem = document.createElement('div');
+            eventItem.className = 'event-item';
+            eventItem.innerHTML = `
+                <span class="event-time">${time}</span>
+                <span class="event-message ${type}">${message}</span>
+            `;
+
+            eventLog.insertBefore(eventItem, eventLog.firstChild);
+
+            // Keep only last 50 events
+            while (eventLog.children.length > 50) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+
+        // Show/hide loading overlay
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('active', show);
+        }
+
+        // Sleep helper
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Periodic status check
+        setInterval(async function() {
+            if (isAuthenticated) {
+                try {
+                    const response = await fetch('/context-proxy/status');
+                    const status = await response.json();
+
+                    if (status.threatScore !== undefined) {
+                        updateThreatScore(status.threatScore);
+                    }
+                } catch (error) {
+                    console.error('Status check error:', error);
+                }
+            }
+        }, 5000000); // Check every 5 seconds
+
+        // ================================================================================
+        // Baseline Vector 실시간 모니터링 기능
+        // ================================================================================
+
+        let baselineMonitoringInterval = null;
+        let lastBaselineUpdateTime = null;
+
+        /**
+         * Baseline Vector 상태 조회
+         * @param {string} userId - 조회할 사용자 ID (기본값: 현재 요청의 실제 userId)
+         */
+        async function checkBaselineVector(userId) {
+            try {
+                // 사용자 ID 결정
+                let targetUserId = userId ||
+                                  document.getElementById('normal-username')?.value ||
+                                  sessionStorage.getItem('username');
+
+                // 서버에서 현재 요청의 실제 userId 조회 (익명 사용자 포함)
+                if (!targetUserId) {
+                    try {
+                        const userResponse = await fetch('/api/hcad/current-user', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'include'
+                        });
+
+                        if (userResponse.ok) {
+                            const userData = await userResponse.json();
+                            targetUserId = userData.userId;
+
+                            const isAnonymous = userData.isAnonymous === 'true';
+                            addEventLog(`🔍 현재 사용자 확인: ${targetUserId}${isAnonymous ? ' (익명)' : ''}`, 'info');
+                        } else {
+                            throw new Error('사용자 정보 조회 실패');
+                        }
+                    } catch (error) {
+                        addEventLog(`❌ 사용자 정보 조회 실패: ${error.message}`, 'danger');
+                        return null;
+                    }
+                }
+
+                addEventLog(`📊 Baseline Vector 조회 중: ${targetUserId}`, 'info');
+
+                const response = await fetch(`/api/hcad/baseline/${targetUserId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const baseline = await response.json();
+
+                    // UI 업데이트
+                    updateBaselineDisplay(baseline);
+
+                    // 마지막 업데이트 시간 기록
+                    lastBaselineUpdateTime = new Date();
+
+                    addEventLog(`✅ Baseline 조회 성공: 학습 ${baseline.updateCount}회, 신뢰도 ${baseline.confidence.toFixed(3)}`, 'success');
+
+                    return baseline;
+                } else if (response.status === 404) {
+                    const errorData = await response.json();
+
+                    // 새 사용자 표시
+                    updateBaselineDisplay({
+                        userId: targetUserId,
+                        updateCount: 0,
+                        confidence: 0.0,
+                        vectorNorm: 0.0,
+                        avgRequestCount: 0,
+                        meanRequestInterval: 0.0,
+                        avgTrustScore: 0.0,
+                        lastUpdated: null,
+                        isNew: true
+                    });
+
+                    addEventLog(`ℹ️ ${errorData.message || '새 사용자입니다'}`, 'info');
+
+                    return null;
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                addEventLog(`❌ Baseline 조회 실패: ${error.message}`, 'danger');
+                console.error('Baseline Vector 조회 오류:', error);
+
+                // 에러 상태 표시
+                document.getElementById('baselineUserId').textContent = '조회 실패';
+                document.getElementById('baselineUserId').style.color = '#ef4444';
+
+                return null;
+            }
+        }
+
+        /**
+         * Baseline Vector UI 업데이트
+         * @param {Object} baseline - Baseline 데이터
+         */
+        function updateBaselineDisplay(baseline) {
+            // 사용자 ID
+            const userIdElement = document.getElementById('baselineUserId');
+            userIdElement.textContent = baseline.userId;
+            userIdElement.style.color = baseline.isNew ? '#f59e0b' : '#10b981';
+
+            // 학습 횟수
+            const updateCountElement = document.getElementById('baselineUpdateCount');
+            updateCountElement.textContent = baseline.updateCount || 0;
+            updateCountElement.style.color = baseline.updateCount >= 30 ? '#10b981' : '#f59e0b';
+
+            // 신뢰도
+            const confidenceElement = document.getElementById('baselineConfidence');
+            const confidence = baseline.confidence || 0.0;
+            confidenceElement.textContent = confidence.toFixed(3);
+
+            // 신뢰도에 따른 색상 변경
+            if (confidence >= 0.8) {
+                confidenceElement.style.color = '#10b981'; // 녹색
+            } else if (confidence >= 0.5) {
+                confidenceElement.style.color = '#f59e0b'; // 주황색
+            } else {
+                confidenceElement.style.color = '#ef4444'; // 빨간색
+            }
+
+            // 벡터 노름
+            document.getElementById('baselineVectorNorm').textContent =
+                (baseline.vectorNorm || 0.0).toFixed(3);
+
+            // 평균 요청 간격
+            document.getElementById('baselineMeanInterval').textContent =
+                (baseline.meanRequestInterval || 0.0).toFixed(1);
+
+            // 마지막 업데이트 시간
+            const lastUpdatedElement = document.getElementById('baselineLastUpdated');
+            if (baseline.lastUpdated) {
+                const updateTime = new Date(baseline.lastUpdated);
+                const now = new Date();
+                const diffMinutes = Math.floor((now - updateTime) / 60000);
+
+                if (diffMinutes < 1) {
+                    lastUpdatedElement.textContent = '방금 전';
+                    lastUpdatedElement.style.color = '#10b981';
+                } else if (diffMinutes < 60) {
+                    lastUpdatedElement.textContent = `${diffMinutes}분 전`;
+                    lastUpdatedElement.style.color = '#10b981';
+                } else {
+                    const hours = Math.floor(diffMinutes / 60);
+                    lastUpdatedElement.textContent = `${hours}시간 전`;
+                    lastUpdatedElement.style.color = '#f59e0b';
+                }
+            } else {
+                lastUpdatedElement.textContent = baseline.isNew ? '미학습' : '-';
+                lastUpdatedElement.style.color = '#6b7280';
+            }
+        }
+
+        /**
+         * 자동 Baseline 모니터링 시작
+         * @param {number} intervalSeconds - 갱신 간격 (초)
+         */
+        function startBaselineMonitoring(intervalSeconds = 5) {
+            // 기존 인터벌 정리
+            if (baselineMonitoringInterval) {
+                clearInterval(baselineMonitoringInterval);
+            }
+
+            // 즉시 한 번 조회
+            checkBaselineVector();
+
+            // 주기적 조회 시작
+            baselineMonitoringInterval = setInterval(() => {
+                checkBaselineVector();
+            }, intervalSeconds * 1000);
+
+            addEventLog(`🔄 Baseline 자동 모니터링 시작 (${intervalSeconds}초 간격)`, 'success');
+        }
+
+        /**
+         * Baseline 모니터링 중지
+         */
+        function stopBaselineMonitoring() {
+            if (baselineMonitoringInterval) {
+                clearInterval(baselineMonitoringInterval);
+                baselineMonitoringInterval = null;
+                addEventLog('⏸️ Baseline 모니터링 중지', 'info');
+            }
+        }
+
+        /**
+         * 학습 진행 상황 추적 및 표시
+         */
+        async function trackLearningProgress() {
+            const userId = document.getElementById('normal-username')?.value ||
+                         sessionStorage.getItem('username') ||
+                         'admin';
+
+            try {
+                const baseline = await checkBaselineVector(userId);
+
+                if (baseline && baseline.updateCount > 0) {
+                    // 학습 진행률 계산 (30회 완료 기준)
+                    const targetCount = 30;
+                    const progress = Math.min((baseline.updateCount / targetCount) * 100, 100);
+
+                    // 진행률 로그
+                    if (progress < 100) {
+                        addEventLog(`📈 학습 진행률: ${progress.toFixed(1)}% (${baseline.updateCount}/${targetCount}회)`, 'info');
+                    } else {
+                        addEventLog(`✅ 학습 완료! 신뢰도: ${baseline.confidence.toFixed(3)}`, 'success');
+                    }
+
+                    return { baseline, progress };
+                }
+
+                return null;
+            } catch (error) {
+                console.error('학습 진행 상황 추적 오류:', error);
+                return null;
+            }
+        }
+
+        // ================================================================================
+        // 로그인 통합: 로그인 성공 시 자동으로 Baseline 확인
+        // ================================================================================
+
+        /**
+         * 정상 사용자 로그인 (Baseline 모니터링 통합 버전)
+         * ✅ 투자자 검증용: 완벽한 에러 처리와 자동 Baseline 모니터링 포함
+         */
+        async function executeNormalLogin() {
+            const username = document.getElementById('normal-username').value;
+            const password = document.getElementById('normal-password').value;
+
+            if (!username || !password) {
+                addEventLog('사용자명과 비밀번호를 입력하세요', 'warning');
+                return;
+            }
+
+            showLoading(true);
+            addEventLog(`정상 사용자 로그인 시도: ${username}`, 'info');
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': currentContext.userAgent,
+                        'Accept-Language': currentContext.language,
+                        'X-Forwarded-For': currentContext.ip
+                    },
+                    credentials: 'include',
+                    body: new URLSearchParams({
+                        username: username,
+                        password: password
+                    })
+                });
+
+                if (response.ok || response.redirected) {
+                    addEventLog(`✅ 정상 로그인 성공: ${username}`, 'success');
+                    addEventLog('AuthenticationSuccessEvent 발행됨', 'info');
+                    updateThreatScore(0.0);
+                    updateTrustScore(1.0);
+
+                    // 세션에 사용자명 저장
+                    sessionStorage.setItem('username', username);
+
+                    // ✅ 로그인 성공 후 즉시 Baseline 확인
+                    setTimeout(async () => {
+                        await checkBaselineVector(username);
+
+                        // 자동 모니터링 시작
+                        startBaselineMonitoring(5);
+                    }, 500);
+
+                } else {
+                    addEventLog(`❌ 로그인 실패 (상태: ${response.status})`, 'danger');
+                    addEventLog('AuthenticationFailureEvent 발행됨', 'warning');
+                    updateThreatScore(30.0);
+                }
+            } catch (error) {
+                addEventLog('로그인 오류: ' + error.message, 'danger');
+            } finally {
+                showLoading(false);
+            }
+        }
+    </script>
+</body>
+</html>

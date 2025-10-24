@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${policy.id != null ? '정책 수정' : '정책 등록'})}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+        <div class="w-full max-w-3xl p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
+            <div class="text-center mb-8">
+                <h2 class="mt-4 text-3xl font-bold text-gradient" th:text="${policy.id != null ? '정책 수정' : '새 정책 등록'}"></h2>
+            </div>
+            <div class="mb-6 p-4 rounded-lg border" style="background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.3);">
+                <h3 class="font-semibold text-lg" style="color: #93c5fd;">정책 요약 (자동 생성)</h3>
+                <p class="mt-2 text-sm font-mono" style="color: #dbeafe;" th:text="${policy.description} ?: '저장 후 요약 정보가 생성됩니다.'"></p>
+            </div>
+            <form th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6">
+                <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
+
+                <div>
+                    <label for="name" class="block text-sm font-medium" style="color: #cbd5e1;">정책명 (고유값):</label>
+                    <input type="text" id="name" th:field="*{name}"
+                           class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
+                           style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required />
+                </div>
+                <div>
+                    <label for="description" class="block text-sm font-medium" style="color: #cbd5e1;">설명:</label>
+                    <input type="text" id="description" th:field="*{description}"
+                           class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
+                           style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="effect" class="block text-sm font-medium" style="color: #cbd5e1;">효과 (Effect):</label>
+                        <select id="effect" th:field="*{effect}"
+                                class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
+                                style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
+                            <option th:each="eff : ${T(io.spring.iam.domain.entity.policy.Policy.Effect).values()}" th:value="${eff}" th:text="${eff.name()}"></option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="priority" class="block text-sm font-medium" style="color: #cbd5e1;">우선순위 (낮을수록 먼저 평가):</label>
+                        <input type="number" id="priority" th:field="*{priority}"
+                               class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
+                               style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required />
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium" style="color: #cbd5e1;">적용 대상 (Targets)</label>
+                    <div id="targets-container" class="space-y-4">
+                        <div th:each="target, stat : *{targets}" class="target-block grid grid-cols-12 gap-2 items-center">
+                            <div class="col-span-3">
+                                <select th:field="*{targets[__${stat.index}__].targetType}" onchange="toggleHttpMethod(this)"
+                                        class="block w-full px-4 py-2.5 rounded-lg shadow-sm"
+                                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
+                                    <option value="URL">URL</option>
+                                    <option value="METHOD">METHOD</option>
+                                </select>
+                            </div>
+                            <div class="col-span-2">
+                                <select th:field="*{targets[__${stat.index}__].httpMethod}"
+                                        class="http-method-select block w-full px-4 py-2.5 rounded-lg shadow-sm"
+                                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
+                                    <option value="ALL">ALL</option> <option value="GET">GET</option> <option value="POST">POST</option>
+                                    <option value="PUT">PUT</option> <option value="DELETE">DELETE</option>
+                                </select>
+                            </div>
+                            <div class="col-span-6">
+                                <input type="text" th:field="*{targets[__${stat.index}__].targetIdentifier}"
+                                       class="block w-full px-4 py-2.5 rounded-lg shadow-sm"
+                                       style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                                       placeholder="/admin/** or com.example.Service.*" required />
+                            </div>
+                            <div class="col-span-1">
+                                <button type="button" onclick="removeElement(this, '.target-block')"
+                                        class="hover:text-red-400" style="color: #94a3b8;">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" id="add-target-btn" class="text-sm font-medium hover:underline" style="color: #818cf8;">+ 적용 대상 추가</button>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium" style="color: #cbd5e1;">규칙 (Rules - 각 규칙은 OR 로 결합)</label>
+                    <div id="rules-container" class="space-y-4">
+                        <div th:each="rule, ruleStat : *{rules}" class="rule-block p-4 rounded-lg space-y-3 relative" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
+                            <button type="button" onclick="removeRule(this)" class="absolute top-2 right-2 hover:text-red-400" style="color: #94a3b8;">&times;</button>
+                            <h3 class="font-semibold" style="color: #e2e8f0;" th:text="'규칙(Rule) #' + ${ruleStat.index + 1}"></h3>
+                            <div>
+                                <label th:for="${'ruleDesc' + ruleStat.index}" class="block text-sm font-medium" style="color: #cbd5e1;">규칙 설명:</label>
+                                <input type="text" th:id="${'ruleDesc' + ruleStat.index}" th:field="*{rules[__${ruleStat.index}__].description}"
+                                       class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
+                                       style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium" style="color: #cbd5e1;">조건 (Conditions - Rule 내부에서는 AND 결합):</label>
+                                <div class="conditions-list space-y-2 mt-2">
+                                    <div th:each="cond, condStat : ${rule.conditions}" class="condition-block grid grid-cols-12 gap-2 items-center">
+                                        <div class="col-span-3">
+                                            <select th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].authorizationPhase}"
+                                                    class="block w-full px-4 py-2.5 rounded-lg shadow-sm text-sm"
+                                                    style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
+                                                <option th:value="'PRE_AUTHORIZE'" th:text="'사전 인가 (Pre)'"></option>
+                                                <option th:value="'POST_AUTHORIZE'" th:text="'사후 인가 (Post)'"></option>
+                                            </select>
+                                        </div>
+                                        <div class="col-span-8">
+                                            <input type="text" th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].expression}"
+                                                   class="block w-full px-4 py-2.5 rounded-lg shadow-sm font-mono text-sm"
+                                                   style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                                                   placeholder="SpEL 표현식 입력">
+                                        </div>
+                                        <div class="col-span-1 text-center">
+                                            <button type="button" onclick="removeElement(this, '.condition-block')"
+                                                    class="text-xl hover:text-red-400" style="color: #94a3b8;">&times;</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="addCondition(this)" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;">+ 조건 추가</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" id="add-rule-btn" class="text-sm font-medium hover:underline" style="color: #818cf8;">+ 규칙 추가</button>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
+                            style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                        저장
+                    </button>
+                </div>
+            </form>
+            <div class="mt-6 text-center">
+                <a th:href="@{/admin/policies}" class="text-sm font-medium hover:underline" style="color: #818cf8;">정책 목록으로 돌아가기</a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script>
+    document.getElementById('add-target-btn').addEventListener('click', function() {
+        const targetsContainer = document.getElementById('targets-container');
+        const targetBlocks = targetsContainer.getElementsByClassName('target-block');
+        const newIndex = targetBlocks.length;
+
+        const newTargetBlock = document.createElement('div');
+        newTargetBlock.className = 'target-block grid grid-cols-12 gap-2 items-center';
+        newTargetBlock.innerHTML = `
+            <div class="col-span-3">
+                <select name="targets[${newIndex}].targetType" onchange="toggleHttpMethod(this)"
+                        class="block w-full px-4 py-2.5 rounded-lg shadow-sm"
+                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
+                    <option value="URL">URL</option>
+                    <option value="METHOD">METHOD</option>
+                </select>
+            </div>
+            <div class="col-span-2">
+                <select name="targets[${newIndex}].httpMethod"
+                        class="http-method-select block w-full px-4 py-2.5 rounded-lg shadow-sm"
+                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
+                    <option value="ALL">ALL</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+            </div>
+            <div class="col-span-6">
+                <input type="text" name="targets[${newIndex}].targetIdentifier"
+                       class="block w-full px-4 py-2.5 rounded-lg shadow-sm"
+                       style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                       placeholder="/admin/** or com.example.Service.*" required />
+            </div>
+            <div class="col-span-1">
+                <button type="button" onclick="removeElement(this, '.target-block')"
+                        class="hover:text-red-400" style="color: #94a3b8;">&times;</button>
+            </div>
+        `;
+        targetsContainer.appendChild(newTargetBlock);
+    });
+
+    document.getElementById('add-rule-btn').addEventListener('click', function() {
+        const rulesContainer = document.getElementById('rules-container');
+        const ruleBlocks = rulesContainer.getElementsByClassName('rule-block');
+        const newIndex = ruleBlocks.length;
+
+        const newRuleBlock = document.createElement('div');
+        newRuleBlock.className = 'rule-block p-4 rounded-lg space-y-3 relative';
+        newRuleBlock.style = 'background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);';
+        newRuleBlock.innerHTML = `
+            <button type="button" onclick="removeRule(this)" class="absolute top-2 right-2 hover:text-red-400" style="color: #94a3b8;">&times;</button>
+            <h3 class="font-semibold" style="color: #e2e8f0;">규칙(Rule) #${newIndex + 1}</h3>
+            <div>
+                <label for="ruleDesc${newIndex}" class="block text-sm font-medium" style="color: #cbd5e1;">규칙 설명:</label>
+                <input type="text" id="ruleDesc${newIndex}" name="rules[${newIndex}].description"
+                       class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
+                       style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium" style="color: #cbd5e1;">조건 (Conditions - Rule 내부에서는 AND 결합):</label>
+                <div class="conditions-list space-y-2 mt-2">
+                </div>
+                <button type="button" onclick="addCondition(this)" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;">+ 조건 추가</button>
+            </div>
+        `;
+        rulesContainer.appendChild(newRuleBlock);
+    });
+
+    function toggleHttpMethod(selectElement) {
+        const targetBlock = selectElement.closest('.target-block');
+        const httpMethodSelect = targetBlock.querySelector('.http-method-select');
+        if (selectElement.value === 'URL') {
+            httpMethodSelect.style.display = 'block';
+        } else {
+            httpMethodSelect.style.display = 'none';
+            httpMethodSelect.value = 'ALL';
+        }
+    }
+
+    // 페이지 로드 시 기존 값에 따라 HTTP 메서드 표시 여부 결정
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.target-block').forEach(block => {
+            const typeSelect = block.querySelector('select[name*="targetType"]');
+            if (typeSelect) {
+                toggleHttpMethod(typeSelect);
+            }
+        });
+    });
+
+    function removeRule(button) {
+        const ruleBlock = button.closest('.rule-block');
+        ruleBlock.remove();
+        // 인덱스를 다시 정렬하여 form 전송 시 데이터가 누락되지 않도록 함
+        updateRuleIndices();
+    }
+
+    function updateRuleIndices() {
+        const rulesContainer = document.getElementById('rules-container');
+        const ruleBlocks = rulesContainer.getElementsByClassName('rule-block');
+        for (let i = 0; i < ruleBlocks.length; i++) {
+            const block = ruleBlocks[i];
+            block.querySelector('h3').textContent = `규칙(Rule) #${i + 1}`;
+
+            // 규칙 설명 필드 업데이트
+            const descLabel = block.querySelector('label[for^="ruleDesc"]');
+            const descInput = block.querySelector('input[id^="ruleDesc"]');
+            if (descLabel && descInput) {
+                descLabel.setAttribute('for', `ruleDesc${i}`);
+                descInput.id = `ruleDesc${i}`;
+                descInput.name = `rules[${i}].description`;
+            }
+
+            // 조건 필드들 업데이트
+            const conditionBlocks = block.querySelectorAll('.condition-block');
+            conditionBlocks.forEach((condBlock, j) => {
+                const phaseSelect = condBlock.querySelector('select[name*="authorizationPhase"]');
+                const expressionInput = condBlock.querySelector('input[name*="expression"]');
+                if (phaseSelect) phaseSelect.name = `rules[${i}].conditions[${j}].authorizationPhase`;
+                if (expressionInput) expressionInput.name = `rules[${i}].conditions[${j}].expression`;
+            });
+        }
+    }
+
+    function addCondition(button) {
+        const ruleBlock = button.closest('.rule-block');
+        const conditionsList = ruleBlock.querySelector('.conditions-list');
+        const ruleIndex = Array.from(document.querySelectorAll('.rule-block')).indexOf(ruleBlock);
+        const conditionIndex = conditionsList.children.length;
+
+        const newCondition = document.createElement('div');
+        newCondition.className = 'condition-block grid grid-cols-12 gap-2 items-center';
+        newCondition.innerHTML = `
+            <div class="col-span-3">
+                <select name="rules[${ruleIndex}].conditions[${conditionIndex}].authorizationPhase"
+                        class="block w-full px-4 py-2.5 rounded-lg shadow-sm text-sm"
+                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
+                    <option value="PRE_AUTHORIZE">사전 인가 (Pre)</option>
+                    <option value="POST_AUTHORIZE">사후 인가 (Post)</option>
+                </select>
+            </div>
+            <div class="col-span-8">
+                <input type="text" name="rules[${ruleIndex}].conditions[${conditionIndex}].expression"
+                       class="block w-full px-4 py-2.5 rounded-lg shadow-sm font-mono text-sm"
+                       style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                       placeholder="SpEL 표현식 입력">
+            </div>
+            <div class="col-span-1 text-center">
+                <button type="button" onclick="removeElement(this, '.condition-block')"
+                        class="text-xl hover:text-red-400" style="color: #94a3b8;">&times;</button>
+            </div>
+        `;
+        conditionsList.appendChild(newCondition);
+    }
+
+    function removeElement(button, selector) {
+        const element = button.closest(selector);
+        const parent = element.parentNode;
+        element.remove();
+
+        // 타겟 요소들의 인덱스 재정렬
+        if (selector === '.target-block') {
+            updateTargetIndices();
+        }
+        // 조건 요소들의 인덱스 재정렬
+        else if (selector === '.condition-block') {
+            const ruleBlock = parent.closest('.rule-block');
+            updateConditionIndices(ruleBlock);
+        }
+    }
+
+    function updateTargetIndices() {
+        const targetsContainer = document.getElementById('targets-container');
+        const targetBlocks = targetsContainer.getElementsByClassName('target-block');
+        for (let i = 0; i < targetBlocks.length; i++) {
+            const block = targetBlocks[i];
+            const typeSelect = block.querySelector('select[name*="targetType"]');
+            const methodSelect = block.querySelector('select[name*="httpMethod"]');
+            const identifierInput = block.querySelector('input[name*="targetIdentifier"]');
+
+            if (typeSelect) typeSelect.name = `targets[${i}].targetType`;
+            if (methodSelect) methodSelect.name = `targets[${i}].httpMethod`;
+            if (identifierInput) identifierInput.name = `targets[${i}].targetIdentifier`;
+        }
+    }
+
+    function updateConditionIndices(ruleBlock) {
+        const ruleIndex = Array.from(document.querySelectorAll('.rule-block')).indexOf(ruleBlock);
+        const conditionBlocks = ruleBlock.querySelectorAll('.condition-block');
+
+        conditionBlocks.forEach((block, i) => {
+            const phaseSelect = block.querySelector('select[name*="authorizationPhase"]');
+            const expressionInput = block.querySelector('input[name*="expression"]');
+
+            if (phaseSelect) phaseSelect.name = `rules[${ruleIndex}].conditions[${i}].authorizationPhase`;
+            if (expressionInput) expressionInput.name = `rules[${ruleIndex}].conditions[${i}].expression`;
+        });
+    }
+</script>
+
+</body>
+</html>

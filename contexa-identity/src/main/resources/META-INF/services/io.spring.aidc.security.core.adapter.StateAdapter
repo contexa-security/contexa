@@ -1,0 +1,2 @@
+io.spring.aidc.security.core.adapter.state.session.SessionStateAdapter
+io.spring.aidc.security.core.adapter.state.oauth2.OAuth2StateAdapter

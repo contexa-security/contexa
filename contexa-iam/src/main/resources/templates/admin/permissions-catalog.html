@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='권한 카탈로그')}"></th:block>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-gradient">권한 카탈로그</h1>
+                <p class="text-dark-muted mt-2">
+                    이곳은 시스템의 <strong>모든 비즈니스 권한</strong> 목록입니다.
+                    개발자가 코드에 API의 용도를 명시하면, 시스템이 이 정보를 바탕으로 카탈로그를 <strong>자동으로 생성하고 동기화</strong>합니다.
+                    관리자는 이 목록을 조회하여 정책 설정 시 어떤 권한을 사용할 수 있는지 확인할 수 있습니다.
+                </p>
+                <div class="mt-4 p-4 rounded-lg border-l-4" style="background: rgba(59, 130, 246, 0.1); border-color: #3b82f6;">
+                    <p class="font-bold" style="color: #93c5fd;">안내</p>
+                    <p style="color: #dbeafe;">이 화면에서는 생성/수정/삭제 기능이 제공되지 않습니다. 권한의 추가 및 변경은 개발자가 소스코드의 <code class="px-1 rounded" style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-family: monospace;">@Operation</code> 어노테이션을 통해 직접 수행해야 합니다.</p>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full w-full text-sm text-left">
+                    <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
+                    <tr>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">권한 이름 (비즈니스 용어)</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">내부 식별자 (자동 생성)</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">대상 타입</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold">행동 타입</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
+                    <tr th:each="permission : ${permissions}" class="hover:bg-gray-50/5" style="border-color: rgba(71, 85, 105, 0.3);">
+                        <td class="py-4 px-6">
+                            <p class="font-semibold" style="color: #e2e8f0;" th:text="${permission.description} ?: '설명 없음'">사용자 정보 조회</p>
+                        </td>
+                        <td class="py-4 px-6 font-mono text-xs" style="color: #94a3b8;" th:text="${permission.name}">PERM_URL_123</td>
+                        <td class="py-4 px-6">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                  th:style="${permission.targetType == 'URL' ? 'background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);' : 'background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3);'}"
+                                  th:text="${permission.targetType}">URL</span>
+                        </td>
+                        <td class="py-4 px-6">
+                            <span class="font-medium" th:text="${permission.actionType} ?: 'ACCESS'">GET</span>
+                        </td>
+                    </tr>
+                    <tr th:if="${#lists.isEmpty(permissions)}">
+                        <td colspan="4" class="py-4 px-6 text-center" style="color: #94a3b8;">
+                            표시할 권한이 없습니다. 시스템 리소스 스캔이 필요할 수 있습니다.
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+</body>
+</html>

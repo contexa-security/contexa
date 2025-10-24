@@ -1,0 +1,25 @@
+<div th:fragment="menu">
+    <nav class="bg-app-secondary text-white w-64 min-h-full p-5 space-y-6 shadow-lg">
+        <div>
+            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3">인증</h3>
+            <ul class="space-y-1">
+                <li><a th:href="@{/loginForm}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">Form 로그인 (MFA 가능)</a></li>
+                <li><a th:href="@{/loginOtt}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">OTT 로그인 (단일)</a></li>
+                <li><a th:href="@{/loginPasskey}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">Passkey 로그인 (단일)</a></li>
+            </ul>
+        </div>
+        <div>
+            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3">회원</h3>
+            <ul class="space-y-1">
+                <li><a th:href="@{/register}" sec:authorize="isAnonymous()" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">회원 가입</a></li>
+                <li><a th:href="@{/users}" sec:authorize="isAuthenticated()" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">회원 목록</a></li>
+            </ul>
+        </div>
+        <div>
+            <h3 class="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2 px-3">설정</h3>
+            <ul class="space-y-1">
+                <li><a th:href="@{/authMode}" class="block px-3 py-2.5 rounded-md hover:bg-app-primary-dark hover:text-app-accent transition-colors duration-200 text-sm">인증방식 선택</a></li>
+            </ul>
+        </div>
+    </nav>
+</div>

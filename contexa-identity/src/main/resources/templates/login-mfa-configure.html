@@ -1,0 +1,182 @@
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='2차 인증 설정')}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+        <div class="w-full max-w-lg">
+            <!-- MFA 진행 상태 표시기 컨테이너 -->
+            <div id="mfaProgressContainer"></div>
+
+            <div class="w-full max-w-md bg-white p-8 sm:p-10 rounded-xl shadow-2xl mx-auto">
+                <div class="text-center mb-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-auto text-app-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m6 2.25a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h2 class="mt-4 text-3xl font-bold text-app-primary">2차 인증 설정</h2>
+                    <p class="mt-2 text-slate-600" th:if="${username}">
+                        <strong th:text="${username}" id="mfaUsernameDisplay" class="font-semibold text-app-accent"></strong>님, 보안을 위해 2차 인증 수단을 등록해주세요.
+                    </p>
+                    <p class="mt-2 text-slate-600" th:unless="${username}">
+                        보안을 위해 2차 인증 수단을 등록해주세요.
+                    </p>
+                </div>
+
+                <!-- 알림 메시지 -->
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-blue-700">
+                                최소 하나 이상의 2차 인증 수단을 등록해야 합니다.
+                                여러 개를 등록하면 더 안전합니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div th:if="${errorMessage}" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
+                    <p th:text="${errorMessage}">에러 메시지</p>
+                </div>
+                <div id="mfaConfigureMessage" class="text-sm text-center min-h-[1.25rem] mb-4">
+                </div>
+
+                <!-- 등록된 인증 수단 목록 -->
+                <div id="registeredFactorsContainer" class="mb-6 hidden">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">등록된 인증 수단</h3>
+                    <div id="registeredFactorsList" class="space-y-2">
+                        <!-- JavaScript로 동적 렌더링 -->
+                    </div>
+                </div>
+
+                <!-- 인증 수단 등록 버튼들 -->
+                <div id="mfaFactorConfigurationForm" class="space-y-4">
+                    <div class="border-t pt-4">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-3">새 인증 수단 등록</h3>
+                    </div>
+
+                    <button data-action="register-ott" class="mfa-register-button w-full flex items-center justify-center px-6 py-3.5 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9v.906a2.25 2.25 0 0 1-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 0 0 1.183 1.981l6.478 3.488m8.839 2.51-8.84-4.755a2.25 2.25 0 0 1 0-4.132l8.84-4.755a2.25 2.25 0 0 1 2.25 0v12.032a2.25 2.25 0 0 1-2.25 0Z" />
+                        </svg>
+                        이메일 OTP 등록
+                    </button>
+
+                    <button data-action="register-passkey" class="mfa-register-button w-full flex items-center justify-center px-6 py-3.5 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12zm-1-5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd" />
+                        </svg>
+                        Passkey 등록 (FIDO2)
+                    </button>
+                </div>
+
+                <!-- 등록 완료 버튼 (최소 1개 등록 후 활성화) -->
+                <div class="mt-6">
+                    <button id="completeRegistrationBtn" class="w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        등록 완료 및 계속
+                    </button>
+                </div>
+
+                <div class="mt-6 text-center">
+                    <a href="#" id="skipRegistrationLink" class="text-sm text-slate-600 hover:text-app-accent hover:underline hidden">
+                        나중에 설정하기
+                    </a>
+                </div>
+
+                <!-- State Machine 디버그 정보 (개발 환경에서만 표시) -->
+                <div id="stateMachineDebug" class="mt-6 p-4 bg-gray-100 rounded-lg text-xs hidden">
+                    <h4 class="font-semibold mb-2">State Machine Debug Info</h4>
+                    <p>Current State: <span id="debugCurrentState" class="font-mono"></span></p>
+                    <p>Registered Factors: <span id="debugRegisteredFactors" class="font-mono"></span></p>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/mfa-state-tracker.js}"></script>
+<script th:src="@{/js/mfa-progress-indicator.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:src="@{/js/mfa-configure.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const usernameFromModel = /*[[${username}]]*/ null;
+    const usernameFromStorage = sessionStorage.getItem("mfaUsername");
+    const mfaUsernameDisplay = document.getElementById("mfaUsernameDisplay");
+
+    if (mfaUsernameDisplay) {
+        if (usernameFromModel) {
+            mfaUsernameDisplay.textContent = usernameFromModel;
+        } else if (usernameFromStorage) {
+            mfaUsernameDisplay.textContent = usernameFromStorage;
+        }
+    }
+
+    // State Machine 초기화 및 진행 상태 표시
+    document.addEventListener('DOMContentLoaded', () => {
+        // State Machine 상태 확인
+        if (window.mfaStateTracker) {
+            window.mfaStateTracker.restoreFromSession();
+
+            // MFA_CONFIGURATION_REQUIRED 상태가 아니면 경고
+            if (window.mfaStateTracker.currentState !== 'MFA_CONFIGURATION_REQUIRED') {
+                console.warn(`Invalid state for MFA configuration. Current state: ${window.mfaStateTracker.currentState}`);
+
+                // 적절한 페이지로 리다이렉트
+                if (window.mfaStateTracker.currentState === 'AWAITING_FACTOR_SELECTION') {
+                    window.location.href = '/mfa/select-factor';
+                } else if (!window.mfaStateTracker.currentState || window.mfaStateTracker.isTerminalState()) {
+                    window.location.href = '/loginForm';
+                }
+            }
+        }
+
+        if (window.mfaProgressIndicator) {
+            window.mfaProgressIndicator.init();
+            if (window.mfaStateTracker && window.mfaStateTracker.currentState) {
+                window.mfaProgressIndicator.update(
+                    window.mfaStateTracker.currentState,
+                    window.mfaStateTracker.stateMetadata
+                );
+            }
+        }
+
+        // 디버그 모드 활성화 (개발 환경에서만)
+        const isDebugMode = localStorage.getItem('mfaDebugMode') === 'true';
+        if (isDebugMode && window.mfaStateTracker) {
+            const debugContainer = document.getElementById('stateMachineDebug');
+            if (debugContainer) {
+                debugContainer.classList.remove('hidden');
+                document.getElementById('debugCurrentState').textContent =
+                    window.mfaStateTracker.currentState || 'N/A';
+                document.getElementById('debugRegisteredFactors').textContent =
+                    JSON.stringify(window.mfaStateTracker.stateMetadata?.registeredFactors || []);
+            }
+        }
+    });
+
+    const mfaSessionId = sessionStorage.getItem("mfaSessionId");
+    if (!mfaSessionId && typeof showToast === 'function') {
+        showToast("MFA 세션 정보를 찾을 수 없습니다. 다시 로그인 해주세요.", "error", 3000);
+        document.querySelectorAll('.mfa-register-button').forEach(button => button.disabled = true);
+    }
+
+    if (typeof initAuth === 'function') {
+        initAuth();
+    }
+    /*]]>*/
+</script>
+</body>
+</html>

@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=${hierarchy.id != null ? '역할 계층 수정' : '역할 계층 등록'})}"></th:block>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/role-hierarchy.css}">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        /* HTML 고유 스타일만 유지 (CSS 파일로 이동할 수 없는 것들) */
+        #mermaid-container {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50"></div>
+<div id="tooltip" class="tooltip"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="dark-card p-6 rounded-xl">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl font-bold text-gradient" th:text="${hierarchy.id != null ? '역할 계층 수정' : '새 역할 계층 등록'}"></h2>
+                <p class="text-dark-muted mt-2">역할 간의 상하 관계를 시각적으로 정의하고 관리합니다</p>
+            </div>
+
+            <form id="hierarchyForm" method="post"
+                  th:action="${hierarchy.id != null} ? @{/admin/role-hierarchies/{id}/edit(id=${hierarchy.id})} : @{/admin/role-hierarchies}"
+                  th:object="${hierarchy}" class="space-y-6">
+                <input type="hidden" th:field="*{id}" th:if="${hierarchy.id != null}" />
+                <input type="hidden" id="hierarchyString" th:field="*{hierarchyString}" />
+
+                <!-- 설명 입력 -->
+                <div>
+                    <label for="description" class="dark-label">계층 설명:</label>
+                    <input type="text" id="description" th:field="*{description}"
+                           class="dark-input"
+                           placeholder="예: 기본 조직 계층 구조" required />
+                </div>
+
+                <!-- 메인 편집 영역: 3단 구조 -->
+                <div class="grid grid-cols-12 gap-4">
+                    <!-- 왼쪽: 역할 팔레트 -->
+                    <div class="col-span-3">
+                        <h3 class="text-lg font-bold text-slate-200 mb-3">역할 목록</h3>
+                        <div class="role-palette">
+                            <!-- 그룹별 역할 표시 -->
+                            <div th:each="group : ${groupsWithRoles}" class="group-section">
+                                <div class="group-header">
+                                    <i class="fas fa-users mr-2"></i>
+                                    <span th:text="${group.groupName}"></span>
+                                </div>
+                                <div th:each="role : ${group.roles}"
+                                     class="role-item"
+                                     th:data-role="${role.roleName}"
+                                     th:data-desc="${role.roleDesc}"
+                                     onmouseover="showTooltip(event, this)"
+                                     onmouseout="hideTooltip()">
+                                    <div class="role-item-name" th:text="${role.roleName}"></div>
+                                    <div class="role-item-desc" th:text="${role.roleDesc}"></div>
+                                    <div class="mt-1">
+                                        <span th:each="perm : ${role.permissions}"
+                                              class="permission-tag"
+                                              th:text="${perm}"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 그룹 미지정 역할 -->
+                            <div th:if="${!#lists.isEmpty(ungroupedRoles)}" class="group-section">
+                                <div class="group-header">
+                                    <i class="fas fa-user mr-2"></i>
+                                    <span>그룹 미지정</span>
+                                </div>
+                                <div th:each="role : ${ungroupedRoles}"
+                                     class="role-item"
+                                     th:data-role="${role.roleName}"
+                                     th:data-desc="${role.roleDesc}">
+                                    <div class="role-item-name" th:text="${role.roleName}"></div>
+                                    <div class="role-item-desc" th:text="${role.roleDesc}"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- 시각화 영역 수정 - 확대 버튼 추가 -->
+                    <div class="col-span-5">
+                        <h3 class="text-lg font-bold text-slate-200 mb-3">계층 구조 시각화</h3>
+                        <div class="hierarchy-visualization">
+                            <!-- 확대 버튼 추가 -->
+                            <button type="button"
+                                    class="expand-button"
+                                    onclick="showFullscreenModal('fullscreen-mermaid')"
+                                    title="전체화면으로 보기">
+                                <i class="fas fa-expand"></i>
+                                <span>확대</span>
+                            </button>
+                            <div id="mermaid-container" style="width: 100%; height: 100%;">
+                                <div id="mermaid-diagram" class="mermaid">
+                                    graph TD
+                                    A[역할 관계를 설정하면<br/>여기에 시각화됩니다]
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 오른쪽: 관계 편집기 -->
+                    <div class="col-span-4">
+                        <h3 class="text-lg font-bold text-slate-200 mb-3">관계 편집</h3>
+
+                        <!-- 검증 메시지 영역 -->
+                        <div id="validation-error" class="validation-error"></div>
+                        <div id="validation-warning" class="validation-warning"></div>
+
+                        <div id="hierarchy-rows-container" class="space-y-3">
+                            <div th:each="pair, stat : ${hierarchyPairs}" class="relation-row">
+                                <div class="grid grid-cols-12 gap-3 items-center">
+                                    <div class="col-span-5">
+                                        <div class="modern-select-wrapper">
+                                            <select class="parent-role modern-select" onchange="validateAndUpdate()">
+                                                <option value="">상위 역할 선택</option>
+                                                <optgroup th:each="group : ${groupsWithRoles}" th:label="${group.groupName}">
+                                                    <option th:each="role : ${group.roles}"
+                                                            th:value="${role.roleName}"
+                                                            th:text="${role.roleDesc}"
+                                                            th:data-subtext="${role.roleName}"
+                                                            th:selected="${role.roleName == pair.parentRole}"></option>
+                                                </optgroup>
+                                                <optgroup th:if="${!#lists.isEmpty(ungroupedRoles)}" label="그룹 미지정">
+                                                    <option th:each="role : ${ungroupedRoles}"
+                                                            th:value="${role.roleName}"
+                                                            th:text="${role.roleDesc}"
+                                                            th:data-subtext="${role.roleName}"
+                                                            th:selected="${role.roleName == pair.parentRole}"
+                                                            disabled></option>
+                                                </optgroup>
+                                            </select>
+                                            <div class="select-arrow">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-span-2 text-center">
+                                        <div class="relation-arrow-container">
+                                            <div class="arrow-line"></div>
+                                            <i class="fas fa-chevron-right relation-icon"></i>
+                                        </div>
+                                    </div>
+                                    <div class="col-span-5">
+                                        <div class="modern-select-wrapper">
+                                            <select class="child-role modern-select" onchange="validateAndUpdate()">
+                                                <option value="">하위 역할 선택</option>
+                                                <optgroup th:each="group : ${groupsWithRoles}" th:label="${group.groupName}">
+                                                    <option th:each="role : ${group.roles}"
+                                                            th:value="${role.roleName}"
+                                                            th:text="${role.roleDesc}"
+                                                            th:data-subtext="${role.roleName}"
+                                                            th:selected="${role.roleName == pair.childRole}"></option>
+                                                </optgroup>
+                                                <optgroup th:if="${!#lists.isEmpty(ungroupedRoles)}" label="그룹 미지정">
+                                                    <option th:each="role : ${ungroupedRoles}"
+                                                            th:value="${role.roleName}"
+                                                            th:text="${role.roleDesc}"
+                                                            th:data-subtext="${role.roleName}"
+                                                            th:selected="${role.roleName == pair.childRole}"
+                                                            disabled></option>
+                                                </optgroup>
+                                            </select>
+                                            <div class="select-arrow">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="removeRow(this)"
+                                        class="mt-3 delete-btn">
+                                    <i class="fas fa-trash-alt mr-1"></i> 관계 삭제
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="button" id="add-row-btn"
+                                class="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-all duration-200">
+                            <i class="fas fa-plus mr-1"></i> 관계 추가
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 결과 미리보기 -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-bold text-slate-200 mb-3">최종 계층 문자열 미리보기</h3>
+                    <div id="result-preview" class="result-preview">
+                        계층 관계를 설정하면 여기에 결과가 표시됩니다.
+                    </div>
+                </div>
+
+                <!-- 활성화 옵션 -->
+                <div class="flex items-center">
+                    <input type="checkbox" id="isActive" th:field="*{isActive}" class="dark-checkbox" />
+                    <label for="isActive" class="ml-2 block text-sm text-slate-200">
+                        이 계층을 활성화합니다 (기존 활성 계층은 자동으로 비활성화됩니다)
+                    </label>
+                </div>
+
+                <!-- 제출 버튼 -->
+                <div class="pt-4 flex gap-4">
+                    <button type="button" onclick="showConfirmDialog()"
+                            class="flex-1 dark-btn-primary">
+                        <i class="fas fa-save mr-2"></i>
+                        <span th:text="${hierarchy.id != null ? '계층 수정' : '계층 등록'}"></span>
+                    </button>
+                    <a th:href="@{/admin/role-hierarchies}"
+                       class="flex-1 text-center py-3 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700">
+                        <i class="fas fa-times mr-2"></i> 취소
+                    </a>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+
+<!-- 확인 다이얼로그 -->
+<div id="confirm-dialog" class="confirm-dialog">
+    <div class="confirm-dialog-content">
+        <h3 class="text-2xl font-bold text-slate-200 mb-4">
+            <i class="fas fa-sitemap mr-2 text-indigo-400"></i>
+            계층 구조 최종 확인
+        </h3>
+
+        <div class="mb-6">
+            <div class="bg-slate-900/50 rounded-lg p-6 border border-slate-700 mermaid-container"
+                 style="max-height: 50vh; overflow: auto; position: relative;">
+                <!-- 확대 버튼 추가 -->
+                <button type="button"
+                        class="expand-button"
+                        onclick="showConfirmFullscreen()"
+                        title="전체화면으로 보기">
+                    <i class="fas fa-expand"></i>
+                    <span>확대</span>
+                </button>
+                <div id="confirm-mermaid" class="mermaid" style="min-height: 200px;"></div>
+            </div>
+            <p class="text-sm text-slate-500 mt-2 text-center">
+                <i class="fas fa-info-circle mr-1"></i>
+                다이어그램이 크면 스크롤하여 확인하세요
+            </p>
+        </div>
+
+        <div id="impact-analysis" class="mb-6">
+            <!-- 영향 분석 결과가 여기에 표시됩니다 -->
+        </div>
+
+        <div class="flex gap-4">
+            <button type="button" onclick="submitForm()"
+                    class="flex-1 dark-btn-primary">
+                <i class="fas fa-check mr-2"></i> 확인 및 저장
+            </button>
+            <button type="button" onclick="hideConfirmDialog()"
+                    class="flex-1 py-3 px-4 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition-all">
+                <i class="fas fa-times mr-2"></i> 취소
+            </button>
+        </div>
+    </div>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}"></div>
+
+<script th:inline="javascript">
+    // 전역 상수 및 설정
+    const CONFIG = {
+        MERMAID: {
+            THEME: 'dark',
+            NODE_SPACING: 80,
+            RANK_SPACING: 80,
+            FONT_SIZE: '16px'
+        },
+        ANIMATION: {
+            FADE_DURATION: 300,
+            INIT_DELAY: 500
+        }
+    };
+
+    // Thymeleaf에서 전달된 데이터
+    const groupsWithRoles = /*[[${groupsWithRoles}]]*/ [];
+    const ungroupedRoles = /*[[${ungroupedRoles}]]*/ [];
+    let hierarchyPairs = /*[[${hierarchyPairs}]]*/ [];
+
+    // 데이터 정제
+    if (hierarchyPairs && hierarchyPairs.length > 0) {
+        hierarchyPairs = hierarchyPairs.map(pair => ({
+            parentRole: pair.parentRole?.replace(/\\n/g, '').replace(/\n/g, '').trim() || '',
+            childRole: pair.childRole?.replace(/\\n/g, '').replace(/\n/g, '').trim() || ''
+        }));
+    }
+
+    console.log('=== Role Hierarchy Data ===');
+    console.log('Groups with roles:', groupsWithRoles);
+    console.log('Ungrouped roles:', ungroupedRoles);
+    console.log('Existing hierarchy pairs (cleaned):', hierarchyPairs);
+
+    // Mermaid 관련 변수
+    let mermaidInitialized = false;
+    let relationshipGraph = new Map();
+
+    // Mermaid 초기화
+    function initializeMermaid() {
+        if (typeof mermaid !== 'undefined' && !mermaidInitialized) {
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: 'dark',
+                themeVariables: {
+                    primaryColor: '#1e293b',
+                    primaryTextColor: '#f1f5f9',
+                    primaryBorderColor: '#334155',
+                    lineColor: '#475569',
+                    secondaryColor: '#0f172a',
+                    tertiaryColor: '#1e293b',
+                    background: '#020617',
+                    mainBkg: '#1e293b',
+                    secondBkg: '#334155',
+                    tertiaryBkg: '#475569',
+                    fontSize: CONFIG.MERMAID.FONT_SIZE
+                },
+                securityLevel: 'loose',
+                flowchart: {
+                    useMaxWidth: false,
+                    htmlLabels: true,
+                    curve: 'basis',
+                    nodeSpacing: CONFIG.MERMAID.NODE_SPACING,
+                    rankSpacing: CONFIG.MERMAID.RANK_SPACING,
+                    padding: 20,
+                    diagramPadding: 20
+                }
+            });
+            mermaidInitialized = true;
+            console.log('Mermaid initialized with config:', CONFIG.MERMAID);
+        }
+    }
+
+    // 툴팁 표시
+    function showTooltip(event, element) {
+        const tooltip = document.getElementById('tooltip');
+        const role = element.dataset.role;
+        const desc = element.dataset.desc;
+        const permissions = element.querySelectorAll('.permission-tag');
+
+        let content = `<strong>${role}</strong><br/>${desc}`;
+        if (permissions.length > 0) {
+            content += '<br/><br/><strong>권한:</strong><br/>';
+            permissions.forEach(p => {
+                content += `• ${p.textContent}<br/>`;
+            });
+        }
+
+        tooltip.innerHTML = content;
+        tooltip.style.display = 'block';
+        tooltip.style.left = event.pageX + 10 + 'px';
+        tooltip.style.top = event.pageY + 10 + 'px';
+    }
+
+    function hideTooltip() {
+        document.getElementById('tooltip').style.display = 'none';
+    }
+
+    // 옵션 HTML 생성
+    function generateOptionsHtml() {
+        let optionsHtml = '';
+
+        if (groupsWithRoles && groupsWithRoles.length > 0) {
+            groupsWithRoles.forEach(group => {
+                optionsHtml += `<optgroup label="${group.groupName}">`;
+                if (group.roles && group.roles.length > 0) {
+                    group.roles.forEach(role => {
+                        const desc = role.roleDesc || role.roleName;
+                        optionsHtml += `<option value="${role.roleName}" data-subtext="${role.roleName}">${desc}</option>`;
+                    });
+                }
+                optionsHtml += '</optgroup>';
+            });
+        }
+
+        if (ungroupedRoles && ungroupedRoles.length > 0) {
+            optionsHtml += '<optgroup label="그룹 미지정">';
+            ungroupedRoles.forEach(role => {
+                const desc = role.roleDesc || role.roleName;
+                optionsHtml += `<option value="${role.roleName}" data-subtext="${role.roleName}" disabled>${desc}</option>`;
+            });
+            optionsHtml += '</optgroup>';
+        }
+
+        return optionsHtml;
+    }
+
+    // 관계 행 추가
+    function addRow() {
+        console.log('Adding new row...');
+        const container = document.getElementById('hierarchy-rows-container');
+        if (!container) {
+            console.error('Container not found!');
+            return;
+        }
+
+        const targetBlocks = container.getElementsByClassName('relation-row');
+        const newIndex = targetBlocks.length;
+        const optionsHtml = generateOptionsHtml();
+
+        const newRow = document.createElement('div');
+        newRow.className = 'relation-row';
+        newRow.innerHTML = `
+            <div class="grid grid-cols-12 gap-2 items-center">
+                <div class="col-span-5">
+                    <div class="modern-select-wrapper">
+                        <select class="parent-role modern-select" onchange="validateAndUpdate()">
+                            <option value="">상위 역할 선택</option>
+                            ${optionsHtml}
+                        </select>
+                        <div class="select-arrow">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-2 text-center">
+                    <div class="relation-arrow-container">
+                        <div class="arrow-line"></div>
+                        <i class="fas fa-chevron-right relation-icon"></i>
+                    </div>
+                </div>
+                <div class="col-span-5">
+                    <div class="modern-select-wrapper">
+                        <select class="child-role modern-select" onchange="validateAndUpdate()">
+                            <option value="">하위 역할 선택</option>
+                            ${optionsHtml}
+                        </select>
+                        <div class="select-arrow">
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button type="button" onclick="removeRow(this)"
+                    class="mt-3 delete-btn">
+                <i class="fas fa-trash-alt mr-1"></i> 관계 삭제
+            </button>
+        `;
+
+        container.appendChild(newRow);
+
+        // 애니메이션 효과
+        newRow.style.opacity = '0';
+        setTimeout(() => {
+            newRow.style.transition = 'opacity 0.3s ease';
+            newRow.style.opacity = '1';
+        }, 10);
+
+        console.log('New row added');
+    }
+
+    // 관계 행 삭제
+    function removeRow(button) {
+        const row = button.closest('.relation-row');
+        row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        row.style.opacity = '0';
+        row.style.transform = 'translateX(-20px)';
+
+        setTimeout(() => {
+            row.remove();
+            validateAndUpdate();
+        }, CONFIG.ANIMATION.FADE_DURATION);
+    }
+
+    // 유효성 검증 및 업데이트
+    function validateAndUpdate() {
+        const rows = document.querySelectorAll('.relation-row');
+        const relations = [];
+        const graph = new Map();
+        let hasError = false;
+        let errorMessage = '';
+        let warningMessage = '';
+
+        // 관계 수집
+        rows.forEach(row => {
+            const parent = row.querySelector('.parent-role').value;
+            const child = row.querySelector('.child-role').value;
+
+            if (parent && child) {
+                if (parent === child) {
+                    hasError = true;
+                    errorMessage = '상위 역할과 하위 역할이 동일할 수 없습니다.';
+                    return;
+                }
+
+                relations.push({parent, child});
+
+                if (!graph.has(parent)) {
+                    graph.set(parent, new Set());
+                }
+                graph.get(parent).add(child);
+            } else if (parent || child) {
+                warningMessage = '상위 역할과 하위 역할을 모두 선택해주세요.';
+            }
+        });
+
+        // 중복 검사
+        const seen = new Set();
+        for (const rel of relations) {
+            const key = `${rel.parent}>${rel.child}`;
+            if (seen.has(key)) {
+                hasError = true;
+                errorMessage = `중복된 관계가 있습니다: ${key}`;
+                break;
+            }
+            seen.add(key);
+        }
+
+        // 역방향 관계 검사
+        if (!hasError) {
+            for (const rel of relations) {
+                const reverseKey = `${rel.child}>${rel.parent}`;
+                if (seen.has(reverseKey)) {
+                    hasError = true;
+                    errorMessage = `역방향 관계가 발견되었습니다: ${rel.parent} ↔ ${rel.child}`;
+                    break;
+                }
+            }
+        }
+
+        // 전이적 중복 검사
+        if (!hasError) {
+            for (const rel of relations) {
+                if (isTransitivelyConnected(graph, rel.parent, rel.child)) {
+                    hasError = true;
+                    errorMessage = `불필요한 관계입니다: ${rel.parent} > ${rel.child} (이미 다른 경로로 연결되어 있습니다)`;
+                    break;
+                }
+            }
+        }
+
+        // 순환 참조 검사
+        if (!hasError && graph.size > 0) {
+            for (const [node, ] of graph) {
+                if (hasCycle(graph, node, new Set(), new Set())) {
+                    hasError = true;
+                    errorMessage = `순환 참조가 발견되었습니다. ${node}부터 시작하는 경로를 확인하세요.`;
+                    break;
+                }
+            }
+        }
+
+        // 에러/경고 표시
+        displayValidationMessages(hasError, errorMessage, warningMessage);
+
+        // 시각화 업데이트
+        if (!hasError) {
+            if (relations.length > 0) {
+                updateVisualization(relations);
+                updateResultPreview(relations);
+            } else {
+                showInitialState();
+            }
+        }
+
+        relationshipGraph = graph;
+    }
+
+    // 검증 메시지 표시
+    function displayValidationMessages(hasError, errorMessage, warningMessage) {
+        const errorDiv = document.getElementById('validation-error');
+        const warningDiv = document.getElementById('validation-warning');
+
+        if (hasError) {
+            errorDiv.textContent = errorMessage;
+            errorDiv.style.display = 'block';
+        } else {
+            errorDiv.style.display = 'none';
+        }
+
+        if (!hasError && warningMessage) {
+            warningDiv.textContent = warningMessage;
+            warningDiv.style.display = 'block';
+        } else {
+            warningDiv.style.display = 'none';
+        }
+    }
+
+    // 전이적 연결 확인
+    function isTransitivelyConnected(graph, start, end) {
+        const tempGraph = new Map();
+        for (const [key, values] of graph) {
+            tempGraph.set(key, new Set(values));
+        }
+
+        if (tempGraph.has(start)) {
+            tempGraph.get(start).delete(end);
+        }
+
+        // BFS로 다른 경로 탐색
+        const queue = [start];
+        const visited = new Set();
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (visited.has(current)) continue;
+            visited.add(current);
+
+            const children = tempGraph.get(current);
+            if (children) {
+                for (const child of children) {
+                    if (child === end) {
+                        return true;
+                    }
+                    queue.push(child);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // 순환 참조 검사
+    function hasCycle(graph, node, visited, recStack) {
+        visited.add(node);
+        recStack.add(node);
+
+        const children = graph.get(node);
+        if (children) {
+            for (const child of children) {
+                if (!visited.has(child)) {
+                    if (hasCycle(graph, child, visited, recStack)) {
+                        return true;
+                    }
+                } else if (recStack.has(child)) {
+                    return true;
+                }
+            }
+        }
+
+        recStack.delete(node);
+        return false;
+    }
+
+    // 역할의 친화적 이름 찾기
+    function findFriendlyName(roleName) {
+        // 모든 그룹의 역할에서 찾기
+        if (groupsWithRoles && groupsWithRoles.length > 0) {
+            for (const group of groupsWithRoles) {
+                if (group.roles && group.roles.length > 0) {
+                    for (const role of group.roles) {
+                        if (role.roleName === roleName) {
+                            return (role.roleDesc || roleName).replace(/["\n]/g, ' ').trim();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 그룹 미지정 역할에서 찾기
+        if (ungroupedRoles && ungroupedRoles.length > 0) {
+            for (const role of ungroupedRoles) {
+                if (role.roleName === roleName) {
+                    return (role.roleDesc || roleName).replace(/["\n]/g, ' ').trim();
+                }
+            }
+        }
+
+        // 찾지 못한 경우 원본 이름 반환
+        return roleName.replace(/["\n]/g, ' ').trim();
+    }
+
+    // Mermaid 코드 생성
+    function generateMermaidCode(relations) {
+        const nodeMap = new Map();
+        let nodeIndex = 0;
+        let mermaidCode = 'graph TD\n';
+
+        relations.forEach(rel => {
+            // 노드 ID 생성
+            if (!nodeMap.has(rel.parent)) {
+                nodeMap.set(rel.parent, `N${nodeIndex++}`);
+            }
+            if (!nodeMap.has(rel.child)) {
+                nodeMap.set(rel.child, `N${nodeIndex++}`);
+            }
+
+            const parentId = nodeMap.get(rel.parent);
+            const childId = nodeMap.get(rel.child);
+
+            // 친화적 이름 찾기
+            const parentLabel = findFriendlyName(rel.parent);
+            const childLabel = findFriendlyName(rel.child);
+
+            mermaidCode += `    ${parentId}["${parentLabel}"] --> ${childId}["${childLabel}"]\n`;
+        });
+
+        return mermaidCode;
+    }
+
+    // 시각화 업데이트
+    function updateVisualization(relations) {
+        if (!relations || relations.length === 0) {
+            showInitialState();
+            return;
+        }
+
+        initializeMermaid();
+
+        const container = document.getElementById('mermaid-container');
+        if (!container) {
+            console.error('Mermaid container not found');
+            return;
+        }
+
+        // 기존 내용 제거
+        container.innerHTML = '';
+
+        // Mermaid 코드 생성
+        const mermaidCode = generateMermaidCode(relations);
+        console.log('Generated Mermaid code:', mermaidCode);
+
+        // 새로운 다이어그램 요소 생성
+        const diagramDiv = document.createElement('div');
+        diagramDiv.id = 'mermaid-diagram';
+        diagramDiv.className = 'mermaid';
+        diagramDiv.textContent = mermaidCode;
+
+        container.appendChild(diagramDiv);
+
+        // Mermaid 렌더링
+        setTimeout(() => {
+            try {
+                if (typeof mermaid !== 'undefined' && diagramDiv && diagramDiv.parentNode) {
+                    mermaid.init(undefined, diagramDiv);
+                    console.log('Mermaid diagram rendered successfully');
+
+                    // 다이어그램이 렌더링된 후 스크롤 위치 조정
+                    setTimeout(() => {
+                        centerDiagram(container);
+                    }, 100);
+                }
+            } catch (e) {
+                console.error('Mermaid visualization error:', e);
+                showErrorState(container, relations);
+            }
+        }, 100);
+    }
+
+    // 다이어그램 중앙 정렬
+    function centerDiagram(container) {
+        const svg = container.querySelector('svg');
+        if (svg) {
+            const svgRect = svg.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            if (svgRect.width > containerRect.width) {
+                container.scrollLeft = (svgRect.width - containerRect.width) / 2;
+            }
+            if (svgRect.height > containerRect.height) {
+                container.scrollTop = (svgRect.height - containerRect.height) / 2;
+            }
+        }
+    }
+
+    // 오류 상태 표시
+    function showErrorState(container, relations) {
+        container.innerHTML = `
+            <div class="text-center text-slate-400 p-8">
+                <p>다이어그램 렌더링 중 오류가 발생했습니다.</p>
+                <p class="text-sm mt-2">관계: ${relations.map(r => `${r.parent} → ${r.child}`).join(', ')}</p>
+            </div>
+        `;
+    }
+
+    // 결과 미리보기 업데이트
+    function updateResultPreview(relations) {
+        const preview = document.getElementById('result-preview');
+        const hierarchyString = relations.map(rel => `${rel.parent} > ${rel.child}`).join('\n');
+        preview.textContent = hierarchyString || '계층 관계를 설정하면 여기에 결과가 표시됩니다.';
+
+        // hidden input 업데이트
+        document.getElementById('hierarchyString').value = hierarchyString;
+    }
+
+    // 전체화면 모달 표시
+    function showFullscreenModal(targetContainerId) {
+        const relations = collectRelations();
+        if (relations.length === 0) {
+            showToast('표시할 계층 관계가 없습니다.', 'warning');
+            return;
+        }
+
+        // 모달 생성
+        const modal = document.createElement('div');
+        modal.id = 'fullscreen-modal';
+        modal.className = 'fullscreen-modal';
+        modal.innerHTML = `
+            <div class="fullscreen-modal-content">
+                <div class="fullscreen-modal-header">
+                    <h3 class="text-2xl font-bold text-slate-200">
+                        <i class="fas fa-sitemap mr-2 text-indigo-400"></i>
+                        계층 구조 전체 보기
+                    </h3>
+                    <button type="button" onclick="closeFullscreenModal()" class="close-button">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="fullscreen-modal-body">
+                    <div id="${targetContainerId}" class="fullscreen-mermaid-container"></div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 모달 표시
+        setTimeout(() => {
+            modal.classList.add('show');
+
+            // Mermaid 다이어그램 렌더링
+            renderFullscreenDiagram(targetContainerId, relations);
+        }, 10);
+
+        // ESC 키로 닫기
+        document.addEventListener('keydown', handleEscKey);
+    }
+
+    // 전체화면 다이어그램 렌더링
+    function renderFullscreenDiagram(containerId, relations) {
+        initializeMermaid();
+
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const mermaidCode = generateMermaidCode(relations);
+
+        container.innerHTML = '';
+        const diagramDiv = document.createElement('div');
+        diagramDiv.className = 'mermaid';
+        diagramDiv.textContent = mermaidCode;
+        container.appendChild(diagramDiv);
+
+        setTimeout(() => {
+            try {
+                if (typeof mermaid !== 'undefined') {
+                    mermaid.init(undefined, diagramDiv);
+
+                    // 렌더링 후 중앙 정렬
+                    setTimeout(() => {
+                        centerDiagram(container);
+                    }, 100);
+                }
+            } catch (e) {
+                console.error('Fullscreen Mermaid error:', e);
+                container.innerHTML = `
+                    <div class="text-center text-slate-400 p-8">
+                        <p>다이어그램 렌더링 중 오류가 발생했습니다.</p>
+                    </div>
+                `;
+            }
+        }, 100);
+    }
+
+    // 전체화면 모달 닫기
+    function closeFullscreenModal() {
+        const modal = document.getElementById('fullscreen-modal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.remove();
+            }, 300);
+        }
+
+        document.removeEventListener('keydown', handleEscKey);
+    }
+
+    // ESC 키 핸들러
+    function handleEscKey(event) {
+        if (event.key === 'Escape') {
+            closeFullscreenModal();
+        }
+    }
+
+    // 확인 다이얼로그 표시
+    function showConfirmDialog() {
+        const errorDiv = document.getElementById('validation-error');
+        if (errorDiv && errorDiv.style.display === 'block') {
+            showToast('유효성 검증 오류를 먼저 해결해주세요.', 'error');
+            return;
+        }
+
+        const relations = collectRelations();
+        if (relations.length === 0) {
+            showToast('최소 하나 이상의 관계를 설정해주세요.', 'warning');
+            return;
+        }
+
+        initializeMermaid();
+
+        // 다이어그램 생성 및 표시
+        const mermaidCode = generateConfirmMermaidCode(relations);
+        renderConfirmDiagram(mermaidCode);
+
+        // 영향 분석 표시
+        displayImpactAnalysis(relations);
+
+        // 다이얼로그 표시
+        document.getElementById('confirm-dialog').style.display = 'flex';
+    }
+
+    // 관계 수집
+    function collectRelations() {
+        const rows = document.querySelectorAll('.relation-row');
+        const relations = [];
+
+        rows.forEach(row => {
+            const parent = row.querySelector('.parent-role').value;
+            const child = row.querySelector('.child-role').value;
+            if (parent && child) {
+                relations.push({parent, child});
+            }
+        });
+
+        return relations;
+    }
+
+    // 확인 다이얼로그용 Mermaid 코드 생성
+    function generateConfirmMermaidCode(relations) {
+        let mermaidCode = 'graph TB\n';
+
+        relations.forEach(rel => {
+            // ID 생성 (특수문자 제거)
+            const parentId = rel.parent.replace(/[^a-zA-Z0-9]/g, '_');
+            const childId = rel.child.replace(/[^a-zA-Z0-9]/g, '_');
+
+            // 친화적 이름 찾기
+            const parentLabel = findFriendlyName(rel.parent);
+            const childLabel = findFriendlyName(rel.child);
+
+            mermaidCode += `    ${parentId}["${parentLabel}"] --> ${childId}["${childLabel}"]\n`;
+        });
+
+        return mermaidCode;
+    }
+
+    // 확인 다이얼로그 다이어그램 렌더링
+    function renderConfirmDiagram(mermaidCode) {
+        const confirmMermaid = document.getElementById('confirm-mermaid');
+        if (!confirmMermaid) {
+            console.error('Confirm mermaid container not found');
+            return;
+        }
+
+        confirmMermaid.innerHTML = '';
+
+        const diagramDiv = document.createElement('div');
+        diagramDiv.className = 'mermaid';
+        diagramDiv.textContent = mermaidCode;
+        confirmMermaid.appendChild(diagramDiv);
+
+        setTimeout(() => {
+            try {
+                if (typeof mermaid !== 'undefined' && diagramDiv && diagramDiv.parentNode) {
+                    mermaid.init(undefined, diagramDiv);
+
+                    // 렌더링 후 중앙 정렬
+                    setTimeout(() => {
+                        const container = confirmMermaid.closest('.mermaid-container');
+                        if (container) {
+                            centerDiagram(container);
+                        }
+                    }, 100);
+                }
+            } catch (e) {
+                console.error('Mermaid confirm dialog error:', e);
+                confirmMermaid.innerHTML = '<pre style="color: #e2e8f0; font-size: 12px;">' +
+                    relations.map(r => `${r.parent} → ${r.child}`).join('\n') +
+                    '</pre>';
+            }
+        }, 200);
+    }
+
+    // 영향 분석 표시
+    function displayImpactAnalysis(relations) {
+        const impactDiv = document.getElementById('impact-analysis');
+        const allRoles = new Set();
+        const graph = new Map();
+
+        // 그래프 구성 및 역할 수집
+        relations.forEach(rel => {
+            allRoles.add(rel.parent);
+            allRoles.add(rel.child);
+
+            if (!graph.has(rel.parent)) {
+                graph.set(rel.parent, new Set());
+            }
+            graph.get(rel.parent).add(rel.child);
+        });
+
+        // 계층 깊이 계산
+        const maxDepth = calculateMaxDepth(relations, graph);
+
+        impactDiv.innerHTML = `
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-slate-800 p-4 rounded-lg text-center">
+                    <div class="text-3xl font-bold text-indigo-400">${relations.length}</div>
+                    <div class="text-sm text-slate-400 mt-1">관계 설정</div>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-lg text-center">
+                    <div class="text-3xl font-bold text-purple-400">${allRoles.size}</div>
+                    <div class="text-sm text-slate-400 mt-1">포함된 역할</div>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-lg text-center">
+                    <div class="text-3xl font-bold text-cyan-400">${maxDepth}</div>
+                    <div class="text-sm text-slate-400 mt-1">계층 깊이</div>
+                </div>
+            </div>
+            ${document.getElementById('isActive').checked ?
+            '<div class="mt-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4"><p class="text-yellow-400"><i class="fas fa-exclamation-triangle mr-2"></i>이 계층이 활성화되면 기존 활성 계층은 비활성화됩니다.</p></div>' : ''}
+            ${relations.length > 20 ?
+            '<div class="mt-4 bg-blue-900/30 border border-blue-600/50 rounded-lg p-4"><p class="text-blue-400"><i class="fas fa-info-circle mr-2"></i>대규모 계층 구조입니다. 다이어그램을 스크롤하여 전체를 확인하세요.</p></div>' : ''}
+        `;
+    }
+
+    // 최대 깊이 계산
+    function calculateMaxDepth(relations, graph) {
+        // 루트 노드 찾기
+        const allChildren = new Set();
+        relations.forEach(rel => allChildren.add(rel.child));
+        const roots = Array.from(new Set(relations.map(r => r.parent)))
+            .filter(node => !allChildren.has(node));
+
+        // BFS로 깊이 계산
+        let maxDepth = 0;
+        const queue = roots.map(root => ({node: root, level: 0}));
+        const visited = new Set();
+
+        while (queue.length > 0) {
+            const {node, level} = queue.shift();
+            if (visited.has(node)) continue;
+
+            visited.add(node);
+            maxDepth = Math.max(maxDepth, level);
+
+            const children = graph.get(node);
+            if (children) {
+                children.forEach(child => {
+                    queue.push({node: child, level: level + 1});
+                });
+            }
+        }
+
+        return maxDepth + 1;
+    }
+
+    // 확인 다이얼로그 전체화면 표시
+    function showConfirmFullscreen() {
+        const relations = collectRelations();
+        if (relations.length === 0) return;
+
+        showFullscreenModal('confirm-fullscreen-mermaid');
+    }
+
+    function hideConfirmDialog() {
+        document.getElementById('confirm-dialog').style.display = 'none';
+    }
+
+    function submitForm() {
+        const form = document.getElementById('hierarchyForm');
+        if (form) {
+            const event = new Event('submit', {
+                bubbles: true,
+                cancelable: true
+            });
+            form.dispatchEvent(event);
+        }
+    }
+
+    // 초기 상태 표시
+    function showInitialState() {
+        const container = document.getElementById('mermaid-container');
+        if (!container) {
+            console.error('Mermaid container not found');
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="text-center text-slate-400 p-8">
+                <i class="fas fa-sitemap text-4xl mb-4"></i>
+                <p class="text-lg">역할 관계를 설정하면</p>
+                <p class="text-lg">여기에 시각화됩니다</p>
+            </div>
+        `;
+
+        const preview = document.getElementById('result-preview');
+        if (preview) {
+            preview.textContent = '계층 관계를 설정하면 여기에 결과가 표시됩니다.';
+        }
+    }
+
+    // Toast 메시지
+    function showToast(message, type) {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast-message toast-${type} fade-in`;
+
+        const icons = {
+            error: '<i class="fas fa-exclamation-circle mr-2"></i>',
+            warning: '<i class="fas fa-exclamation-triangle mr-2"></i>',
+            success: '<i class="fas fa-check-circle mr-2"></i>',
+            info: '<i class="fas fa-info-circle mr-2"></i>'
+        };
+
+        toast.innerHTML = (icons[type] || icons.info) + message;
+        toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
+    }
+
+    // 페이지 로드 시 초기화
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('=== DOMContentLoaded - Role Hierarchy Editor ===');
+
+        // Mermaid 초기화
+        initializeMermaid();
+
+        // 이벤트 리스너 추가
+        const addBtn = document.getElementById('add-row-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                addRow();
+            });
+        }
+
+        // 폼 제출 이벤트 리스너
+        const form = document.getElementById('hierarchyForm');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                const relations = collectRelations();
+
+                if (relations.length === 0) {
+                    showToast('최소 하나 이상의 관계를 설정해야 합니다.', 'error');
+                    return;
+                }
+
+                // 개행문자로 구분된 문자열 생성
+                const hierarchyString = relations.map(rel => `${rel.parent} > ${rel.child}`).join('\n');
+                document.getElementById('hierarchyString').value = hierarchyString;
+
+                console.log('Submitting hierarchy:', {
+                    string: hierarchyString,
+                    count: relations.length
+                });
+
+                // 실제 폼 제출
+                form.submit();
+            });
+        }
+
+        // 기존 데이터 확인 및 시각화
+        const existingRows = document.querySelectorAll('.relation-row');
+        console.log('Found existing rows:', existingRows.length);
+
+        if (existingRows.length > 0) {
+            setTimeout(() => {
+                console.log('Running initial validation...');
+                validateAndUpdate();
+            }, CONFIG.ANIMATION.INIT_DELAY);
+        } else {
+            showInitialState();
+        }
+
+        // Toast 및 모달 스타일 추가
+        if (!document.getElementById('custom-styles')) {
+            const styles = document.createElement('style');
+            styles.id = 'custom-styles';
+            styles.textContent = `
+                /* Toast 스타일 */
+                .toast-message {
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    margin-bottom: 10px;
+                    font-weight: 500;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    min-width: 250px;
+                    display: flex;
+                    align-items: center;
+                }
+
+                .toast-error {
+                    background: rgba(239, 68, 68, 0.9);
+                    color: white;
+                    border: 1px solid rgba(220, 38, 38, 0.8);
+                }
+
+                .toast-warning {
+                    background: rgba(245, 158, 11, 0.9);
+                    color: white;
+                    border: 1px solid rgba(217, 119, 6, 0.8);
+                }
+
+                .toast-success {
+                    background: rgba(34, 197, 94, 0.9);
+                    color: white;
+                    border: 1px solid rgba(22, 163, 74, 0.8);
+                }
+
+                .fade-in {
+                    animation: fadeIn 0.3s ease-out;
+                }
+
+                .fade-out {
+                    animation: fadeOut 0.5s ease-out forwards;
+                }
+
+                @keyframes fadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateX(100%);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                }
+
+                @keyframes fadeOut {
+                    from {
+                        opacity: 1;
+                        transform: translateX(0);
+                    }
+                    to {
+                        opacity: 0;
+                        transform: translateX(100%);
+                    }
+                }
+
+                /* 전체화면 모달 스타일 */
+                .fullscreen-modal {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.95);
+                    z-index: 10000;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                }
+
+                .fullscreen-modal.show {
+                    opacity: 1;
+                }
+
+                .fullscreen-modal-content {
+                    width: 95vw;
+                    height: 95vh;
+                    background: rgba(15, 23, 42, 0.98);
+                    border: 2px solid rgba(99, 102, 241, 0.3);
+                    border-radius: 1rem;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+                }
+
+                .fullscreen-modal-header {
+                    padding: 1.5rem;
+                    border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: rgba(30, 41, 59, 0.5);
+                }
+
+                .fullscreen-modal-body {
+                    flex: 1;
+                    padding: 1rem;
+                    overflow: hidden;
+                    position: relative;
+                }
+
+                .fullscreen-mermaid-container {
+                    width: 100%;
+                    height: 100%;
+                    overflow: auto;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .close-button {
+                    background: rgba(239, 68, 68, 0.2);
+                    color: #f87171;
+                    border: 1px solid rgba(239, 68, 68, 0.3);
+                    padding: 0.5rem 1rem;
+                    border-radius: 0.5rem;
+                    font-size: 1.25rem;
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                }
+
+                .close-button:hover {
+                    background: rgba(239, 68, 68, 0.3);
+                    border-color: rgba(239, 68, 68, 0.5);
+                    transform: scale(1.05);
+                }
+
+                /* 확대 버튼 스타일 */
+                .expand-button {
+                    position: absolute;
+                    top: 1rem;
+                    right: 1rem;
+                    background: rgba(99, 102, 241, 0.2);
+                    color: #818cf8;
+                    border: 1px solid rgba(99, 102, 241, 0.3);
+                    padding: 0.5rem 1rem;
+                    border-radius: 0.5rem;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    z-index: 10;
+                }
+
+                .expand-button:hover {
+                    background: rgba(99, 102, 241, 0.3);
+                    border-color: rgba(99, 102, 241, 0.5);
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+                }
+            `;
+            document.head.appendChild(styles);
+        }
+    });
+</script>
+</body>
+</html>

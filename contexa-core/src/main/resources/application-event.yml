@@ -1,0 +1,68 @@
+# 보안 이벤트 발행 설정
+security:
+  # Kafka 설정
+  kafka:
+    # 토픽 이름 설정
+    topic:
+      authorization: security-authorization-events
+      incident: security-incident-events
+      threat: security-threat-events
+      audit: security-audit-events
+      general: security-general-events
+      dlq: security-events-dlq
+    
+    # Producer 설정
+    producer:
+      acks: all  # 모든 복제본이 메시지를 받을 때까지 대기
+      retries: 3
+      batch-size: 16384
+      linger-ms: 10
+      buffer-memory: 33554432
+  
+  # Redis 설정
+  redis:
+    # 채널 이름 설정
+    channel:
+      authorization: "security:authorization:events"
+      incident: "security:incident:events"
+      threat: "security:threat:events"
+      audit: "security:audit:events"
+      general: "security:general:events"
+    
+    # Stream 설정
+    stream:
+      authorization: "security:stream:authorization"
+      incident: "security:stream:incident"
+      threat: "security:stream:threat"
+      audit: "security:stream:audit"
+      general: "security:stream:general"
+      maxlen: 10000  # Stream 최대 길이
+    
+    # TTL 설정
+    ttl:
+      minutes: 60  # 일반 이벤트 TTL (분)
+  
+  # 이벤트 처리 Executor 설정
+  event:
+    executor:
+      core-pool-size: 10
+      max-pool-size: 20
+      queue-capacity: 100
+
+# Spring Kafka 설정
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+        spring.json.use.type.headers: false
+    consumer:
+      group-id: security-plane-consumer
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "io.spring.aicore.autonomous.event.domain,io.spring.aicore.autonomous.domain"

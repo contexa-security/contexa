@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='MFA - 이메일 인증 코드 요청')}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray">
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+<main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+    <div class="w-full max-w-md bg-white p-8 sm:p-10 rounded-xl shadow-2xl">
+        <div class="text-center mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-auto text-app-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-8.84-4.755a2.25 2.25 0 010-4.132l8.84-4.755a2.25 2.25 0 012.25 0v12.032a2.25 2.25 0 01-2.25 0z" />
+            </svg>
+            <h2 class="mt-4 text-3xl font-bold text-app-primary">이메일 인증 (MFA)</h2>
+        </div>
+        <p class="text-center text-slate-600 mb-8">
+            2차 인증을 위해 아래 등록된 이메일 주소로 인증 코드를 발송합니다.<br/>
+            "인증 코드 발송" 버튼을 눌러주세요.
+        </p>
+        <form id="mfaOttRequestCodeForm" th:action="${mfaOttCodeRequestFormActionUrl}" method="post" class="space-y-6">
+            <div>
+                <label for="mfaUsername" class="block text-sm font-medium text-app-dark-gray">이메일 주소 (Username):</label>
+                <input type="email" id="mfaUsername" name="username" th:value="${username}" readonly
+                       class="mt-1 block w-full px-4 py-2.5 bg-gray-100 border-app-border rounded-lg shadow-sm sm:text-sm cursor-not-allowed" />
+            </div>
+            <div id="mfaOttRequestMessage" class="text-sm text-center min-h-[1.25rem]">
+                <p th:if="${errorMessage}" class="text-error font-medium" th:text="${errorMessage}"></p>
+            </div>
+            <div>
+                <button type="submit" id="sendMfaOttCodeBtn" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent">
+                    인증 코드 발송
+                </button>
+            </div>
+        </form>
+        <div class="mt-6 text-center">
+            <a th:href="@{/mfa/select-factor}" class="text-sm text-slate-600 hover:text-app-accent hover:underline">다른 인증 수단 선택</a>
+        </div>
+    </div>
+</main>
+</div>
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:src="@{/js/mfa-ott-request-code.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    const mfaOttEmailInput = document.getElementById("mfaUsername");
+    const usernameFromModel = /*[[${username}]]*/ null;
+    const usernameFromStorage = sessionStorage.getItem("mfaUsername");
+
+    if (mfaOttEmailInput) {
+        if (usernameFromModel) {
+            mfaOttEmailInput.value = usernameFromModel;
+        } else if (usernameFromStorage) {
+            mfaOttEmailInput.value = usernameFromStorage;
+        } else {
+            const messageDiv = document.getElementById("mfaOttRequestMessage");
+            if(messageDiv) messageDiv.innerHTML = '<p class="text-error">사용자 정보를 가져올 수 없습니다. 다시 로그인해주세요.</p>';
+            document.getElementById("sendMfaOttCodeBtn").disabled = true;
+            if(typeof showToast === 'function') showToast("사용자 정보 없음", "error");
+        }
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error');
+    const mfaOttRequestMessageDiv = document.getElementById("mfaOttRequestMessage");
+
+    if (errorParam && mfaOttRequestMessageDiv) {
+        let displayErrorMessage = "오류가 발생했습니다. 다시 시도해주세요.";
+        if (errorParam === 'invalid_ott_request_context') {
+            displayErrorMessage = "잘못된 OTT 코드 요청입니다. 인증을 다시 시작해주세요.";
+        } else if (errorParam === 'ott_request_failed') {
+            displayErrorMessage = "OTT 코드 요청에 실패했습니다. 잠시 후 다시 시도해주세요.";
+        }
+        mfaOttRequestMessageDiv.innerHTML = `<p class="text-error font-medium">${displayErrorMessage}</p>`;
+        if (typeof showToast === 'function') showToast(displayErrorMessage, 'error');
+    }
+    /*]]>*/
+</script>
+</body>
+</html>

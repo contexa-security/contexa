@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI3Security - 고급 인증 공격 시뮬레이션</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- SockJS & STOMP -->
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.2/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --danger-gradient: linear-gradient(135deg, #FF512F 0%, #DD2476 100%);
+            --warning-gradient: linear-gradient(135deg, #FFB75E 0%, #ED8F03 100%);
+            --success-gradient: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            --dark-bg: rgba(15, 23, 42, 0.95);
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --card-hover-bg: rgba(51, 65, 85, 0.9);
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(148, 163, 184, 0.8);
+            --border-color: rgba(71, 85, 105, 0.3);
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--text-primary);
+        }
+
+        .navbar {
+            background: var(--dark-bg);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+        }
+
+        .navbar-brand {
+            color: var(--text-primary) !important;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        .attack-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .attack-card:hover {
+            background: var(--card-hover-bg);
+            transform: translateY(-4px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+        }
+
+        .attack-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .attack-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .attack-status {
+            padding: 0.375rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .status-ready { background: var(--success-gradient); color: white; }
+        .status-running { background: var(--warning-gradient); color: white; }
+        .status-failed { background: var(--danger-gradient); color: white; }
+
+        .parameter-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .parameter-input {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .parameter-input label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .parameter-input input,
+        .parameter-input select {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-primary);
+            padding: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .parameter-input input:focus,
+        .parameter-input select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: rgba(51, 65, 85, 0.8);
+        }
+
+        .attack-controls {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-attack {
+            background: var(--danger-gradient);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .btn-attack:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(255, 81, 47, 0.4);
+        }
+
+        .btn-attack:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results-panel {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 16px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .result-item {
+            padding: 0.5rem;
+            margin: 0.25rem 0;
+            border-left: 3px solid transparent;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+
+        .result-success {
+            border-left-color: #10b981;
+            color: #10b981;
+        }
+
+        .result-failure {
+            border-left-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .result-warning {
+            border-left-color: #f59e0b;
+            color: #f59e0b;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container-fluid">
+            <span class="navbar-brand">
+                <i class="fas fa-user-lock"></i> 고급 인증 공격 시뮬레이션
+            </span>
+            <div>
+                <a href="/admin/simulation-dashboard" class="btn btn-outline-light">
+                    <i class="fas fa-dashboard"></i> 메인 대시보드
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Token Replay Attack -->
+        <div class="attack-card">
+            <div class="attack-header">
+                <h3 class="attack-title">
+                    <i class="fas fa-key"></i> Token Replay Attack
+                </h3>
+                <span class="attack-status status-ready" id="tokenReplay-status">READY</span>
+            </div>
+
+            <div class="parameter-group">
+                <div class="parameter-input">
+                    <label>Target User</label>
+                    <input type="text" id="tokenReplay-user" placeholder="victim_user" value="admin">
+                </div>
+                <div class="parameter-input">
+                    <label>Token Type</label>
+                    <select id="tokenReplay-type">
+                        <option value="JWT">JWT Token</option>
+                        <option value="SESSION">Session Token</option>
+                        <option value="OAUTH">OAuth Token</option>
+                        <option value="API_KEY">API Key</option>
+                    </select>
+                </div>
+                <div class="parameter-input">
+                    <label>Token Age (hours)</label>
+                    <input type="number" id="tokenReplay-age" placeholder="24" value="48">
+                </div>
+                <div class="parameter-input">
+                    <label>Source IP</label>
+                    <input type="text" id="tokenReplay-ip" placeholder="Different IP" value="192.168.1.100">
+                </div>
+            </div>
+
+            <div class="attack-controls">
+                <button class="btn-attack" onclick="executeTokenReplay()">
+                    <i class="fas fa-play"></i> Execute Attack
+                </button>
+                <button class="btn btn-outline-warning" onclick="generateToken('tokenReplay')">
+                    <i class="fas fa-cog"></i> Generate Expired Token
+                </button>
+                <button class="btn btn-outline-info" onclick="monitorTokens()">
+                    <i class="fas fa-eye"></i> Monitor Active Tokens
+                </button>
+            </div>
+
+            <div class="results-panel" id="tokenReplay-results"></div>
+        </div>
+
+        <!-- Password Spray Attack -->
+        <div class="attack-card">
+            <div class="attack-header">
+                <h3 class="attack-title">
+                    <i class="fas fa-spray-can"></i> Password Spray Attack
+                </h3>
+                <span class="attack-status status-ready" id="passwordSpray-status">READY</span>
+            </div>
+
+            <div class="parameter-group">
+                <div class="parameter-input">
+                    <label>Target Users (comma separated)</label>
+                    <input type="text" id="passwordSpray-users" placeholder="user1,user2,user3" value="admin,user1,user2,test_user,guest">
+                </div>
+                <div class="parameter-input">
+                    <label>Password Pattern</label>
+                    <select id="passwordSpray-pattern">
+                        <option value="SEASON">Season + Year (Winter2024)</option>
+                        <option value="COMPANY">Company + Number</option>
+                        <option value="COMMON">Common Passwords</option>
+                        <option value="KEYBOARD">Keyboard Patterns</option>
+                    </select>
+                </div>
+                <div class="parameter-input">
+                    <label>Delay Between Attempts (ms)</label>
+                    <input type="number" id="passwordSpray-delay" placeholder="5000" value="3000">
+                </div>
+                <div class="parameter-input">
+                    <label>Distributed IPs</label>
+                    <select id="passwordSpray-distributed">
+                        <option value="true">Yes (Multiple IPs)</option>
+                        <option value="false">No (Single IP)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="attack-controls">
+                <button class="btn-attack" onclick="executePasswordSpray()">
+                    <i class="fas fa-play"></i> Start Spraying
+                </button>
+                <button class="btn btn-outline-danger" onclick="stopPasswordSpray()">
+                    <i class="fas fa-stop"></i> Stop Attack
+                </button>
+                <button class="btn btn-outline-info" onclick="showPasswordList()">
+                    <i class="fas fa-list"></i> View Password List
+                </button>
+            </div>
+
+            <div class="results-panel" id="passwordSpray-results"></div>
+        </div>
+
+        <!-- MFA Bypass Attack -->
+        <div class="attack-card">
+            <div class="attack-header">
+                <h3 class="attack-title">
+                    <i class="fas fa-mobile-alt"></i> MFA Bypass Attack
+                </h3>
+                <span class="attack-status status-ready" id="mfaBypass-status">READY</span>
+            </div>
+
+            <div class="parameter-group">
+                <div class="parameter-input">
+                    <label>Target User</label>
+                    <input type="text" id="mfaBypass-user" placeholder="target_user" value="admin">
+                </div>
+                <div class="parameter-input">
+                    <label>Bypass Method</label>
+                    <select id="mfaBypass-method">
+                        <option value="RACE_CONDITION">Race Condition</option>
+                        <option value="TOKEN_REUSE">Token Reuse</option>
+                        <option value="BACKUP_CODE">Backup Code Brute</option>
+                        <option value="DOWNGRADE">Protocol Downgrade</option>
+                        <option value="SOCIAL_ENGINEERING">Social Engineering</option>
+                    </select>
+                </div>
+                <div class="parameter-input">
+                    <label>MFA Type</label>
+                    <select id="mfaBypass-type">
+                        <option value="SMS">SMS OTP</option>
+                        <option value="TOTP">TOTP App</option>
+                        <option value="EMAIL">Email Code</option>
+                        <option value="BIOMETRIC">Biometric</option>
+                    </select>
+                </div>
+                <div class="parameter-input">
+                    <label>Parallel Threads</label>
+                    <input type="number" id="mfaBypass-threads" placeholder="10" value="5">
+                </div>
+            </div>
+
+            <div class="attack-controls">
+                <button class="btn-attack" onclick="executeMFABypass()">
+                    <i class="fas fa-play"></i> Execute Bypass
+                </button>
+                <button class="btn btn-outline-warning" onclick="simulateMFAChallenge()">
+                    <i class="fas fa-shield-alt"></i> Trigger MFA Challenge
+                </button>
+                <button class="btn btn-outline-info" onclick="analyzeMFAConfig()">
+                    <i class="fas fa-search"></i> Analyze MFA Config
+                </button>
+            </div>
+
+            <div class="results-panel" id="mfaBypass-results"></div>
+        </div>
+
+        <!-- Account Enumeration -->
+        <div class="attack-card">
+            <div class="attack-header">
+                <h3 class="attack-title">
+                    <i class="fas fa-users-cog"></i> Account Enumeration
+                </h3>
+                <span class="attack-status status-ready" id="enumeration-status">READY</span>
+            </div>
+
+            <div class="parameter-group">
+                <div class="parameter-input">
+                    <label>Username Pattern</label>
+                    <input type="text" id="enumeration-pattern" placeholder="user*, admin*, test*" value="user">
+                </div>
+                <div class="parameter-input">
+                    <label>Enumeration Method</label>
+                    <select id="enumeration-method">
+                        <option value="LOGIN_TIMING">Login Response Timing</option>
+                        <option value="ERROR_MESSAGES">Error Message Analysis</option>
+                        <option value="PASSWORD_RESET">Password Reset Response</option>
+                        <option value="REGISTRATION">Registration Check</option>
+                        <option value="API_ENDPOINTS">API Endpoint Probing</option>
+                    </select>
+                </div>
+                <div class="parameter-input">
+                    <label>Range Start</label>
+                    <input type="number" id="enumeration-start" placeholder="1" value="1">
+                </div>
+                <div class="parameter-input">
+                    <label>Range End</label>
+                    <input type="number" id="enumeration-end" placeholder="100" value="50">
+                </div>
+            </div>
+
+            <div class="attack-controls">
+                <button class="btn-attack" onclick="executeEnumeration()">
+                    <i class="fas fa-play"></i> Start Enumeration
+                </button>
+                <button class="btn btn-outline-danger" onclick="stopEnumeration()">
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+                <button class="btn btn-outline-success" onclick="exportFoundUsers()">
+                    <i class="fas fa-download"></i> Export Found Users
+                </button>
+            </div>
+
+            <div class="results-panel" id="enumeration-results"></div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalAttempts">0</div>
+                <div class="stat-label">Total Attempts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="successfulAttacks">0</div>
+                <div class="stat-label">Successful Attacks</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="detectedAttacks">0</div>
+                <div class="stat-label">Detected by AI</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="blockedAttacks">0</div>
+                <div class="stat-label">Blocked Attacks</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        let stompClient = null;
+        let activeAttacks = new Map();
+        let statistics = {
+            totalAttempts: 0,
+            successfulAttacks: 0,
+            detectedAttacks: 0,
+            blockedAttacks: 0
+        };
+
+        // Connect to WebSocket
+        function connect() {
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function(frame) {
+                console.log('Connected: ' + frame);
+
+                // Subscribe to attack results
+                stompClient.subscribe('/topic/attack/results', function(message) {
+                    const result = JSON.parse(message.body);
+                    handleAttackResult(result);
+                });
+
+                // Subscribe to defense responses
+                stompClient.subscribe('/topic/defense/response', function(message) {
+                    const response = JSON.parse(message.body);
+                    handleDefenseResponse(response);
+                });
+            });
+        }
+
+        // Token Replay Attack
+        function executeTokenReplay() {
+            const params = {
+                targetUser: document.getElementById('tokenReplay-user').value,
+                tokenType: document.getElementById('tokenReplay-type').value,
+                tokenAge: parseInt(document.getElementById('tokenReplay-age').value),
+                sourceIp: document.getElementById('tokenReplay-ip').value
+            };
+
+            updateStatus('tokenReplay', 'RUNNING');
+            addResult('tokenReplay', 'Initiating token replay attack...', 'warning');
+
+            fetch('/api/simulation/attack/single', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    strategyName: 'TOKEN_REPLAY',
+                    targetUser: params.targetUser,
+                    parameters: params
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addResult('tokenReplay', `Token replay attempted: ${data.message}`, 'success');
+                    statistics.totalAttempts++;
+                    if (data.detected) statistics.detectedAttacks++;
+                    if (data.blocked) statistics.blockedAttacks++;
+                    updateStatistics();
+                } else {
+                    addResult('tokenReplay', `Attack failed: ${data.message}`, 'failure');
+                }
+                updateStatus('tokenReplay', 'READY');
+            })
+            .catch(error => {
+                addResult('tokenReplay', `Error: ${error.message}`, 'failure');
+                updateStatus('tokenReplay', 'FAILED');
+            });
+        }
+
+        // Password Spray Attack
+        function executePasswordSpray() {
+            const users = document.getElementById('passwordSpray-users').value.split(',');
+            const params = {
+                targetUsers: users,
+                pattern: document.getElementById('passwordSpray-pattern').value,
+                delay: parseInt(document.getElementById('passwordSpray-delay').value),
+                distributed: document.getElementById('passwordSpray-distributed').value === 'true'
+            };
+
+            updateStatus('passwordSpray', 'RUNNING');
+            addResult('passwordSpray', `Starting password spray against ${users.length} users...`, 'warning');
+
+            const attackId = 'spray-' + Date.now();
+            activeAttacks.set(attackId, true);
+
+            // Execute spray for each user
+            let index = 0;
+            const interval = setInterval(() => {
+                if (index >= users.length || !activeAttacks.get(attackId)) {
+                    clearInterval(interval);
+                    updateStatus('passwordSpray', 'READY');
+                    activeAttacks.delete(attackId);
+                    return;
+                }
+
+                const user = users[index].trim();
+                fetch('/api/simulation/attack/single', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        strategyName: 'PASSWORD_SPRAY',
+                        targetUser: user,
+                        parameters: params
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    addResult('passwordSpray', `[${user}] ${data.message}`, data.success ? 'success' : 'failure');
+                    statistics.totalAttempts++;
+                    if (data.success) statistics.successfulAttacks++;
+                    if (data.detected) statistics.detectedAttacks++;
+                    if (data.blocked) statistics.blockedAttacks++;
+                    updateStatistics();
+                });
+
+                index++;
+            }, params.delay);
+        }
+
+        function stopPasswordSpray() {
+            activeAttacks.forEach((value, key) => {
+                if (key.startsWith('spray-')) {
+                    activeAttacks.set(key, false);
+                }
+            });
+            updateStatus('passwordSpray', 'READY');
+            addResult('passwordSpray', 'Password spray attack stopped', 'warning');
+        }
+
+        // MFA Bypass Attack
+        function executeMFABypass() {
+            const params = {
+                targetUser: document.getElementById('mfaBypass-user').value,
+                method: document.getElementById('mfaBypass-method').value,
+                mfaType: document.getElementById('mfaBypass-type').value,
+                threads: parseInt(document.getElementById('mfaBypass-threads').value)
+            };
+
+            updateStatus('mfaBypass', 'RUNNING');
+            addResult('mfaBypass', `Attempting MFA bypass using ${params.method}...`, 'warning');
+
+            fetch('/api/simulation/attack/single', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    strategyName: 'MFA_BYPASS',
+                    targetUser: params.targetUser,
+                    parameters: params
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                addResult('mfaBypass', data.message, data.success ? 'success' : 'failure');
+                statistics.totalAttempts++;
+                if (data.success) statistics.successfulAttacks++;
+                if (data.detected) statistics.detectedAttacks++;
+                if (data.blocked) statistics.blockedAttacks++;
+                updateStatistics();
+                updateStatus('mfaBypass', 'READY');
+            })
+            .catch(error => {
+                addResult('mfaBypass', `Error: ${error.message}`, 'failure');
+                updateStatus('mfaBypass', 'FAILED');
+            });
+        }
+
+        // Account Enumeration
+        function executeEnumeration() {
+            const pattern = document.getElementById('enumeration-pattern').value;
+            const start = parseInt(document.getElementById('enumeration-start').value);
+            const end = parseInt(document.getElementById('enumeration-end').value);
+            const method = document.getElementById('enumeration-method').value;
+
+            updateStatus('enumeration', 'RUNNING');
+            addResult('enumeration', `Enumerating accounts from ${pattern}${start} to ${pattern}${end}...`, 'warning');
+
+            const attackId = 'enum-' + Date.now();
+            activeAttacks.set(attackId, true);
+
+            let current = start;
+            const interval = setInterval(() => {
+                if (current > end || !activeAttacks.get(attackId)) {
+                    clearInterval(interval);
+                    updateStatus('enumeration', 'READY');
+                    activeAttacks.delete(attackId);
+                    return;
+                }
+
+                const username = pattern + current;
+                fetch('/api/simulation/attack/single', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        strategyName: 'ACCOUNT_ENUMERATION',
+                        targetUser: username,
+                        parameters: { method: method }
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.userExists) {
+                        addResult('enumeration', `✓ Found: ${username}`, 'success');
+                    }
+                    statistics.totalAttempts++;
+                    updateStatistics();
+                });
+
+                current++;
+            }, 200); // 200ms delay between attempts
+        }
+
+        function stopEnumeration() {
+            activeAttacks.forEach((value, key) => {
+                if (key.startsWith('enum-')) {
+                    activeAttacks.set(key, false);
+                }
+            });
+            updateStatus('enumeration', 'READY');
+            addResult('enumeration', 'Enumeration stopped', 'warning');
+        }
+
+        // Helper functions
+        function updateStatus(attackType, status) {
+            const element = document.getElementById(attackType + '-status');
+            element.textContent = status;
+            element.className = 'attack-status status-' + status.toLowerCase();
+        }
+
+        function addResult(attackType, message, type) {
+            const resultsPanel = document.getElementById(attackType + '-results');
+            const resultItem = document.createElement('div');
+            resultItem.className = 'result-item result-' + type;
+            resultItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            resultsPanel.insertBefore(resultItem, resultsPanel.firstChild);
+
+            // Keep only last 20 results
+            while (resultsPanel.children.length > 20) {
+                resultsPanel.removeChild(resultsPanel.lastChild);
+            }
+        }
+
+        function updateStatistics() {
+            document.getElementById('totalAttempts').textContent = statistics.totalAttempts;
+            document.getElementById('successfulAttacks').textContent = statistics.successfulAttacks;
+            document.getElementById('detectedAttacks').textContent = statistics.detectedAttacks;
+            document.getElementById('blockedAttacks').textContent = statistics.blockedAttacks;
+        }
+
+        function handleAttackResult(result) {
+            console.log('Attack result received:', result);
+            // Handle real-time attack results from WebSocket
+        }
+
+        function handleDefenseResponse(response) {
+            console.log('Defense response received:', response);
+            // Show defense system response in UI
+            if (response.blocked) {
+                statistics.blockedAttacks++;
+                updateStatistics();
+            }
+        }
+
+        // Additional helper functions
+        function generateToken(attackType) {
+            addResult(attackType, 'Generating expired token...', 'warning');
+            setTimeout(() => {
+                const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
+                             btoa(JSON.stringify({sub: 'victim', exp: Date.now() - 3600000})) +
+                             '.signature';
+                addResult(attackType, `Generated token: ${token.substring(0, 50)}...`, 'success');
+            }, 1000);
+        }
+
+        function monitorTokens() {
+            addResult('tokenReplay', 'Monitoring active tokens...', 'warning');
+            fetch('/api/auth/active-tokens')
+                .then(response => response.json())
+                .then(data => {
+                    addResult('tokenReplay', `Found ${data.length || 0} active tokens`, 'success');
+                });
+        }
+
+        function showPasswordList() {
+            const patterns = {
+                'SEASON': ['Winter2024', 'Spring2024', 'Summer2024', 'Fall2024', 'Winter2023'],
+                'COMPANY': ['Company123', 'Company2024', 'Company!', 'Company@2024'],
+                'COMMON': ['Password123', '123456', 'qwerty', 'letmein', 'admin'],
+                'KEYBOARD': ['qwertyuiop', 'asdfghjkl', 'zxcvbnm', '1qaz2wsx']
+            };
+            const selected = document.getElementById('passwordSpray-pattern').value;
+            addResult('passwordSpray', `Password list: ${patterns[selected].join(', ')}`, 'warning');
+        }
+
+        function simulateMFAChallenge() {
+            addResult('mfaBypass', 'Triggering MFA challenge...', 'warning');
+            setTimeout(() => {
+                addResult('mfaBypass', 'MFA challenge triggered - OTP sent to device', 'success');
+            }, 1000);
+        }
+
+        function analyzeMFAConfig() {
+            addResult('mfaBypass', 'Analyzing MFA configuration...', 'warning');
+            fetch('/api/auth/mfa-config')
+                .then(response => response.json())
+                .then(data => {
+                    addResult('mfaBypass', `MFA Config: Type=${data.type || 'TOTP'}, Backup codes=${data.backupCodes || 'enabled'}`, 'success');
+                });
+        }
+
+        function exportFoundUsers() {
+            const results = document.getElementById('enumeration-results').textContent;
+            const users = results.match(/Found: (\w+)/g) || [];
+            const userList = users.map(u => u.replace('Found: ', '')).join('\n');
+
+            const blob = new Blob([userList], {type: 'text/plain'});
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'enumerated_users.txt';
+            a.click();
+
+            addResult('enumeration', `Exported ${users.length} users`, 'success');
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            connect();
+            updateStatistics();
+        };
+    </script>
+</body>
+</html>

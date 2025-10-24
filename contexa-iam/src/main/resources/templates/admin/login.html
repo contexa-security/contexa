@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <title>Please sign in</title>
+    <link href="/css/main.css" rel="stylesheet" />
+    <style>
+        /* 로그인 페이지 필수 스타일 */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #0a0f1c;
+        }
+
+        .content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-form {
+            width: 100%;
+            max-width: 400px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            padding: 3rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-form h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.875rem;
+            font-weight: bold;
+            background: linear-gradient(to right, #6366f1, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .login-form p {
+            margin-bottom: 1.5rem;
+        }
+
+        /* 입력 필드 - 다크 배경 강제 적용 */
+        .login-form input[type="text"],
+        .login-form input[type="password"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #1e293b !important;
+            background-color: #1e293b !important;
+            border: 2px solid #334155;
+            border-radius: 0.5rem;
+            color: #e2e8f0;
+            font-size: 1rem;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .login-form input[type="text"]:focus,
+        .login-form input[type="password"]:focus {
+            background: #1e293b !important;
+            background-color: #1e293b !important;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            outline: none;
+        }
+
+        /* 자동완성 시 배경색 유지 */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+            -webkit-text-fill-color: #e2e8f0 !important;
+        }
+
+        .login-form input::placeholder {
+            color: #64748b;
+        }
+
+        .login-form button {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .login-form button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+        }
+
+        .screenreader {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+    <script>
+        // 입력 필드 다크 배경 보장
+        window.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(function(input) {
+                input.style.backgroundColor = '#1e293b';
+            });
+        });
+    </script>
+</head>
+<body>
+<div class="content">
+    <form class="login-form" method="post" action="/login">
+        <h2>Please sign in</h2>
+        <p>
+            <label for="username" class="screenreader">Username</label>
+            <input type="text" id="username" name="username" placeholder="Username" required autofocus>
+        </p>
+        <p>
+            <label for="password" class="screenreader">Password</label>
+            <input type="password" id="password" name="password" placeholder="Password" required>
+        </p>
+        <button type="submit">Sign in</button>
+    </form>
+</div>
+</body>
+</html>

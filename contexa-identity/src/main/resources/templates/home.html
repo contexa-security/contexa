@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='홈')}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex flex-col items-center justify-center text-center">
+        <div class="w-full max-w-2xl bg-white p-8 sm:p-12 rounded-xl shadow-2xl">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-auto text-app-primary mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
+            <h1 class="text-4xl font-bold text-app-primary tracking-tight">인증 플랫폼에 오신 것을 환영합니다!</h1>
+            <div sec:authorize="isAuthenticated()" class="mt-6">
+                <p class="text-xl text-slate-700">
+                    <strong sec:authentication="principal.username" class="text-app-accent">사용자</strong>님, 안녕하세요.
+                </p>
+                <p class="mt-2 text-slate-600">
+                    플랫폼의 다양한 기능을 자유롭게 이용해보세요.
+                </p>
+            </div>
+            <div sec:authorize="isAnonymous()" class="mt-6 space-y-4">
+                <p class="text-lg text-slate-600">
+                    로그인하여 모든 기능을 이용해 보세요.
+                </p>
+                <a th:href="@{/loginForm}" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105">
+                    로그인 페이지로 이동
+                </a>
+            </div>
+            <div class="mt-10 text-sm text-slate-500">
+                <p>현재 선택된 인증 방식: <strong id="displayAuthMode" class="font-semibold text-app-primary"></strong></p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const authMode = localStorage.getItem('authMode') || 'header'; // 기본값 'header'
+        const displayAuthMode = document.getElementById('displayAuthMode');
+        if (displayAuthMode) {
+            displayAuthMode.textContent = authMode.toUpperCase().replace('_', ' & ');
+        }
+
+        // 페이지 로드 시 initAuth() 호출 (init-auth.js 에 정의되어 있다고 가정)
+        if (typeof initAuth === 'function') {
+            initAuth();
+        }
+    });
+    /*]]>*/
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='Passkey 로그인')}"></head>
+<body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray"
+      th:data-passkey-assertion-options-url="${passkeyAssertionOptionsUrl}"
+      th:data-passkey-assertion-process-url="${passkeyAssertionProcessUrl}"
+      th:data-passkey-registration-options-url="${passkeyRegistrationOptionsUrl}"
+      th:data-passkey-registration-process-url="${passkeyRegistrationProcessUrl}">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+        <div class="w-full max-w-md bg-white p-8 sm:p-10 rounded-xl shadow-2xl text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-auto text-app-primary" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+            </svg>
+            <h2 class="mt-4 text-3xl font-bold text-app-primary mb-4">Passkey 로그인</h2>
+            <p class="text-slate-600 mb-8">등록된 Passkey (생체 정보 또는 보안키)를 사용하여 안전하게 로그인하세요.</p>
+
+            <div class="space-y-4">
+                <input type="email" id="passkeyUsername" name="username"
+                       class="block w-full px-4 py-2.5 bg-white border border-app-border rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm"
+                       placeholder="이메일 주소 입력 (Passkey 등록 시 사용)" autocomplete="username webauthn" />
+
+                <button id="passkeyLoginBtn"
+                        class="w-full flex items-center justify-center px-6 py-3.5 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-app-accent hover:bg-app-accent-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12zm-1-5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clip-rule="evenodd" /></svg>
+                    Passkey로 인증
+                </button>
+                <button id="passkeyRegisterBtn"
+                        class="w-full flex items-center justify-center px-6 py-3.5 border border-app-accent text-base font-medium rounded-lg shadow-sm text-app-accent bg-white hover:bg-app-accent hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 mr-2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+                    </svg>
+                    새 Passkey 등록
+                </button>
+            </div>
+
+            <p id="passkeyMessage" class="mt-4 text-sm min-h-[1.25rem]">
+                <span th:if="${errorMessage}" class="text-error" th:text="${errorMessage}"></span>
+                <span th:if="${param.error}" class="text-error">Passkey 인증에 실패했습니다.</span>
+                <span th:if="${param.registration_success}" class="text-success">Passkey가 성공적으로 등록되었습니다.</span>
+                <span th:if="${param.registration_error}" class="text-error">Passkey 등록에 실패했습니다.</span>
+            </p>
+            <div class="mt-6 text-center">
+                <a th:href="@{/loginForm}" class="text-sm text-slate-600 hover:text-app-accent hover:underline">다른 로그인 방법</a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+<script th:src="@{/js/token-holder.js}"></script>
+<script th:src="@{/js/init-auth.js}"></script>
+<script th:src="@{/js/passkey-login.js}"></script>
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    // 이 페이지의 pageTitle은 LoginController에서 설정된 값을 사용합니다.
+    // login-passkey.js에서 body의 data- attribute를 사용하여 URL을 가져옵니다.
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof initAuth === 'function') {
+            initAuth();
+        }
+    });
+    /*]]>*/
+</script>
+</body>
+</html>

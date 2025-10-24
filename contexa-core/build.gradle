@@ -1,0 +1,45 @@
+bootJar.enabled = false
+jar.enabled = true
+
+dependencies {
+    implementation project(':contexa-common')
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Spring AI MCP Boot Starters (올바른 구현)
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
+
+    // Jackson JSON Schema support
+    implementation 'com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3'
+
+    // Caffeine cache for TrustSecurityExpressionRoot
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
+    // ND4J for SIMD-optimized vector operations (HCAD performance boost)
+    implementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
+
+    // Apache Commons Math for statistical analysis and time-series correlation
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+
+    // Micrometer Prometheus registry for VectorStore metrics
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // OpenTelemetry for distributed tracing and observability
+    implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
+    implementation 'io.opentelemetry:opentelemetry-sdk:1.32.0'
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-reactor-3.1:1.32.0-alpha'
+    // OTLP Exporter - 개발 환경에서는 opentelemetry.enabled=false로 비활성화
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.32.0'
+    // Spring Boot Starter는 제거 (수동 설정 사용)
+    // implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter:1.32.0-alpha'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

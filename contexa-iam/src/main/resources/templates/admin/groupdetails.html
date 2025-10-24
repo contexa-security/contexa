@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${group.id != null ? '그룹 수정' : '그룹 등록'})}">
+
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
+        <div class="w-full max-w-2xl p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="mt-4 text-3xl font-bold text-gradient" th:text="${group.id != null ? '그룹 수정' : '새 그룹 등록'}"></h2>
+            </div>
+
+            <form th:action="${group.id != null ? '/admin/groups/' + group.id + '/edit' : '/admin/groups'}" method="post" th:object="${group}" class="space-y-6">
+                <input type="hidden" th:field="*{id}" th:if="${group.id != null}" />
+
+                <!-- 그룹명 입력 -->
+                <div>
+                    <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">그룹명 (고유값):</label>
+                    <div class="relative">
+                        <input type="text" id="name" th:field="*{name}"
+                               class="mt-1 block w-full px-4 py-3 rounded-lg shadow-sm sm:text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-primary"
+                               style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                               placeholder="예: DEVELOPERS" required />
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <svg class="h-5 w-5" style="color: #94a3b8;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 설명 입력 -->
+                <div>
+                    <label for="description" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">설명:</label>
+                    <div class="relative">
+                        <input type="text" id="description" th:field="*{description}"
+                               class="mt-1 block w-full px-4 py-3 rounded-lg shadow-sm sm:text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-primary"
+                               style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                               placeholder="그룹에 대한 설명을 입력하세요" />
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <svg class="h-5 w-5" style="color: #94a3b8;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 역할 선택 영역 -->
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <label class="block text-sm font-medium" style="color: #cbd5e1;">
+                            <svg class="inline-block w-5 h-5 mr-2 text-app-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                            </svg>
+                            할당할 역할 (Roles)
+                        </label>
+                        <div class="flex items-center gap-4">
+                            <span id="selected-count" class="text-sm font-medium px-3 py-1 rounded-full" style="color: #e2e8f0; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.3);">
+                                0개 선택됨
+                            </span>
+                            <button type="button" id="select-all-btn" class="text-xs font-medium px-2 py-1 rounded border transition-all duration-200" style="color: #818cf8; border-color: #818cf8;" onclick="toggleAllRoles()">
+                                전체 선택
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="checkbox-grid">
+                        <div th:each="role : ${roleList}"
+                             class="checkbox-item"
+                             th:classappend="${#lists.contains(selectedRoleIds, role.id)} ? 'selected' : ''">
+                            <label class="custom-checkbox">
+                                <input type="checkbox"
+                                       th:id="'role_' + ${role.id}"
+                                       name="selectedRoleIds"
+                                       th:value="${role.id}"
+                                       th:checked="${#lists.contains(selectedRoleIds, role.id)}"
+                                       onchange="toggleItemSelection(this)" />
+                                <span class="checkbox-mark"></span>
+                                <div class="checkbox-label">
+                                    <span class="checkbox-label-title" th:text="${role.roleName}"></span>
+                                    <span class="checkbox-label-description" th:text="${role.roleDesc ?: '설명 없음'}"></span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- 빈 상태 처리 -->
+                        <div th:if="${#lists.isEmpty(roleList)}" class="checkbox-empty">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                            </svg>
+                            <p class="text-lg font-medium mb-2">등록된 역할이 없습니다</p>
+                            <p class="text-sm opacity-75">역할을 먼저 등록해주세요.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 제출 버튼 -->
+                <div class="pt-4">
+                    <button type="submit"
+                            class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
+                            style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span th:text="${group.id != null ? '그룹 저장' : '그룹 등록'}"></span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- 뒤로 가기 링크 -->
+            <div class="mt-6 text-center">
+                <a th:href="@{/admin/groups}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    그룹 목록으로 돌아가기
+                </a>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script>
+    // 전역 변수
+    let allRolesSelected = false;
+
+    // 체크박스 선택 시 시각적 피드백과 리플 효과
+    function toggleItemSelection(checkbox) {
+        const item = checkbox.closest('.checkbox-item');
+        const checkboxMark = checkbox.nextElementSibling;
+
+        // 리플 효과 추가
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        ripple.style.left = '50%';
+        ripple.style.top = '50%';
+        ripple.style.width = '20px';
+        ripple.style.height = '20px';
+        ripple.style.marginLeft = '-10px';
+        ripple.style.marginTop = '-10px';
+        checkboxMark.appendChild(ripple);
+
+        setTimeout(() => ripple.remove(), 600);
+
+        // 선택 상태 토글
+        if (checkbox.checked) {
+            item.classList.add('selected');
+            // 진동 효과 (지원하는 경우)
+            if (navigator.vibrate) {
+                navigator.vibrate(10);
+            }
+        } else {
+            item.classList.remove('selected');
+        }
+
+        // 선택된 역할 수 업데이트
+        updateSelectedCount();
+        updateSelectAllButton();
+    }
+
+    // 선택된 역할 수 표시
+    function updateSelectedCount() {
+        const selectedCount = document.querySelectorAll('input[name="selectedRoleIds"]:checked').length;
+        const totalCount = document.querySelectorAll('input[name="selectedRoleIds"]').length;
+
+        const countDisplay = document.getElementById('selected-count');
+        if (countDisplay) {
+            countDisplay.textContent = `${selectedCount}/${totalCount} 선택됨`;
+
+            // 선택 상태에 따른 스타일 업데이트
+            if (selectedCount === 0) {
+                countDisplay.style.background = 'rgba(71, 85, 105, 0.3)';
+                countDisplay.style.borderColor = 'rgba(71, 85, 105, 0.5)';
+                countDisplay.style.color = '#94a3b8';
+            } else if (selectedCount === totalCount) {
+                countDisplay.style.background = 'rgba(34, 197, 94, 0.2)';
+                countDisplay.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+                countDisplay.style.color = '#4ade80';
+            } else {
+                countDisplay.style.background = 'rgba(99, 102, 241, 0.2)';
+                countDisplay.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+                countDisplay.style.color = '#e2e8f0';
+            }
+        }
+    }
+
+    // 전체 선택/해제 버튼 상태 업데이트
+    function updateSelectAllButton() {
+        const selectedCount = document.querySelectorAll('input[name="selectedRoleIds"]:checked').length;
+        const totalCount = document.querySelectorAll('input[name="selectedRoleIds"]').length;
+        const selectAllBtn = document.getElementById('select-all-btn');
+
+        if (selectAllBtn) {
+            if (selectedCount === totalCount && totalCount > 0) {
+                selectAllBtn.textContent = '전체 해제';
+                selectAllBtn.style.color = '#f87171';
+                selectAllBtn.style.borderColor = '#f87171';
+                allRolesSelected = true;
+            } else {
+                selectAllBtn.textContent = '전체 선택';
+                selectAllBtn.style.color = '#818cf8';
+                selectAllBtn.style.borderColor = '#818cf8';
+                allRolesSelected = false;
+            }
+        }
+    }
+
+    // 전체 선택/해제 토글
+    function toggleAllRoles() {
+        const checkboxes = document.querySelectorAll('input[name="selectedRoleIds"]');
+        const shouldCheck = !allRolesSelected;
+
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked !== shouldCheck) {
+                checkbox.checked = shouldCheck;
+                toggleItemSelection(checkbox);
+            }
+        });
+
+        // 선택 상태 업데이트는 toggleItemSelection에서 처리됨
+    }
+
+    // 토스트 메시지 표시 함수
+    function showToast(message, type = 'info') {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast-message toast-${type}`;
+        toast.textContent = message;
+
+        toastContainer.appendChild(toast);
+
+        // 3초 후 자동 제거
+        setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 500);
+        }, 3000);
+    }
+
+    // 페이지 로드 시 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+        // 인증 초기화 (있는 경우)
+        if (typeof initAuth === 'function') {
+            initAuth();
+        }
+
+        // 초기 선택 개수 및 버튼 상태 표시
+        updateSelectedCount();
+        updateSelectAllButton();
+
+        // 서버 메시지 처리
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+
+        // 입력 필드 포커스 효과
+        const inputs = document.querySelectorAll('input[type="text"]');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.style.borderColor = '#6366f1';
+                this.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.2)';
+            });
+
+            input.addEventListener('blur', function() {
+                this.style.borderColor = 'rgba(71, 85, 105, 0.5)';
+                this.style.boxShadow = 'none';
+            });
+        });
+
+        // 키보드 접근성 향상
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + A로 전체 선택
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                const focusedElement = document.activeElement;
+                if (focusedElement && focusedElement.closest('.checkbox-grid')) {
+                    e.preventDefault();
+                    toggleAllRoles();
+                }
+            }
+        });
+    });
+</script>
+
+<style>
+    /* 텍스트 그라디언트 */
+    .text-gradient {
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* 추가 애니메이션 */
+    @keyframes slideInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .checkbox-item {
+        animation: slideInUp 0.3s ease-out;
+    }
+
+    /* 포커스 링 커스터마이징 */
+    .custom-checkbox input[type="checkbox"]:focus + .checkbox-mark {
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+    }
+</style>
+</body>
+</html>

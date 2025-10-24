@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<body>
+<div th:fragment="header">
+    <header class="bg-app-secondary text-white shadow-lg">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+            <h1 class="text-xl font-semibold tracking-tight">
+                <a th:href="@{/}" class="hover:text-app-accent transition-colors">Security Auth Platform</a>
+            </h1>
+            <nav class="header-actions space-x-3">
+                <a id="homeLink" th:href="@{/home}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-app-primary-dark hover:text-white transition-colors">Home</a>
+
+                <th:block sec:authorize="isAnonymous()">
+                    <a id="loginLink" th:href="@{/loginForm}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-app-primary-dark hover:text-white transition-colors">로그인</a>
+                    <a id="registerLink" th:href="@{/register}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-app-primary-dark hover:text-white transition-colors">회원가입</a>
+                </th:block>
+
+<!--                <th:block sec:authorize="isAuthenticated()">-->
+                <th:block sec:authorize="isAnonymous()">
+                    <a id="usersLink" th:href="@{/users}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-app-primary-dark hover:text-white transition-colors">사용자 정보</a>
+<!--                    <a id="adminLink" sec:authorize="hasRole('ADMIN')" th:href="@{/admin}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-app-primary-dark hover:text-white transition-colors">관리자</a>-->
+                    <a id="adminLink" th:href="@{/admin}" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-app-primary-dark hover:text-white transition-colors">관리자</a>
+                    <a id="logoutLink" href="#" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-app-primary-dark hover:text-white transition-colors">로그아웃</a>
+                </th:block>
+            </nav>
+        </div>
+    </header>
+    <script th:src="@{/js/logout.js}"></script> </div>
+</body>
+</html>
