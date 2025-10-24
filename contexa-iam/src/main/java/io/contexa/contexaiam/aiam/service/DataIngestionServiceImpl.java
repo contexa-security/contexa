@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaiam.common.event.dto.DomainEvent;
 import io.contexa.contexaiam.common.event.dto.PolicyChangedEvent;
+import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,7 +79,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
 
     private Map<String, Object> createMetadata(Object entity) {
         // 엔티티의 주요 정보를 메타데이터로 추출하는 헬퍼 메서드
-        if (entity instanceof io.contexa.contexaiam..domain.entity.policy.Policy policy) {
+        if (entity instanceof Policy policy) {
             return Map.of(
                     "entityType", "Policy",
                     "policyId", policy.getId(),

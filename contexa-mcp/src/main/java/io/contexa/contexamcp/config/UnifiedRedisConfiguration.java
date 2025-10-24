@@ -1,27 +1,23 @@
-package io.contexa.contexacore.infra.redis;
+package io.contexa.contexamcp.config;
 
-import io.contexa.contexacore.soar.notification.SoarApprovalNotifier;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.listener.ChannelTopic;
-import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
  * 통합 Redis 설정 - 간소화 버전
@@ -34,7 +30,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 @Slf4j
 @Configuration
 @ConditionalOnClass(RedisTemplate.class)
-//@AutoConfigureAfter(RedisAutoConfiguration.class)
+@AutoConfigureAfter(RedisAutoConfiguration.class)
 public class UnifiedRedisConfiguration {
 
     // SOAR 승인 요청 알림 채널 이름
@@ -128,66 +124,5 @@ public class UnifiedRedisConfiguration {
         template.setEnableTransactionSupport(false);  // 이거!
         template.afterPropertiesSet();
         return template;
-    }
-
-    /**
-     * Redis 메시지 리스너 컨테이너
-     */
-    @Bean
-    public RedisMessageListenerContainer redisMessageListenerContainer(
-            RedisConnectionFactory connectionFactory,
-            SoarApprovalNotifier soarApprovalNotifier // SoarApprovalNotifier 주입
-    ) {
-        log.info("Creating Redis message listener container");
-
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        container.setConnectionFactory(connectionFactory);
-
-        // SoarApprovalNotifier를 리스너로 등록
-        // MessageListenerAdapter를 사용하여 특정 메서드를 호출하도록 설정
-        MessageListenerAdapter listenerAdapter = new MessageListenerAdapter(soarApprovalNotifier, "receiveApprovalNotification");
-        listenerAdapter.setSerializer(generalRedisTemplate(connectionFactory).getValueSerializer()); // JSON 직렬화 사용
-
-        container.addMessageListener(listenerAdapter, new ChannelTopic(SOAR_APPROVAL_CHANNEL));
-
-        return container;
-    }
-
-    /**
-     * Trust Score 전용 RedisTemplate (Double 타입)
-     * Zero Trust 보안 모델의 신뢰도 점수 저장용
-     */
-    @Bean(name = "trustScoreRedisTemplate")
-    public RedisTemplate<String, Double> trustScoreRedisTemplate(RedisConnectionFactory connectionFactory) {
-        log.info("Creating trust score RedisTemplate for Zero Trust security");
-        
-        RedisTemplate<String, Double> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-        
-        // 직렬화 설정
-        StringRedisSerializer stringSerializer = new StringRedisSerializer();
-        
-        template.setKeySerializer(stringSerializer);
-        template.setHashKeySerializer(stringSerializer);
-        template.setValueSerializer(stringSerializer); // Double을 String으로 직렬화
-        template.setHashValueSerializer(stringSerializer);
-        template.setDefaultSerializer(stringSerializer);
-        
-        // 트랜잭션 비활성화
-        template.setEnableTransactionSupport(false);
-        
-        template.afterPropertiesSet();
-        return template;
-    }
-
-    @Bean
-    public RedisDistributedLockService redisDistributedLockService(
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
-
-        if (redisTemplate != null) {
-            log.info("Creating RedisDistributedLockService");
-            return new RedisDistributedLockService(redisTemplate);
-        }
-        return null;
     }
 }
