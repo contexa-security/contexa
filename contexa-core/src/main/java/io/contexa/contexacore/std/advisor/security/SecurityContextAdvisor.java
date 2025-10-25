@@ -34,13 +34,13 @@ public class SecurityContextAdvisor extends BaseAdvisor {
     private static final String DOMAIN_NAME = "SECURITY";
     private static final String ADVISOR_NAME = "security-context";
     
-    @Value("${ai3security.advisor.security.order:50}")
+    @Value("${contexa.advisor.security.order:50}")
     private int advisorOrder;
     
-    @Value("${ai3security.advisor.security.enabled:true}")
+    @Value("${contexa.advisor.security.enabled:true}")
     private boolean advisorEnabled;
     
-    @Value("${ai3security.advisor.security.require-authentication:false}")
+    @Value("${contexa.advisor.security.require-authentication:false}")
     private boolean requireAuthentication;
 
     public SecurityContextAdvisor(Tracer tracer) {

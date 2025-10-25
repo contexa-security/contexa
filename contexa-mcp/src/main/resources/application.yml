@@ -1,5 +1,5 @@
 server:
-  port: 9090
+  port: 9000
 #  servlet:
 #    session:
 #      cookie:
@@ -33,7 +33,7 @@ spring:
     mcp:
       server:
         enabled: true
-        name: AI3Security SOAR Platform
+        name: contexa SOAR Platform
         version: 1.0.0
         type: SYNC  # 동기 서버 (ASYNC 사용 가능)
         sse-message-endpoint: /mcp/message  # SSE 엔드포인트
@@ -41,7 +41,7 @@ spring:
         tool-change-notification: true      # 도구 변경 알림 활성화
         prompt-change-notification: false   # 프롬프트 미사용
         request-timeout: 30000              # 30초 타임아웃
-        instructions: "Security orchestration and automated response tools for AI3Security platform"
+        instructions: "Security orchestration and automated response tools for contexa platform"
         capabilities:
           tool: true        # 도구 기능 활성화
           resource: false   # 리소스 기능 비활성화

@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  * SMS 게이트웨이를 통해 긴급 보안 알림을 전송하는 어댑터입니다.
  * Twilio, AWS SNS, 국내 SMS 서비스 등을 지원합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j
@@ -60,7 +60,7 @@ public class SmsNotificationAdapter {
     @Value("${sms.sender.number:}")
     private String senderNumber;
     
-    @Value("${sms.sender.id:AI3Security}")
+    @Value("${sms.sender.id:contexa}")
     private String senderId;
     
     @Value("${sms.max.length:140}")
@@ -218,7 +218,7 @@ public class SmsNotificationAdapter {
         }
         
         String message = String.format(
-            "[AI3Security] 승인요청\n도구:%s\n위험:%s\nID:%s\n승인링크:https://ai3sec.com/approve/%s",
+            "[contexa] 승인요청\n도구:%s\n위험:%s\nID:%s\n승인링크:https://ai3sec.com/approve/%s",
             toolName,
             riskLevel,
             requestId.substring(0, 8),
@@ -409,12 +409,12 @@ public class SmsNotificationAdapter {
     private void loadSmsTemplates() {
         // 보안 알림 템플릿
         templates.put("SECURITY_ALERT", new SmsTemplate(
-            "[AI3] ${severity} ${type}\n${description}\n조치:${action}"
+            "[CONTEXA] ${severity} ${type}\n${description}\n조치:${action}"
         ));
         
         // 승인 요청 템플릿
         templates.put("APPROVAL", new SmsTemplate(
-            "[AI3] 승인필요\n${toolName}\n위험:${riskLevel}\nID:${requestId}"
+            "[CONTEXA] 승인필요\n${toolName}\n위험:${riskLevel}\nID:${requestId}"
         ));
         
         // 인시던트 템플릿
@@ -486,7 +486,7 @@ public class SmsNotificationAdapter {
      * SMS 메시지 포맷팅
      */
     private String formatSmsMessage(String subject, String content) {
-        String formatted = String.format("[AI3] %s\n%s", subject, content);
+        String formatted = String.format("[CONTEXA] %s\n%s", subject, content);
         return truncateMessage(formatted);
     }
     
@@ -554,7 +554,7 @@ public class SmsNotificationAdapter {
      * 기본 보안 템플릿 생성
      */
     private SmsTemplate createDefaultSecurityTemplate() {
-        return new SmsTemplate("[AI3] ${severity} 보안알림\n${description}");
+        return new SmsTemplate("[CONTEXA] ${severity} 보안알림\n${description}");
     }
     
     /**

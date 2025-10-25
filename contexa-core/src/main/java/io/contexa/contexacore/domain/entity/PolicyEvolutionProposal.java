@@ -21,7 +21,7 @@ import java.util.Map;
  * AI가 생성한 정책 제안을 저장하고 관리합니다.
  * 이 엔티티는 제안의 전체 생명주기를 추적합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Entity

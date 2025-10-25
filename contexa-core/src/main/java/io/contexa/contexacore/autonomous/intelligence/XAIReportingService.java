@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * AI의 의사결정 과정을 설명하고 투명성을 제공하는 서비스입니다.
  * LIME, SHAP 등의 기법을 활용하여 AI 결정을 해석합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

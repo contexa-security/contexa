@@ -23,7 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * - 공통 기능만 추출하여 제공
  * - 각 Layer의 독립성 보장
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

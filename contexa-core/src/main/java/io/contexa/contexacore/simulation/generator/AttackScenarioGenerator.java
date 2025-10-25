@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * 다양한 실전 공격 시나리오를 생성하여 자율보안지능 시스템을 테스트합니다.
  * MITRE ATT&CK 프레임워크 기반으로 공격 패턴을 생성합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

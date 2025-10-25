@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
  *
  * 성능 목표: 1-5ms (컨텍스트 추출) + 1ms (BaselineVector 조회) + 1-2ms (유사도 계산) = 5-30ms
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0.0
  */
 @Slf4j

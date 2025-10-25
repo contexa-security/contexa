@@ -47,7 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 세션 관리는 Spring Security가 자동으로 처리하며,
  * Zero Trust 관련 기능만 추가로 구현합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

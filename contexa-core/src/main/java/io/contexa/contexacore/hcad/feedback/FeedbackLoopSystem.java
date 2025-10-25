@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * - adjustThreshold()가 UnifiedThresholdManager.applyFeedbackThresholdAdjustment() 호출
  * - Redis 키 충돌 제거 (레거시 "threshold:{userId}" 키 사용 중지)
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

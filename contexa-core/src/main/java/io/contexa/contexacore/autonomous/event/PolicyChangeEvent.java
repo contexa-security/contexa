@@ -14,7 +14,7 @@ import java.util.Map;
  * 정책이 변경(생성, 수정, 삭제, 승인)될 때 발행되는 이벤트입니다.
  * 자율 보안 시스템의 정책 변경 사항을 추적하고 동기화합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Getter

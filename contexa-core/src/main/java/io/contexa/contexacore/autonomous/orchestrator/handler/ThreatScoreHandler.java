@@ -30,7 +30,7 @@ import java.util.Map;
  * - ThreatScoreOrchestrator를 통한 원자적 업데이트
  * - Threat Score로 통일된 처리
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Component

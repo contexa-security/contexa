@@ -27,7 +27,7 @@ import io.contexa.contexacore.std.llm.config.TieredSecurityLLMConfiguration;
 @AutoConfigureAfter({TieredSecurityLLMConfiguration.class, AdvisorConfiguration.class})
 public class ToolConfiguration {
     
-    @Value("${ai3security.tools.enabled:true}")
+    @Value("${contexa.tools.enabled:true}")
     private boolean toolsEnabled;
     
     /**
@@ -38,7 +38,7 @@ public class ToolConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(name = "toolEnabledChatClient")
-    @ConditionalOnProperty(prefix = "ai3security.tools", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "contexa.tools", name = "enabled", havingValue = "true", matchIfMissing = true)
     public ChatClient toolEnabledChatClient(
             @Autowired(required = false) @Qualifier("advisorEnabledChatClientBuilder") ChatClient.Builder advisorBuilder,
             @Autowired(required = false) @Qualifier("chatClientBuilder") ChatClient.Builder basicBuilder,

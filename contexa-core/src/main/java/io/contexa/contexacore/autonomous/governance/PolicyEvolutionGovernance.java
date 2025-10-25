@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 정책 제안의 위험도를 재평가하고 승인 프로세스를 관리합니다.
  * 자동 승인, 다단계 승인, 거부 등의 거버넌스 규칙을 적용합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

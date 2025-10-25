@@ -13,7 +13,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
  * - 새로운 처리 단계 추가 시 기존 코드 수정 불필요 (OCP)
  * - 처리 중단 조건을 반환값으로 제어
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 public interface SecurityEventHandler {

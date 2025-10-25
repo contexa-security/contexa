@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * AI가 생성한 정책을 실제 시스템에 적용하고 관리합니다.
  * 안전한 활성화와 실시간 모니터링을 제공합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Service

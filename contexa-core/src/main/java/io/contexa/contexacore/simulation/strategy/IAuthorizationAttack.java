@@ -9,7 +9,7 @@ import java.util.Map;
  * 권한 상승, IDOR, API 권한 우회 등 인가 관련 공격을 정의합니다.
  * @Protectable 리소스에 대한 무단 접근 시도를 시뮬레이션합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public interface IAuthorizationAttack extends IAttackStrategy {

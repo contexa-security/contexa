@@ -16,7 +16,7 @@ import java.util.Optional;
  * @Protectable 어노테이션으로 보호된 메서드를 제공하여
  * 자율보안운영체제의 실제 보호 효과를 검증합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

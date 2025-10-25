@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 정책의 버전 이력을 관리하고 롤백 기능을 제공합니다.
  * 버전 충돌을 방지하고 정책 변경 추적을 가능하게 합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Component

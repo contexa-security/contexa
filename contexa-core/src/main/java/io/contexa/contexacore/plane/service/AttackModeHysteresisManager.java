@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  * - "공격 모드 히스테리시스가 필요합니다"
  * - Dual Threshold + 최소 지속 시간 + Rate Limiting
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

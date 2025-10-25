@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  * 기존 Lab들의 분석 결과를 통합하여 정책으로 진화시키는 핵심 엔진입니다.
  * 이 엔진은 Lab을 직접 상속하지 않고, 오케스트레이터 역할을 수행합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

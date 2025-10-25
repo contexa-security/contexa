@@ -29,7 +29,7 @@ import java.util.List;
  * - 테스트 용이성 향상
  * - 확장성 및 유지보수성 개선
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

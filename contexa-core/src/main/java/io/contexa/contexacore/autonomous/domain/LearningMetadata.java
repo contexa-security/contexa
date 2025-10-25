@@ -15,7 +15,7 @@ import java.util.Map;
  * SecurityEvent에 추가되는 학습 관련 메타데이터입니다.
  * 이벤트가 학습 가능한지, 어떤 유형의 학습인지, 신뢰도는 얼마인지 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

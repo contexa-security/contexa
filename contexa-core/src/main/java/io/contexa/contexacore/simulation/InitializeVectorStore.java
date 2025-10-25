@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * Zero Trust AI가 학습할 수 있도록 베이스라인을 구축합니다.
  *
  * 실행 방법:
- * 1. AI3Security 서버 실행 (PostgreSQL, Redis, Kafka 필요)
+ * 1. contexa 서버 실행 (PostgreSQL, Redis, Kafka 필요)
  * 2. 이 클래스를 Spring Boot Application으로 실행
  * 3. 콘솔에서 데이터 생성 완료 메시지 확인
  */
@@ -339,7 +339,7 @@ public class InitializeVectorStore implements CommandLineRunner {
                         // 새로운 컨텍스트 생성 (이전 컨텍스트에서 시퀀스 정보 복사)
                         BehavioralAnalysisContext context = new BehavioralAnalysisContext();
                         context.setUserId(userId);
-                        context.setOrganizationId("AI3Security");
+                        context.setOrganizationId("contexa");
                         context.setCurrentActivity(selectedActivity);
                         context.setRemoteIp(ipAddress);
 
@@ -451,7 +451,7 @@ public class InitializeVectorStore implements CommandLineRunner {
 
                         BehavioralAnalysisContext context = new BehavioralAnalysisContext();
                         context.setUserId(userId);
-                        context.setOrganizationId("AI3Security");
+                        context.setOrganizationId("contexa");
                         context.setCurrentActivity("ProtectableDataService." + pattern.methodName);
                         context.setRemoteIp(generateNormalIpAddress(userId));
 
@@ -498,7 +498,7 @@ public class InitializeVectorStore implements CommandLineRunner {
 
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId("finance_manager");
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("ProtectableDataService.getAllCustomerData");
             context.setRemoteIp(generateNormalIpAddress("finance_manager"));
 
@@ -537,7 +537,7 @@ public class InitializeVectorStore implements CommandLineRunner {
 
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId("dev_lead");
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("ProtectableDataService.updateCustomerData");
             context.setRemoteIp(generateNormalIpAddress("dev_lead"));
 
@@ -572,7 +572,7 @@ public class InitializeVectorStore implements CommandLineRunner {
 
         BehavioralAnalysisContext context = new BehavioralAnalysisContext();
         context.setUserId("admin");
-        context.setOrganizationId("AI3Security");
+        context.setOrganizationId("contexa");
         context.setCurrentActivity("ProtectableDataService.getAllCustomerData");
         context.setRemoteIp(generateNormalIpAddress("admin"));
 
@@ -629,7 +629,7 @@ public class InitializeVectorStore implements CommandLineRunner {
             for (int i = 0; i < 5; i++) {
                 BehavioralAnalysisContext context = new BehavioralAnalysisContext();
                 context.setUserId("admin");  // 탈취된 계정
-                context.setOrganizationId("AI3Security");
+                context.setOrganizationId("contexa");
                 context.setCurrentActivity("ProtectableDataService.getAllCustomerData");
                 context.setRemoteIp(attackerIP);  // 외부 IP
 
@@ -715,7 +715,7 @@ public class InitializeVectorStore implements CommandLineRunner {
             // 2. deleteCustomerData 시도 (파괴적 공격)
             BehavioralAnalysisContext deleteContext = new BehavioralAnalysisContext();
             deleteContext.setUserId("admin");
-            deleteContext.setOrganizationId("AI3Security");
+            deleteContext.setOrganizationId("contexa");
             deleteContext.setCurrentActivity("ProtectableDataService.deleteCustomerData");
             deleteContext.setRemoteIp(attackerIP);
 
@@ -790,7 +790,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         for (int i = 0; i < 10; i++) {  // 연속적인 대량 조회
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId("finance_manager");
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("ProtectableDataService.getAllCustomerData");
             context.setRemoteIp(generateNormalIpAddress("finance_manager"));  // 정상 IP
 
@@ -875,7 +875,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         // deleteCustomerData 시도 (권한 없음)
         BehavioralAnalysisContext context = new BehavioralAnalysisContext();
         context.setUserId("dev_lead");
-        context.setOrganizationId("AI3Security");
+        context.setOrganizationId("contexa");
         context.setCurrentActivity("ProtectableDataService.deleteCustomerData");
         context.setRemoteIp(generateNormalIpAddress("dev_lead"));
 
@@ -911,7 +911,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         for (int i = 0; i < 20; i++) {  // 밤에 연속 조회
             BehavioralAnalysisContext nightContext = new BehavioralAnalysisContext();
             nightContext.setUserId("op_user");
-            nightContext.setOrganizationId("AI3Security");
+            nightContext.setOrganizationId("contexa");
             nightContext.setCurrentActivity("ProtectableDataService.getCustomerData");
             nightContext.setRemoteIp(generateNormalIpAddress("op_user"));
 
@@ -1003,7 +1003,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         for (int attempt = 0; attempt < 100; attempt++) {
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId(targetUsername);
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("LOGIN_ATTEMPT_FAILED");
             context.setRemoteIp(attackerIP);
 
@@ -1088,7 +1088,7 @@ public class InitializeVectorStore implements CommandLineRunner {
 
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId(cred.getUsername());
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("LOGIN_ATTEMPT_CREDENTIAL_STUFFING");
             context.setRemoteIp(attackerIP);
 
@@ -1170,7 +1170,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         for (int i = 0; i < 50; i++) {
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId("admin");
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("ProtectableDataService.getCustomerData");
             context.setRemoteIp(botIP);
 
@@ -1244,7 +1244,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         for (int i = 0; i < 5; i++) {
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId(userId);
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("대시보드 조회");
             context.setRemoteIp(originalIP);
 
@@ -1295,7 +1295,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         for (int i = 0; i < 5; i++) {
             BehavioralAnalysisContext context = new BehavioralAnalysisContext();
             context.setUserId(userId);
-            context.setOrganizationId("AI3Security");
+            context.setOrganizationId("contexa");
             context.setCurrentActivity("ProtectableDataService.getAllCustomerData");
             context.setRemoteIp(hijackedIP); // IP 변경!
 
@@ -1371,7 +1371,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         // 1. 서울에서 로그인
         BehavioralAnalysisContext koreaContext = new BehavioralAnalysisContext();
         koreaContext.setUserId(userId);
-        koreaContext.setOrganizationId("AI3Security");
+        koreaContext.setOrganizationId("contexa");
         koreaContext.setCurrentActivity("로그인");
         koreaContext.setRemoteIp(koreaIP);
 
@@ -1421,7 +1421,7 @@ public class InitializeVectorStore implements CommandLineRunner {
 
         BehavioralAnalysisContext usaContext = new BehavioralAnalysisContext();
         usaContext.setUserId(userId);
-        usaContext.setOrganizationId("AI3Security");
+        usaContext.setOrganizationId("contexa");
         usaContext.setCurrentActivity("ProtectableDataService.getAllCustomerData");
         usaContext.setRemoteIp(usaIP);
 
@@ -1565,7 +1565,7 @@ public class InitializeVectorStore implements CommandLineRunner {
     private BehavioralAnalysisContext createInitialContext(String userId) {
         BehavioralAnalysisContext context = new BehavioralAnalysisContext();
         context.setUserId(userId);
-        context.setOrganizationId("AI3Security");
+        context.setOrganizationId("contexa");
         context.setRemoteIp(generateNormalIpAddress(userId));
         context.setCurrentActivity("로그인");
         context.addActivityToSequence("로그인");

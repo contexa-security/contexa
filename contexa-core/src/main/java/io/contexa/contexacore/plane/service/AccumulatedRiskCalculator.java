@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
  * - "단순히 Layer3 경고만 보는 것이 아닌 정교한 누적 위험 계산 필요"
  * - 7-signal 종합 분석 + 불일치 패널티 + 시간 감쇠
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

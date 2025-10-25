@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * - Phase 2: Medium (그럴듯한 가짜 리소스)
  * - Phase 3: Hard (정교한 Decoy)
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

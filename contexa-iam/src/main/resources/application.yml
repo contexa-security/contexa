@@ -4,7 +4,7 @@ security:
     enabled: true
     mode: TRUST  # STANDARD(기본), TRUST(Redis 조회), REALTIME(실시간 AI)
     
-ai3security:
+contexa:
   synthesis:
     dynamic-threat-response:
       llm-model: gpt-4-turbo
@@ -44,7 +44,7 @@ ai3security:
       fallback-strategy: HEURISTIC
     metrics:
       enabled: true
-      prefix: ai3security.synthesis
+      prefix: contexa.synthesis
       publish-percentile-histogram: true
       error-rate-threshold: 0.05
       latency-threshold-ms: 5000
@@ -112,7 +112,7 @@ spring:
     mcp:
       server:
         enabled: true
-        name: AI3Security MCP Server
+        name: contexa MCP Server
         version: 1.0.0
         type: SYNC  # 동기 서버
         sse-message-endpoint: /mcp/message  # SSE 엔드포인트
@@ -259,7 +259,7 @@ logging:
     org.springframework.messaging.support: DEBUG
     io.spring.iam.aiam.config: DEBUG
     io.spring.iam.aiam.controller: DEBUG
-    io.spring.aicore.soar.event: DEBUG
+    io.contexa.contexacore.soar.event: DEBUG
     # Spring Boot AutoConfiguration 디버깅
     org.springframework.boot.autoconfigure: DEBUG
     org.springframework.ai.mcp: DEBUG
@@ -287,10 +287,10 @@ logging:
     org.springframework.orm.jpa: DEBUG
     org.hibernate.orm.jdbc.bind: DEBUG
     # AI Core 디버깅
-    io.spring.aicore.components.prompt: DEBUG
-    io.spring.aicore.pipeline: DEBUG
-    io.spring.aicore.llm: DEBUG
-#    io.spring.aicore: ERROR
+    io.contexa.contexacore.components.prompt: DEBUG
+    io.contexa.contexacore.pipeline: DEBUG
+    io.contexa.contexacore.llm: DEBUG
+#    io.contexa.contexacore: ERROR
     io.spring.iam.aiam.labs: DEBUG
     org.springframework.messaging.simp.annotation: DEBUG
 

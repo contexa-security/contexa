@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 실시간 공격 모니터링과 상태 업데이트를 위한 WebSocket 엔드포인트를 제공합니다.
  * STOMP 프로토콜을 사용하여 양방향 통신을 구현합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -29,7 +29,7 @@ import java.util.List;
  * - "임계값 auto-tuning이 필요합니다"
  * - CUSUM으로 정상 행동의 점진적 변화 감지
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

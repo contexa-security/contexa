@@ -8,7 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
  * Spring Session의 Redis 세션 ID를 다양한 소스에서 추출하는 전략을 정의합니다.
  * HttpSession ID가 아닌 실제 Redis에 저장된 세션 ID를 추출합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 public interface SessionIdResolver {

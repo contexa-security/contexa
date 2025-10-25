@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * AI 정책의 비정상 동작 시 즉시 중단하고 안전 모드로 전환합니다.
  * 실시간 모니터링과 자동 회로 차단 기능을 제공합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Component

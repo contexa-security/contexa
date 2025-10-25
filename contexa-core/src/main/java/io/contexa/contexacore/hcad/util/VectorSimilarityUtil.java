@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
  * - HCADVectorIntegrationService.calculateCosineSimilarity()
  * - EmbeddingService.calculateCosineSimilarity()
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

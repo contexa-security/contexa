@@ -11,7 +11,7 @@ import java.util.Map;
  * 모든 공격 전략이 구현해야 하는 기본 계약을 정의합니다.
  * Strategy Pattern을 통해 다양한 공격을 유연하게 실행할 수 있습니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public interface IAttackStrategy {

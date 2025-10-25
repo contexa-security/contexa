@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
  *
  * 실제 AccessGovernanceLab 실행은 aiam 모듈의 AutonomousPolicySynthesizer에서 수행됩니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

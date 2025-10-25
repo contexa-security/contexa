@@ -7,7 +7,7 @@ import java.util.Map;
  *
  * 보안 이벤트 및 정책 변경 사항에 대한 알림을 처리하는 서비스 인터페이스입니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 public interface NotificationService {

@@ -18,7 +18,7 @@ import java.util.List;
  * - AIAdaptivePolicyEvaluator: AI 기반 적응형 정책 평가
  * - RiskBasedPolicyEvaluator: 위험도 기반 정책 평가
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 public interface MfaPolicyEvaluator {

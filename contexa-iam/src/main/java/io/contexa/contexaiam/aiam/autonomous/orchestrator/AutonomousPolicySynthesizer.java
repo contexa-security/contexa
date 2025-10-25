@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 3. 정책 제안 생성 및 제출
  * 4. 학습 메트릭 추적
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

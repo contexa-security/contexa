@@ -10,7 +10,7 @@ import lombok.Getter;
  *
  * DynamicModelSelectionStrategy에서 사용됩니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Getter

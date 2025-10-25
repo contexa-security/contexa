@@ -43,6 +43,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -321,8 +322,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      *
      * @Transactional 적용으로 DB + Redis 일관성 보장
      */
-    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
-    private void processWithOrchestrator(SecurityEvent event) {
+    @Transactional(rollbackFor = Exception.class)
+    public void processWithOrchestrator(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
         SecurityEventContext context = null;
 

@@ -6,9 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.model.tool.DefaultToolCallingManager;
 import org.springframework.ai.model.tool.ToolCallingManager;
-import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -32,18 +30,16 @@ public class SoarToolConfiguration {
      * ToolCallbackResolver를 통해 도구를 동적으로 해결합니다.
      */
     @Bean(name = "soarToolCallingManager")
-    public ToolCallingManager soarToolCallingManager(
-            ChainedToolResolver toolResolver) {
+    public ToolCallingManager soarToolCallingManager() {
         log.info("SOAR ToolCallingManager Bean 생성");
         
         // ChainedToolResolver를 통해 도구를 동적으로 해결
-        return DefaultToolCallingManager.builder()
-            .build();
+        return DefaultToolCallingManager.builder().build();
     }
     
     /**
      * Tool 승인 정책 관리자
-     * 
+     *
      * 도구별 승인 정책을 관리하는 Bean입니다.
      * 하드코딩된 로직 대신 정책 기반으로 승인 여부를 결정합니다.
      */
@@ -52,18 +48,9 @@ public class SoarToolConfiguration {
         log.info("Tool Approval Policy Manager Bean 생성");
         return new ToolApprovalPolicyManager();
     }
-    
-    /**
-     * Tool 실행 메트릭 수집기
-     * 
-     * 도구 실행 관련 메트릭을 수집하는 Bean입니다.
-     */
-    @Bean
-    public ToolExecutionMetrics toolExecutionMetrics() {
-        log.info("Tool Execution Metrics Bean 생성");
-        return new ToolExecutionMetrics();
-    }
-    
+
+    // ToolExecutionMetrics는 @Component로 자동 등록되므로 수동 Bean 정의 제거됨
+
     /**
      * SOAR Tool 실행 예외 처리기
      * 

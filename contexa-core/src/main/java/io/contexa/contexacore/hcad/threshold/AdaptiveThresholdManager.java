@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * 4. 성능 기반 자동 조정
  * 5. 계절성 패턴 반영
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

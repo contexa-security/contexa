@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 public class OpenTelemetryConfiguration {
 
-    @Value("${opentelemetry.service.name:ai3security-aicore}")
+    @Value("${opentelemetry.service.name:contexa-core}")
     private String serviceName;
 
     @Value("${opentelemetry.traces.exporter.endpoint:http://localhost:4317}")

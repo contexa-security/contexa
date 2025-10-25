@@ -18,7 +18,7 @@ import java.util.Objects;
  * 이 클래스는 MFA 정책 평가 로직의 결과를 캡슐화하여 
  * 정책 제공자(MfaPolicyProvider) 내부에서 데이터를 전달하는 용도로 사용됩니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Getter

@@ -32,7 +32,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * 통합 지점:
  * - VectorSimilarityHandler.setRecommendations() → HOT Path 판정 후 호출
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

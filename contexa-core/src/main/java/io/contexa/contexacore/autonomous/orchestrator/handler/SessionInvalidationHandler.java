@@ -31,7 +31,7 @@ import java.util.Map;
  * - 감사 로그 및 알림 발송
  * - SecurityEventProcessingOrchestrator와 통합
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

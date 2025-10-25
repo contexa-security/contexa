@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Zero Trust 보안 모델 위반 시나리오를 시뮬레이션합니다.
  * Impossible Travel, Device Trust, Abnormal Behavior, Context-based violations 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

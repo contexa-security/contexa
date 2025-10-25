@@ -21,7 +21,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * 유출된 계정 정보 데이터베이스를 사용하여 대량의 계정을 시도하는 공격을 시뮬레이션합니다.
  * 실제 데이터 유출 사고에서 획득한 계정 정보를 재사용하는 공격 패턴을 모방합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

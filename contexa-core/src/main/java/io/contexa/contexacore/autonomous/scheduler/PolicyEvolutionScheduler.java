@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * 정책 진화 스케줄러
  * 실시간 위협 대응과 주기적 정책 최적화를 자동으로 수행
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

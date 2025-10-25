@@ -9,6 +9,9 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.observation.VectorStoreObservationConvention;
+import org.springframework.boot.actuate.autoconfigure.metrics.MetricsAutoConfiguration;
+import org.springframework.boot.actuate.autoconfigure.observation.ObservationAutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,6 +35,10 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties(PgVectorStoreProperties.class)
 @RequiredArgsConstructor
+@AutoConfigureAfter({
+    ObservationAutoConfiguration.class,
+    MetricsAutoConfiguration.class
+})
 public class VectorStoreObservationConfig {
 
     private final PgVectorStoreProperties properties;
@@ -39,11 +46,14 @@ public class VectorStoreObservationConfig {
     private final MeterRegistry meterRegistry;
 
     /**
-     * 애플리케이션 시작 시 설정 로깅 및 ObservationHandler 수동 등록
+     * 애플리케이션 시작 시 설정 로깅 및 ObservationHandler 등록
+     *
+     * @AutoConfigureAfter를 통해 ObservationAutoConfiguration, MetricsAutoConfiguration 이후 실행됩니다.
+     * Spring Boot가 자동으로 Handler를 등록하므로, NOOP인 경우에만 수동 등록합니다.
      */
     @PostConstruct
     public void initialize() {
-        log.info("=== PgVectorStoreProperties Configuration ===");
+        log.info("=== VectorStore Observation Configuration ===");
         log.info("  Index Type: {}", properties.getIndexType());
         log.info("  Distance Type: {}", properties.getDistanceType());
         log.info("  Dimensions: {}", properties.getDimensions());
@@ -54,24 +64,19 @@ public class VectorStoreObservationConfig {
             properties.getHnsw().getEfConstruction(),
             properties.getHnsw().getEfSearch());
 
-        // ⭐ ObservationRegistry 상태 확인
-        log.info("=== ObservationRegistry Status (Before Handler Registration) ===");
-        log.info("  ObservationRegistry Type: {}", observationRegistry.getClass().getSimpleName());
+        log.info("=== ObservationRegistry Status ===");
+        log.info("  Type: {}", observationRegistry.getClass().getSimpleName());
         log.info("  Is NOOP: {}", observationRegistry.isNoop());
-        log.info("  MeterRegistry Type: {}", meterRegistry.getClass().getSimpleName());
-
-        // ⭐ DefaultMeterObservationHandler 수동 등록
-        DefaultMeterObservationHandler handler = new DefaultMeterObservationHandler(meterRegistry);
-        observationRegistry.observationConfig().observationHandler(handler);
-
-        log.info("=== ObservationRegistry Status (After Handler Registration) ===");
-        log.info("  Is NOOP: {}", observationRegistry.isNoop());
-        log.info("  Handler registered: {}", handler.getClass().getSimpleName());
+        log.info("  MeterRegistry: {}", meterRegistry.getClass().getSimpleName());
 
         if (observationRegistry.isNoop()) {
-            log.error("⚠️  ObservationRegistry is STILL NOOP after handler registration!");
+            // NOOP인 경우에만 수동 등록 (AutoConfiguration이 실패한 경우)
+            log.warn("ObservationRegistry is NOOP - registering DefaultMeterObservationHandler manually");
+            DefaultMeterObservationHandler handler = new DefaultMeterObservationHandler(meterRegistry);
+            observationRegistry.observationConfig().observationHandler(handler);
+            log.info("Manually registered DefaultMeterObservationHandler");
         } else {
-            log.info("✅ ObservationRegistry is active and ready for VectorStore metrics collection");
+            log.info("✅ ObservationRegistry is already active (auto-configured by Spring Boot)");
         }
     }
 

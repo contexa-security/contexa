@@ -16,7 +16,7 @@ import java.util.Map;
  * SecurityEvent와 관련된 추가 컨텍스트 정보를 캡슐화하는 도메인 객체입니다.
  * AI 보안 분석 및 자율 학습에 필요한 모든 컨텍스트 정보를 포함합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Data

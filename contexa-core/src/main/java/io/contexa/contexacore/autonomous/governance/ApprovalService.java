@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  * 정책 제안에 대한 단일 및 다단계 승인 워크플로우를 관리합니다.
  * 승인자 관리, 알림, 이력 추적 기능을 제공합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j
@@ -335,7 +335,7 @@ public class ApprovalService {
         return Approver.builder()
             .approverId("DEFAULT_" + level.name())
             .name("Default " + level.name() + " Approver")
-            .email("approver@ai3security.com")
+            .email("approver@contexa.com")
             .level(level)
             .currentWorkload(0)
             .build();

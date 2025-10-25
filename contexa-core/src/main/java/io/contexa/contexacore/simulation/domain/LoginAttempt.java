@@ -11,7 +11,7 @@ import java.util.Map;
  * 인증 시도에 대한 모든 정보를 포함합니다.
  * 성공/실패 여부, 시도 위치, 시간, 장치 정보 등을 추적합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

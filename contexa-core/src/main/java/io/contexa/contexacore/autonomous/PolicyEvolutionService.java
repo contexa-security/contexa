@@ -20,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
  * 정책 진화 서비스
  * 정책 제안의 생성, 평가, 승인, 활성화를 관리
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -16,7 +16,7 @@ import java.util.Optional;
  *
  * 시뮬레이션 결과 데이터 접근을 위한 JPA Repository입니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Repository

@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Email, WebSocket, SMS, Slack 등 다양한 채널을 통해
  * 보안 알림을 전송하는 통합 서비스입니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j
@@ -426,7 +426,7 @@ public class UnifiedNotificationService {
      * 일반 이메일 발송
      */
     private Mono<Boolean> sendEmail(String subject, String content, Map<String, Object> context) {
-        String recipients = (String) context.getOrDefault("recipients", "security@ai3security.com");
+        String recipients = (String) context.getOrDefault("recipients", "security@contexa.com");
         
         return Mono.fromRunnable(() -> 
             emailService.sendEmail(recipients, subject, content)

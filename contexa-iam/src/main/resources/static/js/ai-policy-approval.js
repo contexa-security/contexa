@@ -3,7 +3,7 @@
  *
  * AI 정책 승인 관리를 위한 클라이언트 사이드 로직
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 

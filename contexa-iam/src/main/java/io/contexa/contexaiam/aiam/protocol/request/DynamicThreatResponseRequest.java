@@ -13,7 +13,7 @@ import lombok.Setter;
  * DynamicThreatResponseSynthesisLab이 처리할 요청 데이터를 담는 객체
  * DynamicThreatResponseEvent로부터 변환되어 Lab에 전달됨
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Getter

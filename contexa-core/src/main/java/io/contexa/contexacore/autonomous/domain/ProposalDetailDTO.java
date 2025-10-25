@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * 제안 상세 DTO
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

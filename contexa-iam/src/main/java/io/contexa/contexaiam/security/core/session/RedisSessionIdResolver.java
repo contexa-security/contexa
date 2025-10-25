@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * Spring Session이 Redis에 저장한 세션 ID를 다양한 소스에서 추출합니다.
  * HttpSession.getId()가 아닌 실제 Redis 세션 ID를 반환합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

@@ -129,7 +129,7 @@ public class NotificationConfig {
                 io.contexa.contexacore.soar.notification.NotificationTarget.createDefault(
                     "admin", 
                     "System Administrator", 
-                    "admin@ai3security.com"
+                    "admin@contexa.com"
                 );
             adminTarget.setRoles(java.util.Set.of("ROLE_ADMIN", "ROLE_APPROVER"));
             registerTarget(adminTarget);
@@ -137,13 +137,13 @@ public class NotificationConfig {
             // 보안 팀 타겟
             io.contexa.contexacore.soar.notification.NotificationTarget securityTarget = 
                 io.contexa.contexacore.soar.notification.NotificationTarget.createForRole("ROLE_SECURITY");
-            securityTarget.setEmail("security-team@ai3security.com");
+            securityTarget.setEmail("security-team@contexa.com");
             registerTarget(securityTarget);
             
             // SOC 팀 타겟
             io.contexa.contexacore.soar.notification.NotificationTarget socTarget = 
                 io.contexa.contexacore.soar.notification.NotificationTarget.createForRole("ROLE_SOC");
-            socTarget.setEmail("soc-team@ai3security.com");
+            socTarget.setEmail("soc-team@contexa.com");
             registerTarget(socTarget);
         }
     }

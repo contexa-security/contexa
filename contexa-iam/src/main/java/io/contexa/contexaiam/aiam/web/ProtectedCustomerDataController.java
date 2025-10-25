@@ -21,7 +21,7 @@ import java.util.*;
  * - 무방비 모드: SimulationModeHolder가 UNPROTECTED로 설정되면 보안 우회
  * - 방어 모드: SimulationModeHolder가 PROTECTED로 설정되면 정상적인 보안 체크
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

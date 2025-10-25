@@ -9,7 +9,7 @@ import org.springframework.context.ApplicationEvent;
  * 이 이벤트는 SoarIncidentService에서 발행되어
  * SecurityPlaneAgent로 전달되어 IncidentResolvedEvent로 변환됩니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public class IncidentCompletedEvent extends ApplicationEvent {

@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 
  * 권한 상승, 무단 접근, IDOR, 역할 변경 등 인가 관련 공격을 시뮬레이션합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -20,7 +20,7 @@ import java.util.HexFormat;
  * - 행동 패턴 지문 (Behavioral Pattern): Event/Request type
  * - 메타데이터 지문 (Metadata Fingerprint): Additional context 해시
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

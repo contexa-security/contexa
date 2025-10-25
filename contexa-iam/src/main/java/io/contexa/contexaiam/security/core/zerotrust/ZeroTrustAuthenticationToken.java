@@ -13,7 +13,7 @@ import java.util.Collection;
  * Spring Security의 Authentication을 확장하여 Zero Trust 메타데이터를 포함합니다.
  * Trust Score, Threat Score, User Context 등의 정보를 Authentication 객체에 통합합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthenticationToken {

@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * 정적 분석 스케줄러
  * 코드베이스와 정책을 주기적으로 분석하여 최적화 기회를 식별
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -19,7 +19,7 @@ import java.util.Random;
  * 테스트용 고객 데이터를 생성합니다.
  * 실제 운영 환경에서는 실행되지 않도록 @Profile("simulation")을 사용합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

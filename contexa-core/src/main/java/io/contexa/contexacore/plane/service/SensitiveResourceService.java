@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
  * 통합 지점:
  * - AntiEvasionSamplingEngine.isSensitiveAction()
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

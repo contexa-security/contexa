@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * 영향도 분석 DTO
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

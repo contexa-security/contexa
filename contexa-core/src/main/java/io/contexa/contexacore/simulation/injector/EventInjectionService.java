@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  * 생성된 공격 시나리오를 실제 시스템에 주입하여 처리하도록 합니다.
  * Kafka와 Redis Streams를 통해 이벤트를 발행합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

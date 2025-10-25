@@ -21,7 +21,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * 다양한 패스워드를 시도하여 계정을 탈취하려는 공격을 시뮬레이션합니다.
  * 지능형 브루트포스, 탐지 회피, 패턴 기반 공격 등을 포함합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

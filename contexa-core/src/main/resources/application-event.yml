@@ -65,4 +65,4 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "io.spring.aicore.autonomous.event.domain,io.spring.aicore.autonomous.domain"
+        spring.json.trusted.packages: "io.contexa.contexacore.autonomous.event.domain,io.contexa.contexacore.autonomous.domain"

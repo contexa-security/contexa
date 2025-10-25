@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 시뮬레이션 중 실제로 유출된 데이터를 추적하고 기록합니다.
  * 각 공격 시도별로 접근/유출된 데이터를 상세히 추적합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

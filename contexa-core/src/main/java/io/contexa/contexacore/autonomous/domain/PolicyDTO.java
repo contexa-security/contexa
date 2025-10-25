@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * 정책 DTO
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

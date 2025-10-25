@@ -21,7 +21,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * 세션 토큰 탈취, 조작, 재사용 등을 통한 인증 우회 공격을 시뮬레이션합니다.
  * 세션 고정, 세션 예측, 크로스 사이트 스크립팅(XSS)을 통한 쿠키 탈취 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

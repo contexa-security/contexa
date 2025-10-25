@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * - 학습 기반 개선
  * - 전략 조합
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

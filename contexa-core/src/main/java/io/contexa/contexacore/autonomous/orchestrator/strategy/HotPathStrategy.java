@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
  * 낮은 위험 이벤트를 Hot Path로 빠르게 처리
  * AI 분석 없이 즉시 통과
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

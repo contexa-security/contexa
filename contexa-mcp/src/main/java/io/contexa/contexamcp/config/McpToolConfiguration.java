@@ -193,7 +193,7 @@ public class McpToolConfiguration {
             log.info("설정 파일(application.yml):");
             log.info("  spring.ai.mcp.server.enabled=true");
             log.info("  spring.ai.mcp.server.type=SYNC");
-            log.info("  spring.ai.mcp.server.name=AI3Security SOAR Platform");
+            log.info("  spring.ai.mcp.server.name=contexa SOAR Platform");
             log.info("=====================================");
         }
     }

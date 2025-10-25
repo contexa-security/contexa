@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  * Impossible Travel 공격 전략 구현
  * 
  * 물리적으로 불가능한 이동을 시뮬레이션하여 계정 탈취를 시도합니다.
- * AI3Security의 행동 기반 탐지 시스템을 테스트합니다.
+ * contexa의 행동 기반 탐지 시스템을 테스트합니다.
  */
 public class ImpossibleTravelStrategy implements IBehaviorAttack {
 

@@ -32,7 +32,7 @@ import java.util.concurrent.CompletableFuture;
  * - 캐시 통합으로 90% 응답 시간 감소 (50-100ms → 5ms)
  * - 일관된 라우팅으로 중복 제거 및 유지보수성 50% 향상
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

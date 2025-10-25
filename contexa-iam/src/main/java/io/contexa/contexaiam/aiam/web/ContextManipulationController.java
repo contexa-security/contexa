@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * HTTP 헤더를 조작하여 다양한 컨텍스트로 요청을 프록시합니다.
  * 이를 통해 Zero Trust 시스템이 순수하게 컨텍스트만으로 위협을 탐지하는지 검증합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

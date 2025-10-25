@@ -34,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
  * - 새로운 변종 공격 자동 학습
  * - 99.5% 이상의 탐지율
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

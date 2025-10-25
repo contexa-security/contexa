@@ -627,7 +627,7 @@ public class SecurityPlaneSimulationController {
             .detectedAt(LocalDateTime.now())
             .mitreAttackMapping(request.getMitreMapping())
             .source("3TIER_SIMULATION")
-            .organizationId("AI3SEC-001")
+            .organizationId("CONTEXASEC-001")
             .detectedBy(getModelNameForLayer(layer))
             .detectionSource("3계층 AI 보안 시스템")
             .build();

@@ -20,7 +20,7 @@ import java.util.Optional;
  * 
  * PolicyEvolutionProposal 엔티티에 대한 데이터 액세스 계층입니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Repository

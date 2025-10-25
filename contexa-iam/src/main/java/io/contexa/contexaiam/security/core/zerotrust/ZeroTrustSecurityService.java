@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * - 이상 행동 감지
  * - 세션 무효화 추적
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

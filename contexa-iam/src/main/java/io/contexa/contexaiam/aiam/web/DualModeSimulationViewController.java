@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
  *
  * HTML 페이지를 서빙하는 컨트롤러입니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Controller

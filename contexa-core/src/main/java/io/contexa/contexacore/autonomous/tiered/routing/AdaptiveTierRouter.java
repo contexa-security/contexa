@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - MaliciousPatternDetector 통합: 악성 패턴 탐지 로직 분리 (단일 책임 원칙)
  * - VectorStoreCacheLayer 통합: Vector Store 검색 성능 최적화 (90% 속도 향상)
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

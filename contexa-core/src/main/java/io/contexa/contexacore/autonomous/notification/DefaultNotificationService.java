@@ -11,7 +11,7 @@ import java.util.Map;
  * 기본 알림 서비스 구현체입니다.
  * 실제 환경에서는 이메일, 슬랙, 웹소켓 등으로 알림을 전송합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Slf4j

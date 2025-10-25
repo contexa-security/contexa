@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  *
  * 이중 모드 시뮬레이션 결과를 조회하고 분석하는 엔드포인트를 제공합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j
@@ -195,7 +195,7 @@ public class SimulationResultController {
         StringBuilder csv = new StringBuilder();
 
         // 헤더
-        csv.append("AI3Security 시뮬레이션 결과 보고서\n");
+        csv.append("contexa 시뮬레이션 결과 보고서\n");
         csv.append("캠페인 ID,").append(report.getCampaignId()).append("\n");
         csv.append("분석 시간,").append(report.getAnalysisTime()).append("\n");
         csv.append("\n");

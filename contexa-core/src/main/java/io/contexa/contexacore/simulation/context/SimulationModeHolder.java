@@ -10,7 +10,7 @@ import java.util.concurrent.CompletableFuture;
  * ThreadLocal을 사용하여 현재 스레드의 시뮬레이션 모드를 저장하고 전파합니다.
  * 이를 통해 보안 체인 전체에서 시뮬레이션 모드를 인식할 수 있습니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

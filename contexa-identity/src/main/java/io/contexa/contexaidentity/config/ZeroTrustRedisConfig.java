@@ -31,7 +31,7 @@ import java.time.Duration;
  * 4. TCP NoDelay - Nagle 알고리즘 비활성화로 지연 감소
  * 5. Keep-Alive - 연결 유지로 재연결 오버헤드 감소
  * 
- * @author AI3Security
+ * @author contexa
  * @since 2.0
  */
 @Configuration

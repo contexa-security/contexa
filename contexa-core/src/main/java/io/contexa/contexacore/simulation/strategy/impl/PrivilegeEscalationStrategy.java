@@ -20,7 +20,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * 낮은 권한의 사용자가 높은 권한을 획득하려는 공격을 시뮬레이션합니다.
  * 수직적/수평적 권한 상승, 역할 조작, 권한 우회 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

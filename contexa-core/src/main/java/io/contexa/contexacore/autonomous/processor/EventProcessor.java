@@ -8,7 +8,7 @@ package io.contexa.contexacore.autonomous.processor;
  * 
  * @param <T> 처리할 이벤트 타입
  * @since 1.0
- * @author AI3Security
+ * @author contexa
  */
 public interface EventProcessor<T> {
     

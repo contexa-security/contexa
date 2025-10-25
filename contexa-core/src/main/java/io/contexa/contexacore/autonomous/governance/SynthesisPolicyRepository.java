@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
  * 활성화된 정책을 저장하고 관리합니다.
  * SpEL 표현식, 정책 버전, 정책 메타데이터를 관리합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -18,7 +18,7 @@ import java.util.Map;
  * 모든 공격 전략이 공통으로 사용하는 기능을 제공합니다.
  * 특히 @Protectable로 보호된 고객 데이터 엔드포인트 호출 기능을 제공합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

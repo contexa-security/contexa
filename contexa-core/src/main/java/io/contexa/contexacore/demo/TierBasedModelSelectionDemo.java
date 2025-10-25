@@ -14,7 +14,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 public class TierBasedModelSelectionDemo {
 
     public static void main(String[] args) {
-        System.out.println("=== AI3Security 계층 기반 모델 선택 데모 ===\n");
+        System.out.println("=== contexa 계층 기반 모델 선택 데모 ===\n");
 
         // 1. AnalysisLevel 기반 모델 선택
         demonstrateAnalysisLevelSelection();

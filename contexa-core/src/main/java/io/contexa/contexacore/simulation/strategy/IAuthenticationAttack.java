@@ -9,7 +9,7 @@ import java.util.List;
  * 로그인, 세션, 토큰 등 인증 관련 공격을 정의합니다.
  * 브루트포스, 크리덴셜 스터핑, 세션 하이재킹 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public interface IAuthenticationAttack extends IAttackStrategy {

@@ -11,7 +11,7 @@ import java.util.Map;
  * 사용자 행동 패턴을 모방하거나 이상 행동을 생성하는 공격을 정의합니다.
  * Impossible Travel, 비정상 접근 패턴, Zero Trust 위반 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public interface IBehaviorAttack extends IAttackStrategy {

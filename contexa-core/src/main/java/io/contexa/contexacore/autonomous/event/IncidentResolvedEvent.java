@@ -10,7 +10,7 @@ import org.springframework.context.ApplicationEvent;
  * 이 이벤트는 자율 학습 시스템이 사건 해결 패턴을 학습하고
  * 정책을 진화시키는 트리거 역할을 합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public class IncidentResolvedEvent extends ApplicationEvent {

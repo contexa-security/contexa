@@ -8,7 +8,7 @@ import org.springframework.context.ApplicationEvent;
  * 이 이벤트는 AutonomousLearningCoordinator에서 발행되어
  * AIAM 시스템으로 전달되어 실제 보안 정책을 업데이트합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public class PolicyApprovedEvent extends ApplicationEvent {

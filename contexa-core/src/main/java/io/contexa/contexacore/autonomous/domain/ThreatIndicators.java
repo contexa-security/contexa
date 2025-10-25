@@ -11,7 +11,7 @@ import java.util.*;
  * DynamicStrategySelector와 보안 평면에서 사용하는
  * 위협 지표를 표현하는 도메인 모델입니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Data

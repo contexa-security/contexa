@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Unifies event publishing across Spring ApplicationEvent and Kafka/Redis systems.
  * Ensures all attack simulations are properly detected by the autonomous security system.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

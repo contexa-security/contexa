@@ -40,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * **LLM 비용 절감**: AI Layer 중복 실행 제거로 50% 비용 절감
  *
- * @author AI3Security
+ * @author contexa
  * @since 2.0
  */
 @Slf4j

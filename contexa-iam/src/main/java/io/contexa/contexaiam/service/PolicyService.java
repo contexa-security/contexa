@@ -30,7 +30,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
  *
  * 정책 관리 서비스입니다. AI 생성 정책의 승인/거부 처리를 포함합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Slf4j

@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
  * - 동적 MFA 레벨 결정
  * - 실시간 위험 평가
  * 
- * @author AI3Security
+ * @author contexa
  * @since 2.0
  */
 @Slf4j

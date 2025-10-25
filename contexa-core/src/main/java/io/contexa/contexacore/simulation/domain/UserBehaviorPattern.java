@@ -11,7 +11,7 @@ import java.util.*;
  * 정상적인 사용자의 행동 패턴을 정의합니다.
  * AI가 이상 행동을 탐지하는 기준이 됩니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

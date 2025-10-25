@@ -24,7 +24,7 @@ import java.util.List;
  * - Precision: 65% → 85% (+20%p)
  * - False Positive: 15% → 5% (-10%p)
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0.1
  */
 @Slf4j

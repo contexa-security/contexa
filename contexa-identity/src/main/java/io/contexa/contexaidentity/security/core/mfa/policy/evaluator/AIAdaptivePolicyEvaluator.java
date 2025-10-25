@@ -37,7 +37,7 @@ import java.util.concurrent.TimeoutException;
  * - 동적 MFA 레벨 결정
  * - 고위험 상황 차단
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

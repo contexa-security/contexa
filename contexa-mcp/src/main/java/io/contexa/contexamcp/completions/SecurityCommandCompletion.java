@@ -82,7 +82,7 @@ public class SecurityCommandCompletion {
         
         Map<String, Object> specification = new HashMap<>();
         specification.put("name", "security_commands");
-        specification.put("description", "Security command auto-completion for AI3Security platform");
+        specification.put("description", "Security command auto-completion for contexa platform");
         specification.put("version", "1.0.0");
         specification.put("commandCount", SECURITY_COMMANDS.size());
         specification.put("totalCommands", SECURITY_COMMANDS.values().stream()

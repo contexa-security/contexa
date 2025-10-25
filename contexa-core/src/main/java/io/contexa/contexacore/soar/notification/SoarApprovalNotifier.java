@@ -271,7 +271,7 @@ public class SoarApprovalNotifier {
         NotificationTarget defaultTarget = NotificationTarget.createDefault(
             "system",
             "System Administrator",
-            "admin@ai3security.com"
+            "admin@contexa.com"
         );
         return List.of(defaultTarget);
     }

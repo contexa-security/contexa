@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 /**
  * 정책 진화 제안 저장소
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Repository

@@ -18,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
  * 정책 진화 시스템과 AI Lab 통합 서비스
  * Lab의 분석 결과를 정책 진화 제안으로 변환하고 제출
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

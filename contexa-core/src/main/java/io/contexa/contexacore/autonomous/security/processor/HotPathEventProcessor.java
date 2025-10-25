@@ -33,7 +33,7 @@ import java.util.concurrent.CompletableFuture;
  * - 정상 패턴 학습
  * - 최소한의 메타데이터 저장
  * 
- * @author AI3Security Platform
+ * @author contexa Platform
  * @since 1.0
  */
 @Slf4j

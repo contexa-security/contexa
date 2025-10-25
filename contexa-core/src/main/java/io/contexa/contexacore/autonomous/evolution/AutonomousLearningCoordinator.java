@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * SecurityPlaneAgent와 협력하여 보안 이벤트로부터 자율적으로 학습하고
  * 정책을 진화시키는 중앙 코디네이터입니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -24,7 +24,7 @@ import java.util.UUID;
  * 무방비 모드와 방어 모드에서 동일한 공격 시나리오를 실행하여
  * AI 보안 시스템의 효과성을 측정합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

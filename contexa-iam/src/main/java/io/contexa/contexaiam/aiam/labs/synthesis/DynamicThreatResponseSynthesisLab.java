@@ -45,7 +45,7 @@ import java.util.UUID;
  * 3. AdvancedPolicyGenerationLab을 통한 SpEL 표현식 변환
  * 4. PolicyProposal 생성 및 반환
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

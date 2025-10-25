@@ -20,7 +20,7 @@ import java.util.Map;
  * SecurityPlaneAgent에서 발행된 시뮬레이션 처리 완료 이벤트를 수신하여
  * 데이터베이스에 저장합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

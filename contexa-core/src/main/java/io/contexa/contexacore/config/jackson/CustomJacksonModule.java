@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import java.time.Duration;
 
 /**
- * Custom Jackson module for AI3Security-specific serialization/deserialization
+ * Custom Jackson module for contexa-specific serialization/deserialization
  */
 public class CustomJacksonModule extends SimpleModule {
 
     public CustomJacksonModule() {
-        super("AI3SecurityJacksonModule");
+        super("contexaJacksonModule");
 
         // Register custom Duration deserializer
         addDeserializer(Duration.class, new CustomDurationDeserializer());

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 다양한 인증 관련 공격을 시뮬레이션합니다.
  * Brute Force, Credential Stuffing, Session Hijacking, Account Takeover 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

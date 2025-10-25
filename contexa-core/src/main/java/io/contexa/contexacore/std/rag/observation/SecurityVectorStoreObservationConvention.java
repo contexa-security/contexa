@@ -10,7 +10,7 @@ import org.springframework.ai.vectorstore.observation.VectorStoreObservationConv
  * Security VectorStore Observation Convention
  *
  * Spring AI VectorStoreObservationConvention을 구현하여
- * AI3Security 플랫폼 전용 VectorStore 메트릭을 수집합니다.
+ * contexa 플랫폼 전용 VectorStore 메트릭을 수집합니다.
  *
  * DefaultVectorStoreObservationConvention과 동일한 방식으로 구현하되,
  * 보안 플랫폼 특화 메트릭을 추가합니다.

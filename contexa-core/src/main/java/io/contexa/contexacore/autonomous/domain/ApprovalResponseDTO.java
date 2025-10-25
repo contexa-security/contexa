@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 /**
  * 승인 응답 DTO
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

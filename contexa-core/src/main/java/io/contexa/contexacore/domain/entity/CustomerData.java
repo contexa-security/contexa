@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 실제 고객 개인정보를 담고 있는 엔티티로,
  * 시뮬레이션을 통해 데이터 유출 시나리오를 검증합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Entity

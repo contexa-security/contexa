@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * 규칙 기반 정책 평가를 수행합니다.
  * 사용자 역할, 등록된 MFA 팩터, 플로우 타입 등을 고려하여 MFA 요구사항을 결정합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

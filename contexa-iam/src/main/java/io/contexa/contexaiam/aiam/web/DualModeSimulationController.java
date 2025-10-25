@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 동일한 공격에 대해 무방비 모드와 방어 모드를 실행하여
  * 보안 시스템의 효과를 비교 분석할 수 있는 API를 제공합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @RestController

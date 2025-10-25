@@ -30,13 +30,13 @@ import java.util.List;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "ai3security.advisor", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AdvisorConfiguration {
     
     private final AdvisorRegistry advisorRegistry;
 
 
-    @Value("${ai3security.advisor.chain-profile:STANDARD}")
+    @Value("${contexa.advisor.chain-profile:STANDARD}")
     private String defaultChainProfile;
     
 
@@ -71,7 +71,7 @@ public class AdvisorConfiguration {
      */
     @Bean
     @Primary
-    @ConditionalOnProperty(prefix = "ai3security.advisor", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean(ChatClient.Builder.class)
     public ChatClient.Builder advisorEnabledChatClientBuilder(ChatModel chatModel, List<BaseAdvisor> advisors) {
         log.info("Advisor-enabled ChatClient.Builder 생성");
@@ -99,7 +99,7 @@ public class AdvisorConfiguration {
         
         // 기본 시스템 프롬프트 설정
         builder = builder.defaultSystem("""
-            You are an AI Security Assistant powered by the AI3Security unified platform.
+            You are an AI Security Assistant powered by the contexa unified platform.
             
             🔗 ADVISOR-ENHANCED ECOSYSTEM:
             You have access to a comprehensive advisor system that provides:
@@ -132,7 +132,7 @@ public class AdvisorConfiguration {
      * Standard profile ChatClient
      */
     @Bean(name = "standardChatClient")
-    @ConditionalOnProperty(prefix = "ai3security.advisor", name = "standard.enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "contexa.advisor", name = "standard.enabled", havingValue = "true")
     public ChatClient standardChatClient(ChatModel chatModel) {
         List<Advisor> advisors = advisorRegistry.buildChain(AdvisorRegistry.ChainProfile.STANDARD);
         
@@ -145,7 +145,7 @@ public class AdvisorConfiguration {
      * Security critical profile ChatClient
      */
     @Bean(name = "securityCriticalChatClient")
-    @ConditionalOnProperty(prefix = "ai3security.advisor", name = "critical.enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "contexa.advisor", name = "critical.enabled", havingValue = "true")
     public ChatClient securityCriticalChatClient(ChatModel chatModel) {
         List<Advisor> advisors = advisorRegistry.buildChain(AdvisorRegistry.ChainProfile.SECURITY_CRITICAL);
         
@@ -161,7 +161,7 @@ public class AdvisorConfiguration {
      * 다른 Advisor들보다 먼저 실행되어 user.id와 session.id를 설정합니다.
      */
     @Bean
-    @ConditionalOnProperty(prefix = "ai3security.advisor.security", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "contexa.advisor.security", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SecurityContextAdvisor securityContextAdvisor(Tracer tracer) {
         log.info("Security Context Advisor Bean 생성");
         return new SecurityContextAdvisor(tracer);
@@ -171,7 +171,7 @@ public class AdvisorConfiguration {
      * SOAR 도메인 Advisor 등록
      */
     @Bean
-    @ConditionalOnProperty(prefix = "ai3security.advisor.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(prefix = "contexa.advisor.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public EnhancedSoarApprovalAdvisor soarApprovalAdvisor(Tracer tracer) {
         log.info("SOAR Approval Advisor Bean 생성");
         return new EnhancedSoarApprovalAdvisor(tracer);

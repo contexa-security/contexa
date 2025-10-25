@@ -10,7 +10,7 @@ import java.util.Map;
  * SecurityPlaneAgent나 AccessGovernanceLab 등에서 발생한 유의미한 보안 이벤트를
  * 정책 진화 시스템이 학습할 수 있도록 표준화된 형태로 제공
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public interface LearnableEvent {

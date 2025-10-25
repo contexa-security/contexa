@@ -33,7 +33,7 @@ import java.util.*;
  * 3. 정책 효과성 평가 데이터 수집
  * 4. 실시간 보안 상태 정보 제공
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

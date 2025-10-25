@@ -28,7 +28,7 @@ import org.springframework.util.Assert;
  * 3. Caffeine 로컬 캐시 적용 (1초 TTL)
  * 4. AI 사용 불가 시 기본 정책으로 폴백
  * 
- * @author AI3Security
+ * @author contexa
  * @since 2.0
  */
 @Slf4j

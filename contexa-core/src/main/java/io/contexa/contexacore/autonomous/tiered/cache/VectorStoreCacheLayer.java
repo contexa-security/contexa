@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * - Eviction: LRU (Least Recently Used)
  * - Thread-Safe: ConcurrentHashMap 기반
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

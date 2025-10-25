@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * SOAR 분석 및 도구 실행 결과를 비동기적으로 전달하는 서비스입니다.
  * DB 저장, 이벤트 발행, 알림 발송, WebSocket 푸시를 통합 관리합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

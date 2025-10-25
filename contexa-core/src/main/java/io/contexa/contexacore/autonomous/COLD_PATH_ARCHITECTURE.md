@@ -1,7 +1,7 @@
-# Cold Path Architecture - AI3Security
+# Cold Path Architecture - contexa
 
 ## Overview
-AI3Security의 자율 보안 시스템은 벡터 유사도 기반으로 Hot Path와 Cold Path를 자동으로 라우팅합니다.
+contexa의 자율 보안 시스템은 벡터 유사도 기반으로 Hot Path와 Cold Path를 자동으로 라우팅합니다.
 
 ## 핵심 원칙
 - **높은 유사도 (>0.85)**: Hot Path - 빠른 처리 (<50ms)

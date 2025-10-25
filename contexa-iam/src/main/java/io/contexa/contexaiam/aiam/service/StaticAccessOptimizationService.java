@@ -28,7 +28,7 @@ import java.util.*;
  * 3. SpEL 표현식 정책 수신 및 반환
  * 4. 메트릭 수집 및 모니터링
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

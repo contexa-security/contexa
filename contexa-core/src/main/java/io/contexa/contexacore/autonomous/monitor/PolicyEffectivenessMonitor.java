@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * 활성화된 정책의 실시간 효과를 측정하고 실제 영향도를 계산합니다.
  * 성능 메트릭을 수집하고 정책의 효과성을 평가합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

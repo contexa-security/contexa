@@ -17,7 +17,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Zero Trust 보안 모델 기반의 인증 이벤트를 생성합니다.
  * 비정상 로그인 패턴, 계정 탈취 시나리오, 권한 남용 등을 시뮬레이션합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

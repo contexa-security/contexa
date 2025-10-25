@@ -31,7 +31,7 @@ import java.util.Map;
  * 세션 위협 감지 시 사용자에게 재인증을 요구하는 컨트롤러입니다.
  * Grace Period 동안 사용자가 재인증을 완료하면 세션을 유지할 수 있습니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

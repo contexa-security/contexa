@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * - APT 공격 탐지: 45% → 75% (+30%p)
  * - 봇 탐지: 60% → 90% (+30%p)
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0.1
  */
 @Slf4j

@@ -29,7 +29,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * - Layer 2 (0.40 < similarity ≤ 0.55): Llama3.1 상세 분석 (3% 요청)
  * - Layer 3 (similarity ≤ 0.40): Claude 전문가 분석 (1% 요청)
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

@@ -15,7 +15,7 @@ import lombok.Getter;
  * 2. DRY 원칙: 코드 중복 제거
  * 3. Separation of Concerns: 필터와 비즈니스 로직 분리
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0.0
  */
 @Getter

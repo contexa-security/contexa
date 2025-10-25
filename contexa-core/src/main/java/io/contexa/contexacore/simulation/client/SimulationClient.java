@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 실제 공격자처럼 HTTP 요청을 생성하고 실행하는 기본 클라이언트입니다.
  * 세션 관리, 쿠키 처리, 헤더 조작 등의 기능을 제공합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

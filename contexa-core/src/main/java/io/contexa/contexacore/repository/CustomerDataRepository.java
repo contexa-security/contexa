@@ -14,7 +14,7 @@ import java.util.Optional;
  *
  * 실제 데이터베이스와 연동하여 고객 데이터를 관리합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Repository

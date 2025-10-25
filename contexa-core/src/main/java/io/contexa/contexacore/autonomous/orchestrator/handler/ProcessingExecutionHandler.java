@@ -28,7 +28,7 @@ import java.util.Map;
  * Strategy 패턴을 사용하여 ProcessingMode에 따라
  * 적절한 처리 전략을 선택하고 실행
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

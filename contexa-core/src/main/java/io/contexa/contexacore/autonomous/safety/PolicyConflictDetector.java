@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 정책 간 충돌을 감지하고 해결 방안을 제시합니다.
  * 실시간으로 정책 호환성을 검증하고 위험을 평가합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Component

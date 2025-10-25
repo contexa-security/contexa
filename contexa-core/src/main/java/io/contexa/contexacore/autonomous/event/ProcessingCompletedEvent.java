@@ -17,7 +17,7 @@ import org.springframework.context.ApplicationEvent;
  * - 모든 위협 레벨 (CRITICAL, HIGH, MEDIUM, LOW, INFO) 학습 대상
  * - 학습률 목표: 95%+ (현재 0.016% → 개선)
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 public class ProcessingCompletedEvent extends ApplicationEvent {

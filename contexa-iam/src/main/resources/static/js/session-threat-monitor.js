@@ -4,7 +4,7 @@
  * HTTP Response Header를 통해 세션 위협 정보를 감지하고 사용자에게 알림을 표시합니다.
  * 모든 AJAX 요청과 fetch API 호출을 모니터링하여 세션 위협을 실시간으로 감지합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 

@@ -24,7 +24,7 @@ import java.util.Set;
  *
  * 실제 요청 기반 테스트를 위한 Baseline 실시간 조회 엔드포인트
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0.0
  */
 @RestController

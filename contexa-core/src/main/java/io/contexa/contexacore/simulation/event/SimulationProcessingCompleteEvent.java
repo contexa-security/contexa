@@ -16,7 +16,7 @@ import java.util.Map;
  * SecurityPlaneAgent가 시뮬레이션 이벤트 처리를 완료했을 때 발행되는 이벤트입니다.
  * 실제 보안 시스템의 응답(차단/탐지)을 포함합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

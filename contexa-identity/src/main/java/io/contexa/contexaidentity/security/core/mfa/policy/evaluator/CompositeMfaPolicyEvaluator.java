@@ -21,7 +21,7 @@ import java.util.*;
  *
  * @Primary로 지정되어 DefaultMfaPolicyProvider가 이 Bean을 주입받습니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 2.0
  */
 @Slf4j

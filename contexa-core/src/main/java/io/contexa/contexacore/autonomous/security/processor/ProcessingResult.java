@@ -18,7 +18,7 @@ import java.util.Map;
  * 프로젝트 센티넬 아키텍처에 따라 Path Processor는 분석만 수행하고,
  * Trust Score 업데이트는 SecurityPlaneAgent가 중앙에서 관리합니다.
  *
- * @author AI3Security Platform
+ * @author contexa Platform
  * @since 1.0
  */
 @Data

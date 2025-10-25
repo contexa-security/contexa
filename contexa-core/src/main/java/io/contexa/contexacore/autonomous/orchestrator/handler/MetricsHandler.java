@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - createdIncidents 카운터
  * - 통계 정보 Redis 저장
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

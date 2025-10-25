@@ -19,7 +19,7 @@ import java.util.stream.Stream;
  * Trust Score 업데이트와 같은 원자적 연산을 위한 Lua 스크립트 기반 유틸리티입니다.
  * Race condition을 방지하고 데이터 일관성을 보장합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

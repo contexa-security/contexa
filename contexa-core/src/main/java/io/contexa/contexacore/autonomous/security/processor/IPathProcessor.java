@@ -12,7 +12,7 @@ import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
  * - Hot Path: 낮은 위협(riskScore < 0.7), AI 없이 즉시 처리
  * - Cold Path: 높은 위협(riskScore >= 0.7), AI 진단 후 상세 분석
  * 
- * @author AI3Security Platform
+ * @author contexa Platform
  * @since 1.0
  */
 public interface IPathProcessor {

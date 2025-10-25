@@ -17,7 +17,7 @@ import java.util.UUID;
  * 이 이벤트는 AutonomousPolicySynthesizer에 의해 수신되어 
  * DynamicThreatResponseSynthesisLab으로 라우팅되어 정책 생성으로 이어짐
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

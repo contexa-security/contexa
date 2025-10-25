@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * - "Cold Path 용량 관리가 필요합니다"
  * - Priority Queue + Graceful Degradation
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

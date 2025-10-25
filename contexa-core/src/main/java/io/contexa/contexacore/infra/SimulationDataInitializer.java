@@ -25,7 +25,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * AI3Security 시뮬레이션 데이터 초기화 서비스
+ * contexa 시뮬레이션 데이터 초기화 서비스
  * 
  * 시스템 시작 시 필요한 보안 시뮬레이션 데이터를 생성하고
  * 데이터베이스와 Kafka에 초기 데이터를 삽입합니다.
@@ -65,10 +65,10 @@ public class SimulationDataInitializer implements CommandLineRunner {
         this.kafkaTemplate = kafkaTemplate;
     }
     
-    @Value("${ai3security.simulation.data.enabled:true}")
+    @Value("${contexa.simulation.data.enabled:true}")
     private boolean simulationDataEnabled;
     
-    @Value("${ai3security.simulation.data.clear-existing:false}")
+    @Value("${contexa.simulation.data.clear-existing:false}")
     private boolean clearExistingData;
     
     private final Random random = new Random();
@@ -87,7 +87,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             return;
         }
         
-        log.info("AI3Security 시뮬레이션 데이터 초기화 시작");
+        log.info("contexa 시뮬레이션 데이터 초기화 시작");
         
         try {
             // 1. 기존 데이터 정리 (옵션)
@@ -123,7 +123,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             sendSampleKafkaEvents(incidents, indicators);
             log.info("Kafka 토픽에 샘플 이벤트 발송 완료");
             
-            log.info("🎉 AI3Security 시뮬레이션 데이터 초기화 완료!");
+            log.info("🎉 contexa 시뮬레이션 데이터 초기화 완료!");
             
         } catch (Exception e) {
             log.error("❌ 시뮬레이션 데이터 초기화 중 오류 발생", e);
@@ -339,7 +339,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             .sourceIp("203.0.113.45")
             .destinationIp("192.168.1.100")
             .affectedUser("server-admin")
-            .organizationId("AI3SEC-001")
+            .organizationId("CONTEXASEC-001")
             .riskScore(0.85)
             .detectedBy("Intrusion Detection System")
             .detectionSource("Network Monitor")
@@ -385,7 +385,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             .description("랜섬웨어 바이너리 실행 시도 탐지 및 격리")
             .sourceIp("192.168.100.50")
             .affectedUser("john.doe")
-            .organizationId("AI3SEC-001")
+            .organizationId("CONTEXASEC-001")
             .riskScore(0.95)
             .detectedBy("Endpoint Detection Response")
             .detectionSource("EDR Agent")
@@ -431,7 +431,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             .status(SecurityIncident.IncidentStatus.NEW)
             .description("직원에게 발송된 피싱 이메일 탐지")
             .affectedUser("jane.smith")
-            .organizationId("AI3SEC-001")
+            .organizationId("CONTEXASEC-001")
             .riskScore(0.6)
             .detectedBy("Email Security Gateway")
             .detectionSource("Email Scanner")
@@ -474,7 +474,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             .status(SecurityIncident.IncidentStatus.CONFIRMED)
             .description("일반 사용자 계정에서 관리자 권한 획득 시도")
             .affectedUser("admin@company.com")
-            .organizationId("AI3SEC-001")
+            .organizationId("CONTEXASEC-001")
             .riskScore(0.75)
             .detectedBy("Active Directory Monitor")
             .detectionSource("Windows Event Logs")
@@ -519,7 +519,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             .sourceIp("192.168.100.50")
             .destinationIp("203.0.113.45")
             .affectedUser("database-admin")
-            .organizationId("AI3SEC-001")
+            .organizationId("CONTEXASEC-001")
             .riskScore(0.9)
             .detectedBy("Data Loss Prevention")
             .detectionSource("DLP Agent")
@@ -681,7 +681,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
         approval1.setStatus("PENDING");
         approval1.setRiskLevel("HIGH");
         approval1.setRequestedBy("system");
-        approval1.setOrganizationId("AI3SEC-001");
+        approval1.setOrganizationId("CONTEXASEC-001");
         approval1.setRequiredApprovers(2);
         approval1.setRequiredRoles(Arrays.asList("SECURITY_MANAGER", "SOC_LEAD"));
         
@@ -703,7 +703,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
         approval2.setStatus("APPROVED");
         approval2.setRiskLevel("HIGH");
         approval2.setRequestedBy("system");
-        approval2.setOrganizationId("AI3SEC-001");
+        approval2.setOrganizationId("CONTEXASEC-001");
         approval2.setReviewerId("security-manager");
         approval2.setReviewerComment("계정 침해 확인, 즉시 초기화 필요");
         approval2.setApprovedAt(LocalDateTime.now().minusMinutes(15));
@@ -728,7 +728,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
         approval3.setStatus("REJECTED");
         approval3.setRiskLevel("CRITICAL");
         approval3.setRequestedBy("system");
-        approval3.setOrganizationId("AI3SEC-001");
+        approval3.setOrganizationId("CONTEXASEC-001");
         approval3.setReviewerId("ciso");
         approval3.setReviewerComment("데이터 격리보다는 네트워크 차단으로 대응");
         approval3.setApprovedAt(LocalDateTime.now().minusMinutes(30));

@@ -21,7 +21,7 @@ import java.util.Map;
  * 시뮬레이션 공격의 핵심 결과만 저장합니다.
  * 복잡한 데이터는 JSON 필드에 저장합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Entity

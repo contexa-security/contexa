@@ -11,7 +11,7 @@ import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
  * OCP (Open/Closed Principle) 준수를 위해 새로운 처리 모드 추가 시
  * 기존 코드 수정 없이 새로운 전략만 추가
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 public interface ProcessingStrategy {

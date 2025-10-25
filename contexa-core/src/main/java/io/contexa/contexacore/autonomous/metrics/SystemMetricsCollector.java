@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * 자율 학습 시스템이 사용할 실시간 시스템 상태 메트릭을 수집합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -35,7 +35,7 @@ import java.util.Set;
  *
  * 위치: SecurityContextHolderFilter 직후, UsernamePasswordAuthenticationFilter 이전
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0.0
  */
 @Slf4j

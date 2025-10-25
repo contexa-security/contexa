@@ -29,7 +29,7 @@ import java.util.List;
  * - Redis 기반 L1 캐시 (1시간 TTL)
  * - 컨텍스트별 캐시 키 생성
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

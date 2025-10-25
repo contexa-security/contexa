@@ -28,7 +28,7 @@ import java.util.concurrent.Executors;
  * 자율보안지능 시뮬레이션 시스템의 모든 설정을 관리합니다.
  * ExecutorService, Scheduler, Redis Stream, Kafka 등의 Bean을 정의합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

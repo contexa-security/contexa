@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
  * ColdPathEventProcessor를 통한 AI 기반 상세 분석 수행
  * 모든 AI_ANALYSIS 모드 이벤트를 통합 처리
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

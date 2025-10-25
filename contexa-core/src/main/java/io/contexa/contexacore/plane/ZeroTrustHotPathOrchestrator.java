@@ -37,7 +37,7 @@ import org.springframework.stereotype.Service;
  *
  * 외부기관 1 & 2 피드백 100% 반영
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

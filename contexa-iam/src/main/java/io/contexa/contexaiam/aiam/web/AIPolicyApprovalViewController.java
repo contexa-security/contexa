@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
  *
  * AI 정책 승인 관리 UI를 제공하는 뷰 컨트롤러입니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Slf4j

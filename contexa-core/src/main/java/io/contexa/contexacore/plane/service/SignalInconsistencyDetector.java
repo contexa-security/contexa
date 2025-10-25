@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * - 고정 임계값 제거 (stdDev > 0.15, outlier > 0.25 ❌)
  * - UnifiedThresholdManager 자동 튜닝 통합 ✅
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

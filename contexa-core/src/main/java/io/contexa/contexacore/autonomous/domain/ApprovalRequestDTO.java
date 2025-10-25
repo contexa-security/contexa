@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 /**
  * 승인 요청 DTO
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

@@ -1,4 +1,4 @@
-ai3security:
+contexa:
   advisor:
     enabled: true  # Advisor 시스템 활성화 (기본값)
     chain-profile: STANDARD  # 체인 프로파일 설정
@@ -414,7 +414,7 @@ spring:
     mcp:
       client:
         enabled: true
-        name: "ai3security-client"
+        name: "contexa-client"
         version: "1.0.0"
         type: SYNC
         request-timeout: 30s
@@ -440,13 +440,13 @@ spring:
         brave-search:
           enabled: true
           
-        # AI3Security 로컬 서버 설정
+        # contexa 로컬 서버 설정
         local-security:
           enabled: true
           
       server:
         enabled: false  # 기본적으로 비활성화 (필요시 활성화)
-        name: "ai3security-server"
+        name: "contexa-server"
         version: "1.0.0" 
         type: SYNC
         stdio: false
@@ -462,7 +462,7 @@ soar:
     email:
       enabled: true
       base-url: ${SOAR_BASE_URL:http://localhost:8080}
-      from: ${MAIL_FROM:noreply@ai3security.com}
+      from: ${MAIL_FROM:noreply@contexa.com}
     websocket:
       enabled: true
       topic-prefix: /topic/soar
@@ -500,14 +500,14 @@ soar:
 # 로깅 설정
 logging:
   level:
-#    io.spring.aicore: ERROR
-    io.spring.aicore.soar: DEBUG
+#    io.contexa.contexacore: ERROR
+    io.contexa.contexacore.soar: DEBUG
     org.springframework.ai.mcp: DEBUG
     # 이벤트 발행/수신 디버그 로깅 추가
-    io.spring.aicore.autonomous.event.publisher: DEBUG
-    io.spring.aicore.autonomous.event.listener: DEBUG
-    io.spring.aicore.security.plane: DEBUG
-    io.spring.aicore.autonomous.zerotrust: DEBUG
+    io.contexa.contexacore.autonomous.event.publisher: DEBUG
+    io.contexa.contexacore.autonomous.event.listener: DEBUG
+    io.contexa.contexacore.security.plane: DEBUG
+    io.contexa.contexacore.autonomous.zerotrust: DEBUG
     # Kafka 및 Redis 디버그 로깅
     org.springframework.kafka: DEBUG
     org.springframework.data.redis: DEBUG

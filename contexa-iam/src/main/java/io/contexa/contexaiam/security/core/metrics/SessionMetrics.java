@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * 세션 관련 이벤트와 통계를 추적하여 보안 분석과 성능 모니터링에 활용합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

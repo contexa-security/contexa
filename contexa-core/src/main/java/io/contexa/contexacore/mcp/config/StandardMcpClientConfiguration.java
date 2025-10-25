@@ -63,14 +63,14 @@ public class StandardMcpClientConfiguration {
     }
 
     /**
-     * AI3Security 로컬 MCP 클라이언트
+     * contexa 로컬 MCP 클라이언트
      *
      * 로컬 보안 도구들을 위한 MCP 서버와 SSE로 연결합니다.
      */
     @Bean(destroyMethod = "close")
     @ConditionalOnProperty(prefix = "spring.ai.mcp.client.local-security", name = "enabled", havingValue = "true", matchIfMissing = true)
     public McpSyncClient securityMcpClient(@Value("${spring.ai.mcp.client.sse.connections.local-server.url:http://localhost:9090}") String serverUrl) {
-        log.info("AI3Security MCP 클라이언트 초기화 (SSE Transport)");
+        log.info("contexa MCP 클라이언트 초기화 (SSE Transport)");
 
         try {
             // SSE Transport를 사용하여 로컬 MCP 서버와 연결
@@ -83,19 +83,19 @@ public class StandardMcpClientConfiguration {
                     .requestTimeout(Duration.ofSeconds(requestTimeoutSeconds))
                     .build();
 
-            // AI3Security MCP 서버 초기화 시도
+            // contexa MCP 서버 초기화 시도
             try {
                 var init = mcpClient.initialize();
-                log.info("AI3Security MCP 초기화 완료: {}", init != null ? init.serverInfo() : "server info unavailable");
+                log.info("contexa MCP 초기화 완료: {}", init != null ? init.serverInfo() : "server info unavailable");
             } catch (Exception initEx) {
-                log.warn("AI3Security MCP 서버 초기화 실패 (서버가 아직 시작되지 않음): {}", initEx.getMessage());
+                log.warn("contexa MCP 서버 초기화 실패 (서버가 아직 시작되지 않음): {}", initEx.getMessage());
             }
 
-            log.info("AI3Security MCP 클라이언트 생성 완료 (SSE URL: {})", serverUrl);
+            log.info("contexa MCP 클라이언트 생성 완료 (SSE URL: {})", serverUrl);
             return mcpClient;
 
         } catch (Exception e) {
-            log.warn("AI3Security MCP 클라이언트 생성 실패: {}", e.getMessage());
+            log.warn("contexa MCP 클라이언트 생성 실패: {}", e.getMessage());
             // 클라이언트 생성 실패시에도 null 대신 기본 구현체 반환
             return createFallbackMcpClient();
         }

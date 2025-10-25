@@ -16,7 +16,7 @@ import java.util.Map;
  * AI 기반 동적 위협 대응 합성 Lab에서 사용하는 컨텍스트 정보를 담습니다.
  * 위협 정보, 대응 정보, 정책 생성 힌트 등을 포함합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

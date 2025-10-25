@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 4. Zero Trust 대응 결정 및 실행
  * 5. SOAR 인시던트 생성 (필요시)
  *
- * @author AI3Security Platform
+ * @author contexa Platform
  * @since 2.0
  */
 @Slf4j

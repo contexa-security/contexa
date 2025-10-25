@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  * 정책 감사 로거
  * 모든 정책 변경사항과 승인 프로세스를 추적하고 컴플라이언스 보고서를 생성
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

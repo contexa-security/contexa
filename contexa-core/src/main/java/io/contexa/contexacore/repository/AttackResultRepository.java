@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 공격 결과 리포지토리
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Repository

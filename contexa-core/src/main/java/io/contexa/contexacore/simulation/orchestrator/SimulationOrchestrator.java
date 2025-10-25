@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * 공격 시나리오의 시퀀싱, 타이밍, 병렬 처리를 관리합니다.
  * 3-Tier 에스컬레이션과 SOAR 승인 워크플로우를 테스트합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

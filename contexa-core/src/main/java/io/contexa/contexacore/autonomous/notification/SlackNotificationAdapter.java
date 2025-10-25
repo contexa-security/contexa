@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Slack API를 통해 보안 알림을 전송하는 어댑터입니다.
  * Webhook과 Web API를 모두 지원합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j
@@ -53,7 +53,7 @@ public class SlackNotificationAdapter {
     @Value("${slack.channel.approval:#security-approvals}")
     private String approvalChannel;
     
-    @Value("${slack.username:AI3Security Bot}")
+    @Value("${slack.username:contexa Bot}")
     private String botUsername;
     
     @Value("${slack.icon.emoji::shield:}")

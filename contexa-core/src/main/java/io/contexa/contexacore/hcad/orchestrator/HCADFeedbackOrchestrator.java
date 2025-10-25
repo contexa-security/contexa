@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * 4. 학습 데이터의 효율적 배포 및 동기화
  * 5. 제로트러스트 적응형 보안 지능 구현
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

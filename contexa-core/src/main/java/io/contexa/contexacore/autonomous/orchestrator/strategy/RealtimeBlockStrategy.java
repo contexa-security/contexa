@@ -25,7 +25,7 @@ import java.util.Map;
  * 극도로 높은 위험 이벤트를 즉시 차단
  * Critical 위협에 대한 즉각적인 대응
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

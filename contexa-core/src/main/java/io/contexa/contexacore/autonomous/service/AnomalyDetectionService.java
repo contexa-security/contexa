@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
  * BaselineVector의 Z-score 기반 통계적 이상 탐지를 중앙에서 관리합니다.
  * 세션 하이재킹 등 급격한 변화와 일반 이상 행동을 구분하여 처리합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

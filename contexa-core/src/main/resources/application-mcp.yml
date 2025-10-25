@@ -49,8 +49,8 @@ tool:
   discovery:
     enabled: true
     packages:
-      - io.spring.aicore.soar.tools
-      - io.spring.aicore.tools
+      - io.contexa.contexacore.soar.tools
+      - io.contexa.contexacore.tools
     
   # Tool 필터링
   filter:
@@ -73,5 +73,5 @@ tool:
 logging:
   level:
     org.springframework.ai.mcp: DEBUG
-    io.spring.aicore.config: INFO
-    io.spring.aicore.soar.tools: INFO
+    io.contexa.contexacore.config: INFO
+    io.contexa.contexacore.soar.tools: INFO

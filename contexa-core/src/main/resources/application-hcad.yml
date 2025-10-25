@@ -173,6 +173,6 @@ spring:
 # 로깅 설정
 logging:
   level:
-    io.spring.aicore.security.hcad: ${hcad.monitoring.log-level:INFO}
-    io.spring.aicore.autonomous.security.processor: INFO
+    io.contexa.contexacore.security.hcad: ${hcad.monitoring.log-level:INFO}
+    io.contexa.contexacore.autonomous.security.processor: INFO
     org.springframework.ai.ollama: WARN

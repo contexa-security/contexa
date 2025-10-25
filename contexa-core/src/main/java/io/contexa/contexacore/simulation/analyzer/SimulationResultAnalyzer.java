@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  * 무방비 모드와 방어 모드의 시뮬레이션 결과를 비교 분석하여
  * 자율보안체제의 효과성을 평가합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

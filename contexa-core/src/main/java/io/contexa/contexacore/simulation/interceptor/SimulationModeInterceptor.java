@@ -13,7 +13,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * HTTP 요청에서 시뮬레이션 모드를 추출하여 ThreadLocal에 설정합니다.
  * 이를 통해 요청 처리 전체 과정에서 시뮬레이션 모드를 인식할 수 있습니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

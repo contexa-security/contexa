@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * - 리스크 기반 라우팅
  * - 처리 경로 선택
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

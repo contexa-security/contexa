@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 보안 시스템의 AI 모델을 자동으로 튜닝하고 최적화하는 서비스입니다.
  * 오탐(False Positive) 학습, 파라미터 조정, 성능 최적화를 수행합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

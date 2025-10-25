@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 이벤트 유효성 검증
  * - 필수 필드 확인
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

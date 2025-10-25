@@ -12,7 +12,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * SimulationModeInterceptor를 등록하여 모든 요청에서
  * 시뮬레이션 모드를 감지하고 ThreadLocal에 설정합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Configuration

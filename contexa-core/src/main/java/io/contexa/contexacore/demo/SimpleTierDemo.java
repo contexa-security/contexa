@@ -9,7 +9,7 @@ import io.contexa.contexacore.std.llm.core.ExecutionContext.AnalysisLevel;
 public class SimpleTierDemo {
 
     public static void main(String[] args) {
-        System.out.println("=== AI3Security 계층 기반 모델 선택 구현 완료 ===\n");
+        System.out.println("=== contexa 계층 기반 모델 선택 구현 완료 ===\n");
 
         System.out.println("구현 완료 항목:");
         System.out.println("-".repeat(60));

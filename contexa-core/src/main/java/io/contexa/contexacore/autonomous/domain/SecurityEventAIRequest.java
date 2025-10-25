@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 보안 이벤트에 대한 AI 분석 및 처리 요청을 나타내는 도메인 객체입니다.
  * 자율 보안 시스템의 AI 엔진으로 전달되는 요청을 캡슐화합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Getter

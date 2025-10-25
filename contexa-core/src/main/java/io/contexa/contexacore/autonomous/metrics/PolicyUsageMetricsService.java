@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  *
  * 정책 실행 횟수, 성능, 효과 등을 추적하고 분석합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

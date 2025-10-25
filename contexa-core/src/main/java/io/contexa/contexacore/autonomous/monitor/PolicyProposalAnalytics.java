@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * 정책 제안 분석 시스템
  * 통계 생성, 트렌드 분석, 대시보드 데이터 제공
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

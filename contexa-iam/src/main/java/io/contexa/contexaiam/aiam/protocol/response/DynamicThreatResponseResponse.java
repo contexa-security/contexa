@@ -17,7 +17,7 @@ import java.util.Map;
  * DynamicThreatResponseSynthesisLab이 생성한 정책 제안을 담는 응답 객체
  * AI가 추론한 전략적 보안 원칙과 이를 기반으로 생성된 정책 제안을 포함
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Data

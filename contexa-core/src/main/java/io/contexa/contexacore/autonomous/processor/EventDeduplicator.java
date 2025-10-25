@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Caffeine 캐시를 사용하여 고성능 중복 검사를 수행합니다.
  * 
  * @since 1.0
- * @author AI3Security
+ * @author contexa
  */
 @Slf4j
 @Component

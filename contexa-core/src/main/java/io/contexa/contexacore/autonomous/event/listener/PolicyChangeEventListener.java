@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 정책 변경 사항을 추적하고, AI 생성 정책의 승인 프로세스를 관리하며,
  * 정책 진화를 트리거합니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Slf4j

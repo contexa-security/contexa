@@ -18,7 +18,7 @@ import java.util.Map;
  * 보안 시스템의 실제 처리 결과를 저장합니다.
  * 시뮬레이션 전용 테이블로 실제 운영 데이터와 격리됩니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Entity

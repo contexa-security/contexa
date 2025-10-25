@@ -26,7 +26,7 @@ import reactor.core.publisher.Mono;
  * DynamicThreatResponseSynthesisLab을 실행하는 전략 구현
  * AbstractAIStrategy를 확장하여 표준 패턴 준수
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

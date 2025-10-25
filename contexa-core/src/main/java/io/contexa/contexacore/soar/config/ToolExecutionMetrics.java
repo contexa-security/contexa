@@ -16,49 +16,58 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tool 실행 메트릭 수집기
- * 
+ *
  * 도구 실행 관련 메트릭을 수집하고 모니터링합니다.
  * Micrometer를 사용하여 표준 메트릭을 제공합니다.
  */
 @Slf4j
+@Component
 public class ToolExecutionMetrics {
-    
+
     private final Map<String, ToolMetrics> toolMetricsMap = new ConcurrentHashMap<>();
     private final AtomicLong totalExecutions = new AtomicLong(0);
     private final AtomicLong totalApprovals = new AtomicLong(0);
     private final AtomicLong totalRejections = new AtomicLong(0);
-    
-    @Autowired(required = false)
-    private MeterRegistry meterRegistry;
-    
+
+    private final MeterRegistry meterRegistry;
+
     // Micrometer 메트릭
-    private Counter executionCounter;
-    private Counter approvalCounter;
-    private Counter rejectionCounter;
-    private Timer executionTimer;
-    
+    private final Counter executionCounter;
+    private final Counter approvalCounter;
+    private final Counter rejectionCounter;
+    private final Timer executionTimer;
+
     /**
-     * 메트릭 초기화
+     * 생성자에서 메트릭 즉시 초기화 (MeterRegistry가 있는 경우)
      */
-    public void initialize() {
+    public ToolExecutionMetrics(@Autowired(required = false) MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
+
         if (meterRegistry != null) {
-            executionCounter = Counter.builder("soar.tool.executions")
+            this.executionCounter = Counter.builder("soar.tool.executions")
                 .description("Total number of tool executions")
                 .register(meterRegistry);
-            
-            approvalCounter = Counter.builder("soar.tool.approvals")
+
+            this.approvalCounter = Counter.builder("soar.tool.approvals")
                 .description("Total number of tool approvals")
                 .register(meterRegistry);
-            
-            rejectionCounter = Counter.builder("soar.tool.rejections")
+
+            this.rejectionCounter = Counter.builder("soar.tool.rejections")
                 .description("Total number of tool rejections")
                 .register(meterRegistry);
-            
-            executionTimer = Timer.builder("soar.tool.execution.time")
+
+            this.executionTimer = Timer.builder("soar.tool.execution.time")
                 .description("Tool execution time")
                 .register(meterRegistry);
-            
-            log.info("Micrometer 메트릭 초기화 완료");
+
+            log.info("ToolExecutionMetrics initialized with MeterRegistry");
+        } else {
+            // MeterRegistry가 없는 경우 null로 유지
+            this.executionCounter = null;
+            this.approvalCounter = null;
+            this.rejectionCounter = null;
+            this.executionTimer = null;
+            log.info("ToolExecutionMetrics initialized without MeterRegistry (metrics disabled)");
         }
     }
     

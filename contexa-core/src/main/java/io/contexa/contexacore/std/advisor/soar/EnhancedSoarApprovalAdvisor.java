@@ -49,13 +49,13 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
     private ToolExecutionMetrics executionMetrics;
     private SharedAdvisorContext sharedContext;
     
-    @Value("${ai3security.advisor.soar.approval.order:100}")
+    @Value("${contexa.advisor.soar.approval.order:100}")
     private int advisorOrder;
     
-    @Value("${ai3security.advisor.soar.approval.enabled:true}")
+    @Value("${contexa.advisor.soar.approval.enabled:true}")
     private boolean advisorEnabled;
     
-    @Value("${ai3security.advisor.soar.approval.timeout:300}")
+    @Value("${contexa.advisor.soar.approval.timeout:300}")
     private int defaultTimeoutSeconds;
 
     public EnhancedSoarApprovalAdvisor(Tracer tracer) {

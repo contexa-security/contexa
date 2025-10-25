@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * 정책 제안 관리를 위한 REST API를 제공합니다.
  * 관리자가 제안을 검토, 승인, 거부할 수 있는 엔드포인트를 제공합니다.
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0.0
  */
 @Slf4j

@@ -27,7 +27,7 @@ import java.util.*;
  * 고위험 작업 또는 정책 변경에 대한 인간 승인 대기
  * 크리티컬 작업의 인간 개입 관리
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

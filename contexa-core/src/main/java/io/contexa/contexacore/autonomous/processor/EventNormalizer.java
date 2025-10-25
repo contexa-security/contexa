@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * Strategy 패턴을 적용하여 다양한 소스의 이벤트를 통일된 형식으로 정규화합니다.
  *
  * @since 1.0
- * @author AI3Security
+ * @author contexa
  */
 @Slf4j
 @Component

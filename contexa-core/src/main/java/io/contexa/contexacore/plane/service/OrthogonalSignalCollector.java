@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * - 직교(독립) 신호 부족 문제 해결
  * - HCAD Layer와 독립적인 3개 신호 추가
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 @Slf4j

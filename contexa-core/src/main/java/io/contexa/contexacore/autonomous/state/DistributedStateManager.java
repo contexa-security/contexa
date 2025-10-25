@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - 글로벌 메트릭 수집
  * - 장애 복구 및 리더 선출
  * 
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j

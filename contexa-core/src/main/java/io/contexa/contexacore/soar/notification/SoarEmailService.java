@@ -29,7 +29,7 @@ public class SoarEmailService {
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     
-    @Value("${spring.mail.username:noreply@ai3security.com}")
+    @Value("${spring.mail.username:noreply@contexa.com}")
     private String fromAddress;
     
     @Value("${soar.notification.email.enabled:true}")

@@ -22,7 +22,7 @@ import java.util.Map;
  *
  * AI가 생성하거나 진화시킨 정책의 승인/거부를 처리하는 REST API 컨트롤러입니다.
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.1.0
  */
 @Slf4j

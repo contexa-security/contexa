@@ -15,7 +15,7 @@ package io.contexa.contexacore.std.rag.constants;
  * - documentType은 소문자_스네이크_케이스
  * - ID는 UUID v4 형식
  *
- * @author AI3Security
+ * @author contexa
  * @since 3.0
  */
 public final class VectorDocumentMetadata {

@@ -21,7 +21,7 @@ import java.util.Map;
  * SOAR 워크플로우를 통한 자동화된 대응
  * 승인이 필요한 작업들의 오케스트레이션
  *
- * @author AI3Security
+ * @author contexa
  * @since 1.0
  */
 @Slf4j
