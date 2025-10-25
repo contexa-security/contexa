@@ -75,9 +75,10 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9101
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9093,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -86,7 +87,6 @@ services:
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
       KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
     ports:
-      - "9101:9101"
       - "9092:9092"
     volumes:
       - kafka-data:/var/lib/kafka/data
@@ -109,7 +109,7 @@ services:
         condition: service_healthy
     environment:
       KAFKA_CLUSTERS_0_NAME: contexa-cluster
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
       DYNAMIC_CONFIG_ENABLED: "true"
     ports:
@@ -134,23 +134,23 @@ services:
         echo "Creating Kafka topics..."
 
         # Security Event Topics
-        kafka-topics --create --if-not-exists --topic security-authorization-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
-        kafka-topics --create --if-not-exists --topic auth-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
-        kafka-topics --create --if-not-exists --topic security-incident-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
-        kafka-topics --create --if-not-exists --topic threat-indicators --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
-        kafka-topics --create --if-not-exists --topic security-audit-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
-        kafka-topics --create --if-not-exists --topic security-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
+        kafka-topics --create --if-not-exists --topic security-authorization-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
+        kafka-topics --create --if-not-exists --topic auth-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
+        kafka-topics --create --if-not-exists --topic security-incident-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
+        kafka-topics --create --if-not-exists --topic threat-indicators --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
+        kafka-topics --create --if-not-exists --topic security-audit-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
+        kafka-topics --create --if-not-exists --topic security-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
 
         # DLQ Topic
-        kafka-topics --create --if-not-exists --topic security-dlq --partitions 1 --replication-factor 1 --bootstrap-server kafka:9092
+        kafka-topics --create --if-not-exists --topic security-dlq --partitions 1 --replication-factor 1 --bootstrap-server kafka:9093
 
         # Tiered Processing Topics
-        kafka-topics --create --if-not-exists --topic security-tier1-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
-        kafka-topics --create --if-not-exists --topic security-tier2-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
-        kafka-topics --create --if-not-exists --topic security-tier3-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9092
+        kafka-topics --create --if-not-exists --topic security-tier1-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
+        kafka-topics --create --if-not-exists --topic security-tier2-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
+        kafka-topics --create --if-not-exists --topic security-tier3-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
 
         echo "Kafka topics created successfully!"
-        kafka-topics --list --bootstrap-server kafka:9092
+        kafka-topics --list --bootstrap-server kafka:9093
     networks:
       - contexa-network
     restart: "no"
