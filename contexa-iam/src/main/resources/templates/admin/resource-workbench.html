@@ -431,10 +431,10 @@
                         <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">상태</label>
                         <select id="status" th:field="*{status}" class="modern-select">
                             <option value="">전체</option>
-                            <option th:value="${T(io.spring.iam.domain.entity.ManagedResource.Status).NEEDS_DEFINITION}">정의 필요</option>
-                            <option th:value="${T(io.spring.iam.domain.entity.ManagedResource.Status).PERMISSION_CREATED}">권한 생성됨</option>
-                            <option th:value="${T(io.spring.iam.domain.entity.ManagedResource.Status).POLICY_CONNECTED}">정책 연결됨</option>
-                            <option th:value="${T(io.spring.iam.domain.entity.ManagedResource.Status).EXCLUDED}">관리 제외만 보기</option>
+                            <option th:value="${T(io.contexa.contexaiam.domain.entity.ManagedResource.Status).NEEDS_DEFINITION}">정의 필요</option>
+                            <option th:value="${T(io.contexa.contexaiam.domain.entity.ManagedResource.Status).PERMISSION_CREATED}">권한 생성됨</option>
+                            <option th:value="${T(io.contexa.contexaiam.domain.entity.ManagedResource.Status).POLICY_CONNECTED}">정책 연결됨</option>
+                            <option th:value="${T(io.contexa.contexaiam.domain.entity.ManagedResource.Status).EXCLUDED}">관리 제외만 보기</option>
                         </select>
                     </div>
                     <div>

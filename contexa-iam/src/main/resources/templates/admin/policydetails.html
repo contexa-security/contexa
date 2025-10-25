@@ -39,7 +39,7 @@
                         <select id="effect" th:field="*{effect}"
                                 class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
                                 style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
-                            <option th:each="eff : ${T(io.spring.iam.domain.entity.policy.Policy.Effect).values()}" th:value="${eff}" th:text="${eff.name()}"></option>
+                            <option th:each="eff : ${T(io.contexa.contexaiam.domain.entity.policy.Policy.Effect).values()}" th:value="${eff}" th:text="${eff.name()}"></option>
                         </select>
                     </div>
                     <div>

@@ -13,5 +13,5 @@ security:
 
 logging:
   level:
-    io.spring.aidc: DEBUG
+    io.contexa.contexaidentity: DEBUG
     org.springframework.statemachine: DEBUG

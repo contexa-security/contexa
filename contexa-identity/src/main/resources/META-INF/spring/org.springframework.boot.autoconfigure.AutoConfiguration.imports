@@ -1,1 +1,1 @@
-io.spring.aidc.security.core.asep.autoconfigure.AsepAutoConfiguration
+io.contexa.contexaidentity.security.core.asep.autoconfigure.AsepAutoConfiguration

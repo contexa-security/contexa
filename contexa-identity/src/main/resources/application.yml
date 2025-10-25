@@ -190,7 +190,7 @@ security:
 # 로깅 설정
 logging:
   level:
-    io.spring.aidc.security.statemachine: DEBUG
+    io.contexa.contexaidentity.security.statemachine: DEBUG
     org.springframework.statemachine: DEBUG
 
 ---
@@ -211,7 +211,7 @@ security:
 
 logging:
   level:
-    io.spring.aidc: DEBUG
+    io.contexa.contexaidentity: DEBUG
     org.springframework.statemachine: DEBUG
 
 ---
@@ -245,7 +245,7 @@ security:
 
 logging:
   level:
-    io.spring.aidc: INFO
+    io.contexa.contexaidentity: INFO
     org.springframework.data.redis: WARN
 
 ---
@@ -270,5 +270,5 @@ security:
 
 logging:
   level:
-    io.spring.aidc: DEBUG
+    io.contexa.contexaidentity: DEBUG
     org.springframework.statemachine: DEBUG

@@ -257,8 +257,8 @@ logging:
     org.springframework.messaging.simp.broker: DEBUG
     org.springframework.messaging.simp.stomp: DEBUG
     org.springframework.messaging.support: DEBUG
-    io.spring.iam.aiam.config: DEBUG
-    io.spring.iam.aiam.controller: DEBUG
+    io.contexa.contexaiam.aiam.config: DEBUG
+    io.contexa.contexaiam.aiam.controller: DEBUG
     io.contexa.contexacore.soar.event: DEBUG
     # Spring Boot AutoConfiguration 디버깅
     org.springframework.boot.autoconfigure: DEBUG
@@ -291,7 +291,7 @@ logging:
     io.contexa.contexacore.pipeline: DEBUG
     io.contexa.contexacore.llm: DEBUG
 #    io.contexa.contexacore: ERROR
-    io.spring.iam.aiam.labs: DEBUG
+    io.contexa.contexaiam.aiam.labs: DEBUG
     org.springframework.messaging.simp.annotation: DEBUG
 
 # 기본 위험 평가 (빠른 응답)

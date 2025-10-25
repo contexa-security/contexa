@@ -66,8 +66,8 @@ management:
 # 로깅 설정
 logging:
   level:
-    io.spring.iam.config.DistributedVectorStoreService: INFO
-    io.spring.iam.config.DistributedVectorStoreConfig: INFO
+    io.contexa.contexaiam.config.DistributedVectorStoreService: INFO
+    io.contexa.contexaiam.config.DistributedVectorStoreConfig: INFO
     org.springframework.ai.vectorstore: INFO
     org.springframework.data.redis: INFO
 

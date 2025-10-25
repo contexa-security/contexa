@@ -1,6 +1,6 @@
-io.spring.aidc.security.core.adapter.auth.FormAuthenticationAdapter
-io.spring.aidc.security.core.adapter.auth.RestAuthenticationAdapter
-io.spring.aidc.security.core.adapter.auth.MfaRestAuthenticationAdapter
-io.spring.aidc.security.core.adapter.auth.OttAuthenticationAdapter
-io.spring.aidc.security.core.adapter.auth.PasskeyAuthenticationAdapter
-io.spring.aidc.security.core.adapter.auth.MfaAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.FormAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.RestAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.MfaRestAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.OttAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.PasskeyAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.MfaAuthenticationAdapter

@@ -22,5 +22,5 @@ security:
 
 logging:
   level:
-    io.spring.aidc: INFO
+    io.contexa.contexaidentity: INFO
     org.springframework.statemachine: WARN

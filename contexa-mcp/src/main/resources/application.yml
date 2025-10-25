@@ -33,7 +33,7 @@ spring:
     mcp:
       server:
         enabled: true
-        name: contexa SOAR Platform
+        name: Contexa SOAR Platform
         version: 1.0.0
         type: SYNC  # 동기 서버 (ASYNC 사용 가능)
         sse-message-endpoint: /mcp/message  # SSE 엔드포인트
