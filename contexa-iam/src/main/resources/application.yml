@@ -128,7 +128,7 @@ spring:
         sse:
           connections:
             local-server:
-              url: http://localhost:9090  # 로컬 MCP 서버 연결
+              url: http://localhost:9000  # 로컬 MCP 서버 연결
             
     chat:
       model:

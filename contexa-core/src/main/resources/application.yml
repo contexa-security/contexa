@@ -430,7 +430,7 @@ spring:
           enabled: false
           connections:
             security-server:
-              url: "http://localhost:9090"
+              url: "http://localhost:9000"
               
         # MCP Tool Callback 자동 구성
         toolcallback:

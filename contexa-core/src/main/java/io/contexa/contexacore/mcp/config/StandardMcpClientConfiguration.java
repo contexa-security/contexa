@@ -69,7 +69,7 @@ public class StandardMcpClientConfiguration {
      */
     @Bean(destroyMethod = "close")
     @ConditionalOnProperty(prefix = "spring.ai.mcp.client.local-security", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public McpSyncClient securityMcpClient(@Value("${spring.ai.mcp.client.sse.connections.local-server.url:http://localhost:9090}") String serverUrl) {
+    public McpSyncClient securityMcpClient(@Value("${spring.ai.mcp.client.sse.connections.local-server.url:http://localhost:9000}") String serverUrl) {
         log.info("contexa MCP 클라이언트 초기화 (SSE Transport)");
 
         try {

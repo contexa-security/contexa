@@ -47,7 +47,7 @@ spring:
           resource: false   # 리소스 기능 비활성화
           prompt: false     # 프롬프트 기능 비활성화
           completion: false # 자동완성 기능 비활성화
-        base-url: http://localhost:9090
+        base-url: http://localhost:9000
 
     chat:
       model:
