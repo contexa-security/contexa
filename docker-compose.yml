@@ -58,10 +58,11 @@ services:
     networks:
       - contexa-network
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo 'ruok' | nc localhost 2181 | grep imok"]
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
 
   # Kafka - 이벤트 스트리밍 플랫폼
@@ -113,7 +114,6 @@ services:
       DYNAMIC_CONFIG_ENABLED: "true"
     ports:
       - "8090:8080"
-      - "9092:9092"
     networks:
       - contexa-network
     restart: unless-stopped
@@ -156,62 +156,64 @@ services:
     restart: "no"
 
   # Ollama - 로컬 LLM 서버 (TinyLlama, Llama3.1)
-  ollama:
-    image: ollama/ollama:latest
-    container_name: contexa-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - contexa-network
-    environment:
-      - OLLAMA_KEEP_ALIVE=24h
-      - OLLAMA_NUM_PARALLEL=2
-      - OLLAMA_MAX_LOADED_MODELS=3
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+  # GPU 지원 필요 - 현재 비활성화
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: contexa-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   networks:
+  #     - contexa-network
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=24h
+  #     - OLLAMA_NUM_PARALLEL=2
+  #     - OLLAMA_MAX_LOADED_MODELS=3
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
 
   # Ollama Model Loader - 모델 자동 다운로드
-  ollama-init:
-    image: ollama/ollama:latest
-    container_name: contexa-ollama-init
-    depends_on:
-      ollama:
-        condition: service_healthy
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        echo "Waiting for Ollama to be ready..."
-        sleep 10
+  # GPU 지원 필요 - 현재 비활성화
+  # ollama-init:
+  #   image: ollama/ollama:latest
+  #   container_name: contexa-ollama-init
+  #   depends_on:
+  #     ollama:
+  #       condition: service_healthy
+  #   entrypoint: ["/bin/bash", "-c"]
+  #   command:
+  #     - |
+  #       echo "Waiting for Ollama to be ready..."
+  #       sleep 10
 
-        echo "Pulling AI models..."
+  #       echo "Pulling AI models..."
 
-        # Layer1 Fast Filter Model
-        ollama pull tinyllama || echo "TinyLlama pull failed, continuing..."
+  #       # Layer1 Fast Filter Model
+  #       ollama pull tinyllama || echo "TinyLlama pull failed, continuing..."
 
-        # Layer2 Contextual Analysis Model
-        ollama pull llama3.1:8b || echo "Llama3.1:8b pull failed, continuing..."
+  #       # Layer2 Contextual Analysis Model
+  #       ollama pull llama3.1:8b || echo "Llama3.1:8b pull failed, continuing..."
 
-        # Embedding Model
-        ollama pull nomic-embed-text || echo "Nomic-embed-text pull failed, continuing..."
+  #       # Embedding Model
+  #       ollama pull nomic-embed-text || echo "Nomic-embed-text pull failed, continuing..."
 
-        echo "Model pulling completed!"
-        ollama list
-    networks:
-      - contexa-network
-    restart: "no"
+  #       echo "Model pulling completed!"
+  #       ollama list
+  #   networks:
+  #     - contexa-network
+  #   restart: "no"
 
   # Grafana - 모니터링 대시보드
   grafana:
@@ -265,8 +267,8 @@ services:
 volumes:
   redis-data:
     driver: local
-  postgres-data:
-    driver: local
+  pgdata:
+    external: true
   zookeeper-data:
     driver: local
   zookeeper-logs:
