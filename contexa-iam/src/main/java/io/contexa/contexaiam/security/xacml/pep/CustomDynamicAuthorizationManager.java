@@ -12,10 +12,11 @@ import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import io.contexa.contexacommon.domain.TrustAssessment;
-import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.core.Authentication;
@@ -46,9 +47,24 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ContextHandler contextHandler;
     private final AuthorizationEventPublisher authorizationEventPublisher;
 
-    @PostConstruct
-    public void initialize() {
-        log.info("Initializing dynamic authorization mappings from Policy model...");
+    /**
+     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
+     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
+     *
+     * @param event ContextRefreshedEvent
+     */
+    @EventListener
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("ApplicationContext refreshed. Initializing dynamic authorization mappings...");
+        initialize();
+    }
+
+    /**
+     * 데이터베이스에서 Policy를 조회하여 동적 Authorization 매핑을 생성합니다.
+     * 이 메서드는 반드시 ApplicationContext가 완전히 초기화된 후 호출되어야 합니다.
+     */
+    private void initialize() {
+        log.info("Loading dynamic authorization mappings from Policy model...");
         this.mappings = new ArrayList<>();
 
         List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies();
