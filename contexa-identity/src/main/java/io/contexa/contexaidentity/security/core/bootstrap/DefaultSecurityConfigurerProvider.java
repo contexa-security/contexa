@@ -28,7 +28,6 @@ public final class DefaultSecurityConfigurerProvider implements SecurityConfigur
 
     private final List<SecurityConfigurer> collectedBaseConfigurers;
     private final AdapterRegistry adapterRegistry;
-    private final ApplicationContext applicationContext; // AsepConfigurer 등 특정 빈 직접 참조 위해 (현재는 사용되지 않음)
 
     @Autowired
     public DefaultSecurityConfigurerProvider(
@@ -37,7 +36,6 @@ public final class DefaultSecurityConfigurerProvider implements SecurityConfigur
             ApplicationContext applicationContext) {
         this.collectedBaseConfigurers = (baseConfigurers != null) ? new ArrayList<>(baseConfigurers) : new ArrayList<>();
         this.adapterRegistry = Objects.requireNonNull(adapterRegistry, "FeatureRegistry cannot be null");
-        this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null");
         log.info("DefaultSecurityConfigurerProvider initialized with {} base configurers.", this.collectedBaseConfigurers.size());
         if (log.isDebugEnabled()) {
             this.collectedBaseConfigurers.forEach(cfg -> log.debug("  - Detected Base Configurer: {}", cfg.getClass().getName()));

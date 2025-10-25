@@ -91,7 +91,7 @@ public class HCADSimilarityCalculator {
 
             // HOT Path Zero Trust 평가
             if (zeroTrustHotPathEnabled && result.getFinalSimilarity() >= hotPathThreshold) {
-                result = applyZeroTrustEvaluation(context, result);
+//                result = applyZeroTrustEvaluation(context, result);
             }
 
             long processingTime = System.currentTimeMillis() - startTime;
