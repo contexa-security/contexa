@@ -7,8 +7,9 @@ import io.contexa.contexaiam.aiam.protocol.request.DynamicThreatResponseRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -60,11 +61,22 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         log.info("DynamicThreatResponseContextRetriever 초기화 완료");
     }
     
-    @PostConstruct
-    public void registerSelf() {
+    /**
+     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
+     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
+     *
+     * @param event ContextRefreshedEvent
+     */
+    @EventListener
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("ApplicationContext refreshed. Initializing DynamicThreatResponseContextRetriever...");
+        registerSelf();
+    }
+
+    private void registerSelf() {
         // DynamicThreatResponseRequest와 연결하여 등록
         contextRetrieverRegistry.registerRetriever(DynamicThreatResponseContext.class, this);
-        log.info("DynamicThreatResponseContextRetriever 자동 등록 완료: DynamicThreatResponseRequest → {}", 
+        log.info("DynamicThreatResponseContextRetriever 자동 등록 완료: DynamicThreatResponseRequest → {}",
                 this.getClass().getSimpleName());
     }
     

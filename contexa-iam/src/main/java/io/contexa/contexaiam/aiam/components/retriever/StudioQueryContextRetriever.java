@@ -10,8 +10,9 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -84,16 +85,23 @@ public class StudioQueryContextRetriever extends ContextRetriever {
     }
 
     /**
-     * OCP 준수: 자동 등록
-     * Spring Boot 시작 시 자동으로 Registry에 등록
+     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
+     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
+     *
+     * @param event ContextRefreshedEvent
      */
-    @PostConstruct
-    public void registerSelf() {
+    @EventListener
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("ApplicationContext refreshed. Initializing StudioQueryContextRetriever...");
+        registerSelf();
+    }
+
+    private void registerSelf() {
         // RAG Advisor 생성 (사용 가능한 경우)
         if (chatClientBuilder != null && vectorStore != null) {
             createStudioAdvisor();
         }
-        
+
         registry.registerRetriever(StudioQueryContext.class, this);
         log.info("StudioQueryContextRetriever 자동 등록 완료: StudioQueryContext → {}",
                 this.getClass().getSimpleName());

@@ -3,13 +3,14 @@ package io.contexa.contexaiam.admin.web.auth.service.impl;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,9 +28,15 @@ public class RoleHierarchyService {
     private final RoleRepository roleRepository;
     private final RoleHierarchyImpl roleHierarchy;
 
-    @PostConstruct
-    public void initializeRoleHierarchy() {
-        log.info("Initializing RoleHierarchyService and setting initial RoleHierarchyImpl hierarchy...");
+    /**
+     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
+     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
+     *
+     * @param event ContextRefreshedEvent
+     */
+    @EventListener
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("ApplicationContext refreshed. Initializing RoleHierarchyService and setting initial RoleHierarchyImpl hierarchy...");
         reloadRoleHierarchyBean();
     }
 

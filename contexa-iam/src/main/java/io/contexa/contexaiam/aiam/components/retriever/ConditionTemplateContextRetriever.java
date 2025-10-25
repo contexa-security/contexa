@@ -5,8 +5,9 @@ import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateVectorService;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -74,16 +75,23 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
     }
     
     /**
-     * OCP 준수: 자동 등록
-     * Spring Boot 시작 시 자동으로 Registry에 등록
+     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
+     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
+     *
+     * @param event ContextRefreshedEvent
      */
-    @PostConstruct
-    public void registerSelf() {
+    @EventListener
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("ApplicationContext refreshed. Initializing ConditionTemplateContextRetriever...");
+        registerSelf();
+    }
+
+    private void registerSelf() {
         // RAG Advisor 생성 (사용 가능한 경우)
         if (chatClientBuilder != null && vectorStore != null) {
             createTemplateAdvisor();
         }
-        
+
         registry.registerRetriever(ConditionTemplateContext.class, this);
         log.info("ConditionTemplateContextRetriever 자동 등록 완료 (Spring AI RAG 지원)");
     }

@@ -13,8 +13,9 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
@@ -92,13 +93,24 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         this.vectorService = vectorService;
     }
 
-    @PostConstruct
-    public void registerSelf() {
+    /**
+     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
+     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
+     *
+     * @param event ContextRefreshedEvent
+     */
+    @EventListener
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        log.info("ApplicationContext refreshed. Initializing AccessGovernanceContextRetriever...");
+        registerSelf();
+    }
+
+    private void registerSelf() {
         // RAG Advisor 생성 (사용 가능한 경우)
         if (chatClientBuilder != null && vectorStore != null) {
             createGovernanceAdvisor();
         }
-        
+
         registry.registerRetriever(AccessGovernanceContext.class, this);
         log.info("AccessGovernanceContextRetriever 자동 등록 완료 (Spring AI RAG 지원)");
     }
