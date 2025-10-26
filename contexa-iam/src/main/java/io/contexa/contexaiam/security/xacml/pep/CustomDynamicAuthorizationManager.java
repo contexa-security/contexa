@@ -230,6 +230,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return authorizationDecision;
     }
 
+
     /**
      * 인가 시도 및 그 결과를 상세히 감사 로그에 기록합니다.
      * XAI 의 핵심인 AI 평가 근거를 포함합니다.
