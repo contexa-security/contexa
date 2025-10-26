@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.event.filter;
 
 import io.contexa.contexacore.autonomous.event.decision.UnifiedEventPublishingDecisionEngine;
 import io.contexa.contexacore.autonomous.event.domain.HttpRequestEvent;
+import io.contexa.contexacore.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexacore.autonomous.utils.UserIdentificationStrategy;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,6 +23,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -53,6 +56,7 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
     private final ApplicationEventPublisher applicationEventPublisher;
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
     private final UnifiedEventPublishingDecisionEngine unifiedDecisionEngine;
+    private EventPublishingMetrics metricsCollector;
 
     @Value("${security.event.publishing.enabled:true}")
     private boolean eventPublishingEnabled;
@@ -62,6 +66,10 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
 
     @Value("${security.event.publishing.exclude-uris:/actuator,/health,/metrics}")
     private String[] excludeUris;
+
+    public void setMetricsCollector(EventPublishingMetrics metricsCollector) {
+        this.metricsCollector = metricsCollector;
+    }
 
     /**
      * HCADFilter가 설정한 request attribute 키 (v2.0 - 피드백 루프 완전 통합)
@@ -205,7 +213,30 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
 
             HttpRequestEvent event = eventBuilder.build();
 
+            // ===== 메트릭 수집 =====
+            long startTime = System.nanoTime();
+
             applicationEventPublisher.publishEvent(event);
+
+            long duration = System.nanoTime() - startTime;
+
+            if (metricsCollector != null) {
+                metricsCollector.recordHttpFilter(duration);
+                metricsCollector.recordHttpRequest();
+
+                // EventRecorder 인터페이스를 통한 이벤트 기록
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("uri", request.getRequestURI());
+                metadata.put("method", request.getMethod());
+                metadata.put("status", response.getStatus());
+                metadata.put("duration", duration);
+                metadata.put("user_id", userId);
+                metadata.put("is_authenticated", isAuthenticated);
+                metadata.put("tier", decision.getTier());
+                metadata.put("risk_score", decision.getRiskScore());
+
+                metricsCollector.recordEvent("http_filter", metadata);
+            }
 
             if (isAuthenticated) {
                 log.debug("[SecurityEventPublishingFilter] Published HttpRequestEvent (Authenticated): userId={}, uri={}, HCAD={:.3f}, Trust={:.3f}, Risk={:.3f}, Tier={}",

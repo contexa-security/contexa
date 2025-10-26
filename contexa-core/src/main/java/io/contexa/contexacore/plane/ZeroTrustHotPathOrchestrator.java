@@ -2,19 +2,23 @@ package io.contexa.contexacore.plane;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.decision.EventTier;
+import io.contexa.contexacore.dashboard.metrics.plane.OrthogonalSignalCollector;
 import io.contexa.contexacore.hcad.service.HCADSimilarityCalculator.TrustedSimilarityResult;
 import io.contexa.contexacore.plane.service.*;
 import io.contexa.contexacore.plane.service.AccumulatedRiskCalculator.AccumulatedRiskResult;
 import io.contexa.contexacore.plane.service.AttackModeHysteresisManager.AttackModeState;
 import io.contexa.contexacore.plane.service.ColdPathCapacityManager.EnqueueResult;
 import io.contexa.contexacore.plane.service.HoneypotPatternAnalyzer.HoneypotAnalysisResult;
-import io.contexa.contexacore.plane.service.OrthogonalSignalCollector.OrthogonalSignals;
+import io.contexa.contexacore.dashboard.metrics.plane.OrthogonalSignalCollector.OrthogonalSignals;
 import io.contexa.contexacore.plane.service.SignalInconsistencyDetector.InconsistencyResult;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Zero Trust HOT Path 오케스트레이터
@@ -102,6 +106,17 @@ public class ZeroTrustHotPathOrchestrator {
 
             // ===== Phase 2: 7차원 직교 신호 수집 =====
             OrthogonalSignals signals = signalCollector.collect(event, hcadResult);
+
+            // EventRecorder 인터페이스를 통한 신호 수집 이벤트 기록
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("user_id", userId);
+            metadata.put("network_signal", signals.getNetworkSignal());
+            metadata.put("crypto_signal", signals.getCryptoSignal());
+            metadata.put("timing_signal", signals.getTimingSignal());
+            metadata.put("hcad_trust_score", hcadResult.getTrustScore());
+            metadata.put("event_id", event.getEventId());
+
+            signalCollector.recordEvent("signal_collected", metadata);
 
             // ===== Phase 3: 신호 불일치 탐지 (Mahalanobis Distance) =====
             InconsistencyResult inconsistency = inconsistencyDetector.detectInconsistency(

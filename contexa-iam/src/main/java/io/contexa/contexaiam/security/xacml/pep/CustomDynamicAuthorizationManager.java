@@ -3,6 +3,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
+import io.contexa.contexacore.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.dto.UserDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -46,6 +47,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ObjectMapper objectMapper;
     private final ContextHandler contextHandler;
     private final AuthorizationEventPublisher authorizationEventPublisher;
+    private final EventPublishingMetrics metricsCollector;
+
 
     /**
      * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
@@ -206,10 +209,21 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         // 인가 실패인 경우에만 이벤트 발행 (성능 최적화)
         // 성공한 수백만 요청은 이벤트 발행하지 않음
         if (authorizationEventPublisher != null && !authorizationDecision.isGranted()) {
+            // ===== 메트릭 수집 =====
+            long startTime = System.nanoTime();
+
             // 인가 실패는 보안상 중요하므로 동기로 확실히 기록
             authorizationEventPublisher.publishWebAuthorizationDecision(
                 authentication, request, authorizationDecision, assessment
             );
+
+            long duration = System.nanoTime() - startTime;
+
+            if (metricsCollector != null) {
+                metricsCollector.recordUrlAuth(duration);
+                metricsCollector.recordAuthzDecision();
+            }
+
             log.debug("Authorization denied event published for: {}", request.getRequestURI());
         }
 

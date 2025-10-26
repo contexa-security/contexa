@@ -3,7 +3,7 @@ package io.contexa.contexacore.std.labs.risk;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.std.rag.service.VectorStoreMetrics;
+import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
 import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;

@@ -6,13 +6,13 @@ import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
 import io.contexa.contexacore.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacore.dashboard.metrics.zerotrust.HCADFeedbackLoopMetrics;
 import io.contexa.contexacore.plane.ZeroTrustHotPathOrchestrator;
 import io.contexa.contexacore.std.rag.processors.AnomalyScoreRanker;
 import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -35,19 +35,38 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class HCADSimilarityCalculator {
 
-    private final @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<String, Object> redisTemplate;
     private final UnifiedVectorService unifiedVectorService;
     private final ThreatCorrelator threatCorrelator;
     private final AnomalyScoreRanker anomalyRanker;
     private final DynamicTrustCalculator dynamicTrustCalculator;
     private final FewShotAnomalyDetector fewShotDetector;
     private final ZeroTrustHotPathOrchestrator zeroTrustOrchestrator;
+    private final HCADFeedbackLoopMetrics feedbackMetrics;
 
     @Value("${security.zerotrust.hotpath.enabled:true}")
     private boolean zeroTrustHotPathEnabled;
+
+    public HCADSimilarityCalculator(
+            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+            UnifiedVectorService unifiedVectorService,
+            ThreatCorrelator threatCorrelator,
+            AnomalyScoreRanker anomalyRanker,
+            DynamicTrustCalculator dynamicTrustCalculator,
+            FewShotAnomalyDetector fewShotDetector,
+            ZeroTrustHotPathOrchestrator zeroTrustOrchestrator,
+            HCADFeedbackLoopMetrics feedbackMetrics) {
+        this.redisTemplate = redisTemplate;
+        this.unifiedVectorService = unifiedVectorService;
+        this.threatCorrelator = threatCorrelator;
+        this.anomalyRanker = anomalyRanker;
+        this.dynamicTrustCalculator = dynamicTrustCalculator;
+        this.fewShotDetector = fewShotDetector;
+        this.zeroTrustOrchestrator = zeroTrustOrchestrator;
+        this.feedbackMetrics = feedbackMetrics;
+    }
 
     @Value("${security.plane.agent.similarity-threshold:0.70}")
     private double hotPathThreshold;
@@ -95,6 +114,16 @@ public class HCADSimilarityCalculator {
             }
 
             long processingTime = System.currentTimeMillis() - startTime;
+
+            // ===== 메트릭 수집: 4-Layer 기여도 =====
+            if (feedbackMetrics != null && result != null) {
+                feedbackMetrics.recordLayerContributions(
+                    result.getLayer1ThreatSearchScore(),
+                    result.getLayer2BaselineSimilarity(),
+                    result.getLayer3AnomalyScore(),
+                    result.getLayer4CorrelationScore()
+                );
+            }
 
             if (log.isDebugEnabled()) {
                 log.debug("[HCAD-RAG] 다층 검증 완료: userId={}, threats={}, baseline={}, anomaly={}, correlation={}, final={}, trust={}, time={}ms",
@@ -742,6 +771,11 @@ public class HCADSimilarityCalculator {
             .crossValidationPassed(true)
             .threatEvidence(threatResult.getEvidenceDescription())
             .threatType(threatResult.getThreatType())
+            // ===== HCAD Layer Scores 저장 (OrthogonalSignalCollector에서 직접 참조) =====
+            .layer1ThreatSearchScore(threatResult.getMaxSimilarity())
+            .layer2BaselineSimilarity(baselineSimilarity)
+            .layer3AnomalyScore(1.0 - anomalyScore)  // 0.0=정상, 1.0=이상 으로 반전
+            .layer4CorrelationScore(correlationScore)
             .build();
     }
 
@@ -955,6 +989,19 @@ public class HCADSimilarityCalculator {
         private final String threatEvidence;
         private final String threatType;
 
+        // ===== HCAD Layer Scores (OrthogonalSignalCollector 직접 참조용) =====
+        /** Layer 1: RAG 기반 위협 사례 검색 점수 (0.0-1.0) */
+        private final double layer1ThreatSearchScore;
+
+        /** Layer 2: 기준선 유사도 점수 (0.0-1.0) */
+        private final double layer2BaselineSimilarity;
+
+        /** Layer 3: 이상도 분석 점수 (0.0-1.0, 높을수록 정상) */
+        private final double layer3AnomalyScore;
+
+        /** Layer 4: 위협 상관관계 분석 점수 (0.0-1.0) */
+        private final double layer4CorrelationScore;
+
         public static TrustedSimilarityResult createFallback(double similarity) {
             return TrustedSimilarityResult.builder()
                 .finalSimilarity(similarity)
@@ -962,6 +1009,10 @@ public class HCADSimilarityCalculator {
                 .crossValidationPassed(false)
                 .threatEvidence("fallback")
                 .threatType("UNKNOWN")
+                .layer1ThreatSearchScore(0.5)
+                .layer2BaselineSimilarity(similarity)
+                .layer3AnomalyScore(0.5)
+                .layer4CorrelationScore(0.5)
                 .build();
         }
     }

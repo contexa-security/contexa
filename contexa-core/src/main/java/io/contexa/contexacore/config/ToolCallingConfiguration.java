@@ -2,12 +2,12 @@ package io.contexa.contexacore.config;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.contexa.contexacore.mcp.integration.McpFunctionCallbackProvider;
-import io.contexa.contexacore.mcp.tool.observation.MetricsCollector;
+import io.contexa.contexacore.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacore.mcp.tool.provider.McpClientProvider;
 import io.contexa.contexacore.mcp.tool.resolution.*;
 import io.contexa.contexacore.soar.approval.*;
 import io.contexa.contexacore.soar.config.ToolApprovalPolicyManager;
-import io.contexa.contexacore.soar.config.ToolExecutionMetrics;
+import io.contexa.contexacore.dashboard.metrics.soar.ToolExecutionMetrics;
 import io.contexa.contexacore.repository.ToolExecutionContextRepository;
 import io.contexa.contexacore.soar.approval.AsyncToolExecutionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -149,7 +149,7 @@ public class ToolCallingConfiguration {
             McpToolResolver mcpToolResolver,
             StaticToolCallbackResolver staticToolResolver,
             FallbackToolResolver fallbackToolResolver,
-            MetricsCollector metricsCollector) {
+            MCPToolMetrics metricsCollector) {
         
         log.info("ChainedToolResolver 생성 (향상된 기능)");
         
@@ -226,11 +226,11 @@ public class ToolCallingConfiguration {
      * 메트릭 수집기
      */
     @Bean
-    @ConditionalOnMissingBean(MetricsCollector.class)
-    public MetricsCollector metricsCollector(
+    @ConditionalOnMissingBean(MCPToolMetrics.class)
+    public MCPToolMetrics metricsCollector(
             @Autowired(required = false) MeterRegistry meterRegistry) {
-        log.info("MetricsCollector 생성");
-        return new MetricsCollector(meterRegistry);
+        log.info("MCPToolMetrics 생성");
+        return new MCPToolMetrics(meterRegistry);
     }
     
     /**

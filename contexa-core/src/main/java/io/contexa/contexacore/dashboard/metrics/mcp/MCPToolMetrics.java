@@ -1,5 +1,7 @@
-package io.contexa.contexacore.mcp.tool.observation;
+package io.contexa.contexacore.dashboard.metrics.mcp;
 
+import io.contexa.contexacore.dashboard.api.DomainMetrics;
+import io.contexa.contexacore.dashboard.api.EventRecorder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -8,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @Component
 @Slf4j
-public class MetricsCollector {
+public class MCPToolMetrics implements DomainMetrics, EventRecorder {
     
     private final MeterRegistry meterRegistry;
     private final Map<String, AtomicLong> resolverMetrics = new ConcurrentHashMap<>();
@@ -39,45 +42,45 @@ public class MetricsCollector {
     private final Timer resolutionTimer;
     private final Timer executionTimer;
     
-    public MetricsCollector(@Autowired(required = false) MeterRegistry meterRegistry) {
+    public MCPToolMetrics(@Autowired(required = false) MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
         
         if (meterRegistry != null) {
             // 카운터 초기화
-            this.totalResolutions = Counter.builder("tool.resolution.total")
+            this.totalResolutions = Counter.builder("mcp.tool.resolution.total")
                 .description("Total tool resolutions")
                 .register(meterRegistry);
-                
-            this.successfulResolutions = Counter.builder("tool.resolution.success")
+
+            this.successfulResolutions = Counter.builder("mcp.tool.resolution.success")
                 .description("Successful tool resolutions")
                 .register(meterRegistry);
-                
-            this.failedResolutions = Counter.builder("tool.resolution.failed")
+
+            this.failedResolutions = Counter.builder("mcp.tool.resolution.failed")
                 .description("Failed tool resolutions")
                 .register(meterRegistry);
-                
-            this.totalExecutions = Counter.builder("tool.execution.total")
+
+            this.totalExecutions = Counter.builder("mcp.tool.execution.total")
                 .description("Total tool executions")
                 .register(meterRegistry);
-                
-            this.successfulExecutions = Counter.builder("tool.execution.success")
+
+            this.successfulExecutions = Counter.builder("mcp.tool.execution.success")
                 .description("Successful tool executions")
                 .register(meterRegistry);
-                
-            this.failedExecutions = Counter.builder("tool.execution.failed")
+
+            this.failedExecutions = Counter.builder("mcp.tool.execution.failed")
                 .description("Failed tool executions")
                 .register(meterRegistry);
-                
+
             // 타이머 초기화
-            this.resolutionTimer = Timer.builder("tool.resolution.time")
+            this.resolutionTimer = Timer.builder("mcp.tool.resolution.time")
                 .description("Tool resolution time")
                 .register(meterRegistry);
-                
-            this.executionTimer = Timer.builder("tool.execution.time")
+
+            this.executionTimer = Timer.builder("mcp.tool.execution.time")
                 .description("Tool execution time")
                 .register(meterRegistry);
                 
-            log.info("MetricsCollector 초기화 완료 (Micrometer 활성화)");
+            log.info("MCPToolMetrics 초기화 완료 (Micrometer 활성화)");
         } else {
             // Micrometer가 없는 경우 null 객체 패턴 사용
             this.totalResolutions = null;
@@ -89,7 +92,7 @@ public class MetricsCollector {
             this.resolutionTimer = null;
             this.executionTimer = null;
             
-            log.info("MetricsCollector 초기화 완료 (Micrometer 비활성화)");
+            log.info("MCPToolMetrics 초기화 완료 (Micrometer 비활성화)");
         }
     }
     
@@ -164,59 +167,59 @@ public class MetricsCollector {
      */
     public void recordToolExecutionTime(String toolName, long elapsedTimeMillis) {
         if (meterRegistry != null) {
-            Timer.builder("tool.execution.time.by.name")
+            Timer.builder("mcp.tool.execution.time.by.name")
                 .tag("tool", toolName)
                 .register(meterRegistry)
                 .record(Duration.ofMillis(elapsedTimeMillis));
         }
-        
+
         String key = "execution." + toolName + ".time";
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0))
             .addAndGet(elapsedTimeMillis);
     }
-    
+
     /**
      * 캐시 히트 기록
      */
     public void recordCacheHit(String toolName) {
         if (meterRegistry != null) {
-            Counter.builder("tool.cache.hit")
+            Counter.builder("mcp.tool.cache.hit")
                 .tag("tool", toolName)
                 .register(meterRegistry)
                 .increment();
         }
-        
+
         String key = "cache." + toolName + ".hits";
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
     }
-    
+
     /**
      * 캐시 미스 기록
      */
     public void recordCacheMiss(String toolName) {
         if (meterRegistry != null) {
-            Counter.builder("tool.cache.miss")
+            Counter.builder("mcp.tool.cache.miss")
                 .tag("tool", toolName)
                 .register(meterRegistry)
                 .increment();
         }
-        
+
         String key = "cache." + toolName + ".misses";
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
     }
-    
+
     /**
      * 승인 요청 기록
      */
     public void recordApprovalRequest(String toolName, boolean approved) {
         if (meterRegistry != null) {
-            Counter.builder("tool.approval")
+            Counter.builder("mcp.tool.approval")
                 .tag("tool", toolName)
                 .tag("result", approved ? "approved" : "rejected")
                 .register(meterRegistry)
                 .increment();
         }
-        
+
         String key = "approval." + toolName + (approved ? ".approved" : ".rejected");
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
     }
@@ -260,5 +263,98 @@ public class MetricsCollector {
         resolverMetrics.clear();
         executionMetrics.clear();
         log.info("메트릭 리셋 완료");
+    }
+
+    // ===== MetricsCollector 인터페이스 구현 =====
+
+    @Override
+    public String getDomain() {
+        return "mcp";
+    }
+
+    @Override
+    public void initialize() {
+        // 이미 생성자에서 초기화됨
+        log.info("MCPToolMetrics 초기화 완료");
+    }
+
+    // getStatistics()는 이미 구현되어 있음
+    // reset()은 이미 구현되어 있음
+
+    // ===== DomainMetrics 인터페이스 구현 =====
+
+    @Override
+    public double getHealthScore() {
+        if (meterRegistry == null) return 1.0;
+
+        double totalRes = totalResolutions != null ? totalResolutions.count() : 0;
+        double successRes = successfulResolutions != null ? successfulResolutions.count() : 0;
+        double totalExec = totalExecutions != null ? totalExecutions.count() : 0;
+        double successExec = successfulExecutions != null ? successfulExecutions.count() : 0;
+
+        double resolutionRate = totalRes > 0 ? successRes / totalRes : 1.0;
+        double executionRate = totalExec > 0 ? successExec / totalExec : 1.0;
+
+        return (resolutionRate + executionRate) / 2.0;
+    }
+
+    @Override
+    public Map<String, Double> getKeyMetrics() {
+        Map<String, Double> metrics = new HashMap<>();
+        if (meterRegistry != null) {
+            metrics.put("resolution_count", totalResolutions != null ? totalResolutions.count() : 0.0);
+            metrics.put("execution_count", totalExecutions != null ? totalExecutions.count() : 0.0);
+            metrics.put("success_rate", getHealthScore());
+        }
+        return metrics;
+    }
+
+    // ===== EventRecorder 인터페이스 구현 =====
+
+    @Override
+    public void recordEvent(String eventType, Map<String, Object> metadata) {
+        switch (eventType) {
+            case "resolution_success":
+                String resolver = metadata.containsKey("resolver") ?
+                    (String) metadata.get("resolver") : "unknown";
+                long resDuration = metadata.containsKey("duration") ?
+                    ((Number) metadata.get("duration")).longValue() : 0L;
+                recordResolution(resolver, resDuration);
+                break;
+            case "resolution_failure":
+                String failedResolver = metadata.containsKey("resolver") ?
+                    (String) metadata.get("resolver") : "unknown";
+                Exception error = metadata.containsKey("error") ?
+                    (Exception) metadata.get("error") : new RuntimeException("Unknown error");
+                recordResolutionFailure(failedResolver, error);
+                break;
+            case "execution_success":
+                String tool = metadata.containsKey("tool") ?
+                    (String) metadata.get("tool") : "unknown";
+                long execDuration = metadata.containsKey("duration") ?
+                    ((Number) metadata.get("duration")).longValue() : 0L;
+                recordExecution(tool, execDuration, true);
+                break;
+            case "execution_failure":
+                String failedTool = metadata.containsKey("tool") ?
+                    (String) metadata.get("tool") : "unknown";
+                long failedDuration = metadata.containsKey("duration") ?
+                    ((Number) metadata.get("duration")).longValue() : 0L;
+                recordExecution(failedTool, failedDuration, false);
+                break;
+            default:
+                log.warn("Unknown event type: {}", eventType);
+        }
+    }
+
+    @Override
+    public void recordDuration(String operationName, long durationNanos) {
+        if (meterRegistry == null) return;
+
+        if ("resolution".equals(operationName) && resolutionTimer != null) {
+            resolutionTimer.record(durationNanos, TimeUnit.NANOSECONDS);
+        } else if ("execution".equals(operationName) && executionTimer != null) {
+            executionTimer.record(durationNanos, TimeUnit.NANOSECONDS);
+        }
     }
 }

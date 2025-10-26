@@ -2,7 +2,7 @@ package io.contexa.contexaiam.aiam.labs.condition;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.std.rag.service.VectorStoreMetrics;
+import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;

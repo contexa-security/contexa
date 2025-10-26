@@ -1,7 +1,7 @@
 package io.contexa.contexacore.soar.approval;
 
 import io.contexa.contexacore.soar.config.ToolApprovalPolicyManager;
-import io.contexa.contexacore.soar.config.ToolExecutionMetrics;
+import io.contexa.contexacore.dashboard.metrics.soar.ToolExecutionMetrics;
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarExecutionMode;
@@ -413,6 +413,16 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
                 duration,
                 success
             );
+
+            // EventRecorder 인터페이스를 통한 이벤트 기록
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("tool", tool.name);
+            metadata.put("duration", duration * 1_000_000); // ms to ns
+            metadata.put("success", success);
+            metadata.put("request_id", requestId);
+
+            String eventType = success ? "execution_success" : "execution_failure";
+            executionMetrics.recordEvent(eventType, metadata);
         }
         
         if (log.isDebugEnabled()) {

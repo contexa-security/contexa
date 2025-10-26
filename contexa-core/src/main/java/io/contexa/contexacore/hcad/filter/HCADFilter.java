@@ -1,9 +1,7 @@
 package io.contexa.contexacore.hcad.filter;
 
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.domain.HCADAnalysisResult;
-import io.contexa.contexacore.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
@@ -45,7 +43,6 @@ public class HCADFilter extends OncePerRequestFilter {
 
     private final HCADAnalysisService hcadAnalysisService;
     private final @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate;
-    private final HCADMetricsService metricsService;
     private final HCADAuthenticationService authenticationService;
 
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
@@ -138,10 +135,8 @@ public class HCADFilter extends OncePerRequestFilter {
             // 5. 통계 업데이트
             hcadAnalysisService.updateStatisticsIfNeeded(result);
 
-            // 6. 메트릭 기록 (이상 탐지 시)
-            if (result.isAnomaly() || result.getAnomalyScore() >= warnThreshold) {
-                metricsService.recordMetrics(result.getUserId(), result.getAnomalyScore(), result.getProcessingTimeMs(), false);
-            }
+            // 6. 메트릭은 HCADAnalysisService에서 자동으로 수집됨 (Micrometer 기반)
+            // EvolutionMetricsCollector.recordHCADAnalysis() 호출됨
 
             // 요청 통과
             filterChain.doFilter(request, response);

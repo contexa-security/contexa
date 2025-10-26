@@ -12,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
+import io.contexa.contexacore.dashboard.metrics.zerotrust.EventPublishingMetrics;
 
 import java.util.function.Supplier;
 
@@ -23,6 +24,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1; // 다른 인터셉터보다 약간 뒤에 실행
     private final Supplier<SecurityContextHolderStrategy> securityContextHolderStrategy = SecurityContextHolder::getContextHolderStrategy;
     private AuthorizationEventPublisher authorizationEventPublisher;
+    private EventPublishingMetrics metricsCollector;
 
     public AuthorizationManagerMethodInterceptor(Pointcut pointcut, ProtectableMethodAuthorizationManager authorizationManager) {
         this.pointcut = pointcut;
@@ -79,6 +81,10 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     public void setAuthorizationEventPublisher(AuthorizationEventPublisher authorizationEventPublisher) {
         this.authorizationEventPublisher = authorizationEventPublisher;
     }
+
+    public void setMetricsCollector(EventPublishingMetrics metricsCollector) {
+        this.metricsCollector = metricsCollector;
+    }
     
     /**
      * @Protectable 메서드 접근에 대한 이벤트 발행
@@ -91,6 +97,9 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         }
         
         try {
+            // ===== 메트릭 수집 =====
+            long startTime = System.nanoTime();
+
             // 통합된 AuthorizationEventPublisher 사용 - 올바른 시그니처 사용
             authorizationEventPublisher.publishMethodAuthorizationDecisionAsync(
                 mi,
@@ -98,11 +107,18 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 granted,
                 denialReason
             );
-            
+
+            long duration = System.nanoTime() - startTime;
+
+            if (metricsCollector != null) {
+                metricsCollector.recordProtectable(duration);
+                metricsCollector.recordAuthzDecision();
+            }
+
             String resource = mi.getMethod().getDeclaringClass().getSimpleName() + "." + mi.getMethod().getName();
-            log.debug("Published authorization event for @Protectable method: {} - granted: {}", 
+            log.debug("Published authorization event for @Protectable method: {} - granted: {}",
                      resource, granted);
-                     
+
         } catch (Exception e) {
             log.error("Failed to publish authorization event", e);
         }

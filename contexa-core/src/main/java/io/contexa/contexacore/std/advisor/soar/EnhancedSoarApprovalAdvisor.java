@@ -6,7 +6,7 @@ import io.contexa.contexacore.std.advisor.core.AdvisorContext;
 import io.contexa.contexacore.std.advisor.core.DomainPolicy;
 import io.contexa.contexacore.std.advisor.core.SharedAdvisorContext;
 import io.contexa.contexacore.soar.config.ToolApprovalPolicyManager;
-import io.contexa.contexacore.soar.config.ToolExecutionMetrics;
+import io.contexa.contexacore.dashboard.metrics.soar.ToolExecutionMetrics;
 import io.contexa.contexacommon.annotation.SoarTool;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;

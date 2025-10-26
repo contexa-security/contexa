@@ -1,0 +1,261 @@
+groups:
+  - name: security_health
+    interval: 30s
+    rules:
+      # 전체 보안 건강도 임계값
+      - alert: SecurityHealthCritical
+        expr: security_health_overall < 0.5
+        for: 5m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "전체 보안 건강도 심각 ({{ $value | humanizePercentage }})"
+          description: "전체 보안 시스템 건강도가 50% 미만입니다. 즉시 확인이 필요합니다."
+
+      - alert: SecurityHealthWarning
+        expr: security_health_overall < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "전체 보안 건강도 경고 ({{ $value | humanizePercentage }})"
+          description: "전체 보안 시스템 건강도가 70% 미만입니다. 점검이 필요합니다."
+
+      # 도메인별 건강도
+      - alert: DomainHealthCritical
+        expr: security_domain_health < 0.5
+        for: 5m
+        labels:
+          severity: critical
+          category: security
+        annotations:
+          summary: "{{ $labels.domain }} 도메인 건강도 심각 ({{ $value | humanizePercentage }})"
+          description: "{{ $labels.domain }} 도메인의 건강도가 50% 미만입니다."
+
+  - name: evolution_learning
+    interval: 30s
+    rules:
+      # Evolution 건강도
+      - alert: EvolutionHealthLow
+        expr: evolution_health_score < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          category: evolution
+        annotations:
+          summary: "Evolution 건강도 낮음 ({{ $value | humanizePercentage }})"
+          description: "Evolution 도메인 건강도가 70% 미만입니다."
+
+      # 자동 승인율 낮음
+      - alert: LowAutoApprovalRate
+        expr: |
+          (
+            sum(increase(evolution_proposals_approved_total[1h]))
+            /
+            sum(increase(evolution_proposals_created_total[1h]))
+          ) < 0.5
+        for: 1h
+        labels:
+          severity: warning
+          category: evolution
+        annotations:
+          summary: "정책 자동 승인율 낮음 ({{ $value | humanizePercentage }})"
+          description: "지난 1시간 동안 정책 자동 승인율이 50% 미만입니다. AI 모델 품질을 확인하세요."
+
+      # AI 호출 실패율 높음
+      - alert: HighAIFailureRate
+        expr: |
+          (
+            sum(rate(evolution_ai_calls_failure_total[15m]))
+            /
+            (sum(rate(evolution_ai_calls_success_total[15m])) + sum(rate(evolution_ai_calls_failure_total[15m])))
+          ) > 0.1
+        for: 15m
+        labels:
+          severity: critical
+          category: evolution
+        annotations:
+          summary: "AI 호출 실패율 높음 ({{ $value | humanizePercentage }})"
+          description: "AI 호출 실패율이 10%를 초과했습니다. AI 서비스 상태를 확인하세요."
+
+      # AI 호출 지연시간 높음
+      - alert: SlowAICallLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(evolution_ai_call_duration_seconds_bucket[5m])) by (le)
+          ) > 5
+        for: 10m
+        labels:
+          severity: warning
+          category: evolution
+        annotations:
+          summary: "AI 호출 지연시간 높음 (P95: {{ $value }}s)"
+          description: "AI 호출 P95 지연시간이 5초를 초과했습니다."
+
+      # SpEL 추출 실패율 높음
+      - alert: HighSpelExtractionFailureRate
+        expr: |
+          (
+            sum(rate(evolution_spel_extraction_failure_total[15m]))
+            /
+            (sum(rate(evolution_spel_extraction_success_total[15m])) + sum(rate(evolution_spel_extraction_failure_total[15m])))
+          ) > 0.3
+        for: 15m
+        labels:
+          severity: warning
+          category: evolution
+        annotations:
+          summary: "SpEL 추출 실패율 높음 ({{ $value | humanizePercentage }})"
+          description: "SpEL 표현식 추출 실패율이 30%를 초과했습니다. AI 프롬프트를 확인하세요."
+
+      # 정책 제안 생성 중단
+      - alert: NoProposalsGenerated
+        expr: |
+          rate(evolution_proposals_created_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          category: evolution
+        annotations:
+          summary: "정책 제안 생성 중단"
+          description: "지난 30분간 정책 제안이 생성되지 않았습니다. 학습 시스템을 확인하세요."
+
+  - name: hcad_monitoring
+    interval: 30s
+    rules:
+      # HCAD 분석 지연시간 높음
+      - alert: SlowHCADAnalysis
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(hcad_analysis_duration_seconds_bucket[5m])) by (le)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          category: hcad
+        annotations:
+          summary: "HCAD 분석 느림 (P95: {{ $value | humanizeDuration }})"
+          description: "HCAD 분석 P95 지연시간이 50ms를 초과했습니다. 성능 최적화가 필요합니다."
+
+      # HCAD 차단율 급증
+      - alert: HighHCADBlockRate
+        expr: |
+          (
+            sum(rate(hcad_analysis_blocked_total[15m]))
+            /
+            sum(rate(hcad_analysis_total[15m]))
+          ) > 0.1
+        for: 15m
+        labels:
+          severity: critical
+          category: hcad
+        annotations:
+          summary: "HCAD 차단율 급증 ({{ $value | humanizePercentage }})"
+          description: "HCAD 차단율이 10%를 초과했습니다. 공격 시도 또는 오탐 가능성을 확인하세요."
+
+      # HCAD 경고 임계값 초과 급증
+      - alert: HighHCADWarningRate
+        expr: |
+          (
+            sum(rate(hcad_analysis_warned_total[15m]))
+            /
+            sum(rate(hcad_analysis_total[15m]))
+          ) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+          category: hcad
+        annotations:
+          summary: "HCAD 경고율 높음 ({{ $value | humanizePercentage }})"
+          description: "HCAD 경고 임계값 초과율이 20%를 초과했습니다."
+
+      # HCAD 느린 요청 비율 높음
+      - alert: HighHCADSlowRequestRate
+        expr: |
+          (
+            sum(rate(hcad_analysis_slow_requests_total[15m]))
+            /
+            sum(rate(hcad_analysis_total[15m]))
+          ) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+          category: hcad
+        annotations:
+          summary: "HCAD 느린 요청 비율 높음 ({{ $value | humanizePercentage }})"
+          description: "30ms 이상 소요되는 HCAD 분석이 10%를 초과했습니다."
+
+      # HCAD 학습 중단 (Bootstrap 단계)
+      - alert: HCADBootstrapLearningStalled
+        expr: |
+          rate(hcad_learning_decisions_total{phase="bootstrap", decision="updated"}[30m]) == 0
+          and
+          rate(hcad_learning_decisions_total{phase="bootstrap"}[30m]) > 0
+        for: 30m
+        labels:
+          severity: warning
+          category: hcad
+        annotations:
+          summary: "HCAD Bootstrap 학습 중단"
+          description: "Bootstrap 단계의 베이스라인 학습이 30분간 중단되었습니다."
+
+  - name: zerotrust_integration
+    interval: 30s
+    rules:
+      # ZeroTrust → Evolution 이벤트 흐름 중단
+      - alert: ZeroTrustEvolutionIntegrationDown
+        expr: |
+          rate(security_cross_domain_events_total{source="zerotrust", target="evolution"}[15m]) == 0
+        for: 15m
+        labels:
+          severity: critical
+          category: integration
+        annotations:
+          summary: "ZeroTrust → Evolution 통합 중단"
+          description: "ZeroTrust에서 Evolution으로의 이벤트 흐름이 15분간 중단되었습니다."
+
+      # 종단간 처리 지연시간 높음
+      - alert: HighEndToEndLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(security_latency_end_to_end_bucket[5m])) by (le)
+          ) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "종단간 처리 지연시간 높음 (P95: {{ $value }}s)"
+          description: "보안 이벤트 종단간 처리 P95 지연시간이 1초를 초과했습니다."
+
+  - name: incident_processing
+    interval: 30s
+    rules:
+      # 인시던트 처리 실패율 높음
+      - alert: HighIncidentProcessingFailureRate
+        expr: |
+          (
+            sum(rate(evolution_coordinator_incidents_by_severity_total{successful="false"}[15m]))
+            /
+            sum(rate(evolution_coordinator_incidents_by_severity_total[15m]))
+          ) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+          category: evolution
+        annotations:
+          summary: "인시던트 처리 실패율 높음 ({{ $value | humanizePercentage }})"
+          description: "인시던트 처리 실패율이 20%를 초과했습니다. 학습 코디네이터를 확인하세요."
+
+      # 일일 제안 한도 도달
+      - alert: DailyProposalLimitReached
+        expr: increase(evolution_daily_limit_reached_total[1h]) > 0
+        for: 5m
+        labels:
+          severity: info
+          category: evolution
+        annotations:
+          summary: "일일 정책 제안 한도 도달"
+          description: "일일 정책 제안 생성 한도에 도달했습니다. 설정을 확인하세요."

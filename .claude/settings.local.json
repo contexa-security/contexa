@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker restart:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker exec:*)",
+      "Bash(winpty docker exec contexa-grafana ls -la //etc//grafana//provisioning//dashboards//)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(docker network inspect:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(find:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(python3:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(git checkout:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker volume:*)",
+      "Bash(docker-compose stop:*)",
+      "Bash(docker-compose rm:*)",
+      "Bash(./gradlew :contexa-core:compileJava:*)",
+      "Bash(./gradlew :contexa-iam:compileJava:*)",
+      "Bash(awk:*)",
+      "Bash(xargs:*)",
+      "Bash(for class in EvolutionMetricsCollector MCPToolMetrics OrthogonalSignalCollector ToolExecutionMetrics SystemMetricsCollector UnifiedSecurityMetricsCollector VectorStoreMetrics EventPublishingMetrics HCADFeedbackLoopMetrics RoutingDecisionMetrics)",
+      "Bash(do echo \"=== $class ===\")",
+      "Bash(done)",
+      "Bash(./gradlew compileJava:*)",
+      "Bash(for file in ./contexa-core/src/main/java/io/contexa/contexacore/dashboard/metrics/*/*.java)",
+      "Bash(psql:*)",
+      "Bash(winpty docker exec:*)",
+      "Bash(jps -l:*)",
+      "Bash(cut:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

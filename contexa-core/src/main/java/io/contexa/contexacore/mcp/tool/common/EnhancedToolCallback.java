@@ -1,5 +1,6 @@
 package io.contexa.contexacore.mcp.tool.common;
 
+import io.contexa.contexacore.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacommon.annotation.SoarTool;
 import lombok.Builder;
 import lombok.Getter;
@@ -7,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -67,7 +69,10 @@ public class EnhancedToolCallback implements ToolCallback {
     
     private final String source;  // 도구 출처 (예: "brave-search", "soar-provider")
     private final String category; // 도구 카테고리 (예: "NETWORK", "SECURITY")
-    
+
+    // 메트릭 수집기 (선택적)
+    private final MCPToolMetrics metricsCollector;
+
     // 실행 통계
     @Builder.Default
     private final ExecutionStats stats = new ExecutionStats();
@@ -106,23 +111,37 @@ public class EnhancedToolCallback implements ToolCallback {
             // 실제 도구 실행
             result = delegate.call(arguments);
             success = true;
-            
+
             // 실행 후 처리
             afterExecution(result);
-            
+
             return result;
-            
+
         } catch (Exception e) {
             log.error("도구 실행 실패: {} - {}", getToolName(), e.getMessage(), e);
             handleExecutionError(e);
             throw new RuntimeException("Tool execution failed: " + e.getMessage(), e);
-            
+
         } finally {
             // 통계 기록
             long executionTime = System.currentTimeMillis() - startTime;
             stats.record(executionTime, success);
-            
-            log.trace("도구 실행 완료: {} ({}ms, 성공: {})", 
+
+            // 메트릭 수집기에 이벤트 기록
+            if (metricsCollector != null) {
+                long durationNanos = executionTime * 1_000_000; // ms to ns
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("tool", getToolName());
+                metadata.put("duration", durationNanos);
+                metadata.put("success", success);
+                metadata.put("toolType", toolType.name());
+                metadata.put("source", source);
+
+                String eventType = success ? "execution_success" : "execution_failure";
+                metricsCollector.recordEvent(eventType, metadata);
+            }
+
+            log.trace("도구 실행 완료: {} ({}ms, 성공: {})",
                 getToolName(), executionTime, success);
         }
     }

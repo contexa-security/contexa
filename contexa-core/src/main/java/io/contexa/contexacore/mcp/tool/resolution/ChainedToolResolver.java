@@ -3,7 +3,7 @@ package io.contexa.contexacore.mcp.tool.resolution;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.contexa.contexacore.mcp.tool.common.EnhancedToolCallback;
-import io.contexa.contexacore.mcp.tool.observation.MetricsCollector;
+import io.contexa.contexacore.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacore.mcp.tool.provider.McpClientProvider;
 import io.contexa.contexacommon.annotation.SoarTool;
 import jakarta.annotation.PostConstruct;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ChainedToolResolver implements ToolCallbackResolver {
     
-    private final MetricsCollector metricsCollector;
+    private final MCPToolMetrics metricsCollector;
     private final SpringBeanToolCallbackResolver springBeanToolCallbackResolver;
     private final McpToolResolver mcpToolResolver;
     private final StaticToolCallbackResolver staticToolCallbackResolver;
@@ -206,6 +206,7 @@ public class ChainedToolResolver implements ToolCallbackResolver {
             .contextAware(true)
             .source(resolverName)
             .metadata(metadata)
+            .metricsCollector(metricsCollector)  // 메트릭 수집기 전달
             .build();
     }
     

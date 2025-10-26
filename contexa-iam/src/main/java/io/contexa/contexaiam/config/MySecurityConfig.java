@@ -3,6 +3,7 @@ package io.contexa.contexaiam.config;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationFailureEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
 import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFilter;
+import io.contexa.contexacore.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexacore.autonomous.notification.UnifiedNotificationService;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.hcad.domain.HCADAnalysisResult;
@@ -63,6 +64,7 @@ public class MySecurityConfig {
     private final SecurityEventPublishingFilter securityEventPublishingFilter;
     private final ApplicationEventPublisher eventPublisher;
     private final UserIdentificationService userIdentificationService;
+    private final EventPublishingMetrics metricsCollector;
 
     private final HCADAnalysisService hcadAnalysisService;
 
@@ -98,7 +100,14 @@ public class MySecurityConfig {
                                     .trustScore(result.getTrustScore());
 
                     AuthenticationSuccessEvent event = builder.build();
+
+                    // ===== 메트릭 수집 =====
+                    long startTime = System.nanoTime();
                     eventPublisher.publishEvent(event);
+                    long duration = System.nanoTime() - startTime;
+
+                    metricsCollector.recordLogin(duration);
+                    metricsCollector.recordAuthSuccess();
 
                     request.setAttribute("security.event.published", true);
                     response.sendRedirect("/admin");
@@ -131,7 +140,14 @@ public class MySecurityConfig {
                                     .hcadSimilarityScore(result.getSimilarityScore());
 
                     AuthenticationFailureEvent event = builder.build();
+
+                    // ===== 메트릭 수집 =====
+                    long startTime = System.nanoTime();
                     eventPublisher.publishEvent(event);
+                    long duration = System.nanoTime() - startTime;
+
+                    metricsCollector.recordLogin(duration);
+                    metricsCollector.recordAuthFailure();
 
                     // 이벤트 발행 플래그 설정 (SecurityEventPublishingFilter에서 중복 방지)
                     request.setAttribute("security.event.published", true);

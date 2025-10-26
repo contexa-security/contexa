@@ -9,8 +9,9 @@ import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.intelligence.AITuningService;
-import io.contexa.contexacore.autonomous.metrics.SystemMetricsCollector;
+import io.contexa.contexacore.dashboard.metrics.unified.SystemMetricsCollector;
 import io.contexa.contexacore.autonomous.metrics.PolicyUsageMetricsService;
+import io.contexa.contexacore.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.domain.SoarIncidentStatus;
 import io.contexa.contexacore.domain.entity.SoarIncident;
@@ -49,6 +50,7 @@ public class AutonomousLearningCoordinator {
     private final PolicyProposalRepository proposalRepository;
     private final ApplicationEventPublisher eventPublisher;
     private SystemMetricsCollector metricsCollector;
+    private EvolutionMetricsCollector evolutionMetricsCollector;
     private AccessGovernanceLabConnector accessGovernanceConnector;
     private PolicyUsageMetricsService policyUsageMetrics;
 
@@ -69,6 +71,11 @@ public class AutonomousLearningCoordinator {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     public void setMetricsCollector(SystemMetricsCollector metricsCollector) {
         this.metricsCollector = metricsCollector;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setEvolutionMetricsCollector(EvolutionMetricsCollector evolutionMetricsCollector) {
+        this.evolutionMetricsCollector = evolutionMetricsCollector;
     }
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -127,9 +134,10 @@ public class AutonomousLearningCoordinator {
             log.debug("학습 코디네이터가 비활성화되어 있습니다");
             return;
         }
-        
+
         log.info("인시던트 해결 이벤트 수신 - IncidentId: {}", event.getIncidentId());
-        
+        long startTime = System.currentTimeMillis();
+
         try {
             // 1. 보안 이벤트 추출
             SecurityEvent securityEvent = event.getSecurityEvent();
@@ -137,25 +145,43 @@ public class AutonomousLearningCoordinator {
                 log.warn("보안 이벤트가 없습니다: {}", event.getIncidentId());
                 return;
             }
-            
+
             // 2. 학습 메타데이터 생성
             LearningMetadata metadata = extractLearningMetadata(event);
-            
+
             // 3. 학습 가능 여부 확인
             if (!canLearn(metadata)) {
                 log.info("학습 조건을 만족하지 않습니다. Confidence: {}", metadata.getConfidenceScore());
+
+                // 📊 메트릭: 학습 조건 미달로 인한 처리 건너뜀
+                if (evolutionMetricsCollector != null) {
+                    evolutionMetricsCollector.recordIncidentProcessed(
+                        securityEvent.getSeverity().name(),
+                        false,
+                        "low_confidence"
+                    );
+                }
                 return;
             }
-            
+
             // 4. 일일 제한 확인
             if (!checkDailyLimit()) {
                 log.warn("일일 제안 생성 한도 초과");
+
+                // 📊 메트릭: 일일 제한 초과로 인한 처리 건너뜀
+                if (evolutionMetricsCollector != null) {
+                    evolutionMetricsCollector.recordIncidentProcessed(
+                        securityEvent.getSeverity().name(),
+                        false,
+                        "daily_limit_exceeded"
+                    );
+                }
                 return;
             }
-            
+
             // 5. 정책 진화 트리거
             triggerPolicyEvolution(securityEvent, metadata);
-            
+
             // 6. AI 모델 튜닝
             AITuningService.UserFeedback feedback = AITuningService.UserFeedback.builder()
                 .feedbackType("FALSE_POSITIVE")
@@ -163,12 +189,32 @@ public class AutonomousLearningCoordinator {
                 .timestamp(LocalDateTime.now())
                 .build();
             tuningService.learnFalsePositive(securityEvent, feedback).subscribe();
-            
+
             // 7. 통계 업데이트
             totalEventsProcessed.incrementAndGet();
-            
+
+            // 📊 메트릭: 인시던트 처리 성공
+            if (evolutionMetricsCollector != null) {
+                evolutionMetricsCollector.recordIncidentProcessed(
+                    securityEvent.getSeverity().name(),
+                    true,
+                    metadata.getLearningType().name()
+                );
+            }
+
         } catch (Exception e) {
             log.error("인시던트 학습 처리 실패", e);
+
+            // 📊 메트릭: 인시던트 처리 실패
+            if (evolutionMetricsCollector != null) {
+                String severity = event.getSecurityEvent() != null ?
+                    event.getSecurityEvent().getSeverity().name() : "UNKNOWN";
+                evolutionMetricsCollector.recordIncidentProcessed(
+                    severity,
+                    false,
+                    "error"
+                );
+            }
         }
     }
     
@@ -538,6 +584,15 @@ public class AutonomousLearningCoordinator {
             // 실제 시스템 메트릭 수집
             Map<String, Object> systemState = metricsCollector != null ?
                 metricsCollector.getSystemMetrics() : new HashMap<>();
+
+            // EventRecorder 인터페이스 호출
+            if (metricsCollector != null && systemState != null && !systemState.isEmpty()) {
+                Map<String, Object> eventMetadata = new HashMap<>();
+                eventMetadata.put("threat_level", systemState.get("threatLevel"));
+                eventMetadata.put("active_incidents", systemState.get("activeIncidents"));
+                eventMetadata.put("event_rate", systemState.get("eventRatePerMinute"));
+                metricsCollector.recordEvent("system_state_analyzed", eventMetadata);
+            }
 
             // 이상 징후 탐지
             if (systemState != null && !systemState.isEmpty()) {

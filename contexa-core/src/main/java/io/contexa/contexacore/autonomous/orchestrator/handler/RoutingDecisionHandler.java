@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.orchestrator.handler;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.dashboard.metrics.zerotrust.RoutingDecisionMetrics;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.tiered.routing.AdaptiveTierRouter;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
@@ -10,6 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 라우팅 결정 핸들러
@@ -30,6 +34,9 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
     @Autowired(required = false)
     private AdaptiveTierRouter tierRouter;
 
+    @Autowired(required = false)
+    private RoutingDecisionMetrics routingMetrics;
+
     @Value("${security.plane.agent.similarity-threshold:0.70}")
     private double similarityThreshold;
 
@@ -49,6 +56,9 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
         }
 
         log.info("[RoutingDecisionHandler] Making routing decision for event: {}", event.getEventId());
+
+        // ===== 메트릭 수집: 라우팅 결정 시간 측정 시작 =====
+        long startTime = System.nanoTime();
 
         try {
             // 벡터 유사도 기반 라우팅 결정
@@ -87,6 +97,31 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
 
             // 처리 모드별 추가 메타데이터
             addModeSpecificMetadata(context, mode, similarityScore, confidence);
+
+            // ===== 메트릭 수집: 라우팅 결정 기록 =====
+            long duration = System.nanoTime() - startTime;
+            if (routingMetrics != null) {
+                // Hot/Cold Path 구분 (0.70 기준)
+                boolean isHotPath = similarityScore > similarityThreshold;
+                if (isHotPath) {
+                    routingMetrics.recordHotPath(duration, similarityScore, mode.toString());
+                } else {
+                    routingMetrics.recordColdPath(duration, similarityScore, mode.toString());
+                }
+
+                // EventRecorder 인터페이스를 통한 이벤트 기록
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("path_type", isHotPath ? "hot" : "cold");
+                metadata.put("mode", mode.toString());
+                metadata.put("similarity_score", similarityScore);
+                metadata.put("risk_score", riskScore);
+                metadata.put("confidence", confidence);
+                metadata.put("duration", duration);
+                metadata.put("event_id", event.getEventId());
+
+                String eventType = isHotPath ? "routing_hot" : "routing_cold";
+                routingMetrics.recordEvent(eventType, metadata);
+            }
 
             return true; // 다음 핸들러로 진행
 

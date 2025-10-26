@@ -4,6 +4,7 @@ import io.contexa.contexacore.autonomous.domain.LearningMetadata;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.intelligence.AITuningService;
+import io.contexa.contexacore.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,6 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 정책 진화 엔진
@@ -35,10 +36,14 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class PolicyEvolutionEngine {
-    
+
     private final ChatModel chatModel;
     private final UnifiedVectorService unifiedVectorService;
     private final AITuningService tuningService;
+
+    // Metrics Collector (Optional - 없어도 동작)
+    @Autowired(required = false)
+    private EvolutionMetricsCollector metricsCollector;
     
     @Value("${policy.evolution.confidence.threshold:0.7}")
     private double confidenceThreshold;
@@ -67,9 +72,10 @@ public class PolicyEvolutionEngine {
      * @return 진화된 정책 제안
      */
     public PolicyEvolutionProposal evolvePolicy(SecurityEvent event, LearningMetadata metadata) {
-        log.info("🧬 정책 진화 시작 - EventId: {}, LearningType: {}", 
+        long startTime = System.currentTimeMillis();
+        log.info("🧬 정책 진화 시작 - EventId: {}, LearningType: {}",
                  event.getEventId(), metadata.getLearningType());
-        
+
         try {
             // 1. Redis 캐시 확인
             String cacheKey = generateCacheKey(event, metadata);
@@ -80,37 +86,73 @@ public class PolicyEvolutionEngine {
                     return cachedProposal;
                 }
             }
-            
+
             // 2. 컨텍스트 수집
             Map<String, Object> context = collectContext(event, metadata);
-            
+
             // 3. 유사 사례 검색
             List<Document> similarCases = searchSimilarCases(event, metadata);
-            
+
+            // 📊 메트릭: 유사 사례 검색 결과
+            if (metricsCollector != null) {
+                metricsCollector.recordSimilarCasesFound(similarCases.size());
+            }
+
             // 4. AI 분석 및 정책 생성
             PolicyEvolutionProposal proposal = generateProposal(event, metadata, context, similarCases);
-            
+
             // 5. 신뢰도 평가
             evaluateConfidence(proposal, context, similarCases);
-            
+
             // 6. 위험도 평가
             assessRiskLevel(proposal, event, metadata);
-            
+
             // 7. Redis 캐시 저장
             if (enableCaching) {
                 saveToRedisCache(cacheKey, proposal);
             }
-            
+
             // 8. 벡터 스토어에 학습 데이터 저장
             storeLearningData(event, metadata, proposal);
-            
-            log.info("정책 진화 완료 - ProposalType: {}, Confidence: {}, Risk: {}", 
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("정책 진화 완료 - ProposalType: {}, Confidence: {}, Risk: {}",
                      proposal.getProposalType(), proposal.getConfidenceScore(), proposal.getRiskLevel());
-            
+
+            // 📊 메트릭: 정책 제안 생성 성공
+            if (metricsCollector != null) {
+                metricsCollector.recordProposalCreation(
+                    duration,
+                    proposal.getProposalType().name(),
+                    proposal.getRiskLevel().name(),
+                    proposal.getConfidenceScore()
+                );
+
+                // EventRecorder 인터페이스 호출
+                Map<String, Object> eventMetadata = new HashMap<>();
+                eventMetadata.put("proposal_type", proposal.getProposalType().name());
+                eventMetadata.put("risk_level", proposal.getRiskLevel().name());
+                eventMetadata.put("confidence_score", proposal.getConfidenceScore());
+                eventMetadata.put("duration", duration);
+                metricsCollector.recordEvent("proposal_created", eventMetadata);
+            }
+
             return proposal;
-            
+
         } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
             log.error("❌ 정책 진화 실패 - EventId: {}", event.getEventId(), e);
+
+            // 📊 메트릭: 정책 제안 생성 실패
+            if (metricsCollector != null) {
+                metricsCollector.recordProposalCreation(
+                    duration,
+                    "FAILURE",
+                    "UNKNOWN",
+                    0.0
+                );
+            }
+
             return createFailureProposal(event, metadata, e);
         }
     }
@@ -383,11 +425,41 @@ public class PolicyEvolutionEngine {
      * AI 호출
      */
     private String callAI(String prompt) {
+        long startTime = System.currentTimeMillis();
         try {
             Prompt aiPrompt = new Prompt(prompt);
             ChatResponse response = chatModel.call(aiPrompt);
-            return response.getResult().getOutput().getText();
+            String result = response.getResult().getOutput().getText();
+
+            // 📊 메트릭: AI 호출 성공
+            if (metricsCollector != null) {
+                long duration = System.currentTimeMillis() - startTime;
+                metricsCollector.recordAICall(duration, "chatModel", true);
+
+                // EventRecorder 인터페이스 호출
+                Map<String, Object> eventMetadata = new HashMap<>();
+                eventMetadata.put("model", "chatModel");
+                eventMetadata.put("duration", duration);
+                eventMetadata.put("success", true);
+                metricsCollector.recordEvent("ai_call_success", eventMetadata);
+            }
+
+            return result;
         } catch (Exception e) {
+            // 📊 메트릭: AI 호출 실패
+            if (metricsCollector != null) {
+                long duration = System.currentTimeMillis() - startTime;
+                metricsCollector.recordAICall(duration, "chatModel", false);
+
+                // EventRecorder 인터페이스 호출
+                Map<String, Object> eventMetadata = new HashMap<>();
+                eventMetadata.put("model", "chatModel");
+                eventMetadata.put("duration", duration);
+                eventMetadata.put("success", false);
+                eventMetadata.put("error", e.getMessage());
+                metricsCollector.recordEvent("ai_call_failure", eventMetadata);
+            }
+
             log.error("AI 호출 실패", e);
             return "AI 분석 실패: " + e.getMessage();
         }
@@ -445,6 +517,10 @@ public class PolicyEvolutionEngine {
      */
     private String extractSpelExpression(String aiResponse) {
         if (aiResponse == null || aiResponse.isEmpty()) {
+            // 📊 메트릭: SpEL 추출 실패 (빈 응답)
+            if (metricsCollector != null) {
+                metricsCollector.recordSpelExtraction("empty_response", false);
+            }
             return "hasRole('USER') and #request.isSecure()"; // 기본값
         }
 
@@ -452,23 +528,40 @@ public class PolicyEvolutionEngine {
             // 1. 코드 블록 패턴 추출 (```...```, `...`)
             String spelExpression = extractFromCodeBlock(aiResponse);
             if (spelExpression != null) {
+                // 📊 메트릭: 코드 블록에서 성공적으로 추출
+                if (metricsCollector != null) {
+                    metricsCollector.recordSpelExtraction("code_block", true);
+                }
                 return spelExpression;
             }
 
             // 2. SpEL 함수 패턴 감지
             spelExpression = extractSpelFunctionPattern(aiResponse);
             if (spelExpression != null) {
+                // 📊 메트릭: 함수 패턴에서 성공적으로 추출
+                if (metricsCollector != null) {
+                    metricsCollector.recordSpelExtraction("function_pattern", true);
+                }
                 return spelExpression;
             }
 
             // 3. AI에게 재요청하여 명확한 SpEL 표현식 추출
             spelExpression = requestSpelFromAI(aiResponse);
             if (spelExpression != null) {
+                // 📊 메트릭: AI 재요청으로 성공적으로 추출
+                if (metricsCollector != null) {
+                    metricsCollector.recordSpelExtraction("ai_retry", true);
+                }
                 return spelExpression;
             }
 
         } catch (Exception e) {
             log.warn("SpEL 표현식 추출 실패, 기본값 사용: {}", e.getMessage());
+        }
+
+        // 📊 메트릭: SpEL 추출 실패, 기본값 사용
+        if (metricsCollector != null) {
+            metricsCollector.recordSpelExtraction("fallback_default", false);
         }
 
         // 기본값

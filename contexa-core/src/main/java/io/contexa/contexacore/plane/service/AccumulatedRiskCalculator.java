@@ -1,6 +1,6 @@
 package io.contexa.contexacore.plane.service;
 
-import io.contexa.contexacore.plane.service.OrthogonalSignalCollector.OrthogonalSignals;
+import io.contexa.contexacore.dashboard.metrics.plane.OrthogonalSignalCollector.OrthogonalSignals;
 import io.contexa.contexacore.plane.service.SignalInconsistencyDetector.InconsistencyResult;
 import lombok.Builder;
 import lombok.Getter;

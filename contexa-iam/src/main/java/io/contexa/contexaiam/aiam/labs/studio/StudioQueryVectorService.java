@@ -2,7 +2,7 @@ package io.contexa.contexaiam.aiam.labs.studio;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.std.rag.service.VectorStoreMetrics;
+import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
 import io.contexa.contexaiam.aiam.protocol.request.StudioQueryRequest;
 import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;

@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.rag.service;
 
+import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -108,8 +109,16 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             postProcessDocument(processedDocument, OperationType.STORE);
             
             // 4. 메트릭 업데이트
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE, 1, 
-                                             System.currentTimeMillis() - startTime);
+            long duration = System.currentTimeMillis() - startTime;
+            vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE, 1, duration);
+
+            // EventRecorder 인터페이스 호출
+            Map<String, Object> eventMetadata = new HashMap<>();
+            eventMetadata.put("lab_name", getLabName());
+            eventMetadata.put("operation_type", OperationType.STORE.name());
+            eventMetadata.put("document_count", 1);
+            eventMetadata.put("duration", duration);
+            vectorStoreMetrics.recordEvent("vector_store_operation", eventMetadata);
             
             log.debug("[{}] 단일 문서 저장 완료: {}", getLabName(), 
                      processedDocument.getMetadata().get("id"));

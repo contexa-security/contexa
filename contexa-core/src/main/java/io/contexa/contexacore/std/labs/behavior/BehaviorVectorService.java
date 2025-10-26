@@ -4,7 +4,7 @@ import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.std.rag.service.VectorStoreMetrics;
+import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.entity.AuditLog;

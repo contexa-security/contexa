@@ -1,5 +1,8 @@
-package io.contexa.contexacore.std.rag.service;
+package io.contexa.contexacore.dashboard.metrics.vectorstore;
 
+import io.contexa.contexacore.dashboard.api.DomainMetrics;
+import io.contexa.contexacore.dashboard.api.EventRecorder;
+import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -13,15 +16,17 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 벡터 저장소 메트릭 수집 및 모니터링 시스템
- * 
+ *
  * Lab별 벡터 저장소 사용 통계, 성능 메트릭, 에러 추적을 제공합니다.
  * 실시간 모니터링과 대시보드 데이터를 지원합니다.
- * 
+ *
  * @since 1.0.0
+ * @implNote VectorStoreMetrics는 특수 구조(ConcurrentHashMap, 내부 클래스)로 인해
+ *           현재 패키지에 유지됩니다. 향후 리팩토링 시 metrics 패키지로 이동 예정.
  */
 @Slf4j
 @Component
-public class VectorStoreMetrics {
+public class VectorStoreMetrics implements DomainMetrics, EventRecorder {
     
     private final Map<String, LabMetrics> labMetrics = new ConcurrentHashMap<>();
     private final Map<String, List<ErrorRecord>> errorHistory = new ConcurrentHashMap<>();
@@ -455,5 +460,99 @@ public class VectorStoreMetrics {
         private Map<String, Object> systemStatistics;
         private List<LabSummary> labSummaries;
         private LocalDateTime generatedAt;
+    }
+
+    // ===== MetricsCollector 인터페이스 구현 =====
+
+    @Override
+    public String getDomain() {
+        return "vectorstore";
+    }
+
+    @Override
+    public void initialize() {
+        log.info("VectorStoreMetrics 초기화 완료");
+    }
+
+    @Override
+    public Map<String, Object> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("total_labs", labMetrics.size());
+        stats.put("total_operations", labMetrics.values().stream()
+            .mapToLong(lm -> lm.getTotalOperations().get()).sum());
+        stats.put("total_errors", errorHistory.values().stream()
+            .mapToInt(List::size).sum());
+        stats.put("health_score", getHealthScore());
+        return stats;
+    }
+
+    @Override
+    public void reset() {
+        labMetrics.clear();
+        errorHistory.clear();
+        performanceHistory.clear();
+        log.info("VectorStoreMetrics 리셋 완료");
+    }
+
+    // ===== DomainMetrics 인터페이스 구현 =====
+
+    @Override
+    public double getHealthScore() {
+        if (labMetrics.isEmpty()) return 1.0;
+
+        double avgSuccessRate = labMetrics.values().stream()
+            .mapToDouble(lm -> {
+                long total = lm.getTotalOperations().get();
+                long errors = lm.getErrorCount().get();
+                return total > 0 ? (total - errors) / (double) total : 1.0;
+            })
+            .average()
+            .orElse(1.0);
+
+        return avgSuccessRate;
+    }
+
+    @Override
+    public Map<String, Double> getKeyMetrics() {
+        Map<String, Double> metrics = new HashMap<>();
+        metrics.put("total_labs", (double) labMetrics.size());
+        metrics.put("total_operations", (double) labMetrics.values().stream()
+            .mapToLong(lm -> lm.getTotalOperations().get()).sum());
+        metrics.put("success_rate", getHealthScore());
+        return metrics;
+    }
+
+    // ===== EventRecorder 인터페이스 구현 =====
+
+    @Override
+    public void recordEvent(String eventType, Map<String, Object> metadata) {
+        String labName = metadata.containsKey("labName") ?
+            (String) metadata.get("labName") : "unknown";
+        AbstractVectorLabService.OperationType opType = metadata.containsKey("operationType") ?
+            (AbstractVectorLabService.OperationType) metadata.get("operationType") :
+            AbstractVectorLabService.OperationType.SEARCH;
+
+        switch (eventType) {
+            case "operation":
+                int documentCount = metadata.containsKey("documentCount") ?
+                    ((Number) metadata.get("documentCount")).intValue() : 0;
+                long durationMs = metadata.containsKey("durationMs") ?
+                    ((Number) metadata.get("durationMs")).longValue() : 0L;
+                recordOperation(labName, opType, documentCount, durationMs);
+                break;
+            case "error":
+                Throwable error = metadata.containsKey("error") ?
+                    (Throwable) metadata.get("error") : new RuntimeException("Unknown error");
+                recordError(labName, opType, error);
+                break;
+            default:
+                log.warn("Unknown event type: {}", eventType);
+        }
+    }
+
+    @Override
+    public void recordDuration(String operationName, long durationNanos) {
+        // VectorStoreMetrics는 자체 recordOperation 메서드 사용
+        log.debug("Duration recorded: {} ns", durationNanos);
     }
 }

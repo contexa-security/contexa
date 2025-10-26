@@ -411,7 +411,7 @@ public class TieredSecurityLLMConfiguration {
      * 3계층 시스템 메트릭 수집기 (미래 구현)
      */
     // @Bean
-    // public TieredSecurityMetricsCollector metricsCollector() {
+    // public TieredSecurityMCPToolMetrics metricsCollector() {
     //     return new TieredSecurityMetricsCollector();
     // }
     

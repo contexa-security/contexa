@@ -189,10 +189,19 @@ public class UnifiedEventPublishingDecisionEngine {
     private double getTrustScore(String userId) {
         try {
             String key = ZeroTrustRedisKeys.threatScore(userId);
-            Double threatScore = (Double) redisTemplate.opsForValue().get(key);
+            Object value = redisTemplate.opsForValue().get(key);
 
-            if (threatScore == null) {
+            if (value == null) {
                 return 0.7;  // 기본 Trust Score (중립)
+            }
+
+            // Redis에서 Integer 또는 Double로 저장될 수 있으므로 Number로 처리
+            double threatScore;
+            if (value instanceof Number) {
+                threatScore = ((Number) value).doubleValue();
+            } else {
+                log.warn("[UnifiedDecisionEngine] Unexpected threat score type: {} for user: {}", value.getClass(), userId);
+                return 0.7;
             }
 
             double trust = 1.0 - Math.max(0.0, Math.min(1.0, threatScore));
