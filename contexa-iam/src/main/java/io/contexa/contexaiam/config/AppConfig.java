@@ -9,6 +9,7 @@ import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.ComposablePointcut;
 import org.springframework.aop.support.Pointcuts;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +27,7 @@ import java.time.Duration;
 public class AppConfig {
 
     @Bean
+    @ConditionalOnBean(name = "meterRegistryPostProcessor")
     public AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
             ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,
             AuthorizationEventPublisher authorizationEventPublisher) {
