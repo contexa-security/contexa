@@ -59,3 +59,4 @@ public class AppConfig {
         return builder -> builder.clientConnector(new ReactorClientHttpConnector(httpClient));
     }
 }
+
