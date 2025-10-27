@@ -131,7 +131,7 @@ public class RefreshTokenAnomalyDetector {
         String pattern = USER_ACTIVITY_PREFIX + username + ":*:active";
         Set<String> activeDevices = redisTemplate.keys(pattern);
 
-        if (activeDevices != null && activeDevices.size() > 1) {
+        if (activeDevices.size() > 1) {
             // 다른 디바이스에서 동시 활동 감지
             List<String> otherDevices = activeDevices.stream()
                     .filter(key -> !key.contains(deviceId))

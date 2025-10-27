@@ -40,6 +40,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -419,7 +420,7 @@ public class OAuth2TokenService implements TokenService {
 
         // 7. OAuth2AuthorizedClient 재구성 (기존 토큰으로)
         OAuth2AccessToken existingAccessToken = authorization.getAccessToken().getToken();
-        OAuth2RefreshToken existingRefreshToken = authorization.getRefreshToken().getToken();
+        OAuth2RefreshToken existingRefreshToken = Objects.requireNonNull(authorization.getRefreshToken()).getToken();
 
         OAuth2AuthorizedClient existingClient = new OAuth2AuthorizedClient(
                 clientRegistration,
