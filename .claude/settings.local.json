@@ -34,7 +34,11 @@
       "Bash(jps -l:*)",
       "Bash(cut:*)",
       "Read(//d/**)",
-      "Bash(./gradlew:*)"
+      "Bash(./gradlew:*)",
+      "Bash(while read file)",
+      "Bash(do if grep -l \"AuthContextProperties\" \"$file\")",
+      "Bash(then echo \"$file\" fi done)",
+      "Bash(for file in \"src/main/java/io/contexa/contexaidentity/security/filter/handler/StateMachineAwareMfaRequestHandler.java\" \"src/main/java/io/contexa/contexaidentity/security/handler/MfaFactorProcessingSuccessHandler.java\" \"src/main/java/io/contexa/contexaidentity/security/handler/OneTimeTokenCreationSuccessHandler.java\" \"src/main/java/io/contexa/contexaidentity/security/handler/PrimaryAuthenticationSuccessHandler.java\" \"src/main/java/io/contexa/contexaidentity/security/handler/UnifiedAuthenticationFailureHandler.java\")"
     ],
     "deny": [],
     "ask": []

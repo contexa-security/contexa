@@ -5,6 +5,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
     private final AuthContextProperties authContextProperties;
+    private final AuthUrlProvider authUrlProvider;
     private final MfaSessionRepository sessionRepository;
 
     @Override
@@ -71,7 +73,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
             mfaStateMachineIntegrator.saveFactorContext(factorContext);
 
-            String challengeUiUrl = authContextProperties.getMfa().getOttFactor().getChallengeUrl();
+            String challengeUiUrl = authUrlProvider.getOttChallengeUi();
             if (!StringUtils.hasText(challengeUiUrl)) {
                 challengeUiUrl = "/mfa/challenge/ott";
                 log.warn("MFA OTT challengeUrl not configured, using default: {}", challengeUiUrl);
@@ -88,7 +90,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             log.info("Single OTT token generated for user {} using {} repository. Redirecting to 'ott/sent' page.",
                     usernameFromToken, sessionRepository.getRepositoryType());
             String email = URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8);
-            String codeSentUrl = authContextProperties.getMfa().getOttFactor().getCodeSentUrl();
+            String codeSentUrl = authUrlProvider.getOttCodeSent();
             if (!StringUtils.hasText(codeSentUrl)) {
                 codeSentUrl = "/ott/sent";
             }

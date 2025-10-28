@@ -12,6 +12,7 @@ import io.contexa.contexaidentity.security.filter.handler.StateMachineAwareMfaRe
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaUrlMatcher;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -47,7 +48,8 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                                  ApplicationContext applicationContext) {
         this.responseWriter = Objects.requireNonNull(responseWriter);
 
-        this.urlMatcher = new MfaUrlMatcher(authContextProperties, applicationContext);
+        AuthUrlProvider authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
+        this.urlMatcher = new MfaUrlMatcher(authContextProperties, authUrlProvider, applicationContext);
         this.stateMachineIntegrator = applicationContext.getBean(MfaStateMachineIntegrator.class);
 
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
@@ -57,7 +59,8 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 authContextProperties,
                 responseWriter,
                 applicationContext,
-                stateMachineIntegrator
+                stateMachineIntegrator,
+                authUrlProvider
         );
 
         log.info("MfaContinuationFilter initialized with {} repository",

@@ -1,0 +1,571 @@
+package io.contexa.contexaidentity.security.service;
+
+import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import jakarta.annotation.PostConstruct;
+
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+/**
+ * 중앙 집중식 인증 URL 제공 서비스
+ * <p>
+ * 모든 필터, Configurer, 컨트롤러는 이 서비스를 통해 URL에 접근해야 함.
+ * 직접적인 AuthContextProperties 접근은 지양.
+ * <p>
+ * 기능:
+ * <ul>
+ *   <li>타입 안전한 URL 접근 메서드 제공</li>
+ *   <li>URL 중복 검증</li>
+ *   <li>URL 형식 검증</li>
+ *   <li>집계 메서드 (필터, SDK용)</li>
+ * </ul>
+ *
+ * @since 2025-01
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AuthUrlProvider {
+
+    private final AuthContextProperties properties;
+
+    // ========================================
+    // Primary Authentication URLs
+    // ========================================
+
+    /**
+     * Form 로그인 처리 URL
+     * @return POST /login (기본값)
+     */
+    public String getPrimaryFormLoginProcessing() {
+        return properties.getUrls().getPrimary().getFormLoginProcessing();
+    }
+
+    /**
+     * REST API 로그인 처리 URL
+     * @return POST /api/auth/login (기본값)
+     */
+    public String getPrimaryRestLoginProcessing() {
+        return properties.getUrls().getPrimary().getRestLoginProcessing();
+    }
+
+    /**
+     * 로그인 페이지 URL
+     * @return GET /loginForm (기본값)
+     */
+    public String getPrimaryLoginPage() {
+        return properties.getUrls().getPrimary().getFormLoginPage();
+    }
+
+    /**
+     * 로그인 실패 URL
+     * @return /login?error (기본값)
+     */
+    public String getPrimaryLoginFailure() {
+        return properties.getUrls().getPrimary().getLoginFailure();
+    }
+
+    /**
+     * 로그인 성공 URL
+     * @return /home (기본값)
+     */
+    public String getPrimaryLoginSuccess() {
+        return properties.getUrls().getPrimary().getLoginSuccess();
+    }
+
+    /**
+     * 로그아웃 페이지 URL
+     * @return /logout (기본값)
+     */
+    public String getLogoutPage() {
+        return properties.getUrls().getPrimary().getLogoutPage();
+    }
+
+    // ========================================
+    // MFA Lifecycle URLs
+    // ========================================
+
+    /**
+     * MFA 시작 URL
+     * @return GET /mfa/initiate (기본값)
+     */
+    public String getMfaInitiate() {
+        return properties.getUrls().getMfa().getInitiate();
+    }
+
+    /**
+     * MFA 설정 URL
+     * @return GET /mfa/configure (기본값)
+     */
+    public String getMfaConfigure() {
+        return properties.getUrls().getMfa().getConfigure();
+    }
+
+    /**
+     * Factor 선택 UI 페이지 URL
+     * @return GET /mfa/select-factor (기본값)
+     */
+    public String getMfaSelectFactorUi() {
+        return properties.getUrls().getMfa().getSelectFactorUi();
+    }
+
+    /**
+     * MFA 성공 리다이렉트 URL
+     * @return /home (기본값)
+     */
+    public String getMfaSuccess() {
+        return properties.getUrls().getMfa().getSuccess();
+    }
+
+    /**
+     * MFA 실패 페이지 URL
+     * @return /mfa/failure (기본값)
+     */
+    public String getMfaFailure() {
+        return properties.getUrls().getMfa().getFailure();
+    }
+
+    /**
+     * MFA 취소 리다이렉트 URL
+     * @return /loginForm (기본값)
+     */
+    public String getMfaCancel() {
+        return properties.getUrls().getMfa().getCancel();
+    }
+
+    // ========================================
+    // OTT Factor URLs
+    // ========================================
+
+    /**
+     * OTT 코드 요청 UI 페이지 (이메일 입력)
+     * @return GET /mfa/ott/request-code-ui (기본값)
+     */
+    public String getOttRequestCodeUi() {
+        return properties.getUrls().getFactors().getOtt().getRequestCodeUi();
+    }
+
+    /**
+     * OTT 코드 생성 URL
+     * @return POST /mfa/ott/generate-code (기본값)
+     */
+    public String getOttCodeGeneration() {
+        return properties.getUrls().getFactors().getOtt().getCodeGeneration();
+    }
+
+    /**
+     * OTT 코드 전송 완료 페이지
+     * @return GET /mfa/ott/code-sent (기본값)
+     */
+    public String getOttCodeSent() {
+        return properties.getUrls().getFactors().getOtt().getCodeSent();
+    }
+
+    /**
+     * OTT 코드 입력 챌린지 UI
+     * @return GET /mfa/challenge/ott (기본값)
+     */
+    public String getOttChallengeUi() {
+        return properties.getUrls().getFactors().getOtt().getChallengeUi();
+    }
+
+    /**
+     * OTT 코드 검증 처리 URL (Filter가 처리)
+     * @return POST /login/mfa-ott (기본값)
+     */
+    public String getOttLoginProcessing() {
+        return properties.getUrls().getFactors().getOtt().getLoginProcessing();
+    }
+
+    /**
+     * OTT 검증 실패 기본 URL
+     * @return /mfa/challenge/ott?error=true (기본값)
+     */
+    public String getOttDefaultFailure() {
+        return properties.getUrls().getFactors().getOtt().getDefaultFailure();
+    }
+
+    /**
+     * 단일 OTT 이메일 요청 페이지
+     * @return GET /loginOtt (기본값)
+     */
+    public String getSingleOttRequestEmail() {
+        return properties.getUrls().getFactors().getOtt().getSingleOttRequestEmail();
+    }
+
+    /**
+     * 단일 OTT 코드 생성 URL
+     * @return POST /login/ott/generate (기본값)
+     */
+    public String getSingleOttCodeGeneration() {
+        return properties.getUrls().getFactors().getOtt().getSingleOttCodeGeneration();
+    }
+
+    /**
+     * 단일 OTT 챌린지 페이지
+     * @return GET /loginOttVerifyCode (기본값)
+     */
+    public String getSingleOttChallenge() {
+        return properties.getUrls().getFactors().getOtt().getSingleOttChallenge();
+    }
+
+    /**
+     * 단일 OTT 코드 전송 완료 페이지
+     * @return GET /ott/sent (기본값)
+     */
+    public String getSingleOttSent() {
+        return properties.getUrls().getFactors().getOtt().getSingleOttSent();
+    }
+
+    // ========================================
+    // Passkey Factor URLs
+    // ========================================
+
+    /**
+     * Passkey 검증 처리 URL (Filter가 처리)
+     * @return POST /login/mfa-webauthn (기본값)
+     */
+    public String getPasskeyLoginProcessing() {
+        return properties.getUrls().getFactors().getPasskey().getLoginProcessing();
+    }
+
+    /**
+     * Passkey 챌린지 UI 페이지
+     * @return GET /mfa/challenge/passkey (기본값)
+     */
+    public String getPasskeyChallengeUi() {
+        return properties.getUrls().getFactors().getPasskey().getChallengeUi();
+    }
+
+    /**
+     * Passkey 검증 실패 기본 URL
+     * @return /mfa/challenge/passkey?error (기본값)
+     */
+    public String getPasskeyDefaultFailure() {
+        return properties.getUrls().getFactors().getPasskey().getDefaultFailure();
+    }
+
+    /**
+     * Passkey 등록 요청 URL
+     * @return POST /mfa/passkey/register-request (기본값)
+     */
+    public String getPasskeyRegistrationRequest() {
+        return properties.getUrls().getFactors().getPasskey().getRegistrationRequest();
+    }
+
+    /**
+     * Passkey 등록 처리 URL
+     * @return POST /mfa/passkey/register (기본값)
+     */
+    public String getPasskeyRegistrationProcessing() {
+        return properties.getUrls().getFactors().getPasskey().getRegistrationProcessing();
+    }
+
+    /**
+     * 레거시 WebAuthn assertion options URL
+     * @deprecated Use {@link #getApiAssertionOptions()} instead
+     */
+    @Deprecated
+    public String getPasskeyAssertionOptions() {
+        return properties.getUrls().getFactors().getPasskey().getAssertionOptions();
+    }
+
+    /**
+     * 레거시 WebAuthn registration options URL
+     */
+    public String getPasskeyRegistrationOptions() {
+        return properties.getUrls().getFactors().getPasskey().getRegistrationOptions();
+    }
+
+    // ========================================
+    // Recovery Code Factor URLs
+    // ========================================
+
+    /**
+     * Recovery code 검증 처리 URL
+     * @return POST /login/recovery/verify (기본값)
+     */
+    public String getRecoveryCodeLoginProcessing() {
+        return properties.getUrls().getFactors().getRecoveryCode().getLoginProcessing();
+    }
+
+    /**
+     * Recovery code 챌린지 UI
+     * @return GET /mfa/challenge/recovery (기본값)
+     */
+    public String getRecoveryCodeChallengeUi() {
+        return properties.getUrls().getFactors().getRecoveryCode().getChallengeUi();
+    }
+
+    // ========================================
+    // API Endpoints
+    // ========================================
+
+    /**
+     * Factor 선택 API
+     * @return POST /api/mfa/select-factor (기본값)
+     */
+    public String getApiSelectFactor() {
+        return properties.getUrls().getApi().getSelectFactor();
+    }
+
+    /**
+     * MFA 취소 API
+     * @return POST /api/mfa/cancel (기본값)
+     */
+    public String getApiCancel() {
+        return properties.getUrls().getApi().getCancel();
+    }
+
+    /**
+     * MFA 상태 조회 API
+     * @return GET /api/mfa/status (기본값)
+     */
+    public String getApiStatus() {
+        return properties.getUrls().getApi().getStatus();
+    }
+
+    /**
+     * OTT 코드 재요청 API
+     * @return POST /api/mfa/request-ott-code (기본값)
+     */
+    public String getApiRequestOttCode() {
+        return properties.getUrls().getApi().getRequestOttCode();
+    }
+
+    /**
+     * MFA 컨텍스트 조회 API
+     * @return GET /api/mfa/context (기본값)
+     */
+    public String getApiContext() {
+        return properties.getUrls().getApi().getContext();
+    }
+
+    /**
+     * Passkey assertion options API
+     * @return POST /api/mfa/assertion/options (기본값)
+     */
+    public String getApiAssertionOptions() {
+        return properties.getUrls().getApi().getAssertionOptions();
+    }
+
+    /**
+     * SDK 설정 조회 API
+     * @return GET /api/mfa/config (기본값)
+     */
+    public String getApiConfig() {
+        return properties.getUrls().getApi().getConfig();
+    }
+
+    // ========================================
+    // Aggregate Methods (필터 및 SDK용)
+    // ========================================
+
+    /**
+     * 모든 Factor 검증 처리 URL 반환 (MfaStepFilterWrapper용)
+     * @return Factor 검증 URL 리스트
+     */
+    public List<String> getAllFactorProcessingUrls() {
+        return List.of(
+            getOttLoginProcessing(),
+            getPasskeyLoginProcessing(),
+            getRecoveryCodeLoginProcessing()
+        );
+    }
+
+    /**
+     * 모든 MFA 요청 URL 반환 (MfaUrlMatcher용)
+     * @return MFA 요청 URL 리스트
+     */
+    public List<String> getAllMfaRequestUrls() {
+        return List.of(
+            getMfaInitiate(),
+            getMfaSelectFactorUi(),
+            getOttCodeGeneration(),
+            getOttLoginProcessing(),
+            getPasskeyLoginProcessing()
+        );
+    }
+
+    /**
+     * 모든 UI 페이지 URL 반환 (SDK 설정용)
+     * @return URL Map (키: 식별자, 값: URL)
+     */
+    public Map<String, Object> getAllUiPageUrls() {
+        Map<String, Object> urls = new LinkedHashMap<>();
+
+        // Primary Auth
+        urls.put("primary", Map.of(
+            "formLoginPage", getPrimaryLoginPage(),
+            "formLoginProcessing", getPrimaryFormLoginProcessing(),
+            "restLoginProcessing", getPrimaryRestLoginProcessing(),
+            "loginFailure", getPrimaryLoginFailure(),
+            "loginSuccess", getPrimaryLoginSuccess()
+        ));
+
+        // MFA
+        urls.put("mfa", Map.of(
+            "initiate", getMfaInitiate(),
+            "configure", getMfaConfigure(),
+            "selectFactor", getMfaSelectFactorUi(),
+            "success", getMfaSuccess(),
+            "failure", getMfaFailure(),
+            "cancel", getMfaCancel()
+        ));
+
+        // OTT Factor
+        urls.put("ott", Map.of(
+            "requestCodeUi", getOttRequestCodeUi(),
+            "challengeUi", getOttChallengeUi(),
+            "loginProcessing", getOttLoginProcessing(),
+            "codeSent", getOttCodeSent(),
+            "codeGeneration", getOttCodeGeneration()
+        ));
+
+        // Passkey Factor
+        urls.put("passkey", Map.of(
+            "challengeUi", getPasskeyChallengeUi(),
+            "loginProcessing", getPasskeyLoginProcessing(),
+            "registrationRequest", getPasskeyRegistrationRequest()
+        ));
+
+        // Recovery Code Factor
+        urls.put("recoveryCode", Map.of(
+            "challengeUi", getRecoveryCodeChallengeUi(),
+            "loginProcessing", getRecoveryCodeLoginProcessing()
+        ));
+
+        // API
+        urls.put("api", Map.of(
+            "selectFactor", getApiSelectFactor(),
+            "cancel", getApiCancel(),
+            "status", getApiStatus(),
+            "requestOttCode", getApiRequestOttCode(),
+            "context", getApiContext(),
+            "assertionOptions", getApiAssertionOptions(),
+            "config", getApiConfig()
+        ));
+
+        return urls;
+    }
+
+    // ========================================
+    // Validation
+    // ========================================
+
+    /**
+     * URL 설정 검증 - 애플리케이션 시작 시 자동 실행
+     */
+    @PostConstruct
+    public void validateConfiguration() {
+        List<String> errors = new ArrayList<>();
+        Set<String> allUrls = new HashSet<>();
+        List<String> duplicates = new ArrayList<>();
+
+        // 모든 URL 수집
+        List<String> urlList = collectAllUrls();
+
+        // 중복 검사
+        for (String url : urlList) {
+            if (url == null || url.trim().isEmpty()) {
+                errors.add("빈 URL이 발견되었습니다");
+                continue;
+            }
+
+            if (!allUrls.add(url)) {
+                duplicates.add(url);
+            }
+        }
+
+        if (!duplicates.isEmpty()) {
+            errors.add("중복 URL 발견: " + String.join(", ", duplicates));
+        }
+
+        // URL 형식 검증
+        for (String url : allUrls) {
+            if (!url.startsWith("/")) {
+                errors.add("URL은 '/'로 시작해야 합니다: " + url);
+            }
+
+            // 공백 검사
+            if (url.contains(" ")) {
+                errors.add("URL에 공백이 포함되어 있습니다: " + url);
+            }
+        }
+
+        // 오류 발생 시 예외
+        if (!errors.isEmpty()) {
+            String errorMessage = "❌ URL 설정 검증 실패:\n" + String.join("\n", errors);
+            log.error(errorMessage);
+            throw new IllegalStateException(errorMessage);
+        }
+
+        log.info("✅ URL 설정 검증 성공: {} 개의 고유 URL 설정됨", allUrls.size());
+        log.debug("설정된 URL 목록:\n{}",
+            allUrls.stream()
+                .sorted()
+                .map(url -> "  - " + url)
+                .collect(Collectors.joining("\n"))
+        );
+    }
+
+    /**
+     * 모든 URL 수집 (검증용)
+     */
+    private List<String> collectAllUrls() {
+        return Stream.of(
+            // Primary Auth
+            getPrimaryFormLoginProcessing(),
+            getPrimaryRestLoginProcessing(),
+            getPrimaryLoginPage(),
+            getPrimaryLoginFailure(),
+            getPrimaryLoginSuccess(),
+            getLogoutPage(),
+
+            // MFA
+            getMfaInitiate(),
+            getMfaConfigure(),
+            getMfaSelectFactorUi(),
+            getMfaSuccess(),
+            getMfaFailure(),
+            getMfaCancel(),
+
+            // OTT
+            getOttRequestCodeUi(),
+            getOttCodeGeneration(),
+            getOttCodeSent(),
+            getOttChallengeUi(),
+            getOttLoginProcessing(),
+            getOttDefaultFailure(),
+            getSingleOttRequestEmail(),
+            getSingleOttCodeGeneration(),
+            getSingleOttChallenge(),
+            getSingleOttSent(),
+
+            // Passkey
+            getPasskeyLoginProcessing(),
+            getPasskeyChallengeUi(),
+            getPasskeyDefaultFailure(),
+            getPasskeyRegistrationRequest(),
+            getPasskeyRegistrationProcessing(),
+            getPasskeyRegistrationOptions(),
+
+            // Recovery Code
+            getRecoveryCodeLoginProcessing(),
+            getRecoveryCodeChallengeUi(),
+
+            // API
+            getApiSelectFactor(),
+            getApiCancel(),
+            getApiStatus(),
+            getApiRequestOttCode(),
+            getApiContext(),
+            getApiAssertionOptions(),
+            getApiConfig()
+        ).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+}

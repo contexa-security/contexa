@@ -34,6 +34,17 @@ public class AuthContextProperties {
     private FactorSelectionType factorSelectionType = FactorSelectionType.SELECT;
 
     /**
+     * 중앙 집중식 URL 설정 (신규 - 2025.01)
+     * <p>
+     * 모든 인증 URL을 한 곳에서 관리하는 단일 진실의 원천.
+     * AuthUrlProvider 서비스를 통해 접근 권장.
+     *
+     * @since 2025.01
+     */
+    @NestedConfigurationProperty
+    private AuthUrlConfig urls = new AuthUrlConfig();
+
+    /**
      * MFA 관련 설정
      */
     @NestedConfigurationProperty

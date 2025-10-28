@@ -10,6 +10,7 @@ import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHan
 import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.writer.JsonAuthResponseWriter;
@@ -34,9 +35,10 @@ public class MfaInfrastructureAutoConfiguration {
                                                                                    MfaPolicyProvider mfaPolicyProvider,
                                                                                    ApplicationContext applicationContext,
                                                                                    MfaStateMachineIntegrator MfaStateMachineIntegrator,
-                                                                                   MfaSessionRepository mfaSessionRepository) {
+                                                                                   MfaSessionRepository mfaSessionRepository,
+                                                                                   AuthUrlProvider authUrlProvider) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService,authResponseWriter,
-                                                        authContextProperties, applicationContext, MfaStateMachineIntegrator, mfaSessionRepository);
+                                                        authContextProperties, applicationContext, MfaStateMachineIntegrator, mfaSessionRepository, authUrlProvider);
     }
 
     @Bean
@@ -45,8 +47,9 @@ public class MfaInfrastructureAutoConfiguration {
                                                                                     MfaPolicyProvider mfaPolicyProvider,
                                                                                     AuthResponseWriter authResponseWriter,
                                                                                     MfaSessionRepository mfaSessionRepository,
-                                                                                    UserIdentificationService userIdentificationService) {
-        return new UnifiedAuthenticationFailureHandler(mfaStateMachineIntegrator, mfaPolicyProvider, authResponseWriter, authContextProperties,mfaSessionRepository, userIdentificationService);
+                                                                                    UserIdentificationService userIdentificationService,
+                                                                                    AuthUrlProvider authUrlProvider) {
+        return new UnifiedAuthenticationFailureHandler(mfaStateMachineIntegrator, mfaPolicyProvider, authResponseWriter, authContextProperties,mfaSessionRepository, userIdentificationService, authUrlProvider);
     }
 
     @Bean
@@ -55,9 +58,10 @@ public class MfaInfrastructureAutoConfiguration {
                                                                                MfaPolicyProvider mfaPolicyProvider,
                                                                                AuthResponseWriter authResponseWriter,
                                                                                ApplicationContext applicationContext,
-                                                                               MfaSessionRepository mfaSessionRepository) {
+                                                                               MfaSessionRepository mfaSessionRepository,
+                                                                               AuthUrlProvider authUrlProvider) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, mfaPolicyProvider, authResponseWriter,
-                applicationContext, authContextProperties, mfaSessionRepository,tokenService);
+                applicationContext, authContextProperties, mfaSessionRepository, tokenService, authUrlProvider);
     }
 
 

@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.CustomUserDetails;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -44,6 +45,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private final AuthContextProperties authContextProperties;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
+    private final AuthUrlProvider authUrlProvider;
 
     public MfaFactorProcessingSuccessHandler(MfaStateMachineIntegrator mfaStateMachineIntegrator,
                                              MfaPolicyProvider mfaPolicyProvider,
@@ -51,7 +53,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              ApplicationContext applicationContext,
                                              AuthContextProperties authContextProperties,
                                              MfaSessionRepository sessionRepository,
-                                             TokenService tokenService) {
+                                             TokenService tokenService,
+                                             AuthUrlProvider authUrlProvider) {
         super(tokenService,responseWriter,sessionRepository,mfaStateMachineIntegrator,authContextProperties);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
@@ -59,6 +62,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         this.authContextProperties = authContextProperties;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository; // 추가
+        this.authUrlProvider = authUrlProvider;
     }
 
     @Override
@@ -182,7 +186,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "인증 수단을 선택해주세요.",
                     factorContext,
-                    request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl());
+                    request.getContextPath() + authUrlProvider.getMfaSelectFactorUi());
             responseBody.put("availableFactors", factorContext.getRegisteredMfaFactors());
 
             responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
@@ -283,12 +287,12 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private String determineNextFactorUrl(AuthType factorType, HttpServletRequest request) {
         return switch (factorType) {
             case OTT -> request.getContextPath() +
-                    authContextProperties.getMfa().getOttFactor().getRequestCodeUiUrl();
+                    authUrlProvider.getOttRequestCodeUi();
             case PASSKEY -> request.getContextPath() +
-                    authContextProperties.getMfa().getPasskeyFactor().getChallengeUrl();
+                    authUrlProvider.getPasskeyChallengeUi();
             default -> {
                 log.error("Unsupported MFA factor type: {}", factorType);
-                yield request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl();
+                yield request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
             }
         };
     }

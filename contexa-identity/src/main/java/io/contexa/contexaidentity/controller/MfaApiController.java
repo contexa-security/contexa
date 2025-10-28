@@ -4,9 +4,8 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
-import io.contexa.contexaidentity.security.properties.MfaSettings;
-import io.contexa.contexaidentity.security.properties.OttFactorSettings;
 import io.contexa.contexaidentity.security.properties.PasskeyFactorSettings;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,6 +36,7 @@ public class MfaApiController {
     // ContextPersistence 완전 제거, MfaStateMachineService 제거
     private final MfaStateMachineIntegrator stateMachineIntegrator; // 고수준 통합자만 사용
     private final AuthContextProperties authContextProperties;
+    private final AuthUrlProvider authUrlProvider;
 
     /**
      * 완전 일원화: MFA 팩터 선택 API
@@ -162,7 +162,7 @@ public class MfaApiController {
 
                 Map<String, Object> successResponse = createSuccessResponse(
                         "MFA_CANCELLED", "MFA cancelled successfully", ctx);
-                successResponse.put("redirectUrl", getContextPath(httpRequest) + "/loginForm");
+                successResponse.put("redirectUrl", getContextPath(httpRequest) + authUrlProvider.getPrimaryLoginPage());
 
                 log.info("MFA cancelled by user {} (session: {})",
                         ctx.getUsername(), ctx.getMfaSessionId());
@@ -409,61 +409,16 @@ public class MfaApiController {
     /**
      * 새로 추가: Endpoint Configuration 조회 API
      * SDK가 런타임에 모든 엔드포인트 URL을 로드할 수 있도록 지원
+     *
+     * 중앙 집중식 URL 관리 시스템 (AuthUrlProvider) 사용
      */
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getEndpointConfig() {
         try {
-            MfaSettings mfaSettings = authContextProperties.getMfa();
-            OttFactorSettings ottSettings = mfaSettings.getOttFactor();
-            PasskeyFactorSettings passkeySettings = mfaSettings.getPasskeyFactor();
+            // AuthUrlProvider의 getAllUiPageUrls() 메서드 활용
+            Map<String, Object> config = authUrlProvider.getAllUiPageUrls();
 
-            Map<String, Object> config = new HashMap<>();
-
-            // MFA Core URLs
-            Map<String, String> mfaUrls = new HashMap<>();
-            mfaUrls.put("initiate", mfaSettings.getInitiateUrl());
-            mfaUrls.put("configure", mfaSettings.getConfigureUrl());
-            mfaUrls.put("selectFactor", mfaSettings.getSelectFactorUrl());
-            mfaUrls.put("failure", mfaSettings.getFailureUrl());
-            mfaUrls.put("success", mfaSettings.getSuccessUrl());
-            mfaUrls.put("cancel", mfaSettings.getCancelUrl());
-            mfaUrls.put("status", mfaSettings.getStatusUrl());
-            config.put("mfa", mfaUrls);
-
-            // OTT Factor URLs
-            Map<String, String> ottUrls = new HashMap<>();
-            ottUrls.put("requestCodeUi", ottSettings.getRequestCodeUiUrl());
-            ottUrls.put("codeGeneration", ottSettings.getCodeGenerationUrl());
-            ottUrls.put("codeSent", ottSettings.getCodeSentUrl());
-            ottUrls.put("challenge", ottSettings.getChallengeUrl());
-            ottUrls.put("loginProcessing", ottSettings.getLoginProcessingUrl());
-            ottUrls.put("defaultFailure", ottSettings.getDefaultFailureUrl());
-            ottUrls.put("singleOttRequestEmail", ottSettings.getSingleOttRequestEmailUrl());
-            ottUrls.put("singleOttCodeGeneration", ottSettings.getSingleOttCodeGenerationUrl());
-            ottUrls.put("singleOttChallenge", ottSettings.getSingleOttChallengeUrl());
-            config.put("ott", ottUrls);
-
-            // Passkey Factor URLs
-            Map<String, String> passkeyUrls = new HashMap<>();
-            passkeyUrls.put("loginProcessing", passkeySettings.getLoginProcessingUrl());
-            passkeyUrls.put("challenge", passkeySettings.getChallengeUrl());
-            passkeyUrls.put("defaultFailure", passkeySettings.getDefaultFailureUrl());
-            passkeyUrls.put("registrationRequest", passkeySettings.getRegistrationRequestUrl());
-            passkeyUrls.put("registrationProcessing", passkeySettings.getRegistrationProcessingUrl());
-            config.put("passkey", passkeyUrls);
-
-            // API Endpoints
-            Map<String, String> apiUrls = new HashMap<>();
-            apiUrls.put("selectFactor", "/api/mfa/select-factor");
-            apiUrls.put("cancel", "/api/mfa/cancel");
-            apiUrls.put("status", "/api/mfa/status");
-            apiUrls.put("requestOttCode", "/api/mfa/request-ott-code");
-            apiUrls.put("context", "/api/mfa/context");
-            apiUrls.put("assertionOptions", "/api/mfa/assertion/options");
-            apiUrls.put("config", "/api/mfa/config");
-            config.put("api", apiUrls);
-
-            log.debug("Endpoint configuration retrieved successfully");
+            log.debug("Endpoint configuration retrieved successfully from AuthUrlProvider");
 
             return ResponseEntity.ok(config);
 
@@ -503,15 +458,15 @@ public class MfaApiController {
         AuthType currentFactor = ctx.getCurrentProcessingFactor();
 
         if (currentFactor == null) {
-            return contextPath + authContextProperties.getMfa().getSelectFactorUrl();
+            return contextPath + authUrlProvider.getMfaSelectFactorUi();
         }
 
         return switch (currentFactor) {
-            case OTT -> contextPath + authContextProperties.getMfa().getOttFactor().getRequestCodeUiUrl();
-            case PASSKEY -> contextPath + authContextProperties.getMfa().getPasskeyFactor().getChallengeUrl();
+            case OTT -> contextPath + authUrlProvider.getOttRequestCodeUi();
+            case PASSKEY -> contextPath + authUrlProvider.getPasskeyChallengeUi();
             default -> {
                 log.warn("Unknown factor type for next step determination: {}", currentFactor);
-                yield contextPath + authContextProperties.getMfa().getSelectFactorUrl();
+                yield contextPath + authUrlProvider.getMfaSelectFactorUi();
             }
         };
     }

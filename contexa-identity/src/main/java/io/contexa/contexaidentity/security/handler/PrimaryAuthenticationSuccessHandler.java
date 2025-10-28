@@ -7,6 +7,7 @@ import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -43,14 +44,16 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private final RequestCache requestCache = new HttpSessionRequestCache();
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
+    private final AuthUrlProvider authUrlProvider;
 
-    public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, TokenService tokenService, AuthResponseWriter responseWriter, AuthContextProperties authContextProperties, ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator, MfaSessionRepository sessionRepository) {
+    public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, TokenService tokenService, AuthResponseWriter responseWriter, AuthContextProperties authContextProperties, ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator, MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider) {
         super(tokenService,responseWriter,sessionRepository,stateMachineIntegrator,authContextProperties);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.authContextProperties = authContextProperties;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
+        this.authUrlProvider = authUrlProvider;
     }
 
     @Override
@@ -130,7 +133,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "MFA_REQUIRED_SELECT_FACTOR",
                 "추가 인증이 필요합니다. 인증 수단을 선택해주세요.",
                 factorContext,
-                request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl()
+                request.getContextPath() + authUrlProvider.getMfaSelectFactorUi()
         );
         responseBody.put("availableFactors", factorContext.getRegisteredMfaFactors());
         responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
@@ -155,7 +158,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
     private void handleMfaConfigurationRequired(HttpServletRequest request, HttpServletResponse response,
                                                 FactorContext factorContext) throws IOException {
-        String mfaConfigUrl = request.getContextPath() + authContextProperties.getMfa().getConfigureUrl();
+        String mfaConfigUrl = request.getContextPath() + authUrlProvider.getMfaConfigure();
 
         // 등록 상태 확인
         Integer registered = (Integer) factorContext.getAttribute("registeredFactorCount");
@@ -238,15 +241,15 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
     private String determineChalllengeUrl(FactorContext ctx, HttpServletRequest request) {
         if (ctx.getCurrentProcessingFactor() == null) {
-            return request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl();
+            return request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
         }
 
         return switch (ctx.getCurrentProcessingFactor()) {
             case OTT -> request.getContextPath() +
-                    authContextProperties.getMfa().getOttFactor().getRequestCodeUiUrl();
+                    authUrlProvider.getOttRequestCodeUi();
             case PASSKEY -> request.getContextPath() +
-                    authContextProperties.getMfa().getPasskeyFactor().getChallengeUrl();
-            default -> request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl();
+                    authUrlProvider.getPasskeyChallengeUi();
+            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
         };
     }
 

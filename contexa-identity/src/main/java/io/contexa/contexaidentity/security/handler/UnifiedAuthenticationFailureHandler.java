@@ -9,6 +9,7 @@ import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
@@ -45,6 +46,7 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
     private final AuthContextProperties authContextProperties;
     private final MfaSessionRepository sessionRepository;
     private final UserIdentificationService userIdentificationService;
+    private final AuthUrlProvider authUrlProvider;
 
     private PlatformAuthenticationFailureHandler delegateHandler;
     private ApplicationEventPublisher eventPublisher;
@@ -230,7 +232,7 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
             nextStepUrl = determineFactorVerificationUrl(currentProcessingFactor, request);
         } else {
             // 팩터 선택 화면으로
-            nextStepUrl = request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl();
+            nextStepUrl = request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
         }
 
         errorDetails.put("message", errorMessage);
@@ -265,10 +267,10 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
     private String determineFactorVerificationUrl(AuthType factorType, HttpServletRequest request) {
         return switch (factorType) {
             case OTT -> request.getContextPath() +
-                    authContextProperties.getMfa().getOttFactor().getRequestCodeUiUrl();
+                    authUrlProvider.getOttRequestCodeUi();
             case PASSKEY -> request.getContextPath() +
-                    authContextProperties.getMfa().getPasskeyFactor().getRegistrationRequestUrl();
-            default -> request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl();
+                    authUrlProvider.getPasskeyRegistrationRequest();
+            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
         };
     }
 

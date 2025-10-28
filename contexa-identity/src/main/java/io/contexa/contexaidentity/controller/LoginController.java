@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -39,6 +40,7 @@ public class LoginController {
 
     private final ApplicationContext applicationContext;
     private final AuthContextProperties authContextProperties;
+    private final AuthUrlProvider authUrlProvider;
 
     // 완전 일원화: State Machine 통합자만 사용
     private final MfaStateMachineIntegrator stateMachineIntegrator;
@@ -90,7 +92,7 @@ public class LoginController {
      * 완전 일원화: MFA 에러 리다이렉트 생성
      */
     private String createMfaErrorRedirect(HttpServletRequest request, String errorCode) {
-        return "redirect:" + getContextPath(request) + "/loginForm?mfa_error=" + errorCode;
+        return "redirect:" + getContextPath(request) + authUrlProvider.getPrimaryLoginPage() + "?mfa_error=" + errorCode;
     }
 
     @GetMapping("/loginForm")
@@ -188,7 +190,7 @@ public class LoginController {
             log.debug("Single OTT flow: FactorContext found but no username. Continuing with default flow.");
         }
 
-        String tokenGeneratingUrl = authContextProperties.getMfa().getOttFactor().getCodeGenerationUrl();
+        String tokenGeneratingUrl = authUrlProvider.getOttCodeGeneration();
 
         // MFA 플로우인 경우에만 설정 확인
         if (ctx != null && AuthType.MFA.name().equalsIgnoreCase(ctx.getFlowTypeName())) {
@@ -229,10 +231,10 @@ public class LoginController {
         if ("code_sent".equals(type)) {
             model.addAttribute("messageType", "code_sent");
             if ("mfa".equalsIgnoreCase(flow)) {
-                nextChallengeUrl = contextPath + authContextProperties.getMfa().getOttFactor().getChallengeUrl();
+                nextChallengeUrl = contextPath + authUrlProvider.getOttChallengeUi();
                 nextChallengeMessage = "MFA 인증 코드 입력 페이지로 이동하여 코드를 입력해주세요.";
             } else { // 단일 OTT
-                String singleOttVerifyPageUrl = "/loginOttVerifyCode";
+                String singleOttVerifyPageUrl = authUrlProvider.getSingleOttChallenge();
                 nextChallengeUrl = UriComponentsBuilder.fromPath(contextPath + singleOttVerifyPageUrl)
                         .queryParam("email", email)
                         .toUriString();
@@ -242,7 +244,7 @@ public class LoginController {
             model.addAttribute("nextChallengeUrl", nextChallengeUrl);
         } else if ("magic_link_sent".equals(type)) {
             model.addAttribute("messageType", "magic_link_sent");
-            model.addAttribute("loginPageUrl", contextPath + "/loginForm");
+            model.addAttribute("loginPageUrl", contextPath + authUrlProvider.getPrimaryLoginPage());
         } else {
             model.addAttribute("messageType", "unknown_sent_type");
             model.addAttribute("nextChallengeMessage", "이메일을 확인해주세요.");
@@ -258,8 +260,8 @@ public class LoginController {
         model.addAttribute("emailForVerification", email);
         model.addAttribute("pageTitle", "OTT 코드 검증");
 
-        String processingUrl = authContextProperties.getMfa().getOttFactor().getLoginProcessingUrl();
-        String resendUrl = authContextProperties.getMfa().getOttFactor().getRequestCodeUiUrl();
+        String processingUrl = authUrlProvider.getOttLoginProcessing();
+        String resendUrl = authUrlProvider.getOttRequestCodeUi();
 
         // 완전 일원화: State Machine에서 FactorContext 로드
         FactorContext ctx = loadFactorContextFromStateMachine(request);
@@ -308,10 +310,10 @@ public class LoginController {
     public String loginPasskeyPage(Model model, HttpServletRequest request) {
         model.addAttribute("pageTitle", "Passkey 로그인");
         String contextPath = getContextPath(request);
-        model.addAttribute("passkeyAssertionOptionsUrl", contextPath + "/webauthn/assertion/options");
-        model.addAttribute("passkeyAssertionProcessUrl", contextPath + "/login/webauthn");
-        model.addAttribute("passkeyRegistrationOptionsUrl", contextPath + "/webauthn/registration/options");
-        model.addAttribute("passkeyRegistrationProcessUrl", contextPath + "/webauthn/registration");
+        model.addAttribute("passkeyAssertionOptionsUrl", contextPath + authUrlProvider.getPasskeyAssertionOptions());
+        model.addAttribute("passkeyAssertionProcessUrl", contextPath + authUrlProvider.getPasskeyLoginProcessing());
+        model.addAttribute("passkeyRegistrationOptionsUrl", contextPath + authUrlProvider.getPasskeyRegistrationOptions());
+        model.addAttribute("passkeyRegistrationProcessUrl", contextPath + authUrlProvider.getPasskeyRegistrationProcessing());
         model.addAttribute("storageType", "UNIFIED_STATE_MACHINE"); // 디버깅용
         return "login-passkey";
     }
@@ -357,7 +359,7 @@ public class LoginController {
 
         if (!isValidMfaContext(ctx, "OTT") || !StringUtils.hasText(ctx.getCurrentStepId())) {
             log.warn("MFA OTT Request Code UI: Invalid FactorContext, not an OTT factor, or currentStepId missing. Context: {}", ctx);
-            return "redirect:" + getContextPath(request) + authContextProperties.getMfa().getSelectFactorUrl() + "?error=invalid_ott_request_context";
+            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactorUi() + "?error=invalid_ott_request_context";
         }
 
         model.addAttribute("username", ctx.getUsername());
@@ -365,7 +367,7 @@ public class LoginController {
         model.addAttribute("currentState", ctx.getCurrentState().name());
         model.addAttribute("pageTitle", "MFA - 이메일 인증 코드 요청");
 
-        String tokenGeneratingUrl = authContextProperties.getMfa().getOttFactor().getCodeGenerationUrl();
+        String tokenGeneratingUrl = authUrlProvider.getOttCodeGeneration();
         AuthenticationFlowConfig mfaFlowConfig = findFlowConfigByName(AuthType.MFA.name(), request);
 
         if (mfaFlowConfig != null) {
@@ -401,7 +403,7 @@ public class LoginController {
 
         if (!isValidMfaContext(ctx, "OTT") || !StringUtils.hasText(ctx.getCurrentStepId())) {
             log.warn("MFA OTT Challenge UI: Invalid FactorContext, not an OTT factor, or currentStepId missing. Context: {}", ctx);
-            return "redirect:" + getContextPath(request) + authContextProperties.getMfa().getSelectFactorUrl() + "?error=invalid_ott_challenge_context";
+            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactorUi() + "?error=invalid_ott_challenge_context";
         }
 
         model.addAttribute("usernameForDisplay", ctx.getUsername());
@@ -410,7 +412,7 @@ public class LoginController {
         model.addAttribute("currentState", ctx.getCurrentState().name());
         model.addAttribute("pageTitle", "MFA - 코드 입력");
 
-        String loginProcessingUrl = authContextProperties.getMfa().getOttFactor().getChallengeUrl();
+        String loginProcessingUrl = authUrlProvider.getOttLoginProcessing();
         AuthenticationFlowConfig mfaFlowConfig = findFlowConfigByName(AuthType.MFA.name(), request);
 
         if (mfaFlowConfig != null) {
@@ -431,7 +433,7 @@ public class LoginController {
         }
 
         model.addAttribute("mfaOttProcessingUrl", getContextPath(request) + loginProcessingUrl);
-        model.addAttribute("mfaResendOttUrl", getContextPath(request) + "/api/mfa/request-ott-code");
+        model.addAttribute("mfaResendOttUrl", getContextPath(request) + authUrlProvider.getApiRequestOttCode());
 
         if (resendSuccess != null) {
             model.addAttribute("successMessage", "인증 코드가 재전송되었습니다.");
@@ -458,7 +460,7 @@ public class LoginController {
 
         if (!isValidMfaContext(ctx, "PASSKEY")) {
             log.warn("MFA Passkey Challenge UI: Invalid FactorContext or not a Passkey factor. Context: {}", ctx);
-            return "redirect:" + getContextPath(request) + authContextProperties.getMfa().getSelectFactorUrl() + "?error=invalid_passkey_challenge_context";
+            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactorUi() + "?error=invalid_passkey_challenge_context";
         }
 
         model.addAttribute("usernameForDisplay", ctx.getUsername());
@@ -466,8 +468,8 @@ public class LoginController {
         model.addAttribute("currentState", ctx.getCurrentState().name());
         model.addAttribute("pageTitle", "MFA - Passkey 인증");
 
-        model.addAttribute("mfaPasskeyAssertionOptionsUrl", getContextPath(request) + "/api/mfa/assertion/options");
-        String loginProcessingUrl = authContextProperties.getMfa().getPasskeyFactor().getChallengeUrl();
+        model.addAttribute("mfaPasskeyAssertionOptionsUrl", getContextPath(request) + authUrlProvider.getApiAssertionOptions());
+        String loginProcessingUrl = authUrlProvider.getPasskeyLoginProcessing();
         model.addAttribute("mfaPasskeyProcessingUrl", getContextPath(request) + loginProcessingUrl);
         model.addAttribute("storageType", "UNIFIED_STATE_MACHINE"); // 디버깅용
 

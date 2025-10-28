@@ -6,6 +6,7 @@ import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.properties.MfaSettings;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.MfaTimeUtils;
@@ -38,18 +39,21 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private final ApplicationContext applicationContext;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSettings mfaSettings;
+    private final AuthUrlProvider authUrlProvider;
 
     public StateMachineAwareMfaRequestHandler(MfaPolicyProvider mfaPolicyProvider,
                                               AuthContextProperties authContextProperties,
                                               AuthResponseWriter responseWriter,
                                               ApplicationContext applicationContext,
-                                              MfaStateMachineIntegrator stateMachineIntegrator) {
+                                              MfaStateMachineIntegrator stateMachineIntegrator,
+                                              AuthUrlProvider authUrlProvider) {
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.authContextProperties = authContextProperties;
         this.responseWriter = responseWriter;
         this.applicationContext = applicationContext;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.mfaSettings = authContextProperties.getMfa();
+        this.authUrlProvider = authUrlProvider;
 
         log.info("StateMachineAwareMfaRequestHandler initialized with unified State Machine");
     }
@@ -874,15 +878,15 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private String determineNextStepUrl(FactorContext context, HttpServletRequest request) {
         if (context.getCurrentProcessingFactor() == null) {
-            return request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl();
+            return request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
         }
 
         return switch (context.getCurrentProcessingFactor()) {
             case OTT -> request.getContextPath() +
-                    authContextProperties.getMfa().getOttFactor().getRequestCodeUiUrl();
+                    authUrlProvider.getOttRequestCodeUi();
             case PASSKEY -> request.getContextPath() +
-                    authContextProperties.getMfa().getPasskeyFactor().getChallengeUrl();
-            default -> request.getContextPath() + authContextProperties.getMfa().getSelectFactorUrl();
+                    authUrlProvider.getPasskeyChallengeUi();
+            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
         };
     }
 
