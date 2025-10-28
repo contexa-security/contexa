@@ -13,6 +13,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -496,12 +497,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 ctx.getRegisteredMfaFactors().stream().map(AuthType::name).collect(Collectors.toList()) :
                 List.of();
 
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
         String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>MFA - 인증 방법 선택</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -582,7 +591,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </script>
 </body>
 </html>
-                """;
+                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
 
         writer.write(html);
         writer.flush();
@@ -606,12 +615,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        String html = String.format("""
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
+        String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>로그인 - MFA 인증</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -634,6 +651,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         %s
         %s
         <form method="post" action="%s">
+            <input type="hidden" name="%s" value="%s">
             <input type="text" name="%s" placeholder="사용자명 또는 이메일" required autofocus>
             <input type="password" name="%s" placeholder="비밀번호" required>
             <button type="submit">로그인</button>
@@ -644,10 +662,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </div>
 </body>
 </html>
-                """,
+                """.formatted(
+                csrfToken,
+                csrfHeaderName,
+                csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">⚠️ 로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
                 logoutMessage != null ? "<div class=\"message success\">✅ 로그아웃되었습니다.</div>" : "",
                 loginProcessingUrl,
+                csrfParameterName,
+                csrfToken,
                 usernameParam,
                 passwordParam
         );
@@ -681,12 +704,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        String html = String.format("""
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
+        String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>로그인 - MFA 인증 (REST)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -776,7 +807,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </script>
 </body>
 </html>
-                """,
+                """.formatted(
+                csrfToken,
+                csrfHeaderName,
+                csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">⚠️ 로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
                 logoutMessage != null ? "<div class=\"message success\">✅ 로그아웃되었습니다.</div>" : "",
                 usernameParam,
@@ -801,12 +835,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String ottChallengeUrl = extractOttChallengeUrl(); // DSL 설정 기반으로 변경
 
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
         String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>MFA - 인증 코드 요청</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -847,7 +889,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </script>
 </body>
 </html>
-                """.formatted(ottChallengeUrl);
+                """.formatted(csrfToken, csrfHeaderName, csrfParameterName, ottChallengeUrl);
 
         writer.write(html);
         writer.flush();
@@ -860,12 +902,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter writer = response.getWriter();
 
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
         String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>MFA - 인증 코드 입력</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -921,7 +971,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </script>
 </body>
 </html>
-                """;
+                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
 
         writer.write(html);
         writer.flush();
@@ -934,12 +984,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter writer = response.getWriter();
 
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
         String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>MFA - Passkey 인증</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -982,7 +1040,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </script>
 </body>
 </html>
-                """;
+                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
 
         writer.write(html);
         writer.flush();
@@ -995,12 +1053,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter writer = response.getWriter();
 
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
         String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>MFA - 초기 설정</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -1017,7 +1083,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </div>
 </body>
 </html>
-                """;
+                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
 
         writer.write(html);
         writer.flush();
@@ -1035,12 +1101,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String selectFactorUrl = extractSelectFactorUrl(); // DSL 설정 기반으로 변경
 
+        // CSRF 토큰 추출
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfParameterName = getCsrfParameterName(request);
+
         String html = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" content="%s">
+    <meta name="_csrf_header" content="%s">
+    <meta name="_csrf_parameter" content="%s">
     <title>MFA - 인증 실패</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -1058,9 +1132,47 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </div>
 </body>
 </html>
-                """.formatted(displayMessage, selectFactorUrl);
+                """.formatted(csrfToken, csrfHeaderName, csrfParameterName, displayMessage, selectFactorUrl);
 
         writer.write(html);
         writer.flush();
+    }
+
+    /**
+     * CSRF 토큰 값 추출
+     *
+     * Spring Security의 CsrfToken을 request attribute에서 가져옵니다.
+     *
+     * @param request HTTP 요청
+     * @return CSRF 토큰 값 (없으면 빈 문자열)
+     */
+    private String getCsrfToken(HttpServletRequest request) {
+        CsrfToken csrfToken =
+                (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        return csrfToken != null ? csrfToken.getToken() : "";
+    }
+
+    /**
+     * CSRF 헤더명 추출
+     *
+     * @param request HTTP 요청
+     * @return CSRF 헤더명 (기본값: X-CSRF-TOKEN)
+     */
+    private String getCsrfHeaderName(HttpServletRequest request) {
+        CsrfToken csrfToken =
+                (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        return csrfToken != null ? csrfToken.getHeaderName() : "X-CSRF-TOKEN";
+    }
+
+    /**
+     * CSRF 파라미터명 추출
+     *
+     * @param request HTTP 요청
+     * @return CSRF 파라미터명 (기본값: _csrf)
+     */
+    private String getCsrfParameterName(HttpServletRequest request) {
+        CsrfToken csrfToken =
+                (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        return csrfToken != null ? csrfToken.getParameterName() : "_csrf";
     }
 }
