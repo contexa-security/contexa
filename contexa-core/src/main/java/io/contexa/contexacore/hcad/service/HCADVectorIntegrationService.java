@@ -41,7 +41,7 @@ public class HCADVectorIntegrationService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final FeedbackIntegrationProperties feedbackProperties;
     private final LayerFeedbackService layerFeedbackService;
-    private final EmbeddingService embeddingService; // ✅ EmbeddingService 주입
+    private final EmbeddingService embeddingService; // EmbeddingService 주입
 
     @Autowired(required = false)
     private EmbeddingModel embeddingModel;
@@ -63,7 +63,7 @@ public class HCADVectorIntegrationService {
 
     /**
      * HCADContext를 고차원 임베딩으로 변환
-     * ✅ EmbeddingService로 위임
+     * EmbeddingService로 위임
      *
      * @param context HCAD 컨텍스트
      * @return 384차원 임베딩 벡터
@@ -89,7 +89,7 @@ public class HCADVectorIntegrationService {
             );
 
             if (!similarBehaviors.isEmpty()) {
-                // 패턴들을 평균하여 고차원 임베딩 생성 (✅ EmbeddingService 위임)
+                // 패턴들을 평균하여 고차원 임베딩 생성 (EmbeddingService 위임)
                 float[] averageEmbedding = embeddingService.calculateAverageEmbedding(similarBehaviors);
 
                 // BaselineVector에 고차원 임베딩 설정
@@ -129,7 +129,7 @@ public class HCADVectorIntegrationService {
      */
     public double calculateRealTimeAnomalyScore(float[] contextEmbedding, String userId) {
         try {
-            // Redis 에서 캐싱된 사용자 정상 패턴 임베딩 조회 (✅ EmbeddingService 위임)
+            // Redis 에서 캐싱된 사용자 정상 패턴 임베딩 조회 (EmbeddingService 위임)
             float[] normalEmbedding = embeddingService.getCachedNormalEmbedding(userId);
 
             if (normalEmbedding == null) {
@@ -138,7 +138,7 @@ public class HCADVectorIntegrationService {
             }
 
             if (normalEmbedding != null) {
-                // 코사인 유사도 계산 (✅ EmbeddingService 위임)
+                // 코사인 유사도 계산 (EmbeddingService 위임)
                 double similarity = embeddingService.calculateCosineSimilarity(contextEmbedding, normalEmbedding);
 
                 // 이상 점수 = 1 - 유사도
@@ -225,7 +225,7 @@ public class HCADVectorIntegrationService {
                 );
 
                 if (!recentPatterns.isEmpty()) {
-                    // 패턴들을 분석하여 고차원 임베딩 생성 (✅ EmbeddingService 위임)
+                    // 패턴들을 분석하여 고차원 임베딩 생성 (EmbeddingService 위임)
                     float[] updatedEmbedding = embeddingService.calculateWeightedEmbedding(recentPatterns);
 
                     // Redis에 즉시 업데이트 (Hot Path 에서 사용)
@@ -317,7 +317,7 @@ public class HCADVectorIntegrationService {
                     );
 
                     if (!userPatterns.isEmpty()) {
-                        // 임베딩 계산 및 캐싱 (✅ EmbeddingService 위임)
+                        // 임베딩 계산 및 캐싱 (EmbeddingService 위임)
                         float[] embedding = embeddingService.calculateAverageEmbedding(userPatterns);
                         embeddingService.cacheNormalEmbedding(userId, embedding);
                         processed++;
@@ -338,7 +338,7 @@ public class HCADVectorIntegrationService {
     }
 
     // === Private Helper Methods ===
-    // ✅ 중복 메소드 제거됨 - EmbeddingService로 위임
+    // 중복 메소드 제거됨 - EmbeddingService로 위임
 
     private float[] fetchNormalEmbeddingFromPGVector(String userId) {
         try {
@@ -352,7 +352,7 @@ public class HCADVectorIntegrationService {
             List<Document> normalPatterns = unifiedVectorService.searchSimilar(searchRequest);
 
             if (!normalPatterns.isEmpty()) {
-                // ✅ EmbeddingService 위임
+                // EmbeddingService 위임
                 float[] embedding = embeddingService.calculateAverageEmbedding(normalPatterns);
                 // 캐싱
                 embeddingService.cacheNormalEmbedding(userId, embedding);
@@ -366,7 +366,7 @@ public class HCADVectorIntegrationService {
         return null;
     }
 
-    // ✅ calculateAverageEmbedding, calculateWeightedEmbedding, calculateCosineSimilarity
+    // calculateAverageEmbedding, calculateWeightedEmbedding, calculateCosineSimilarity
     // 모두 EmbeddingService로 위임됨 (중복 제거)
 
     private void updateScenarioPatterns(BaselineVector baseline, List<Document> behaviors) {
@@ -393,7 +393,7 @@ public class HCADVectorIntegrationService {
 
     /**
      * 시나리오별 임베딩 추출
-     * ✅ EmbeddingService 위임
+     * EmbeddingService 위임
      */
     private Map<String, float[]> extractScenarioEmbeddings(List<Document> patterns) {
         Map<String, List<Document>> scenarioGroups = patterns.stream()
@@ -404,7 +404,7 @@ public class HCADVectorIntegrationService {
         for (Map.Entry<String, List<Document>> entry : scenarioGroups.entrySet()) {
             String scenario = entry.getKey();
             List<Document> docs = entry.getValue();
-            // ✅ EmbeddingService 사용
+            // EmbeddingService 사용
             float[] embedding = embeddingService.calculateAverageEmbedding(docs);
             scenarioEmbeddings.put(scenario, embedding);
         }

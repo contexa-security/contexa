@@ -123,7 +123,7 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-            // ✅ HCAD 피드백 루프 완전 통합 (v2.0) - 모든 HCAD 결과 읽기
+            // HCAD 피드백 루프 완전 통합 (v2.0) - 모든 HCAD 결과 읽기
             Double hcadSimilarity = (Double) request.getAttribute(HCAD_SIMILARITY_SCORE);
             Boolean hcadIsAnomaly = (Boolean) request.getAttribute(HCAD_IS_ANOMALY);
             Double hcadAnomalyScore = (Double) request.getAttribute(HCAD_ANOMALY_SCORE);
@@ -151,7 +151,7 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 // 인증된 사용자 - Trust Score 기반 AI 샘플링 (v2.0 - 피드백 루프 완전 통합)
                 userId = UserIdentificationStrategy.getUserId(auth);
 
-                // ✅ AI 기반 발행 결정 (HCAD + Trust Score + 피드백 학습 결과)
+                // AI 기반 발행 결정 (HCAD + Trust Score + 피드백 학습 결과)
                 decision = unifiedDecisionEngine.decideAuthenticated(request, auth, userId, hcadSimilarity,
                                                                       hcadIsAnomaly, hcadAnomalyScore);
 
@@ -172,7 +172,7 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                     return;
                 }
 
-                // ✅ AI 기반 발행 결정 (HCAD + IP 위협 + 시스템 상태 + 피드백 학습 결과)
+                // AI 기반 발행 결정 (HCAD + IP 위협 + 시스템 상태 + 피드백 학습 결과)
                 decision = unifiedDecisionEngine.decideAnonymous(request, hcadSimilarity,
                                                                  hcadIsAnomaly, hcadAnomalyScore);
 
@@ -195,9 +195,9 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 .httpMethod(request.getMethod())
                 .statusCode(response.getStatus())
                 .hcadSimilarityScore(hcadSimilarity)
-                .hcadIsAnomaly(hcadIsAnomaly)              // ✅ 학습된 임계값 기반 이상 탐지 판정
-                .hcadAnomalyScore(hcadAnomalyScore)        // ✅ 이상 점수
-                .hcadThreshold(hcadThreshold)              // ✅ 사용된 학습 임계값
+                .hcadIsAnomaly(hcadIsAnomaly)              // 학습된 임계값 기반 이상 탐지 판정
+                .hcadAnomalyScore(hcadAnomalyScore)        // 이상 점수
+                .hcadThreshold(hcadThreshold)              // 사용된 학습 임계값
                 .authentication(auth)
                 .isAnonymous(!isAuthenticated)
                 .eventTier(decision.getTier())

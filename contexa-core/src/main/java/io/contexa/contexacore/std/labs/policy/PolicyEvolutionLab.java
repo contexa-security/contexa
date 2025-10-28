@@ -19,7 +19,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 🧬 PolicyEvolutionLab - 자율 진화형 정책 연구실
+ * PolicyEvolutionLab - 자율 진화형 정책 연구실
  * 
  * 보안 정책의 자율적 진화와 합성을 담당하는 AI Lab입니다.
  * AbstractAILab을 상속받아 표준 파이프라인 패턴을 따릅니다.
@@ -58,7 +58,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
         this.learningEngineHelper = learningEngineHelper;
         this.memorySystemHelper = memorySystemHelper;
         
-        log.info("🧬 PolicyEvolutionLab 초기화 완료");
+        log.info("PolicyEvolutionLab 초기화 완료");
     }
     
     /**
@@ -75,7 +75,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
      */
     @Override
     protected PolicyEvolutionResponse doProcess(PolicyEvolutionRequest request) throws Exception {
-        log.info("🧬 정책 진화 처리 시작: {}", request.getContext());
+        log.info("정책 진화 처리 시작: {}", request.getContext());
         
         // 1. 컨텍스트 분석
         AnalysisResult analysis = analyzeContext(request);
@@ -102,7 +102,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
     @Override
     protected Mono<PolicyEvolutionResponse> doProcessAsync(PolicyEvolutionRequest request) {
         return Mono.fromCallable(() -> {
-            log.info("🧬 비동기 정책 진화 처리 시작");
+            log.info("비동기 정책 진화 처리 시작");
             
             // 컨텍스트 분석
             AnalysisResult analysis = analyzeContext(request);
@@ -129,8 +129,8 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
             });
         })
         .flatMap(mono -> mono)
-        .doOnSuccess(response -> log.info("🧬 비동기 정책 진화 완료"))
-        .doOnError(error -> log.error("🧬 비동기 정책 진화 실패", error));
+        .doOnSuccess(response -> log.info("비동기 정책 진화 완료"))
+        .doOnError(error -> log.error("비동기 정책 진화 실패", error));
     }
     
     /**
@@ -138,7 +138,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
      */
     @Override
     protected Flux<String> doProcessStream(PolicyEvolutionRequest request) {
-        log.info("🧬 스트리밍 정책 진화 시작");
+        log.info("스트리밍 정책 진화 시작");
         
         return Flux.create(sink -> {
             try {
@@ -153,7 +153,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
                 sink.next("" + existingPolicies.size() + "개의 관련 정책 발견\n\n");
                 
                 // 3. 정책 진화 과정 스트리밍
-                sink.next("🧬 정책 진화 시작...\n");
+                sink.next("정책 진화 시작...\n");
                 
                 // LLM을 통한 정책 생성 (스트리밍)
                 String prompt = buildEvolutionPrompt(request, analysis, existingPolicies);

@@ -351,7 +351,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             Map<String, Object> metadata = new HashMap<>();
 
             // 위협 타입 메타데이터
-            metadata.put("documentType", "threat");  // ✅ 위협 패턴으로 분류
+            metadata.put("documentType", "threat");  // 위협 패턴으로 분류
             metadata.put("threatConfirmed", true);
             metadata.put("riskScore", response.getBehavioralRiskScore());
             metadata.put("behaviorAnomalyScore", context.getBehaviorAnomalyScore());

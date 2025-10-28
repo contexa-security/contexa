@@ -81,7 +81,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.mfaFlowConfig = mfaFlowConfig;
         this.stateMachineIntegrator = stateMachineIntegrator;
 
-        log.info("✅ DefaultMfaPageGeneratingFilter initialized for MFA flow. Primary auth page: {}, Select factor page: {}",
+        log.info("DefaultMfaPageGeneratingFilter initialized for MFA flow. Primary auth page: {}, Select factor page: {}",
                 extractPrimaryLoginPage(),
                 extractSelectFactorUrl());
     }
@@ -667,7 +667,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfHeaderName,
                 csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">⚠️ 로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">✅ 로그아웃되었습니다.</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : "",
                 loginProcessingUrl,
                 csrfParameterName,
                 csrfToken,
@@ -788,7 +788,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
                 if (response.ok) {
                     // 성공 - MFA Select Factor 페이지로 리다이렉트
-                    messageArea.innerHTML = '<div class="message success">✅ 로그인 성공! 다단계 인증을 진행합니다...</div>';
+                    messageArea.innerHTML = '<div class="message success">로그인 성공! 다단계 인증을 진행합니다...</div>';
                     setTimeout(() => {
                         window.location.href = data.redirectUrl || '/mfa/select-factor';
                     }, 1000);
@@ -812,7 +812,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfHeaderName,
                 csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">⚠️ 로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">✅ 로그아웃되었습니다.</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : "",
                 usernameParam,
                 passwordParam,
                 loginProcessingUrl,

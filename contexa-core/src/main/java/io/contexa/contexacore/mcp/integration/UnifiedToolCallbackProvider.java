@@ -203,7 +203,7 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
      */
     private void registerSoarTools() {
         if (soarProvider == null) {
-            log.info("ℹ️ SOAR Provider가 없어 SOAR 도구 건너뜀");
+            log.info("SOAR Provider가 없어 SOAR 도구 건너뜀");
             return;
         }
         
@@ -241,7 +241,7 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
      */
     private void registerMcpTools() {
         if (mcpProvider == null) {
-            log.info("ℹ️ MCP Provider가 없어 MCP 도구 건너뜀");
+            log.info("MCP Provider가 없어 MCP 도구 건너뜀");
             return;
         }
         

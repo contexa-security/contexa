@@ -154,10 +154,10 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             // 실제 스트리밍 처리 - config 없이 호출하여 Strategy 최적화 파이프라인 사용
             Flux<String> streamingFlux = orchestrator.executeStream(aiRequest);
             return streamingFlux
-                    .doOnSubscribe(subscription -> { log.info("📦 [{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
+                    .doOnSubscribe(subscription -> { log.info("[{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
                     .doOnNext(chunk -> {
                         String chunkStr = chunk != null ? chunk.toString() : "";
-//                        log.error("📦 [STREAMING] 청크 수신: {}", Thread.currentThread().threadId());
+//                        log.error("[STREAMING] 청크 수신: {}", Thread.currentThread().threadId());
                     })
                     .map(this::cleanStreamingChunk)
                     .concatWith(Mono.just("[DONE]"))

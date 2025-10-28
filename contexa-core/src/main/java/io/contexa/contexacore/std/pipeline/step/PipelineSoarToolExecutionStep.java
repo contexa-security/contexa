@@ -134,11 +134,11 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
             return toolCapableLLMClient.call(prompt);
         }
         
-        log.info("📦 {} 개의 통합 도구 준비 완료 (SOAR + MCP)", unifiedTools.length);
+        log.info("{} 개의 통합 도구 준비 완료 (SOAR + MCP)", unifiedTools.length);
         log.info("등록된 도구 목록: {}", uniqueToolNames);
         
         // 상세 도구 정보 로깅
-        log.info("📦 등록된 도구 상세 정보:");
+        log.info("등록된 도구 상세 정보:");
         for (ToolCallback tool : unifiedTools) {
             log.info("  - 도구명: {}", tool.getToolDefinition().name());
             log.info("    설명: {}", tool.getToolDefinition().description());
@@ -157,7 +157,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
             unifiedTools.length, uniqueToolNames);
         
         Prompt promptWithOptions = new Prompt(prompt.getInstructions(), chatOptions);
-        log.info("🔒 Spring AI User-Controlled Tool Execution 활성화");
+        log.info("Spring AI User-Controlled Tool Execution 활성화");
         
         return toolCapableLLMClient.callToolCallbacksResponse(promptWithOptions, unifiedTools)
             .flatMap(chatResponse -> processToolCallsWithSpringAI(chatResponse, context, promptWithOptions, unifiedTools));

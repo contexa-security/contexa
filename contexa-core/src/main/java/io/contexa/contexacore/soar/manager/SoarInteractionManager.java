@@ -270,7 +270,7 @@ public class SoarInteractionManager {
             // WebSocket으로 세션 종료 알림
             notifySessionClosed(sessionId, reason);
             
-            log.info("🔒 SOAR 세션 종료: sessionId={}, reason={}", sessionId, reason);
+            log.info("SOAR 세션 종료: sessionId={}, reason={}", sessionId, reason);
         });
     }
     

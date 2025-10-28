@@ -10,7 +10,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 
 /**
- * 🌐 범용 조건 템플릿 생성 프롬프트
+ * 범용 조건 템플릿 생성 프롬프트
  * 
  * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
  * - 자동 JSON 스키마 생성

@@ -141,7 +141,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
      * 권한 거부 처리
      */
     private String handlePermissionDenied(String toolName, ToolExecutionException exception) {
-        log.error("🔒 권한 거부: {}", toolName);
+        log.error("권한 거부: {}", toolName);
         
         return createErrorResponse(
             "PERMISSION_DENIED",
@@ -160,7 +160,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
      * 네트워크 예외 처리
      */
     private String handleNetworkException(String toolName, ToolExecutionException exception) {
-        log.warn("🌐 네트워크 예외: {} - 복구 전략 적용", toolName);
+        log.warn("네트워크 예외: {} - 복구 전략 적용", toolName);
         
         RecoveryStrategy strategy = getRecoveryStrategy(toolName);
         

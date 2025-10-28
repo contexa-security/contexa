@@ -206,7 +206,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
      * 범용 조건 템플릿용 컨텍스트 검색
      */
     private String retrieveUniversalTemplateContext(ConditionTemplateContext context, List<Document> ragDocuments) {
-        log.debug("🌐 범용 조건 템플릿 컨텍스트 검색");
+        log.debug("범용 조건 템플릿 컨텍스트 검색");
         
         StringBuilder contextBuilder = new StringBuilder();
         String baseContext = """
@@ -299,7 +299,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
                 - 허용된 파라미터: %s (이것만 사용 가능!)
                 - 리소스 타입: %s (참고용, hasPermission에서 사용 금지!)
                 
-                🔒 hasPermission 사용법:
+                hasPermission 사용법:
                 %s
                 
                 메서드 컨텍스트:
@@ -349,7 +349,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
                 - 허용된 파라미터: %s (이것만 사용 가능!)
                 - 허용된 리소스 타입: %s (이것만 사용 가능!)
                 
-                🔒 hasPermission 사용법:
+                hasPermission 사용법:
                 %s
                 
                 메서드 컨텍스트:

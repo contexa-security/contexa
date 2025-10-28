@@ -58,7 +58,7 @@ public class SecurityLogResource {
             getResourceDefinition(),
             (exchange, request) -> {
                 try {
-                    log.info("📄 보안 로그 리소스 요청: {}", request.uri());
+                    log.info("보안 로그 리소스 요청: {}", request.uri());
                     
                     // URI 파싱 (예: security://logs/current?severity=high&limit=100)
                     Map<String, String> params = parseUriParameters(request.uri());

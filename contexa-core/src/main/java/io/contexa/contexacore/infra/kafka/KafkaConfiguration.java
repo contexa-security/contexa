@@ -122,7 +122,7 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(consumerFactory());
         factory.setConcurrency(concurrency);
 
-        // ✅ 수동 즉시 커밋 모드로 변경 (MANUAL은 비동기 커밋이라 메시지가 남을 수 있음)
+        // 수동 즉시 커밋 모드로 변경 (MANUAL은 비동기 커밋이라 메시지가 남을 수 있음)
         // MANUAL_IMMEDIATE: acknowledge() 호출 시 즉시 동기 커밋 → 메시지 확실히 삭제
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
@@ -152,7 +152,7 @@ public class KafkaConfiguration {
         // 배치 리스너 활성화
         factory.setBatchListener(true);
 
-        // ✅ 배치 처리 설정 - MANUAL_IMMEDIATE로 변경 (즉시 동기 커밋)
+        // 배치 처리 설정 - MANUAL_IMMEDIATE로 변경 (즉시 동기 커밋)
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.getContainerProperties().setPollTimeout(3000);
 
@@ -191,7 +191,7 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(jsonConsumerFactory);
         factory.setConcurrency(concurrency);
 
-        // ✅ JSON 메시지도 MANUAL_IMMEDIATE로 즉시 동기 커밋
+        // JSON 메시지도 MANUAL_IMMEDIATE로 즉시 동기 커밋
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         return factory;

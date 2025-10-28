@@ -91,7 +91,7 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
 
                     double riskScore = ((BehavioralAnalysisResponse)response).getBehavioralRiskScore();
 
-                    // ✅ 고위험 행동을 위협 패턴으로 저장 (공격 탐지용)
+                    // 고위험 행동을 위협 패턴으로 저장 (공격 탐지용)
                     if (riskScore >= 70.0) {
                         behaviorVectorService.storeThreatPattern(request.getContext(), (BehavioralAnalysisResponse)response);
                         log.warn("[ThreatPattern] 고위험 패턴 벡터 저장소 저장 완료: userId={}, riskScore={}",

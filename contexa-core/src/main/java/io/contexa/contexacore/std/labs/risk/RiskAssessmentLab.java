@@ -181,10 +181,10 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                 return orchestrator.executeStream(riskRequest, pipelineConfig)
                         .map(chunk -> {
                             String chunkStr = chunk != null ? chunk.toString() : "";
-//                            log.error("📦 [{}] [STREAMING] 청크 수신: {}", Thread.currentThread().threadId(), chunkStr.length() > 100 ? chunkStr.substring(0, 100) + "..." : chunkStr);
+//                            log.error("[{}] [STREAMING] 청크 수신: {}", Thread.currentThread().threadId(), chunkStr.length() > 100 ? chunkStr.substring(0, 100) + "..." : chunkStr);
                             return chunkStr;
                         })
-                        .doOnSubscribe(subscription -> { log.info("📦 [{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
+                        .doOnSubscribe(subscription -> { log.info("[{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
                         .doOnComplete(() -> {
                             log.info("[{}] RiskAssessment 스트리밍 완료 (진단 결과도 함께 수집됨)", assessmentId);
                         })

@@ -157,7 +157,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 
                 standardVectorStoreService.addDocuments(batch);
                 
-                log.debug("📦 [{}] 배치 저장 완료: {}/{}", getLabName(), end, processedDocuments.size());
+                log.debug("[{}] 배치 저장 완료: {}/{}", getLabName(), end, processedDocuments.size());
             }
             
             // 3. 후처리

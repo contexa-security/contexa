@@ -661,7 +661,7 @@ public class AutoConditionTemplateService {
 
             // 범용 조건인지 특화 조건인지 구분하여 적절한 요청 생성
             if (userPrompt.contains("범용") || userPrompt.contains("업무 환경에서 자주 사용되는")) {
-                log.info("🌐 범용 조건 템플릿 생성 요청");
+                log.info("범용 조건 템플릿 생성 요청");
                 log.info("범용 조건 입력: {}", userPrompt);
                 
                 // 신버전: ConditionTemplateGenerationRequest 사용
@@ -718,7 +718,7 @@ public class AutoConditionTemplateService {
         List<ConditionTemplate> templates = new ArrayList<>();
 
         log.info("AI 응답 파싱 시작 - 소스: {}", sourceMethod);
-        log.info("📄 원본 AI 응답: {}", aiResponse);
+        log.info("원본 AI 응답: {}", aiResponse);
 
         try {
             // JSON 정제 - 마크다운 코드 블록 제거 및 불필요한 텍스트 제거

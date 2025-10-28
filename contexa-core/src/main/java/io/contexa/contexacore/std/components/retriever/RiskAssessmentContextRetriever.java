@@ -324,7 +324,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 if (context.getResourceIdentifier().toLowerCase().contains("admin")) {
                     profile.append("높은 위험도: 관리자 리소스 접근\n");
                 } else if (context.getResourceIdentifier().toLowerCase().contains("user")) {
-                    profile.append("ℹ️ 중간 위험도: 사용자 리소스 접근\n");
+                    profile.append("중간 위험도: 사용자 리소스 접근\n");
                 } else {
                     profile.append("낮은 위험도: 일반 리소스 접근\n");
                 }

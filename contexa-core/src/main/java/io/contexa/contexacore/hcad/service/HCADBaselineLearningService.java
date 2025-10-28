@@ -82,7 +82,7 @@ public class HCADBaselineLearningService {
     public boolean shouldUpdateBaseline(BaselineVector baseline, double anomalyScore,
                                        double similarityScore, HCADContext context) {
 
-        // ✅ 0. 의심스러운 컨텍스트 필터링 (기준선 오염 방지)
+        // 0. 의심스러운 컨텍스트 필터링 (기준선 오염 방지)
         if (isSuspiciousContext(context)) {
             if (log.isDebugEnabled()) {
                 log.debug("[HCAD] Suspicious context detected, skipping baseline update: userId={}, reasons={}",
@@ -305,7 +305,7 @@ public class HCADBaselineLearningService {
     }
 
     /**
-     * ✅ 의심스러운 컨텍스트 판별 (기준선 오염 방지)
+     * 의심스러운 컨텍스트 판별 (기준선 오염 방지)
      */
     private boolean isSuspiciousContext(HCADContext context) {
         // isNewDevice - 새 디바이스는 의심
@@ -341,7 +341,7 @@ public class HCADBaselineLearningService {
     }
 
     /**
-     * ✅ 의심스러운 이유 문자열 생성 (디버깅용)
+     * 의심스러운 이유 문자열 생성 (디버깅용)
      */
     private String getSuspiciousReasons(HCADContext context) {
         List<String> reasons = new ArrayList<>();

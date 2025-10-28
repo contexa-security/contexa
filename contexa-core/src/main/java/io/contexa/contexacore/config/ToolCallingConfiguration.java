@@ -89,7 +89,7 @@ public class ToolCallingConfiguration {
             AsyncToolExecutionService asyncExecutionService,
             ObjectMapper objectMapper) {
         
-        log.info("🔒 ApprovalAwareToolCallingManager 생성 (Decorator 패턴)");
+        log.info("ApprovalAwareToolCallingManager 생성 (Decorator 패턴)");
         
         return new ApprovalAwareToolCallingManagerDecorator(
             defaultToolCallingManager,
@@ -193,7 +193,7 @@ public class ToolCallingConfiguration {
             Optional<McpFunctionCallbackProvider> mcpFunctionProvider) {
         
         if (mcpClientProvider.isPresent() && mcpFunctionProvider.isPresent()) {
-            log.info("🌐 McpToolResolver 생성 (MCP 활성화)");
+            log.info("McpToolResolver 생성 (MCP 활성화)");
             return new McpToolResolver(mcpClientProvider.get(), mcpFunctionProvider.get());
         } else {
             log.warn("MCP 프로바이더를 찾을 수 없음. 빈 McpToolResolver 생성");
@@ -207,7 +207,7 @@ public class ToolCallingConfiguration {
     @Bean
     @ConditionalOnMissingBean(StaticToolCallbackResolver.class)
     public StaticToolCallbackResolver staticToolCallbackResolver() {
-        log.info("📦 StaticToolCallbackResolver 생성");
+        log.info("StaticToolCallbackResolver 생성");
         return new StaticToolCallbackResolver();
     }
     
@@ -259,7 +259,7 @@ public class ToolCallingConfiguration {
                 // MCP 도구 통계
                 if (mcpProvider.isPresent()) {
                     Map<String, Object> stats = mcpProvider.get().getMcpToolStatistics();
-                    log.info("🌐 MCP 도구 통계: {}", stats);
+                    log.info("MCP 도구 통계: {}", stats);
                 }
                 
                 log.info("=====================================");
@@ -279,7 +279,7 @@ public class ToolCallingConfiguration {
      */
     @jakarta.annotation.PostConstruct
     public void logConfiguration() {
-        log.info("✨ Spring AI Tool Calling Configuration 초기화 완료");
+        log.info("Spring AI Tool Calling Configuration 초기화 완료");
         log.info("  - DefaultToolCallingManager: 활성화");
         log.info("  - ApprovalAwareToolCallingManager: Decorator 패턴 적용");
         log.info("  - ChainedToolResolver: 향상된 기능 포함");

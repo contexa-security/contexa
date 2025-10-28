@@ -31,7 +31,7 @@ public class ToolExecutionConfiguration {
     @Bean
     @ConditionalOnMissingBean(ToolResultCache.class)
     public ToolResultCache toolResultCache(RedisTemplate<String, Object> redisTemplate) {
-        log.info("📦 Tool Result Cache 구성");
+        log.info("Tool Result Cache 구성");
         return new ToolResultCache(redisTemplate);
     }
     
@@ -62,7 +62,7 @@ public class ToolExecutionConfiguration {
         public ToolExecutionConfigurationLogger() {
             log.info("════════════════════════════════════════════════════");
             log.info("Tool Execution Configuration 초기화 완료");
-            log.info("🌐 MCP 통합 도구 실행 시스템 활성화");
+            log.info("MCP 통합 도구 실행 시스템 활성화");
             log.info("보안 검증 및 승인 메커니즘 통합 완료");
             log.info("════════════════════════════════════════════════════");
         }

@@ -84,7 +84,7 @@ public class ChainedToolResolver implements ToolCallbackResolver {
     private void initializeToolCache() {
         try {
             Set<String> toolNames = getRegisteredToolNames();
-            log.info("📦 초기 도구 캐시 구성: {} 개 도구", toolNames.size());
+            log.info("초기 도구 캐시 구성: {} 개 도구", toolNames.size());
             
             // 자주 사용되는 도구들을 미리 캐시 (선택적)
             for (String toolName : toolNames) {

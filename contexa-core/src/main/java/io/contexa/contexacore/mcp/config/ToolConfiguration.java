@@ -79,7 +79,7 @@ public class ToolConfiguration {
                 // 도구 통합 실패해도 기본 ChatClient는 생성
             }
         } else if (!toolsEnabled) {
-            log.info("ℹ️ 도구가 비활성화되어 있습니다");
+            log.info("도구가 비활성화되어 있습니다");
         } else {
             log.warn("ChainedToolResolver를 찾을 수 없습니다");
         }

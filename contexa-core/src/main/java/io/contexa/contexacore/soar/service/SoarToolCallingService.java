@@ -126,7 +126,7 @@ public class SoarToolCallingService {
                 ObjectMapper mapper = new ObjectMapper();
                 mapper.registerModule(new JavaTimeModule());
                 finalResponse = mapper.writeValueAsString(response);
-                log.info("📄 SoarResponse를 JSON으로 변환 성공: {} bytes", finalResponse.length());
+                log.info("SoarResponse를 JSON으로 변환 성공: {} bytes", finalResponse.length());
             } catch (Exception e) {
                 log.warn("SoarResponse JSON 변환 실패, analysisResult만 사용", e);
                 finalResponse = response.getAnalysisResult() != null ? response.getAnalysisResult() : "";

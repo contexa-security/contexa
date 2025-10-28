@@ -82,7 +82,7 @@ public class UnifiedSecurityMetricsCollector implements DomainMetrics, EventReco
                 .description("Overall SLA compliance rate across all domains")
                 .register(meterRegistry);
 
-        log.info("✅ UnifiedSecurityMetricsCollector initialized successfully");
+        log.info("UnifiedSecurityMetricsCollector initialized successfully");
     }
 
     // ===== Public API =====

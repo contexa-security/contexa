@@ -1,7 +1,7 @@
 package io.contexa.contexacore.domain;
 
 /**
- * ✅ Phase 3: Vector Store Document Type 표준화 Enum
+ * Phase 3: Vector Store Document Type 표준화 Enum
  *
  * vector_store 테이블의 metadata.documentType 필드 표준화를 위한 Enum
  * RAG 검색 시 documentType 기반 필터링으로 정확한 컨텍스트 검색 가능

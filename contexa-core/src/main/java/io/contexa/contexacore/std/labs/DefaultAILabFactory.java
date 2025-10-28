@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 /**
- * 🏭 IAM 도메인 Lab 팩토리 구현체
+ * IAM 도메인 Lab 팩토리 구현체
  *
  * 기존 LabAccessor와 IAMLabRegistry의 기능을 통합하여
  * 새로운 AILabFactory 인터페이스를 구현
@@ -24,7 +24,7 @@ public class DefaultAILabFactory implements AILabFactory {
     @Autowired
     public DefaultAILabFactory(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
-        log.info("🏭 IAMLabFactory initialized with backward compatibility");
+        log.info("IAMLabFactory initialized with backward compatibility");
     }
 
     @Override

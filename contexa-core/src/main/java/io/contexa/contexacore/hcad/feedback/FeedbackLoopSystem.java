@@ -51,7 +51,7 @@ public class FeedbackLoopSystem {
     @Autowired(required = false)
     private JdbcTemplate jdbcTemplate;
 
-    // ✅ 순환 의존성 해결: @Lazy 주입으로 UnifiedThresholdManager 지연 로딩
+    // 순환 의존성 해결: @Lazy 주입으로 UnifiedThresholdManager 지연 로딩
     @Lazy
     @Autowired(required = false)
     private UnifiedThresholdManager unifiedThresholdManager;
@@ -308,7 +308,7 @@ public class FeedbackLoopSystem {
      */
     private void adjustThreshold(String userId, ThresholdAdjustment adjustment, double delta) {
         if (unifiedThresholdManager != null) {
-            // ✅ UnifiedThresholdManager를 통한 통합 임계값 조정
+            // UnifiedThresholdManager를 통한 통합 임계값 조정
             boolean isIncrease = (adjustment == ThresholdAdjustment.INCREASE);
             unifiedThresholdManager.applyFeedbackThresholdAdjustment(userId, isIncrease, delta);
 

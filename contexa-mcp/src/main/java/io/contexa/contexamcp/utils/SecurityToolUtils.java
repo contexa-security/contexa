@@ -123,7 +123,7 @@ public class SecurityToolUtils {
                 log.warn("SECURITY EVENT: {}", event);
                 break;
             case "MEDIUM":
-                log.info("ℹ️ SECURITY EVENT: {}", event);
+                log.info("SECURITY EVENT: {}", event);
                 break;
             default:
                 log.debug("SECURITY EVENT: {}", event);

@@ -76,7 +76,7 @@ public class VectorStoreObservationConfig {
             observationRegistry.observationConfig().observationHandler(handler);
             log.info("Manually registered DefaultMeterObservationHandler");
         } else {
-            log.info("✅ ObservationRegistry is already active (auto-configured by Spring Boot)");
+            log.info("ObservationRegistry is already active (auto-configured by Spring Boot)");
         }
     }
 
@@ -139,7 +139,7 @@ public class VectorStoreObservationConfig {
                 .customObservationConvention(observationConvention)  // ⭐ Custom Convention 주입
                 .build();
 
-        log.info("✅ PgVectorStore created with ObservationRegistry successfully");
+        log.info("PgVectorStore created with ObservationRegistry successfully");
         return vectorStore;
     }*/
 }

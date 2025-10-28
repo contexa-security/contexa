@@ -175,7 +175,7 @@ public class DualModeSimulationService {
         if (unprotected.isAttackSuccessful() && !protected_.isAttackSuccessful()) {
             log.info("  AI Security successfully blocked the attack!");
         } else if (!unprotected.isAttackSuccessful() && !protected_.isAttackSuccessful()) {
-            log.info("  ℹ️ Attack failed in both modes");
+            log.info("  Attack failed in both modes");
         } else if (unprotected.isAttackSuccessful() && protected_.isAttackSuccessful()) {
             log.warn("  Attack succeeded in both modes - needs investigation");
         }

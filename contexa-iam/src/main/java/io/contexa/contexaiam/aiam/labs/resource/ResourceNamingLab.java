@@ -91,7 +91,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                         .stream()
                         .toList();
 
-        log.info("📦 배치 분할 완료: 총 {}개 배치 (배치 크기: {})", batches.size(), DEFAULT_BATCH_SIZE);
+        log.info("배치 분할 완료: 총 {}개 배치 (배치 크기: {})", batches.size(), DEFAULT_BATCH_SIZE);
         return processBatchesSequentiallyAsync(batches, 0, allSuggestions, failedIdentifiers, startTime, request.getResources().size());
     }
 

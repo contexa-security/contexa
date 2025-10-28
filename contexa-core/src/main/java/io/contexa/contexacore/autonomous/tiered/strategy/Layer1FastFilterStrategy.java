@@ -726,7 +726,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
             Document document = new Document(eventText, metadata);
             unifiedVectorService.storeDocument(document);
 
-            // ✅ Phase 1: 고위험 이벤트는 별도로 threat 문서 저장
+            // Phase 1: 고위험 이벤트는 별도로 threat 문서 저장
             if (decision.getRiskScore() >= 0.7 || decision.isKnownThreat()) {
                 storeThreatDocument(event, decision, eventText);
             }
@@ -749,7 +749,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         try {
             Map<String, Object> threatMetadata = new HashMap<>();
 
-            // ✅ 위협 전용 documentType (Enum 사용)
+            // 위협 전용 documentType (Enum 사용)
             threatMetadata.put("documentType", VectorDocumentType.THREAT.getValue());
             threatMetadata.put("threatConfirmed", decision.isKnownThreat());
             threatMetadata.put("riskScore", decision.getRiskScore());

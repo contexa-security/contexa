@@ -109,7 +109,7 @@ public class ConversationHistoryBuilder {
             List<ToolResponseMessage> toolResponses,
             java.util.Map<String, Object> mcpMetadata) {
         
-        log.debug("🌐 MCP 컨텍스트를 포함한 conversation history 구성");
+        log.debug("MCP 컨텍스트를 포함한 conversation history 구성");
         
         // 기본 history 구성
         List<Message> conversationHistory = build(previousMessages, assistantMessage, toolResponses);

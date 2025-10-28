@@ -315,7 +315,7 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
         List<ConditionTemplate> templates = new ArrayList<>();
 
         log.info("AI 응답 파싱 시작 - 소스: {}", sourceMethod);
-        log.info("📄 원본 AI 응답: {}", aiResponse);
+        log.info("원본 AI 응답: {}", aiResponse);
 
         try {
             // JSON 정제 - 마크다운 코드 블록 제거 및 불필요한 텍스트 제거

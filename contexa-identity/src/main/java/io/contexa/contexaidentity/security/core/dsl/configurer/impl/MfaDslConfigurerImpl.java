@@ -349,7 +349,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         // MfaAuthenticationEntryPoint 생성
         MfaAuthenticationEntryPoint entryPoint = new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl);
 
-        log.info("✅ MfaAuthenticationEntryPoint created with loginPage: {}", loginPageUrl);
+        log.info("MfaAuthenticationEntryPoint created with loginPage: {}", loginPageUrl);
 
         return entryPoint;
     }

@@ -38,7 +38,7 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
     }
 
     /**
-     * 🌐 [웹 특화 기능] IP 주소 매칭
+     * [웹 특화 기능] IP 주소 매칭
      * 
      * Spring Security의 표준 IP 매칭 기능을 제공합니다.
      */

@@ -73,9 +73,9 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                 .anyMatch(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()));
 
         if (hasMfaFlow) {
-            log.info("✅ MFA flow detected. DefaultMfaPageGeneratingFilter will be registered in configure() phase.");
+            log.info("MFA flow detected. DefaultMfaPageGeneratingFilter will be registered in configure() phase.");
         } else {
-            log.info("ℹ️ No MFA flow detected. DefaultMfaPageGeneratingFilter will not be registered.");
+            log.info("No MFA flow detected. DefaultMfaPageGeneratingFilter will not be registered.");
         }
     }
 
@@ -116,11 +116,11 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             String selectFactorPage = extractSelectFactorUrl(flowConfig);
             String customPagesInfo = buildCustomPagesInfo(flowConfig);
 
-            log.info("✅ DefaultMfaPageGeneratingFilter successfully registered for MFA flow.");
-            log.info("   📄 Primary authentication page: {}", primaryLoginPage);
-            log.info("   📄 Select factor page: {}", selectFactorPage);
+            log.info("DefaultMfaPageGeneratingFilter successfully registered for MFA flow.");
+            log.info("   Primary authentication page: {}", primaryLoginPage);
+            log.info("   Select factor page: {}", selectFactorPage);
             if (StringUtils.hasText(customPagesInfo)) {
-                log.info("   📄 Custom pages configured: {}", customPagesInfo);
+                log.info("   Custom pages configured: {}", customPagesInfo);
             }
 
         } catch (Exception e) {
@@ -181,7 +181,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             // 기본 EntryPoint로 등록 (Spring Security FormLoginConfigurer 패턴)
             exceptionHandling.defaultAuthenticationEntryPointFor(entryPoint, entryPointMatcher);
 
-            log.info("✅ MfaAuthenticationEntryPoint registered for HTML requests with loginPage: {}",
+            log.info("MfaAuthenticationEntryPoint registered for HTML requests with loginPage: {}",
                     entryPoint.getLoginPageUrl());
 
         } catch (Exception e) {

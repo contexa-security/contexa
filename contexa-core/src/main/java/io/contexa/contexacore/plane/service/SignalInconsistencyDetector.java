@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * - 직교 신호 부족 문제 해결 (7차원 신호)
  *
  * 외부기관 2 피드백 반영:
- * - 고정 임계값 제거 (stdDev > 0.15, outlier > 0.25 ❌)
+ * - 고정 임계값 제거 (stdDev > 0.15, outlier > 0.25)
  * - UnifiedThresholdManager 자동 튜닝 통합 ✅
  *
  * @author contexa

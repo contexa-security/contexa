@@ -42,7 +42,7 @@ public class HttpRequestEvent {
     private Double hcadSimilarityScore;
     private Authentication authentication;
 
-    // ✅ HCAD 피드백 루프 완전 통합 (v2.0)
+    // HCAD 피드백 루프 완전 통합 (v2.0)
     private Boolean hcadIsAnomaly;         // 학습된 임계값 기반 이상 탐지 판정
     private Double hcadAnomalyScore;       // 이상 점수 (1.0 - similarity)
     private Double hcadThreshold;          // 사용된 학습 임계값

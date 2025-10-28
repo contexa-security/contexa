@@ -272,11 +272,11 @@ public class InitializeVectorStore implements CommandLineRunner {
         log.info("총 {}개의 행동 패턴 저장됨", totalPatterns);
         log.info("========================================");
 
-        // ✅ NEW: Redis BaselineVector 초기화
+        // NEW: Redis BaselineVector 초기화
         log.info("\n[11단계] Redis BaselineVector 초기화");
         initializeBaselineVectors();
 
-        // ✅ NEW: Redis 초기화 검증
+        // NEW: Redis 초기화 검증
         log.info("\n[12단계] Redis 초기화 검증");
         verifyRedisInitialization();
 
@@ -292,7 +292,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         log.info("- Bot Attack 공격 패턴");
         log.info("- Session Hijacking 공격 패턴");
         log.info("- Impossible Travel 공격 패턴");
-        log.info("✅ Redis BaselineVector 초기화 완료");
+        log.info("Redis BaselineVector 초기화 완료");
         log.info("");
         log.info("이제 다음을 수행할 수 있습니다:");
         log.info("1. 테스트 실행: TEST-EXECUTION-GUIDE.md 참조");
@@ -1636,14 +1636,14 @@ public class InitializeVectorStore implements CommandLineRunner {
                 // 5. Redis 저장
                 saveBaselineToRedis(userId, baseline);
 
-                log.info("  ✅ {} BaselineVector 저장 완료: confidence={}, updateCount={}, avgVectorNorm={}",
+                log.info("  {} BaselineVector 저장 완료: confidence={}, updateCount={}, avgVectorNorm={}",
                     userId,
                     String.format("%.3f", baseline.getConfidence()),
                     baseline.getUpdateCount(),
                     String.format("%.3f", calculateVectorNorm(avgVector)));
 
             } catch (Exception e) {
-                log.error("  ❌ {} BaselineVector 생성 실패: {}", userId, e.getMessage(), e);
+                log.error("  {} BaselineVector 생성 실패: {}", userId, e.getMessage(), e);
             }
         }
     }
@@ -1829,7 +1829,7 @@ public class InitializeVectorStore implements CommandLineRunner {
 
                 if (value instanceof BaselineVector) {
                     BaselineVector baseline = (BaselineVector) value;
-                    log.info("✅ {}: confidence={}, updateCount={}, vectorNorm={}",
+                    log.info("{}: confidence={}, updateCount={}, vectorNorm={}",
                         userId,
                         String.format("%.3f", baseline.getConfidence()),
                         baseline.getUpdateCount(),
@@ -1848,7 +1848,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         log.info("검증 결과: {}/{}개 사용자 BaselineVector 저장 완료", successCount, totalUsers);
 
         if (successCount == totalUsers) {
-            log.info("✅ ✅ ✅ 모든 사용자 BaselineVector가 성공적으로 Redis에 저장되었습니다!");
+            log.info("모든 사용자 BaselineVector가 성공적으로 Redis에 저장되었습니다!");
         } else {
             log.warn("⚠️  일부 사용자의 BaselineVector 저장 실패");
         }

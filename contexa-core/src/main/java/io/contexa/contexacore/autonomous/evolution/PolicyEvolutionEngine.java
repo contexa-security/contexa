@@ -73,7 +73,7 @@ public class PolicyEvolutionEngine {
      */
     public PolicyEvolutionProposal evolvePolicy(SecurityEvent event, LearningMetadata metadata) {
         long startTime = System.currentTimeMillis();
-        log.info("🧬 정책 진화 시작 - EventId: {}, LearningType: {}",
+        log.info("정책 진화 시작 - EventId: {}, LearningType: {}",
                  event.getEventId(), metadata.getLearningType());
 
         try {
@@ -165,7 +165,7 @@ public class PolicyEvolutionEngine {
      * @return 진화된 정책 제안
      */
     public PolicyEvolutionProposal evolvePolicy(io.contexa.contexacore.domain.SoarIncidentDto incident, LearningMetadata metadata) {
-        log.info("🧬 정책 진화 시작 (SoarIncidentDto) - IncidentId: {}, Type: {}",
+        log.info("정책 진화 시작 (SoarIncidentDto) - IncidentId: {}, Type: {}",
                  incident.getIncidentId(), incident.getType());
 
         // SoarIncidentDto를 SecurityEvent로 변환

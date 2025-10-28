@@ -3,7 +3,7 @@ package io.contexa.contexacore.std.labs;
 import java.util.Optional;
 
 /**
- * 🏭 AI Lab 팩토리 인터페이스
+ * AI Lab 팩토리 인터페이스
  *
  * Lab 인스턴스의 생성과 조회를 담당하는 팩토리 패턴 구현
  * LabAccessor의 기능을 표준화하고 확장

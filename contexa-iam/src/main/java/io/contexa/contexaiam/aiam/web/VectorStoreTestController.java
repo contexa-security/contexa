@@ -62,7 +62,7 @@ public class VectorStoreTestController {
             vectorStoreService.addDocuments(List.of(document));
 
             log.info("=== VectorStore 테스트 문서 추가 완료 ===");
-            log.info("✅ 메트릭이 생성되었습니다. /actuator/prometheus 에서 확인 가능합니다.");
+            log.info("메트릭이 생성되었습니다. /actuator/prometheus 에서 확인 가능합니다.");
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -109,7 +109,7 @@ public class VectorStoreTestController {
             List<Document> results = vectorStoreService.similaritySearch(searchRequest);
 
             log.info("=== VectorStore 테스트 검색 완료 ===");
-            log.info("✅ 메트릭이 생성되었습니다. 검색 결과: {} 건", results.size());
+            log.info("메트릭이 생성되었습니다. 검색 결과: {} 건", results.size());
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -165,7 +165,7 @@ public class VectorStoreTestController {
 
                     vectorStoreService.addDocuments(List.of(doc));
                     addCount++;
-                    log.info("✅ 문서 #{} 추가 완료", i);
+                    log.info("문서 #{} 추가 완료", i);
 
                 } catch (Exception e) {
                     log.warn("문서 #{} 추가 실패: {}", i, e.getMessage());
@@ -188,7 +188,7 @@ public class VectorStoreTestController {
                         .build();
                     vectorStoreService.similaritySearch(searchRequest);
                     searchCount++;
-                    log.info("✅ 검색 완료: {}", query);
+                    log.info("검색 완료: {}", query);
 
                 } catch (Exception e) {
                     log.warn("검색 실패 ({}): {}", query, e.getMessage());

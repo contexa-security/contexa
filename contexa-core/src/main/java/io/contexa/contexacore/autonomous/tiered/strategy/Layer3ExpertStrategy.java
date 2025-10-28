@@ -1864,7 +1864,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             Document document = new Document(content, metadata);
             unifiedVectorService.storeDocument(document);
 
-            // ✅ Phase 1: 고위험 이벤트는 별도로 threat 문서 저장 (Layer3 전문가 분석)
+            // Phase 1: 고위험 이벤트는 별도로 threat 문서 저장 (Layer3 전문가 분석)
             if (decision.getRiskScore() >= 0.8) {
                 storeThreatDocument(event, decision, response, content);
             }
@@ -1875,7 +1875,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * ✅ Phase 1: 위협 패턴 전용 문서 저장 (Layer3 전문가 분석)
+     * Phase 1: 위협 패턴 전용 문서 저장 (Layer3 전문가 분석)
      *
      * riskScore >= 0.8인 경우 threat 문서로 별도 저장
      * Layer3는 가장 심층적인 전문가 분석 결과를 포함
@@ -1884,7 +1884,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         try {
             Map<String, Object> threatMetadata = new HashMap<>();
 
-            // ✅ 위협 전용 documentType (Enum 사용)
+            // 위협 전용 documentType (Enum 사용)
             threatMetadata.put("documentType", VectorDocumentType.THREAT.getValue());
             threatMetadata.put("threatConfirmed", true); // Layer3 도달 = 확정 위협
             threatMetadata.put("riskScore", decision.getRiskScore());
@@ -1958,7 +1958,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * ✅ Layer3SecurityResponse 기반 위협 유형 분류 (전문가 분석)
+     * Layer3SecurityResponse 기반 위협 유형 분류 (전문가 분석)
      */
     private String determineThreatType(Layer3SecurityResponse response) {
         // 1. 전문가 분류 우선

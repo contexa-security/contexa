@@ -143,7 +143,7 @@ public class MfaRepositoryAutoConfiguration {
 //                case "http-session" -> createHttpSessionRepository();
                 case "auto" -> createAutoSelectedRepository();
                 default -> {
-                    log.warn("❓ Unknown repository type: {}", t);
+                    log.warn("Unknown repository type: {}", t);
                     yield null;
                 }
             };

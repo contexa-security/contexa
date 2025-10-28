@@ -96,7 +96,7 @@ public class MySecurityConfig {
                                     .eventTimestamp(java.time.LocalDateTime.now())
                                     .sourceIp(extractClientIp(request))
                                     .userAgent(request.getHeader("User-Agent"))
-                                    .hcadSimilarityScore(result.getSimilarityScore())  // ✅ 재계산된 값 사용
+                                    .hcadSimilarityScore(result.getSimilarityScore())  // 재계산된 값 사용
                                     .trustScore(result.getTrustScore());
 
                     AuthenticationSuccessEvent event = builder.build();
@@ -115,7 +115,7 @@ public class MySecurityConfig {
                 }).failureHandler((request, response, exception) -> {
                     String username = userIdentificationService.extractUserId(request, null, exception);
 
-                    // ✅ 로그인 실패 시에도 서비스 사용 (일관성 유지)
+                    // 로그인 실패 시에도 서비스 사용 (일관성 유지)
                     // 현재 Authentication은 null 또는 anonymousUser
                     Authentication currentAuth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
                     HCADAnalysisResult result = hcadAnalysisService.analyze(request, currentAuth);

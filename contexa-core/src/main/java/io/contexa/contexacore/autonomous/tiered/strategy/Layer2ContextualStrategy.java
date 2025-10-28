@@ -901,7 +901,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             Document document = new Document(content, metadata);
             unifiedVectorService.storeDocument(document);
 
-            // ✅ Phase 1: 고위험 이벤트는 별도로 threat 문서 저장
+            // Phase 1: 고위험 이벤트는 별도로 threat 문서 저장
             if (decision.getRiskScore() >= 0.7 || decision.getThreatCategory() != null && !decision.getThreatCategory().equals("UNKNOWN")) {
                 storeThreatDocument(event, decision, content);
             }
@@ -912,7 +912,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * ✅ Phase 1: 위협 패턴 전용 문서 저장 (Layer2 컨텍스트 분석)
+     * Phase 1: 위협 패턴 전용 문서 저장 (Layer2 컨텍스트 분석)
      *
      * riskScore >= 0.7 또는 threatCategory가 명확한 경우 threat 문서로 별도 저장
      */
@@ -920,7 +920,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         try {
             Map<String, Object> threatMetadata = new HashMap<>();
 
-            // ✅ 위협 전용 documentType (Enum 사용)
+            // 위협 전용 documentType (Enum 사용)
             threatMetadata.put("documentType", VectorDocumentType.THREAT.getValue());
             threatMetadata.put("threatConfirmed", decision.getRiskScore() >= 0.8);
             threatMetadata.put("riskScore", decision.getRiskScore());
@@ -982,7 +982,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * ✅ SecurityDecision 기반 위협 유형 분류
+     * SecurityDecision 기반 위협 유형 분류
      */
     private String determineThreatType(SecurityDecision decision) {
         // 1. 위협 카테고리 기반
@@ -1031,7 +1031,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * ✅ MITRE ATT&CK 전술 매핑 (Layer2 컨텍스트 기반)
+     * MITRE ATT&CK 전술 매핑 (Layer2 컨텍스트 기반)
      */
     private String determineMitreTactic(SecurityDecision decision) {
         if (decision.getThreatCategory() != null) {

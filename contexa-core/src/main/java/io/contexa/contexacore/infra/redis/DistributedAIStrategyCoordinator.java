@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Redis 기반 분산 AI 전략 코디네이터
  * 
- * 🌐 다중 노드 환경에서 AI 전략 실행을 조율
+ * 다중 노드 환경에서 AI 전략 실행을 조율
  * - 전략 실행 상태 분산 관리
  * - 연구소 자원 할당 조정
  * - 노드 간 부하 분산

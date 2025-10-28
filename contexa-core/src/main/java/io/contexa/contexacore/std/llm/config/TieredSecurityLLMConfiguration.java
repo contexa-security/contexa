@@ -252,7 +252,7 @@ public class TieredSecurityLLMConfiguration {
             return firstEntry.getValue();
         }
 
-        log.error("  ❌ 사용 가능한 ChatModel이 없습니다!");
+        log.error("  사용 가능한 ChatModel이 없습니다!");
         throw new IllegalStateException("No ChatModel available. Please configure at least one AI provider.");
     }
     

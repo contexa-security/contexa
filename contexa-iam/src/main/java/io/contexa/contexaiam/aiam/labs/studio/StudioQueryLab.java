@@ -158,10 +158,10 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
 
                 log.info("[STREAMING] PipelineOrchestrator.executeStream() 호출 - StreamingUniversalPipelineExecutor 자동선택");
                 return orchestrator.executeStream(aiRequest, pipelineConfig)
-                        .doOnSubscribe(subscription -> { log.info("📦 [{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
+                        .doOnSubscribe(subscription -> { log.info("[{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
                         .doOnNext(chunk -> {
                             String chunkStr = chunk != null ? chunk.toString() : "";
-//                            log.error("📦 [STREAMING] 청크 수신: {}", Thread.currentThread().threadId());
+//                            log.error("[STREAMING] 청크 수신: {}", Thread.currentThread().threadId());
                         })
                         .doOnComplete(() -> {
                             log.info("[STREAMING] StudioQuery 스트리밍 완료 (진단 결과도 함께 수집됨)");

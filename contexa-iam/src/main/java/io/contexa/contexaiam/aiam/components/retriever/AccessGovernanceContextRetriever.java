@@ -596,7 +596,7 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         
         // RAG 검색 결과 추가 (있는 경우)
         if (ragDocuments != null && !ragDocuments.isEmpty()) {
-            contextBuilder.append("\n📄 관련 거버넌스 문서 (RAG):\n");
+            contextBuilder.append("\n관련 거버넌스 문서 (RAG):\n");
             for (int i = 0; i < Math.min(3, ragDocuments.size()); i++) {
                 Document doc = ragDocuments.get(i);
                 contextBuilder.append("- ").append(doc.getText().substring(0, Math.min(100, doc.getText().length())));

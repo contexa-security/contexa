@@ -113,7 +113,7 @@ public class HCADAnalysisService {
             // 4. 통합 임계값 조회
             // 사용자별 동적 임계값 (정상 사용자는 낮게, 의심 사용자는 높게)
             double currentThreshold = unifiedThresholdManager.getThreshold(userId, context);
-            // ✅ 버그 수정: anomalyScore > threshold로 판정 (높을수록 이상)
+            // 버그 수정: anomalyScore > threshold로 판정 (높을수록 이상)
             boolean isAnomaly = anomalyScore > currentThreshold;
 
             long processingTime = System.currentTimeMillis() - startTime;

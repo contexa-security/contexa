@@ -236,7 +236,7 @@ public class HCADSimilarityCalculator {
             // 1단계: 현재 행동 벡터화 (위협 키워드 포함)
             String contextQuery = buildThreatSearchQuery(context);
 
-            // 2단계: ✅ 위협 패턴만 검색하도록 필터 추가 (사용자별 필터링 강화)
+            // 2단계: 위협 패턴만 검색하도록 필터 추가 (사용자별 필터링 강화)
             FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
             var filter = filterBuilder.and(
                 filterBuilder.eq("documentType", VectorDocumentType.THREAT.getValue()),  // 위협 패턴만
@@ -381,7 +381,7 @@ public class HCADSimilarityCalculator {
     /**
      * 위협 검색용 쿼리 생성 (위협 키워드 강화)
      *
-     * ✅ 위협 특화 키워드를 추가하여 의미론적 매칭 강화
+     * 위협 특화 키워드를 추가하여 의미론적 매칭 강화
      */
     private String buildThreatSearchQuery(HCADContext context) {
         StringBuilder query = new StringBuilder();
@@ -397,7 +397,7 @@ public class HCADSimilarityCalculator {
             query.append("ip:").append(context.getRemoteIp()).append(" ");
         }
 
-        // ✅ 위협 키워드 (의미론적 매칭 강화)
+        // 위협 키워드 (의미론적 매칭 강화)
         query.append("threat attack anomaly risk critical ");
 
         // User-Agent 정보
@@ -437,7 +437,7 @@ public class HCADSimilarityCalculator {
                 double fewShotScore = fewShotDetector.detectWithDualSearch(context);
 
                 if (log.isDebugEnabled()) {
-                    log.debug("[HCAD] ✅ Few-Shot anomaly detection - userId: {}, method: {}, path: {}, anomalyScore: {:.3f}",
+                    log.debug("[HCAD] Few-Shot anomaly detection - userId: {}, method: {}, path: {}, anomalyScore: {:.3f}",
                         context.getUserId(), context.getHttpMethod(), context.getRequestPath(), fewShotScore);
                 }
 
@@ -484,7 +484,7 @@ public class HCADSimilarityCalculator {
                 double anomalyScore = (Double) processedDocs.get(0).getMetadata().getOrDefault("anomalyScore", 0.5);
 
                 if (log.isDebugEnabled()) {
-                    log.debug("[HCAD] ✅ AI-based anomaly detection - userId: {}, method: {}, path: {}, anomalyScore: {}",
+                    log.debug("[HCAD] AI-based anomaly detection - userId: {}, method: {}, path: {}, anomalyScore: {}",
                         context.getUserId(), context.getHttpMethod(), context.getRequestPath(),
                         String.format("%.3f", anomalyScore));
                 }
@@ -572,7 +572,7 @@ public class HCADSimilarityCalculator {
             double threatScore = (Double) correlationResult.getOrDefault("threatScore", 0.5);
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCAD] ✅ AI-based threat correlation - userId: {}, method: {}, path: {}, threatScore: {}",
+                log.debug("[HCAD] AI-based threat correlation - userId: {}, method: {}, path: {}, threatScore: {}",
                     context.getUserId(), context.getHttpMethod(), context.getRequestPath(),
                     String.format("%.3f", threatScore));
             }
@@ -674,7 +674,7 @@ public class HCADSimilarityCalculator {
         double anomalyPriority = dynamicTrustCalculator.getLayerPriority("anomaly");
         double correlationPriority = dynamicTrustCalculator.getLayerPriority("correlation");
 
-        // ✅ 가중치 재분배 로직: Threat Layer 비어있으면 다른 Layer에 재분배
+        // 가중치 재분배 로직: Threat Layer 비어있으면 다른 Layer에 재분배
         if (threatResult.isEmpty()) {
             // Threat Layer 40% 가중치를 다른 Layer에 분배
             double redistributedWeight = threatPriority;
@@ -692,7 +692,7 @@ public class HCADSimilarityCalculator {
             }
         }
 
-        // ✅ Anomaly/Correlation Layer 작동 여부 확인 및 재분배
+        // Anomaly/Correlation Layer 작동 여부 확인 및 재분배
         boolean anomalyWorking = (anomalyScore != 0.5);  // 0.5는 기본값
         boolean correlationWorking = (correlationScore != 0.5);
 
@@ -783,9 +783,9 @@ public class HCADSimilarityCalculator {
      * Layer2/3 IP 위협 피드백이 반영된 Baseline 유사도 계산
      *
      * v2.0 개선 (피드백 루프 완전 통합):
-     * - ✅ FeedbackLoopSystem 학습 결과 통합 (False Positive/Negative 학습)
-     * - ✅ UnifiedThresholdManager의 조정값을 유사도 계산에 직접 반영
-     * - ✅ 학습된 임계값이 유사도 자체에 영향을 주어 완전한 순환 피드백 루프 구현
+     * - FeedbackLoopSystem 학습 결과 통합 (False Positive/Negative 학습)
+     * - UnifiedThresholdManager의 조정값을 유사도 계산에 직접 반영
+     * - 학습된 임계값이 유사도 자체에 영향을 주어 완전한 순환 피드백 루프 구현
      *
      * @param baseline 기준선 벡터
      * @param context HCAD 컨텍스트
@@ -796,7 +796,7 @@ public class HCADSimilarityCalculator {
         double baseSimilarity = baseline.calculateSimilarity(context);
         double originalSimilarity = baseSimilarity;
 
-        // ✅ 1. FeedbackLoopSystem 학습 결과 반영 (NEW! - 최우선 적용)
+        // 1. FeedbackLoopSystem 학습 결과 반영 (NEW! - 최우선 적용)
         Double feedbackAdjustment = getFeedbackAdjustmentFromRedis(context.getUserId());
         if (feedbackAdjustment != null) {
             // 조정값이 음수면 유사도 증가 (False Positive 학습 → 더 관대하게)
@@ -812,7 +812,7 @@ public class HCADSimilarityCalculator {
             }
         }
 
-        // ✅ 2. IP 위협 점수 조회 및 반영 (Layer2/3에서 저장한 IP 위협 점수)
+        // 2. IP 위협 점수 조회 및 반영 (Layer2/3에서 저장한 IP 위협 점수)
         String ip = context.getRemoteIp();
         if (ip != null) {
             Double ipThreat = getIpThreatFromRedis(ip);

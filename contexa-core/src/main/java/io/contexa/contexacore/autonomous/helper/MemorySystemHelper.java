@@ -206,7 +206,7 @@ public class MemorySystemHelper {
     }
     
     /**
-     * ✅ Phase 2: 장기 메모리에 저장 (벡터 스토어 활용)
+     * Phase 2: 장기 메모리에 저장 (벡터 스토어 활용)
      *
      * 중요한 단기 메모리를 장기 메모리(LTM)로 consolidation하여 저장
      *
@@ -225,7 +225,7 @@ public class MemorySystemHelper {
                 // 메타데이터 준비
                 Map<String, Object> ltmMetadata = new HashMap<>(metadata);
 
-                // ✅ documentType 표준화 (Enum 사용)
+                // documentType 표준화 (Enum 사용)
                 ltmMetadata.put("documentType", VectorDocumentType.MEMORY_LTM.getValue());
                 ltmMetadata.put("memoryType", "LONG_TERM");
                 ltmMetadata.put("key", key);

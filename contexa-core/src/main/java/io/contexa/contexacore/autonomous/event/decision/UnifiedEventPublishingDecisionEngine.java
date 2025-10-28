@@ -69,13 +69,13 @@ public class UnifiedEventPublishingDecisionEngine {
             // 1. IP 위협 점수 조회 (Cold Path AI 학습 결과)
             double ipThreatScore = getIpThreatScore(clientIp);
 
-            // ✅ 2. Risk Score 계산 (v2.0 - 피드백 루프 완전 통합)
+            // 2. Risk Score 계산 (v2.0 - 피드백 루프 완전 통합)
             // anomalyScore 우선 사용 (학습된 임계값 반영), fallback to raw similarity
             double hcadRisk = hcadAnomalyScore != null ? hcadAnomalyScore :
                              (hcadSimilarity != null ? (1.0 - hcadSimilarity) : 1.0);
             double riskScore = hcadRisk * 0.7 + ipThreatScore * 0.3;
 
-            // ✅ 3. EventTier 분류 (isAnomaly 플래그 반영)
+            // 3. EventTier 분류 (isAnomaly 플래그 반영)
             EventTier tier = EventTier.fromRiskScore(riskScore);
 
             // isAnomaly가 true면 최소 MEDIUM 등급 보장 (학습된 임계값 기반 이상 탐지)
@@ -129,14 +129,14 @@ public class UnifiedEventPublishingDecisionEngine {
             // 1. Trust Score 조회 (Redis: threat_score:{userId})
             double trustScore = getTrustScore(userId);
 
-            // ✅ 2. Risk Score 계산 (v2.0 - 피드백 루프 완전 통합)
+            // 2. Risk Score 계산 (v2.0 - 피드백 루프 완전 통합)
             // anomalyScore 우선 사용 (학습된 임계값 반영), fallback to raw similarity
             double hcadRisk = hcadAnomalyScore != null ? hcadAnomalyScore :
                              (hcadSimilarity != null ? (1.0 - hcadSimilarity) : 1.0);
             double trustRisk = 1.0 - trustScore;
             double riskScore = hcadRisk * 0.5 + trustRisk * 0.5;
 
-            // ✅ 3. EventTier 분류 (isAnomaly 플래그 반영)
+            // 3. EventTier 분류 (isAnomaly 플래그 반영)
             EventTier tier = EventTier.fromRiskScore(riskScore);
 
             // isAnomaly가 true면 최소 MEDIUM 등급 보장 (학습된 임계값 기반 이상 탐지)

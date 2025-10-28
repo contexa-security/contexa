@@ -87,7 +87,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         // 도메인 건강도 초기화
         unifiedMetrics.updateDomainHealth("evolution", 1.0);
 
-        log.info("✅ EvolutionMetricsCollector initialized successfully");
+        log.info("EvolutionMetricsCollector initialized successfully");
     }
 
     // ===== 초기화 메서드 =====

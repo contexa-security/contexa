@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * 🌐 범용 파이프라인 실행자 (리팩토링 버전)
+ * 범용 파이프라인 실행자 (리팩토링 버전)
  *
  * 객체 지향 설계 개선:
  * 핸들러 패턴 (Handler Pattern): 각 Step의 실행 로직을 StepExecutionHandler로 캡슐화하여 분리.
@@ -78,7 +78,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         // 3. 최종 응답 생성기 초기화
         this.responseBuilder = new FinalResponseBuilder();
 
-        log.info("🌐 UniversalPipelineExecutor (Refactored) 초기화 완료: {} 단계, {} 핸들러", steps.size(), stepHandlers.size());
+        log.info("UniversalPipelineExecutor (Refactored) 초기화 완료: {} 단계, {} 핸들러", steps.size(), stepHandlers.size());
     }
 
     @Override

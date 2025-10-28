@@ -456,7 +456,7 @@ public class PolicyEvolutionHelper {
     }
     
     /**
-     * ✅ Phase 2: 정책 패턴 저장 (Vector Store)
+     * Phase 2: 정책 패턴 저장 (Vector Store)
      *
      * 정책 진화 학습 결과를 vector_store에 저장하여 RAG 검색 시 활용
      */
@@ -473,7 +473,7 @@ public class PolicyEvolutionHelper {
 
             Map<String, Object> metadata = new HashMap<>();
 
-            // ✅ documentType 표준화 (Enum 사용)
+            // documentType 표준화 (Enum 사용)
             metadata.put("documentType", VectorDocumentType.POLICY_EVOLUTION.getValue());
             metadata.put("policyId", policy.getId());
             metadata.put("version", policy.getVersion());

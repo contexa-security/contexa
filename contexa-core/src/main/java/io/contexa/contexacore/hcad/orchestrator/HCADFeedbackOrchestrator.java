@@ -745,7 +745,7 @@ public class HCADFeedbackOrchestrator {
                 return;
             }
 
-            // ✅ UnifiedThresholdManager를 통한 통합 학습 결과 적용
+            // UnifiedThresholdManager를 통한 통합 학습 결과 적용
             String userId = (String) feedbackResult.getThresholdAdjustments().get("userId");
             if (unifiedThresholdManager != null && userId != null) {
                 unifiedThresholdManager.applyIntegratedLearningResult(userId, feedbackResult.getThresholdAdjustments());

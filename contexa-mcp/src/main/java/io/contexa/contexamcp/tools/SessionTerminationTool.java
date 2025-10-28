@@ -77,7 +77,7 @@ public class SessionTerminationTool {
     ) {
         long startTime = System.currentTimeMillis();
         
-        log.info("🔒 Terminating all sessions for user: {}, Reason: {}", 
+        log.info("Terminating all sessions for user: {}, Reason: {}", 
             userId, reason);
         
         try {
