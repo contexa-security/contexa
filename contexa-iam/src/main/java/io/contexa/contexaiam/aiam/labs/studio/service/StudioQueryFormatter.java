@@ -33,7 +33,7 @@ public class StudioQueryFormatter {
         log.info("AI 분석 결과 기반 권한 시각화 데이터 생성 시작");
 
         // 하드코딩된 분석 대신 실제 AI 분석 결과를 기다림
-        log.info("⏳ 실제 AI 분석 결과 대기 중...");
+        log.info("실제 AI 분석 결과 대기 중...");
 
         // 기본 시각화 구조만 설정
         StudioQueryResponse.VisualizationData vizData = new StudioQueryResponse.VisualizationData();

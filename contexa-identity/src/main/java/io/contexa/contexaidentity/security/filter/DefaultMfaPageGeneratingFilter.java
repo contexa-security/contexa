@@ -197,10 +197,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      */
     private String extractPrimaryLoginPage() {
         PrimaryAuthenticationOptions primaryOpts = mfaFlowConfig.getPrimaryAuthenticationOptions();
-        if (primaryOpts != null && primaryOpts.isFormLogin()) {
-            FormOptions formOpts = primaryOpts.getFormOptions();
-            return StringUtils.hasText(formOpts.getLoginPage()) ?
-                    formOpts.getLoginPage() : "/loginForm"; // 기본값
+        if (primaryOpts != null) {
+            // ⭐ Form 인증인 경우
+            if (primaryOpts.isFormLogin()) {
+                FormOptions formOpts = primaryOpts.getFormOptions();
+                return StringUtils.hasText(formOpts.getLoginPage()) ?
+                        formOpts.getLoginPage() : "/loginForm"; // 기본값
+            }
+
+            // ⭐ REST 인증인 경우 - PrimaryAuthenticationOptions의 loginPage 사용
+            if (primaryOpts.isRestLogin()) {
+                String loginPage = primaryOpts.getLoginPage();
+                return StringUtils.hasText(loginPage) ? loginPage : "/loginForm"; // 기본값
+            }
         }
         return "/loginForm"; // 폴백 기본값
     }
@@ -621,7 +630,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 </head>
 <body>
     <div class="container">
-        <h1>🔐 로그인</h1>
+        <h1>로그인</h1>
         %s
         %s
         <form method="post" action="%s">
@@ -699,7 +708,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 </head>
 <body>
     <div class="container">
-        <h1>🔐 로그인 (REST API)</h1>
+        <h1>로그인 (REST API)</h1>
         <div id="message-area">
             %s
             %s
@@ -708,7 +717,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             <input type="text" id="username" name="%s" placeholder="사용자명 또는 이메일" required autofocus>
             <input type="password" id="password" name="%s" placeholder="비밀번호" required>
             <button type="submit" id="loginButton">로그인</button>
-            <div class="spinner" id="spinner">⏳ 인증 중...</div>
+            <div class="spinner" id="spinner">인증 중...</div>
         </form>
         <div class="form-footer">
             로그인 후 다단계 인증(MFA)이 진행됩니다.
@@ -944,7 +953,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 </head>
 <body>
     <div class="container">
-        <h1>🔐 Passkey 인증</h1>
+        <h1>Passkey 인증</h1>
         <p>생체 인증 또는 보안 키를 사용하여 인증하세요.</p>
         <button id="auth-button" onclick="authenticate()">Passkey 인증 시작</button>
     </div>
@@ -1043,7 +1052,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 </head>
 <body>
     <div class="container">
-        <h1>⚠️ 인증 실패</h1>
+        <h1>인증 실패</h1>
         <p>%s</p>
         <button onclick="location.href='%s'">다시 시도</button>
     </div>

@@ -14,6 +14,7 @@ import io.contexa.contexaidentity.security.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.ExceptionHandlingConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
@@ -160,9 +161,8 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
         try {
             // ExceptionHandlingConfigurer 가져오기 (타입 안전성 경고 억제)
-            @SuppressWarnings("unchecked")
-            ExceptionHandlingConfigurer<org.springframework.security.config.annotation.web.builders.HttpSecurity> exceptionHandling =
-                    (ExceptionHandlingConfigurer<org.springframework.security.config.annotation.web.builders.HttpSecurity>)
+            ExceptionHandlingConfigurer<HttpSecurity> exceptionHandling =
+                    (ExceptionHandlingConfigurer<HttpSecurity>)
                     flowContext.http().getConfigurer(ExceptionHandlingConfigurer.class);
 
             // ⭐ ExceptionHandlingConfigurer가 null이면 예외 (MFA는 EntryPoint 등록 필수)
@@ -232,10 +232,19 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
      */
     private String extractPrimaryLoginPage(AuthenticationFlowConfig flowConfig) {
         PrimaryAuthenticationOptions primaryOpts = flowConfig.getPrimaryAuthenticationOptions();
-        if (primaryOpts != null && primaryOpts.isFormLogin()) {
-            FormOptions formOpts = primaryOpts.getFormOptions();
-            return StringUtils.hasText(formOpts.getLoginPage()) ?
-                    formOpts.getLoginPage() : "/loginForm (default)";
+        if (primaryOpts != null) {
+            // Form 인증인 경우
+            if (primaryOpts.isFormLogin()) {
+                FormOptions formOpts = primaryOpts.getFormOptions();
+                return StringUtils.hasText(formOpts.getLoginPage()) ?
+                        formOpts.getLoginPage() : "/loginForm (default)";
+            }
+
+            // REST 인증인 경우
+            if (primaryOpts.isRestLogin()) {
+                String loginPage = primaryOpts.getLoginPage();
+                return StringUtils.hasText(loginPage) ? loginPage : "/loginForm (default)";
+            }
         }
         return "/loginForm (default)";
     }

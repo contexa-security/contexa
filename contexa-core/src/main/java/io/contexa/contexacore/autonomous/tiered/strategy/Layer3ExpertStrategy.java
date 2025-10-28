@@ -1349,7 +1349,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
             String approvalId = approvalService.requestApproval(soarContext, details);
 
-            log.warn("⏳ Approval requested for critical action on event {}", event.getEventId());
+            log.warn("Approval requested for critical action on event {}", event.getEventId());
 
         } catch (Exception e) {
             log.error("Failed to request approval", e);

@@ -176,7 +176,7 @@ public class SoarInteractionManager {
             // WebSocket으로 승인 요청 전송
             sendApprovalRequest(requestId, toolName, sessionId);
             
-            log.info("⏳ 승인 요청 생성: requestId={}, tool={}, session={}", 
+            log.info("승인 요청 생성: requestId={}, tool={}, session={}", 
                 requestId, toolName, sessionId);
             
             return requestId;
