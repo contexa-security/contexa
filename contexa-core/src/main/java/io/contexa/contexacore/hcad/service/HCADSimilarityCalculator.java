@@ -468,7 +468,7 @@ public class HCADSimilarityCalculator {
             metadata.put("resourceAccessed", context.getRequestPath());
 
             // BaselineVector에서 연속 액션 정보 추출 (없으면 기본값)
-            // ⚠️ BaselineVector.updateCount는 Long이지만 AnomalyScoreRanker는 Integer를 기대
+            // BaselineVector.updateCount는 Long이지만 AnomalyScoreRanker는 Integer를 기대
             // Long → Integer 변환 필수 (타입 캐스팅 오류 방지)
             metadata.put("consecutiveActions", baseline != null ? baseline.getUpdateCount().intValue() : 1);
             metadata.put("recentActionCount", baseline != null ? baseline.getUpdateCount().intValue() : 1);

@@ -207,7 +207,7 @@ public class OrthogonalSignalCollector implements DomainMetrics, EventRecorder {
     /**
      * GeoIP ASN 조회 (외부 API 또는 MaxMind DB)
      *
-     * ⚠️ 비용 절감: 외부 API 호출 주석처리 (월 $100-500 비용 발생)
+     * 비용 절감: 외부 API 호출 주석처리 (월 $100-500 비용 발생)
      * TODO: MaxMind GeoLite2-ASN.mmdb 로컬 DB 통합 시 활성화
      */
     private String queryGeoIpAsn(String ipAddress) {
@@ -219,7 +219,7 @@ public class OrthogonalSignalCollector implements DomainMetrics, EventRecorder {
             log.debug("[GeoIP] MaxMind provider not implemented yet");
         }
 
-        // ⚠️ 비용 절감: API 방식 주석처리
+        // 비용 절감: API 방식 주석처리
         // API 방식 (ipapi.co) - 비활성화
         /*
         try {

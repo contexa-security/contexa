@@ -160,7 +160,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         PrimaryAuthenticationOptions primaryOpts = mfaFlowConfig.getPrimaryAuthenticationOptions();
         if (primaryOpts == null) {
-            log.warn("⚠️ Primary authentication options not configured for MFA flow. Skipping primary auth page generation.");
+            log.warn("Primary authentication options not configured for MFA flow. Skipping primary auth page generation.");
             return;
         }
 
@@ -666,7 +666,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">⚠️ 로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
+                errorMessage != null ? "<div class=\"message error\">로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
                 logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : "",
                 loginProcessingUrl,
                 csrfParameterName,
@@ -755,34 +755,37 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </div>
     </div>
 
+    <script src="/js/contexa-mfa-sdk.js"></script>
     <script>
-        const form = document.getElementById('loginForm');
-        const messageArea = document.getElementById('message-area');
-        const loginButton = document.getElementById('loginButton');
-        const spinner = document.getElementById('spinner');
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('loginForm');
+            const messageArea = document.getElementById('message-area');
+            const loginButton = document.getElementById('loginButton');
+            const spinner = document.getElementById('spinner');
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
 
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
 
-            // UI 상태 변경
-            loginButton.disabled = true;
-            spinner.classList.add('active');
-            messageArea.innerHTML = '';
+                // UI 상태 변경
+                loginButton.disabled = true;
+                spinner.classList.add('active');
+                messageArea.innerHTML = '';
 
-            try {
-                const response = await fetch('%s', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        %s: username,
-                        %s: password
-                    })
-                });
+                try {
+                    // SDK 사용 - CSRF 토큰 자동 포함
+                    const headers = ContexaMFAUtils.createHeaders();
+
+                    const response = await fetch('%s', {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify({
+                            %s: username,
+                            %s: password
+                        })
+                    });
 
                 const data = await response.json();
 
@@ -794,12 +797,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     }, 1000);
                 } else {
                     // 실패
-                    messageArea.innerHTML = '<div class="message error">⚠️ ' + (data.message || '로그인 실패') + '</div>';
+                    messageArea.innerHTML = '<div class="message error">' + (data.message || '로그인 실패') + '</div>';
                     loginButton.disabled = false;
                     spinner.classList.remove('active');
                 }
             } catch (error) {
-                messageArea.innerHTML = '<div class="message error">⚠️ 네트워크 오류: ' + error.message + '</div>';
+                messageArea.innerHTML = '<div class="message error">네트워크 오류: ' + error.message + '</div>';
                 loginButton.disabled = false;
                 spinner.classList.remove('active');
             }
@@ -811,7 +814,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">⚠️ 로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
+                errorMessage != null ? "<div class=\"message error\">로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
                 logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : "",
                 usernameParam,
                 passwordParam,

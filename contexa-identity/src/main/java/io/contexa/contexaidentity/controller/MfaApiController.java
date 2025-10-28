@@ -383,7 +383,7 @@ public class MfaApiController {
             //            "id", Base64.getUrlEncoder().withoutPadding().encodeToString(cred.getCredentialId())
             //        ))
             //        .collect(Collectors.toList());
-            List<Map<String, String>> allowCredentials = List.of(); // ⚠️ 임시: 빈 배열 (프로덕션에서 수정 필요)
+            List<Map<String, String>> allowCredentials = List.of(); // 임시: 빈 배열 (프로덕션에서 수정 필요)
             assertionOptions.put("allowCredentials", allowCredentials);
 
             // Challenge를 세션에 저장 (검증 시 사용)

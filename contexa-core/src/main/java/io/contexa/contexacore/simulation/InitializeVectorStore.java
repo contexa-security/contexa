@@ -1850,7 +1850,7 @@ public class InitializeVectorStore implements CommandLineRunner {
         if (successCount == totalUsers) {
             log.info("모든 사용자 BaselineVector가 성공적으로 Redis에 저장되었습니다!");
         } else {
-            log.warn("⚠️  일부 사용자의 BaselineVector 저장 실패");
+            log.warn(" 일부 사용자의 BaselineVector 저장 실패");
         }
 
         log.info("========================================\n");
