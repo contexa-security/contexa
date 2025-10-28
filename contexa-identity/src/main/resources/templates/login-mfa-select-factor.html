@@ -1,3 +1,17 @@
+<!--
+  ⚠️ DEPRECATED: This template is for legacy support only.
+
+  For new projects, please use:
+  1. DefaultMfaPageGeneratingFilter + contexa-mfa-sdk.js (automatic default pages)
+  2. Custom MFA pages with .mfaPage() DSL configuration
+
+  Migration Guide:
+  - Use contexa-mfa-sdk.js instead of individual JavaScript files
+  - Configure custom pages: .mfa(mfa -> mfa.mfaPage(page -> page.selectFactorPage("/custom/mfa/select")))
+  - See: README-CUSTOM-MFA-UI.md for complete documentation
+
+  This file will be removed in a future version.
+-->
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
 <head th:replace="~{fragments/common-head :: head-elements(pageTitle='2차 인증 수단 선택')}"></head>
 <body class="flex flex-col min-h-screen bg-app-light-gray font-sans text-app-dark-gray">

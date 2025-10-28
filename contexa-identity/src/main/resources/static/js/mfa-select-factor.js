@@ -1,3 +1,20 @@
+/**
+ * ⚠️ DEPRECATED: This file will be removed in future versions.
+ *
+ * Use contexa-mfa-sdk.js instead:
+ *   <script src="/js/contexa-mfa-sdk.js"></script>
+ *   const mfa = new ContexaMFA.Client();
+ *   await mfa.selectFactor('OTT');
+ *
+ * Migration benefits:
+ *   - 65% code reduction (1,854 lines → 650 lines)
+ *   - Eliminates code duplication (360 lines saved)
+ *   - Unified API for all MFA operations
+ *   - Better error handling and state management
+ *
+ * See: README-CUSTOM-MFA-UI.md
+ */
+
 // src/main/resources/static/js/mfa-select-factor.js
 // State Machine 통합 버전
 

@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaidentity.security.core.asep.dsl.BaseAsepAttributes;
 import io.contexa.contexaidentity.security.core.asep.dsl.MfaAsepAttributes;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -10,17 +11,18 @@ import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurer
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
+import io.contexa.contexaidentity.security.properties.MfaPageConfig;
 import io.contexa.contexaidentity.security.core.mfa.AdaptiveConfig;
 import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
 import io.contexa.contexaidentity.security.core.mfa.configurer.AdaptiveDslConfigurer;
 import io.contexa.contexaidentity.security.core.mfa.configurer.AdaptiveDslConfigurerImpl;
 import io.contexa.contexaidentity.security.core.mfa.configurer.RetryPolicyDslConfigurer;
 import io.contexa.contexaidentity.security.core.mfa.configurer.RetryPolicyDslConfigurerImpl;
-import io.contexa.contexaidentity.security.core.mfa.handler.MfaContinuationHandler;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.exception.DslConfigurationException;
+import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +43,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private final ApplicationContext applicationContext;
 
     private MfaPolicyProvider policyProvider;
-    private MfaContinuationHandler continuationHandler;
     private PlatformAuthenticationFailureHandler mfaFailureHandler;
     private AuthenticationSuccessHandler finalSuccessHandler;
     private RetryPolicy defaultRetryPolicy;
@@ -54,6 +55,10 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
     private final PrimaryAuthDslConfigurerImpl<H> primaryAuthConfigurer;
     private MfaAsepAttributes mfaAsepAttributes;
+    private MfaPageConfig mfaPageConfig;
+
+    // ⭐ MFA AuthenticationEntryPoint (Spring Security 패턴)
+    private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
 
     private final String mfaFlowTypeName = AuthType.MFA.name().toLowerCase(); // MFA 플로우 식별용 이름
 
@@ -141,13 +146,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         return configureMfaFactor(AuthType.RECOVERY_CODE, recoveryConfigurerCustomizer, RecoveryCodeDslConfigurer.class);
     }
 
-
-    @Override
-    public MfaDslConfigurerImpl<H> mfaContinuationHandler(MfaContinuationHandler continuationHandler) {
-        this.continuationHandler = continuationHandler;
-        return this;
-    }
-
     @Override
     public MfaDslConfigurerImpl<H> mfaFailureHandler(PlatformAuthenticationFailureHandler  failureHandler) {
         this.mfaFailureHandler = failureHandler;
@@ -196,6 +194,23 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         }
         log.debug("ASEP: MfaAsepAttributes (global for MFA flow) configured.");
         return this;
+    }
+
+    @Override
+    public MfaDslConfigurerImpl<H> mfaPage(Customizer<MfaPageConfigurer> mfaPageConfigurerCustomizer) {
+        Objects.requireNonNull(mfaPageConfigurerCustomizer, "mfaPageConfigurerCustomizer cannot be null");
+        MfaPageConfigurer configurer = new MfaPageConfigurer();
+        mfaPageConfigurerCustomizer.customize(configurer);
+        this.mfaPageConfig = configurer.getConfig();
+        log.debug("MFA custom page configuration applied: {}", this.mfaPageConfig);
+        return this;
+    }
+
+    /**
+     * MfaPageConfig 조회 (SecurityPlatformConfiguration에서 사용)
+     */
+    public MfaPageConfig getMfaPageConfig() {
+        return this.mfaPageConfig;
     }
 
 
@@ -247,14 +262,28 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         if (primaryAuthOptionsForFlow == null) {
             Object firstStepRawOptions = firstConfiguredStep.getOptions().get("_options");
             if (firstStepRawOptions instanceof FormOptions fo) {
-                primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder().formOptions(fo).loginProcessingUrl(fo.getLoginProcessingUrl()).build();
+                // ⭐ FormOptions에서 loginPage, failureUrl도 추출
+                primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder()
+                    .formOptions(fo)
+                    .loginProcessingUrl(fo.getLoginProcessingUrl())
+                    .loginPage(fo.getLoginPage())           // 추가
+                    .failureUrl(fo.getFailureUrl())         // 추가
+                    .build();
             } else if (firstStepRawOptions instanceof RestOptions ro) {
-                primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder().restOptions(ro).loginProcessingUrl(ro.getLoginProcessingUrl()).build();
+                primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder()
+                    .restOptions(ro)
+                    .loginProcessingUrl(ro.getLoginProcessingUrl())
+                    .build();
             } else {
                 throw new DslConfigurationException("Could not determine PrimaryAuthenticationOptions from the first step of MFA flow. Step options type: " +
                         (firstStepRawOptions != null ? firstStepRawOptions.getClass().getName() : "null"));
             }
         }
+
+        // ⭐ primaryAuthOptionsForFlow NULL 체크 (EntryPoint 생성 전 필수)
+        Assert.notNull(primaryAuthOptionsForFlow,
+            "PrimaryAuthenticationOptions must not be null for MFA flow [" + this.mfaFlowTypeName + "]. " +
+            "Either configure .primaryAuthentication() DSL or ensure the first step (order=0) has valid FormOptions or RestOptions.");
 
         Map<AuthType, AuthenticationProcessingOptions> factorOptionsMap = new HashMap<>();
         for (int i = 1; i < configuredSteps.size(); i++) {
@@ -272,6 +301,10 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             }
         }
 
+        // ⭐ MfaAuthenticationEntryPoint 생성 (Spring Security AbstractAuthenticationFilterConfigurer 패턴)
+        // primaryAuthOptionsForFlow가 null이 아님을 확인한 후 생성
+        this.mfaAuthenticationEntryPoint = createMfaAuthenticationEntryPoint(primaryAuthOptionsForFlow);
+
         return flowConfigBuilder
                 .typeName(AuthType.MFA.name().toLowerCase())
                 .order(this.order)
@@ -285,7 +318,44 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .defaultAdaptiveConfig(this.defaultAdaptiveConfig)
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
                 .mfaAsepAttributes(this.mfaAsepAttributes)
+                .mfaPageConfig(this.mfaPageConfig) // MFA 커스텀 페이지 설정 전달
+                .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)  // ⭐ EntryPoint 추가
                 .build();
+    }
+
+    /**
+     * MfaAuthenticationEntryPoint 생성
+     *
+     * Spring Security의 AbstractAuthenticationFilterConfigurer 패턴을 따릅니다.
+     * PrimaryAuthenticationOptions에서 loginPage를 추출하여 EntryPoint를 생성합니다.
+     *
+     * @param primaryAuthOptions 1차 인증 옵션 (Form 또는 REST)
+     * @return 생성된 MfaAuthenticationEntryPoint
+     */
+    private MfaAuthenticationEntryPoint createMfaAuthenticationEntryPoint(PrimaryAuthenticationOptions primaryAuthOptions) {
+        Assert.notNull(primaryAuthOptions, "PrimaryAuthenticationOptions cannot be null for creating MfaAuthenticationEntryPoint");
+
+        // PrimaryAuthenticationOptions에서 loginPage 가져오기
+        String loginPageUrl = primaryAuthOptions.getLoginPage();
+
+        // ObjectMapper는 ApplicationContext에서 가져오기
+        ObjectMapper objectMapper;
+        try {
+            objectMapper = this.applicationContext.getBean(ObjectMapper.class);
+        } catch (Exception e) {
+            throw new DslConfigurationException("Failed to retrieve ObjectMapper bean from ApplicationContext for MfaAuthenticationEntryPoint", e);
+        }
+
+        // MfaAuthenticationEntryPoint 생성
+        MfaAuthenticationEntryPoint entryPoint = new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl);
+
+        log.info("✅ MfaAuthenticationEntryPoint created with loginPage: {}", loginPageUrl);
+
+        return entryPoint;
+    }
+
+    public MfaAuthenticationEntryPoint getMfaAuthenticationEntryPoint() {
+        return this.mfaAuthenticationEntryPoint;
     }
 }
 

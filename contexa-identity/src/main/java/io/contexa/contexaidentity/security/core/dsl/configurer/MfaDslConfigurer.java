@@ -5,7 +5,6 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.common.SecurityConfigurerDsl;
 import io.contexa.contexaidentity.security.core.mfa.configurer.AdaptiveDslConfigurer;
 import io.contexa.contexaidentity.security.core.mfa.configurer.RetryPolicyDslConfigurer;
-import io.contexa.contexaidentity.security.core.mfa.handler.MfaContinuationHandler;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -21,7 +20,6 @@ public interface MfaDslConfigurer extends SecurityConfigurerDsl { // SecurityCon
     MfaDslConfigurer passkey(Customizer<PasskeyDslConfigurer> passkeyConfigurer); // MFA의 한 단계로 Passkey 인증 사용
 
     MfaDslConfigurer recoveryFlow(Customizer<RecoveryCodeDslConfigurer> recoveryConfigurerCustomizer); // RecoveryCodeDslConfigurer 정의 필요
-    MfaDslConfigurer mfaContinuationHandler(MfaContinuationHandler continuationHandler);
     MfaDslConfigurer mfaFailureHandler(PlatformAuthenticationFailureHandler failureHandler);
     MfaDslConfigurer mfaSuccessHandler(PlatformAuthenticationSuccessHandler successHandler);
     MfaDslConfigurer policyProvider(MfaPolicyProvider policyProvider);
@@ -35,4 +33,7 @@ public interface MfaDslConfigurer extends SecurityConfigurerDsl { // SecurityCon
 
     // Primary Authentication (MFA 이전의 1차 인증) 설정
     MfaDslConfigurer primaryAuthentication(Customizer<PrimaryAuthDslConfigurer> primaryAuthConfig);
+
+    // MFA 커스텀 페이지 설정
+    MfaDslConfigurer mfaPage(Customizer<MfaPageConfigurer> mfaPageConfigurer);
 }

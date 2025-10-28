@@ -7,6 +7,8 @@ import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
+import io.contexa.contexaidentity.security.properties.MfaPageConfig;
 import lombok.Getter;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -33,7 +35,9 @@ public final class AuthenticationFlowConfig {
     private final RetryPolicy defaultRetryPolicy;
     private final AdaptiveConfig defaultAdaptiveConfig;
     private final boolean defaultDeviceTrustEnabled;
-    private final MfaAsepAttributes mfaAsepAttributes; // <<-- 추가
+    private final MfaAsepAttributes mfaAsepAttributes;
+    private final MfaPageConfig mfaPageConfig; // MFA 커스텀 페이지 설정
+    private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; // ⭐ MFA AuthenticationEntryPoint
 
     private final List<AuthenticationStepConfig> stepConfigs;
 
@@ -51,7 +55,9 @@ public final class AuthenticationFlowConfig {
         this.defaultRetryPolicy = builder.defaultRetryPolicy;
         this.defaultAdaptiveConfig = builder.defaultAdaptiveConfig;
         this.defaultDeviceTrustEnabled = builder.defaultDeviceTrustEnabled;
-        this.mfaAsepAttributes = builder.mfaAsepAttributes; // <<-- 추가
+        this.mfaAsepAttributes = builder.mfaAsepAttributes;
+        this.mfaPageConfig = builder.mfaPageConfig; // MFA 커스텀 페이지 설정
+        this.mfaAuthenticationEntryPoint = builder.mfaAuthenticationEntryPoint; // ⭐ MFA EntryPoint
         this.stepConfigs = builder.stepConfigs != null ?
                 Collections.unmodifiableList(new ArrayList<>(builder.stepConfigs)) :
                 Collections.emptyList();
@@ -69,7 +75,9 @@ public final class AuthenticationFlowConfig {
                 .defaultRetryPolicy(this.defaultRetryPolicy)
                 .defaultAdaptiveConfig(this.defaultAdaptiveConfig)
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
-                .mfaAsepAttributes(this.mfaAsepAttributes) // <<-- 복사 시 추가
+                .mfaAsepAttributes(this.mfaAsepAttributes)
+                .mfaPageConfig(this.mfaPageConfig)
+                .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
                 .stepConfigs(this.stepConfigs != null ? new ArrayList<>(this.stepConfigs) : null)
                 .stateConfig(newStateConfig);
         return new AuthenticationFlowConfig(builder);
@@ -93,7 +101,9 @@ public final class AuthenticationFlowConfig {
         private RetryPolicy defaultRetryPolicy;
         private AdaptiveConfig defaultAdaptiveConfig;
         private boolean defaultDeviceTrustEnabled;
-        private MfaAsepAttributes mfaAsepAttributes; // <<-- 추가
+        private MfaAsepAttributes mfaAsepAttributes;
+        private MfaPageConfig mfaPageConfig; // MFA 커스텀 페이지 설정
+        private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; // ⭐ MFA EntryPoint
         private List<AuthenticationStepConfig> stepConfigs = new ArrayList<>();
 
         public Builder(String typeName) {
@@ -133,8 +143,18 @@ public final class AuthenticationFlowConfig {
         public Builder defaultAdaptiveConfig(AdaptiveConfig config) { this.defaultAdaptiveConfig = config; return this; }
         public Builder defaultDeviceTrustEnabled(boolean enabled) { this.defaultDeviceTrustEnabled = enabled; return this; }
 
-        public Builder mfaAsepAttributes(MfaAsepAttributes attributes) { // <<-- 추가
+        public Builder mfaAsepAttributes(MfaAsepAttributes attributes) {
             this.mfaAsepAttributes = attributes;
+            return this;
+        }
+
+        public Builder mfaPageConfig(MfaPageConfig pageConfig) { // MFA 커스텀 페이지 설정
+            this.mfaPageConfig = pageConfig;
+            return this;
+        }
+
+        public Builder mfaAuthenticationEntryPoint(MfaAuthenticationEntryPoint entryPoint) { // ⭐ MFA EntryPoint 설정
+            this.mfaAuthenticationEntryPoint = entryPoint;
             return this;
         }
 

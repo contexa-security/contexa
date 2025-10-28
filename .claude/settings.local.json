@@ -32,7 +32,9 @@
       "Bash(psql:*)",
       "Bash(winpty docker exec:*)",
       "Bash(jps -l:*)",
-      "Bash(cut:*)"
+      "Bash(cut:*)",
+      "Read(//d/**)",
+      "Bash(./gradlew:*)"
     ],
     "deny": [],
     "ask": []

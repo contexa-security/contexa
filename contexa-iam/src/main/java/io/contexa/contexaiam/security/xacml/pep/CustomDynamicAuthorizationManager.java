@@ -97,6 +97,80 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         log.info("Initialization complete. {} URL policy mappings configured.", this.mappings.size());
     }
 
+    @Override
+    public AuthorizationDecision check(Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context) {
+        log.trace("Checking authorization for request: {}", context.getRequest().getRequestURI());
+
+        final HttpServletRequest request = context.getRequest();
+        final Authentication authentication = authenticationSupplier.get();
+
+        AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
+
+        // AI 정책 평가를 위한 추가 컨텍스트 수집
+        Double aiConfidenceThreshold = determineConfidenceThreshold(request);
+
+        for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
+            if (mapping.getRequestMatcher().matcher(context.getRequest()).isMatch()) {
+                log.debug("Request matched by '{}'. Delegating to its AuthorizationManager.", mapping.getRequestMatcher());
+
+                // 매칭된 정책이 AI 정책인지 확인
+                Policy matchedPolicy = findMatchingPolicy(context.getRequest().getRequestURI());
+                if (matchedPolicy != null && matchedPolicy.isAIGenerated()) {
+                    // AI 정책의 신뢰도 확인
+                    if (matchedPolicy.getConfidenceScore() != null &&
+                            matchedPolicy.getConfidenceScore() < aiConfidenceThreshold) {
+                        log.warn("AI policy '{}' confidence score {} is below threshold {}",
+                                matchedPolicy.getName(), matchedPolicy.getConfidenceScore(), aiConfidenceThreshold);
+
+                        // 낮은 신뢰도 정책은 추가 검증 필요
+                        authorizationContext.attributes().put("low_confidence_ai_policy", true);
+                    }
+                }
+
+                AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
+                AuthorizationDecision decision = manager.check(authenticationSupplier, context);
+
+                // AI 평가 결과 추출
+                TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
+
+                // 감사 로그 기록
+                logAuthorizationAttempt(authentication, authorizationContext, decision);
+                return decision;
+            }
+        }
+        log.trace("No matching policy found for request. Denying access by default.");
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
+
+        // AI 평가 결과 추출 (기본 경로에서도 추출)
+        TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
+
+        // 감사 로그 기록
+        logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
+
+        // 인가 실패인 경우에만 이벤트 발행 (성능 최적화)
+        // 성공한 수백만 요청은 이벤트 발행하지 않음
+        if (authorizationEventPublisher != null && !authorizationDecision.isGranted()) {
+            // ===== 메트릭 수집 =====
+            long startTime = System.nanoTime();
+
+            // 인가 실패는 보안상 중요하므로 동기로 확실히 기록
+            authorizationEventPublisher.publishWebAuthorizationDecision(
+                    authentication, request, authorizationDecision, assessment
+            );
+
+            long duration = System.nanoTime() - startTime;
+
+            if (metricsCollector != null) {
+                metricsCollector.recordUrlAuth(duration);
+                metricsCollector.recordAuthzDecision();
+            }
+
+            log.debug("Authorization denied event published for: {}", request.getRequestURI());
+        }
+
+        return authorizationDecision;
+    }
+
     /**
      * 정책 객체로부터 최종 인가 표현식 문자열을 생성합니다.
      * 여러 조건은 OR로 결합되며, 순수 권한 문자열은 hasAnyAuthority()로 묶어 효율을 높입니다.
@@ -155,81 +229,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 .map(expr -> "(" + expr + ")")
                 .collect(Collectors.joining(" or ")); // 여러 정책은 OR로 결합
     }
-
-    @Override
-    public AuthorizationDecision check(Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context) {
-        log.trace("Checking authorization for request: {}", context.getRequest().getRequestURI());
-
-        final HttpServletRequest request = context.getRequest();
-        final Authentication authentication = authenticationSupplier.get();
-
-        AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
-
-        // AI 정책 평가를 위한 추가 컨텍스트 수집
-        Double aiConfidenceThreshold = determineConfidenceThreshold(request);
-
-        for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
-            if (mapping.getRequestMatcher().matcher(context.getRequest()).isMatch()) {
-                log.debug("Request matched by '{}'. Delegating to its AuthorizationManager.", mapping.getRequestMatcher());
-
-                // 매칭된 정책이 AI 정책인지 확인
-                Policy matchedPolicy = findMatchingPolicy(context.getRequest().getRequestURI());
-                if (matchedPolicy != null && matchedPolicy.isAIGenerated()) {
-                    // AI 정책의 신뢰도 확인
-                    if (matchedPolicy.getConfidenceScore() != null &&
-                        matchedPolicy.getConfidenceScore() < aiConfidenceThreshold) {
-                        log.warn("AI policy '{}' confidence score {} is below threshold {}",
-                                matchedPolicy.getName(), matchedPolicy.getConfidenceScore(), aiConfidenceThreshold);
-
-                        // 낮은 신뢰도 정책은 추가 검증 필요
-                        authorizationContext.attributes().put("low_confidence_ai_policy", true);
-                    }
-                }
-
-                AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
-                AuthorizationDecision decision = manager.check(authenticationSupplier, context);
-
-                // AI 평가 결과 추출
-                TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
-
-                // 감사 로그 기록
-                logAuthorizationAttempt(authentication, authorizationContext, decision);
-                return decision;
-            }
-        }
-        log.trace("No matching policy found for request. Denying access by default.");
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
-
-        // AI 평가 결과 추출 (기본 경로에서도 추출)
-        TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
-
-        // 감사 로그 기록
-        logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
-
-        // 인가 실패인 경우에만 이벤트 발행 (성능 최적화)
-        // 성공한 수백만 요청은 이벤트 발행하지 않음
-        if (authorizationEventPublisher != null && !authorizationDecision.isGranted()) {
-            // ===== 메트릭 수집 =====
-            long startTime = System.nanoTime();
-
-            // 인가 실패는 보안상 중요하므로 동기로 확실히 기록
-            authorizationEventPublisher.publishWebAuthorizationDecision(
-                authentication, request, authorizationDecision, assessment
-            );
-
-            long duration = System.nanoTime() - startTime;
-
-            if (metricsCollector != null) {
-                metricsCollector.recordUrlAuth(duration);
-                metricsCollector.recordAuthzDecision();
-            }
-
-            log.debug("Authorization denied event published for: {}", request.getRequestURI());
-        }
-
-        return authorizationDecision;
-    }
-
 
     /**
      * 인가 시도 및 그 결과를 상세히 감사 로그에 기록합니다.

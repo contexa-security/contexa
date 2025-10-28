@@ -13,4 +13,7 @@ public class PasskeyFactorSettings {
     // Passkey 등록 UI URL
     private String registrationRequestUrl = "/mfa/passkey/register-request"; // GET, JS에서 사용
     private String registrationProcessingUrl = "/mfa/passkey/register"; // POST, Spring Security 필터 처리
+    // WebAuthn 설정
+    private String rpId = "localhost"; // Relying Party ID (기본값)
+    private String rpName = "Contexa Platform"; // Relying Party Name (기본값)
 }
