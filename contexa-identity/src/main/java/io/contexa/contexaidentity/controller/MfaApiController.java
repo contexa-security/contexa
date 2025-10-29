@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MfaApiController {
 
-    private final MfaStateMachineIntegrator stateMachineIntegrator; // 고수준 통합자만 사용
+    private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
 
     /**
