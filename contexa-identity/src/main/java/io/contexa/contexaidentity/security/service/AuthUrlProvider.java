@@ -470,35 +470,87 @@ public class AuthUrlProvider {
     @PostConstruct
     public void validateConfiguration() {
         List<String> errors = new ArrayList<>();
-        Set<String> allUrls = new HashSet<>();
-        List<String> duplicates = new ArrayList<>();
+        Map<String, List<String>> urlToContexts = new LinkedHashMap<>();
 
-        // 모든 URL 수집
-        List<String> urlList = collectAllUrls();
+        // 모든 URL을 컨텍스트와 함께 수집
+        addUrlWithContext(urlToContexts, getPrimaryFormLoginProcessing(), "Primary.formLoginProcessing");
+        addUrlWithContext(urlToContexts, getPrimaryRestLoginProcessing(), "Primary.restLoginProcessing");
+        addUrlWithContext(urlToContexts, getPrimaryLoginPage(), "Primary.formLoginPage");
+        addUrlWithContext(urlToContexts, getPrimaryLoginFailure(), "Primary.loginFailure");
+        addUrlWithContext(urlToContexts, getPrimaryLoginSuccess(), "Primary.loginSuccess");
+        addUrlWithContext(urlToContexts, getLogoutPage(), "Primary.logoutPage");
+
+        addUrlWithContext(urlToContexts, getMfaInitiate(), "Mfa.initiate");
+        addUrlWithContext(urlToContexts, getMfaConfigure(), "Mfa.configure");
+        addUrlWithContext(urlToContexts, getMfaSelectFactorUi(), "Mfa.selectFactorUi");
+        addUrlWithContext(urlToContexts, getMfaSuccess(), "Mfa.success");
+        addUrlWithContext(urlToContexts, getMfaFailure(), "Mfa.failure");
+        addUrlWithContext(urlToContexts, getMfaCancel(), "Mfa.cancel");
+
+        addUrlWithContext(urlToContexts, getOttRequestCodeUi(), "Ott.requestCodeUi");
+        addUrlWithContext(urlToContexts, getOttCodeGeneration(), "Ott.codeGeneration");
+        addUrlWithContext(urlToContexts, getOttCodeSent(), "Ott.codeSent");
+        addUrlWithContext(urlToContexts, getOttChallengeUi(), "Ott.challengeUi");
+        addUrlWithContext(urlToContexts, getOttLoginProcessing(), "Ott.loginProcessing");
+        addUrlWithContext(urlToContexts, getOttDefaultFailure(), "Ott.defaultFailure");
+        addUrlWithContext(urlToContexts, getSingleOttRequestEmail(), "Ott.singleOttRequestEmail");
+        addUrlWithContext(urlToContexts, getSingleOttCodeGeneration(), "Ott.singleOttCodeGeneration");
+        addUrlWithContext(urlToContexts, getSingleOttChallenge(), "Ott.singleOttChallenge");
+        addUrlWithContext(urlToContexts, getSingleOttSent(), "Ott.singleOttSent");
+
+        addUrlWithContext(urlToContexts, getPasskeyLoginProcessing(), "Passkey.loginProcessing");
+        addUrlWithContext(urlToContexts, getPasskeyChallengeUi(), "Passkey.challengeUi");
+        addUrlWithContext(urlToContexts, getPasskeyDefaultFailure(), "Passkey.defaultFailure");
+        addUrlWithContext(urlToContexts, getPasskeyRegistrationRequest(), "Passkey.registrationRequest");
+        addUrlWithContext(urlToContexts, getPasskeyRegistrationProcessing(), "Passkey.registrationProcessing");
+        addUrlWithContext(urlToContexts, getPasskeyRegistrationOptions(), "Passkey.registrationOptions");
+
+        addUrlWithContext(urlToContexts, getRecoveryCodeLoginProcessing(), "RecoveryCode.loginProcessing");
+        addUrlWithContext(urlToContexts, getRecoveryCodeChallengeUi(), "RecoveryCode.challengeUi");
+
+        addUrlWithContext(urlToContexts, getApiSelectFactor(), "Api.selectFactor");
+        addUrlWithContext(urlToContexts, getApiCancel(), "Api.cancel");
+        addUrlWithContext(urlToContexts, getApiStatus(), "Api.status");
+        addUrlWithContext(urlToContexts, getApiRequestOttCode(), "Api.requestOttCode");
+        addUrlWithContext(urlToContexts, getApiContext(), "Api.context");
+        addUrlWithContext(urlToContexts, getApiAssertionOptions(), "Api.assertionOptions");
+        addUrlWithContext(urlToContexts, getApiConfig(), "Api.config");
+
+        // 의도된 중복 URL 정의 (리다이렉트 목적지가 같은 경우)
+        Set<String> allowedDuplicates = Set.of("/home", "/loginForm");
 
         // 중복 검사
-        for (String url : urlList) {
+        List<String> problematicDuplicates = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : urlToContexts.entrySet()) {
+            String url = entry.getKey();
+            List<String> contexts = entry.getValue();
+
             if (url == null || url.trim().isEmpty()) {
                 errors.add("빈 URL이 발견되었습니다");
                 continue;
             }
 
-            if (!allUrls.add(url)) {
-                duplicates.add(url);
+            // 중복이 있는 경우
+            if (contexts.size() > 1) {
+                // 의도된 중복인지 확인
+                if (!allowedDuplicates.contains(url)) {
+                    problematicDuplicates.add(url + " (사용처: " + String.join(", ", contexts) + ")");
+                } else {
+                    log.debug("의도된 중복 URL 허용: {} (사용처: {})", url, String.join(", ", contexts));
+                }
             }
         }
 
-        if (!duplicates.isEmpty()) {
-            errors.add("중복 URL 발견: " + String.join(", ", duplicates));
+        if (!problematicDuplicates.isEmpty()) {
+            errors.add("의도하지 않은 중복 URL 발견: " + String.join("; ", problematicDuplicates));
         }
 
         // URL 형식 검증
-        for (String url : allUrls) {
+        for (String url : urlToContexts.keySet()) {
             if (!url.startsWith("/")) {
                 errors.add("URL은 '/'로 시작해야 합니다: " + url);
             }
 
-            // 공백 검사
             if (url.contains(" ")) {
                 errors.add("URL에 공백이 포함되어 있습니다: " + url);
             }
@@ -506,14 +558,16 @@ public class AuthUrlProvider {
 
         // 오류 발생 시 예외
         if (!errors.isEmpty()) {
-            String errorMessage = "❌ URL 설정 검증 실패:\n" + String.join("\n", errors);
+            String errorMessage = " URL 설정 검증 실패:\n" + String.join("\n", errors);
             log.error(errorMessage);
             throw new IllegalStateException(errorMessage);
         }
 
-        log.info("✅ URL 설정 검증 성공: {} 개의 고유 URL 설정됨", allUrls.size());
+        log.info("URL 설정 검증 성공: {} 개의 고유 URL 설정됨 (의도된 중복 {} 개 허용)",
+                urlToContexts.size(),
+                urlToContexts.values().stream().filter(list -> list.size() > 1).count());
         log.debug("설정된 URL 목록:\n{}",
-            allUrls.stream()
+            urlToContexts.keySet().stream()
                 .sorted()
                 .map(url -> "  - " + url)
                 .collect(Collectors.joining("\n"))
@@ -521,58 +575,10 @@ public class AuthUrlProvider {
     }
 
     /**
-     * 모든 URL 수집 (검증용)
+     * URL과 컨텍스트를 맵에 추가
      */
-    private List<String> collectAllUrls() {
-        return Stream.of(
-            // Primary Auth
-            getPrimaryFormLoginProcessing(),
-            getPrimaryRestLoginProcessing(),
-            getPrimaryLoginPage(),
-            getPrimaryLoginFailure(),
-            getPrimaryLoginSuccess(),
-            getLogoutPage(),
-
-            // MFA
-            getMfaInitiate(),
-            getMfaConfigure(),
-            getMfaSelectFactorUi(),
-            getMfaSuccess(),
-            getMfaFailure(),
-            getMfaCancel(),
-
-            // OTT
-            getOttRequestCodeUi(),
-            getOttCodeGeneration(),
-            getOttCodeSent(),
-            getOttChallengeUi(),
-            getOttLoginProcessing(),
-            getOttDefaultFailure(),
-            getSingleOttRequestEmail(),
-            getSingleOttCodeGeneration(),
-            getSingleOttChallenge(),
-            getSingleOttSent(),
-
-            // Passkey
-            getPasskeyLoginProcessing(),
-            getPasskeyChallengeUi(),
-            getPasskeyDefaultFailure(),
-            getPasskeyRegistrationRequest(),
-            getPasskeyRegistrationProcessing(),
-            getPasskeyRegistrationOptions(),
-
-            // Recovery Code
-            getRecoveryCodeLoginProcessing(),
-            getRecoveryCodeChallengeUi(),
-
-            // API
-            getApiSelectFactor(),
-            getApiCancel(),
-            getApiStatus(),
-            getApiRequestOttCode(),
-            getApiContext(),
-            getApiAssertionOptions(),
-            getApiConfig()
-        ).filter(Objects::nonNull).collect(Collectors.toList());
+    private void addUrlWithContext(Map<String, List<String>> map, String url, String context) {
+        if (url == null) return;
+        map.computeIfAbsent(url, k -> new ArrayList<>()).add(context);
     }
 }

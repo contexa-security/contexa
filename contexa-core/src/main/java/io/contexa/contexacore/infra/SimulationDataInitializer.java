@@ -126,7 +126,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
             log.info("🎉 contexa 시뮬레이션 데이터 초기화 완료!");
             
         } catch (Exception e) {
-            log.error("❌ 시뮬레이션 데이터 초기화 중 오류 발생", e);
+            log.error(" 시뮬레이션 데이터 초기화 중 오류 발생", e);
             throw e;
         }
     }

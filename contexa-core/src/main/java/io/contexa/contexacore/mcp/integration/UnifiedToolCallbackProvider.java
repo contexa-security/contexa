@@ -346,7 +346,7 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
         log.info("  ├─ SOAR 도구: {} 개 (직접 호출)", stats.soarToolCount());
         log.info("  ├─ MCP 도구: {} 개 (프록시 호출)", stats.mcpToolCount());
         log.info("  ├─ 총 통합 도구: {} 개", stats.totalToolCount());
-        log.info("  └─ MCP 활성화: {}", stats.mcpEnabled() ? "✅" : "❌");
+        log.info("  └─ MCP 활성화: {}", stats.mcpEnabled() ? "✅" : "");
         
         // 위험도별 분포
         Map<SoarTool.RiskLevel, Long> riskDistribution = unifiedTools.values().stream()

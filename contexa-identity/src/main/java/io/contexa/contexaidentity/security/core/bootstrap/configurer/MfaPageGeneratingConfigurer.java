@@ -124,7 +124,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             }
 
         } catch (Exception e) {
-            log.error("❌ CRITICAL: Failed to register DefaultMfaPageGeneratingFilter for MFA flow", e);
+            log.error(" CRITICAL: Failed to register DefaultMfaPageGeneratingFilter for MFA flow", e);
             throw new RuntimeException("Failed to configure MFA Page Generating Filter", e);
         }
     }
@@ -185,7 +185,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     entryPoint.getLoginPageUrl());
 
         } catch (Exception e) {
-            log.error("❌ Failed to register MfaAuthenticationEntryPoint", e);
+            log.error(" Failed to register MfaAuthenticationEntryPoint", e);
             throw new RuntimeException("Failed to register MFA AuthenticationEntryPoint", e);
         }
     }

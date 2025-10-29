@@ -239,18 +239,18 @@ public class SecurityFilterChainRegistrar {
                         // MFA Flow: Passkey는 secondary factor이므로 MfaFactorProcessingSuccessHandler
                         try {
                             customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
-                            log.debug("✅ Using MfaFactorProcessingSuccessHandler for Passkey in MFA flow");
+                            log.debug("Using MfaFactorProcessingSuccessHandler for Passkey in MFA flow");
                         } catch (Exception e) {
-                            log.error("❌ Failed to retrieve MfaFactorProcessingSuccessHandler bean from ApplicationContext", e);
+                            log.error(" Failed to retrieve MfaFactorProcessingSuccessHandler bean from ApplicationContext", e);
                             return;
                         }
                     } else {
                         // Single Flow: PrimaryAuthenticationSuccessHandler
                         try {
                             customSuccessHandler = appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
-                            log.debug("✅ Using PrimaryAuthenticationSuccessHandler for Passkey in single flow");
+                            log.debug("Using PrimaryAuthenticationSuccessHandler for Passkey in single flow");
                         } catch (Exception e) {
-                            log.error("❌ Failed to retrieve PrimaryAuthenticationSuccessHandler bean from ApplicationContext", e);
+                            log.error(" Failed to retrieve PrimaryAuthenticationSuccessHandler bean from ApplicationContext", e);
                             return;
                         }
                     }
@@ -259,22 +259,22 @@ public class SecurityFilterChainRegistrar {
                     PlatformAuthenticationFailureHandler customFailureHandler;
                     try {
                         customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-                        log.debug("✅ Using UnifiedAuthenticationFailureHandler for Passkey");
+                        log.debug("Using UnifiedAuthenticationFailureHandler for Passkey");
                     } catch (Exception e) {
-                        log.error("❌ Failed to retrieve UnifiedAuthenticationFailureHandler bean from ApplicationContext", e);
+                        log.error(" Failed to retrieve UnifiedAuthenticationFailureHandler bean from ApplicationContext", e);
                         return;
                     }
 
                     // 핸들러 교체
                     authFilter.setAuthenticationSuccessHandler(customSuccessHandler);
-                    log.info("✅ WebAuthn Success Handler replaced: {}",
+                    log.info("WebAuthn Success Handler replaced: {}",
                             customSuccessHandler.getClass().getSimpleName());
 
                     authFilter.setAuthenticationFailureHandler(customFailureHandler);
-                    log.info("✅ WebAuthn Failure Handler replaced: {}",
+                    log.info("WebAuthn Failure Handler replaced: {}",
                             customFailureHandler.getClass().getSimpleName());
 
-                    log.info("✅ WebAuthnAuthenticationFilter handlers replacement completed for flow: {}",
+                    log.info("WebAuthnAuthenticationFilter handlers replacement completed for flow: {}",
                             flowConfig.getTypeName());
 
                     return; // 찾았으면 종료

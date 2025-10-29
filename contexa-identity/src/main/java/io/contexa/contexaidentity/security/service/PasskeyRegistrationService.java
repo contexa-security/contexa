@@ -89,7 +89,7 @@ public class PasskeyRegistrationService {
         // 3. 데이터베이스에 저장
         userEntityRepository.save(newEntity);
 
-        log.info("✅ UserEntity created successfully for user: {} (User Handle: {} bytes)",
+        log.info("UserEntity created successfully for user: {} (User Handle: {} bytes)",
                 username, userId.length);
 
         return newEntity;

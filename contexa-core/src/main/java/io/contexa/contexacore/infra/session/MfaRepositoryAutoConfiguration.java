@@ -440,7 +440,7 @@ static class HealthCheckingRepositoryWrapper implements AIStrategySessionReposit
                 delegateStats.getTotalSessionsCreated(),
                 delegateStats.getSessionCollisions(),
                 delegateStats.getAverageSessionDuration(),
-                getRepositoryType() + (isHealthy ? "_✅" : "_❌")
+                getRepositoryType() + (isHealthy ? "_✅" : "_")
         );
     }
 

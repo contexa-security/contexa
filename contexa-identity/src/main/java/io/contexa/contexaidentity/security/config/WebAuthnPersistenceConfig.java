@@ -53,7 +53,7 @@ public class WebAuthnPersistenceConfig {
     @Bean
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             JdbcOperations jdbcOperations) {
-        log.info("✅ Initializing PublicKeyCredentialUserEntityRepository (JDBC-based)");
+        log.info("Initializing PublicKeyCredentialUserEntityRepository (JDBC-based)");
         return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
     }
 
@@ -85,7 +85,7 @@ public class WebAuthnPersistenceConfig {
     @Bean
     public UserCredentialRepository userCredentialRepository(
             JdbcOperations jdbcOperations) {
-        log.info("✅ Initializing UserCredentialRepository (JDBC-based)");
+        log.info("Initializing UserCredentialRepository (JDBC-based)");
         return new JdbcUserCredentialRepository(jdbcOperations);
     }
 

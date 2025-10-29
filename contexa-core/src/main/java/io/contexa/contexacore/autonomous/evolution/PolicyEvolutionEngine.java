@@ -141,7 +141,7 @@ public class PolicyEvolutionEngine {
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            log.error("❌ 정책 진화 실패 - EventId: {}", event.getEventId(), e);
+            log.error(" 정책 진화 실패 - EventId: {}", event.getEventId(), e);
 
             // 📊 메트릭: 정책 제안 생성 실패
             if (metricsCollector != null) {
@@ -280,7 +280,7 @@ public class PolicyEvolutionEngine {
         return Mono.fromCallable(() -> evolvePolicy(event, metadata))
                    .doOnSubscribe(s -> log.info("🔄 비동기 정책 진화 시작"))
                    .doOnSuccess(p -> log.info("비동기 정책 진화 완료"))
-                   .doOnError(e -> log.error("❌ 비동기 정책 진화 실패", e));
+                   .doOnError(e -> log.error(" 비동기 정책 진화 실패", e));
     }
 
     /**

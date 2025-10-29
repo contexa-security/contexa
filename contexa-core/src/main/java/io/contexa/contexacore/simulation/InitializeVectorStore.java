@@ -1836,11 +1836,11 @@ public class InitializeVectorStore implements CommandLineRunner {
                         String.format("%.3f", calculateVectorNorm(baseline.getVector())));
                     successCount++;
                 } else {
-                    log.error("❌ {}: BaselineVector 없음 (type={})", userId,
+                    log.error(" {}: BaselineVector 없음 (type={})", userId,
                         value != null ? value.getClass().getSimpleName() : "null");
                 }
             } catch (Exception e) {
-                log.error("❌ {}: 검증 실패 - {}", userId, e.getMessage());
+                log.error(" {}: 검증 실패 - {}", userId, e.getMessage());
             }
         }
 
