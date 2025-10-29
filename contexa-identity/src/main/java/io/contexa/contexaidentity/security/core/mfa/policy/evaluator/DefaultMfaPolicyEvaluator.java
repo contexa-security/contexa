@@ -144,44 +144,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         
         return false;
     }
-    
-    /**
-     * 필요한 MFA 팩터 수를 결정합니다.
-     */
-    private int determineRequiredFactorCount(Users user, FactorContext context) {
-        String flowType = context.getFlowTypeName();
-        
-        // 관리자는 최소 2개 팩터
-        if (isAdminUser(user)) {
-            return Math.max(2, getFlowBasedFactorCount(flowType));
-        }
-        
-        // 플로우 타입별 기본값
-        int baseCount = getFlowBasedFactorCount(flowType);
 
-        // 제거됨: 사용자 등록 팩터 수 고려 - DSL 기반으로 전환
-        // DSL 설정에 따라 필요한 팩터 수가 결정됨
-
-        return baseCount;
-    }
-    
-    /**
-     * 플로우 타입에 따른 기본 팩터 수를 반환합니다.
-     */
-    private int getFlowBasedFactorCount(String flowType) {
-        if (flowType == null) {
-            return 1;
-        }
-        
-        return switch (flowType.toLowerCase()) {
-            case "mfa" -> 2;
-            case "mfa-stepup" -> 1;
-            case "mfa-transactional" -> 1;
-            case "mfa-strong" -> 3;
-            default -> 1;
-        };
-    }
-    
     /**
      * 필수 MFA 팩터들을 결정합니다.
      */
@@ -250,49 +213,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         
         // 1개 팩터도 표준 MFA로 분류
         return MfaDecision.DecisionType.STANDARD_MFA;
-    }
-    
-    /**
-     * 결정 이유를 생성합니다.
-     */
-    private String buildDecisionReason(
-            Users user,
-            FactorContext context,
-            MfaDecision.DecisionType type) {
-        
-        StringBuilder reason = new StringBuilder();
-        
-        if (isAdminUser(user)) {
-            reason.append("Admin user requires enhanced security. ");
-        }
-        
-        String flowType = context.getFlowTypeName();
-        if (StringUtils.hasText(flowType)) {
-            reason.append("Flow type: ").append(flowType).append(". ");
-        }
-        
-        reason.append("Decision: ").append(type.getDescription());
-        
-        return reason.toString();
-    }
-    
-    /**
-     * 결정 메타데이터를 생성합니다.
-     */
-    private Map<String, Object> buildDecisionMetadata(Users user, FactorContext context) {
-        Map<String, Object> metadata = new HashMap<>();
-        
-        metadata.put("userId", user.getId());
-        metadata.put("username", user.getUsername());
-        metadata.put("flowType", context.getFlowTypeName());
-        metadata.put("evaluationTime", System.currentTimeMillis());
-        metadata.put("evaluatorType", "DEFAULT");
-        
-        if (isAdminUser(user)) {
-            metadata.put("userRole", "ADMIN");
-        }
-        
-        return metadata;
     }
     
     /**
