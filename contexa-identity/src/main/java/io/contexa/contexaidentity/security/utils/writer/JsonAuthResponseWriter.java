@@ -57,6 +57,7 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
 
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setCharacterEncoding("UTF-8");
         objectMapper.writeValue(response.getWriter(), errorResponse);
     }
 }

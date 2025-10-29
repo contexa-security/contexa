@@ -30,6 +30,22 @@
     'use strict';
 
     // ===========================
+    // Custom Error Class
+    // ===========================
+
+    /**
+     * 커스텀 에러 클래스 - 서버 응답 전체를 포함
+     */
+    class MFAError extends Error {
+        constructor(message, response = null, status = null) {
+            super(message);
+            this.name = 'MFAError';
+            this.response = response;  // 서버 응답 데이터 전체
+            this.status = status;      // HTTP 상태 코드
+        }
+    }
+
+    // ===========================
     // Module 1: Utils Module
     // ===========================
 
@@ -394,7 +410,12 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Failed to load MFA configuration: ${response.status}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new MFAError(
+                        errorData.message || `Failed to load MFA configuration: ${response.status}`,
+                        errorData,
+                        response.status
+                    );
                 }
 
                 // 서버에서 받은 설정을 그대로 사용
@@ -481,7 +502,12 @@
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to get context: ${response.status}`);
+                const errorData = await response.json().catch(() => ({}));
+                throw new MFAError(
+                    errorData.message || `Failed to get context: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -526,8 +552,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || `Login failed: ${response.status}`);
+                const errorData = await response.json();
+                throw new MFAError(
+                    errorData.message || `Login failed: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             const result = await response.json();
@@ -562,8 +592,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || `Failed to select factor: ${response.status}`);
+                const errorData = await response.json();
+                throw new MFAError(
+                    errorData.message || `Failed to select factor: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -585,8 +619,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || `Failed to request OTT code: ${response.status}`);
+                const errorData = await response.json();
+                throw new MFAError(
+                    errorData.message || `Failed to request OTT code: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -621,8 +659,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json().catch(() => ({ message: 'OTT verification failed' }));
-                throw new Error(error.message || `OTT verification failed: ${response.status}`);
+                const errorData = await response.json().catch(() => ({ message: 'OTT verification failed' }));
+                throw new MFAError(
+                    errorData.message || `OTT verification failed: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -641,8 +683,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json().catch(() => ({ message: 'Failed to get passkey options' }));
-                throw new Error(error.message || `Failed to get passkey options: ${response.status}`);
+                const errorData = await response.json().catch(() => ({ message: 'Failed to get passkey options' }));
+                throw new MFAError(
+                    errorData.message || `Failed to get passkey options: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -662,8 +708,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json().catch(() => ({ message: 'Passkey verification failed' }));
-                throw new Error(error.message || `Passkey verification failed: ${response.status}`);
+                const errorData = await response.json().catch(() => ({ message: 'Passkey verification failed' }));
+                throw new MFAError(
+                    errorData.message || `Passkey verification failed: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -685,8 +735,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json().catch(() => ({ message: 'Factor completion notification failed' }));
-                throw new Error(error.message || `Factor completion failed: ${response.status}`);
+                const errorData = await response.json().catch(() => ({ message: 'Factor completion notification failed' }));
+                throw new MFAError(
+                    errorData.message || `Factor completion failed: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -704,8 +758,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || `Failed to get status: ${response.status}`);
+                const errorData = await response.json();
+                throw new MFAError(
+                    errorData.message || `Failed to get status: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();
@@ -723,8 +781,12 @@
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || `Failed to cancel MFA: ${response.status}`);
+                const errorData = await response.json();
+                throw new MFAError(
+                    errorData.message || `Failed to cancel MFA: ${response.status}`,
+                    errorData,
+                    response.status
+                );
             }
 
             return await response.json();

@@ -40,7 +40,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
     private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthResponseWriter responseWriter;
-    private final AuthContextProperties authContextProperties;
     private final RequestCache requestCache = new HttpSessionRequestCache();
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
@@ -50,7 +49,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         super(tokenService,responseWriter,sessionRepository,stateMachineIntegrator,authContextProperties);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
-        this.authContextProperties = authContextProperties;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
@@ -288,10 +286,12 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         // 차단 정보를 응답에 포함
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("status", "AUTHENTICATION_BLOCKED");
-        errorResponse.put("message", "인증이 보안 정책에 의해 차단되었습니다.");
+        errorResponse.put("blocked", true);  // SDK에서 차단 상태 감지용
+        errorResponse.put("message", "인증이 보안 정책에 의해 차단되었습니다. 관리자에게 문의하세요.");
+        errorResponse.put("supportContact", "security@example.com");  // 지원 연락처
         errorResponse.put("username", ctx.getUsername());
         errorResponse.put("timestamp", System.currentTimeMillis());
-        
+
         // 디버그 모드에서만 상세 정보 포함
         if (log.isDebugEnabled()) {
             errorResponse.put("riskScore", riskScore);
@@ -308,10 +308,10 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         
         // 에러 응답 전송
         responseWriter.writeErrorResponse(
-            response, 
+            response,
             HttpServletResponse.SC_FORBIDDEN,
             "AUTHENTICATION_BLOCKED",
-            "Authentication has been blocked due to security concerns",
+            "인증이 보안 정책에 의해 차단되었습니다. 관리자에게 문의하세요.",
             request.getRequestURI(),
             errorResponse
         );

@@ -698,8 +698,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         PrintWriter writer = response.getWriter();
 
         String loginProcessingUrl = restOpts.getLoginProcessingUrl();
-        String usernameParam = restOpts.getUsernameParameter();
-        String passwordParam = restOpts.getPasswordParameter();
 
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
@@ -750,7 +748,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             <button type="button" id="loginButton">로그인</button>
             <div class="spinner" id="spinner">인증 중...</div>
         </div>
-        <div class="form-footer">
+        <div class="form-footer" id="form-footer">
             로그인 후 다단계 인증(MFA)이 진행됩니다.
         </div>
     </div>
@@ -761,6 +759,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             const messageArea = document.getElementById('message-area');
             const loginButton = document.getElementById('loginButton');
             const spinner = document.getElementById('spinner');
+            const formFooter = document.getElementById('form-footer');
 
             // SDK 초기화 (autoRedirect: true - 자동 리다이렉트)
             const mfa = new ContexaMFA.Client({ autoRedirect: true });
@@ -791,10 +790,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     // 여기까지 오면 성공 메시지만 표시
                     messageArea.innerHTML = '<div class="message success">로그인 성공! 다단계 인증을 진행합니다...</div>';
                 } catch (error) {
-                    // 에러 처리
-                    messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
-                    loginButton.disabled = false;
-                    spinner.classList.remove('active');
+                    // 차단 상태 감지
+                    if (error.response && error.response.blocked === true) {
+                        // 계정 차단 상태 - footer 숨기고 버튼 비활성화 유지
+                        const supportContact = error.response.supportContact || '관리자';
+                        messageArea.innerHTML = '<div class="message error">' +
+                            error.message + '<br>문의: ' + supportContact + '</div>';
+                        formFooter.style.display = 'none';
+                        loginButton.disabled = true;
+                    } else {
+                        // 일반 로그인 실패 - 재시도 가능
+                        messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
+                        loginButton.disabled = false;
+                        spinner.classList.remove('active');
+                    }
                 }
             });
 
