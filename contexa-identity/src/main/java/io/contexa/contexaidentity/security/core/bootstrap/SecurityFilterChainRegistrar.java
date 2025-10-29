@@ -235,7 +235,7 @@ public class SecurityFilterChainRegistrar {
                     // Success Handler 결정: Spring Bean으로부터 가져오기
                     // MFA Flow에서 Passkey는 intermediate factor이므로 MfaFactorProcessingSuccessHandler 사용
                     PlatformAuthenticationSuccessHandler customSuccessHandler;
-                    if ("mfa".equalsIgnoreCase(flowConfig.getTypeName())) {
+                    if (AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
                         // MFA Flow: Passkey는 secondary factor이므로 MfaFactorProcessingSuccessHandler
                         try {
                             customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
