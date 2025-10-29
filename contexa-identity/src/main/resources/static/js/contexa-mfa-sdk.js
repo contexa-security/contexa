@@ -418,6 +418,13 @@
          */
         _getDefaultEndpoints() {
             return {
+                primary: {
+                    formLoginPage: '/loginForm',
+                    formLoginProcessing: '/login',
+                    restLoginProcessing: '/api/auth/login',
+                    loginFailure: '/login?error',
+                    loginSuccess: '/home'
+                },
                 mfa: {
                     initiate: '/mfa/initiate',
                     configure: '/mfa/configure',
@@ -429,21 +436,22 @@
                 },
                 ott: {
                     requestCodeUi: '/mfa/ott/request-code-ui',
-                    codeGeneration: '/login/mfa-ott-generation',
-                    challenge: '/mfa/challenge/ott',
+                    codeGeneration: '/mfa/ott/generate-code',
+                    challengeUi: '/mfa/challenge/ott',
                     loginProcessing: '/login/mfa-ott',
                     codeSent: '/mfa/ott/code-sent',
-                    defaultFailure: '/mfa/failure',
-                    singleOttRequestEmail: '/ott/generate',
-                    singleOttCodeGeneration: '/ott/generate',
-                    singleOttChallenge: '/loginOtt'
+                    defaultFailure: '/mfa/challenge/ott?error=true',
+                    singleOttRequestEmail: '/loginOtt',
+                    singleOttCodeGeneration: '/login/ott/generate',
+                    singleOttChallenge: '/loginOttVerifyCode',
+                    singleOttSent: '/ott/sent'
                 },
                 passkey: {
+                    challengeUi: '/mfa/challenge/passkey',
                     loginProcessing: '/login/mfa-webauthn',
-                    challenge: '/mfa/challenge/passkey',
-                    defaultFailure: '/mfa/failure',
-                    registrationRequest: '/webauthn/registration/options',
-                    registrationProcessing: '/webauthn/registration/verify'
+                    defaultFailure: '/mfa/challenge/passkey?error',
+                    registrationRequest: '/mfa/passkey/register-request',
+                    registrationProcessing: '/mfa/passkey/register'
                 },
                 api: {
                     selectFactor: '/api/mfa/select-factor',
@@ -451,8 +459,12 @@
                     status: '/api/mfa/status',
                     requestOttCode: '/api/mfa/request-ott-code',
                     context: '/api/mfa/context',
-                    assertionOptions: '/api/mfa/assertion/options',
+                    completeFactor: '/api/mfa/complete-factor',
                     config: '/api/mfa/config'
+                },
+                webauthn: {
+                    assertionOptions: '/webauthn/authenticate/options',
+                    assertionVerify: '/login/webauthn'
                 }
             };
         },
@@ -473,6 +485,64 @@
             }
 
             return await response.json();
+        },
+
+        /**
+         * 1차 인증: 사용자명/비밀번호 로그인
+         * REST API 기반 SPA에서 사용하기 위한 메서드
+         *
+         * @param {string} username - 사용자명
+         * @param {string} password - 비밀번호
+         * @returns {Promise<Object>} 로그인 결과
+         *   - mfaRequired: MFA 필요 여부
+         *   - nextStepUrl: 다음 단계 URL (MFA 필요 시)
+         *   - success: 로그인 성공 여부 (MFA 불필요 시)
+         *
+         * @example
+         * const mfa = new ContexaMFA.Client();
+         * try {
+         *     const result = await mfa.login('username', 'password');
+         *     if (result.mfaRequired) {
+         *         // MFA 필요: 다음 단계로 이동
+         *         window.location.href = result.nextStepUrl;
+         *     } else {
+         *         // 로그인 성공: 홈으로 이동
+         *         window.location.href = '/home';
+         *     }
+         * } catch (error) {
+         *     console.error('Login failed:', error);
+         * }
+         */
+        async login(username, password) {
+            await this.init();
+
+            const response = await fetch(this.endpoints.primary.restLoginProcessing, {
+                method: 'POST',
+                headers: ContexaMFAUtils.createHeaders(),
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || `Login failed: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            // MFA 필요 시 세션에 username 저장
+            if (result.mfaRequired) {
+                sessionStorage.setItem('mfaUsername', username);
+                this.state = 'MFA_REQUIRED';
+                ContexaMFAUtils.log('✅ Primary authentication successful, MFA required', 'info', result);
+            } else {
+                this.state = 'AUTHENTICATED';
+                ContexaMFAUtils.log('✅ Login successful (no MFA required)', 'info', result);
+            }
+
+            return result;
         },
 
         /**
@@ -560,21 +630,18 @@
 
         /**
          * Passkey Assertion Options 가져오기
-         * Legacy: mfa-verity-passkey.js:78-91
+         * ⭐ Spring Security 6.4+ 표준 엔드포인트 사용
          */
         async getPasskeyOptions() {
             await this.init();
 
-            const response = await fetch(this.endpoints.api.assertionOptions, {
+            const response = await fetch(this.endpoints.webauthn.assertionOptions, {
                 method: 'POST',
-                headers: ContexaMFAUtils.createHeaders(),
-                body: JSON.stringify({
-                    username: sessionStorage.getItem('mfaUsername')
-                })
+                headers: ContexaMFAUtils.createHeaders()
             });
 
             if (!response.ok) {
-                const error = await response.json();
+                const error = await response.json().catch(() => ({ message: 'Failed to get passkey options' }));
                 throw new Error(error.message || `Failed to get passkey options: ${response.status}`);
             }
 
@@ -583,20 +650,43 @@
 
         /**
          * Passkey 인증 수행
-         * Legacy: mfa-verity-passkey.js:129-198
+         * ⭐ Spring Security 6.4+ 표준 엔드포인트 사용
          */
-        async verifyPasskey(assertionResponse) {
+        async verifyPasskey(publicKeyCredential) {
             await this.init();
 
-            const response = await fetch(this.endpoints.passkey.loginProcessing, {
+            const response = await fetch(this.endpoints.webauthn.assertionVerify, {
                 method: 'POST',
-                headers: ContexaMFAUtils.createHeaders(),  // P0: X-MFA-Step-Id 자동 포함
-                body: JSON.stringify(assertionResponse)
+                headers: ContexaMFAUtils.createHeaders(),
+                body: JSON.stringify(publicKeyCredential)
             });
 
             if (!response.ok) {
-                const error = await response.json();
+                const error = await response.json().catch(() => ({ message: 'Passkey verification failed' }));
                 throw new Error(error.message || `Passkey verification failed: ${response.status}`);
+            }
+
+            return await response.json();
+        },
+
+        /**
+         * ⭐ 새로 추가: Factor 완료 알림 (MFA State Machine 통합)
+         * Spring Security WebAuthn 인증 후 MFA State Machine에 완료 통보
+         */
+        async notifyFactorComplete(factorType = 'PASSKEY') {
+            await this.init();
+
+            const response = await fetch(this.endpoints.api.completeFactor, {
+                method: 'POST',
+                headers: {
+                    ...ContexaMFAUtils.createHeaders(),
+                    'X-Factor-Type': factorType
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ message: 'Factor completion notification failed' }));
+                throw new Error(error.message || `Factor completion failed: ${response.status}`);
             }
 
             return await response.json();
@@ -751,58 +841,66 @@
          */
         async verifyPasskey() {
             try {
-                // 1. Assertion Options 가져오기
-                const optionsResult = await this.apiClient.getPasskeyOptions();
-                const options = optionsResult.assertionOptions || optionsResult;
+                // 1. Spring Security 표준 엔드포인트에서 Assertion Options 가져오기
+                const options = await this.apiClient.getPasskeyOptions();
 
-                // 2. Challenge를 ArrayBuffer로 변환
+                // 2. PublicKeyCredentialRequestOptions 구성
                 const publicKey = {
                     challenge: ContexaMFAUtils.base64UrlToArrayBuffer(options.challenge),
                     rpId: options.rpId,
-                    timeout: options.timeout,
+                    timeout: options.timeout || 60000,
                     userVerification: options.userVerification || 'preferred'
                 };
 
                 // allowCredentials 변환
                 if (options.allowCredentials && Array.isArray(options.allowCredentials)) {
                     publicKey.allowCredentials = options.allowCredentials.map(cred => ({
-                        ...cred,
-                        id: ContexaMFAUtils.base64UrlToArrayBuffer(cred.id)
+                        type: cred.type || 'public-key',
+                        id: ContexaMFAUtils.base64UrlToArrayBuffer(cred.id),
+                        transports: cred.transports
                     }));
                 }
 
-                // 3. WebAuthn API 호출
+                // 3. WebAuthn API 호출 (사용자 인증)
+                ContexaMFAUtils.log('Starting WebAuthn authentication...', 'debug');
                 const credential = await navigator.credentials.get({ publicKey });
 
-                // 4. Assertion Response 생성
-                const assertionResponse = {
-                    id: ContexaMFAUtils.arrayBufferToBase64Url(credential.rawId),
+                // 4. PublicKeyCredential 객체 생성 (Spring Security 6.4+ 형식)
+                const publicKeyCredential = {
+                    id: credential.id,
                     rawId: ContexaMFAUtils.arrayBufferToBase64Url(credential.rawId),
                     type: credential.type,
-                    clientDataJSON: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.clientDataJSON),
-                    authenticatorData: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.authenticatorData),
-                    signature: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.signature),
-                    userHandle: credential.response.userHandle ?
-                        ContexaMFAUtils.arrayBufferToBase64Url(credential.response.userHandle) : null
+                    response: {
+                        clientDataJSON: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.clientDataJSON),
+                        authenticatorData: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.authenticatorData),
+                        signature: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.signature),
+                        userHandle: credential.response.userHandle ?
+                            ContexaMFAUtils.arrayBufferToBase64Url(credential.response.userHandle) : null
+                    },
+                    clientExtensionResults: credential.getClientExtensionResults()
                 };
 
-                // 5. 서버 검증
-                const result = await this.apiClient.verifyPasskey(assertionResponse);
-                this.stateTracker.updateFromServerResponse(result);
+                // 5. Spring Security 표준 엔드포인트로 검증
+                ContexaMFAUtils.log('Verifying credential with Spring Security...', 'debug');
+                const verifyResult = await this.apiClient.verifyPasskey(publicKeyCredential);
 
-                // 토큰 저장 (필요시)
-                this.handleAuthenticationResult(result);
+                // 6. ⭐ MFA State Machine에 팩터 완료 알림
+                ContexaMFAUtils.log('Notifying MFA State Machine...', 'debug');
+                const mfaResult = await this.apiClient.notifyFactorComplete('PASSKEY');
 
-                // 자동 리다이렉트
-                if (this.options.autoRedirect) {
-                    if ((result.status === 'MFA_COMPLETE' || result.status === 'SUCCESS') && result.redirectUrl) {
-                        window.location.href = result.redirectUrl;
-                    } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
-                        window.location.href = result.nextStepUrl;
-                    }
+                // 7. 상태 업데이트
+                this.stateTracker.updateFromServerResponse(mfaResult);
+
+                // 8. 토큰 저장 (필요시)
+                this.handleAuthenticationResult(mfaResult);
+
+                // 9. 자동 리다이렉트
+                if (this.options.autoRedirect && mfaResult.redirectUrl) {
+                    ContexaMFAUtils.log(`Redirecting to: ${mfaResult.redirectUrl}`, 'info');
+                    window.location.href = mfaResult.redirectUrl;
                 }
 
-                return result;
+                return mfaResult;
             } catch (error) {
                 ContexaMFAUtils.log('Passkey verification failed', 'error', error);
                 throw error;

@@ -59,9 +59,9 @@ public class PlatformSecurityConfig {
                                     "/api/register",
                                     "/api/auth/login", "/api/auth/refresh",
                                     "/api/ott/generate",
-                                    "/webauthn/registration/options", "/webauthn/registration/verify",
-                                    "/webauthn/assertion/options", "/webauthn/assertion/verify",
-                                    "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/assertion/options"
+                                    "/webauthn/register/options", "/webauthn/register",
+                                    "/webauthn/authenticate/options", "/login/webauthn",
+                                    "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/complete-factor", "/api/mfa/config"
                             ).permitAll()
                             .requestMatchers("/users", "/api/users").hasRole("USER")
                             .requestMatchers("/admin", "/api/admin/**").hasRole("ADMIN")
@@ -90,51 +90,11 @@ public class PlatformSecurityConfig {
         return registry
                 .global(globalHttpCustomizer)
                 .mfa(mfa -> mfa
-                        .primaryAuthentication(primaryAuth -> primaryAuth
-                                .restLogin(rest -> rest
-//                                    .loginProcessingUrl("/api/auth/login")
-                                    .rawHttp(http -> http.authenticationProvider(restAuthenticationProvider))
-                                    .successHandler(new PlatformAuthenticationSuccessHandler() {
-                                        @Override
-                                        public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication, TokenTransportResult result) throws IOException, ServletException {
-                                            System.out.println("onAuthenticationFailure: " + result);
-                                        }
-                                    })
-                                    .failureHandler(new PlatformAuthenticationFailureHandler() {
-                                        @Override
-                                        public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception, FactorContext factorContext, PlatformAuthenticationFailureHandler.FailureType failureType, Map<String, Object> errorDetails) throws IOException, ServletException {
-                                            System.out.println("onAuthenticationFailure: " + exception.getMessage());
-                                        }
-                                    })
-                                )
-                        )
-                        .ott(ott -> ott
-//                                .loginProcessingUrl("/login/mfa-ott")
-                                .rawHttp(http -> http.oneTimeTokenLogin(
-                                        ott1 -> ott1
-                                        .authenticationConverter(new OneTimeTokenAuthenticationConverter(){
-                                            @Override
-                                            public Authentication convert(HttpServletRequest request) {
-                                                String token = request.getParameter("token");
-                                                if (!StringUtils.hasText(token)) {
-                                                                                                        return null;
-                                                }
-                                                return OneTimeTokenAuthenticationToken.unauthenticated(request.getParameter("username"),token);
-                                            }
-                                        })))
-                        )
-                        .passkey(passkeyFactor -> passkeyFactor
-                                .rpId("rpId")
-                                .rpName("Spring Security 6x IDP MFA")
-                        )
-                        /*.mfaPage(page -> page
-                                .selectFactorPage("/mfa/select-factor")
-                                .ottPages("/mfa/ott/request-code-ui", "/mfa/challenge/ott")
-                                .passkeyChallengePages("/mfa/challenge/passkey")
-                                .failurePageUrl("/mfa/failure")
-                        )*/
+                        .primaryAuthentication(rest -> rest.restLogin(Customizer.withDefaults()))
+                        .ott(Customizer.withDefaults())
+                        .passkey(Customizer.withDefaults())
                         .order(20)
                 ).oauth2(Customizer.withDefaults())
                 .build();
-    }/**/
+    }
 }

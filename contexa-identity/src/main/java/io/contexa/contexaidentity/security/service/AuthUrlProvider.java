@@ -418,20 +418,27 @@ public class AuthUrlProvider {
         ));
 
         // OTT Factor
-        urls.put("ott", Map.of(
-            "requestCodeUi", getOttRequestCodeUi(),
-            "challengeUi", getOttChallengeUi(),
-            "loginProcessing", getOttLoginProcessing(),
-            "codeSent", getOttCodeSent(),
-            "codeGeneration", getOttCodeGeneration()
-        ));
+        Map<String, String> ottUrls = new LinkedHashMap<>();
+        ottUrls.put("requestCodeUi", getOttRequestCodeUi());
+        ottUrls.put("challengeUi", getOttChallengeUi());
+        ottUrls.put("loginProcessing", getOttLoginProcessing());
+        ottUrls.put("codeSent", getOttCodeSent());
+        ottUrls.put("codeGeneration", getOttCodeGeneration());
+        ottUrls.put("defaultFailure", getOttDefaultFailure());
+        ottUrls.put("singleOttRequestEmail", getSingleOttRequestEmail());
+        ottUrls.put("singleOttCodeGeneration", getSingleOttCodeGeneration());
+        ottUrls.put("singleOttChallenge", getSingleOttChallenge());
+        ottUrls.put("singleOttSent", getSingleOttSent());
+        urls.put("ott", ottUrls);
 
         // Passkey Factor
-        urls.put("passkey", Map.of(
-            "challengeUi", getPasskeyChallengeUi(),
-            "loginProcessing", getPasskeyLoginProcessing(),
-            "registrationRequest", getPasskeyRegistrationRequest()
-        ));
+        Map<String, String> passkeyUrls = new LinkedHashMap<>();
+        passkeyUrls.put("challengeUi", getPasskeyChallengeUi());
+        passkeyUrls.put("loginProcessing", getPasskeyLoginProcessing());
+        passkeyUrls.put("defaultFailure", getPasskeyDefaultFailure());
+        passkeyUrls.put("registrationRequest", getPasskeyRegistrationRequest());
+        passkeyUrls.put("registrationProcessing", getPasskeyRegistrationProcessing());
+        urls.put("passkey", passkeyUrls);
 
         // Recovery Code Factor
         urls.put("recoveryCode", Map.of(

@@ -128,7 +128,7 @@ public class DefaultFactorChainProvider {
 
             BeanDefinition bd = BeanDefinitionBuilder
                     .genericBeanDefinition(SecurityFilterChain.class,
-                            () -> registrar.buildAndRegisterFilters(flowContext)) // registrar 사용
+                            () -> registrar.buildAndRegisterFilters(flowContext, applicationContext)) // registrar 사용
                     .setLazyInit(false)
                     .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                     .getBeanDefinition();
