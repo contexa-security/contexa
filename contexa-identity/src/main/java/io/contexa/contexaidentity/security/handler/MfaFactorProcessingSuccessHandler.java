@@ -42,7 +42,6 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthResponseWriter responseWriter;
     private final ApplicationContext applicationContext;
-    private final AuthContextProperties authContextProperties;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
@@ -59,9 +58,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.applicationContext = applicationContext;
-        this.authContextProperties = authContextProperties;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
-        this.sessionRepository = sessionRepository; // 추가
+        this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
     }
 

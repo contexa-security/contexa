@@ -134,7 +134,6 @@ public class MfaApiController {
      */
     @PostMapping("/cancel")
     public ResponseEntity<Map<String, Object>> cancelMfa(HttpServletRequest httpRequest) {
-        // 완전 일원화: State Machine 통합자에서 FactorContext 로드
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
 
         if (!isValidMfaContext(ctx)) {

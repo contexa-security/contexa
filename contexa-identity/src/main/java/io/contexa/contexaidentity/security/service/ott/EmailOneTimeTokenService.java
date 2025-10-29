@@ -33,7 +33,6 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         this.emailService = emailService;
         this.codeStore = codeStore;
         this.authContextProperties = authContextProperties;
-        // MFA 설정의 OTP 토큰 유효 시간 사용
 //        this.delegate.setTokenValidity(Duration.ofSeconds(authContextProperties.getMfa().getOtpTokenValiditySeconds()));
         log.info("EmailOneTimeTokenService initialized. OTT Token Validity: {} seconds (from MfaSettings).",
                 authContextProperties.getMfa().getOtpTokenValiditySeconds());

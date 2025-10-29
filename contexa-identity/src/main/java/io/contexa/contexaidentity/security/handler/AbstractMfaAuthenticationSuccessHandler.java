@@ -175,7 +175,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
             }
         }
 
-        // JSON 응답
         responseWriter.writeSuccessResponse(response, result.getBody(), HttpServletResponse.SC_OK);
     }
 

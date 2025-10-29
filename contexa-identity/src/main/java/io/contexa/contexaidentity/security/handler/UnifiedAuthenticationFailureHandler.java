@@ -71,7 +71,6 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
                                               HttpServletResponse response,
                                               AuthenticationException exception) throws IOException, ServletException {
 
-        // 이미 응답 처리됨
         if (response.isCommitted()) {
             log.warn("Response already committed on authentication failure");
             return;

@@ -61,7 +61,7 @@ public class PlatformSecurityConfig {
                                     "/api/ott/generate",
                                     "/webauthn/register/options", "/webauthn/register",
                                     "/webauthn/authenticate/options", "/login/webauthn",
-                                    "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/complete-factor", "/api/mfa/config"
+                                    "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/config"
                             ).permitAll()
                             .requestMatchers("/users", "/api/users").hasRole("USER")
                             .requestMatchers("/admin", "/api/admin/**").hasRole("ADMIN")
@@ -71,11 +71,7 @@ public class PlatformSecurityConfig {
                     .sessionManagement(session -> session
                                     .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                     )
-                    // ⭐ MfaAuthenticationEntryPoint는 MfaPageGeneratingConfigurer에서 자동 등록됨
-                    // DSL 설정(AuthenticationFlowConfig)에서 생성된 EntryPoint가 사용됨
-                    // .exceptionHandling(e -> e.authenticationEntryPoint(...)) // 제거됨
                     .logout(logout -> logout
-//                            .logoutUrl("/api/auth/logout")
                             .addLogoutHandler(applicationContext.getBean("oauth2LogoutHandler", LogoutHandler.class))
                             .logoutSuccessHandler((request, response, authentication) -> {
                                 response.setStatus(HttpServletResponse.SC_OK);
