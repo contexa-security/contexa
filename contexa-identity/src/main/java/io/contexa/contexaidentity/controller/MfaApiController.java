@@ -33,13 +33,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MfaApiController {
 
-    // ContextPersistence 완전 제거, MfaStateMachineService 제거
     private final MfaStateMachineIntegrator stateMachineIntegrator; // 고수준 통합자만 사용
     private final AuthUrlProvider authUrlProvider;
-
-    // ⭐ Spring Security WebAuthn 표준 구현으로 전환
-    // authContextProperties, userCredentialRepository, userEntityRepository는
-    // Spring Security가 자동으로 처리하므로 제거됨
 
     /**
      * 완전 일원화: MFA 팩터 선택 API
