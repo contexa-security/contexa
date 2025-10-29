@@ -1111,13 +1111,13 @@
                             initializeWebSocket();
                         }, retryDelay);
                     } else {
-                        addEventLog('❌ WebSocket 연결 실패 - 최대 재시도 횟수 초과', 'danger');
+                        addEventLog('WebSocket 연결 실패 - 최대 재시도 횟수 초과', 'danger');
                         addEventLog('ℹ️ 실시간 이벤트는 수신되지 않지만 기본 기능은 정상 작동합니다', 'info');
                     }
                 });
             } catch (error) {
                 console.error('WebSocket 초기화 오류:', error);
-                addEventLog('❌ WebSocket 초기화 실패: ' + error.message, 'danger');
+                addEventLog('WebSocket 초기화 실패: ' + error.message, 'danger');
             }
         }
 
@@ -1695,7 +1695,7 @@
                         // 실제 공격이 수행된 경우
                         addEventLog('실제 세션 하이재킹 공격 수행됨', 'danger');
                         if (result.hijacked) {
-                            addEventLog('❌ 경고: 세션 하이재킹 성공! 보안 침해 발생', 'danger');
+                            addEventLog('경고: 세션 하이재킹 성공! 보안 침해 발생', 'danger');
                             updateThreatScore(95.0);
                         } else {
                             addEventLog('✓ 세션 하이재킹 공격 차단됨', 'success');
@@ -1750,7 +1750,7 @@
                         });
                     }
 
-                    addEventLog(`❌ Impossible Travel 탐지!`, 'danger');
+                    addEventLog(`Impossible Travel 탐지!`, 'danger');
                     addEventLog(`거리: ${result.distance || '10,800 km'}`, 'danger');
                     addEventLog(`시간 차이: ${result.timeGap || '5분'}`, 'danger');
                     addEventLog(`물리적 가능성: ${result.physicallyPossible === false ? '불가능' : '가능'}`, 'danger');
@@ -1816,7 +1816,7 @@
                     }
                 } else {
                     const errorData = await response.text();
-                    addEventLog(`❌ 로그인 실패: ${errorData || 'Invalid credentials'}`, 'danger');
+                    addEventLog(`로그인 실패: ${errorData || 'Invalid credentials'}`, 'danger');
                     addEventLog('AuthenticationFailureEvent 발행됨', 'warning');
                 }
             } catch (error) {
@@ -1852,7 +1852,7 @@
                     if (result.realAttack) {
                         addEventLog(`실제 브루트포스 공격 수행 - ${result.attempts}회 시도`, 'danger');
                         if (result.success) {
-                            addEventLog('❌ 경고: 브루트포스 공격 성공! 계정 탈취됨', 'danger');
+                            addEventLog('경고: 브루트포스 공격 성공! 계정 탈취됨', 'danger');
                             updateThreatScore(100.0);
                         } else {
                             addEventLog(`✓ 브루트포스 공격 차단됨 (${result.attempts}회 시도 후)`, 'success');
@@ -1902,7 +1902,7 @@
                         addEventLog(`시도: ${result.attempts}회, 성공: ${result.successfulLogins}회`, 'warning');
 
                         if (result.successfulLogins > 0) {
-                            addEventLog(`❌ 경고: ${result.successfulLogins}개 계정 침해됨!`, 'danger');
+                            addEventLog(`경고: ${result.successfulLogins}개 계정 침해됨!`, 'danger');
                             updateThreatScore(95.0);
                         } else {
                             addEventLog('✓ 모든 크리덴셜 스터핑 시도 차단됨', 'success');
@@ -2288,7 +2288,7 @@
                             throw new Error('사용자 정보 조회 실패');
                         }
                     } catch (error) {
-                        addEventLog(`❌ 사용자 정보 조회 실패: ${error.message}`, 'danger');
+                        addEventLog(`사용자 정보 조회 실패: ${error.message}`, 'danger');
                         return null;
                     }
                 }
@@ -2338,7 +2338,7 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
             } catch (error) {
-                addEventLog(`❌ Baseline 조회 실패: ${error.message}`, 'danger');
+                addEventLog(`Baseline 조회 실패: ${error.message}`, 'danger');
                 console.error('Baseline Vector 조회 오류:', error);
 
                 // 에러 상태 표시
@@ -2529,7 +2529,7 @@
                     }, 500);
 
                 } else {
-                    addEventLog(`❌ 로그인 실패 (상태: ${response.status})`, 'danger');
+                    addEventLog(`로그인 실패 (상태: ${response.status})`, 'danger');
                     addEventLog('AuthenticationFailureEvent 발행됨', 'warning');
                     updateThreatScore(30.0);
                 }

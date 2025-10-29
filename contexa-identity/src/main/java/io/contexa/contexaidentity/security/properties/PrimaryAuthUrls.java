@@ -30,7 +30,7 @@ public class PrimaryAuthUrls {
     /**
      * 로그인 성공 리다이렉트 URL
      */
-    private String loginSuccess = "/home";
+    private String loginSuccess = "/";
 
     /**
      * 로그아웃 페이지 URL

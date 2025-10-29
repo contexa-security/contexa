@@ -103,13 +103,8 @@ public class MfaDecision implements Serializable {
         /**
          * 접근 차단
          */
-        BLOCKED("Access blocked"),
-        
-        /**
-         * MFA 구성 필요 (사용자가 MFA를 설정하지 않음)
-         */
-        MFA_CONFIGURATION_REQUIRED("MFA configuration required");
-        
+        BLOCKED("Access blocked");
+
         private final String description;
         
         DecisionType(String description) {
@@ -175,18 +170,6 @@ public class MfaDecision implements Serializable {
     }
     
     /**
-     * 정적 팩토리 메서드 - MFA 구성 필요
-     */
-    public static MfaDecision configurationRequired() {
-        return MfaDecision.builder()
-            .required(true)
-            .factorCount(0)
-            .type(DecisionType.MFA_CONFIGURATION_REQUIRED)
-            .reason("User needs to configure MFA")
-            .build();
-    }
-    
-    /**
      * AI 결정 생성을 위한 빌더 메서드
      */
     public static MfaDecision fromAiAssessment(
@@ -220,13 +203,6 @@ public class MfaDecision implements Serializable {
      */
     public boolean isBlocked() {
         return type == DecisionType.BLOCKED;
-    }
-    
-    /**
-     * MFA 구성이 필요한지 확인
-     */
-    public boolean isConfigurationRequired() {
-        return type == DecisionType.MFA_CONFIGURATION_REQUIRED;
     }
     
     /**

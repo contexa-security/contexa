@@ -76,7 +76,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         mfaPolicyProvider.evaluateMfaRequirementAndDetermineInitialStep(factorContext);
         
         // AI가 인증을 차단한 경우 처리
-        if (factorContext.getAttribute("blocked") != null && 
+        if (factorContext.getAttribute("blocked") != null &&
             (Boolean) factorContext.getAttribute("blocked")) {
             
             log.warn("Authentication blocked by AI policy for user: {} - Reason: {}", 
@@ -100,11 +100,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             case MFA_NOT_REQUIRED, MFA_SUCCESSFUL:
                 log.info("MFA not required for user: {}. Proceeding with final authentication success.", username);
                 handleFinalAuthenticationSuccess(request, response, authentication, factorContext);
-                break;
-
-            case MFA_CONFIGURATION_REQUIRED:
-                log.info("MFA configuration required for user: {}", username);
-                handleMfaConfigurationRequired(request, response, factorContext);
                 break;
 
             case AWAITING_FACTOR_SELECTION:
@@ -131,9 +126,14 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "MFA_REQUIRED_SELECT_FACTOR",
                 "추가 인증이 필요합니다. 인증 수단을 선택해주세요.",
                 factorContext,
-                request.getContextPath() + authUrlProvider.getMfaSelectFactorUi()
+                request.getContextPath() + authUrlProvider.getMfaSelectFactorUi(),
+                2  // Primary 완료, OTT/Passkey 선택 단계
         );
-        responseBody.put("availableFactors", factorContext.getRegisteredMfaFactors());
+        // DSL 사용 가능한 팩터를 상세 정보로 변환
+        java.util.List<Map<String, Object>> factorDetails = factorContext.getAvailableFactors().stream()
+                .map(authType -> createFactorDetail(authType.name()))
+                .toList();
+        responseBody.put("availableFactors", factorDetails);
         responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
     }
 
@@ -146,7 +146,8 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "MFA_REQUIRED",
                 "추가 인증이 필요합니다.",
                 factorContext,
-                nextUiPageUrl
+                nextUiPageUrl,
+                2  // Primary 완료, OTT/Passkey 진입 단계
         );
         responseBody.put("nextFactorType", nextFactor.name());
         responseBody.put("nextStepId", factorContext.getCurrentStepId());
@@ -154,57 +155,20 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
     }
 
-    private void handleMfaConfigurationRequired(HttpServletRequest request, HttpServletResponse response,
-                                                FactorContext factorContext) throws IOException {
-        String mfaConfigUrl = request.getContextPath() + authUrlProvider.getMfaConfigure();
-
-        // 등록 상태 확인
-        Integer registered = (Integer) factorContext.getAttribute("registeredFactorCount");
-        Integer required = (Integer) factorContext.getAttribute("requiredFactorCount");
-        Integer additional = (Integer) factorContext.getAttribute("additionalFactorsNeeded");
-
-        Map<String, Object> responseBody = new HashMap<>();
-
-        if (registered != null && registered > 0) {
-            // 부분 등록 상태
-            responseBody.put("status", "MFA_ADDITIONAL_CONFIG_REQUIRED");
-            responseBody.put("message", String.format(
-                    "추가 인증 수단 등록이 필요합니다. (현재 %d개, 필요 %d개)",
-                    registered, required != null ? required : 1));
-            responseBody.put("additionalFactorsNeeded", additional != null ? additional : 1);
-            responseBody.put("registeredFactors", factorContext.getRegisteredMfaFactors());
-        } else {
-            // 완전 미등록 상태
-            responseBody.put("status", "MFA_CONFIG_REQUIRED");
-            responseBody.put("message", "MFA 설정이 필요합니다.");
-            responseBody.put("requiredFactorCount", required != null ? required : 1);
-        }
-
-        responseBody.put("mfaSessionId", factorContext.getMfaSessionId());
-        responseBody.put("nextStepUrl", mfaConfigUrl);
-
-        responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
-    }
-
     /**
-     * MFA 응답 본문 생성 (Repository 정보 추가)
+     * MFA 응답 본문 생성 (progress 정보 포함)
+     *
+     * @param currentStep 현재 단계 (1: Primary, 2: OTT, 3: Passkey)
      */
     private Map<String, Object> createMfaResponseBody(String status, String message,
-                                                      FactorContext factorContext, String nextStepUrl) {
+                                                      FactorContext factorContext, String nextStepUrl, int currentStep) {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("status", status);
         responseBody.put("message", message);
         responseBody.put("mfaSessionId", factorContext.getMfaSessionId());
         responseBody.put("nextStepUrl", nextStepUrl);
+        responseBody.put("progress", createProgressInfo(currentStep, 3)); // 총 3단계 (Primary → OTT → Passkey)
 
-        // 개선: Repository 정보 추가
-        Map<String, Object> sessionInfo = new HashMap<>();
-        sessionInfo.put("currentState", factorContext.getCurrentState().name());
-        sessionInfo.put("sessionId", factorContext.getMfaSessionId());
-        sessionInfo.put("repositoryType", sessionRepository.getRepositoryType()); // 추가
-        sessionInfo.put("distributedSync", sessionRepository.supportsDistributedSync()); // 추가
-
-        responseBody.put("sessionInfo", sessionInfo);
         return responseBody;
     }
 
@@ -231,7 +195,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         }
 
         Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("repositoryType", sessionRepository.getRepositoryType()); // 추가
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, errorCode,
                 "MFA 세션 컨텍스트 오류: " + logMessage, request.getRequestURI(), errorResponse);

@@ -46,10 +46,10 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             throw new IllegalArgumentException("Invalid factor type: " + selectedFactor);
         }
 
-        // 선택된 팩터가 사용자가 등록한 팩터인지 검증
-        if (!factorContext.getRegisteredMfaFactors().contains(authType)) {
+        // 선택된 팩터가 사용 가능한 팩터인지 검증
+        if (!factorContext.getAvailableFactors().contains(authType)) {
             throw new IllegalStateException("Selected factor " + authType +
-                    " is not registered for user: " + factorContext.getUsername());
+                    " is not available for user: " + factorContext.getUsername());
         }
 
         // 현재 처리 중인 팩터 설정
@@ -179,10 +179,10 @@ public class SelectFactorAction extends AbstractMfaStateAction {
     @Override
     protected void validatePreconditions(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext) throws Exception {
-        // 등록된 팩터가 있는지 확인
-        if (factorContext.getRegisteredMfaFactors() == null ||
-                factorContext.getRegisteredMfaFactors().isEmpty()) {
-            throw new IllegalStateException("No MFA factors registered for user: " +
+        // 사용 가능한 팩터가 있는지 확인
+        if (factorContext.getAvailableFactors() == null ||
+                factorContext.getAvailableFactors().isEmpty()) {
+            throw new IllegalStateException("No MFA factors available for user: " +
                     factorContext.getUsername());
         }
 

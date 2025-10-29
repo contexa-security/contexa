@@ -102,9 +102,9 @@ public class MfaContextValidator {
             result.addError("Invalid state for factor selection: " + currentState);
         }
 
-        // 11. 등록된 팩터 존재 여부 체크
-        if (ctx.getRegisteredMfaFactors().isEmpty()) {
-            result.addWarning("No registered MFA factors found");
+        // 11. 사용 가능한 팩터 존재 여부 체크
+        if (ctx.getAvailableFactors().isEmpty()) {
+            result.addWarning("No available MFA factors found");
         }
 
         return result;

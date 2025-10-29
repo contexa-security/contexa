@@ -91,13 +91,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
                 .and()
 
-                // MFA 구성 필요
-                .withExternal()
-                .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
-                .target(MfaState.MFA_CONFIGURATION_REQUIRED)
-                .event(MfaEvent.MFA_CONFIGURATION_REQUIRED)
-                .and()
-
                 // 팩터 선택 후 챌린지 준비 상태로
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)

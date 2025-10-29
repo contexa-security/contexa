@@ -50,10 +50,10 @@
                 <div id="mfaConfigureMessage" class="text-sm text-center min-h-[1.25rem] mb-4">
                 </div>
 
-                <!-- 등록된 인증 수단 목록 -->
-                <div id="registeredFactorsContainer" class="mb-6 hidden">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-3">등록된 인증 수단</h3>
-                    <div id="registeredFactorsList" class="space-y-2">
+                <!-- 사용 가능한 인증 수단 목록 -->
+                <div id="availableFactorsContainer" class="mb-6 hidden">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">사용 가능한 인증 수단</h3>
+                    <div id="availableFactorsList" class="space-y-2">
                         <!-- JavaScript로 동적 렌더링 -->
                     </div>
                 </div>
@@ -96,7 +96,7 @@
                 <div id="stateMachineDebug" class="mt-6 p-4 bg-gray-100 rounded-lg text-xs hidden">
                     <h4 class="font-semibold mb-2">State Machine Debug Info</h4>
                     <p>Current State: <span id="debugCurrentState" class="font-mono"></span></p>
-                    <p>Registered Factors: <span id="debugRegisteredFactors" class="font-mono"></span></p>
+                    <p>Available Factors: <span id="debugAvailableFactors" class="font-mono"></span></p>
                 </div>
             </div>
         </div>
@@ -130,16 +130,10 @@
         if (window.mfaStateTracker) {
             window.mfaStateTracker.restoreFromSession();
 
-            // MFA_CONFIGURATION_REQUIRED 상태가 아니면 경고
-            if (window.mfaStateTracker.currentState !== 'MFA_CONFIGURATION_REQUIRED') {
+            // 터미널 상태이면 로그인 페이지로 리다이렉트
+            if (!window.mfaStateTracker.currentState || window.mfaStateTracker.isTerminalState()) {
                 console.warn(`Invalid state for MFA configuration. Current state: ${window.mfaStateTracker.currentState}`);
-
-                // 적절한 페이지로 리다이렉트
-                if (window.mfaStateTracker.currentState === 'AWAITING_FACTOR_SELECTION') {
-                    window.location.href = '/mfa/select-factor';
-                } else if (!window.mfaStateTracker.currentState || window.mfaStateTracker.isTerminalState()) {
-                    window.location.href = '/loginForm';
-                }
+                window.location.href = '/loginForm';
             }
         }
 
@@ -161,8 +155,8 @@
                 debugContainer.classList.remove('hidden');
                 document.getElementById('debugCurrentState').textContent =
                     window.mfaStateTracker.currentState || 'N/A';
-                document.getElementById('debugRegisteredFactors').textContent =
-                    JSON.stringify(window.mfaStateTracker.stateMetadata?.registeredFactors || []);
+                document.getElementById('debugAvailableFactors').textContent =
+                    JSON.stringify(window.mfaStateTracker.stateMetadata?.availableFactors || []);
             }
         }
     });

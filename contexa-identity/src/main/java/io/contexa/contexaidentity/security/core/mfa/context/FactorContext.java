@@ -53,7 +53,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     private final List<AuthenticationStepConfig> completedFactors = new CopyOnWriteArrayList<>();
     private final Map<String, Integer> failedAttempts = new ConcurrentHashMap<>();
     private volatile Instant lastActivityTimestamp;
-    private final Map<String, Object> registeredMfaFactors = new ConcurrentHashMap<>();
     private final Map<AuthType, Integer> factorAttemptCounts = new ConcurrentHashMap<>();
     private final List<MfaAttemptDetail> mfaAttemptHistory = new CopyOnWriteArrayList<>();
     private final Map<String, Object> attributes = new ConcurrentHashMap<>();
@@ -302,21 +301,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
                 MfaState.MFA_SUCCESSFUL == this.currentMfaState.get();
     }
 
-    public void setRegisteredMfaFactors(String key, @Nullable Object value) {
-        Assert.hasText(key, "Attribute key cannot be empty or null.");
-        if (value == null) {
-            this.registeredMfaFactors.remove(key);
-            log.debug("FactorContext (ID: {}): Attribute removed: Key='{}' for user {}", mfaSessionId, key, this.username);
-        } else {
-            this.registeredMfaFactors.put(key, value);
-            log.debug("FactorContext (ID: {}): Attribute set: Key='{}', Value type='{}' for user {}",
-                    mfaSessionId, key, value.getClass().getSimpleName(), this.username);
-        }
-        updateLastActivityTimestamp();
-        // 등록된 MFA 팩터 변경 시에도 버전 증가
-        incrementVersion();
-    }
-
     public void updateLastActivityTimestamp() {
         this.lastActivityTimestamp = Instant.now();
         log.trace("FactorContext (ID: {}) lastActivityTimestamp updated to: {} for user {}",
@@ -328,9 +312,28 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return this.retryCount;
     }
 
+    /**
+     * DSL에서 정의된 사용 가능한 팩터를 반환합니다.
+     * @return DSL 정의 팩터 집합
+     */
     @Override
     public Set<AuthType> getAvailableFactors() {
-        return new HashSet<>(getRegisteredMfaFactors());
+        Object availableFactorsObj = getAttribute("availableFactors");
+        if (availableFactorsObj instanceof Set) {
+            @SuppressWarnings("unchecked")
+            Set<AuthType> factors = (Set<AuthType>) availableFactorsObj;
+            return new HashSet<>(factors);
+        }
+        return Collections.emptySet();
+    }
+
+    /**
+     * 특정 팩터가 DSL에 정의되어 있는지 확인합니다.
+     * @param factorType 확인할 팩터 타입
+     * @return DSL에 정의되어 있으면 true
+     */
+    public boolean isFactorAvailable(AuthType factorType) {
+        return getAvailableFactors().contains(factorType);
     }
 
     /**
@@ -421,103 +424,17 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
     @Nullable
     public AuthenticationStepConfig getNextStepToProcess(AuthenticationFlowConfig flowConfig,
-                                                         List<AuthType> userRegisteredFactors) {
+                                                         List<AuthType> userAvailableFactors) {
         if (flowConfig == null || CollectionUtils.isEmpty(flowConfig.getStepConfigs())) {
             return null;
         }
         return flowConfig.getStepConfigs().stream()
-                .filter(step -> userRegisteredFactors.contains(AuthType.valueOf(step.getType().toUpperCase())))
+                .filter(step -> userAvailableFactors.contains(AuthType.valueOf(step.getType().toUpperCase())))
                 .filter(step -> !isFactorCompleted(step.getStepId()))
                 .min(Comparator.comparingInt(AuthenticationStepConfig::getOrder))
                 .orElse(null);
     }
 
-    public List<AuthType> getRegisteredMfaFactors() {
-        Object registeredFactorsObj = attributes.get("registeredMfaFactors"); // 일반적으로 이 키를 사용해야 함
-        if (registeredFactorsObj instanceof List<?> rawList) {
-            try {
-                // 모든 요소가 AuthType 인지 확인 후 캐스팅
-                if (rawList.stream().allMatch(AuthType.class::isInstance)) {
-                    return Collections.unmodifiableList((List<AuthType>) rawList);
-                } else {
-                    log.warn("Attribute 'registeredMfaFactors' for user {} contains non-AuthType elements. Raw list: {}", username, rawList);
-                    // 안전하게 AuthType만 필터링하거나, 빈 리스트 반환
-                    return rawList.stream()
-                            .filter(AuthType.class::isInstance)
-                            .map(AuthType.class::cast)
-                            .toList();
-                }
-            } catch (ClassCastException e) {
-                log.warn("Attribute 'registeredMfaFactors' is not a List of AuthType in FactorContext for user: {}. Returning empty list.",
-                        username, e);
-            }
-        } else if (registeredFactorsObj != null) {
-            log.warn("Attribute 'registeredMfaFactors' in FactorContext for user {} is not a List (actual type: {}). Returning empty list.",
-                    username, registeredFactorsObj.getClass().getName());
-        }
-        // 이전 버전과의 호환성을 위해 Map도 확인 (하지만 List<AuthType>이 표준이어야 함)
-        else if (!this.registeredMfaFactors.isEmpty()){
-            log.warn("FactorContext for user '{}' has 'registeredMfaFactors' as a Map. This is deprecated. Please store as List<AuthType> in attributes map with key 'registeredMfaFactors'.", username);
-            // Map<String, Object>에서 AuthType 리스트를 추출하려는 시도 (매우 제한적)
-            return this.registeredMfaFactors.keySet().stream()
-                    .map(key -> {
-                        try { return AuthType.valueOf(key.toUpperCase()); }
-                        catch (IllegalArgumentException e) { return null; }
-                    })
-                    .filter(Objects::nonNull)
-                    .toList();
-        }
-        return Collections.emptyList();
-    }
-
-    public List<AuthType> getRegisteredMfaFactors(AuthenticationFlowConfig mfaFlowConfig) {
-        Object factorsFromAttribute = getAttribute("userRegisteredFactorsInThisFlow"); // 특정 플로우에 대한 필터링된 팩터 목록
-        if (factorsFromAttribute instanceof List) {
-            try {
-                List<AuthType> factors = (List<AuthType>) factorsFromAttribute;
-                if (factors.stream().allMatch(Objects::nonNull)) {
-                    return Collections.unmodifiableList(factors);
-                } else {
-                    log.warn("Attribute 'userRegisteredFactorsInThisFlow' for user {} contains null elements.", username);
-                    // null을 필터링하고 반환
-                    return factors.stream().filter(Objects::nonNull).toList();
-                }
-            } catch (ClassCastException e) {
-                log.warn("Attribute 'userRegisteredFactorsInThisFlow' is not a List of AuthType in FactorContext for user: {}", username);
-            }
-        }
-        log.warn("FactorContext for user '{}': 'userRegisteredFactorsInThisFlow' attribute not found. " +
-                        "Falling back to all AuthTypes defined in the current MFA flow '{}'. " +
-                        "This might not accurately reflect user's registered factors for this specific flow.",
-                username, flowTypeName);
-
-        if (mfaFlowConfig != null && mfaFlowConfig.getStepConfigs() != null) {
-            return mfaFlowConfig.getStepConfigs().stream()
-                    .map(AuthenticationStepConfig::getType)
-                    .map(type -> {
-                        try {
-                            return AuthType.valueOf(type.toUpperCase());
-                        } catch (IllegalArgumentException e) {
-                            log.warn("Invalid AuthType in step config: {}", type);
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .collect(Collectors.toList());
-        }
-        return Collections.emptyList();
-    }
-
-    public void setRegisteredMfaFactors(List<AuthType> registeredFactors) {
-        if (registeredFactors == null) {
-            setAttribute("registeredMfaFactors", new ArrayList<>());
-            log.debug("FactorContext for user '{}': Set registered MFA factors to an empty list (input was null).", username);
-        } else {
-            setAttribute("registeredMfaFactors", new ArrayList<>(registeredFactors));
-            log.debug("FactorContext for user '{}': Set registered MFA factors: {}", username, registeredFactors);
-        }
-    }
 
     public void clearCurrentFactorProcessingState() {
         log.debug("FactorContext for user '{}', flow '{}': Clearing current factor processing state.", username, flowTypeName);

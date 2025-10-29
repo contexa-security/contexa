@@ -31,7 +31,7 @@
 
 ## 중복 캐시 레이어 분석
 
-### ❌ 중복 발견: Layer1/2 Strategy 캐시
+### 중복 발견: Layer1/2 Strategy 캐시
 
 **Layer1FastFilterStrategy.java**:
 ```java

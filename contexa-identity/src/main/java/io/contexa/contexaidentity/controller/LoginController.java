@@ -340,7 +340,7 @@ public class LoginController {
         model.addAttribute("username", ctx.getUsername());
         model.addAttribute("mfaSessionId", ctx.getMfaSessionId());
         model.addAttribute("currentState", ctx.getCurrentState().name());
-        model.addAttribute("availableFactors", ctx.getRegisteredMfaFactors());
+        model.addAttribute("availableFactors", ctx.getAvailableFactors());
 
         if (StringUtils.hasText(error)) {
             model.addAttribute("errorMessage", "인증 수단 선택 중 오류: " + error);

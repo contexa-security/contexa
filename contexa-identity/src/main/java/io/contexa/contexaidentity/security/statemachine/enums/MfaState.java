@@ -13,7 +13,6 @@ public enum MfaState {
 
     // --- MFA 정책 평가 결과 상태 ---
     MFA_NOT_REQUIRED("MFA 불필요"),
-    MFA_CONFIGURATION_REQUIRED("MFA 설정 필요"),
 
     // --- MFA 진행 상태 ---
     AWAITING_FACTOR_SELECTION("2차 인증 수단 선택 대기"),

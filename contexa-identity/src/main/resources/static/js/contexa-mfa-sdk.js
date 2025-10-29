@@ -185,7 +185,6 @@
                 'PRIMARY_AUTHENTICATION_COMPLETED': [
                     'MFA_NOT_REQUIRED',
                     'AWAITING_FACTOR_SELECTION',
-                    'MFA_CONFIGURATION_REQUIRED',
                     'MFA_SYSTEM_ERROR'
                 ],
                 'AWAITING_FACTOR_SELECTION': [
@@ -299,8 +298,7 @@
          */
         isWaitingForUserAction() {
             return this.currentState === 'AWAITING_FACTOR_SELECTION' ||
-                this.currentState === 'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION' ||
-                this.currentState === 'MFA_CONFIGURATION_REQUIRED';
+                this.currentState === 'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION';
         }
 
         /**
@@ -562,14 +560,25 @@
 
             const result = await response.json();
 
-            // MFA 필요 시 세션에 username 저장
-            if (result.mfaRequired) {
+            // MFA 필요 여부에 따른 상태 처리
+            if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
+                result.status === 'MFA_REQUIRED') {
+                // MFA 필요 - 세션에 username 저장
                 sessionStorage.setItem('mfaUsername', username);
+                sessionStorage.setItem('mfaSessionId', result.mfaSessionId);
                 this.state = 'MFA_REQUIRED';
-                ContexaMFAUtils.log('✅ Primary authentication successful, MFA required', 'info', result);
-            } else {
+                const message = result.message || 'MFA required';
+                ContexaMFAUtils.log(`✅ Primary authentication successful: ${message}`, 'info', result);
+            } else if (result.status === 'MFA_COMPLETED') {
+                // MFA 불필요 - 인증 완료 (서버가 토큰 발급 완료)
                 this.state = 'AUTHENTICATED';
-                ContexaMFAUtils.log('✅ Login successful (no MFA required)', 'info', result);
+                const message = result.message || 'Login successful';
+                ContexaMFAUtils.log(`✅ ${message} (MFA completed, tokens issued)`, 'info', result);
+            } else {
+                // 기타 상태
+                this.state = 'AUTHENTICATED';
+                const message = result.message || 'Login successful';
+                ContexaMFAUtils.log(`✅ ${message}`, 'info', result);
             }
 
             return result;
@@ -856,7 +865,9 @@
 
                 return result;
             } catch (error) {
-                ContexaMFAUtils.log('Factor selection failed', 'error', error);
+                // 에러 응답에 message가 있으면 포함
+                const errorMsg = error.response?.message || 'Factor selection failed';
+                ContexaMFAUtils.log(`${errorMsg}`, 'error', error);
                 throw error;
             }
         }
@@ -880,7 +891,7 @@
 
                 // 자동 리다이렉트
                 if (this.options.autoRedirect) {
-                    if ((result.status === 'MFA_COMPLETED' || result.status === 'SUCCESS') && result.redirectUrl) {
+                    if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
                         window.location.href = result.redirectUrl;
                     } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
                         if (result.nextFactorType) {
@@ -892,7 +903,8 @@
 
                 return result;
             } catch (error) {
-                ContexaMFAUtils.log('OTT verification failed', 'error', error);
+                const errorMsg = error.response?.message || 'OTT verification failed';
+                ContexaMFAUtils.log(`${errorMsg}`, 'error', error);
                 throw error;
             }
         }
@@ -964,7 +976,8 @@
 
                 return mfaResult;
             } catch (error) {
-                ContexaMFAUtils.log('Passkey verification failed', 'error', error);
+                const errorMsg = error.response?.message || 'Passkey verification failed';
+                ContexaMFAUtils.log(`${errorMsg}`, 'error', error);
                 throw error;
             }
         }
@@ -987,7 +1000,7 @@
             }
 
             // 최종 성공 시 세션 정리
-            if (result.status === 'MFA_COMPLETED' || result.status === 'MFA_COMPLETE' || result.status === 'SUCCESS') {
+            if (result.status === 'MFA_COMPLETED') {
                 this.stateTracker.reset();
             }
         }

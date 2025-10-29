@@ -170,9 +170,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             log.info("Next factor determined: {} for user: {}", nextFactor, factorContext.getUsername());
 
             String nextUrl = determineNextFactorUrl(nextFactor, request);
+            // 현재 팩터에 따라 단계 결정 (OTT=2, PASSKEY=3)
+            int currentStep = (nextFactor == AuthType.OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "다음 인증 단계로 진행합니다: " + nextFactor.name(),
-                    factorContext, nextUrl);
+                    factorContext, nextUrl, currentStep);
             responseBody.put("nextFactorType", nextFactor.name());
 
             responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
@@ -184,8 +186,14 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "인증 수단을 선택해주세요.",
                     factorContext,
-                    request.getContextPath() + authUrlProvider.getMfaSelectFactorUi());
-            responseBody.put("availableFactors", factorContext.getRegisteredMfaFactors());
+                    request.getContextPath() + authUrlProvider.getMfaSelectFactorUi(),
+                    2  // Factor 선택 단계 (OTT 또는 Passkey 선택 중)
+            );
+            // DSL 정의 사용 가능한 팩터를 상세 정보로 변환
+            java.util.List<Map<String, Object>> factorDetails = factorContext.getAvailableFactors().stream()
+                    .map(authType -> createFactorDetail(authType.name()))
+                    .toList();
+            responseBody.put("availableFactors", factorDetails);
 
             responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
 
@@ -198,23 +206,18 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     }
 
     /**
-     * 개선: Repository 정보를 포함한 MFA 계속 진행 응답 생성
+     * MFA 계속 진행 응답 생성 (progress 정보 포함)
+     *
+     * @param currentStep 현재 단계 (2: OTT, 3: Passkey)
      */
-    private Map<String, Object> createMfaContinueResponse(String message, FactorContext factorContext, String nextStepUrl) {
+    private Map<String, Object> createMfaContinueResponse(String message, FactorContext factorContext, String nextStepUrl, int currentStep) {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("status", "MFA_CONTINUE");
         responseBody.put("message", message);
         responseBody.put("nextStepUrl", nextStepUrl);
         responseBody.put("mfaSessionId", factorContext.getMfaSessionId());
+        responseBody.put("progress", createProgressInfo(currentStep, 3)); // 총 3단계
 
-        // 개선: Repository 정보 추가
-        Map<String, Object> sessionInfo = new HashMap<>();
-        sessionInfo.put("currentState", factorContext.getCurrentState().name());
-        sessionInfo.put("sessionId", factorContext.getMfaSessionId());
-        sessionInfo.put("repositoryType", sessionRepository.getRepositoryType());
-        sessionInfo.put("distributedSync", sessionRepository.supportsDistributedSync());
-
-        responseBody.put("sessionInfo", sessionInfo);
         return responseBody;
     }
 
@@ -227,7 +230,6 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 sessionRepository.getRepositoryType(), factorContext.getMfaSessionId());
 
         Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("repositoryType", sessionRepository.getRepositoryType());
         errorResponse.put("mfaSessionId", factorContext.getMfaSessionId());
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
@@ -256,7 +258,6 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         }
 
         Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("repositoryType", sessionRepository.getRepositoryType()); // 추가
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, errorCode,
                 "MFA 세션 컨텍스트 오류: " + logMessage, request.getRequestURI(), errorResponse);

@@ -391,19 +391,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     /**
      * Configure 페이지 처리
+     * 사용자 팩터 등록 기능 제거로 인해 Configure 페이지는 더 이상 지원하지 않음
      */
     private void handleConfigurePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
-
-        if (pageConfig != null && pageConfig.hasCustomConfigurePage()) {
-            log.debug("Forwarding to custom configure page: {}", pageConfig.getConfigurePageUrl());
-            forwardToCustomPage(request, response, pageConfig.getConfigurePageUrl());
-        } else {
-            log.debug("Generating default configure page");
-            generateConfigurePage(request, response);
-        }
+        log.warn("MFA Configure page is no longer supported. User factor registration has been removed.");
+        response.sendError(HttpServletResponse.SC_NOT_FOUND, "MFA Configure page is not available");
     }
 
     /**
@@ -474,7 +468,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 request.setAttribute("username", ctx.getUsername());
                 request.setAttribute("currentState", ctx.getCurrentState() != null ? ctx.getCurrentState().name() : null);
                 request.setAttribute("flowType", ctx.getFlowTypeName());
-                request.setAttribute("registeredFactors", ctx.getRegisteredMfaFactors());
+                // ✅ DSL 정의 팩터 사용
+                request.setAttribute("availableFactors", ctx.getAvailableFactors());
                 request.setAttribute("completedFactors", ctx.getCompletedFactors());
                 request.setAttribute("currentProcessingFactor", ctx.getCurrentProcessingFactor());
                 request.setAttribute("currentStepId", ctx.getCurrentStepId());
@@ -493,8 +488,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter writer = response.getWriter();
 
-        List<String> factorNames = ctx != null && ctx.getRegisteredMfaFactors() != null ?
-                ctx.getRegisteredMfaFactors().stream().map(AuthType::name).collect(Collectors.toList()) :
+        // ✅ DSL 정의 팩터 사용
+        List<String> factorNames = ctx != null && ctx.getAvailableFactors() != null ?
+                ctx.getAvailableFactors().stream().map(AuthType::name).collect(Collectors.toList()) :
                 List.of();
 
         // CSRF 토큰 추출
@@ -516,6 +512,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
         .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h1 { margin: 0 0 24px; font-size: 24px; color: #333; }
+        .progress-container { margin-bottom: 24px; }
+        .progress-bar-wrapper { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, #007bff 0%, #0056b3 100%); transition: width 0.3s ease; }
+        .progress-text { margin-top: 8px; font-size: 14px; color: #6c757d; text-align: center; }
         .factor-list { list-style: none; padding: 0; margin: 0; }
         .factor-item { margin-bottom: 12px; }
         .factor-button { width: 100%; padding: 16px; border: 1px solid #ddd; background: white; border-radius: 6px; font-size: 16px; cursor: pointer; transition: all 0.2s; }
@@ -529,6 +529,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 <body>
     <div class="container">
         <h1>인증 방법을 선택하세요</h1>
+        <div class="progress-container" id="progress-container" style="display:none;">
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="progress-text" id="progress-text"></div>
+        </div>
         <div id="message-container"></div>
         <ul class="factor-list" id="factor-list">
             <!-- SDK가 동적으로 생성 -->
@@ -536,36 +542,65 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </div>
 
     <script>
+        function updateProgress(progress) {
+            if (progress && progress.current && progress.total) {
+                const container = document.getElementById('progress-container');
+                const bar = document.getElementById('progress-bar');
+                const text = document.getElementById('progress-text');
+
+                container.style.display = 'block';
+                bar.style.width = progress.percentage + '%';
+                text.textContent = '단계 ' + progress.current + '/' + progress.total;
+            }
+        }
+
         (async function() {
             try {
                 const mfa = new ContexaMFA.Client({ autoRedirect: true });
                 const context = await mfa.init();
 
+                // progress 표시
+                updateProgress(context.progress);
+
                 const factorList = document.getElementById('factor-list');
                 const messageContainer = document.getElementById('message-container');
 
-                if (!context.registeredFactors || context.registeredFactors.length === 0) {
-                    messageContainer.innerHTML = '<div class="message error">등록된 인증 방법이 없습니다.</div>';
+                // 서버 message 표시
+                if (context.message) {
+                    messageContainer.innerHTML = `<div class="message info">${context.message}</div>`;
+                }
+
+                // DSL 정의 팩터 사용 (displayName, icon 포함)
+                const factors = context.availableFactors;
+
+                if (!factors || factors.length === 0) {
+                    messageContainer.innerHTML = '<div class="message error">사용 가능한 인증 방법이 없습니다.</div>';
                     return;
                 }
 
-                context.registeredFactors.forEach(factor => {
+                factors.forEach(factor => {
                     const li = document.createElement('li');
                     li.className = 'factor-item';
 
                     const button = document.createElement('button');
                     button.className = 'factor-button';
-                    button.textContent = getFactorDisplayName(factor);
+
+                    // displayName 우선 사용, 없으면 fallback
+                    const displayName = factor.displayName || getFactorDisplayName(factor.type || factor);
+                    button.textContent = displayName;
+
                     button.onclick = async () => {
                         button.disabled = true;
                         button.textContent = '처리 중...';
 
                         try {
-                            await mfa.selectFactor(factor);
+                            // factor가 객체면 type 속성 사용, 문자열이면 그대로 사용
+                            const factorType = factor.type || factor;
+                            await mfa.selectFactor(factorType);
                         } catch (error) {
                             messageContainer.innerHTML = `<div class="message error">${error.message}</div>`;
                             button.disabled = false;
-                            button.textContent = getFactorDisplayName(factor);
+                            button.textContent = displayName;
                         }
                     };
 
@@ -779,16 +814,35 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 messageArea.innerHTML = '';
 
                 try {
-                    // SDK의 login 메서드 사용
-                    // - CSRF 토큰 처리
-                    // - State Machine 동기화
-                    // - MFA 필요 시 자동 리다이렉트
-                    // - 성공 시 /home 이동
-                    await mfa.apiClient.login(username, password);
+                    // SDK의 login 메서드 호출
+                    const result = await mfa.apiClient.login(username, password);
 
-                    // autoRedirect: true이므로 SDK가 자동으로 리다이렉트 처리
-                    // 여기까지 오면 성공 메시지만 표시
-                    messageArea.innerHTML = '<div class="message success">로그인 성공! 다단계 인증을 진행합니다...</div>';
+                    // 디버그: 서버 응답 확인
+                    console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
+                    console.log('[DEBUG] result.status:', result.status);
+                    console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
+
+                    // MFA 필요 여부에 따른 분기 처리
+                    if (result.status === 'MFA_COMPLETED') {
+                        // MFA 불필요 - 즉시 홈으로 리다이렉트 (서버가 토큰 발급 완료)
+                        messageArea.innerHTML = '<div class="message success">로그인 성공! 홈으로 이동합니다...</div>';
+                        const redirectUrl = result.redirectUrl || '/home';
+                        setTimeout(() => {
+                            window.location.href = redirectUrl;
+                        }, 500);
+                    } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
+                               result.status === 'MFA_REQUIRED') {
+                        // MFA 필요 - Factor 선택 페이지로 리다이렉트
+                        messageArea.innerHTML = '<div class="message success">로그인 성공! 다단계 인증을 진행합니다...</div>';
+                        const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
+                        setTimeout(() => {
+                            window.location.href = nextStepUrl;
+                        }, 500);
+                    } else {
+                        // 기타 응답 - 메시지만 표시
+                        const message = result.message || '로그인 성공!';
+                        messageArea.innerHTML = '<div class="message success">' + message + '</div>';
+                    }
                 } catch (error) {
                     // 차단 상태 감지
                     if (error.response && error.response.blocked === true) {
@@ -926,6 +980,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
         .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         h1 { margin: 0 0 16px; font-size: 24px; color: #333; }
+        .progress-container { margin-bottom: 24px; }
+        .progress-bar-wrapper { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+        .progress-bar { height: 100%%; background: linear-gradient(90deg, #007bff 0%%, #0056b3 100%%); transition: width 0.3s ease; }
+        .progress-text { margin-top: 8px; font-size: 14px; color: #6c757d; text-align: center; }
         input { width: 100%%; padding: 14px; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 6px; font-size: 18px; text-align: center; letter-spacing: 0.5em; box-sizing: border-box; }
         button { width: 100%%; padding: 14px; margin-bottom: 8px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
         .btn-primary { background: #007bff; color: white; }
@@ -937,6 +995,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 <body>
     <div class="container">
         <h1>인증 코드 입력</h1>
+        <div class="progress-container" id="progress-container" style="display:none;">
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="progress-text" id="progress-text"></div>
+        </div>
+        <div id="message-container"></div>
         <form id="verify-form" onsubmit="verifyCode(event)">
             <input type="text" id="code-input" placeholder="6자리 코드 입력" maxlength="6" required autofocus />
             <button type="submit" class="btn-primary" id="verify-button">확인</button>
@@ -945,7 +1010,30 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     </div>
 
     <script>
+        function updateProgress(progress) {
+            if (progress && progress.current && progress.total) {
+                const container = document.getElementById('progress-container');
+                const bar = document.getElementById('progress-bar');
+                const text = document.getElementById('progress-text');
+
+                container.style.display = 'block';
+                bar.style.width = progress.percentage + '%%';
+                text.textContent = '단계 ' + progress.current + '/' + progress.total;
+            }
+        }
+
         const mfa = new ContexaMFA.Client({ autoRedirect: true });
+
+        (async function() {
+            const context = await mfa.init();
+            updateProgress(context.progress);
+
+            // 서버 message 표시
+            if (context.message) {
+                const messageContainer = document.getElementById('message-container');
+                messageContainer.innerHTML = `<div class="message info">${context.message}</div>`;
+            }
+        })();
 
         async function verifyCode(event) {
             event.preventDefault();
@@ -958,7 +1046,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             try {
                 await mfa.verifyOtt(input.value);
             } catch (error) {
-                alert('인증 실패: ' + error.message);
+                let errorMsg = '인증 실패: ' + error.message;
+                // remainingAttempts 표시
+                if (error.response && error.response.remainingAttempts != null) {
+                    errorMsg += ' (남은 시도: ' + error.response.remainingAttempts + '회)';
+                }
+                alert(errorMsg);
                 button.disabled = false;
                 button.textContent = '확인';
                 input.value = '';
@@ -1008,6 +1101,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
         .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
         h1 { margin: 0 0 16px; font-size: 24px; color: #333; }
+        .progress-container { margin-bottom: 24px; }
+        .progress-bar-wrapper { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+        .progress-bar { height: 100%%; background: linear-gradient(90deg, #007bff 0%%, #0056b3 100%%); transition: width 0.3s ease; }
+        .progress-text { margin-top: 8px; font-size: 14px; color: #6c757d; text-align: center; }
         p { color: #666; margin-bottom: 24px; }
         button { width: 100%%; padding: 14px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
         button:disabled { background: #6c757d; cursor: not-allowed; }
@@ -1017,11 +1114,30 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 <body>
     <div class="container">
         <h1>Passkey 인증</h1>
+        <div class="progress-container" id="progress-container" style="display:none;">
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="progress-text" id="progress-text"></div>
+        </div>
+        <div id="message-container"></div>
         <p>생체 인증 또는 보안 키를 사용하여 인증하세요.</p>
         <button id="auth-button" onclick="authenticate()">Passkey 인증 시작</button>
     </div>
 
     <script>
+        function updateProgress(progress) {
+            if (progress && progress.current && progress.total) {
+                const container = document.getElementById('progress-container');
+                const bar = document.getElementById('progress-bar');
+                const text = document.getElementById('progress-text');
+
+                container.style.display = 'block';
+                bar.style.width = progress.percentage + '%%';
+                text.textContent = '단계 ' + progress.current + '/' + progress.total;
+            }
+        }
+
         window.onload = function() {
             // 페이지 로드 시 자동으로 인증 시작
             authenticate();
@@ -1034,10 +1150,25 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
             try {
                 const mfa = new ContexaMFA.Client({ autoRedirect: true });
-                await mfa.init();
+                const context = await mfa.init();
+
+                // progress 표시
+                updateProgress(context.progress);
+
+                // 서버 message 표시
+                if (context.message) {
+                    const messageContainer = document.getElementById('message-container');
+                    messageContainer.innerHTML = `<div class="message info">${context.message}</div>`;
+                }
+
                 await mfa.verifyPasskey();
             } catch (error) {
-                alert('인증 실패: ' + error.message);
+                let errorMsg = '인증 실패: ' + error.message;
+                // remainingAttempts 표시
+                if (error.response && error.response.remainingAttempts != null) {
+                    errorMsg += ' (남은 시도: ' + error.response.remainingAttempts + '회)';
+                }
+                alert(errorMsg);
                 button.disabled = false;
                 button.textContent = 'Passkey 인증 시작';
             }
@@ -1051,48 +1182,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         writer.flush();
     }
 
-    /**
-     * Configure Page 생성
-     */
-    private void generateConfigurePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        PrintWriter writer = response.getWriter();
-
-        // CSRF 토큰 추출
-        String csrfToken = getCsrfToken(request);
-        String csrfHeaderName = getCsrfHeaderName(request);
-        String csrfParameterName = getCsrfParameterName(request);
-
-        String html = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="_csrf" content="%s">
-    <meta name="_csrf_header" content="%s">
-    <meta name="_csrf_parameter" content="%s">
-    <title>MFA - 초기 설정</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 600px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        h1 { margin: 0 0 16px; font-size: 24px; color: #333; }
-        p { color: #666; margin-bottom: 24px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>MFA 초기 설정</h1>
-        <p>다단계 인증을 설정하여 계정을 보호하세요.</p>
-        <p>이 페이지는 기본 페이지입니다. 커스텀 MFA 설정 페이지를 구현하세요.</p>
-    </div>
-</body>
-</html>
-                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
-
-        writer.write(html);
-        writer.flush();
-    }
+    // 제거됨: generateConfigurePage() - 사용자 팩터 등록 기능 제거
 
     /**
      * Failure Page 생성

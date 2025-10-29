@@ -271,7 +271,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         responseData.put("currentStep", currentState.name());
 
         if (currentState == MfaState.AWAITING_FACTOR_SELECTION) {
-            responseData.put("availableFactors", context.getRegisteredMfaFactors());
+            responseData.put("availableFactors", context.getAvailableFactors());
         }
 
         responseWriter.writeSuccessResponse(response, responseData, HttpServletResponse.SC_OK);
@@ -292,10 +292,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             return;
         }
 
-        // 등록된 팩터 존재 여부 확인
-        if (context.getRegisteredMfaFactors().isEmpty()) {
-            handleInvalidStateError(request, response, context, "NO_REGISTERED_FACTORS",
-                    "등록된 MFA 팩터가 없습니다. MFA 설정을 먼저 완료해주세요.");
+        // 사용 가능한 팩터 존재 여부 확인
+        if (context.getAvailableFactors().isEmpty()) {
+            handleInvalidStateError(request, response, context, "NO_AVAILABLE_FACTORS",
+                    "사용 가능한 MFA 팩터가 없습니다.");
             return;
         }
 
@@ -319,12 +319,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     }
 
     /**
-     * 팩터 등록 여부 확인
+     * 팩터 사용 가능 여부 확인
      */
     private boolean isFactorRegistered(FactorContext context, String selectedFactor) {
         try {
             AuthType selectedAuthType = AuthType.valueOf(selectedFactor.toUpperCase());
-            return context.getRegisteredMfaFactors().contains(selectedAuthType);
+            return context.getAvailableFactors().contains(selectedAuthType);
         } catch (IllegalArgumentException e) {
             log.warn("Invalid factor type: {}", selectedFactor);
             return false;
@@ -563,7 +563,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         statusResponse.put("isTerminal", latestState.isTerminal());
         statusResponse.put("isWaitingForUserAction", latestState.isWaitingForUserAction());
         statusResponse.put("isProcessing", latestState.isProcessing());
-        statusResponse.put("availableFactors", context.getRegisteredMfaFactors());
+        statusResponse.put("availableFactors", context.getAvailableFactors());
         statusResponse.put("completedFactorsCount", context.getCompletedFactors().size());
         statusResponse.put("statusCheckedAt", MfaTimeUtils.nowMillis());
 

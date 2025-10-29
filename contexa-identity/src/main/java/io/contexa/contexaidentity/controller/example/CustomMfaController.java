@@ -60,13 +60,13 @@ public class CustomMfaController {
         String mfaSessionId = (String) request.getAttribute("mfaSessionId");
         String username = (String) request.getAttribute("username");
         @SuppressWarnings("unchecked")
-        List<AuthType> factors = (List<AuthType>) request.getAttribute("registeredFactors");
+        List<AuthType> factors = (List<AuthType>) request.getAttribute("availableFactors");
 
         // 방법 2: 직접 FactorContext 로드 (필요한 경우)
         // FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
         // String mfaSessionId = ctx.getMfaSessionId();
         // String username = ctx.getUsername();
-        // List<AuthType> factors = ctx.getRegisteredMfaFactors();
+        // List<AuthType> factors = ctx.getAvailableFactors();
 
         model.addAttribute("mfaSessionId", mfaSessionId);
         model.addAttribute("username", username);
@@ -138,7 +138,7 @@ public class CustomMfaController {
 
         model.addAttribute("mfaSessionId", ctx.getMfaSessionId());
         model.addAttribute("username", ctx.getUsername());
-        model.addAttribute("registeredFactors", ctx.getRegisteredMfaFactors());
+        model.addAttribute("availableFactors", ctx.getAvailableFactors());
         model.addAttribute("completedFactors", ctx.getCompletedFactors());
 
         log.debug("Custom MFA configure page for user: {}", ctx.getUsername());

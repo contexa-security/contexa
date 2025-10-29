@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -33,8 +34,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     
     @Override
     public boolean supports(FactorContext context) {
-        // DefaultMfaPolicyEvaluator는 항상 폴백으로 사용 가능
-        // 다른 평가자가 지원하지 않는 경우에 사용됨
         return true;
     }
     
@@ -77,45 +76,48 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return MfaDecision.noMfaRequired();
         }
         
-        // 사용자가 등록한 MFA 팩터 확인
-        List<AuthType> registeredFactors = parseRegisteredFactors(user);
-        
-        if (CollectionUtils.isEmpty(registeredFactors)) {
-            log.info("MFA required but no factors registered for user: {}", username);
-            return MfaDecision.configurationRequired();
+        // DSL에서 사용 가능한 MFA 팩터 확인
+        Set<AuthType> availableFactors = getAvailableFactorsFromDsl(context);
+
+        if (CollectionUtils.isEmpty(availableFactors)) {
+            log.warn("MFA required but no factors defined in DSL for user: {}", username);
+            return MfaDecision.noMfaRequired();
         }
-        
-        // 필요한 팩터 수 결정
-        int requiredFactorCount = determineRequiredFactorCount(user, context);
-        
-        // 필수 팩터 결정
+
+        // 필요한 팩터 수 결정 (DSL 기반: 한 번에 하나씩 챌린지)
+        int requiredFactorCount = 1;
+
+        // DSL 사용 가능한 팩터를 리스트로 변환
+        List<AuthType> availableFactorsList = new ArrayList<>(availableFactors);
+
+        // 필수 팩터 결정 (DSL 기반)
         List<AuthType> requiredFactors = determineRequiredFactors(
-            user, 
-            context, 
-            registeredFactors, 
+            user,
+            context,
+            availableFactorsList,
             requiredFactorCount
         );
-        
-        // 결정 유형 판단
-        MfaDecision.DecisionType decisionType = determineDecisionType(
-            user, 
-            context, 
-            requiredFactorCount
-        );
-        
+
+        // 결정 유형 판단 (항상 STANDARD_MFA)
+        MfaDecision.DecisionType decisionType = MfaDecision.DecisionType.STANDARD_MFA;
+
         // MFA 결정 생성
         MfaDecision decision = MfaDecision.builder()
             .required(true)
             .factorCount(requiredFactorCount)
             .type(decisionType)
             .requiredFactors(requiredFactors)
-            .reason(buildDecisionReason(user, context, decisionType))
-            .metadata(buildDecisionMetadata(user, context))
+            .reason("DSL 정의 팩터로 MFA 인증 필요")
+            .metadata(Map.of(
+                "availableFactors", availableFactors.stream()
+                    .map(AuthType::name)
+                    .collect(Collectors.toList())
+            ))
             .build();
-        
-        log.info("MFA decision for user {}: type={}, factorCount={}", 
-                username, decisionType, requiredFactorCount);
-        
+
+        log.info("MFA decision for user {}: type={}, factorCount={}, availableFactors={}",
+                username, decisionType, requiredFactorCount, availableFactors);
+
         return decision;
     }
     
@@ -129,11 +131,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return true;
         }
         
-        // 사용자가 MFA 팩터를 등록한 경우 MFA 필요
-        if (user.getMfaFactors() != null && !user.getMfaFactors().isEmpty()) {
-            log.debug("User {} has MFA factors configured", user.getUsername());
-            return true;
-        }
+        // 제거됨: 사용자 팩터 등록 체크 - DSL 기반으로 전환
         
         // 플로우 타입에 따른 MFA 요구
         String flowType = context.getFlowTypeName();
@@ -167,16 +165,10 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         
         // 플로우 타입별 기본값
         int baseCount = getFlowBasedFactorCount(flowType);
-        
-        // 사용자가 등록한 팩터 수 고려
-        if (user.getRegisteredMfaFactors() != null) {
-            int registeredCount = user.getRegisteredMfaFactors().size();
-            // 등록된 팩터가 기본값보다 많으면 모두 사용
-            if (registeredCount > baseCount) {
-                return Math.min(registeredCount, 3); // 최대 3개로 제한
-            }
-        }
-        
+
+        // 제거됨: 사용자 등록 팩터 수 고려 - DSL 기반으로 전환
+        // DSL 설정에 따라 필요한 팩터 수가 결정됨
+
         return baseCount;
     }
     
@@ -203,15 +195,15 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     private List<AuthType> determineRequiredFactors(
             Users user,
             FactorContext context,
-            List<AuthType> registeredFactors,
+            List<AuthType> availableFactors,
             int requiredCount) {
-        
-        if (CollectionUtils.isEmpty(registeredFactors)) {
+
+        if (CollectionUtils.isEmpty(availableFactors)) {
             return Collections.emptyList();
         }
-        
+
         // 우선순위에 따라 팩터 정렬
-        List<AuthType> prioritizedFactors = prioritizeFactors(registeredFactors, user, context);
+        List<AuthType> prioritizedFactors = prioritizeFactors(availableFactors, user, context);
         
         // 필요한 수만큼 선택
         if (prioritizedFactors.size() <= requiredCount) {
@@ -311,86 +303,31 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
     
     /**
-     * 사용자의 등록된 MFA 팩터를 파싱합니다.
+     * DSL에서 사용 가능한 MFA 팩터를 가져옵니다.
      */
-    private List<AuthType> parseRegisteredFactors(Users user) {
-        List<String> registeredFactors = user.getRegisteredMfaFactors();
-        if (registeredFactors == null || registeredFactors.isEmpty()) {
-            return Collections.emptyList();
+    private Set<AuthType> getAvailableFactorsFromDsl(FactorContext context) {
+        // FactorContext의 attribute에서 AuthenticationFlowConfig 가져오기
+        Object configObj = context.getAttribute("mfaFlowConfig");
+        if (!(configObj instanceof AuthenticationFlowConfig config)) {
+            log.warn("AuthenticationFlowConfig를 찾을 수 없습니다");
+            return Collections.emptySet();
         }
-        
-        try {
-            // List<String>에서 AuthType으로 변환
-            return registeredFactors.stream()
-                .map(this::parseAuthType)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-                
-        } catch (Exception e) {
-            log.error("Failed to parse registered MFA factors for user {}", 
-                    user.getUsername(), e);
-            return Collections.emptyList();
+
+        Map<AuthType, ?> factorOptions = config.getRegisteredFactorOptions();
+        if (factorOptions.isEmpty()) {
+            log.warn("DSL에 정의된 팩터가 없습니다");
+            return Collections.emptySet();
         }
+
+        Set<AuthType> factors = factorOptions.keySet();
+        log.debug("DSL에서 사용 가능한 팩터: {}", factors);
+        return factors;
     }
-    
-    /**
-     * 사용자의 등록된 MFA 팩터를 파싱합니다 (deprecated - 호환성을 위해 남겨둠)
-     */
-    @Deprecated
-    private List<AuthType> parseRegisteredFactorsFromString(Users user) {
-        // String 형식의 팩터를 처리하는 레거시 코드
-        Object factorsObj = user.getMfaFactors();
-        if (factorsObj == null) {
-            return Collections.emptyList();
-        }
-        
-        try {
-            String factorsStr = factorsObj.toString();
-            if (factorsStr.startsWith("[")) {
-                // JSON 배열 형식
-                factorsStr = factorsStr.substring(1, factorsStr.length() - 1);
-            }
-            
-            return Arrays.stream(factorsStr.split(","))
-                .map(String::trim)
-                .map(s -> s.replace("\"", ""))
-                .filter(StringUtils::hasText)
-                .map(this::parseAuthType)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-                
-        } catch (Exception e) {
-            log.error("Failed to parse registered MFA factors for user {}: {}", 
-                    user.getUsername(), user.getRegisteredMfaFactors(), e);
-            return Collections.emptyList();
-        }
-    }
-    
-    /**
-     * 문자열을 AuthType으로 변환합니다.
-     */
-    private AuthType parseAuthType(String value) {
-        try {
-            return AuthType.valueOf(value.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid AuthType value: {}", value);
-            return null;
-        }
-    }
-    
-    /**
-     * 사용자가 관리자인지 확인합니다.
-     */
+
     private boolean isAdminUser(Users user) {
         return true;
-        /*String roles = user.getRoles();
-        return roles != null && (
-               roles.equals("ROLE_ADMIN") ||
-               roles.equals("ADMIN") ||
-               roles.contains("ADMIN")
-        );*/
     }
-    
+
     @Override
     public String getName() {
         return "DefaultMfaPolicyEvaluator";

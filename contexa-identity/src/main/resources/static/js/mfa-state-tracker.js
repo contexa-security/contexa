@@ -39,7 +39,7 @@ class MfaStateTracker {
         // 서버의 MfaStateMachineConfiguration과 완전히 일치
         const validTransitions = {
             'NONE': ['PRIMARY_AUTHENTICATION_COMPLETED'],
-            'PRIMARY_AUTHENTICATION_COMPLETED': ['MFA_NOT_REQUIRED', 'AWAITING_FACTOR_SELECTION', 'MFA_CONFIGURATION_REQUIRED', 'MFA_REQUIRED_SELECT_FACTOR', 'MFA_SYSTEM_ERROR'],
+            'PRIMARY_AUTHENTICATION_COMPLETED': ['MFA_NOT_REQUIRED', 'AWAITING_FACTOR_SELECTION', 'MFA_REQUIRED_SELECT_FACTOR', 'MFA_SYSTEM_ERROR'],
             'AWAITING_FACTOR_SELECTION': ['AWAITING_FACTOR_CHALLENGE_INITIATION', 'MFA_CANCELLED', 'MFA_SESSION_EXPIRED', 'MFA_SYSTEM_ERROR'],
             'AWAITING_FACTOR_CHALLENGE_INITIATION': ['FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION', 'MFA_CANCELLED', 'MFA_SESSION_EXPIRED'],
             'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION': ['FACTOR_VERIFICATION_PENDING', 'MFA_CANCELLED', 'MFA_SESSION_EXPIRED', 'AWAITING_FACTOR_SELECTION'],
@@ -62,8 +62,7 @@ class MfaStateTracker {
             'MFA_CANCELLED',
             'MFA_SESSION_EXPIRED',
             'MFA_SYSTEM_ERROR',
-            'MFA_SESSION_INVALIDATED',
-            'MFA_CONFIGURATION_REQUIRED' // 추가
+            'MFA_SESSION_INVALIDATED'
         ];
         return terminalStates.includes(this.currentState);
     }
@@ -71,8 +70,7 @@ class MfaStateTracker {
     isWaitingForUserAction() {
         // 서버 로직과 일치
         return this.currentState === 'AWAITING_FACTOR_SELECTION' ||
-            this.currentState === 'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION' ||
-            this.currentState === 'MFA_CONFIGURATION_REQUIRED'; // 추가
+            this.currentState === 'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION';
     }
 
     isProcessing() {

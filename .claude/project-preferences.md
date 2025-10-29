@@ -78,10 +78,10 @@ log.info("핸들러 교체: {}", MfaFactorProcessingSuccessHandler.class.getSimp
 
 **잘못된 예시**:
 ```java
-// ❌ 나쁨 - 풀네임 사용 금지
+// 나쁨 - 풀네임 사용 금지
 io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler handler = ...;
 
-// ❌ 나쁨 (문서)
+// 나쁨 (문서)
 `io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler` 사용
 ```
 
@@ -94,7 +94,7 @@ io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler ha
 ```java
 log.info("✅ WebAuthn 핸들러 교체 완료: {}", handlerName);
 log.debug("🔧 Passkey 스텝 감지, WebAuthnAuthenticationFilter 검색 중...");
-log.error("❌ 핸들러 Bean 조회 실패: {}", e.getMessage());
+log.error("핸들러 Bean 조회 실패: {}", e.getMessage());
 log.warn("⚠️ WebAuthnAuthenticationFilter를 찾을 수 없습니다");
 ```
 

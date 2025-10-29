@@ -112,18 +112,18 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
             log.debug("Role-based factor count lookup failed: {}", e.getMessage());
         }
 
-        // 3차: 등록된 팩터 수 기반 Fallback
+        // 3차: 사용 가능한 팩터 수 기반 Fallback
         try {
-            int registeredCount = factorContext.getRegisteredMfaFactors().size();
-            if (registeredCount > 0) {
-                // 등록된 팩터의 절반 이상 완료를 요구 (최소 1개)
-                int requiredCount = Math.max(1, registeredCount / 2);
-                log.debug("Using registered factors-based count: {} (from {} registered) for user: {}",
-                        requiredCount, registeredCount, factorContext.getUsername());
+            int availableCount = factorContext.getAvailableFactors().size();
+            if (availableCount > 0) {
+                // 사용 가능한 팩터의 절반 이상 완료를 요구 (최소 1개)
+                int requiredCount = Math.max(1, availableCount / 2);
+                log.debug("Using available factors-based count: {} (from {} available) for user: {}",
+                        requiredCount, availableCount, factorContext.getUsername());
                 return requiredCount;
             }
         } catch (Exception e) {
-            log.debug("Registered factors-based count lookup failed: {}", e.getMessage());
+            log.debug("Available factors-based count lookup failed: {}", e.getMessage());
         }
 
         // 4차: 플로우 타입 기반 기본값 (최종 Fallback)

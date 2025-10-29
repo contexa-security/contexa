@@ -9,7 +9,6 @@ public enum MfaEvent {
     // --- MFA 정책 평가 결과 ---
     MFA_NOT_REQUIRED,                  // MFA 불필요
     MFA_REQUIRED_SELECT_FACTOR,        // MFA 필요, 사용자 선택
-    MFA_CONFIGURATION_REQUIRED,        // MFA 설정 필요
 
     // --- 팩터 선택 및 챌린지 ---
     FACTOR_SELECTED,                   // 사용자가 팩터 선택

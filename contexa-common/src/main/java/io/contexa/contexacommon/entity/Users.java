@@ -54,39 +54,14 @@ public class Users {
     @Column
     private String lastUsedMfaFactor;
 
-    private List<String> registeredMfaFactors;
-
-    // registeredMfaFactors 필드에 대한 getter (MfaWorkflowService 에서 사용)
-    public List<String> getMfaFactors() {
-        return registeredMfaFactors;
-    }
-
-    // 필요시 mfaFactors를 설정하는 setter도 추가 가능
-    public void setMfaFactors(String[] factors) {
-        this.registeredMfaFactors = Arrays.stream(factors)
-                .flatMap(s -> Arrays.stream(s.split(",")))
-                .map(String::trim)
-                .toList();
-    }
-
-    /**
-     * 선호하는 MFA 팩터 반환
-     * 설정되지 않은 경우 마지막 사용 팩터를 반환
-     */
     public String getPreferredMfaFactor() {
         if (preferredMfaFactor != null && !preferredMfaFactor.isEmpty()) {
             return preferredMfaFactor;
         }
-        // 선호 팩터가 없으면 마지막 사용 팩터 반환
         return lastUsedMfaFactor;
     }
 
     public void setPreferredMfaFactor(String factor) {
-        if (factor != null && registeredMfaFactors != null &&
-                !registeredMfaFactors.contains(factor)) {
-            throw new IllegalArgumentException(
-                    "Preferred factor must be one of registered factors");
-        }
         this.preferredMfaFactor = factor;
     }
 

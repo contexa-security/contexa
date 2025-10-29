@@ -179,7 +179,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     passkeyVerifyButton.disabled = false;
                 }
             } else {
-                const message = result.message || (loginResponse.status === 401 ? "Passkey 인증에 실패했습니다." : "Passkey 검증 실패 (" + loginResponse.status + ")");
+                let message = result.message || (loginResponse.status === 401 ? "Passkey 인증에 실패했습니다." : "Passkey 검증 실패 (" + loginResponse.status + ")");
+                // remainingAttempts 표시
+                if (result.remainingAttempts != null) {
+                    message += ` (남은 시도 횟수: ${result.remainingAttempts}회)`;
+                }
                 displayMessage(message, "error");
 
                 // 최대 시도 횟수 초과 체크

@@ -37,8 +37,9 @@ public class UserController {
         Users users = modelMapper.map(userDto, Users.class);
         users.setPassword(passwordEncoder.encode(users.getPassword()));
         users.setMfaEnabled(true);
-//        users.setMfaFactors(new String[]{"OTT,PASSKEY"});
-        users.setMfaFactors(new String[]{"OTT"});
+        // 제거됨: 사용자 팩터 등록 기능 제거 - DSL 기반으로 전환
+        // users.setMfaFactors(new String[]{"OTT,PASSKEY"});
+        // users.setMfaFactors(new String[]{"OTT"});
         users.setPreferredMfaFactor("OTT");
         userRepository.save(users);
 

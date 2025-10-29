@@ -400,7 +400,7 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
     @Override
     public boolean supports(FactorContext context) {
         // AI 평가자는 AI가 사용 가능하고, forceAI 속성이 있거나 고위험 상황에서 지원
-        if (!isAvailable()) {
+        /*if (!isAvailable()) {
             return false;
         }
         
@@ -416,7 +416,7 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
         // 고위험 상황 (실패 횟수가 많은 경우) 지원
         if (context.getFailedAttempts("LOGIN") > 3) {
             return true;
-        }
+        }*/
         
         return false;
     }

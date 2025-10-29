@@ -75,11 +75,12 @@ public class MfaApiController {
                     "Invalid factor type: " + factorType, ctx);
         }
 
-        if (!ctx.getRegisteredMfaFactors().contains(requestedFactorType)) {
-            log.warn("User {} attempted to select unavailable factor: {}",
-                    ctx.getUsername(), requestedFactorType);
+        // DSL에 정의된 팩터인지 확인
+        if (!ctx.isFactorAvailable(requestedFactorType)) {
+            log.warn("User {} attempted to select unavailable factor: {}. DSL available factors: {}",
+                    ctx.getUsername(), requestedFactorType, ctx.getAvailableFactors());
             return createErrorResponse(HttpStatus.BAD_REQUEST, "FACTOR_NOT_AVAILABLE",
-                    "Factor type not available for user: " + requestedFactorType, ctx);
+                    "시스템에서 지원하지 않는 팩터입니다: " + requestedFactorType, ctx);
         }
 
         try {
@@ -205,7 +206,7 @@ public class MfaApiController {
             statusResponse.put("currentState", ctx.getCurrentState().name());
             statusResponse.put("flowType", ctx.getFlowTypeName());
             statusResponse.put("isTerminal", ctx.getCurrentState().isTerminal());
-            statusResponse.put("registeredFactors", ctx.getRegisteredMfaFactors());
+            statusResponse.put("availableFactors", ctx.getAvailableFactors());
             statusResponse.put("completedFactorsCount", ctx.getCompletedFactors().size());
             statusResponse.put("storageType", "UNIFIED_STATE_MACHINE");
 
@@ -288,11 +289,11 @@ public class MfaApiController {
             contextResponse.put("flowType", ctx.getFlowTypeName());
             contextResponse.put("isTerminal", ctx.getCurrentState().isTerminal());
 
-            // 등록된 팩터 목록 (SDK가 UI 렌더링에 사용)
-            List<String> registeredFactorNames = ctx.getRegisteredMfaFactors().stream()
+            // DSL 사용 가능한 팩터 목록 (SDK가 UI 렌더링에 사용)
+            List<String> availableFactorNames = ctx.getAvailableFactors().stream()
                     .map(AuthType::name)
                     .collect(Collectors.toList());
-            contextResponse.put("registeredFactors", registeredFactorNames);
+            contextResponse.put("availableFactors", availableFactorNames);
 
             // 완료된 팩터 목록
             List<String> completedFactorNames = ctx.getCompletedFactors().stream()

@@ -101,18 +101,18 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                     ctx.getUsername(), decision.getReason());
         }
         
-        // 등록된 MFA 팩터 설정 (Set 으로 저장)
+        // DSL에서 사용 가능한 팩터를 컨텍스트에 저장
         if (decision.isRequired()) {
-            Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(ctx.getUsername())
-                    .orElse(null);
-            if (user != null) {
-                Set<AuthType> registeredFactors = parseRegisteredMfaFactorsFromUser(user);
-                ctx.setAttribute("registeredMfaFactors", registeredFactors); // Set으로 저장
-                ctx.setAttribute("registeredFactorCount", registeredFactors.size());
-                
+            AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
+            if (mfaFlowConfig != null) {
+                Set<AuthType> availableFactors = mfaFlowConfig.getRegisteredFactorOptions().keySet();
+                ctx.setAttribute("availableFactors", availableFactors);
+                ctx.setAttribute("availableFactorCount", availableFactors.size());
+                ctx.setAttribute("mfaFlowConfig", mfaFlowConfig);
+
                 // 추가 정보 로깅
-                log.info("User {} has {} registered MFA factors", 
-                        ctx.getUsername(), registeredFactors.size());
+                log.info("User {} can use {} DSL-defined MFA factors: {}",
+                        ctx.getUsername(), availableFactors.size(), availableFactors);
             }
         }
         
@@ -141,17 +141,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return;
         }
         
-        // MFA 구성 필요
-        if (decision.isConfigurationRequired()) {
-            int requiredCount = decision.getFactorCount();
-            int registeredCount = (Integer) ctx.getAttribute("registeredFactorCount");
-            
-            // 상세한 로깅 복원
-            sendEventWithSync(MfaEvent.MFA_CONFIGURATION_REQUIRED, ctx, request,
-                    String.format("MFA_CONFIGURATION_REQUIRED for user: %s (has %d, needs %d)",
-                            username, registeredCount, requiredCount));
-            return;
-        }
+        // 제거됨: MFA 구성 필요 처리 - 사용자 팩터 등록 기능 제거
         
         // MFA 필요 - 팩터 선택 또는 자동 챌린지
         handleMfaRequired(ctx, decision, request);
@@ -162,21 +152,21 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
      */
     private void handleMfaRequired(FactorContext ctx, MfaDecision decision, HttpServletRequest request) {
         String username = ctx.getUsername();
-        
-        // 등록된 팩터 가져오기 (Set 타입으로)
+
+        // DSL 정의 사용 가능한 팩터 가져오기 (Set 타입으로)
         @SuppressWarnings("unchecked")
-        Set<AuthType> registeredFactors = (Set<AuthType>) ctx.getAttribute("registeredMfaFactors");
-        if (registeredFactors == null) {
-            registeredFactors = new HashSet<>();
+        Set<AuthType> availableFactors = (Set<AuthType>) ctx.getAttribute("availableFactors");
+        if (availableFactors == null) {
+            availableFactors = new HashSet<>();
             if (decision.getRequiredFactors() != null) {
-                registeredFactors.addAll(decision.getRequiredFactors());
+                availableFactors.addAll(decision.getRequiredFactors());
             }
         }
-        
+
         // 자동 팩터 선택 모드인 경우
         if (properties.getFactorSelectionType() == FactorSelectionType.AUTO) {
             // autoSelectInitialFactor 사용 (사용자 선호도, 시스템 우선순위 고려)
-            boolean autoSelected = autoSelectInitialFactor(ctx, registeredFactors);
+            boolean autoSelected = autoSelectInitialFactor(ctx, availableFactors);
             
             if (autoSelected) {
                 // 바로 챌린지 시작
@@ -219,27 +209,27 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
      * 초기 MFA 팩터 자동 선택 (첫 번째 팩터 선택용)
      * @return 자동 선택 성공 여부
      */
-    private boolean autoSelectInitialFactor(FactorContext ctx, Set<AuthType> registeredFactors) {
-        if (registeredFactors.isEmpty()) {
+    private boolean autoSelectInitialFactor(FactorContext ctx, Set<AuthType> availableFactors) {
+        if (availableFactors.isEmpty()) {
             return false;
         }
 
         AuthType selectedFactor = null;
 
         // 1. 단일 팩터인 경우
-        if (registeredFactors.size() == 1) {
-            selectedFactor = registeredFactors.iterator().next();
-            log.info("Auto-selecting single registered factor: {}", selectedFactor);
+        if (availableFactors.size() == 1) {
+            selectedFactor = availableFactors.iterator().next();
+            log.info("Auto-selecting single available factor: {}", selectedFactor);
         }
 
         // 2. 사용자 선호도 기반
         if (selectedFactor == null) {
-            selectedFactor = getUserPreferredFactor(ctx.getUsername(), registeredFactors);
+            selectedFactor = getUserPreferredFactor(ctx.getUsername(), availableFactors);
         }
 
         // 3. 시스템 우선순위 기반
         if (selectedFactor == null) {
-            selectedFactor = getSystemPriorityFactor(registeredFactors);
+            selectedFactor = getSystemPriorityFactor(availableFactors);
         }
 
         if (selectedFactor != null) {
@@ -345,14 +335,12 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return;
         }
 
-        List<AuthType> registeredFactors = Arrays.stream(new String[]{(String)ctx.getAttribute("registeredMfaFactors")})
-                .flatMap(s -> Arrays.stream(s.split(",")))
-                .map(String::trim)
-                .map(AuthType::valueOf)
-                .toList();
+        // DSL 정의 사용 가능한 팩터 가져오기
+        Set<AuthType> availableFactors = ctx.getAvailableFactors();
+        List<AuthType> factorsForProcessing = new ArrayList<>(availableFactors);
 
         AuthType nextFactorType = determineNextFactorInternal(
-                registeredFactors,
+                factorsForProcessing,
                 ctx.getCompletedFactors(),
                 mfaFlowConfig.getStepConfigs()
         );
@@ -429,18 +417,19 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             sendEventWithSync(MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED, ctx, request,
                     "All required factors completed for user: " + ctx.getUsername());
 
-        } else if (!ctx.getRegisteredMfaFactors().isEmpty() && ctx.getCompletedFactors().isEmpty()) {
-            log.info("No MFA factors completed, but registered factors exist for user: {}. Moving to factor selection.",
+        } else if (!ctx.getAvailableFactors().isEmpty() && ctx.getCompletedFactors().isEmpty()) {
+            log.info("No MFA factors completed, but DSL factors available for user: {}. Moving to factor selection.",
                     ctx.getUsername());
 
             sendEventWithSync(MfaEvent.MFA_REQUIRED_SELECT_FACTOR, ctx, request,
                     "Moving to factor selection for user: " + ctx.getUsername());
 
-        } else if (ctx.getRegisteredMfaFactors().isEmpty()) {
-            log.warn("MFA required for user {} but no MFA factors are registered.", ctx.getUsername());
+        } else if (ctx.getAvailableFactors().isEmpty()) {
+            log.warn("MFA required for user {} but no DSL factors are available.", ctx.getUsername());
 
-            sendEventWithSync(MfaEvent.MFA_CONFIGURATION_REQUIRED, ctx, request,
-                    "MFA configuration required for user: " + ctx.getUsername());
+            // 사용자 팩터 등록 기능 제거: 팩터가 없으면 MFA 선택으로 이동
+            sendEventWithSync(MfaEvent.MFA_REQUIRED_SELECT_FACTOR, ctx, request,
+                    "No DSL factors available for user: " + ctx.getUsername());
 
         } else {
             log.info("Not all required MFA factors completed for user: {}. Missing steps: {}",
@@ -621,10 +610,9 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             String sessionId = ctx.getMfaSessionId();
             FactorContext latestContext = stateMachineIntegrator.loadFactorContext(sessionId);
             if (latestContext != null) {
-                @SuppressWarnings("unchecked")
-                List<AuthType> registeredFactors = (List<AuthType>) latestContext.getAttribute("registeredMfaFactors");
-                if (!CollectionUtils.isEmpty(registeredFactors)) {
-                    return registeredFactors.contains(factorType);
+                Set<AuthType> availableFactors = latestContext.getAvailableFactors();
+                if (!CollectionUtils.isEmpty(availableFactors)) {
+                    return availableFactors.contains(factorType);
                 }
             }
         }
@@ -636,7 +624,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         }
 
         Users user = userOptional.get();
-        return parseRegisteredMfaFactorsFromUser(user).contains(factorType);
+        return parseAvailableMfaFactorsFromUser(user).contains(factorType);
     }
 
     @Override
@@ -676,9 +664,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 //                return 2;
 //            }
 
-            if (user.getRegisteredMfaFactors() != null) {
-                return user.getRegisteredMfaFactors().size();
-            }
+            // 제거됨: 사용자 등록 팩터 수 체크 - DSL 기반으로 전환
 
             int baseCount = 1; // 기본값
             return adjustRequiredFactorCount(baseCount, userId, flowType);
@@ -696,16 +682,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     protected int adjustRequiredFactorCount(int baseCount, String userId, String flowType) {
         // 기본 구현은 그대로 반환
         return baseCount;
-    }
-
-    // === 기존 내부 유틸리티 메서드들 (변경 없음) ===
-
-    private boolean evaluateMfaRequirement(Users user) {
-//        if ("ROLE_ADMIN".equals(user.getUserRoles())) {
-//            return true;
-//        }
-
-        return user.getMfaFactors() != null && !user.getMfaFactors().isEmpty();
     }
 
     private List<AuthenticationStepConfig> getRequiredSteps(AuthenticationFlowConfig flowConfig) {
@@ -738,7 +714,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         }
 
         boolean allRequiredCompleted = missingRequiredStepIds.isEmpty();
-        return new CompletionStatus(allRequiredCompleted, completedRequiredStepIds, missingRequiredStepIds);
+        return new CompletionStatus(allRequiredCompleted, missingRequiredStepIds);
     }
 
     private boolean isStepCompleted(FactorContext ctx, String stepId) {
@@ -755,10 +731,10 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     }
 
     @Nullable
-    private AuthType determineNextFactorInternal(List<AuthType> registeredFactors,
+    private AuthType determineNextFactorInternal(List<AuthType> availableFactors,
                                                  List<AuthenticationStepConfig> completedFactorSteps,
                                                  List<AuthenticationStepConfig> flowSteps) {
-        if (CollectionUtils.isEmpty(registeredFactors) || CollectionUtils.isEmpty(flowSteps)) {
+        if (CollectionUtils.isEmpty(availableFactors) || CollectionUtils.isEmpty(flowSteps)) {
             return null;
         }
 
@@ -774,7 +750,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             AuthType factorInOrder = parseAuthType(stepInFlow.getType());
 
             if (factorInOrder != null &&
-                    registeredFactors.contains(factorInOrder) &&
+                    availableFactors.contains(factorInOrder) &&
                     !completedStepIds.contains(stepInFlow.getStepId())) {
 
                 log.debug("Next MFA factor determined by policy: {} (StepId: {})",
@@ -797,40 +773,19 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         }
     }
 
-    Set<AuthType> parseRegisteredMfaFactorsFromUser(Users user) {
-        if (user == null || user.getMfaFactors() == null || user.getMfaFactors().isEmpty()) {
-            return Collections.emptySet();
-        }
-
-        try {
-            return user.getMfaFactors().stream()
-                    .map(String::trim)
-                    .map(this::parseAuthTypeSafely)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
-        } catch (Exception e) {
-            log.error("Error parsing MFA factors for user {}: {}", user.getUsername(), e.getMessage());
-            return Collections.emptySet();
-        }
+    Set<AuthType> parseAvailableMfaFactorsFromUser(Users user) {
+        log.debug("DSL 기반으로 전환되어 빈 Set 반환 for user {}",
+                user != null ? user.getUsername() : "null");
+        return Collections.emptySet();
     }
 
-    @Nullable
-    private AuthType parseAuthTypeSafely(String s) {
-        try {
-            return AuthType.valueOf(s.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid MFA factor string: {}", s);
-            return null;
-        }
-    }
-
-    public List<AuthType> getRegisteredMfaFactorsForUser(String username) {
+    public List<AuthType> getAvailableMfaFactorsForUser(String username) {
         if (!StringUtils.hasText(username)) {
             return Collections.emptyList();
         }
 
         return new ArrayList<>(userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
-                .map(this::parseRegisteredMfaFactorsFromUser)
+                .map(this::parseAvailableMfaFactorsFromUser)
                 .orElse(Collections.emptySet()));
     }
 
@@ -887,7 +842,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     }
 
     private boolean isImportantAttribute(String key) {
-        return "registeredMfaFactors".equals(key) ||
+        return "availableFactors".equals(key) ||
                 "deviceId".equals(key) ||
                 "clientIp".equals(key) ||
                 "userAgent".equals(key) ||
@@ -896,16 +851,12 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 key.startsWith("verification");
     }
 
-    // 내부 클래스 - 완료 상태 정보
     private static class CompletionStatus {
         final boolean allRequiredCompleted;
-        final Set<String> completedRequiredStepIds;
         final List<String> missingRequiredStepIds;
 
-        CompletionStatus(boolean allRequiredCompleted, Set<String> completedRequiredStepIds,
-                         List<String> missingRequiredStepIds) {
+        CompletionStatus(boolean allRequiredCompleted, List<String> missingRequiredStepIds) {
             this.allRequiredCompleted = allRequiredCompleted;
-            this.completedRequiredStepIds = completedRequiredStepIds;
             this.missingRequiredStepIds = missingRequiredStepIds;
         }
     }

@@ -45,6 +45,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
     private final AuthResponseWriter responseWriter;
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
+    private final AuthContextProperties authContextProperties;
     private final RequestCache requestCache = new HttpSessionRequestCache();
     private PlatformAuthenticationSuccessHandler delegateHandler;
     private ApplicationEventPublisher eventPublisher;
@@ -66,6 +67,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         this.responseWriter = responseWriter;
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
+        this.authContextProperties = authContextProperties;
     }
 
     public void setDelegateHandler(@Nullable PlatformAuthenticationSuccessHandler delegateHandler) {
@@ -185,7 +187,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
             this.requestCache.removeRequest(request, response);
             return savedRequest.getRedirectUrl();
         }
-        return request.getContextPath() + "/home";
+        // AuthUrlConfig에서 MFA 성공 URL 가져오기
+        return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
     }
     
     /**
@@ -237,7 +240,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
                 Map<String, Object> sessionContext = new HashMap<>();
                 sessionContext.put("mfaSessionId", factorContext.getMfaSessionId());
                 sessionContext.put("currentState", factorContext.getCurrentState());
-                sessionContext.put("registeredFactors", factorContext.getRegisteredMfaFactors());
+                sessionContext.put("availableFactors", factorContext.getAvailableFactors());
                 builder.sessionContext(sessionContext);
             }
             
@@ -267,6 +270,57 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         }
     }
     
+    /**
+     * MFA 진행 상황 정보 생성
+     *
+     * @param currentStep 현재 단계 (1부터 시작)
+     * @param totalSteps 전체 단계 수
+     * @return progress 정보 Map
+     */
+    protected Map<String, Object> createProgressInfo(int currentStep, int totalSteps) {
+        Map<String, Object> progress = new HashMap<>();
+        progress.put("current", currentStep);
+        progress.put("total", totalSteps);
+        progress.put("percentage", (int) Math.round((currentStep / (double) totalSteps) * 100));
+        return progress;
+    }
+
+    /**
+     * Factor 상세 정보 생성 (displayName, icon 포함)
+     *
+     * @param factorType Factor 타입 (예: "OTT", "PASSKEY")
+     * @return Factor 상세 정보 Map
+     */
+    protected Map<String, Object> createFactorDetail(String factorType) {
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("type", factorType);
+
+        // displayName과 icon 설정
+        switch (factorType.toUpperCase()) {
+            case "OTT":
+                detail.put("displayName", "이메일 인증 코드");
+                detail.put("icon", "email");
+                break;
+            case "PASSKEY":
+                detail.put("displayName", "Passkey 생체 인증");
+                detail.put("icon", "fingerprint");
+                break;
+            case "TOTP":
+                detail.put("displayName", "인증 앱 (TOTP)");
+                detail.put("icon", "app");
+                break;
+            case "SMS":
+                detail.put("displayName", "SMS 인증");
+                detail.put("icon", "phone");
+                break;
+            default:
+                detail.put("displayName", factorType);
+                detail.put("icon", "security");
+        }
+
+        return detail;
+    }
+
     /**
      * 클라이언트 IP 추출 (프록시 고려)
      */

@@ -174,7 +174,6 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         errorDetails.put("message", errorMessage);
         errorDetails.put("nextStepUrl", nextStepUrl);
         errorDetails.put("terminal", true);
-        errorDetails.put("repositoryType", sessionRepository.getRepositoryType());
 
         // 위임 핸들러 호출
         if (delegateHandler != null && !response.isCommitted()) {
@@ -238,7 +237,6 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         errorDetails.put("nextStepUrl", nextStepUrl);
         errorDetails.put("retryPossibleForCurrentFactor", true);
         errorDetails.put("remainingAttempts", remainingAttempts);
-        errorDetails.put("repositoryType", sessionRepository.getRepositoryType());
 
         // 위임 핸들러 호출
         if (delegateHandler != null && !response.isCommitted()) {
@@ -308,7 +306,6 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("message", errorMessage);
         errorDetails.put("nextStepUrl", failureRedirectUrl);
-        errorDetails.put("repositoryType", sessionRepository.getRepositoryType());
 
         // 위임 핸들러 호출
         if (delegateHandler != null && !response.isCommitted()) {
@@ -346,7 +343,6 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
                 sessionRepository.getRepositoryType(), factorContext.getMfaSessionId());
 
         Map<String, Object> errorDetails = new HashMap<>();
-        errorDetails.put("repositoryType", sessionRepository.getRepositoryType());
         errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
 
         // 위임 핸들러 호출
@@ -438,8 +434,6 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         errorDetails.put("maxAttempts", maxAttempts);
         errorDetails.put("currentState", factorContext.getCurrentState().name());
         errorDetails.put("timestamp", System.currentTimeMillis());
-        errorDetails.put("repositoryType", sessionRepository.getRepositoryType());
-        errorDetails.put("distributedSync", sessionRepository.supportsDistributedSync());
         return errorDetails;
     }
 
