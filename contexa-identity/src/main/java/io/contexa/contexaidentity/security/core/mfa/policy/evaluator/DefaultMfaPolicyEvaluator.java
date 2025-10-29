@@ -125,14 +125,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
      * MFA 필요 여부를 평가합니다.
      */
     private boolean evaluateMfaRequirement(Users user, FactorContext context) {
-        // 관리자는 항상 MFA 필요
-        if (isAdminUser(user)) {
-            log.debug("Admin user {} requires MFA", user.getUsername());
-            return true;
-        }
-        
-        // 제거됨: 사용자 팩터 등록 체크 - DSL 기반으로 전환
-        
+
         // 플로우 타입에 따른 MFA 요구
         String flowType = context.getFlowTypeName();
         if ("mfa".equalsIgnoreCase(flowType) || 
