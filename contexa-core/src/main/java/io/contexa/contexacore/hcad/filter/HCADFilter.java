@@ -38,7 +38,7 @@ import java.util.Set;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Component
+//@Component
 public class HCADFilter extends OncePerRequestFilter {
 
     private final HCADAnalysisService hcadAnalysisService;

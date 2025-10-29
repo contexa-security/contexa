@@ -49,7 +49,7 @@ import java.util.UUID;
  * @since 3.0.0
  */
 @Slf4j
-@Component
+//@Component
 @RequiredArgsConstructor
 public class SecurityEventPublishingFilter extends OncePerRequestFilter {
 
