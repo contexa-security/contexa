@@ -10,8 +10,8 @@ import java.util.*;
 public final class PasskeyOptions extends AuthenticationProcessingOptions { // final class
 
     private final String assertionOptionsEndpoint; // 필수
-    private final String rpName; // 필수
-    private final String rpId;   // 필수
+    private final String rpName;
+    private final String rpId;
     private final Set<String> allowedOrigins;
     private final PasskeyAsepAttributes asepAttributes;
 
@@ -31,8 +31,8 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions { // f
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<PasskeyOptions, Builder> {
         private String assertionOptionsEndpoint = "/webauthn/assertion/options"; // 기본값
-        private String rpName = "My Application";
-        private String rpId;
+        private String rpName = "contexa-identity";
+        private String rpId = "contexa";
         private Set<String> allowedOrigins = new HashSet<>();
         private PasskeyAsepAttributes asepAttributes;
 
