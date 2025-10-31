@@ -22,6 +22,10 @@ public enum MfaEvent {
     FACTOR_VERIFIED_SUCCESS,           // 팩터 검증 성공
     FACTOR_VERIFICATION_FAILED,        // 팩터 검증 실패
 
+    // --- Phase 2: 정책 평가 이벤트 (내부 전이) ---
+    DETERMINE_NEXT_FACTOR,             // 다음 팩터 결정 요청
+    CHECK_COMPLETION,                  // 완료 여부 확인 요청
+
     // --- MFA 완료 ---
     ALL_REQUIRED_FACTORS_COMPLETED,    // 모든 필수 팩터 완료
     ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN, // 최종 토큰 발급 진행

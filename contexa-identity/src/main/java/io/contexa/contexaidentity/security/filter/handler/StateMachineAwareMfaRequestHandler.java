@@ -69,13 +69,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         log.debug("Unified State Machine handling {} request for session: {}", requestType, sessionId);
 
         try {
-            // Step 1: State Machine과 동기화 (필수)
-            ensureStateMachineSynchronization(context, request);
-
-            // Step 2: 요청 타입별 처리
+            // Step 1: 요청 타입별 처리
             processRequestByType(requestType, request, response, context, filterChain);
 
-            // Step 3: 처리 결과를 State Machine에 저장
+            // Step 2: 처리 결과를 State Machine에 저장
             finalizeRequestProcessing(context, startTime);
 
         } catch (Exception e) {
@@ -173,18 +170,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     // === 핵심 처리 메서드들 ===
 
-    /**
-     * State Machine과 동기화 보장
-     */
-    private void ensureStateMachineSynchronization(FactorContext context, HttpServletRequest request) {
-        try {
-            stateMachineIntegrator.refreshFactorContextFromStateMachine(context, request);
-            log.debug("State Machine synchronization completed for session: {}", context.getMfaSessionId());
-        } catch (Exception e) {
-            log.error("State Machine synchronization failed for session: {}", context.getMfaSessionId(), e);
-            throw new IllegalStateException("State Machine synchronization failed", e);
-        }
-    }
 
     /**
      * 요청 타입별 처리
@@ -814,8 +799,14 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleFactorSelectionSuccess(HttpServletRequest request, HttpServletResponse response,
                                               FactorContext context, String selectedFactor) throws IOException {
-        // 정책 제공자를 통해 다음 단계 결정
-        mfaPolicyProvider.determineNextFactorToProcess(context);
+        // Phase 2: State Machine 이벤트 전송으로 다음 단계 결정 (수정은 Action에서)
+        boolean determined = stateMachineIntegrator.sendEvent(
+            MfaEvent.DETERMINE_NEXT_FACTOR, context, request
+        );
+
+        if (!determined) {
+            log.warn("Failed to determine next factor for session: {}", context.getMfaSessionId());
+        }
 
         Map<String, Object> successResponse = createSuccessResponse(context, "FACTOR_SELECTED",
                 "팩터가 성공적으로 선택되었습니다.");

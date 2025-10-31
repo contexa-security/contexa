@@ -91,65 +91,67 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 MfaEvent.FACTOR_VERIFIED_SUCCESS, factorContext, request);
 
         if (!eventAccepted) {
-            // 이벤트가 수락되지 않은 경우, MfaStateMachineServiceImpl.sendEvent 에서
-            // factorContext의 상태를 현재 SM 상태와 동기화하고 저장했을 것이므로, 그 상태를 기반으로 오류 처리.
-            // 또는, sendEvent가 예외를 던지도록 하여 try-catch로 처리.
-            // 여기서는 FactorContext를 다시 로드하여 최신 상태 확인.
-            FactorContext currentContextAfterEvent = stateMachineIntegrator.loadFactorContext(factorContext.getMfaSessionId());
-            handleStateTransitionError(response, request, currentContextAfterEvent != null ? currentContextAfterEvent : factorContext);
+            // 이벤트가 거부되면 State Machine이 상태를 변경하지 않으므로 기존 context 사용
+            handleStateTransitionError(response, request, factorContext);
             return;
         }
 
-        // 3. 이벤트 처리 후, SM 내부의 Action에 의해 FactorContext가 변경되었을 수 있으므로 최신 FactorContext를 다시 로드.
-        FactorContext updatedFactorContext = stateMachineIntegrator.loadFactorContext(factorContext.getMfaSessionId());
-        if (updatedFactorContext == null) {
-            handleInvalidContext(response, request, "CONTEXT_LOST_AFTER_EVENT", "이벤트 처리 후 컨텍스트 유실.", authentication);
-            return;
-        }
-        factorContext = updatedFactorContext; // 핸들러의 factorContext를 최신으로 업데이트
+        // Phase 2.1: 불필요한 중간 로드 제거 - sendEvent()가 이미 factorContext를 업데이트함
+        // 3. 이벤트 처리 후 상태 확인 (컨텍스트는 sendEvent에서 이미 업데이트됨)
 
         // 4. 현재 상태 및 플래그에 따라 다음 단계 결정
         MfaState currentState = factorContext.getCurrentState();
         log.debug("State after FACTOR_VERIFIED_SUCCESS event: {} for session: {}", currentState, factorContext.getMfaSessionId());
 
         if (currentState == MfaState.FACTOR_VERIFICATION_COMPLETED) {
-            // Action에서 설정한 needsDetermineNextFactor 플래그 확인
+            // Phase 2: 다음 팩터 결정 필요 여부 확인 (읽기만)
             if (Boolean.TRUE.equals(factorContext.getAttribute("needsDetermineNextFactor"))) {
-                factorContext.removeAttribute("needsDetermineNextFactor"); // 플래그 사용 후 제거
-                // 제거 후 FactorContext를 한번 저장해주는 것이 좋음 (버전업 및 상태 일관성)
-                stateMachineIntegrator.saveFactorContext(factorContext); // MfaStateMachineServiceImpl.saveFactorContext는 버전업 및 persist 포함
+                log.debug("Sending DETERMINE_NEXT_FACTOR event for session: {}",
+                         factorContext.getMfaSessionId());
 
-                mfaPolicyProvider.determineNextFactorToProcess(factorContext); // 이 내부에서 필요한 이벤트 전송 및 FactorContext 업데이트/저장 가정
+                // Phase 2: State Machine에 이벤트 전송 (수정은 Action에서)
+                boolean determined = stateMachineIntegrator.sendEvent(
+                    MfaEvent.DETERMINE_NEXT_FACTOR, factorContext, request
+                );
 
-                // PolicyProvider가 FactorContext를 변경했으므로 다시 로드
-                factorContext = stateMachineIntegrator.loadFactorContext(factorContext.getMfaSessionId());
-                if (factorContext == null) {
-                    // 여기서 request와 authentication 객체가 필요합니다.
-                    // 해당 객체들을 현재 메서드의 파라미터로 받거나, 클래스 필드로 가지고 있어야 합니다.
-                    // 아래는 예시이며, 실제 사용 가능한 변수로 대체해야 합니다.
-                    // HttpServletRequest request = ...; // 현재 요청 객체
-                    // Authentication authentication = ...; // 현재 인증 객체
-                    handleInvalidContext(response, request, "CONTEXT_LOST_AFTER_EVENT", "이벤트 처리 후 컨텍스트 유실.", authentication);
-                    return; // 오류 발생 시 추가 진행 중단
+                if (!determined) {
+                    log.error("Failed to determine next factor for session: {}",
+                             factorContext.getMfaSessionId());
+                    handleStateTransitionError(response, request, factorContext);
+                    return;
                 }
             }
 
-            AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(factorContext.getFlowTypeName());
-            if (mfaFlowConfig != null) {
-                mfaPolicyProvider.checkAllFactorsCompleted(factorContext, mfaFlowConfig); // 이 내부에서 이벤트 전송 및 FactorContext 업데이트/저장 가정
+            // Phase 2: 완료 여부 확인 (읽기만)
+            log.debug("Sending CHECK_COMPLETION event for session: {}",
+                     factorContext.getMfaSessionId());
 
-                // PolicyProvider가 FactorContext를 변경했으므로 다시 로드
-                factorContext = stateMachineIntegrator.loadFactorContext(factorContext.getMfaSessionId());
-                if (factorContext == null) {
-                    // 여기서 request와 authentication 객체가 필요합니다.
-                    // 해당 객체들을 현재 메서드의 파라미터로 받거나, 클래스 필드로 가지고 있어야 합니다.
-                    // 아래는 예시이며, 실제 사용 가능한 변수로 대체해야 합니다.
-                    // HttpServletRequest request = ...; // 현재 요청 객체
-                    // Authentication authentication = ...; // 현재 인증 객체
-                    handleInvalidContext(response, request, "CONTEXT_LOST_AFTER_EVENT", "이벤트 처리 후 컨텍스트 유실.", authentication);
-                    return; // 오류 발생 시 추가 진행 중단
-                }
+            // Phase 2: State Machine에 이벤트 전송 (수정은 Action에서)
+            boolean completionChecked = stateMachineIntegrator.sendEvent(
+                MfaEvent.CHECK_COMPLETION, factorContext, request
+            );
+
+            if (!completionChecked) {
+                log.error("Failed to check completion for session: {}",
+                         factorContext.getMfaSessionId());
+                handleStateTransitionError(response, request, factorContext);
+                return;
             }
+
+            // Phase 2: 모든 이벤트 처리 후 최신 상태 로드
+            FactorContext refreshedContext = stateMachineIntegrator.loadFactorContext(
+                factorContext.getMfaSessionId()
+            );
+
+            if (refreshedContext == null) {
+                handleInvalidContext(response, request, "CONTEXT_LOST_AFTER_POLICY",
+                                   "정책 처리 후 컨텍스트 유실.", authentication);
+                return;
+            }
+
+            factorContext = refreshedContext;
+            log.debug("Context refreshed after policy processing. New state: {}",
+                     factorContext.getCurrentState());
         }
 
         // 6. 최종 상태 확인 및 응답
@@ -263,25 +265,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 "MFA 세션 컨텍스트 오류: " + logMessage, request.getRequestURI(), errorResponse);
     }
 
-    /**
-     * State Machine 에서 컨텍스트 동기화
-     */
-    private void syncContextFromStateMachine(FactorContext target, FactorContext source) {
-        if (target.getCurrentState() != source.getCurrentState()) {
-            target.changeState(source.getCurrentState());
-        }
-
-        while (target.getVersion() < source.getVersion()) {
-            target.incrementVersion();
-        }
-
-        target.setCurrentProcessingFactor(source.getCurrentProcessingFactor());
-        target.setCurrentStepId(source.getCurrentStepId());
-        target.setMfaRequiredAsPerPolicy(source.isMfaRequiredAsPerPolicy());
-
-        log.debug("Context synchronized from unified State Machine: sessionId={}, version={}, state={}",
-                target.getMfaSessionId(), target.getVersion(), target.getCurrentState());
-    }
+    // Phase 1.2: syncContextFromStateMachine() 제거 - Dead Code (미사용 메서드)
+    // Single Source of Truth 패턴에서는 State Machine에서만 상태를 관리하므로 불필요
 
     private String determineNextFactorUrl(AuthType factorType, HttpServletRequest request) {
         return switch (factorType) {

@@ -215,7 +215,6 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         }
 
         sessionRepository.refreshSession(factorContext.getMfaSessionId());
-        stateMachineIntegrator.refreshFactorContextFromStateMachine(factorContext, request);
 
         int remainingAttempts = Math.max(0, maxAttempts - attempts);
         String errorCode = "MFA_FACTOR_VERIFICATION_FAILED";

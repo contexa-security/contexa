@@ -73,22 +73,64 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             return;
         }
 
-        mfaPolicyProvider.evaluateMfaRequirementAndDetermineInitialStep(factorContext);
-        
+        // Phase 2: PolicyProvider에서 읽기 전용 평가
+        io.contexa.contexaidentity.security.core.mfa.model.MfaDecision decision =
+                mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext);
+
         // AI가 인증을 차단한 경우 처리
-        if (factorContext.getAttribute("blocked") != null &&
-            (Boolean) factorContext.getAttribute("blocked")) {
-            
-            log.warn("Authentication blocked by AI policy for user: {} - Reason: {}", 
-                    factorContext.getUsername(), factorContext.getAttribute("blockReason"));
-            
+        if (decision.isBlocked()) {
+            log.warn("Authentication blocked by AI policy for user: {} - Reason: {}",
+                    factorContext.getUsername(), decision.getReason());
+
+            // Phase 2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송
+            Map<String, Object> headers = new HashMap<>();
+            headers.put("mfaDecision", decision);
+            boolean initialized = stateMachineIntegrator.sendEvent(
+                MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
+            );
+
+            if (!initialized) {
+                log.error("Failed to initialize MFA for session: {}", mfaSessionId);
+                handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
+                return;
+            }
+
+            // Context 재로드
+            FactorContext blockedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
+            if (blockedContext == null) {
+                handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
+                return;
+            }
+
             // 차단 응답 처리
-            handleAuthenticationBlocked(request, response, factorContext);
+            handleAuthenticationBlocked(request, response, blockedContext);
             return;
         }
 
+        // Phase 2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송
+        Map<String, Object> headers = new HashMap<>();
+        headers.put("mfaDecision", decision);
+        boolean initialized = stateMachineIntegrator.sendEvent(
+            MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
+        );
+
+        if (!initialized) {
+            log.error("Failed to initialize MFA for session: {}", mfaSessionId);
+            handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
+            return;
+        }
+
+        // Phase 2: 다음 이벤트 결정 및 전송
+        boolean nextEventSent = sendNextMfaEvent(decision, mfaSessionId, request);
+        if (!nextEventSent) {
+            log.error("Failed to send next MFA event for session: {}", mfaSessionId);
+            handleConfigError(response, request, factorContext, "MFA 이벤트 전송 실패.");
+            return;
+        }
+
+        // Context 최종 로드
         FactorContext finalFactorContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
-        if (finalFactorContext == null) { // 매우 예외적인 상황
+        if (finalFactorContext == null) {
             handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
             return;
         }
@@ -110,6 +152,12 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             case FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION:
                 log.info("MFA required for user: {}. Proceeding directly to challenge", username);
                 handleDirectChallenge(request, response, factorContext);
+                break;
+
+            case PRIMARY_AUTHENTICATION_COMPLETED:
+                log.error("State remained PRIMARY_AUTHENTICATION_COMPLETED for user: {}. Next event may have failed.", username);
+                stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, factorContext, request);
+                handleConfigError(response, request, factorContext, "MFA 초기화 후 다음 단계로 전이되지 않았습니다.");
                 break;
 
             default:
@@ -300,5 +348,35 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     errorCode, message, request.getRequestURI());
         }
+    }
+
+    /**
+     * Phase 2: MfaDecision에 따라 다음 이벤트 전송
+     */
+    private boolean sendNextMfaEvent(io.contexa.contexaidentity.security.core.mfa.model.MfaDecision decision,
+                                     String mfaSessionId, HttpServletRequest request) {
+        FactorContext context = stateMachineIntegrator.loadFactorContext(mfaSessionId);
+        if (context == null) {
+            log.error("FactorContext not found for session: {}", mfaSessionId);
+            return false;
+        }
+
+        // 차단된 경우 - 이미 처리되었으므로 여기서는 스킵
+        if (decision.isBlocked()) {
+            log.debug("Blocked decision already handled for session: {}", mfaSessionId);
+            return true;
+        }
+
+        // MFA 불필요
+        if (!decision.isRequired()) {
+            boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.MFA_NOT_REQUIRED, context, request);
+            log.debug("MFA_NOT_REQUIRED event sent for session: {}, accepted: {}", mfaSessionId, sent);
+            return sent;
+        }
+
+        // MFA 필요 - 자동으로 챌린지 시작
+        boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
+        log.debug("INITIATE_CHALLENGE_AUTO event sent for session: {}, accepted: {}", mfaSessionId, sent);
+        return sent;
     }
 }

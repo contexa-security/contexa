@@ -35,6 +35,9 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     private AtomicReference<MfaState> currentMfaState;
     private final AtomicInteger version = new AtomicInteger(0);
 
+    // 읽기 전용 플래그 (Single Source of Truth 패턴)
+    private boolean readOnly = false;
+
     // 동시성 제어를 위한 ReadWriteLock 추가
     private transient ReadWriteLock stateLock;
     private transient ReadWriteLock factorsLock;
@@ -86,14 +89,26 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
     /**
      * 상태 변경 - 동시성 안전 보장
+     * Single Source of Truth 패턴: State Machine을 통해서만 상태 변경 권장
+     *
+     * <p>
+     * <strong>Phase 5 개선:</strong> 버전 관리는 MfaStateMachineService에서 단독으로 수행합니다.
+     * 이 메서드는 상태 변경만 담당하며, 버전 증가는 수행하지 않습니다.
+     * </p>
      */
     public void changeState(MfaState newState) {
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Use MfaStateMachineIntegrator to change state through State Machine."
+            );
+        }
+
         stateLock.writeLock().lock();
         try {
             MfaState previousState = this.currentMfaState.getAndSet(newState);
             if (previousState != newState) {
-                this.version.incrementAndGet();
-                log.info("FactorContext (ID: {}) state changed from {} to {} for user '{}'. Version: {}",
+                // Phase 5: 버전 자동 증가 제거 - MfaStateMachineService에서 명시적으로 관리
+                log.info("FactorContext (ID: {}) state changed from {} to {} for user '{}'. Version: {} (버전 증가는 MfaStateMachineService에서 수행)",
                         mfaSessionId, previousState, newState, this.username, this.version.get());
                 updateLastActivityTimestamp();
             }
@@ -161,6 +176,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
      * 완료된 팩터 추가 - 개선된 동시성 제어
      */
     public void addCompletedFactor(AuthenticationStepConfig completedFactor) {
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot add completed factors."
+            );
+        }
+
         Assert.notNull(completedFactor, "completedFactor cannot be null");
 
         factorsLock.writeLock().lock();
@@ -170,8 +191,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
             if (!alreadyExists) {
                 this.completedFactors.add(completedFactor);
-                // 완료된 팩터 추가 시에도 버전 증가
-                incrementVersion();
+                // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
                 log.debug("FactorContext (ID: {}): Factor '{}' (StepId: {}) marked as completed for user {}. Total completed: {}",
                         mfaSessionId, completedFactor.getType(), completedFactor.getStepId(), this.username, this.completedFactors.size());
                 updateLastActivityTimestamp();
@@ -222,8 +242,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
         int newCount = factorAttemptCounts.compute(factorType, (key, val) -> (val == null) ? 1 : val + 1);
         updateLastActivityTimestamp();
-        // 시도 횟수 증가 시에도 버전 증가
-        incrementVersion();
+        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
 
         log.debug("FactorContext (ID: {}): Attempt count for {} incremented to {} for user {}.",
                 mfaSessionId, factorType, newCount, this.username);
@@ -238,8 +257,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     public void recordAttempt(@Nullable AuthType factorType, boolean success, String detail) {
         this.mfaAttemptHistory.add(new MfaAttemptDetail(factorType, success, detail));
         updateLastActivityTimestamp();
-        // 시도 기록 시에도 버전 증가
-        incrementVersion();
+        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
         log.info("FactorContext (ID: {}): MFA attempt recorded: Factor={}, Success={}, Detail='{}' for user {}",
                 mfaSessionId, factorType, success, detail, this.username);
     }
@@ -253,8 +271,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         log.debug("FactorContext (ID: {}): Failed attempt for factor/step '{}' incremented to {}. User: {}",
                 mfaSessionId, factorTypeOrStepId, attempts, this.username);
         updateLastActivityTimestamp();
-        // 실패 시도 증가 시에도 버전 증가
-        incrementVersion();
+        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
         return attempts;
     }
 
@@ -267,22 +284,24 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         log.debug("FactorContext (ID: {}): Failed attempts for factor/step '{}' reset. User: {}",
                 mfaSessionId, factorTypeOrStepId, this.username);
         updateLastActivityTimestamp();
-        // 실패 횟수 초기화 시에도 버전 증가
-        incrementVersion();
+        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
     }
 
     public void resetAllFailedAttempts() {
         this.failedAttempts.clear();
         log.debug("FactorContext (ID: {}): All failed attempts reset. User: {}", mfaSessionId, this.username);
         updateLastActivityTimestamp();
-        // 모든 실패 횟수 초기화 시에도 버전 증가
-        incrementVersion();
+        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
     }
 
     public void setAttribute(String name, Object value) {
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot modify attributes."
+            );
+        }
         this.attributes.put(name, value);
-        // 속성 변경 시에도 버전 증가
-        incrementVersion();
+        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
     }
 
     @Nullable
@@ -291,9 +310,13 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public void removeAttribute(String name) {
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot remove attributes."
+            );
+        }
         this.attributes.remove(name);
-        // 속성 제거 시에도 버전 증가
-        incrementVersion();
+        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
     }
 
     public boolean isFullyAuthenticated() {
@@ -437,6 +460,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
 
     public void clearCurrentFactorProcessingState() {
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot clear factor processing state."
+            );
+        }
+
         log.debug("FactorContext for user '{}', flow '{}': Clearing current factor processing state.", username, flowTypeName);
         this.currentProcessingFactor = null;
         this.currentStepId = null;
@@ -484,5 +513,53 @@ public class FactorContext implements FactorContextExtensions,Serializable{
                     ", completionTime=" + completionTime +
                     '}';
         }
+    }
+
+    /**
+     * 읽기 전용 스냅샷 생성 (Single Source of Truth 패턴)
+     * State Machine에서 로드한 FactorContext를 읽기 전용으로 변환
+     *
+     * @param source 원본 FactorContext
+     * @return 읽기 전용 복사본
+     */
+    public static FactorContext readOnlySnapshot(FactorContext source) {
+        if (source == null) {
+            return null;
+        }
+
+        FactorContext snapshot = new FactorContext();
+
+        // 기본 정보 복사
+        snapshot.mfaSessionId = source.mfaSessionId;
+        snapshot.currentMfaState = new AtomicReference<>(source.getCurrentState());
+        snapshot.version.set(source.getVersion());
+
+        // 인증 정보 복사
+        snapshot.primaryAuthentication = source.primaryAuthentication;
+        snapshot.username = source.username;
+
+        // 상태 정보 복사
+        snapshot.flowTypeName = source.flowTypeName;
+        snapshot.currentProcessingFactor = source.currentProcessingFactor;
+        snapshot.currentStepId = source.currentStepId;
+        snapshot.mfaRequiredAsPerPolicy = source.mfaRequiredAsPerPolicy;
+        snapshot.retryCount = source.retryCount;
+        snapshot.lastError = source.lastError;
+        snapshot.lastActivityTimestamp = source.lastActivityTimestamp;
+
+        // 컬렉션 복사 (deep copy)
+        source.completedFactors.forEach(snapshot.completedFactors::add);
+        snapshot.failedAttempts.putAll(source.failedAttempts);
+        snapshot.factorAttemptCounts.putAll(source.factorAttemptCounts);
+        snapshot.mfaAttemptHistory.addAll(source.mfaAttemptHistory);
+        snapshot.attributes.putAll(source.attributes);
+
+        // 읽기 전용 플래그 설정
+        snapshot.readOnly = true;
+
+        log.debug("Created read-only snapshot of FactorContext (ID: {}) for user '{}', state: {}, version: {}",
+                snapshot.mfaSessionId, snapshot.username, snapshot.getCurrentState(), snapshot.getVersion());
+
+        return snapshot;
     }
 }

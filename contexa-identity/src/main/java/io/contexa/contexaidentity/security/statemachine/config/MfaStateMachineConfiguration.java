@@ -33,6 +33,11 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     private final VerifyFactorAction verifyFactorAction;
     private final CompleteMfaAction completeMfaAction;
     private final HandleFailureAction handleFailureAction;
+
+    // Phase 2: 새로운 정책 평가 Actions
+    private final DetermineNextFactorAction determineNextFactorAction;
+    private final CheckCompletionAction checkCompletionAction;
+
     private StateMachineRuntimePersister<MfaState, MfaEvent, String> stateMachinePersister;
 
     // Guards
@@ -144,6 +149,20 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(verifyFactorAction)
                 .and()
 
+                // Phase 2: 내부 전이 - 다음 팩터 결정 (상태 변경 없이 Action만 실행)
+                .withInternal()
+                .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
+                .event(MfaEvent.DETERMINE_NEXT_FACTOR)
+                .action(determineNextFactorAction)
+                .and()
+
+                // Phase 2: 내부 전이 - 완료 여부 확인 (상태 변경 없이 Action만 실행)
+                .withInternal()
+                .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
+                .event(MfaEvent.CHECK_COMPLETION)
+                .action(checkCompletionAction)
+                .and()
+
                 // 검증 실패 (재시도 가능)
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
@@ -174,6 +193,21 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED)
                 .guard(allFactorsCompletedGuard.negate())
+                .and()
+
+                // Phase 2: CheckCompletionAction에서 팩터 선택 필요 시 전송 (수동 선택)
+                .withExternal()
+                .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
+                .target(MfaState.AWAITING_FACTOR_SELECTION)
+                .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
+                .and()
+
+                // Phase 2: CheckCompletionAction에서 다음 팩터 자동 선택됨
+                .withExternal()
+                .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
+                .target(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
+                .event(MfaEvent.FACTOR_SELECTED)
+                .action(selectFactorAction)
                 .and()
 
                 // 최종 성공

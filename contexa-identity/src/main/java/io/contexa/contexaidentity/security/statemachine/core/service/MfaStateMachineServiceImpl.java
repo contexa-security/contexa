@@ -163,6 +163,14 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
     @Override
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request) {
+        return sendEvent(event, context, request, null);
+    }
+
+    /**
+     * Phase 2: 추가 헤더와 함께 이벤트 전송
+     */
+    @Override
+    public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders) {
         String sessionId = context.getMfaSessionId();
         String lockKey = getLockKey(sessionId);
         RLock lock = redissonClient.getLock(lockKey);
@@ -187,7 +195,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             StateContextHelper.setFactorContext(stateMachine, context); // Action에서 사용할 최신 버전의 context 설정
             log.debug("[MFA SM Service] [{}] 이벤트 ({}) 처리 전 외부 FactorContext (버전:{}) SM에 설정.", sessionId, event, context.getVersion());
 
-            Message<MfaEvent> message = createEventMessage(event, context, request);
+            Message<MfaEvent> message = createEventMessage(event, context, request, additionalHeaders);
             log.debug("[MFA SM Service] [{}] 이벤트 전송: {}", sessionId, message.getPayload());
 
             eventProcessingResult = sendEventInternal(stateMachine, message, context);
@@ -453,6 +461,14 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
     }
 
     private Message<MfaEvent> createEventMessage(MfaEvent event, FactorContext context, HttpServletRequest request) {
+        return createEventMessage(event, context, request, null);
+    }
+
+    /**
+     * Phase 2: 추가 헤더를 지원하는 createEventMessage 오버로드
+     */
+    private Message<MfaEvent> createEventMessage(MfaEvent event, FactorContext context,
+                                                 HttpServletRequest request, Map<String, Object> additionalHeaders) {
         Map<String, Object> headers = new HashMap<>();
         if (context != null) {
             headers.put("sessionId", context.getMfaSessionId());
@@ -472,6 +488,12 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 headers.put("selectedFactor", selectedFactor.toString());
             }
         }
+
+        // Phase 2: 추가 헤더 병합
+        if (additionalHeaders != null && !additionalHeaders.isEmpty()) {
+            headers.putAll(additionalHeaders);
+        }
+
         return MessageBuilder.withPayload(event).copyHeaders(headers).build();
     }
 

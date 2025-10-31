@@ -5,6 +5,8 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.util.Map;
+
 /**
  * 완전 일원화된 MFA State Machine 서비스 인터페이스
  * - State Machine이 유일한 상태 저장소 역할
@@ -27,6 +29,16 @@ public interface MfaStateMachineService {
      * @return 이벤트 수락 여부
      */
     boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request);
+
+    /**
+     * Phase 2: 추가 헤더와 함께 이벤트 전송
+     * @param event MFA 이벤트
+     * @param context 현재 FactorContext
+     * @param request HTTP 요청
+     * @param additionalHeaders 추가 헤더 (예: mfaDecision)
+     * @return 이벤트 수락 여부
+     */
+    boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders);
 
     /**
      * FactorContext 조회 - State Machine에서만 조회
