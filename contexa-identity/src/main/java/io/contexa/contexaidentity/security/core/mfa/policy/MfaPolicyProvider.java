@@ -13,15 +13,7 @@ import io.contexa.contexaidentity.security.enums.AuthType;
 public interface MfaPolicyProvider {
 
     /**
-     * 1차 인증 후 MFA 필요 여부 평가 및 초기 단계 결정
-     *
-     * @deprecated Phase 2부터 deprecated. {@link #evaluateInitialMfaRequirement(FactorContext)} 사용 권장
-     */
-    @Deprecated(since = "Phase 2", forRemoval = true)
-    void evaluateMfaRequirementAndDetermineInitialStep(FactorContext ctx);
-
-    /**
-     * Phase 2: 초기 MFA 요구사항 평가 (읽기 전용)
+     * 초기 MFA 요구사항 평가 (읽기 전용)
      *
      * <p>
      * PolicyProvider의 결정 로직과 실행 로직을 분리.
