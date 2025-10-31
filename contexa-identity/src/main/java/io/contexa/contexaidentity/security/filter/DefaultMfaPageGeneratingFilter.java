@@ -221,9 +221,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      * 커스텀 로그인 페이지 여부 확인
      *
      * Spring Security 패턴: 기본값과 다른 값이 설정되었는지 확인
+     *
+     * @param loginPage 검증할 로그인 페이지 URL
+     * @return 커스텀 페이지인 경우 true, 기본 페이지인 경우 false
      */
-    private boolean isCustomLoginPage(FormOptions formOpts) {
-        String loginPage = formOpts.getLoginPage();
+    private boolean isCustomLoginPage(String loginPage) {
         // loginPage가 명시적으로 설정되고 기본값("/loginForm")과 다른 경우 커스텀으로 판단
         return StringUtils.hasText(loginPage) && !"/loginForm".equals(loginPage);
     }
