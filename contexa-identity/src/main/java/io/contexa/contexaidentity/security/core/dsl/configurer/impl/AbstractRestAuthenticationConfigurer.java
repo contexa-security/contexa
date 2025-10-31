@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
+import io.contexa.contexaidentity.security.enums.StateType;
 import io.contexa.contexaidentity.security.filter.BaseAuthenticationFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -10,6 +11,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -30,6 +32,7 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
     protected PlatformAuthenticationSuccessHandler successHandler;
     protected PlatformAuthenticationFailureHandler failureHandler;
     protected SecurityContextRepository securityContextRepository;
+    protected AuthContextProperties properties;
 
     protected AbstractRestAuthenticationConfigurer() {
         this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
@@ -42,7 +45,7 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
         Assert.notNull(authenticationManager, "AuthenticationManager cannot be null (is it shared from HttpSecurity?)");
 
         ApplicationContext applicationContext = http.getSharedObject(ApplicationContext.class);
-        AuthContextProperties properties = applicationContext.getBean(AuthContextProperties.class);
+        properties = applicationContext.getBean(AuthContextProperties.class);
 
         if (this.requestMatcher == null) {
             this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
@@ -74,13 +77,19 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
      */
     protected void configureFilter(BaseAuthenticationFilter filter) {
 
-            if (successHandler != null) {
-                filter.setSuccessHandler(successHandler);
-            }
-            if (failureHandler != null) {
-                filter.setFailureHandler(failureHandler);
-            }
-            filter.setSecurityContextRepository(Objects.requireNonNullElseGet(securityContextRepository,
+        if (successHandler != null) {
+            filter.setSuccessHandler(successHandler);
+        }
+        if (failureHandler != null) {
+            filter.setFailureHandler(failureHandler);
+        }
+        StateType stateType = properties.getStateType();
+
+        if (securityContextRepository == null && stateType == StateType.SESSION) {
+            securityContextRepository = new HttpSessionSecurityContextRepository();
+        }
+
+        filter.setSecurityContextRepository(Objects.requireNonNullElseGet(securityContextRepository,
                     RequestAttributeSecurityContextRepository::new));
     }
 

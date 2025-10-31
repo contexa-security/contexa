@@ -8,6 +8,7 @@ import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.enums.StateType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
@@ -107,33 +108,44 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
             return;
         }
 
-        // 1. 토큰 생성 (request/response 직접 전달)
-        String deviceId = factorContext != null ? (String) factorContext.getAttribute("deviceId") : null;
-        TokenPair tokenPair = tokenService.createTokenPair(finalAuthentication, deviceId, request, response);
-        String accessToken = tokenPair.getAccessToken();
-        String refreshToken = tokenPair.getRefreshToken();
+        // 1. StateType 결정 (OAuth2/Session 구분)
+        StateType stateType = determineStateType(factorContext);
+        log.debug("Determined StateType: {} for user: {}", stateType,
+                ((UserDto)finalAuthentication.getPrincipal()).getUsername());
 
-        // 2. 세션 정리
+        // 2. 조건부 토큰 생성 (OAuth2/JWT만 토큰 발급)
+        TokenPair tokenPair = null;
+        TokenTransportResult transportResult = null;
+
+        if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
+            String deviceId = factorContext != null ? (String) factorContext.getAttribute("deviceId") : null;
+            tokenPair = tokenService.createTokenPair(finalAuthentication, deviceId, request, response);
+            String accessToken = tokenPair.getAccessToken();
+            String refreshToken = tokenPair.getRefreshToken();
+
+            // 토큰 전송 정보 준비
+            transportResult = tokenService.prepareTokensForTransport(accessToken, refreshToken);
+
+            log.debug("Tokens created for StateType: {}", stateType);
+        } else {
+            log.debug("Token creation skipped for StateType: {} (Session mode)", stateType);
+        }
+
+        // 3. 세션 정리
         if (factorContext != null && factorContext.getMfaSessionId() != null) {
             stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
             sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
         }
 
-        // 3. 토큰 전송 정보 준비
-        TokenTransportResult transportResult = tokenService.prepareTokensForTransport(accessToken, refreshToken);
-
-        // 4. 응답 데이터 구성
-        Map<String, Object> responseData = new HashMap<>(transportResult.getBody());
-        responseData.put("status", "MFA_COMPLETED");
-        responseData.put("message", "인증이 완료되었습니다.");
-        responseData.put("redirectUrl", determineTargetUrl(request, response, finalAuthentication));
-        responseData.put("authentication", finalAuthentication);
+        // 4. 응답 데이터 구성 (StateType별로 다르게)
+        Map<String, Object> responseData = buildResponseData(
+                stateType, transportResult, finalAuthentication, request, response);
 
         TokenTransportResult finalResult = TokenTransportResult.builder()
                 .body(responseData)
-                .cookiesToSet(transportResult.getCookiesToSet())
-                .cookiesToRemove(transportResult.getCookiesToRemove())
-                .headers(transportResult.getHeaders())
+                .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
+                .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
+                .headers(transportResult != null ? transportResult.getHeaders() : null)
                 .build();
 
         // 5. 위임 핸들러 호출
@@ -190,6 +202,63 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         }
         // AuthUrlConfig에서 MFA 성공 URL 가져오기
         return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
+    }
+
+    /**
+     * StateType 결정 - OAuth2/Session 구분
+     *
+     * @param factorContext FactorContext (nullable)
+     * @return 결정된 StateType
+     */
+    private StateType determineStateType(@Nullable FactorContext factorContext) {
+        // 1. FactorContext에서 직접 StateConfig 확인
+        if (factorContext != null && factorContext.getStateConfig() != null) {
+            return factorContext.getStateConfig().stateType();
+        }
+
+        // 2. Fallback: Global 기본값 사용
+        StateType globalDefault = authContextProperties.getStateType();
+        log.debug("StateConfig not found in FactorContext, using global default: {}", globalDefault);
+        return globalDefault;
+    }
+
+    /**
+     * 응답 데이터 구성 - StateType별로 다르게 구성
+     *
+     * @param stateType StateType (OAuth2/JWT/Session)
+     * @param transportResult 토큰 전송 정보 (nullable for Session mode)
+     * @param authentication 인증 객체
+     * @param request HttpServletRequest
+     * @param response HttpServletResponse
+     * @return 응답 데이터 Map
+     */
+    private Map<String, Object> buildResponseData(
+            StateType stateType,
+            @Nullable TokenTransportResult transportResult,
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
+        Map<String, Object> responseData = new HashMap<>();
+
+        // OAuth2/JWT 모드: 토큰 포함
+        if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
+            if (transportResult != null && transportResult.getBody() != null) {
+                responseData.putAll(transportResult.getBody());
+            }
+        }
+
+        // 공통 응답 데이터
+        responseData.put("status", "MFA_COMPLETED");
+        responseData.put("message", "인증이 완료되었습니다.");
+        responseData.put("redirectUrl", determineTargetUrl(request, response, authentication));
+        responseData.put("authentication", authentication);
+        responseData.put("stateType", stateType.name());
+
+        log.debug("Response data built for StateType: {}, contains tokens: {}",
+                stateType, responseData.containsKey("accessToken"));
+
+        return responseData;
     }
     
     /**

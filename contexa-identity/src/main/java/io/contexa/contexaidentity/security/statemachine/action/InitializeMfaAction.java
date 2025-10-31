@@ -106,6 +106,13 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                 ctx.setAttribute("availableFactorCount", availableFactors.size());
                 ctx.setAttribute("mfaFlowConfig", mfaFlowConfig);
 
+                // StateConfig 설정 (OAuth2/Session 구분을 위해)
+                if (mfaFlowConfig.getStateConfig() != null) {
+                    ctx.setStateConfig(mfaFlowConfig.getStateConfig());
+                    log.debug("StateConfig set for session {}: {}",
+                            sessionId, mfaFlowConfig.getStateConfig().stateType());
+                }
+
                 log.info("User {} can use {} DSL-defined MFA factors: {}",
                         ctx.getUsername(), availableFactors.size(), availableFactors);
             } else {

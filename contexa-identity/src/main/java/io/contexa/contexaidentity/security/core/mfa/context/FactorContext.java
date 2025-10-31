@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.core.mfa.context;
 import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -49,6 +50,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     private final long createdAt = System.currentTimeMillis();
 
     private volatile String flowTypeName;
+    private volatile StateConfig stateConfig;
     private volatile AuthType currentProcessingFactor;
     private volatile String currentStepId;
     private volatile boolean mfaRequiredAsPerPolicy = false;
@@ -540,6 +542,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
         // 상태 정보 복사
         snapshot.flowTypeName = source.flowTypeName;
+        snapshot.stateConfig = source.stateConfig;
         snapshot.currentProcessingFactor = source.currentProcessingFactor;
         snapshot.currentStepId = source.currentStepId;
         snapshot.mfaRequiredAsPerPolicy = source.mfaRequiredAsPerPolicy;
