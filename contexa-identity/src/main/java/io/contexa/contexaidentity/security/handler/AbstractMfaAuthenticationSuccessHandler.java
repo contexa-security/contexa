@@ -114,7 +114,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
                 ((UserDto)finalAuthentication.getPrincipal()).getUsername());
 
         // 2. 조건부 토큰 생성 (OAuth2/JWT만 토큰 발급)
-        TokenPair tokenPair = null;
+        TokenPair tokenPair;
         TokenTransportResult transportResult = null;
 
         if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
@@ -137,7 +137,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
             sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
         }
 
-        // 4. 응답 데이터 구성 (StateType별로 다르게)
+        // 4. 응답 데이터 구성
         Map<String, Object> responseData = buildResponseData(
                 stateType, transportResult, finalAuthentication, request, response);
 
