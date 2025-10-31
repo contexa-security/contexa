@@ -15,6 +15,8 @@ import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.store.RefreshTokenStore;
+import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
+import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategyFactory;
 import io.contexa.contexaidentity.security.token.validator.OAuth2TokenValidator;
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
@@ -332,6 +334,8 @@ public class OAuth2AutoConfiguration {
 
         log.info("Registering OAuth2TokenService bean with OAuth2AuthorizedClientManager");
 
+        TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
+
         return new OAuth2TokenService(
                 authorizedClientManager,
                 clientRegistrationRepository,
@@ -341,7 +345,7 @@ public class OAuth2AutoConfiguration {
                 jwtDecoder,
                 authContextProperties,
                 objectMapper,
-                null // TokenTransportStrategy는 null
+                transport
         );
     }
 

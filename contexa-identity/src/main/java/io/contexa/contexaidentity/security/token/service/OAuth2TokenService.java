@@ -125,7 +125,7 @@ public class OAuth2TokenService implements TokenService {
             JwtDecoder jwtDecoder,
             AuthContextProperties properties,
             ObjectMapper objectMapper,
-            @Nullable TokenTransportStrategy transportStrategy) {
+            TokenTransportStrategy transportStrategy) {
 
         Assert.notNull(authorizedClientManager, "authorizedClientManager cannot be null");
         Assert.notNull(clientRegistrationRepository, "clientRegistrationRepository cannot be null");

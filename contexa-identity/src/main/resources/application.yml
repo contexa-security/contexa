@@ -11,6 +11,45 @@ spring:
       auto-commit: false
     driver-class-name: org.postgresql.Driver
 
+  # AuthContextProperties 매핑 (spring.auth)
+  auth:
+    token-issuer: internal
+    token-transport-type: header_cookie
+    token-store-type: REDIS
+    state-type: jwt
+
+    # 토큰 유효 시간
+    access-token-validity: 3600000      # 1시간 (밀리초)
+    refresh-token-validity: 604800000   # 7일 (밀리초)
+    refresh-rotate-threshold: 43200000  # 12시간 (밀리초)
+
+    # 기타 설정
+    enable-refresh-token: true
+    allow-multiple-logins: false
+    max-concurrent-logins: 3
+    cookie-secure: false
+    token-prefix: "Bearer "
+    roles-claim: "roles"
+    scopes-claim: "scopes"
+
+    # MFA 설정
+    mfa:
+      initiate-url: "/mfa/initiate"
+      select-factor-url: "/mfa/select-factor"
+      failure-url: "/mfa/failure"
+      otp-token-validity-seconds: 300   # 5분
+      session-timeout-ms: 600000        # 10분
+      challenge-timeout-ms: 300000      # 5분
+      max-retry-attempts: 5
+      minimum-delay-ms: 500
+      state-machine-pool-size: 100
+      circuit-breaker-failure-threshold: 5
+      detailed-logging-enabled: true
+      metrics-enabled: true
+      audit-logging-enabled: true
+      session-storage-type: redis
+    factor-selection-type: auto
+
   ai:
     chat:
       model:
@@ -122,45 +161,6 @@ management:
         enabled: false
     tracing:
       endpoint: http://localhost:4317
-
-  # AuthContextProperties 매핑 (spring.auth)
-  auth:
-    token-issuer: internal
-    token-transport-type: header_cookie
-    token-store-type: REDIS
-    state-type: jwt
-
-    # 토큰 유효 시간
-    access-token-validity: 3600000      # 1시간 (밀리초)
-    refresh-token-validity: 604800000   # 7일 (밀리초)
-    refresh-rotate-threshold: 43200000  # 12시간 (밀리초)
-
-    # 기타 설정
-    enable-refresh-token: true
-    allow-multiple-logins: false
-    max-concurrent-logins: 3
-    cookie-secure: false
-    token-prefix: "Bearer "
-    roles-claim: "roles"
-    scopes-claim: "scopes"
-
-    # MFA 설정
-    mfa:
-      initiate-url: "/mfa/initiate"
-      select-factor-url: "/mfa/select-factor"
-      failure-url: "/mfa/failure"
-      otp-token-validity-seconds: 300   # 5분
-      session-timeout-ms: 600000        # 10분
-      challenge-timeout-ms: 300000      # 5분
-      max-retry-attempts: 5
-      minimum-delay-ms: 500
-      state-machine-pool-size: 100
-      circuit-breaker-failure-threshold: 5
-      detailed-logging-enabled: true
-      metrics-enabled: true
-      audit-logging-enabled: true
-      session-storage-type: redis
-    factor-selection-type: auto
 
 # StateMachineProperties 매핑 (security.statemachine)
 security:
