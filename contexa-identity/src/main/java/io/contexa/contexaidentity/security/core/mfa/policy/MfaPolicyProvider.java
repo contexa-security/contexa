@@ -28,14 +28,6 @@ public interface MfaPolicyProvider {
     MfaDecision evaluateInitialMfaRequirement(FactorContext ctx);
 
     /**
-     * 다음 처리할 팩터 결정
-     *
-     * @deprecated Phase 2부터 deprecated. {@link #evaluateNextFactor(FactorContext)} 사용 권장
-     */
-    @Deprecated(since = "Phase 2", forRemoval = true)
-    void determineNextFactorToProcess(FactorContext ctx);
-
-    /**
      * Phase 2: 다음 팩터 평가 (읽기 전용)
      *
      * <p>
@@ -65,13 +57,6 @@ public interface MfaPolicyProvider {
      */
     RetryPolicy getRetryPolicy(FactorContext factorContext, AuthenticationStepConfig step);
 
-    /**
-     * 모든 팩터 완료 여부 확인
-     *
-     * @deprecated Phase 2부터 deprecated. {@link #evaluateCompletion(FactorContext, AuthenticationFlowConfig)} 사용 권장
-     */
-    @Deprecated(since = "Phase 2", forRemoval = true)
-    void checkAllFactorsCompleted(FactorContext ctx, AuthenticationFlowConfig mfaFlowConfig);
 
     /**
      * Phase 2: 완료 여부 평가 (읽기 전용)

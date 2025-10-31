@@ -5,7 +5,6 @@ import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.std.strategy.LabExecutionStrategy;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
-import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -19,20 +18,23 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Redis 기반 AI 전략 세션 리포지토리 구현체
- * 
- * 🔴 기존 RedisMfaRepository 인프라를 완전히 활용
+ *
+ * AI 전략 실행 세션 관리 전용 구현체 (MFA와 완전 분리)
  * - 분산 락을 통한 안전한 세션 관리
  * - Redis 이벤트를 통한 실시간 상태 동기화
- * - 기존 세션 ID 생성 로직 재사용
+ * - 독립적인 세션 ID 생성 로직
  * - Redis 스크립트를 통한 원자성 보장
  */
 @Slf4j
-public class RedisAIStrategySessionRepository extends RedisMfaRepository
-        implements AIStrategySessionRepository {
-    
+public class RedisAIStrategySessionRepository implements AIStrategySessionRepository {
+
+    private final StringRedisTemplate redisTemplate;
+    private final SessionIdGenerator sessionIdGenerator;
     private final RedisDistributedLockService lockService;
     private final RedisEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+
+    private Duration sessionTimeout = Duration.ofMinutes(30);
     
     // Redis 키 패턴 (기존 MFA 세션과 구분)
     private static final String AI_STRATEGY_PREFIX = "ai:strategy:session:";
@@ -87,18 +89,86 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
                                           RedisDistributedLockService lockService,
                                           RedisEventPublisher eventPublisher,
                                           ObjectMapper objectMapper) {
-        super(redisTemplate, sessionIdGenerator);
+        this.redisTemplate = redisTemplate;
+        this.sessionIdGenerator = sessionIdGenerator;
         this.lockService = lockService;
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
     }
-    
+
+    public void setSessionTimeout(Duration timeout) {
+        this.sessionTimeout = timeout;
+    }
+
+    // ==================== 세션 ID 생성 (독립 구현) ====================
+
+    private String generateUniqueSessionId(String baseId, HttpServletRequest request) {
+        int maxAttempts = 10;
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            String sessionId = sessionIdGenerator.generate(baseId, request);
+            if (isSessionIdUnique(sessionId)) {
+                return sessionId;
+            }
+            log.warn("AI Strategy session ID collision detected for {}, attempt {}/{}", sessionId, attempt + 1, maxAttempts);
+        }
+        throw new SessionIdGenerationException("Failed to generate unique AI strategy session ID after " + maxAttempts + " attempts");
+    }
+
+    private boolean isSessionIdUnique(String sessionId) {
+        String sessionKey = AI_STRATEGY_PREFIX + sessionId;
+        Boolean exists = redisTemplate.hasKey(sessionKey);
+        return exists == null || !exists;
+    }
+
+    // ==================== 기본 세션 관리 메서드 ====================
+
+    @Override
+    public boolean existsSession(String sessionId) {
+        String sessionKey = AI_STRATEGY_PREFIX + sessionId;
+        Boolean exists = redisTemplate.hasKey(sessionKey);
+        return exists != null && exists;
+    }
+
+    @Override
+    public void removeSession(String sessionId) {
+        String sessionKey = AI_STRATEGY_PREFIX + sessionId;
+        String stateKey = AI_STATE_PREFIX + sessionId;
+        String nodeKey = AI_NODE_SESSIONS_PREFIX + getNodeId();
+
+        redisTemplate.delete(sessionKey);
+        redisTemplate.delete(stateKey);
+        redisTemplate.opsForSet().remove(AI_ACTIVE_SESSIONS_KEY, sessionId);
+        redisTemplate.opsForSet().remove(nodeKey, sessionId);
+        localStateCache.remove(sessionId);
+
+        log.info("AI Strategy session removed: {}", sessionId);
+    }
+
+    /**
+     * 세션 TTL 갱신 (세션 활동성 유지)
+     */
+    private void refreshSession(String sessionId) {
+        try {
+            String sessionKey = AI_STRATEGY_PREFIX + sessionId;
+            String stateKey = AI_STATE_PREFIX + sessionId;
+
+            redisTemplate.expire(sessionKey, sessionTimeout);
+            redisTemplate.expire(stateKey, sessionTimeout);
+
+            log.debug("AI Strategy session TTL refreshed: {}", sessionId);
+        } catch (Exception e) {
+            log.warn("Failed to refresh AI strategy session TTL: {}", sessionId, e);
+        }
+    }
+
+    // ==================== AI 전략 세션 메서드 ====================
+
     @Override
     public String createStrategySession(LabExecutionStrategy strategy,
                                         Map<String, Object> context,
                                         HttpServletRequest request,
                                         HttpServletResponse response) {
-        // 1. 고유한 세션 ID 생성 (기존 MFA 로직 활용)
+        // 1. 고유한 세션 ID 생성
         String sessionId = generateUniqueSessionId("ai-strategy", request);
         String lockKey = "create-strategy-session:" + sessionId;
         
@@ -126,12 +196,12 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
                 String activeKey = AI_ACTIVE_SESSIONS_KEY;
                 String nodeKey = AI_NODE_SESSIONS_PREFIX + nodeId;
                 
-                Long result = redisTemplate().execute(
+                Long result = redisTemplate.execute(
                     new DefaultRedisScript<>(CREATE_STRATEGY_SESSION_SCRIPT, Long.class),
                     Arrays.asList(sessionKey, stateKey, activeKey, nodeKey),
                     objectMapper.writeValueAsString(sessionData),
                     objectMapper.writeValueAsString(initialState),
-                    String.valueOf(sessionTimeout().toMillis()),
+                    String.valueOf(sessionTimeout.toMillis()),
                     sessionId,
                     nodeId
                 );
@@ -140,11 +210,8 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
                     // 5. 로컬 캐시 업데이트
                     localStateCache.put(sessionId, initialState);
                     totalStrategySessionsCreated.incrementAndGet();
-                    
-                    // 6. 기존 MFA 세션도 생성 (통합 관리)
-                    storeSession(sessionId, request, response);
-                    
-                    // 7. 이벤트 발행
+
+                    // 6. 이벤트 발행
                     publishStrategySessionEvent("STRATEGY_SESSION_CREATED", sessionId, strategy, context);
                     
                     log.info("AI Strategy session created successfully: {} for strategy: {}", 
@@ -200,11 +267,11 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
                 
                 // Redis 업데이트
                 String stateKey = AI_STATE_PREFIX + sessionId;
-                Long result = redisTemplate().execute(
+                Long result = redisTemplate.execute(
                     new DefaultRedisScript<>(UPDATE_STRATEGY_STATE_SCRIPT, Long.class),
                     Collections.singletonList(stateKey),
                     objectMapper.writeValueAsString(newState),
-                    String.valueOf(sessionTimeout().toMillis())
+                    String.valueOf(sessionTimeout.toMillis())
                 );
                 
                 if (result == 1) {
@@ -251,7 +318,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
         // Redis에서 조회
         try {
             String stateKey = AI_STATE_PREFIX + sessionId;
-            String stateJson = redisTemplate().opsForValue().get(stateKey);
+            String stateJson = redisTemplate.opsForValue().get(stateKey);
             
             if (stateJson != null) {
                 AIStrategySessionState state = objectMapper.readValue(stateJson, AIStrategySessionState.class);
@@ -273,10 +340,10 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
             );
             
             String allocationKey = AI_LAB_ALLOCATION_PREFIX + sessionId;
-            redisTemplate().opsForValue().set(
+            redisTemplate.opsForValue().set(
                 allocationKey, 
                 objectMapper.writeValueAsString(labAllocation),
-                sessionTimeout()
+                sessionTimeout
             );
             
             // 이벤트 발행
@@ -293,7 +360,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     public AILabAllocation getLabAllocation(String sessionId) {
         try {
             String allocationKey = AI_LAB_ALLOCATION_PREFIX + sessionId;
-            String allocationJson = redisTemplate().opsForValue().get(allocationKey);
+            String allocationJson = redisTemplate.opsForValue().get(allocationKey);
             
             if (allocationJson != null) {
                 return objectMapper.readValue(allocationJson, AILabAllocation.class);
@@ -309,7 +376,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     public void recordExecutionMetrics(String sessionId, AIExecutionMetrics metrics) {
         try {
             String metricsKey = AI_METRICS_PREFIX + sessionId;
-            redisTemplate().opsForValue().set(
+            redisTemplate.opsForValue().set(
                 metricsKey,
                 objectMapper.writeValueAsString(metrics),
                 Duration.ofDays(7) // 메트릭은 더 오래 보관
@@ -325,7 +392,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     @Override
     public List<String> getActiveStrategySessions() {
         try {
-            Set<String> activeSessions = redisTemplate().opsForSet().members(AI_ACTIVE_SESSIONS_KEY);
+            Set<String> activeSessions = redisTemplate.opsForSet().members(AI_ACTIVE_SESSIONS_KEY);
             return activeSessions != null ? new ArrayList<>(activeSessions) : new ArrayList<>();
         } catch (Exception e) {
             log.error("Error retrieving active strategy sessions: {}", e.getMessage());
@@ -337,7 +404,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     public List<String> getActiveSessionsByNode(String nodeId) {
         try {
             String nodeKey = AI_NODE_SESSIONS_PREFIX + nodeId;
-            Set<String> nodeSessions = redisTemplate().opsForSet().members(nodeKey);
+            Set<String> nodeSessions = redisTemplate.opsForSet().members(nodeKey);
             return nodeSessions != null ? new ArrayList<>(nodeSessions) : new ArrayList<>();
         } catch (Exception e) {
             log.error("Error retrieving active sessions for node {}: {}", nodeId, e.getMessage());
@@ -361,7 +428,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
                 String fromNodeKey = AI_NODE_SESSIONS_PREFIX + fromNodeId;
                 String toNodeKey = AI_NODE_SESSIONS_PREFIX + toNodeId;
                 
-                redisTemplate().opsForSet().move(fromNodeKey, sessionId, toNodeKey);
+                redisTemplate.opsForSet().move(fromNodeKey, sessionId, toNodeKey);
                 
                 // 상태 업데이트 (새 노드 정보 반영)
                 AIStrategySessionState currentState = getStrategyState(sessionId);
@@ -373,10 +440,10 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
                     );
                     
                     String stateKey = AI_STATE_PREFIX + sessionId;
-                    redisTemplate().opsForValue().set(
+                    redisTemplate.opsForValue().set(
                         stateKey,
                         objectMapper.writeValueAsString(migratedState),
-                        sessionTimeout()
+                        sessionTimeout
                     );
                     
                     localStateCache.put(sessionId, migratedState);
@@ -402,7 +469,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     public void storeExecutionResult(String sessionId, AIExecutionResult result) {
         try {
             String resultKey = AI_RESULT_PREFIX + sessionId;
-            redisTemplate().opsForValue().set(
+            redisTemplate.opsForValue().set(
                 resultKey,
                 objectMapper.writeValueAsString(result),
                 Duration.ofDays(30) // 결과는 더 오래 보관
@@ -419,7 +486,7 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     public AIExecutionResult getExecutionResult(String sessionId) {
         try {
             String resultKey = AI_RESULT_PREFIX + sessionId;
-            String resultJson = redisTemplate().opsForValue().get(resultKey);
+            String resultJson = redisTemplate.opsForValue().get(resultKey);
             
             if (resultJson != null) {
                 return objectMapper.readValue(resultJson, AIExecutionResult.class);
@@ -444,32 +511,30 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     @Override
     public AIStrategySessionStats getAIStrategyStats() {
         try {
-            // 기본 세션 통계 (부모 클래스)
-            SessionStats baseStats = getSessionStats();
-            
             // AI 전략 특화 통계
             long activeStrategySessions = getActiveStrategySessions().size();
+            long totalCreated = totalStrategySessionsCreated.get();
             long completed = completedStrategySessions.get();
             long failed = failedStrategySessions.get();
-            
+
             // 연구소 타입별 분포 (실제 구현에서는 Redis에서 집계)
             Map<String, Long> labTypeDistribution = calculateLabTypeDistribution();
-            
+
             // 노드별 분포
             Map<String, Long> nodeDistribution = calculateNodeDistribution();
-            
+
             return new AIStrategySessionStats(
-                baseStats.getActiveSessions(),
-                totalStrategySessionsCreated.get(),
-                baseStats.getSessionCollisions(),
-                baseStats.getAverageSessionDuration(),
-                "Redis-AI-Strategy",
-                activeStrategySessions,
-                completed,
-                failed,
-                calculateAverageExecutionTime(),
-                labTypeDistribution,
-                nodeDistribution
+                activeStrategySessions,  // 활성 세션 수
+                totalCreated,            // 총 생성 세션 수
+                0L,                      // AI는 collision 추적 안함
+                0.0,                     // 평균 세션 지속 시간 (필요시 계산)
+                "Redis-AI-Strategy",     // 리포지토리 타입
+                activeStrategySessions,  // AI 활성 전략 세션
+                completed,               // 완료된 세션
+                failed,                  // 실패한 세션
+                calculateAverageExecutionTime(),  // 평균 실행 시간
+                labTypeDistribution,     // 연구소 타입별 분포
+                nodeDistribution         // 노드별 분포
             );
             
         } catch (Exception e) {
@@ -501,11 +566,11 @@ public class RedisAIStrategySessionRepository extends RedisMfaRepository
     
     private void removeFromActiveSessions(String sessionId) {
         try {
-            redisTemplate().opsForSet().remove(AI_ACTIVE_SESSIONS_KEY, sessionId);
+            redisTemplate.opsForSet().remove(AI_ACTIVE_SESSIONS_KEY, sessionId);
             
             // 노드별 세션 목록에서도 제거
             String nodeKey = AI_NODE_SESSIONS_PREFIX + getNodeId();
-            redisTemplate().opsForSet().remove(nodeKey, sessionId);
+            redisTemplate.opsForSet().remove(nodeKey, sessionId);
             
         } catch (Exception e) {
             log.error("Error removing session from active list: {}", e.getMessage());

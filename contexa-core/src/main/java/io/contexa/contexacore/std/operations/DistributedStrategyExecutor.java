@@ -16,6 +16,7 @@ import io.contexa.contexacore.std.strategy.DiagnosisException;
 import io.contexa.contexacore.std.strategy.LabExecutionStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -50,7 +51,7 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
     
     @Autowired
     public DistributedStrategyExecutor(PipelineOrchestrator orchestrator,
-                                     AIStrategySessionRepository sessionRepository,
+                                     @Qualifier("aiStrategySessionRepository") AIStrategySessionRepository sessionRepository,
                                      DistributedAIStrategyCoordinator strategyCoordinator,
                                      RedisEventPublisher eventPublisher,
                                        AIStrategyRegistry strategyRegistry) {

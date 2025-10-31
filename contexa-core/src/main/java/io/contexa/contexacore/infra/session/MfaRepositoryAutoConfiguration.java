@@ -4,15 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexacore.std.strategy.LabExecutionStrategy;
 import io.contexa.contexacore.infra.session.generator.HttpSessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.RedisSessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
 import io.contexa.contexacore.infra.session.impl.HttpSessionMfaRepository;
 import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
 import jakarta.annotation.PostConstruct;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -25,9 +22,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -54,7 +49,6 @@ public class MfaRepositoryAutoConfiguration {
     private final ObjectMapper objectMapper;
 
     private final Map<String, AIStrategySessionRepository> repositoryCache = new ConcurrentHashMap<>();
-    private final Map<String, Boolean> repositoryHealthStatus = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void initialize() {
@@ -68,12 +62,47 @@ public class MfaRepositoryAutoConfiguration {
     }
 
     /**
-     * 메인 Repository Bean - 최종 완성판
+     * MFA 인증 전용 Repository Bean - Primary
+     * MfaRestAuthenticationFilter 등 순수 MFA 인증 컴포넌트에서 사용
      */
     @Bean
     @Primary
     @ConditionalOnMissingBean(MfaSessionRepository.class)
+    public MfaSessionRepository mfaSessionRepository() {
+        log.info("Creating PRIMARY MFA Repository for authentication");
+
+        try {
+            // Redis 연결 테스트
+            redisTemplate.opsForValue().get("__health_check__");
+
+            RedisMfaRepository repository = new RedisMfaRepository(
+                    redisTemplate,
+                    new RedisSessionIdGenerator(redisTemplate)
+            );
+            repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
+
+            log.info("✅ Primary MFA Repository created successfully: RedisMfaRepository");
+            return repository;
+
+        } catch (Exception e) {
+            log.error("Failed to create primary MFA repository, falling back to HttpSession", e);
+
+            // Fallback to HttpSession
+            HttpSessionMfaRepository fallback = new HttpSessionMfaRepository(new HttpSessionIdGenerator());
+            fallback.setSessionTimeout(properties.getMfa().getSessionTimeout());
+            return fallback;
+        }
+    }
+
+    /**
+     * AI 전략 실행 전용 Repository Bean
+     * AI 전략 실행 컴포넌트(DistributedStrategyExecutor 등)에서 사용
+     * AI 기능이 활성화된 경우에만 생성
+     */
+    @Bean
     public AIStrategySessionRepository aiStrategySessionRepository() {
+        log.info("Creating AI Strategy Repository for AI execution");
+
         if (properties.getMfa().isAutoSelectRepository()) {
             return createAutoSelectedRepository();
         } else {
@@ -90,7 +119,7 @@ public class MfaRepositoryAutoConfiguration {
      * Repository 자동 선택 로직
      */
     private AIStrategySessionRepository createAutoSelectedRepository() {
-        log.info("Auto-selecting optimal MFA Repository based on environment: {}", detectEnvironmentType());
+        log.info("Auto-selecting optimal AI Strategy Repository based on environment: {}", detectEnvironmentType());
 
         String[] priorities = properties.getMfa().getRepositoryPriority().split(",");
 
@@ -99,10 +128,9 @@ public class MfaRepositoryAutoConfiguration {
 
             try {
                 AIStrategySessionRepository repository = createRepositoryByType(trimmedType);
-                if (repository != null && isRepositoryHealthy(repository)) {
-                    log.info("Auto-selected MFA Repository: {} ({})",
-                            repository.getRepositoryType(), repository.getClass().getSimpleName());
-                    return wrapWithHealthChecking(repository);
+                if (repository != null) {
+                    log.info("Auto-selected AI Strategy Repository: {}", repository.getClass().getSimpleName());
+                    return repository;
                 }
             } catch (Exception e) {
                 log.warn("Failed to create repository type '{}': {}", trimmedType, e.getMessage());
@@ -117,12 +145,12 @@ public class MfaRepositoryAutoConfiguration {
      */
     private AIStrategySessionRepository createConfiguredRepository() {
         String storageType = properties.getMfa().getSessionStorageType().toLowerCase();
-        log.info("Creating configured MFA Repository: {}", storageType);
+        log.info("Creating configured AI Strategy Repository: {}", storageType);
 
         try {
             AIStrategySessionRepository repository = createRepositoryByType(storageType);
             if (repository != null) {
-                return wrapWithHealthChecking(repository);
+                return repository;
             }
         } catch (Exception e) {
             log.error("Failed to create configured repository '{}': {}", storageType, e.getMessage());
@@ -151,27 +179,8 @@ public class MfaRepositoryAutoConfiguration {
     }
 
     /**
-     * Redis Repository 생성
+     * AI Redis Repository 생성
      */
-    private MfaSessionRepository createRedisRepository() {
-        try {
-            StringRedisTemplate redisTemplate = applicationContext.getBean(StringRedisTemplate.class);
-
-            // Redis 연결 테스트
-            redisTemplate.opsForValue().get("__health_check__");
-
-            RedisMfaRepository repository = new RedisMfaRepository(redisTemplate, new RedisSessionIdGenerator(redisTemplate));
-            repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-
-            log.info("Redis MFA Repository created successfully");
-            return repository;
-
-        } catch (Exception e) {
-            log.warn("Failed to create Redis repository: {}", e.getMessage());
-            return null;
-        }
-    }
-
     private AIStrategySessionRepository createAIRedisRepository() {
         try {
             redisTemplate.opsForValue().get("__health_check__");
@@ -233,76 +242,16 @@ public class MfaRepositoryAutoConfiguration {
      */
     private AIStrategySessionRepository createFallbackRepository() {
         String fallbackType = properties.getMfa().getFallbackRepositoryType().toLowerCase();
-        log.info("Creating fallback MFA Repository: {}", fallbackType);
+        log.info("Creating fallback AI Strategy Repository: {}", fallbackType);
 
         AIStrategySessionRepository repository = createRepositoryByType(fallbackType);
         if (repository != null) {
-            log.info("Fallback repository created: {}", repository.getRepositoryType());
-            return wrapWithHealthChecking(repository);
+            log.info("Fallback repository created: {}", repository.getClass().getSimpleName());
+            return repository;
         }
 
-        log.warn("All repository creation failed, using final fallback: HttpSession");
+        log.warn("All repository creation failed, using final fallback: Redis AI Repository");
         return createAIRedisRepository();
-    }
-
-    /**
-     * Repository 헬스체크
-     */
-    private boolean isRepositoryHealthy(MfaSessionRepository repository) {
-        String repositoryType = repository.getRepositoryType();
-
-        return repositoryHealthStatus.computeIfAbsent(repositoryType, type -> {
-            try {
-                boolean isHealthy = performHealthCheck(repository);
-
-                if (isHealthy && repository.supportsDistributedSync()) {
-                    isHealthy = verifyDistributedSyncCapability(repository);
-                }
-
-                log.debug("Repository {} health check: {}", repositoryType, isHealthy ? "HEALTHY" : "UNHEALTHY");
-                return isHealthy;
-
-            } catch (Exception e) {
-                log.warn("Health check failed for repository {}: {}", repositoryType, e.getMessage());
-                return false;
-            }
-        });
-    }
-
-    /**
-     * 기본 헬스체크 수행
-     */
-    private boolean performHealthCheck(MfaSessionRepository repository) {
-        try {
-            MfaSessionRepository.SessionStats stats = repository.getSessionStats();
-            return stats != null;
-
-        } catch (Exception e) {
-            log.debug("Basic health check failed for {}: {}", repository.getRepositoryType(), e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * 분산 동기화 능력 검증
-     */
-    private boolean verifyDistributedSyncCapability(MfaSessionRepository repository) {
-        try {
-            String testId = UUID.randomUUID().toString();
-            return repository.isSessionIdUnique(testId);
-
-        } catch (Exception e) {
-            log.debug("Distributed sync verification failed for {}: {}",
-                    repository.getRepositoryType(), e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Repository를 헬스체킹으로 감싸기
-     */
-    private AIStrategySessionRepository wrapWithHealthChecking(MfaSessionRepository repository) {
-        return new HealthCheckingRepositoryWrapper(repository, this);
     }
 
     /**
@@ -344,189 +293,5 @@ public class MfaRepositoryAutoConfiguration {
                         profile.contains("test") ||
                         profile.contains("local"));
     }
-
-/**
- * 헬스체킹 기능을 추가한 Repository 래퍼 - 최종 완성판
- */
-@Slf4j
-static class HealthCheckingRepositoryWrapper implements AIStrategySessionRepository {
-
-    private final MfaSessionRepository delegate;
-    private final MfaRepositoryAutoConfiguration config;
-    private volatile boolean isHealthy = true;
-    private long lastHealthCheck = 0;
-    private static final long HEALTH_CHECK_INTERVAL = 60_000; // 1분
-
-    public HealthCheckingRepositoryWrapper(MfaSessionRepository delegate,
-                                           MfaRepositoryAutoConfiguration config) {
-        this.delegate = delegate;
-        this.config = config;
-    }
-
-    @Override
-    public void storeSession(String sessionId, HttpServletRequest request,
-                             HttpServletResponse response) {
-        checkHealthIfNeeded();
-        delegate.storeSession(sessionId, request, response);
-    }
-
-    @Override
-    public String getSessionId(HttpServletRequest request) {
-        checkHealthIfNeeded();
-        return delegate.getSessionId(request);
-    }
-
-    @Override
-    public void removeSession(String sessionId, HttpServletRequest request,
-                              HttpServletResponse response) {
-        delegate.removeSession(sessionId, request, response);
-    }
-
-    @Override
-    public void refreshSession(String sessionId) {
-        delegate.refreshSession(sessionId);
-    }
-
-    @Override
-    public boolean existsSession(String sessionId) {
-        checkHealthIfNeeded();
-        return delegate.existsSession(sessionId);
-    }
-
-    @Override
-    public void setSessionTimeout(java.time.Duration timeout) {
-        delegate.setSessionTimeout(timeout);
-    }
-
-    @Override
-    public String getRepositoryType() {
-        return delegate.getRepositoryType() + "_HEALTH_MONITORED";
-    }
-
-    @Override
-    public String generateUniqueSessionId(String baseId, HttpServletRequest request) {
-        checkHealthIfNeeded();
-        return delegate.generateUniqueSessionId(baseId, request);
-    }
-
-    @Override
-    public boolean isSessionIdUnique(String sessionId) {
-        return delegate.isSessionIdUnique(sessionId);
-    }
-
-    @Override
-    public String resolveSessionIdCollision(String originalId, HttpServletRequest request,
-                                            int maxAttempts) {
-        return delegate.resolveSessionIdCollision(originalId, request, maxAttempts);
-    }
-
-    @Override
-    public boolean isValidSessionIdFormat(String sessionId) {
-        return delegate.isValidSessionIdFormat(sessionId);
-    }
-
-    @Override
-    public boolean supportsDistributedSync() {
-        return delegate.supportsDistributedSync();
-    }
-
-    @Override
-    public SessionStats getSessionStats() {
-        checkHealthIfNeeded();
-        SessionStats delegateStats = delegate.getSessionStats();
-
-        return new SessionStats(
-                delegateStats.getActiveSessions(),
-                delegateStats.getTotalSessionsCreated(),
-                delegateStats.getSessionCollisions(),
-                delegateStats.getAverageSessionDuration(),
-                getRepositoryType() + (isHealthy ? "_✅" : "_")
-        );
-    }
-
-    private void checkHealthIfNeeded() {
-        long now = System.currentTimeMillis();
-        if (now - lastHealthCheck > HEALTH_CHECK_INTERVAL) {
-            try {
-                SessionStats stats = delegate.getSessionStats();
-                isHealthy = (stats != null);
-                lastHealthCheck = now;
-
-                if (!isHealthy) {
-                    log.warn("Repository {} failed health check", delegate.getRepositoryType());
-                }
-            } catch (Exception e) {
-                isHealthy = false;
-                lastHealthCheck = now;
-                log.warn("Repository {} health check exception: {}", delegate.getRepositoryType(), e.getMessage());
-            }
-        }
-    }
-
-    @Override
-    public String createStrategySession(LabExecutionStrategy strategy, Map<String, Object> context, HttpServletRequest request, HttpServletResponse response) {
-        return "";
-    }
-
-    @Override
-    public void updateStrategyState(String sessionId, AIStrategyExecutionPhase phase, Map<String, Object> phaseData) {
-
-    }
-
-    @Override
-    public AIStrategySessionState getStrategyState(String sessionId) {
-        return null;
-    }
-
-    @Override
-    public void storeLabAllocation(String sessionId, String labType, String nodeId, Map<String, Object> allocation) {
-
-    }
-
-    @Override
-    public AILabAllocation getLabAllocation(String sessionId) {
-        return null;
-    }
-
-    @Override
-    public void recordExecutionMetrics(String sessionId, AIExecutionMetrics metrics) {
-
-    }
-
-    @Override
-    public List<String> getActiveStrategySessions() {
-        return List.of();
-    }
-
-    @Override
-    public List<String> getActiveSessionsByNode(String nodeId) {
-        return List.of();
-    }
-
-    @Override
-    public boolean migrateStrategySession(String sessionId, String fromNodeId, String toNodeId) {
-        return false;
-    }
-
-    @Override
-    public void storeExecutionResult(String sessionId, AIExecutionResult result) {
-
-    }
-
-    @Override
-    public AIExecutionResult getExecutionResult(String sessionId) {
-        return null;
-    }
-
-    @Override
-    public void syncSessionAcrossNodes(String sessionId) {
-
-    }
-
-    @Override
-    public AIStrategySessionStats getAIStrategyStats() {
-        return null;
-    }
-}
 }
 

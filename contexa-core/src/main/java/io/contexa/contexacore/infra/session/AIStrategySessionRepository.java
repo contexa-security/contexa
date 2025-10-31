@@ -8,16 +8,28 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * AI 전략 세션 관리를 위한 확장된 저장소 인터페이스
- * 
- * AI 전략 실행에 특화된 세션 관리
+ * AI 전략 세션 관리를 위한 저장소 인터페이스
+ *
+ * AI 전략 실행에 특화된 세션 관리 (MFA와 완전 분리)
  * - 전략 실행 상태 추적
- * - 연구소 할당 정보 관리  
+ * - 연구소 할당 정보 관리
  * - 분산 환경에서의 세션 동기화
  * - AI 실행 메트릭 수집
  */
-public interface AIStrategySessionRepository extends MfaSessionRepository {
-    
+public interface AIStrategySessionRepository {
+
+    // ==================== 기본 세션 관리 메서드 ====================
+
+    /**
+     * 세션 존재 여부 확인
+     */
+    boolean existsSession(String sessionId);
+
+    /**
+     * 세션 제거
+     */
+    void removeSession(String sessionId);
+
     // ==================== AI 전략 세션 전용 메서드 ====================
     
     /**

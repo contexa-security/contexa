@@ -89,30 +89,34 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
     }
     
     /**
-     * MFA 요구사항 평가 및 초기 단계 결정
-     * 
-     * 이 메서드는 부모 클래스의 기본 구현을 재사용하면서
-     * AI 기반 평가 결과를 컨텍스트에 추가로 저장합니다.
-     * 
+     * Phase 2: 초기 MFA 요구사항 평가 (읽기 전용)
+     *
+     * AI 기반 평가를 수행하고 결과를 반환합니다.
+     * 부모 클래스의 evaluateInitialMfaRequirement()를 호출하여 표준 평가를 수행하고,
+     * AI가 사용 가능한 경우 추가 메타데이터로 컨텍스트를 보강합니다.
+     *
      * @param ctx MFA 팩터 컨텍스트
+     * @return MFA 결정 정보 (읽기 전용)
      */
     @Override
-    public void evaluateMfaRequirementAndDetermineInitialStep(FactorContext ctx) {
+    public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null");
-        
-        log.info("Starting MFA requirement evaluation for user: {} (AI: {})", 
+
+        log.info("Starting MFA requirement evaluation for user: {} (AI: {})",
                 ctx.getUsername(), isAIAvailable() ? "enabled" : "disabled");
-        
-        // 부모 클래스의 메서드를 호출하여 표준 플로우 실행
+
+        // 부모 클래스의 Phase 2 메서드를 호출하여 표준 평가 수행
         // 이 과정에서 getPolicyEvaluator()가 호출되어 적절한 평가자가 사용됨
-        super.evaluateMfaRequirementAndDetermineInitialStep(ctx);
-        
+        MfaDecision decision = super.evaluateInitialMfaRequirement(ctx);
+
         // AI 평가가 사용된 경우 추가 메타데이터 저장
         if (isAIAvailable()) {
             enrichContextWithAIMetadata(ctx);
         }
+
+        return decision;
     }
-    
+
     /**
      * AI 평가 메타데이터로 컨텍스트를 보강합니다.
      * 
