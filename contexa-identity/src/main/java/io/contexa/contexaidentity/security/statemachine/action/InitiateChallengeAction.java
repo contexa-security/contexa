@@ -41,6 +41,7 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
 
             default:
                 log.warn("Unknown factor type for challenge: {}", factorType);
+                factorContext.setAttribute("errorEventRecommendation", MfaEvent.CHALLENGE_INITIATION_FAILED);
                 throw new UnsupportedOperationException("Unsupported factor type: " + factorType);
         }
         context.getExtendedState().getVariables().put("challengeInitiationSuccess", true);

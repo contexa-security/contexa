@@ -42,7 +42,8 @@
       "Bash(cd:*)",
       "Bash(powershell -Command:*)",
       "Bash(test.txt)",
-      "Bash(MFA_REFACTORING_PLAN.md)"
+      "Bash(MFA_REFACTORING_PLAN.md)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []

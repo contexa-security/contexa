@@ -32,6 +32,7 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
         if (currentStepId == null || currentStepId.isEmpty()) {
             log.error("Cannot verify factor: currentStepId is null or empty for session: {}. Transitioning to SYSTEM_ERROR.", sessionId);
             factorContext.setLastError("currentStepId is missing during factor verification.");
+            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
             // 시스템 에러 이벤트를 보내거나 상태를 직접 변경 (상태 머신 설정에 따라 다름)
             // 여기서는 상태를 직접 변경하는 대신, 예외를 발생시켜 AbstractMfaStateAction의 에러 핸들링 로직을 타도록 유도 가능
             throw new IllegalStateException("currentStepId is null or empty for session: " + sessionId);
@@ -56,8 +57,11 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
                 }
             }
             if (factorType == null) {
+                String errorMsg = "Factor type for verification cannot be determined. Session: " + sessionId + ", StepId: " + currentStepId;
                 log.error("Cannot determine factor type for verification. currentProcessingFactor is null and could not be derived from stepId {} in session {}", currentStepId, sessionId);
-                throw new IllegalStateException("Factor type for verification cannot be determined. Session: " + sessionId + ", StepId: " + currentStepId);
+                factorContext.setLastError(errorMsg);
+                factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
+                throw new IllegalStateException(errorMsg);
             }
             log.warn("currentProcessingFactor was null for session {}, derived factorType {} from stepId {}", sessionId, factorType, currentStepId);
         }

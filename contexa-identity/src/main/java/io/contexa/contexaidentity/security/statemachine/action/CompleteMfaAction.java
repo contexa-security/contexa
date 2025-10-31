@@ -28,8 +28,9 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
         // MFA 완료 시간 설정
         factorContext.setAttribute("completedAt", LocalDateTime.now());
 
-        // 상태를 완료로 변경
-        factorContext.changeState(MfaState.MFA_SUCCESSFUL);
+        // Phase 2 개선: State Machine이 상태 전이를 담당
+        // ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN 이벤트로 인한 전이가
+        // 이미 MFA_SUCCESSFUL로 상태를 변경하므로 여기서 중복 호출 불필요
 
         // 추가 완료 처리 로직
         performCompletionTasks(factorContext);

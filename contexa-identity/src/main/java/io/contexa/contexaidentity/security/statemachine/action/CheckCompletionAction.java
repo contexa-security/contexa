@@ -1,16 +1,13 @@
 package io.contexa.contexaidentity.security.statemachine.action;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
-import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.policy.CompletionDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
-import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
 import org.springframework.statemachine.StateContext;
 import org.springframework.stereotype.Component;
 
@@ -26,11 +23,12 @@ import org.springframework.stereotype.Component;
  * 실행 흐름:
  * 1. MFA FlowConfig 조회
  * 2. PolicyProvider.evaluateCompletion()으로 결정 획득 (읽기 전용)
- * 3. 결정 내용에 따라 Context 수정 및 이벤트 전송
- * 4. 에러 발생 시 SYSTEM_ERROR 상태로 전이
+ * 3. 결정 내용에 따라 Context 수정 및 이벤트 추천
+ * 4. 에러 발생 시 예외 발생 (AbstractMfaStateAction이 처리)
  * </p>
  *
  * @since Phase 2
+ * @since P1-1 ApplicationContext는 AbstractMfaStateAction으로부터 상속
  */
 @Slf4j
 @Component
@@ -38,7 +36,8 @@ import org.springframework.stereotype.Component;
 public class CheckCompletionAction extends AbstractMfaStateAction {
 
     private final MfaPolicyProvider policyProvider;
-    private final ApplicationContext applicationContext;
+
+    // P1-1: ApplicationContext는 부모 클래스에서 자동 주입됨
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
@@ -69,44 +68,28 @@ public class CheckCompletionAction extends AbstractMfaStateAction {
 
         if (decision.isCompleted()) {
             log.info("All factors completed for session: {}", sessionId);
-            // ALL_REQUIRED_FACTORS_COMPLETED 이벤트로 상태 전이
-            context.getStateMachine().sendEvent(MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
+            // Phase 2 개선: Action은 이벤트를 추천만 하고, Handler가 전송
+            factorContext.setAttribute("nextEventRecommendation", MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
+            factorContext.setAttribute("completionDecision", decision);
 
         } else if (decision.isNeedsFactorSelection()) {
             // 다음 팩터가 이미 자동 결정되었는지 확인
             if (factorContext.getCurrentProcessingFactor() != null) {
-                // 자동 선택된 경우 - FACTOR_SELECTED 이벤트 전송
+                // 자동 선택된 경우
                 log.info("Next factor already determined: {} for session: {}",
                          factorContext.getCurrentProcessingFactor(), sessionId);
-                context.getStateMachine().sendEvent(MfaEvent.FACTOR_SELECTED);
+                factorContext.setAttribute("nextEventRecommendation", MfaEvent.FACTOR_SELECTED);
             } else {
                 // 수동 선택 필요
                 log.info("Manual factor selection needed (attempt: {}) for session: {}",
                          decision.getAttemptCount(), sessionId);
                 factorContext.setAttribute("selectFactorAttemptCount",
                                           decision.getAttemptCount());
-                context.getStateMachine().sendEvent(MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
+                factorContext.setAttribute("nextEventRecommendation", MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
             }
+            factorContext.setAttribute("completionDecision", decision);
         }
     }
 
-    /**
-     * MFA FlowConfig 조회
-     */
-    private AuthenticationFlowConfig findMfaFlowConfig(FactorContext ctx) {
-        try {
-            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            if (platformConfig == null || platformConfig.getFlows() == null) {
-                return null;
-            }
-
-            return platformConfig.getFlows().stream()
-                .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
-                .findFirst()
-                .orElse(null);
-        } catch (Exception e) {
-            log.error("Error loading MFA flow config", e);
-            return null;
-        }
-    }
+    // P1-1: findMfaFlowConfig() 메서드는 AbstractMfaStateAction으로 이동됨
 }

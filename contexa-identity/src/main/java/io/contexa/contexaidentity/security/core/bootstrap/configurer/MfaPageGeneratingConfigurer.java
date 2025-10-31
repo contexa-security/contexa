@@ -102,6 +102,9 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     stateMachineIntegrator
             );
 
+            // ⭐ Spring Security FormLoginConfigurer 패턴: SharedObject로 등록
+            flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
+
             // HttpSecurity에 필터 추가 (UsernamePasswordAuthenticationFilter 이전에 삽입)
             flowContext.http().addFilterBefore(
                     mfaPageFilter,
@@ -182,7 +185,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             exceptionHandling.defaultAuthenticationEntryPointFor(entryPoint, entryPointMatcher);
 
             log.info("MfaAuthenticationEntryPoint registered for HTML requests with loginPage: {}",
-                    entryPoint.getLoginPageUrl());
+                    entryPoint.getLoginFormUrl());
 
         } catch (Exception e) {
             log.error(" Failed to register MfaAuthenticationEntryPoint", e);
@@ -226,6 +229,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         // 두 조건을 AND로 결합
         return new AndRequestMatcher(Arrays.asList(notXRequestedWith, mediaMatcher));
     }
+
 
     /**
      * Primary Login Page URL 추출

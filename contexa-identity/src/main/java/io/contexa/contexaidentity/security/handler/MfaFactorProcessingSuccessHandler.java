@@ -126,16 +126,51 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             log.debug("Sending CHECK_COMPLETION event for session: {}",
                      factorContext.getMfaSessionId());
 
-            // Phase 2: State Machine에 이벤트 전송 (수정은 Action에서)
-            boolean completionChecked = stateMachineIntegrator.sendEvent(
-                MfaEvent.CHECK_COMPLETION, factorContext, request
-            );
+            // Phase 2.2: State Machine에 이벤트 전송 및 에러 처리
+            boolean completionChecked = false;
+            try {
+                completionChecked = stateMachineIntegrator.sendEvent(
+                    MfaEvent.CHECK_COMPLETION, factorContext, request
+                );
 
-            if (!completionChecked) {
-                log.error("Failed to check completion for session: {}",
-                         factorContext.getMfaSessionId());
+                if (!completionChecked) {
+                    log.error("Failed to check completion for session: {}",
+                             factorContext.getMfaSessionId());
+                    handleStateTransitionError(response, request, factorContext);
+                    return;
+                }
+
+            } catch (Exception e) {
+                // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
+                log.error("Exception during CHECK_COMPLETION for session: {}: {}",
+                         factorContext.getMfaSessionId(), e.getMessage(), e);
+
+                // 공통 메서드를 사용하여 errorEventRecommendation 처리
+                processErrorEventRecommendation(factorContext, request, factorContext.getMfaSessionId());
+
+                // 에러 응답 전송
                 handleStateTransitionError(response, request, factorContext);
                 return;
+            }
+
+            // Phase 2.3: CheckCompletionAction이 추천한 정상 이벤트 처리
+            MfaEvent nextEvent = (MfaEvent) factorContext.getAttribute("nextEventRecommendation");
+            if (nextEvent != null) {
+                log.debug("Processing recommended event: {} for session: {}",
+                         nextEvent, factorContext.getMfaSessionId());
+
+                boolean eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
+                if (!eventSent) {
+                    log.error("Failed to send recommended event: {} for session: {}",
+                             nextEvent, factorContext.getMfaSessionId());
+                    handleStateTransitionError(response, request, factorContext);
+                    return;
+                }
+
+                // Clear the recommendation after processing
+                factorContext.removeAttribute("nextEventRecommendation");
+                log.debug("Recommended event {} processed successfully for session: {}",
+                         nextEvent, factorContext.getMfaSessionId());
             }
 
             // Phase 2: 모든 이벤트 처리 후 최신 상태 로드

@@ -82,16 +82,30 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             log.warn("Authentication blocked by AI policy for user: {} - Reason: {}",
                     factorContext.getUsername(), decision.getReason());
 
-            // Phase 2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송
+            // Phase 2.2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송 및 에러 처리
             Map<String, Object> headers = new HashMap<>();
             headers.put("mfaDecision", decision);
-            boolean initialized = stateMachineIntegrator.sendEvent(
-                MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
-            );
 
-            if (!initialized) {
-                log.error("Failed to initialize MFA for session: {}", mfaSessionId);
-                handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
+            try {
+                boolean initialized = stateMachineIntegrator.sendEvent(
+                    MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
+                );
+
+                if (!initialized) {
+                    log.error("Failed to initialize MFA for session: {}", mfaSessionId);
+                    handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
+                    return;
+                }
+
+            } catch (Exception e) {
+                // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
+                log.error("Exception during PRIMARY_AUTH_SUCCESS (blocked) for session: {}: {}",
+                         mfaSessionId, e.getMessage(), e);
+
+                // 공통 메서드를 사용하여 errorEventRecommendation 처리
+                processErrorEventRecommendation(factorContext, request, mfaSessionId);
+
+                handleConfigError(response, request, factorContext, "MFA 초기화 중 오류 발생.");
                 return;
             }
 
@@ -107,16 +121,30 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             return;
         }
 
-        // Phase 2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송
+        // Phase 2.2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송 및 에러 처리
         Map<String, Object> headers = new HashMap<>();
         headers.put("mfaDecision", decision);
-        boolean initialized = stateMachineIntegrator.sendEvent(
-            MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
-        );
 
-        if (!initialized) {
-            log.error("Failed to initialize MFA for session: {}", mfaSessionId);
-            handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
+        try {
+            boolean initialized = stateMachineIntegrator.sendEvent(
+                MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
+            );
+
+            if (!initialized) {
+                log.error("Failed to initialize MFA for session: {}", mfaSessionId);
+                handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
+                return;
+            }
+
+        } catch (Exception e) {
+            // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
+            log.error("Exception during PRIMARY_AUTH_SUCCESS for session: {}: {}",
+                     mfaSessionId, e.getMessage(), e);
+
+            // 공통 메서드를 사용하여 errorEventRecommendation 처리
+            processErrorEventRecommendation(factorContext, request, mfaSessionId);
+
+            handleConfigError(response, request, factorContext, "MFA 초기화 중 오류 발생.");
             return;
         }
 

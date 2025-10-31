@@ -13,7 +13,7 @@ public class MfaStateMachineExceptions {
 
     public static class StateMachineActionException extends RuntimeException {
         public StateMachineActionException(String message, Throwable cause) {
-            super(message);
+            super(message, cause);
         }
     }
 

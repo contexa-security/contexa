@@ -167,29 +167,31 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (primaryOpts.isFormLogin()) {
             FormOptions formOpts = primaryOpts.getFormOptions();
 
-            // 커스텀 로그인 페이지가 명시적으로 설정된 경우
-            if (isCustomLoginPage(formOpts)) {
-                log.debug("Forwarding to custom primary login page: {}", formOpts.getLoginPage());
-                forwardToCustomPage(request, response, formOpts.getLoginPage());
-            } else {
-                // 기본 로그인 페이지 생성
-                log.debug("Generating default primary form login page");
-                generatePrimaryFormLoginPage(request, response, formOpts);
+            // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음 (EntryPoint가 redirect로 처리)
+            if (isCustomLoginPage(formOpts.getLoginPage())) {
+                log.debug("Custom primary login page configured: {}. Skipping default page generation.",
+                         formOpts.getLoginPage());
+                return; // 커스텀 페이지는 EntryPoint가 처리
             }
+
+            // 기본 로그인 페이지 생성
+            log.debug("Generating default primary form login page");
+            generatePrimaryFormLoginPage(request, response, formOpts);
+
         } else if (primaryOpts.isRestLogin()) {
             // ⭐ REST 인증도 HTML 페이지 필요 (JavaScript가 비동기 인증 처리)
             RestOptions restOpts = primaryOpts.getRestOptions();
             String loginPage = primaryOpts.getLoginPage(); // PrimaryAuthenticationOptions에서 가져옴
 
-            // 커스텀 로그인 페이지가 명시적으로 설정된 경우
-            if (StringUtils.hasText(loginPage) && !"/loginForm".equals(loginPage)) {
-                log.debug("Forwarding to custom primary REST login page: {}", loginPage);
-                forwardToCustomPage(request, response, loginPage);
-            } else {
-                // 기본 REST 로그인 페이지 생성 (JavaScript 기반)
-                log.debug("Generating default primary REST login page");
-                generatePrimaryRestLoginPage(request, response, restOpts);
+            // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
+            if (isCustomLoginPage(loginPage)) {
+                log.debug("Custom REST login page configured: {}. Skipping default page generation.", loginPage);
+                return; // 커스텀 페이지는 EntryPoint가 처리
             }
+
+            // 기본 REST 로그인 페이지 생성 (JavaScript 기반)
+            log.debug("Generating default primary REST login page");
+            generatePrimaryRestLoginPage(request, response, restOpts);
         }
     }
 
@@ -244,13 +246,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
+        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
         if (pageConfig != null && pageConfig.hasCustomSelectFactorPage()) {
-            log.debug("Forwarding to custom select factor page: {}", pageConfig.getSelectFactorPageUrl());
-            forwardToCustomPage(request, response, pageConfig.getSelectFactorPageUrl());
-        } else {
-            log.debug("Generating default select factor page");
-            generateSelectFactorPage(request, response);
+            log.debug("Custom select factor page configured: {}. Skipping default page generation.",
+                     pageConfig.getSelectFactorPageUrl());
+            return; // 커스텀 페이지는 사용자가 직접 제공
         }
+
+        log.debug("Generating default select factor page");
+        generateSelectFactorPage(request, response);
     }
 
     /**
@@ -282,13 +286,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
+        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
         if (pageConfig != null && pageConfig.hasCustomOttRequestPage()) {
-            log.debug("Forwarding to custom OTT request page: {}", pageConfig.getOttRequestPageUrl());
-            forwardToCustomPage(request, response, pageConfig.getOttRequestPageUrl());
-        } else {
-            log.debug("Generating default OTT request page");
-            generateOttRequestCodePage(request, response);
+            log.debug("Custom OTT request page configured: {}. Skipping default page generation.",
+                     pageConfig.getOttRequestPageUrl());
+            return; // 커스텀 페이지는 사용자가 직접 제공
         }
+
+        log.debug("Generating default OTT request page");
+        generateOttRequestCodePage(request, response);
     }
 
     /**
@@ -307,13 +313,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
+        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
         if (pageConfig != null && pageConfig.hasCustomOttVerifyPage()) {
-            log.debug("Forwarding to custom OTT verify page: {}", pageConfig.getOttVerifyPageUrl());
-            forwardToCustomPage(request, response, pageConfig.getOttVerifyPageUrl());
-        } else {
-            log.debug("Generating default OTT verify page");
-            generateOttVerifyPage(request, response);
+            log.debug("Custom OTT verify page configured: {}. Skipping default page generation.",
+                     pageConfig.getOttVerifyPageUrl());
+            return; // 커스텀 페이지는 사용자가 직접 제공
         }
+
+        log.debug("Generating default OTT verify page");
+        generateOttVerifyPage(request, response);
     }
 
     /**
@@ -356,13 +364,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
+        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
         if (pageConfig != null && pageConfig.hasCustomPasskeyPage()) {
-            log.debug("Forwarding to custom Passkey challenge page: {}", pageConfig.getPasskeyChallengePageUrl());
-            forwardToCustomPage(request, response, pageConfig.getPasskeyChallengePageUrl());
-        } else {
-            log.debug("Generating default Passkey challenge page");
-            generatePasskeyChallengePage(request, response);
+            log.debug("Custom Passkey challenge page configured: {}. Skipping default page generation.",
+                     pageConfig.getPasskeyChallengePageUrl());
+            return; // 커스텀 페이지는 사용자가 직접 제공
         }
+
+        log.debug("Generating default Passkey challenge page");
+        generatePasskeyChallengePage(request, response);
     }
 
     /**
@@ -419,13 +429,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
+        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
         if (pageConfig != null && pageConfig.hasCustomFailurePage()) {
-            log.debug("Forwarding to custom failure page: {}", pageConfig.getFailurePageUrl());
-            forwardToCustomPage(request, response, pageConfig.getFailurePageUrl());
-        } else {
-            log.debug("Generating default failure page");
-            generateFailurePage(request, response);
+            log.debug("Custom failure page configured: {}. Skipping default page generation.",
+                     pageConfig.getFailurePageUrl());
+            return; // 커스텀 페이지는 사용자가 직접 제공
         }
+
+        log.debug("Generating default failure page");
+        generateFailurePage(request, response);
     }
 
     // ===== Utility Methods =====
@@ -444,40 +456,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return requestUri;
     }
 
-    /**
-     * 커스텀 페이지로 forward
-     */
-    private void forwardToCustomPage(HttpServletRequest request,
-                                     HttpServletResponse response,
-                                     String customPageUrl) throws ServletException, IOException {
-        // FactorContext를 request attribute로 주입
-        injectFactorContextAsAttributes(request);
-
-        log.debug("Forwarding to custom MFA page: {}", customPageUrl);
-        request.getRequestDispatcher(customPageUrl).forward(request, response);
-    }
-
-    /**
-     * FactorContext를 request attributes로 주입
-     */
-    private void injectFactorContextAsAttributes(HttpServletRequest request) {
-        try {
-            FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
-            if (ctx != null) {
-                request.setAttribute("mfaSessionId", ctx.getMfaSessionId());
-                request.setAttribute("username", ctx.getUsername());
-                request.setAttribute("currentState", ctx.getCurrentState() != null ? ctx.getCurrentState().name() : null);
-                request.setAttribute("flowType", ctx.getFlowTypeName());
-                // ✅ DSL 정의 팩터 사용
-                request.setAttribute("availableFactors", ctx.getAvailableFactors());
-                request.setAttribute("completedFactors", ctx.getCompletedFactors());
-                request.setAttribute("currentProcessingFactor", ctx.getCurrentProcessingFactor());
-                request.setAttribute("currentStepId", ctx.getCurrentStepId());
-            }
-        } catch (Exception e) {
-            log.error("Failed to inject FactorContext as attributes", e);
-        }
-    }
 
     /**
      * Select Factor Page 생성

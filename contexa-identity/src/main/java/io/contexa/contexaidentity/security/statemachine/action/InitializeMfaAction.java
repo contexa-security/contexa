@@ -1,16 +1,13 @@
 package io.contexa.contexaidentity.security.statemachine.action;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
-import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
 import org.springframework.statemachine.StateContext;
 import org.springframework.stereotype.Component;
 
@@ -35,13 +32,13 @@ import java.util.Set;
  * </p>
  *
  * @since Phase 2
+ * @since P1-1 ApplicationContext는 AbstractMfaStateAction으로부터 상속
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class InitializeMfaAction extends AbstractMfaStateAction {
 
-    private final ApplicationContext applicationContext;
+    // P1-1: ApplicationContext는 부모 클래스에서 자동 주입됨
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
@@ -101,7 +98,8 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
 
         // DSL에서 사용 가능한 팩터를 컨텍스트에 저장
         if (decision.isRequired()) {
-            AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
+            // P1-1: 부모 클래스의 공통 메서드 사용
+            AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(ctx);
             if (mfaFlowConfig != null) {
                 Set<AuthType> availableFactors = mfaFlowConfig.getRegisteredFactorOptions().keySet();
                 ctx.setAttribute("availableFactors", availableFactors);
@@ -129,23 +127,5 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
         log.debug("MfaDecision applied to context for session: {}", sessionId);
     }
 
-    /**
-     * MFA FlowConfig 조회
-     */
-    private AuthenticationFlowConfig findMfaFlowConfig() {
-        try {
-            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            if (platformConfig == null || platformConfig.getFlows() == null) {
-                return null;
-            }
-
-            return platformConfig.getFlows().stream()
-                .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
-                .findFirst()
-                .orElse(null);
-        } catch (Exception e) {
-            log.error("Error loading MFA flow config", e);
-            return null;
-        }
-    }
+    // P1-1: findMfaFlowConfig() 메서드는 AbstractMfaStateAction으로 이동됨
 }

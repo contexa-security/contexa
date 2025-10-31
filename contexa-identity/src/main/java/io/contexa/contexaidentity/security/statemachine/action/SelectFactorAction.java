@@ -33,6 +33,7 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         }
 
         if (selectedFactor == null) {
+            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No factor selected for session: " + sessionId);
         }
 
@@ -43,11 +44,13 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         try {
             authType = AuthType.valueOf(selectedFactor.toUpperCase());
         } catch (IllegalArgumentException e) {
+            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
             throw new IllegalArgumentException("Invalid factor type: " + selectedFactor);
         }
 
         // 선택된 팩터가 사용 가능한 팩터인지 검증
         if (!factorContext.getAvailableFactors().contains(authType)) {
+            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("Selected factor " + authType +
                     " is not available for user: " + factorContext.getUsername());
         }
@@ -182,6 +185,7 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         // 사용 가능한 팩터가 있는지 확인
         if (factorContext.getAvailableFactors() == null ||
                 factorContext.getAvailableFactors().isEmpty()) {
+            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No MFA factors available for user: " +
                     factorContext.getUsername());
         }

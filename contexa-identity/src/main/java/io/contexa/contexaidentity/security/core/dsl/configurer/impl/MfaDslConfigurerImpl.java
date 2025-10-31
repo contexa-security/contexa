@@ -338,6 +338,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         // PrimaryAuthenticationOptions에서 loginPage 가져오기
         String loginPageUrl = primaryAuthOptions.getLoginPage();
 
+        // ⭐ loginPage null 안정성 체크 (방어적 코딩)
+        if (!org.springframework.util.StringUtils.hasText(loginPageUrl)) {
+            loginPageUrl = "/loginForm";
+            log.warn("loginPage not configured in PrimaryAuthenticationOptions. Using default: /loginForm");
+        }
+
         // ObjectMapper는 ApplicationContext에서 가져오기
         ObjectMapper objectMapper;
         try {

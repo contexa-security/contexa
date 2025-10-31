@@ -153,12 +153,28 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         log.warn("MFA max attempts ({}) reached for factor {} using {} repository. User: {}. Session: {}. Terminating MFA.",
                 maxAttempts, currentProcessingFactor, sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog);
 
-        boolean eventAccepted = stateMachineIntegrator.sendEvent(
-                MfaEvent.RETRY_LIMIT_EXCEEDED, factorContext, request);
+        // Phase 2.2: 에러 처리와 함께 이벤트 전송
+        try {
+            boolean eventAccepted = stateMachineIntegrator.sendEvent(
+                    MfaEvent.RETRY_LIMIT_EXCEEDED, factorContext, request);
 
-        if (!eventAccepted) {
-            log.error("State Machine rejected RETRY_LIMIT_EXCEEDED event for session: {}", sessionIdForLog);
-            stateMachineIntegrator.updateStateOnly(factorContext.getMfaSessionId(), MfaState.MFA_FAILED_TERMINAL);
+            if (!eventAccepted) {
+                log.error("State Machine rejected RETRY_LIMIT_EXCEEDED event for session: {}", sessionIdForLog);
+                stateMachineIntegrator.updateStateOnly(factorContext.getMfaSessionId(), MfaState.MFA_FAILED_TERMINAL);
+            }
+
+        } catch (Exception e) {
+            // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
+            log.error("Exception during RETRY_LIMIT_EXCEEDED for session: {}: {}",
+                     sessionIdForLog, e.getMessage(), e);
+
+            // 공통 메서드를 사용하여 errorEventRecommendation 처리
+            boolean processed = processErrorEventRecommendation(factorContext, request, sessionIdForLog);
+
+            // errorEventRecommendation이 처리되지 않았으면 Fallback: 직접 상태 변경
+            if (!processed) {
+                stateMachineIntegrator.updateStateOnly(factorContext.getMfaSessionId(), MfaState.MFA_FAILED_TERMINAL);
+            }
         }
 
         cleanupSessionUsingRepository(request, response, factorContext.getMfaSessionId());
@@ -206,12 +222,23 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
                                            AuthType currentProcessingFactor, int attempts,
                                            int maxAttempts, Map<String, Object> errorDetails) throws IOException {
 
-        boolean eventAccepted = stateMachineIntegrator.sendEvent(
-                MfaEvent.FACTOR_VERIFICATION_FAILED, factorContext, request);
+        // Phase 2.2: 에러 처리와 함께 이벤트 전송
+        try {
+            boolean eventAccepted = stateMachineIntegrator.sendEvent(
+                    MfaEvent.FACTOR_VERIFICATION_FAILED, factorContext, request);
 
-        if (!eventAccepted) {
-            log.error("State Machine rejected FACTOR_VERIFICATION_FAILED event for session: {}",
-                    factorContext.getMfaSessionId());
+            if (!eventAccepted) {
+                log.error("State Machine rejected FACTOR_VERIFICATION_FAILED event for session: {}",
+                        factorContext.getMfaSessionId());
+            }
+
+        } catch (Exception e) {
+            // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
+            log.error("Exception during FACTOR_VERIFICATION_FAILED for session: {}: {}",
+                     factorContext.getMfaSessionId(), e.getMessage(), e);
+
+            // 공통 메서드를 사용하여 errorEventRecommendation 처리
+            processErrorEventRecommendation(factorContext, request, factorContext.getMfaSessionId());
         }
 
         sessionRepository.refreshSession(factorContext.getMfaSessionId());
@@ -611,6 +638,51 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
     }
     
     /**
+     * Phase 2.2: errorEventRecommendation 처리 메서드
+     *
+     * Action에서 예외 발생 시 설정한 errorEventRecommendation을 읽어서
+     * State Machine에 이벤트를 전송합니다.
+     *
+     * @param factorContext FactorContext
+     * @param request HttpServletRequest
+     * @param sessionId 세션 ID (로깅용)
+     * @return errorEventRecommendation이 처리되었으면 true, 없거나 실패하면 false
+     */
+    private boolean processErrorEventRecommendation(FactorContext factorContext,
+                                                    HttpServletRequest request,
+                                                    String sessionId) {
+        if (factorContext == null) {
+            return false;
+        }
+
+        MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute("errorEventRecommendation");
+
+        if (errorEvent != null) {
+            log.debug("Processing error event recommendation: {} for session: {}",
+                     errorEvent, sessionId);
+
+            try {
+                boolean errorEventSent = stateMachineIntegrator.sendEvent(errorEvent, factorContext, request);
+
+                if (errorEventSent) {
+                    // Clear the recommendation after successful processing
+                    factorContext.removeAttribute("errorEventRecommendation");
+                    log.debug("Error event {} processed successfully for session: {}",
+                             errorEvent, sessionId);
+                    return true;
+                } else {
+                    log.error("Failed to send error event {} for session: {}", errorEvent, sessionId);
+                }
+            } catch (Exception sendError) {
+                log.error("Failed to process error event recommendation for session: {}",
+                         sessionId, sendError);
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * 클라이언트 IP 추출 (프록시 고려)
      */
     private String extractClientIp(HttpServletRequest request) {
@@ -618,12 +690,12 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
             return xForwardedFor.split(",")[0].trim();
         }
-        
+
         String xRealIp = request.getHeader("X-Real-IP");
         if (xRealIp != null && !xRealIp.isEmpty()) {
             return xRealIp;
         }
-        
+
         return request.getRemoteAddr();
     }
 }

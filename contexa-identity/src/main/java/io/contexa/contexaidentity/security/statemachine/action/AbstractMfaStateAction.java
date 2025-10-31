@@ -1,6 +1,9 @@
 package io.contexa.contexaidentity.security.statemachine.action;
 
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.statemachine.exception.MfaStateMachineExceptions;
@@ -11,12 +14,22 @@ import io.contexa.contexaidentity.security.statemachine.exception.MfaStateMachin
 import io.contexa.contexaidentity.security.statemachine.support.StateContextHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.statemachine.StateContext;
 import org.springframework.statemachine.action.Action;
 
 @Slf4j
 @RequiredArgsConstructor
-public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEvent> {
+public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEvent>, ApplicationContextAware {
+
+    protected ApplicationContext applicationContext;
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext = applicationContext;
+    }
 
     @Override
     public final void execute(StateContext<MfaState, MfaEvent> context) {
@@ -71,8 +84,8 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
             log.error("Unexpected exception in action", e);
 
             if (factorContext != null) {
-                factorContext.setLastError("System error: " + e.getMessage());
-                factorContext.changeState(MfaState.MFA_SYSTEM_ERROR);
+                // Phase 2 개선: handleUnexpectedError() 호출하여 errorEventRecommendation 설정
+                handleUnexpectedError(context, factorContext, e);
             }
 
             // 예외 재발생
@@ -98,6 +111,7 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
 
     /**
      * 비즈니스 예외 처리
+     * Phase 2 개선: 이벤트 추천만 하고 직접 전송하지 않음
      */
     protected void handleBusinessException(StateContext<MfaState, MfaEvent> context,
                                            FactorContext factorContext,
@@ -107,33 +121,36 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
             factorContext.setLastError(e.getMessage());
             factorContext.setAttribute("lastErrorType", e.getClass().getSimpleName());
             factorContext.setAttribute("lastErrorTime", System.currentTimeMillis());
-        }
 
-        // 예외 타입에 따른 처리
-        if (e instanceof InvalidFactorException) {
-            context.getStateMachine().sendEvent(MfaEvent.SYSTEM_ERROR);
+            // Phase 2 개선: 이벤트 추천 저장 (Handler가 처리)
+            if (e instanceof InvalidFactorException) {
+                factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
 
-        } else if (e instanceof ChallengeGenerationException) {
-            context.getStateMachine().sendEvent(MfaEvent.CHALLENGE_INITIATION_FAILED);
+            } else if (e instanceof ChallengeGenerationException) {
+                factorContext.setAttribute("errorEventRecommendation", MfaEvent.CHALLENGE_INITIATION_FAILED);
 
-        } else if (e instanceof FactorVerificationException) {
-            context.getStateMachine().sendEvent(MfaEvent.FACTOR_VERIFICATION_FAILED);
+            } else if (e instanceof FactorVerificationException) {
+                factorContext.setAttribute("errorEventRecommendation", MfaEvent.FACTOR_VERIFICATION_FAILED);
+            }
         }
     }
 
     /**
      * 세션 만료 상태로 전이
+     * Phase 2 개선: 이벤트 추천만 하고 직접 전송/상태변경 하지 않음
      */
     protected void transitionToExpiredState(StateContext<MfaState, MfaEvent> context,
                                             FactorContext factorContext) {
         if (factorContext != null) {
-            factorContext.changeState(MfaState.MFA_SESSION_EXPIRED);
+            // Phase 2 개선: 직접 state 변경 대신 이벤트 추천
+            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SESSION_TIMEOUT);
+            factorContext.setLastError("Session timeout");
         }
-        context.getStateMachine().sendEvent(MfaEvent.SESSION_TIMEOUT);
     }
 
     /**
      * 예상치 못한 에러 처리
+     * Phase 2 개선: 직접 상태 변경 대신 이벤트 추천
      */
     protected void handleUnexpectedError(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext,
@@ -175,5 +192,29 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     protected void updateStateMachineVariables(StateContext<MfaState, MfaEvent> context,
                                                FactorContext factorContext) {
         StateContextHelper.setFactorContext(context, factorContext);
+    }
+
+    /**
+     * P1-1: MFA FlowConfig 조회 (공통 메서드)
+     * Phase 2 개선: 코드 중복 제거
+     */
+    protected AuthenticationFlowConfig findMfaFlowConfig(FactorContext ctx) {
+        try {
+            if (applicationContext == null) {
+                log.error("ApplicationContext is not set for action: {}", this.getClass().getSimpleName());
+                return null;
+            }
+
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+
+            return platformConfig.getFlows().stream()
+                .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
+                .findFirst()
+                .orElse(null);
+        } catch (Exception e) {
+            log.error("Error loading MFA flow config for session: {}",
+                     ctx != null ? ctx.getMfaSessionId() : "unknown", e);
+            return null;
+        }
     }
 }

@@ -32,7 +32,6 @@ import java.util.Objects;
 public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGenerationSuccessHandler {
 
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
-    private final AuthContextProperties authContextProperties;
     private final AuthUrlProvider authUrlProvider;
     private final MfaSessionRepository sessionRepository;
 

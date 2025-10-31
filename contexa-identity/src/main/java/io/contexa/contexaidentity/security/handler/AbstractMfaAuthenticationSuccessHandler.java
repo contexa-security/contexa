@@ -10,6 +10,7 @@ import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
@@ -336,6 +337,51 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         }
         
         return request.getRemoteAddr();
+    }
+
+    /**
+     * Phase 2.2: errorEventRecommendation 처리 공통 메서드
+     *
+     * Action에서 예외 발생 시 설정한 errorEventRecommendation을 읽어서
+     * State Machine에 이벤트를 전송합니다.
+     *
+     * @param factorContext FactorContext
+     * @param request HttpServletRequest
+     * @param sessionId 세션 ID (로깅용)
+     * @return errorEventRecommendation이 처리되었으면 true, 없거나 실패하면 false
+     */
+    protected boolean processErrorEventRecommendation(FactorContext factorContext,
+                                                      HttpServletRequest request,
+                                                      String sessionId) {
+        if (factorContext == null) {
+            return false;
+        }
+
+        MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute("errorEventRecommendation");
+
+        if (errorEvent != null) {
+            log.debug("Processing error event recommendation: {} for session: {}",
+                     errorEvent, sessionId);
+
+            try {
+                boolean errorEventSent = stateMachineIntegrator.sendEvent(errorEvent, factorContext, request);
+
+                if (errorEventSent) {
+                    // Clear the recommendation after successful processing
+                    factorContext.removeAttribute("errorEventRecommendation");
+                    log.debug("Error event {} processed successfully for session: {}",
+                             errorEvent, sessionId);
+                    return true;
+                } else {
+                    log.error("Failed to send error event {} for session: {}", errorEvent, sessionId);
+                }
+            } catch (Exception sendError) {
+                log.error("Failed to process error event recommendation for session: {}",
+                         sessionId, sendError);
+            }
+        }
+
+        return false;
     }
 
     /**
