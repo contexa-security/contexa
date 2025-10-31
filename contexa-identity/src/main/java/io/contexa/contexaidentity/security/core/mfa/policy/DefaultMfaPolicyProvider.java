@@ -53,31 +53,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     private final Object flowConfigLock = new Object();
 
     /**
-     * 개선된 MFA 요구사항 평가 및 초기 단계 결정
-     * Extract Method 패턴을 적용하여 메서드를 작은 단위로 분해
-     *
-     * @deprecated Phase 2부터 deprecated. evaluateInitialMfaRequirement() 사용 권장
-     */
-    @Override
-    @Deprecated(since = "Phase 2", forRemoval = true)
-    public void evaluateMfaRequirementAndDetermineInitialStep(FactorContext ctx) {
-        Assert.notNull(ctx, "FactorContext cannot be null.");
-
-        log.warn("DEPRECATED: evaluateMfaRequirementAndDetermineInitialStep() called. " +
-                "Use evaluateInitialMfaRequirement() instead. Session: {}", ctx.getMfaSessionId());
-
-        // Step 1: 정책 평가
-        MfaDecision decision = evaluatePolicy(ctx);
-
-        // Step 2: 결정을 컨텍스트에 적용
-        applyDecisionToContext(ctx, decision);
-
-        // Step 3: 초기 상태 이벤트 전송
-        sendInitialStateEvent(ctx, decision);
-    }
-
-    /**
-     * Phase 2: 초기 MFA 요구사항 평가 (읽기 전용)
+     * 초기 MFA 요구사항 평가 (읽기 전용)
      */
     @Override
     public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
