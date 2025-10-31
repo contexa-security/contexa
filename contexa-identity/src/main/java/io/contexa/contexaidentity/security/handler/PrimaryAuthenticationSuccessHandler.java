@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -74,61 +75,14 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         }
 
         // Phase 2: PolicyProvider에서 읽기 전용 평가
-        io.contexa.contexaidentity.security.core.mfa.model.MfaDecision decision =
-                mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext);
-
-        // AI가 인증을 차단한 경우 처리
-        if (decision.isBlocked()) {
-            log.warn("Authentication blocked by AI policy for user: {} - Reason: {}",
-                    factorContext.getUsername(), decision.getReason());
-
-            // Phase 2.2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송 및 에러 처리
-            Map<String, Object> headers = new HashMap<>();
-            headers.put("mfaDecision", decision);
-
-            try {
-                boolean initialized = stateMachineIntegrator.sendEvent(
-                    MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
-                );
-
-                if (!initialized) {
-                    log.error("Failed to initialize MFA for session: {}", mfaSessionId);
-                    handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
-                    return;
-                }
-
-            } catch (Exception e) {
-                // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
-                log.error("Exception during PRIMARY_AUTH_SUCCESS (blocked) for session: {}: {}",
-                         mfaSessionId, e.getMessage(), e);
-
-                // 공통 메서드를 사용하여 errorEventRecommendation 처리
-                processErrorEventRecommendation(factorContext, request, mfaSessionId);
-
-                handleConfigError(response, request, factorContext, "MFA 초기화 중 오류 발생.");
-                return;
-            }
-
-            // Context 재로드
-            FactorContext blockedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
-            if (blockedContext == null) {
-                handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
-                return;
-            }
-
-            // 차단 응답 처리
-            handleAuthenticationBlocked(request, response, blockedContext);
-            return;
-        }
+        MfaDecision decision = mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext);
 
         // Phase 2.2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송 및 에러 처리
         Map<String, Object> headers = new HashMap<>();
         headers.put("mfaDecision", decision);
 
         try {
-            boolean initialized = stateMachineIntegrator.sendEvent(
-                MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers
-            );
+            boolean initialized = stateMachineIntegrator.sendEvent(MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers);
 
             if (!initialized) {
                 log.error("Failed to initialize MFA for session: {}", mfaSessionId);
@@ -145,6 +99,23 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             processErrorEventRecommendation(factorContext, request, mfaSessionId);
 
             handleConfigError(response, request, factorContext, "MFA 초기화 중 오류 발생.");
+            return;
+        }
+
+        // AI가 인증을 차단한 경우 처리
+        if (decision.isBlocked()) {
+            log.warn("Authentication blocked by AI policy for user: {} - Reason: {}",
+                    factorContext.getUsername(), decision.getReason());
+
+            // Context 재로드
+            FactorContext blockedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
+            if (blockedContext == null) {
+                handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
+                return;
+            }
+
+            // 차단 응답 처리
+            handleAuthenticationBlocked(request, response, blockedContext);
             return;
         }
 

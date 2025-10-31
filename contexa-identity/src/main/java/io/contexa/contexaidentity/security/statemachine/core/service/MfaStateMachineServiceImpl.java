@@ -120,23 +120,11 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
             // 외부에서 전달된 FactorContext의 초기 상태 및 정보로 StateMachine을 리셋하고 시작
             resetAndStartStateMachine(stateMachine, sessionId, context.getCurrentState(), context);
-            log.info("[MFA SM Service] [{}] SM 초기화. SM 상태: {}, FactorContext 버전: {}",
+            log.info("[MFA SM Service] [{}] SM 초기화 완료. SM 상태: {}, FactorContext 버전: {}",
                     sessionId, stateMachine.getState().getId(), context.getVersion());
 
-            // PRIMARY_AUTH_SUCCESS 이벤트 전송
-            Message<MfaEvent> message = createEventMessage(MfaEvent.PRIMARY_AUTH_SUCCESS, context, request);
-            log.debug("[MFA SM Service] [{}] 이벤트 전송 (initialize): {}", sessionId, message.getPayload());
-
-            Result eventProcessingResult = sendEventInternal(stateMachine, message, context); // 내부 sendEvent 로직 사용
-
-            if (!eventProcessingResult.eventAccepted()) {
-                log.warn("[MFA SM Service] [{}] SM 초기화 중 PRIMARY_AUTH_SUCCESS 이벤트가 수락되지 않음. 현재 SM 상태: {}", sessionId, eventProcessingResult.smCurrentStateAfterEvent());
-            } else {
-                log.info("[MFA SM Service] [{}] 이벤트 {} 처리 후 상태: {}", sessionId, message.getPayload(), eventProcessingResult.smCurrentStateAfterEvent());
-            }
-
-            // 외부 context 객체에 SM 내부 context의 최종 변경 사항을 반영 (Result 객체 사용)
-            synchronizeExternalContext(context, eventProcessingResult.contextFromSmAfterEvent(), eventProcessingResult.smCurrentStateAfterEvent());
+            // ⚠️ PRIMARY_AUTH_SUCCESS 이벤트 전송은 PrimaryAuthenticationSuccessHandler에서 MfaDecision과 함께 수행
+            // initializeStateMachine()은 State Machine과 FactorContext 동기화만 수행
 
             // 최종적으로 "외부 context"의 버전을 증가 (모든 작업 완료 후)
             context.incrementVersion();

@@ -118,21 +118,15 @@ public class MfaStateMachineIntegrator {
     }
 
     /**
-     * FactorContext 로드 (읽기 전용 스냅샷)
+     * FactorContext 로드
      *
      * <p>
-     * Phase 1 완료: Single Source of Truth 패턴 적용
-     * State Machine Extended State에서 읽기 전용 스냅샷을 반환합니다.
-     * </p>
-     *
-     * <p>
-     * <strong>중요:</strong> 반환된 FactorContext는 읽기 전용입니다.
-     * 상태 변경 시도 시 IllegalStateException이 발생합니다.
-     * 모든 상태 변경은 State Machine을 통해서만 수행되어야 합니다.
+     * State Machine에서 관리하는 FactorContext를 반환합니다.
+     * sendEvent()에서 Context를 수정해야 하므로 원본을 그대로 반환합니다.
      * </p>
      *
      * @param sessionId MFA 세션 ID
-     * @return 읽기 전용 FactorContext 스냅샷 (세션이 없으면 null)
+     * @return FactorContext (세션이 없으면 null)
      */
     public FactorContext loadFactorContext(String sessionId) {
         try {
@@ -140,8 +134,8 @@ public class MfaStateMachineIntegrator {
             if (original == null) {
                 return null;
             }
-            // Phase 1: 읽기 전용 스냅샷 반환으로 Single Source of Truth 패턴 완성
-            return FactorContext.readOnlySnapshot(original);
+            // sendEvent()에서 Context를 수정해야 하므로 원본을 그대로 반환
+            return original;
         } catch (Exception e) {
             log.error("Failed to load FactorContext from unified State Machine for session: {}", sessionId, e);
             return null;
