@@ -179,7 +179,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "MFA_REQUIRED_SELECT_FACTOR",
                 "추가 인증이 필요합니다. 인증 수단을 선택해주세요.",
                 factorContext,
-                request.getContextPath() + authUrlProvider.getMfaSelectFactorUi(),
+                request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
                 2  // Primary 완료, OTT/Passkey 선택 단계
         );
         // DSL 사용 가능한 팩터를 상세 정보로 변환
@@ -255,7 +255,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
     private String determineChalllengeUrl(FactorContext ctx, HttpServletRequest request) {
         if (ctx.getCurrentProcessingFactor() == null) {
-            return request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
+            return request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         }
 
         return switch (ctx.getCurrentProcessingFactor()) {
@@ -263,7 +263,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                     authUrlProvider.getOttRequestCodeUi();
             case PASSKEY -> request.getContextPath() +
                     authUrlProvider.getPasskeyChallengeUi();
-            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
+            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         };
     }
 
@@ -275,7 +275,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             log.debug("Redirecting to saved request URL: {}", savedRequest.getRedirectUrl());
             return savedRequest.getRedirectUrl();
         }
-        String defaultTargetUrl = "/home";
+        String defaultTargetUrl = authUrlProvider.getMfaSuccess();
         String targetUrl = request.getContextPath() + defaultTargetUrl;
         log.debug("Redirecting to default target URL: {}", targetUrl);
         return targetUrl;

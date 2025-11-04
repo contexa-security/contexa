@@ -20,8 +20,8 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         this.asepAttributes = builder.asepAttributes; // 추가
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(org.springframework.context.ApplicationContext applicationContext) {
+        return new Builder(applicationContext);
     }
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<RestOptions, Builder> {
@@ -29,8 +29,14 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         private String passwordParameter = "password";
         private RestAsepAttributes asepAttributes; // 추가
 
-        public Builder() {
-            super.loginProcessingUrl("/api/auth/login");
+        public Builder(org.springframework.context.ApplicationContext applicationContext) {
+            Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for RestOptions.Builder");
+
+            // AuthUrlProvider를 통해 동적으로 URL 가져오기
+            io.contexa.contexaidentity.security.service.AuthUrlProvider urlProvider =
+                applicationContext.getBean(io.contexa.contexaidentity.security.service.AuthUrlProvider.class);
+
+            super.loginProcessingUrl(urlProvider.getPrimaryRestLoginProcessing());
             super.order(200);
         }
 

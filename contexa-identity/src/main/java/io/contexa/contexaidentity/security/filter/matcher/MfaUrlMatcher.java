@@ -17,16 +17,13 @@ import java.util.*;
 @Getter
 public class MfaUrlMatcher {
 
-    private final AuthContextProperties authContextProperties;
     private final AuthUrlProvider authUrlProvider;
     private final ApplicationContext applicationContext;
     private final Map<MfaRequestType, List<RequestMatcher>> matcherMap;
     private final Set<String> configuredUrls;
 
-    public MfaUrlMatcher(AuthContextProperties authContextProperties,
-                         AuthUrlProvider authUrlProvider,
+    public MfaUrlMatcher(AuthUrlProvider authUrlProvider,
                          ApplicationContext applicationContext) {
-        this.authContextProperties = authContextProperties;
         this.authUrlProvider = authUrlProvider;
         this.applicationContext = applicationContext;
         this.matcherMap = new HashMap<>();
@@ -41,7 +38,7 @@ public class MfaUrlMatcher {
 
         // 팩터 선택
         addMatcher(MfaRequestType.SELECT_FACTOR,
-                authUrlProvider.getMfaSelectFactorUi(), "GET");
+                authUrlProvider.getMfaSelectFactor(), "GET");
 
         // OTT 토큰 생성
         addMatcher(MfaRequestType.TOKEN_GENERATION,

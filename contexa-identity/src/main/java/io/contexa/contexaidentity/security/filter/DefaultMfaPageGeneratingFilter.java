@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.filter;
 
+import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
@@ -13,6 +14,10 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
@@ -20,7 +25,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +69,804 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private final AuthenticationFlowConfig mfaFlowConfig;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
+
+    // ========== HTML 템플릿 상수 (Spring Security 패턴) ==========
+
+    /**
+     * Username 입력 필드 - Readonly (인증된 사용자용)
+     *
+     * <p>
+     * 1차 인증이 완료된 사용자의 경우, username을 readonly로 표시합니다.
+     * </p>
+     *
+     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#ONE_TIME_READONLY_USERNAME_INPUT
+     */
+    private static final String OTT_READONLY_USERNAME_INPUT = """
+        <div class="form-group">
+            <label for="username">사용자명</label>
+            <input type="text" id="username" name="username"
+                   value="{{username}}"
+                   class="form-control"
+                   placeholder="사용자명"
+                   required
+                   >
+        </div>
+        """;
+
+    /**
+     * Username 입력 필드 - Editable (미인증 사용자용)
+     *
+     * <p>
+     * 1차 인증이 완료되지 않은 사용자의 경우, username을 입력받습니다.
+     * </p>
+     *
+     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#ONE_TIME_USERNAME_INPUT
+     */
+    private static final String OTT_EDITABLE_USERNAME_INPUT = """
+        <div class="form-group">
+            <label for="username">사용자명</label>
+            <input type="text" id="username" name="username"
+                   class="form-control"
+                   placeholder="사용자명을 입력하세요"
+                   required
+                   autofocus>
+        </div>
+        """;
+
+    /**
+     * OTT 요청 페이지 템플릿
+     *
+     * <p>
+     * Spring Security의 ONE_TIME_TEMPLATE 패턴을 따릅니다.
+     * HTML Form 제출 방식으로 JavaScript 비활성화 환경에서도 작동합니다.
+     * </p>
+     *
+     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#ONE_TIME_TEMPLATE
+     */
+    private static final String OTT_REQUEST_TEMPLATE = """
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>인증 코드 요청</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                    padding: 40px;
+                    max-width: 480px;
+                    width: 100%;
+                }
+                h1 {
+                    color: #333;
+                    font-size: 24px;
+                    margin-bottom: 8px;
+                    text-align: center;
+                }
+                .description {
+                    color: #666;
+                    font-size: 14px;
+                    text-align: center;
+                    margin-bottom: 30px;
+                }
+                .form-group {
+                    margin-bottom: 20px;
+                }
+                label {
+                    display: block;
+                    color: #555;
+                    font-size: 14px;
+                    font-weight: 500;
+                    margin-bottom: 8px;
+                }
+                .form-control {
+                    width: 100%;
+                    padding: 12px 16px;
+                    font-size: 15px;
+                    border: 1.5px solid #e0e0e0;
+                    border-radius: 8px;
+                    transition: all 0.2s;
+                }
+                .form-control:focus {
+                    outline: none;
+                    border-color: #667eea;
+                    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+                }
+                .form-control:read-only {
+                    background-color: #f5f5f5;
+                    color: #666;
+                    cursor: not-allowed;
+                }
+                .primary-button {
+                    width: 100%;
+                    padding: 14px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                }
+                .primary-button:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+                }
+                .primary-button:active:not(:disabled) {
+                    transform: translateY(0);
+                }
+                .primary-button:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>인증 코드 요청</h1>
+                <p class="description">등록된 이메일 주소로 인증 코드를 전송합니다.</p>
+
+                <form id="ott-request-form" method="post" action="{{ottRequestUrl}}">
+                    {{usernameInput}}
+                    {{hiddenInputs}}
+
+                    <button type="submit" class="primary-button">
+                        인증 코드 전송
+                    </button>
+                </form>
+
+                <!-- Progressive Enhancement: JavaScript SDK 지원 -->
+                <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
+                <script>
+                    // JavaScript 활성화 시 SDK를 통한 향상된 UX 제공
+                    if (typeof ContexaMFA !== 'undefined') {
+                        const form = document.getElementById('ott-request-form');
+                        const submitButton = form.querySelector('button[type="submit"]');
+
+                        form.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+
+                            const username = form.querySelector('[name="username"]').value;
+                            submitButton.disabled = true;
+                            submitButton.textContent = '전송 중...';
+
+                            try {
+                                const mfa = new ContexaMFA.Client({ autoRedirect: true });
+                                await mfa.init();
+                                await mfa.apiClient.requestOttCode({ username });
+
+                                // SDK가 자동 리다이렉트 처리
+                            } catch (error) {
+                                console.error('SDK 요청 실패, Form 제출로 fallback:', error);
+                                // JavaScript 실패 시 Form 제출로 fallback
+                                submitButton.disabled = false;
+                                submitButton.textContent = '인증 코드 전송';
+                                form.submit();
+                            }
+                        });
+                    }
+                </script>
+            </div>
+        </body>
+        </html>
+        """;
+
+    /**
+     * OTT Verify Page 전체 템플릿 (HTML Form 기반 + JavaScript SDK Progressive Enhancement)
+     */
+    private static final String OTT_VERIFY_TEMPLATE = """
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>MFA - 인증 코드 입력</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                    padding: 40px;
+                    max-width: 480px;
+                    width: 100%;
+                }
+                h1 {
+                    color: #333;
+                    font-size: 24px;
+                    margin-bottom: 8px;
+                    text-align: center;
+                }
+                .description {
+                    color: #666;
+                    font-size: 14px;
+                    text-align: center;
+                    margin-bottom: 24px;
+                }
+                .user-info {
+                    background: #f6f8fa;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    margin-bottom: 24px;
+                    text-align: center;
+                }
+                .user-info .label {
+                    font-size: 12px;
+                    color: #666;
+                    margin-bottom: 4px;
+                }
+                .user-info .username {
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #333;
+                }
+                .form-group {
+                    margin-bottom: 20px;
+                }
+                label {
+                    display: block;
+                    color: #555;
+                    font-size: 14px;
+                    font-weight: 500;
+                    margin-bottom: 8px;
+                }
+                .form-control {
+                    width: 100%;
+                    padding: 16px;
+                    font-size: 24px;
+                    text-align: center;
+                    letter-spacing: 0.5em;
+                    border: 1.5px solid #e0e0e0;
+                    border-radius: 8px;
+                    transition: all 0.2s;
+                }
+                .form-control:focus {
+                    outline: none;
+                    border-color: #667eea;
+                    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+                }
+                .primary-button {
+                    width: 100%;
+                    padding: 14px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    margin-bottom: 12px;
+                }
+                .primary-button:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+                }
+                .primary-button:active:not(:disabled) {
+                    transform: translateY(0);
+                }
+                .primary-button:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+                .secondary-button {
+                    width: 100%;
+                    padding: 14px;
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: background 0.2s;
+                }
+                .secondary-button:hover:not(:disabled) {
+                    background: #5a6268;
+                }
+                .secondary-button:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>인증 코드 입력</h1>
+                <p class="description">이메일로 전송된 6자리 코드를 입력하세요.</p>
+
+                <div class="user-info">
+                    <div class="label">인증 중인 계정</div>
+                    <div class="username">{{username}}</div>
+                </div>
+
+                <form id="ott-verify-form" method="post" action="{{ottVerifyUrl}}">
+                    <div class="form-group">
+                        <label for="token">인증 코드</label>
+                        <input type="text" id="token" name="token"
+                               class="form-control"
+                               placeholder="000000"
+                               maxlength="6"
+                               pattern="[0-9]{6}"
+                               required
+                               autofocus>
+                    </div>
+
+                    {{hiddenInputs}}
+
+                    <button type="submit" class="primary-button">
+                        확인
+                    </button>
+                </form>
+
+                <form id="resend-form" method="post" action="{{ottResendUrl}}">
+                    {{resendHiddenInputs}}
+                    <button type="submit" class="secondary-button">
+                        코드 재전송
+                    </button>
+                </form>
+
+                <!-- Progressive Enhancement: JavaScript SDK 지원 -->
+                <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
+                <script>
+                    // JavaScript 활성화 시 SDK를 통한 향상된 UX 제공
+                    if (typeof ContexaMFA !== 'undefined') {
+                        const verifyForm = document.getElementById('ott-verify-form');
+                        const resendForm = document.getElementById('resend-form');
+                        const verifyButton = verifyForm.querySelector('button[type="submit"]');
+                        const resendButton = resendForm.querySelector('button[type="submit"]');
+                        const codeInput = document.getElementById('token');
+
+                        // SDK 초기화
+                        const mfa = new ContexaMFA.Client({ autoRedirect: true });
+                        mfa.init().catch(console.error);
+
+                        // 검증 Form Progressive Enhancement
+                        verifyForm.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+
+                            const code = codeInput.value;
+                            verifyButton.disabled = true;
+                            verifyButton.textContent = '확인 중...';
+
+                            try {
+                                await mfa.verifyOtt(code);
+                                // SDK가 자동 리다이렉트 처리
+                            } catch (error) {
+                                console.error('SDK 검증 실패, Form 제출로 fallback:', error);
+                                // JavaScript 실패 시 Form 제출로 fallback
+                                verifyButton.disabled = false;
+                                verifyButton.textContent = '확인';
+                                verifyForm.submit();
+                            }
+                        });
+
+                        // 재전송 Form Progressive Enhancement
+                        resendForm.addEventListener('submit', async (e) => {
+                            e.preventDefault();
+
+                            resendButton.disabled = true;
+                            resendButton.textContent = '전송 중...';
+
+                            try {
+                                await mfa.apiClient.requestOttCode();
+                                alert('인증 코드가 재전송되었습니다.');
+                                codeInput.value = '';
+                                codeInput.focus();
+                            } catch (error) {
+                                console.error('SDK 재전송 실패, Form 제출로 fallback:', error);
+                                // JavaScript 실패 시 Form 제출로 fallback
+                                resendForm.submit();
+                            } finally {
+                                resendButton.disabled = false;
+                                resendButton.textContent = '코드 재전송';
+                            }
+                        });
+                    }
+                </script>
+            </div>
+        </body>
+        </html>
+        """;
+
+    /**
+     * Passkey Challenge Page 전체 템플릿 (JavaScript WebAuthn API 사용)
+     *
+     * <p>
+     * 참고: Passkey는 WebAuthn API를 사용하므로 JavaScript가 필수입니다.
+     * Progressive Enhancement를 적용할 수 없지만, Spring Security 패턴을 최대한 준수합니다.
+     * </p>
+     */
+    private static final String PASSKEY_CHALLENGE_TEMPLATE = """
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>MFA - Passkey 인증</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                    padding: 40px;
+                    max-width: 480px;
+                    width: 100%;
+                    text-align: center;
+                }
+                h1 {
+                    color: #333;
+                    font-size: 24px;
+                    margin-bottom: 8px;
+                }
+                .description {
+                    color: #666;
+                    font-size: 14px;
+                    margin-bottom: 24px;
+                }
+                .user-info {
+                    background: #f6f8fa;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    margin-bottom: 24px;
+                }
+                .user-info .label {
+                    font-size: 12px;
+                    color: #666;
+                    margin-bottom: 4px;
+                }
+                .user-info .username {
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #333;
+                }
+                .icon {
+                    font-size: 64px;
+                    margin-bottom: 24px;
+                }
+                .primary-button {
+                    width: 100%;
+                    padding: 14px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                }
+                .primary-button:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+                }
+                .primary-button:active:not(:disabled) {
+                    transform: translateY(0);
+                }
+                .primary-button:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">🔐</div>
+                <h1>Passkey 인증</h1>
+                <p class="description">생체 인증 또는 보안 키를 사용하여 인증하세요.</p>
+
+                <div class="user-info">
+                    <div class="label">인증 중인 계정</div>
+                    <div class="username">{{username}}</div>
+                </div>
+
+                <button id="auth-button" class="primary-button">
+                    Passkey 인증 시작
+                </button>
+
+                <!-- JavaScript SDK (WebAuthn API 사용) -->
+                <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
+                <script>
+                    const authButton = document.getElementById('auth-button');
+                    const mfa = new ContexaMFA.Client({ autoRedirect: true });
+
+                    // SDK 초기화
+                    mfa.init().catch(console.error);
+
+                    // 사용자 명시적 클릭으로만 시작
+                    authButton.addEventListener('click', async () => {
+                        authButton.disabled = true;
+                        authButton.textContent = '인증 진행 중...';
+
+                        try {
+                            await mfa.verifyPasskey();
+                            // SDK가 자동 리다이렉트 처리
+                        } catch (error) {
+                            console.error('Passkey 인증 실패:', error);
+                            alert('인증 실패: ' + error.message);
+                            authButton.disabled = false;
+                            authButton.textContent = 'Passkey 인증 시작';
+                        }
+                    });
+                </script>
+            </div>
+        </body>
+        </html>
+        """;
+
+    /**
+     * Select Factor Page 전체 템플릿 (HTML Form 기반 + JavaScript SDK Progressive Enhancement)
+     */
+    private static final String SELECT_FACTOR_TEMPLATE = """
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>MFA - 인증 방법 선택</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                    padding: 40px;
+                    max-width: 480px;
+                    width: 100%;
+                }
+                h1 {
+                    color: #333;
+                    font-size: 24px;
+                    margin-bottom: 8px;
+                    text-align: center;
+                }
+                .description {
+                    color: #666;
+                    font-size: 14px;
+                    text-align: center;
+                    margin-bottom: 24px;
+                }
+                .user-info {
+                    background: #f6f8fa;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    margin-bottom: 24px;
+                    text-align: center;
+                }
+                .user-info .label {
+                    font-size: 12px;
+                    color: #666;
+                    margin-bottom: 4px;
+                }
+                .user-info .username {
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #333;
+                }
+                .factor-list {
+                    list-style: none;
+                }
+                .factor-item {
+                    margin-bottom: 12px;
+                }
+                .factor-form button {
+                    width: 100%;
+                    padding: 16px;
+                    background: white;
+                    border: 1.5px solid #e0e0e0;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-align: left;
+                }
+                .factor-form button:hover:not(:disabled) {
+                    border-color: #667eea;
+                    background: #f8f9fa;
+                }
+                .factor-form button:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+                .message {
+                    padding: 12px;
+                    margin-bottom: 16px;
+                    border-radius: 8px;
+                }
+                .message.error {
+                    background: #f8d7da;
+                    color: #721c24;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>인증 방법 선택</h1>
+                <p class="description">2단계 인증 방법을 선택하세요.</p>
+
+                <div class="user-info">
+                    <div class="label">인증 중인 계정</div>
+                    <div class="username">{{username}}</div>
+                </div>
+
+                {{factorButtons}}
+
+                <!-- Progressive Enhancement: JavaScript SDK 지원 -->
+                <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
+                <script>
+                    // JavaScript 활성화 시 SDK를 통한 향상된 UX 제공
+                    if (typeof ContexaMFA !== 'undefined') {
+                        const forms = document.querySelectorAll('.factor-form');
+                        const mfa = new ContexaMFA.Client({ autoRedirect: true });
+
+                        // SDK 초기화
+                        mfa.init().catch(console.error);
+
+                        forms.forEach(form => {
+                            form.addEventListener('submit', async (e) => {
+                                e.preventDefault();
+
+                                const factorType = form.dataset.factorType;
+                                const button = form.querySelector('button[type="submit"]');
+                                const originalText = button.textContent;
+
+                                button.disabled = true;
+                                button.textContent = '처리 중...';
+
+                                try {
+                                    await mfa.selectFactor(factorType);
+                                    // SDK가 자동 리다이렉트 처리
+                                } catch (error) {
+                                    console.error('SDK factor 선택 실패, Form 제출로 fallback:', error);
+                                    // JavaScript 실패 시 Form 제출로 fallback
+                                    button.disabled = false;
+                                    button.textContent = originalText;
+                                    form.submit();
+                                }
+                            });
+                        });
+                    }
+                </script>
+            </div>
+        </body>
+        </html>
+        """;
+
+    /**
+     * Select Factor Page - Factor 버튼 템플릿 (개별 Form)
+     */
+    private static final String FACTOR_BUTTON_TEMPLATE = """
+        <li class="factor-item">
+            <form class="factor-form" method="post" action="{{selectFactorUrl}}" data-factor-type="{{factorType}}">
+                {{hiddenInputs}}
+                <input type="hidden" name="factorType" value="{{factorType}}">
+                <button type="submit">{{factorDisplayName}}</button>
+            </form>
+        </li>
+        """;
+
+    /**
+     * Failure Page 전체 템플릿 (HTML Form 기반)
+     */
+    private static final String FAILURE_PAGE_TEMPLATE = """
+        <!DOCTYPE html>
+        <html lang="ko">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>MFA - 인증 실패</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 20px;
+                }
+                .container {
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                    padding: 40px;
+                    max-width: 480px;
+                    width: 100%;
+                    text-align: center;
+                }
+                .icon {
+                    font-size: 64px;
+                    margin-bottom: 16px;
+                }
+                h1 {
+                    color: #dc3545;
+                    font-size: 24px;
+                    margin-bottom: 16px;
+                }
+                .error-message {
+                    color: #666;
+                    font-size: 16px;
+                    margin-bottom: 32px;
+                    line-height: 1.5;
+                }
+                .primary-button {
+                    width: 100%;
+                    padding: 14px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                }
+                .primary-button:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+                }
+                .primary-button:active:not(:disabled) {
+                    transform: translateY(0);
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">❌</div>
+                <h1>인증 실패</h1>
+                <p class="error-message">{{errorMessage}}</p>
+
+                <form method="get" action="{{retryUrl}}">
+                    <button type="submit" class="primary-button">
+                        다시 시도
+                    </button>
+                </form>
+            </div>
+        </body>
+        </html>
+        """;
 
     /**
      * Constructor
@@ -348,6 +1153,36 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return "/mfa/challenge/ott"; // 기본값
     }
 
+    /**
+     * OTT 코드 생성 API URL 추출
+     *
+     * <p>
+     * OTT 요청 페이지의 Form action URL로 사용됩니다.
+     * JavaScript 비활성화 시 이 URL로 POST 요청이 전송됩니다.
+     * </p>
+     *
+     * @return OTT 코드 생성 API URL (기본: /mfa/ott/generate-code)
+     */
+    private String extractOttCodeGenerationUrl() {
+        // TODO: AuthUrlConfig에서 가져오도록 개선 필요
+        return "/mfa/ott/generate-code"; // OttUrls.codeGeneration
+    }
+
+    /**
+     * OTT 검증 처리 Filter URL 추출
+     *
+     * <p>
+     * OTT 검증 페이지의 Form action URL로 사용됩니다.
+     * Spring Security OTT Filter가 이 경로에서 POST 요청을 처리합니다.
+     * </p>
+     *
+     * @return OTT 검증 처리 URL (기본: /login/mfa-ott)
+     */
+    private String extractOttLoginProcessingUrl() {
+        // TODO: AuthUrlConfig에서 가져오도록 개선 필요
+        return "/login/mfa-ott"; // OttUrls.loginProcessing
+    }
+
     // ===== Passkey Challenge Page =====
 
     /**
@@ -463,155 +1298,67 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      * Select Factor Page 생성
      */
     private void generateSelectFactorPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setContentType("text/html;charset=UTF-8");
+
+        // Step 1: FactorContext 조회
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
 
-        response.setContentType("text/html;charset=UTF-8");
+        // Step 2: Context Path 추출
+        String contextPath = request.getContextPath();
+
+        // Step 3: Username 조회
+        String username = getUsername();
+        if (username == null) {
+            log.warn("Select Factor Page: 인증되지 않은 사용자 접근 시도");
+            username = "(알 수 없음)";
+        }
+
+        // Step 4: Available Factors 추출
+        List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null ?
+                new java.util.ArrayList<>(ctx.getAvailableFactors()) : List.of();
+
+        if (availableFactors.isEmpty()) {
+            log.warn("Select Factor Page: 사용 가능한 Factor가 없음. Session: {}",
+                    ctx != null ? ctx.getMfaSessionId() : "unknown");
+        }
+
+        // Step 5: Select Factor URL 추출 (mfaFlowConfig 기반)
+        String selectFactorUrl = extractSelectFactorUrl();
+        String fullSelectFactorUrl = contextPath + selectFactorUrl;
+
+        // Step 6: Factor 버튼 HTML 생성
+        StringBuilder factorButtonsHtml = new StringBuilder("<ul class=\"factor-list\">\n");
+
+        for (AuthType factorType : availableFactors) {
+            String hiddenInputs = resolveHiddenInputs(request);
+            String factorDisplayName = getFactorDisplayName(factorType);
+
+            String buttonHtml = MfaHtmlTemplates.fromTemplate(FACTOR_BUTTON_TEMPLATE)
+                .withValue("selectFactorUrl", fullSelectFactorUrl)
+                .withValue("factorType", factorType.name())
+                .withValue("factorDisplayName", factorDisplayName)
+                .withRawHtml("hiddenInputs", hiddenInputs)
+                .render();
+
+            factorButtonsHtml.append(buttonHtml);
+        }
+
+        factorButtonsHtml.append("</ul>");
+
+        // Step 7: 전체 페이지 렌더링
+        String html = MfaHtmlTemplates.fromTemplate(SELECT_FACTOR_TEMPLATE)
+            .withValue("contextPath", contextPath)
+            .withValue("username", username)
+            .withRawHtml("factorButtons", factorButtonsHtml.toString())
+            .render();
+
+        // Step 8: 응답 전송
         PrintWriter writer = response.getWriter();
-
-        // ✅ DSL 정의 팩터 사용
-        List<String> factorNames = ctx != null && ctx.getAvailableFactors() != null ?
-                ctx.getAvailableFactors().stream().map(AuthType::name).collect(Collectors.toList()) :
-                List.of();
-
-        // CSRF 토큰 추출
-        String csrfToken = getCsrfToken(request);
-        String csrfHeaderName = getCsrfHeaderName(request);
-        String csrfParameterName = getCsrfParameterName(request);
-
-        String html = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="_csrf" content="%s">
-    <meta name="_csrf_header" content="%s">
-    <meta name="_csrf_parameter" content="%s">
-    <title>MFA - 인증 방법 선택</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        h1 { margin: 0 0 24px; font-size: 24px; color: #333; }
-        .progress-container { margin-bottom: 24px; }
-        .progress-bar-wrapper { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, #007bff 0%, #0056b3 100%); transition: width 0.3s ease; }
-        .progress-text { margin-top: 8px; font-size: 14px; color: #6c757d; text-align: center; }
-        .factor-list { list-style: none; padding: 0; margin: 0; }
-        .factor-item { margin-bottom: 12px; }
-        .factor-button { width: 100%; padding: 16px; border: 1px solid #ddd; background: white; border-radius: 6px; font-size: 16px; cursor: pointer; transition: all 0.2s; }
-        .factor-button:hover { border-color: #007bff; background: #f8f9fa; }
-        .message { padding: 12px; margin-bottom: 16px; border-radius: 6px; }
-        .message.info { background: #d1ecf1; color: #0c5460; }
-        .message.error { background: #f8d7da; color: #721c24; }
-    </style>
-    <script src="/js/contexa-mfa-sdk.js"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>인증 방법을 선택하세요</h1>
-        <div class="progress-container" id="progress-container" style="display:none;">
-            <div class="progress-bar-wrapper">
-                <div class="progress-bar" id="progress-bar"></div>
-            </div>
-            <div class="progress-text" id="progress-text"></div>
-        </div>
-        <div id="message-container"></div>
-        <ul class="factor-list" id="factor-list">
-            <!-- SDK가 동적으로 생성 -->
-        </ul>
-    </div>
-
-    <script>
-        function updateProgress(progress) {
-            if (progress && progress.current && progress.total) {
-                const container = document.getElementById('progress-container');
-                const bar = document.getElementById('progress-bar');
-                const text = document.getElementById('progress-text');
-
-                container.style.display = 'block';
-                bar.style.width = progress.percentage + '%';
-                text.textContent = '단계 ' + progress.current + '/' + progress.total;
-            }
-        }
-
-        (async function() {
-            try {
-                const mfa = new ContexaMFA.Client({ autoRedirect: true });
-                const context = await mfa.init();
-
-                // progress 표시
-                updateProgress(context.progress);
-
-                const factorList = document.getElementById('factor-list');
-                const messageContainer = document.getElementById('message-container');
-
-                // 서버 message 표시
-                if (context.message) {
-                    messageContainer.innerHTML = `<div class="message info">${context.message}</div>`;
-                }
-
-                // DSL 정의 팩터 사용 (displayName, icon 포함)
-                const factors = context.availableFactors;
-
-                if (!factors || factors.length === 0) {
-                    messageContainer.innerHTML = '<div class="message error">사용 가능한 인증 방법이 없습니다.</div>';
-                    return;
-                }
-
-                factors.forEach(factor => {
-                    const li = document.createElement('li');
-                    li.className = 'factor-item';
-
-                    const button = document.createElement('button');
-                    button.className = 'factor-button';
-
-                    // displayName 우선 사용, 없으면 fallback
-                    const displayName = factor.displayName || getFactorDisplayName(factor.type || factor);
-                    button.textContent = displayName;
-
-                    button.onclick = async () => {
-                        button.disabled = true;
-                        button.textContent = '처리 중...';
-
-                        try {
-                            // factor가 객체면 type 속성 사용, 문자열이면 그대로 사용
-                            const factorType = factor.type || factor;
-                            await mfa.selectFactor(factorType);
-                        } catch (error) {
-                            messageContainer.innerHTML = `<div class="message error">${error.message}</div>`;
-                            button.disabled = false;
-                            button.textContent = displayName;
-                        }
-                    };
-
-                    li.appendChild(button);
-                    factorList.appendChild(li);
-                });
-            } catch (error) {
-                console.error('Failed to initialize MFA', error);
-                document.getElementById('message-container').innerHTML =
-                    `<div class="message error">MFA 초기화 실패: ${error.message}</div>`;
-            }
-        })();
-
-        function getFactorDisplayName(factor) {
-            const names = {
-                'OTT': '이메일 인증 코드 (OTT)',
-                'PASSKEY': 'Passkey 생체 인증',
-                'TOTP': '인증 앱 (TOTP)',
-                'SMS': 'SMS 인증'
-            };
-            return names[factor] || factor;
-        }
-    </script>
-</body>
-</html>
-                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
-
         writer.write(html);
         writer.flush();
 
-        log.debug("Generated default select factor page for session: {}",
+        log.debug("Select Factor Page 생성 완료. Username: {}, Available Factors: {}, Session: {}",
+                username, availableFactors.stream().map(AuthType::name).collect(Collectors.joining(", ")),
                 ctx != null ? ctx.getMfaSessionId() : "unknown");
     }
 
@@ -867,71 +1614,73 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     /**
      * OTT Request Code Page 생성
+     *
+     * <p>
+     * Spring Security의 DefaultLoginPageGeneratingFilter.renderOneTimeTokenLogin() 패턴을 따릅니다.
+     * </p>
+     *
+     * <p>
+     * 주요 개선 사항:
+     * <ul>
+     *   <li>Username 입력 필드 추가 (인증 상태에 따라 readonly/editable)</li>
+     *   <li>HTML Form 제출 방식 지원 (JavaScript 비활성화 환경 대응)</li>
+     *   <li>CSRF 토큰을 hidden input으로 자동 제출</li>
+     *   <li>Context Path 처리</li>
+     *   <li>MfaHtmlTemplates를 통한 XSS 방어</li>
+     *   <li>Progressive Enhancement (JavaScript SDK는 선택적)</li>
+     * </ul>
+     * </p>
+     *
+     * @param request HTTP 요청
+     * @param response HTTP 응답
+     * @throws IOException 입출력 오류 발생 시
+     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#renderOneTimeTokenLogin
      */
     private void generateOttRequestCodePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
-        PrintWriter writer = response.getWriter();
 
-        String ottChallengeUrl = extractOttChallengeUrl(); // DSL 설정 기반으로 변경
+        // Step 1: Context Path 추출
+        String contextPath = request.getContextPath();
 
-        // CSRF 토큰 추출
-        String csrfToken = getCsrfToken(request);
-        String csrfHeaderName = getCsrfHeaderName(request);
-        String csrfParameterName = getCsrfParameterName(request);
+        // Step 2: 현재 인증된 사용자의 username 조회 (Spring Security 패턴)
+        String username = getUsername();
 
-        String html = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="_csrf" content="%s">
-    <meta name="_csrf_header" content="%s">
-    <meta name="_csrf_parameter" content="%s">
-    <title>MFA - 인증 코드 요청</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        h1 { margin: 0 0 16px; font-size: 24px; color: #333; }
-        p { color: #666; margin-bottom: 24px; }
-        button { width: 100%%; padding: 14px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
-        button:disabled { background: #6c757d; cursor: not-allowed; }
-    </style>
-    <script src="/js/contexa-mfa-sdk.js"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>인증 코드 요청</h1>
-        <p>등록된 이메일 주소로 인증 코드를 전송합니다.</p>
-        <button id="request-button" onclick="requestCode()">인증 코드 전송</button>
-    </div>
-
-    <script>
-        async function requestCode() {
-            const button = document.getElementById('request-button');
-            button.disabled = true;
-            button.textContent = '전송 중...';
-
-            try {
-                const mfa = new ContexaMFA.Client({ autoRedirect: true });
-                await mfa.init();
-                await mfa.apiClient.requestOttCode();
-
-                alert('인증 코드가 전송되었습니다.');
-                window.location.href = '%s';
-            } catch (error) {
-                alert('전송 실패: ' + error.message);
-                button.disabled = false;
-                button.textContent = '인증 코드 전송';
-            }
+        // Step 3: Username 입력 필드 생성 (조건부 렌더링)
+        String usernameInput;
+        if (username != null) {
+            // 인증된 사용자: readonly 필드
+            usernameInput = MfaHtmlTemplates.fromTemplate(OTT_READONLY_USERNAME_INPUT)
+                .withValue("username", username)
+                .render();
+            log.debug("OTT Request Page: 인증된 사용자 '{}' - readonly username 필드 생성", username);
+        } else {
+            // 미인증 사용자: editable 필드
+            usernameInput = OTT_EDITABLE_USERNAME_INPUT;
+            log.debug("OTT Request Page: 미인증 사용자 - editable username 필드 생성");
         }
-    </script>
-</body>
-</html>
-                """.formatted(csrfToken, csrfHeaderName, csrfParameterName, ottChallengeUrl);
 
+        // Step 4: CSRF 토큰 및 기타 hidden 필드 생성 (Spring Security 패턴)
+        String hiddenInputs = resolveHiddenInputs(request);
+
+        // Step 5: OTT 코드 생성 API URL 추출 (Form action용)
+        String ottRequestUrl = extractOttCodeGenerationUrl(); // "/mfa/ott/generate-code"
+        String fullOttRequestUrl = contextPath + ottRequestUrl;
+
+        // Step 6: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
+            .withValue("contextPath", contextPath)
+            .withValue("ottRequestUrl", fullOttRequestUrl)
+            .withRawHtml("usernameInput", usernameInput)
+            .withRawHtml("hiddenInputs", hiddenInputs)
+            .render();
+
+        // Step 7: 응답 전송
+        PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
+
+        log.debug("OTT Request Page 생성 완료. Form action URL: {}, Username: {}",
+            fullOttRequestUrl, username != null ? username : "(입력 필요)");
     }
 
     /**
@@ -939,120 +1688,49 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      */
     private void generateOttVerifyPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
+
+        // Step 1: Context Path 추출
+        String contextPath = request.getContextPath();
+
+        // Step 2: 현재 인증된 사용자의 username 조회 (Spring Security 패턴)
+        String username = getUsername();
+        if (username == null) {
+            // OTT 검증 페이지는 인증된 사용자만 접근 가능
+            log.warn("OTT Verify Page: 인증되지 않은 사용자 접근 시도");
+            username = "(알 수 없음)";
+        }
+
+        // Step 3: CSRF 토큰 및 기타 hidden 필드 생성 (Spring Security 패턴)
+        String hiddenInputs = resolveHiddenInputs(request);
+
+        // Step 4: OTT 검증 처리 Filter URL 추출 (Form action용)
+        String ottVerifyUrl = extractOttLoginProcessingUrl(); // "/login/mfa-ott"
+        String fullOttVerifyUrl = contextPath + ottVerifyUrl;
+
+        // Step 5: OTT 코드 재전송 API URL 추출 (재전송 Form action용)
+        String ottResendUrl = extractOttCodeGenerationUrl(); // "/mfa/ott/generate-code"
+        String fullOttResendUrl = contextPath + ottResendUrl;
+
+        // Step 6: 재전송용 hidden inputs (동일한 CSRF 토큰 재사용)
+        String resendHiddenInputs = resolveHiddenInputs(request);
+
+        // Step 7: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        String html = MfaHtmlTemplates.fromTemplate(OTT_VERIFY_TEMPLATE)
+            .withValue("contextPath", contextPath)
+            .withValue("username", username)
+            .withValue("ottVerifyUrl", fullOttVerifyUrl)
+            .withValue("ottResendUrl", fullOttResendUrl)
+            .withRawHtml("hiddenInputs", hiddenInputs)
+            .withRawHtml("resendHiddenInputs", resendHiddenInputs)
+            .render();
+
+        // Step 8: 응답 전송
         PrintWriter writer = response.getWriter();
-
-        // CSRF 토큰 추출
-        String csrfToken = getCsrfToken(request);
-        String csrfHeaderName = getCsrfHeaderName(request);
-        String csrfParameterName = getCsrfParameterName(request);
-
-        String html = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="_csrf" content="%s">
-    <meta name="_csrf_header" content="%s">
-    <meta name="_csrf_parameter" content="%s">
-    <title>MFA - 인증 코드 입력</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        h1 { margin: 0 0 16px; font-size: 24px; color: #333; }
-        .progress-container { margin-bottom: 24px; }
-        .progress-bar-wrapper { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
-        .progress-bar { height: 100%%; background: linear-gradient(90deg, #007bff 0%%, #0056b3 100%%); transition: width 0.3s ease; }
-        .progress-text { margin-top: 8px; font-size: 14px; color: #6c757d; text-align: center; }
-        input { width: 100%%; padding: 14px; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 6px; font-size: 18px; text-align: center; letter-spacing: 0.5em; box-sizing: border-box; }
-        button { width: 100%%; padding: 14px; margin-bottom: 8px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-secondary { background: #6c757d; color: white; }
-        button:disabled { opacity: 0.6; cursor: not-allowed; }
-    </style>
-    <script src="/js/contexa-mfa-sdk.js"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>인증 코드 입력</h1>
-        <div class="progress-container" id="progress-container" style="display:none;">
-            <div class="progress-bar-wrapper">
-                <div class="progress-bar" id="progress-bar"></div>
-            </div>
-            <div class="progress-text" id="progress-text"></div>
-        </div>
-        <div id="message-container"></div>
-        <form id="verify-form" onsubmit="verifyCode(event)">
-            <input type="text" id="code-input" placeholder="6자리 코드 입력" maxlength="6" required autofocus />
-            <button type="submit" class="btn-primary" id="verify-button">확인</button>
-            <button type="button" class="btn-secondary" onclick="resendCode()">코드 재전송</button>
-        </form>
-    </div>
-
-    <script>
-        function updateProgress(progress) {
-            if (progress && progress.current && progress.total) {
-                const container = document.getElementById('progress-container');
-                const bar = document.getElementById('progress-bar');
-                const text = document.getElementById('progress-text');
-
-                container.style.display = 'block';
-                bar.style.width = progress.percentage + '%%';
-                text.textContent = '단계 ' + progress.current + '/' + progress.total;
-            }
-        }
-
-        const mfa = new ContexaMFA.Client({ autoRedirect: true });
-
-        (async function() {
-            const context = await mfa.init();
-            updateProgress(context.progress);
-
-            // 서버 message 표시
-            if (context.message) {
-                const messageContainer = document.getElementById('message-container');
-                messageContainer.innerHTML = `<div class="message info">${context.message}</div>`;
-            }
-        })();
-
-        async function verifyCode(event) {
-            event.preventDefault();
-            const button = document.getElementById('verify-button');
-            const input = document.getElementById('code-input');
-
-            button.disabled = true;
-            button.textContent = '확인 중...';
-
-            try {
-                await mfa.verifyOtt(input.value);
-            } catch (error) {
-                let errorMsg = '인증 실패: ' + error.message;
-                // remainingAttempts 표시
-                if (error.response && error.response.remainingAttempts != null) {
-                    errorMsg += ' (남은 시도: ' + error.response.remainingAttempts + '회)';
-                }
-                alert(errorMsg);
-                button.disabled = false;
-                button.textContent = '확인';
-                input.value = '';
-            }
-        }
-
-        async function resendCode() {
-            try {
-                await mfa.apiClient.requestOttCode();
-                alert('인증 코드가 재전송되었습니다.');
-            } catch (error) {
-                alert('재전송 실패: ' + error.message);
-            }
-        }
-    </script>
-</body>
-</html>
-                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
-
         writer.write(html);
         writer.flush();
+
+        log.debug("OTT Verify Page 생성 완료. Verify URL: {}, Resend URL: {}, Username: {}",
+            fullOttVerifyUrl, fullOttResendUrl, username);
     }
 
     /**
@@ -1060,106 +1738,30 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      */
     private void generatePasskeyChallengePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
+
+        // Step 1: Context Path 추출
+        String contextPath = request.getContextPath();
+
+        // Step 2: 현재 인증된 사용자의 username 조회 (Spring Security 패턴)
+        String username = getUsername();
+        if (username == null) {
+            // Passkey 챌린지 페이지는 인증된 사용자만 접근 가능
+            log.warn("Passkey Challenge Page: 인증되지 않은 사용자 접근 시도");
+            username = "(알 수 없음)";
+        }
+
+        // Step 3: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        String html = MfaHtmlTemplates.fromTemplate(PASSKEY_CHALLENGE_TEMPLATE)
+            .withValue("contextPath", contextPath)
+            .withValue("username", username)
+            .render();
+
+        // Step 4: 응답 전송
         PrintWriter writer = response.getWriter();
-
-        // CSRF 토큰 추출
-        String csrfToken = getCsrfToken(request);
-        String csrfHeaderName = getCsrfHeaderName(request);
-        String csrfParameterName = getCsrfParameterName(request);
-
-        String html = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="_csrf" content="%s">
-    <meta name="_csrf_header" content="%s">
-    <meta name="_csrf_parameter" content="%s">
-    <title>MFA - Passkey 인증</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
-        h1 { margin: 0 0 16px; font-size: 24px; color: #333; }
-        .progress-container { margin-bottom: 24px; }
-        .progress-bar-wrapper { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
-        .progress-bar { height: 100%%; background: linear-gradient(90deg, #007bff 0%%, #0056b3 100%%); transition: width 0.3s ease; }
-        .progress-text { margin-top: 8px; font-size: 14px; color: #6c757d; text-align: center; }
-        p { color: #666; margin-bottom: 24px; }
-        button { width: 100%%; padding: 14px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
-        button:disabled { background: #6c757d; cursor: not-allowed; }
-    </style>
-    <script src="/js/contexa-mfa-sdk.js"></script>
-</head>
-<body>
-    <div class="container">
-        <h1>Passkey 인증</h1>
-        <div class="progress-container" id="progress-container" style="display:none;">
-            <div class="progress-bar-wrapper">
-                <div class="progress-bar" id="progress-bar"></div>
-            </div>
-            <div class="progress-text" id="progress-text"></div>
-        </div>
-        <div id="message-container"></div>
-        <p>생체 인증 또는 보안 키를 사용하여 인증하세요.</p>
-        <button id="auth-button" onclick="authenticate()">Passkey 인증 시작</button>
-    </div>
-
-    <script>
-        function updateProgress(progress) {
-            if (progress && progress.current && progress.total) {
-                const container = document.getElementById('progress-container');
-                const bar = document.getElementById('progress-bar');
-                const text = document.getElementById('progress-text');
-
-                container.style.display = 'block';
-                bar.style.width = progress.percentage + '%%';
-                text.textContent = '단계 ' + progress.current + '/' + progress.total;
-            }
-        }
-
-        window.onload = function() {
-            // 페이지 로드 시 자동으로 인증 시작
-            authenticate();
-        };
-
-        async function authenticate() {
-            const button = document.getElementById('auth-button');
-            button.disabled = true;
-            button.textContent = '인증 진행 중...';
-
-            try {
-                const mfa = new ContexaMFA.Client({ autoRedirect: true });
-                const context = await mfa.init();
-
-                // progress 표시
-                updateProgress(context.progress);
-
-                // 서버 message 표시
-                if (context.message) {
-                    const messageContainer = document.getElementById('message-container');
-                    messageContainer.innerHTML = `<div class="message info">${context.message}</div>`;
-                }
-
-                await mfa.verifyPasskey();
-            } catch (error) {
-                let errorMsg = '인증 실패: ' + error.message;
-                // remainingAttempts 표시
-                if (error.response && error.response.remainingAttempts != null) {
-                    errorMsg += ' (남은 시도: ' + error.response.remainingAttempts + '회)';
-                }
-                alert(errorMsg);
-                button.disabled = false;
-                button.textContent = 'Passkey 인증 시작';
-            }
-        }
-    </script>
-</body>
-</html>
-                """.formatted(csrfToken, csrfHeaderName, csrfParameterName);
-
         writer.write(html);
         writer.flush();
+
+        log.debug("Passkey Challenge Page 생성 완료. Username: {}", username);
     }
 
     // 제거됨: generateConfigurePage() - 사용자 팩터 등록 기능 제거
@@ -1169,48 +1771,30 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      */
     private void generateFailurePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
-        PrintWriter writer = response.getWriter();
 
+        // Step 1: Context Path 추출
+        String contextPath = request.getContextPath();
+
+        // Step 2: 에러 메시지 추출
         String errorMessage = request.getParameter("error");
         String displayMessage = StringUtils.hasText(errorMessage) ? errorMessage : "인증에 실패했습니다.";
 
-        String selectFactorUrl = extractSelectFactorUrl(); // DSL 설정 기반으로 변경
+        // Step 3: Retry URL 추출 (Select Factor 페이지로 이동)
+        String selectFactorUrl = extractSelectFactorUrl();
+        String fullRetryUrl = contextPath + selectFactorUrl;
 
-        // CSRF 토큰 추출
-        String csrfToken = getCsrfToken(request);
-        String csrfHeaderName = getCsrfHeaderName(request);
-        String csrfParameterName = getCsrfParameterName(request);
+        // Step 4: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        String html = MfaHtmlTemplates.fromTemplate(FAILURE_PAGE_TEMPLATE)
+            .withValue("errorMessage", displayMessage)
+            .withValue("retryUrl", fullRetryUrl)
+            .render();
 
-        String html = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="_csrf" content="%s">
-    <meta name="_csrf_header" content="%s">
-    <meta name="_csrf_parameter" content="%s">
-    <title>MFA - 인증 실패</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-        .container { max-width: 480px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
-        h1 { margin: 0 0 16px; font-size: 24px; color: #dc3545; }
-        p { color: #666; margin-bottom: 24px; }
-        button { padding: 14px 32px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>인증 실패</h1>
-        <p>%s</p>
-        <button onclick="location.href='%s'">다시 시도</button>
-    </div>
-</body>
-</html>
-                """.formatted(csrfToken, csrfHeaderName, csrfParameterName, displayMessage, selectFactorUrl);
-
+        // Step 5: 응답 전송
+        PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
+
+        log.debug("Failure Page 생성 완료. Error: {}, Retry URL: {}", displayMessage, fullRetryUrl);
     }
 
     /**
@@ -1249,5 +1833,111 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getParameterName() : "_csrf";
+    }
+
+    // ========== Spring Security 패턴 기반 헬퍼 메서드 ==========
+
+    /**
+     * 현재 인증된 사용자의 username 조회
+     *
+     * <p>
+     * Spring Security의 SecurityContext에서 인증된 사용자 정보를 가져옵니다.
+     * Spring Security의 DefaultLoginPageGeneratingFilter.getUsername() 패턴을 따릅니다.
+     * </p>
+     *
+     * @return 인증된 경우 username, 미인증 시 null
+     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#getUsername()
+     */
+    @Nullable
+    private String getUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication != null
+            && authentication.isAuthenticated()
+            && !(authentication instanceof AnonymousAuthenticationToken)) {
+            return ((UserDto)authentication.getPrincipal()).getUsername();
+        }
+
+        return null;
+    }
+
+    /**
+     * CSRF 토큰 및 기타 hidden 필드를 HTML로 렌더링
+     *
+     * <p>
+     * Spring Security의 DefaultLoginPageGeneratingFilter.resolveHiddenInputs 패턴을 따릅니다.
+     * CSRF 토큰을 Form hidden input으로 렌더링하여 자동 제출되도록 합니다.
+     * </p>
+     *
+     * @param request HTTP 요청
+     * @return HTML hidden input 문자열 (예: &lt;input type="hidden" name="_csrf" value="..." /&gt;)
+     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#resolveHiddenInputs
+     */
+    private String resolveHiddenInputs(HttpServletRequest request) {
+        Map<String, String> hiddenInputs = new LinkedHashMap<>();
+
+        // CSRF 토큰 추가
+        CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        if (csrfToken != null) {
+            hiddenInputs.put(csrfToken.getParameterName(), csrfToken.getToken());
+        }
+
+        // MFA Session ID 추가 (있는 경우)
+        String mfaSessionId = (String) request.getAttribute("mfaSessionId");
+        if (StringUtils.hasText(mfaSessionId)) {
+            hiddenInputs.put("mfaSessionId", mfaSessionId);
+        }
+
+        return hiddenInputs.entrySet()
+            .stream()
+            .map(entry -> renderHiddenInput(entry.getKey(), entry.getValue()))
+            .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * HTML hidden input 필드 렌더링
+     *
+     * @param name 필드명
+     * @param value 필드값
+     * @return HTML hidden input 문자열
+     */
+    private String renderHiddenInput(String name, String value) {
+        return String.format(
+            "<input type=\"hidden\" name=\"%s\" value=\"%s\" />",
+            escapeHtml(name),
+            escapeHtml(value)
+        );
+    }
+
+    /**
+     * HTML 특수 문자 이스케이프 (XSS 방어)
+     *
+     * @param input 이스케이프할 문자열
+     * @return 이스케이프된 문자열
+     */
+    private String escapeHtml(String input) {
+        if (input == null) {
+            return "";
+        }
+        return input.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace("\"", "&quot;")
+                   .replace("'", "&#x27;")
+                   .replace("/", "&#x2F;");
+    }
+
+    /**
+     * Factor Type의 Display Name 반환
+     *
+     * @param factorType Factor 타입 (예: OTT, PASSKEY)
+     * @return 사용자 친화적 표시 이름
+     */
+    private String getFactorDisplayName(AuthType factorType) {
+        return switch (factorType) {
+            case OTT -> "이메일 인증 코드 (OTT)";
+            case PASSKEY -> "Passkey 생체 인증";
+            default -> factorType.name();
+        };
     }
 }

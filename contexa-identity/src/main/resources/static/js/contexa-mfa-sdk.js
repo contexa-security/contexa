@@ -473,13 +473,13 @@
                     registrationProcessing: '/mfa/passkey/register'
                 },
                 api: {
-                    selectFactor: '/api/mfa/select-factor',
-                    cancel: '/api/mfa/cancel',
-                    status: '/api/mfa/status',
-                    requestOttCode: '/api/mfa/request-ott-code',
-                    context: '/api/mfa/context',
-                    completeFactor: '/api/mfa/complete-factor',
-                    config: '/api/mfa/config'
+                    selectFactor: '/mfa/select-factor',
+                    cancel: '/mfa/cancel',
+                    status: '/mfa/status',
+                    requestOttCode: '/mfa/request-ott-code',
+                    context: '/mfa/context',
+                    completeFactor: '/mfa/complete-factor',
+                    config: '/api/mfa/config' // SDK 초기화 전용, /api 유지
                 },
                 webauthn: {
                     assertionOptions: '/webauthn/authenticate/options',

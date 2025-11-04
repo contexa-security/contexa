@@ -30,24 +30,17 @@ public final class AuthMethodConfigurerFactory {
         // 각 Configurer는 ApplicationContext를 필요로 할 수 있음 (예: 빈 이름으로 핸들러 참조)
         Object concreteConfigurerLogic = switch (authType) {
             case FORM -> {
-                FormDslConfigurerImpl configurer = new FormDslConfigurerImpl();
-                configurer.setApplicationContext(this.applicationContext);
-                yield configurer;
+                yield new FormDslConfigurerImpl(this.applicationContext);
             }
             case REST, MFA_REST-> {
-                RestDslConfigurerImpl configurer = new RestDslConfigurerImpl();
-                configurer.setApplicationContext(this.applicationContext);
-                yield configurer;
+                yield new RestDslConfigurerImpl(this.applicationContext);
             }
 
             case OTT -> {
-                OttDslConfigurerImpl configurer = new OttDslConfigurerImpl(this.applicationContext); // 생성자에서 받음
-                yield configurer;
+                yield new OttDslConfigurerImpl(this.applicationContext);
             }
             case PASSKEY -> {
-                PasskeyDslConfigurerImpl configurer = new PasskeyDslConfigurerImpl();
-                configurer.setApplicationContext(this.applicationContext);
-                yield configurer;
+                yield new PasskeyDslConfigurerImpl(this.applicationContext);
             }
             // case RECOVERY_CODE -> { ... }
             default -> {

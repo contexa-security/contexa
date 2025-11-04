@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.dsl.option;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.PasskeyAsepAttributes;
 import lombok.Getter;
+import org.springframework.context.ApplicationContext;
 import org.springframework.util.Assert;
 
 import java.util.*;
@@ -25,19 +26,27 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions { // f
         this.asepAttributes = builder.asepAttributes;
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(ApplicationContext applicationContext) {
+        return new Builder(applicationContext);
     }
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<PasskeyOptions, Builder> {
-        private String assertionOptionsEndpoint = "/webauthn/assertion/options"; // 기본값
+        private String assertionOptionsEndpoint;
         private String rpName = "contexa-identity";
         private String rpId = "contexa";
         private Set<String> allowedOrigins = new HashSet<>();
         private PasskeyAsepAttributes asepAttributes;
 
-        public Builder() {
-            super.loginProcessingUrl("/login/webauthn"); // Passkey 인증 처리 URL 기본값
+        public Builder(ApplicationContext applicationContext) {
+            Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
+
+            // AuthUrlProvider를 통해 동적으로 URL 가져오기
+            io.contexa.contexaidentity.security.service.AuthUrlProvider urlProvider =
+                applicationContext.getBean(io.contexa.contexaidentity.security.service.AuthUrlProvider.class);
+
+            this.assertionOptionsEndpoint = urlProvider.getPasskeyAssertionOptions();
+
+            super.loginProcessingUrl(urlProvider.getPasskeyLoginProcessing());
         }
 
         @Override

@@ -256,7 +256,7 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
             nextStepUrl = determineFactorVerificationUrl(currentProcessingFactor, request);
         } else {
             // 팩터 선택 화면으로
-            nextStepUrl = request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
+            nextStepUrl = request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         }
 
         errorDetails.put("message", errorMessage);
@@ -293,7 +293,7 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
                     authUrlProvider.getOttRequestCodeUi();
             case PASSKEY -> request.getContextPath() +
                     authUrlProvider.getPasskeyRegistrationRequest();
-            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
+            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         };
     }
 

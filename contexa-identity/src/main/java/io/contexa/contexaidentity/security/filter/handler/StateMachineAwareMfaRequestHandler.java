@@ -879,7 +879,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private String determineNextStepUrl(FactorContext context, HttpServletRequest request) {
         if (context.getCurrentProcessingFactor() == null) {
-            return request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
+            return request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         }
 
         return switch (context.getCurrentProcessingFactor()) {
@@ -887,7 +887,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                     authUrlProvider.getOttRequestCodeUi();
             case PASSKEY -> request.getContextPath() +
                     authUrlProvider.getPasskeyChallengeUi();
-            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
+            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         };
     }
 

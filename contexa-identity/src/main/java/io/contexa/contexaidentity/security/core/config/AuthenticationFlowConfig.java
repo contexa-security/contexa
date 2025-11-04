@@ -36,7 +36,7 @@ public final class AuthenticationFlowConfig {
     private final AdaptiveConfig defaultAdaptiveConfig;
     private final boolean defaultDeviceTrustEnabled;
     private final MfaAsepAttributes mfaAsepAttributes;
-    private final MfaPageConfig mfaPageConfig; // MFA 커스텀 페이지 설정
+    private final MfaPageConfig mfaPageConfig;
     private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; // ⭐ MFA AuthenticationEntryPoint
     private final List<AuthenticationStepConfig> stepConfigs;
 

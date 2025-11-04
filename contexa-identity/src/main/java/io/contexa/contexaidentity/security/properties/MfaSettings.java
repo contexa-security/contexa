@@ -18,36 +18,10 @@ public class MfaSettings {
 
     // === URL 설정 ===
     /**
-     * 1차 인증 성공 후 MFA가 필요할 때 클라이언트가 다음 단계를 시작하기 위해 호출할 URL.
-     * 예: /mfa/initiate 또는 /mfa/select-factor
+     * MFA 관련 URL 설정
      */
-    private String initiateUrl = "/mfa/initiate";
-
-    /**
-     * MFA 인증 단계에서 사용자가 인증 수단을 선택하는 UI 페이지 URL
-     */
-    private String configureUrl = "/mfa/configure";
-    private String selectFactorUrl = "/mfa/select-factor";
-
-    /**
-     * MFA 실패 시 기본적으로 이동할 URL
-     */
-    private String failureUrl = "/mfa/failure";
-
-    /**
-     * MFA 성공 시 기본적으로 이동할 URL
-     */
-    private String successUrl = "/home";
-
-    /**
-     * MFA 취소 시 이동할 URL
-     */
-    private String cancelUrl = "/loginForm";
-
-    /**
-     * MFA 상태 확인 API URL
-     */
-    private String statusUrl = "/mfa/status";
+    @NestedConfigurationProperty
+    private MfaUrls urls = new MfaUrls();
 
     // === 세션 및 타임아웃 설정 ===
     /**
@@ -219,12 +193,6 @@ public class MfaSettings {
      */
     @NestedConfigurationProperty
     private PasskeyFactorSettings passkeyFactor = new PasskeyFactorSettings();
-
-    /**
-     * MFA OTT 팩터 설정
-     */
-    @NestedConfigurationProperty
-    private OttFactorSettings ottFactor = new OttFactorSettings();
 
     /**
      * SMS 팩터 설정

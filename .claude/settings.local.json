@@ -43,7 +43,8 @@
       "Bash(powershell -Command:*)",
       "Bash(test.txt)",
       "Bash(MFA_REFACTORING_PLAN.md)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(del \"d:\\projects\\contexa\\contexa-identity\\src\\main\\java\\io\\contexa\\contexaidentity\\security\\properties\\OttFactorSettings.java\")"
     ],
     "deny": [],
     "ask": []

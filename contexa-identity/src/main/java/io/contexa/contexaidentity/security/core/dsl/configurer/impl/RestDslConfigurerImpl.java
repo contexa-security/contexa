@@ -7,6 +7,7 @@ import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.context.SecurityContextRepository;
 
@@ -15,8 +16,9 @@ public final class RestDslConfigurerImpl // <H extends HttpSecurityBuilder<H>> ì
         extends AbstractOptionsBuilderConfigurer<RestDslConfigurerImpl, RestOptions, RestOptions.Builder, RestDslConfigurer>
         implements RestDslConfigurer {
 
-    public RestDslConfigurerImpl() {
-        super(RestOptions.builder());
+    public RestDslConfigurerImpl(ApplicationContext applicationContext) {
+        super(RestOptions.builder(applicationContext));
+        setApplicationContext(applicationContext);
     }
 
     @Override

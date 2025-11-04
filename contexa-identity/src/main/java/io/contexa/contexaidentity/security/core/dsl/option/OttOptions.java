@@ -44,8 +44,8 @@ public final class OttOptions extends AuthenticationProcessingOptions { // final
 
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<OttOptions, Builder> {
-        private String tokenGeneratingUrl = "/ott/generate"; // 기본값
-        private String defaultSubmitPageUrl = "/login-ott"; // 기본값
+        private String tokenGeneratingUrl = "/mfa/ott/generate-code"; // 기본값
+        private String defaultSubmitPageUrl = "/mfa/challenge/ott"; // 기본값
         private String usernameParameter = "username"; // 기본값
         private String tokenParameter = "token"; // 기본값
         private boolean showDefaultSubmitPage = true; // 기본값
@@ -56,7 +56,7 @@ public final class OttOptions extends AuthenticationProcessingOptions { // final
         public Builder(ApplicationContext applicationContext) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for OttOptions.Builder");
             this.oneTimeTokenService = applicationContext.getBean(OneTimeTokenService.class);
-            super.loginProcessingUrl("/login/ott"); // OTT 인증 처리 URL 기본값
+            super.loginProcessingUrl("/login/mfa-ott"); // OTT 인증 처리 URL 기본값 (OttUrls.loginProcessing)
         }
 
         @Override

@@ -22,12 +22,29 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 완전 일원화된 MfaApiController
- * - ContextPersistence 완전 제거
- * - MfaStateMachineIntegrator를 통한 고수준 비즈니스 로직 처리
- * - State Machine 기반 상태 관리
+ * MfaApiController
+ *
+ * ⚠️ DEPRECATED: 이 컨트롤러는 MfaContinuationFilter와 중복됩니다.
+ *
+ * 마이그레이션 가이드:
+ * - 모든 /api/mfa/* 엔드포인트는 /mfa/*로 이동
+ * - MfaContinuationFilter가 Content-Type에 따라 JSON/HTML 응답
+ * - SDK는 /mfa/* 엔드포인트 사용으로 변경 필요
+ *
+ * 제거 예정 메서드:
+ * - selectFactor() → MfaContinuationFilter.handleFactorSelection()
+ * - cancel() → MfaContinuationFilter.handleCancelMfa()
+ * - getMfaStatus() → MfaContinuationFilter.handleStatusCheck()
+ * - requestOttCode() → MfaContinuationFilter.handleChallengeInitiation()
+ * - getFactorContext() → MfaContinuationFilter.handleMfaInitiation()
+ *
+ * 유지 메서드:
+ * - getEndpointConfig() → SDK 초기화용 (별도 유틸리티로 이동 예정)
+ *
+ * @deprecated SDK 엔드포인트 변경 후 제거 예정
  */
 @Slf4j
+@Deprecated
 @RestController
 @RequestMapping("/api/mfa")
 @RequiredArgsConstructor
@@ -356,7 +373,7 @@ public class MfaApiController {
         AuthType currentFactor = ctx.getCurrentProcessingFactor();
 
         if (currentFactor == null) {
-            return contextPath + authUrlProvider.getMfaSelectFactorUi();
+            return contextPath + authUrlProvider.getMfaSelectFactor();
         }
 
         return switch (currentFactor) {
@@ -364,7 +381,7 @@ public class MfaApiController {
             case PASSKEY -> contextPath + authUrlProvider.getPasskeyChallengeUi();
             default -> {
                 log.warn("Unknown factor type for next step determination: {}", currentFactor);
-                yield contextPath + authUrlProvider.getMfaSelectFactorUi();
+                yield contextPath + authUrlProvider.getMfaSelectFactor();
             }
         };
     }

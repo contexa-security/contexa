@@ -359,7 +359,7 @@ public class LoginController {
 
         if (!isValidMfaContext(ctx, "OTT") || !StringUtils.hasText(ctx.getCurrentStepId())) {
             log.warn("MFA OTT Request Code UI: Invalid FactorContext, not an OTT factor, or currentStepId missing. Context: {}", ctx);
-            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactorUi() + "?error=invalid_ott_request_context";
+            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactor() + "?error=invalid_ott_request_context";
         }
 
         model.addAttribute("username", ctx.getUsername());
@@ -403,7 +403,7 @@ public class LoginController {
 
         if (!isValidMfaContext(ctx, "OTT") || !StringUtils.hasText(ctx.getCurrentStepId())) {
             log.warn("MFA OTT Challenge UI: Invalid FactorContext, not an OTT factor, or currentStepId missing. Context: {}", ctx);
-            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactorUi() + "?error=invalid_ott_challenge_context";
+            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactor() + "?error=invalid_ott_challenge_context";
         }
 
         model.addAttribute("usernameForDisplay", ctx.getUsername());
@@ -433,7 +433,7 @@ public class LoginController {
         }
 
         model.addAttribute("mfaOttProcessingUrl", getContextPath(request) + loginProcessingUrl);
-        model.addAttribute("mfaResendOttUrl", getContextPath(request) + authUrlProvider.getApiRequestOttCode());
+        model.addAttribute("mfaResendOttUrl", getContextPath(request) + authUrlProvider.getMfaRequestOttCode());
 
         if (resendSuccess != null) {
             model.addAttribute("successMessage", "인증 코드가 재전송되었습니다.");
@@ -460,7 +460,7 @@ public class LoginController {
 
         if (!isValidMfaContext(ctx, "PASSKEY")) {
             log.warn("MFA Passkey Challenge UI: Invalid FactorContext or not a Passkey factor. Context: {}", ctx);
-            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactorUi() + "?error=invalid_passkey_challenge_context";
+            return "redirect:" + getContextPath(request) + authUrlProvider.getMfaSelectFactor() + "?error=invalid_passkey_challenge_context";
         }
 
         model.addAttribute("usernameForDisplay", ctx.getUsername());
@@ -468,7 +468,7 @@ public class LoginController {
         model.addAttribute("currentState", ctx.getCurrentState().name());
         model.addAttribute("pageTitle", "MFA - Passkey 인증");
 
-        model.addAttribute("mfaPasskeyAssertionOptionsUrl", getContextPath(request) + authUrlProvider.getApiAssertionOptions());
+        model.addAttribute("mfaPasskeyAssertionOptionsUrl", getContextPath(request) + authUrlProvider.getPasskeyAssertionOptions());
         String loginProcessingUrl = authUrlProvider.getPasskeyLoginProcessing();
         model.addAttribute("mfaPasskeyProcessingUrl", getContextPath(request) + loginProcessingUrl);
         model.addAttribute("storageType", "UNIFIED_STATE_MACHINE"); // 디버깅용

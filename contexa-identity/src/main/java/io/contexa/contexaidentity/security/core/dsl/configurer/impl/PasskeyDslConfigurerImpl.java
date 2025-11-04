@@ -5,6 +5,7 @@ import io.contexa.contexaidentity.security.core.dsl.common.AbstractOptionsBuilde
 import io.contexa.contexaidentity.security.core.dsl.configurer.PasskeyDslConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 
 import java.util.List;
@@ -15,8 +16,9 @@ public final class PasskeyDslConfigurerImpl
         extends AbstractOptionsBuilderConfigurer<PasskeyDslConfigurerImpl, PasskeyOptions, PasskeyOptions.Builder, PasskeyDslConfigurer>
         implements PasskeyDslConfigurer {
 
-    public PasskeyDslConfigurerImpl() {
-        super(PasskeyOptions.builder());
+    public PasskeyDslConfigurerImpl(ApplicationContext applicationContext) {
+        super(PasskeyOptions.builder(applicationContext));
+        setApplicationContext(applicationContext);
     }
 
     @Override

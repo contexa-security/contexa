@@ -2,7 +2,9 @@ package io.contexa.contexaidentity.security.core.dsl.option;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.FormAsepAttributes;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import lombok.Getter;
+import org.springframework.context.ApplicationContext;
 import org.springframework.util.Assert;
 
 import java.util.Objects;
@@ -33,25 +35,33 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         this.asepAttributes = builder.asepAttributes;
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(ApplicationContext applicationContext) {
+        return new Builder(applicationContext);
     }
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<FormOptions, Builder> {
-        private String loginPage = "/loginForm";
+        private String loginPage;
         private String usernameParameter = "username";
         private String passwordParameter = "password";
-        private String defaultSuccessUrl = "/";
-        private String failureUrl = "/loginForm?error";
+        private String defaultSuccessUrl;
+        private String failureUrl;
         private boolean permitAll = false;
         private boolean alwaysUseDefaultSuccessUrl = false;
         private SafeHttpFormLoginCustomizer rawFormLoginCustomizer;
         private FormAsepAttributes asepAttributes;
 
-        public Builder() {
-            // super(); // 부모 생성자 명시적 호출 불필요 (기본 생성자)
-            super.loginProcessingUrl("/login"); // AuthenticationProcessingOptions의 loginProcessingUrl 기본값 설정
-            super.order(100); // 예시 기본 순서
+        public Builder(ApplicationContext applicationContext) {
+            Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for FormOptions.Builder");
+
+            // AuthUrlProvider를 통해 동적으로 URL 가져오기
+            AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
+
+            this.loginPage = urlProvider.getPrimaryLoginPage();
+            this.defaultSuccessUrl = urlProvider.getPrimaryLoginSuccess();
+            this.failureUrl = urlProvider.getPrimaryLoginFailure();
+
+            super.loginProcessingUrl(urlProvider.getPrimaryFormLoginProcessing());
+            super.order(100);
         }
 
         @Override

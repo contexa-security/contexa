@@ -106,11 +106,11 @@ public class AuthUrlProvider {
     }
 
     /**
-     * Factor 선택 UI 페이지 URL
-     * @return GET /mfa/select-factor (기본값)
+     * Factor 선택 URL (GET: 페이지, POST: API 처리)
+     * @return /mfa/select-factor (기본값)
      */
-    public String getMfaSelectFactorUi() {
-        return properties.getUrls().getMfa().getSelectFactorUi();
+    public String getMfaSelectFactor() {
+        return properties.getUrls().getMfa().getSelectFactor();
     }
 
     /**
@@ -130,11 +130,51 @@ public class AuthUrlProvider {
     }
 
     /**
-     * MFA 취소 리다이렉트 URL
-     * @return /loginForm (기본값)
+     * MFA 취소 URL (POST)
+     * @return /mfa/cancel (기본값)
      */
     public String getMfaCancel() {
         return properties.getUrls().getMfa().getCancel();
+    }
+
+    /**
+     * MFA 취소 리다이렉트 URL (로그인 페이지)
+     * @return /loginForm (기본값)
+     */
+    public String getMfaCancelRedirect() {
+        return properties.getUrls().getMfa().getCancelRedirect();
+    }
+
+    /**
+     * MFA 상태 조회 URL
+     * @return /mfa/status (기본값)
+     */
+    public String getMfaStatus() {
+        return properties.getUrls().getMfa().getStatus();
+    }
+
+    /**
+     * MFA Context 조회 URL
+     * @return /mfa/context (기본값)
+     */
+    public String getMfaContext() {
+        return properties.getUrls().getMfa().getContext();
+    }
+
+    /**
+     * OTT 코드 재전송 요청 URL
+     * @return /mfa/request-ott-code (기본값)
+     */
+    public String getMfaRequestOttCode() {
+        return properties.getUrls().getMfa().getRequestOttCode();
+    }
+
+    /**
+     * SDK 설정 조회 URL
+     * @return /api/mfa/config (기본값)
+     */
+    public String getMfaConfig() {
+        return properties.getUrls().getMfa().getConfig();
     }
 
     // ========================================
@@ -266,16 +306,14 @@ public class AuthUrlProvider {
     }
 
     /**
-     * 레거시 WebAuthn assertion options URL
-     * @deprecated Use {@link #getApiAssertionOptions()} instead
+     * WebAuthn assertion options URL
      */
-    @Deprecated
     public String getPasskeyAssertionOptions() {
         return properties.getUrls().getFactors().getPasskey().getAssertionOptions();
     }
 
     /**
-     * 레거시 WebAuthn registration options URL
+     * WebAuthn registration options URL
      */
     public String getPasskeyRegistrationOptions() {
         return properties.getUrls().getFactors().getPasskey().getRegistrationOptions();
@@ -290,7 +328,7 @@ public class AuthUrlProvider {
      * @return POST /login/recovery/verify (기본값)
      */
     public String getRecoveryCodeLoginProcessing() {
-        return properties.getUrls().getFactors().getRecoveryCode().getLoginProcessing();
+        return properties.getUrls().getFactors().getRecoveryCodeLoginProcessing();
     }
 
     /**
@@ -298,67 +336,7 @@ public class AuthUrlProvider {
      * @return GET /mfa/challenge/recovery (기본값)
      */
     public String getRecoveryCodeChallengeUi() {
-        return properties.getUrls().getFactors().getRecoveryCode().getChallengeUi();
-    }
-
-    // ========================================
-    // API Endpoints
-    // ========================================
-
-    /**
-     * Factor 선택 API
-     * @return POST /api/mfa/select-factor (기본값)
-     */
-    public String getApiSelectFactor() {
-        return properties.getUrls().getApi().getSelectFactor();
-    }
-
-    /**
-     * MFA 취소 API
-     * @return POST /api/mfa/cancel (기본값)
-     */
-    public String getApiCancel() {
-        return properties.getUrls().getApi().getCancel();
-    }
-
-    /**
-     * MFA 상태 조회 API
-     * @return GET /api/mfa/status (기본값)
-     */
-    public String getApiStatus() {
-        return properties.getUrls().getApi().getStatus();
-    }
-
-    /**
-     * OTT 코드 재요청 API
-     * @return POST /api/mfa/request-ott-code (기본값)
-     */
-    public String getApiRequestOttCode() {
-        return properties.getUrls().getApi().getRequestOttCode();
-    }
-
-    /**
-     * MFA 컨텍스트 조회 API
-     * @return GET /api/mfa/context (기본값)
-     */
-    public String getApiContext() {
-        return properties.getUrls().getApi().getContext();
-    }
-
-    /**
-     * Passkey assertion options API
-     * @return POST /api/mfa/assertion/options (기본값)
-     */
-    public String getApiAssertionOptions() {
-        return properties.getUrls().getApi().getAssertionOptions();
-    }
-
-    /**
-     * SDK 설정 조회 API
-     * @return GET /api/mfa/config (기본값)
-     */
-    public String getApiConfig() {
-        return properties.getUrls().getApi().getConfig();
+        return properties.getUrls().getFactors().getRecoveryCodeChallengeUi();
     }
 
     // ========================================
@@ -384,7 +362,7 @@ public class AuthUrlProvider {
     public List<String> getAllMfaRequestUrls() {
         return List.of(
             getMfaInitiate(),
-            getMfaSelectFactorUi(),
+            getMfaSelectFactor(),
             getOttCodeGeneration(),
             getOttLoginProcessing(),
             getPasskeyLoginProcessing()
@@ -411,7 +389,7 @@ public class AuthUrlProvider {
         urls.put("mfa", Map.of(
             "initiate", getMfaInitiate(),
             "configure", getMfaConfigure(),
-            "selectFactor", getMfaSelectFactorUi(),
+            "selectFactor", getMfaSelectFactor(),
             "success", getMfaSuccess(),
             "failure", getMfaFailure(),
             "cancel", getMfaCancel()
@@ -446,15 +424,15 @@ public class AuthUrlProvider {
             "loginProcessing", getRecoveryCodeLoginProcessing()
         ));
 
-        // API
+        // API (SDK 호환성)
         urls.put("api", Map.of(
-            "selectFactor", getApiSelectFactor(),
-            "cancel", getApiCancel(),
-            "status", getApiStatus(),
-            "requestOttCode", getApiRequestOttCode(),
-            "context", getApiContext(),
-            "assertionOptions", getApiAssertionOptions(),
-            "config", getApiConfig()
+            "selectFactor", getMfaSelectFactor(),
+            "cancel", getMfaCancel(),
+            "status", getMfaStatus(),
+            "requestOttCode", getMfaRequestOttCode(),
+            "context", getMfaContext(),
+            "assertionOptions", getPasskeyAssertionOptions(),
+            "config", getMfaConfig()
         ));
 
         return urls;
@@ -482,7 +460,7 @@ public class AuthUrlProvider {
 
         addUrlWithContext(urlToContexts, getMfaInitiate(), "Mfa.initiate");
         addUrlWithContext(urlToContexts, getMfaConfigure(), "Mfa.configure");
-        addUrlWithContext(urlToContexts, getMfaSelectFactorUi(), "Mfa.selectFactorUi");
+        addUrlWithContext(urlToContexts, getMfaSelectFactor(), "Mfa.selectFactor");
         addUrlWithContext(urlToContexts, getMfaSuccess(), "Mfa.success");
         addUrlWithContext(urlToContexts, getMfaFailure(), "Mfa.failure");
         addUrlWithContext(urlToContexts, getMfaCancel(), "Mfa.cancel");
@@ -508,13 +486,11 @@ public class AuthUrlProvider {
         addUrlWithContext(urlToContexts, getRecoveryCodeLoginProcessing(), "RecoveryCode.loginProcessing");
         addUrlWithContext(urlToContexts, getRecoveryCodeChallengeUi(), "RecoveryCode.challengeUi");
 
-        addUrlWithContext(urlToContexts, getApiSelectFactor(), "Api.selectFactor");
-        addUrlWithContext(urlToContexts, getApiCancel(), "Api.cancel");
-        addUrlWithContext(urlToContexts, getApiStatus(), "Api.status");
-        addUrlWithContext(urlToContexts, getApiRequestOttCode(), "Api.requestOttCode");
-        addUrlWithContext(urlToContexts, getApiContext(), "Api.context");
-        addUrlWithContext(urlToContexts, getApiAssertionOptions(), "Api.assertionOptions");
-        addUrlWithContext(urlToContexts, getApiConfig(), "Api.config");
+        addUrlWithContext(urlToContexts, getMfaStatus(), "Mfa.status");
+        addUrlWithContext(urlToContexts, getMfaContext(), "Mfa.context");
+        addUrlWithContext(urlToContexts, getMfaRequestOttCode(), "Mfa.requestOttCode");
+        addUrlWithContext(urlToContexts, getMfaConfig(), "Mfa.config");
+        addUrlWithContext(urlToContexts, getPasskeyAssertionOptions(), "Passkey.assertionOptions");
 
         // 의도된 중복 URL 정의 (리다이렉트 목적지가 같은 경우)
         Set<String> allowedDuplicates = Set.of("/home", "/loginForm");

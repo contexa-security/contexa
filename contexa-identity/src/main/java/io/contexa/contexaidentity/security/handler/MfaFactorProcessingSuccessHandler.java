@@ -223,7 +223,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "인증 수단을 선택해주세요.",
                     factorContext,
-                    request.getContextPath() + authUrlProvider.getMfaSelectFactorUi(),
+                    request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
                     2  // Factor 선택 단계 (OTT 또는 Passkey 선택 중)
             );
             // DSL 정의 사용 가능한 팩터를 상세 정보로 변환
@@ -311,7 +311,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     authUrlProvider.getPasskeyChallengeUi();
             default -> {
                 log.error("Unsupported MFA factor type: {}", factorType);
-                yield request.getContextPath() + authUrlProvider.getMfaSelectFactorUi();
+                yield request.getContextPath() + authUrlProvider.getMfaSelectFactor();
             }
         };
     }

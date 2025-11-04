@@ -301,8 +301,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             }
         }
 
-        // ⭐ MfaAuthenticationEntryPoint 생성 (Spring Security AbstractAuthenticationFilterConfigurer 패턴)
-        // primaryAuthOptionsForFlow가 null이 아님을 확인한 후 생성
         this.mfaAuthenticationEntryPoint = createMfaAuthenticationEntryPoint(primaryAuthOptionsForFlow);
 
         return flowConfigBuilder
@@ -318,7 +316,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .defaultAdaptiveConfig(this.defaultAdaptiveConfig)
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
                 .mfaAsepAttributes(this.mfaAsepAttributes)
-                .mfaPageConfig(this.mfaPageConfig) // MFA 커스텀 페이지 설정 전달
+                .mfaPageConfig(this.mfaPageConfig)
                 .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)  // ⭐ EntryPoint 추가
                 .build();
     }

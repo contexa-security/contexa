@@ -36,17 +36,17 @@ public class PasskeyUrls {
      */
     private String registrationProcessing = "/mfa/passkey/register";
 
-    // === Legacy WebAuthn URLs (Spring Security defaults) ===
+    // === WebAuthn Standard URLs (Spring Security) ===
 
     /**
-     * 레거시 WebAuthn assertion options URL
-     * @deprecated Use ApiUrls.assertionOptions instead
+     * WebAuthn assertion options URL (Spring Security 표준)
+     * Passkey 인증 시 Assertion Options 요청
      */
-    @Deprecated
     private String assertionOptions = "/webauthn/assertion/options";
 
     /**
-     * 레거시 WebAuthn registration options URL
+     * WebAuthn registration options URL (Spring Security 표준)
+     * Passkey 등록 시 Registration Options 요청
      */
     private String registrationOptions = "/webauthn/registration/options";
 }

@@ -24,8 +24,8 @@ public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         if (platformContext != null) {
             AuthContextProperties authProps = platformContext.getShared(AuthContextProperties.class);
-            if (authProps != null && authProps.getMfa() != null && StringUtils.hasText(authProps.getMfa().getInitiateUrl())) {
-                this.mfaInitiateUrl = authProps.getMfa().getInitiateUrl();
+            if (authProps != null && authProps.getMfa() != null && StringUtils.hasText(authProps.getMfa().getUrls().getInitiate())) {
+                this.mfaInitiateUrl = authProps.getMfa().getUrls().getInitiate();
             }
         }
         if (this.mfaInitiateUrl == null) {

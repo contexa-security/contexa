@@ -24,7 +24,4 @@ public class AuthUrlConfig {
 
     @NestedConfigurationProperty
     private FactorUrls factors = new FactorUrls();
-
-    @NestedConfigurationProperty
-    private ApiUrls api = new ApiUrls();
 }

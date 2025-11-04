@@ -52,10 +52,20 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         try {
             stateMachinePersister.restore(stateMachine, machineId);
             log.debug("[MFA SM Service] [{}] 풀에서 가져온 SM에 상태 복원 완료. 현재 상태: {}", machineId, stateMachine.getState() != null ? stateMachine.getState().getId() : "N/A");
+
+            // ===== 검증 포인트 3: restore() 직후 ExtendedState 확인 =====
+            ExtendedState restoredExtendedState = stateMachine.getExtendedState();
+            FactorContext restoredContext = StateContextHelper.getFactorContext(stateMachine);
+            log.warn("[VERIFY-3] restore() 직후 [{}] - ExtendedState 변수 개수: {}, FactorContext: {}",
+                     machineId, restoredExtendedState.getVariables().size(),
+                     restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
+
             // 복원 후 SM이 시작되지 않았거나, 상태가 없는 매우 예외적인 경우 시작 시도
             if (stateMachine.getState() == null || stateMachine.getState().getId() == null) {
-                log.warn("[MFA SM Service] [{}] 복원 후 SM 상태가 null. initialStateIfNotRestored({})로 리셋 및 시작 시도.", machineId, initialStateIfNotRestored);
-                resetAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
+                log.warn("[MFA SM Service] [{}] 복원 후 SM 상태가 null. initialStateIfNotRestored({})로 업데이트 및 시작 시도.", machineId, initialStateIfNotRestored);
+                log.warn("[VERIFY-3] 복원 후 State는 null이지만 FactorContext는 [{}]: {}",
+                         machineId, restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
+                updateAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
             } else {
                 // 복원 성공 시, SM이 이미 로드된 상태에 있으므로 별도 start 불필요할 수 있음.
                 // 만약 Persister가 SM을 중지된 상태로 복원한다면 여기서 시작 필요.
@@ -63,12 +73,45 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
         } catch (Exception e) {
             log.warn("[MFA SM Service] [{}] 상태 머신 복원 실패 또는 새 세션. 초기 상태({})로 설정. 오류: {}", machineId, initialStateIfNotRestored, e.getMessage());
-            resetAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
+            updateAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
         }
         return stateMachine;
     }
 
-    // 상태 머신을 특정 상태와 FactorContext로 리셋하고 시작하는 헬퍼 메서드
+    // 상태 머신을 특정 상태로 업데이트하되 ExtendedState는 보존하는 헬퍼 메서드 (부분 업데이트용)
+    private void updateAndStartStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String machineId, MfaState targetState, FactorContext factorContext) {
+        if (stateMachine.getState() != null) {
+            stateMachine.stopReactively().block();
+            log.debug("[MFA SM Service] [{}] SM 업데이트 전 중지 완료.", machineId);
+        }
+
+        // ExtendedState 보존 - clear() 호출 안함!
+        ExtendedState extendedState = stateMachine.getExtendedState();
+
+        if (factorContext != null) {
+            StateContextHelper.setFactorContext(extendedState, factorContext);
+            log.debug("[MFA SM Service] [{}] FactorContext (버전:{})를 ExtendedState에 업데이트 (기존 데이터 보존).", machineId, factorContext.getVersion());
+        }
+
+        StateMachineContext<MfaState, MfaEvent> newContext = new DefaultStateMachineContext<>(
+                targetState, null, null, extendedState, null, machineId
+        );
+        stateMachine.getStateMachineAccessor()
+                .doWithAllRegions(access -> access.resetStateMachineReactively(newContext).block());
+        log.debug("[MFA SM Service] [{}] SM 상태({})로 업데이트 완료 (ExtendedState 보존).", machineId, targetState);
+
+        stateMachine.startReactively().block();
+        log.debug("[MFA SM Service] [{}] 업데이트된 SM 시작 완료.", machineId);
+
+        // 검증 로그
+        ExtendedState finalExtendedState = stateMachine.getExtendedState();
+        FactorContext finalContext = StateContextHelper.getFactorContext(stateMachine);
+        log.debug("[MFA SM Service] [{}] updateAndStartStateMachine 완료 - ExtendedState 변수 개수: {}, FactorContext: {}",
+                 machineId, finalExtendedState.getVariables().size(),
+                 finalContext != null ? "존재 (version " + finalContext.getVersion() + ")" : "NULL");
+    }
+
+    // 상태 머신을 특정 상태와 FactorContext로 리셋하고 시작하는 헬퍼 메서드 (완전 초기화용)
     private void resetAndStartStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String machineId, MfaState targetState, FactorContext factorContext) {
         if (stateMachine.getState() != null) { // 현재 상태가 있다면 중지
             stateMachine.stopReactively().block();
@@ -91,6 +134,13 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         log.debug("[MFA SM Service] [{}] SM 상태({})로 리셋 완료. FactorContext 포함: {}", machineId, targetState, (factorContext != null));
         stateMachine.startReactively().block(); // 리셋 후 항상 시작
         log.debug("[MFA SM Service] [{}] 리셋된 SM 시작 완료.", machineId);
+
+        // ===== 검증 포인트 1: resetAndStartStateMachine 완료 후 ExtendedState 검증 =====
+        ExtendedState finalExtendedState = stateMachine.getExtendedState();
+        FactorContext finalContext = StateContextHelper.getFactorContext(stateMachine);
+        log.warn("[VERIFY-1] resetAndStartStateMachine 완료 후 [{}] - ExtendedState 변수 개수: {}, FactorContext: {}",
+                 machineId, finalExtendedState.getVariables().size(),
+                 finalContext != null ? "존재 (version " + finalContext.getVersion() + ")" : "NULL");
     }
 
     // --- 인터페이스 메서드 구현 ---
@@ -393,12 +443,50 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
             stateMachine = stateMachineProvider.getObject();
 
-            context.incrementVersion(); // 저장 전 버전 증가
-            resetAndStartStateMachine(stateMachine, sessionId, context.getCurrentState(), context);
+            // ===== 근본 해결: resetAndStartStateMachine() 제거 =====
+            // 기존 StateMachine 복원 시도
+            boolean restored = false;
+            try {
+                stateMachinePersister.restore(stateMachine, sessionId);
+                if (stateMachine.getState() != null && stateMachine.getState().getId() != null) {
+                    log.debug("[MFA SM Service] [{}] 기존 SM 복원 성공. 현재 상태: {}", sessionId, stateMachine.getState().getId());
+                    restored = true;
+                } else {
+                    log.warn("[MFA SM Service] [{}] SM 복원 후 상태가 null. 새로 시작.", sessionId);
+                }
+            } catch (Exception e) {
+                log.warn("[MFA SM Service] [{}] SM 복원 실패. 새로 시작. 오류: {}", sessionId, e.getMessage());
+            }
+
+            // 복원 실패 시에만 시작
+            if (!restored) {
+                stateMachine.startReactively().block();
+                log.debug("[MFA SM Service] [{}] SM 새로 시작 완료.", sessionId);
+            }
+
+            // 버전 증가 후 FactorContext만 업데이트
+            context.incrementVersion();
+            StateContextHelper.setFactorContext(stateMachine, context);
             log.debug("[MFA SM Service] [{}] 외부 FactorContext (버전:{}) SM에 동기화 완료.", sessionId, context.getVersion());
 
-            persistStateMachine(stateMachine, sessionId); // 헬퍼 메서드 사용
+            // ===== 검증 포인트 2: persistStateMachine 호출 전후 비교 =====
+            FactorContext beforePersist = StateContextHelper.getFactorContext(stateMachine);
+            log.warn("[VERIFY-2] persistStateMachine 호출 전 [{}] - FactorContext: {}",
+                     sessionId, beforePersist != null ? "존재 (version " + beforePersist.getVersion() + ")" : "NULL");
+
+            persistStateMachine(stateMachine, sessionId);
             log.info("[MFA SM Service] [{}] FactorContext 명시적 저장 및 SM 영속화 완료. 버전: {}", sessionId, context.getVersion());
+
+            // ===== 검증: 복원 테스트 =====
+            try {
+                StateMachine<MfaState, MfaEvent> testMachine = stateMachineProvider.getObject();
+                stateMachinePersister.restore(testMachine, sessionId);
+                FactorContext afterPersist = StateContextHelper.getFactorContext(testMachine);
+                log.warn("[VERIFY-2] persistStateMachine 호출 후 복원 [{}] - FactorContext: {}",
+                         sessionId, afterPersist != null ? "존재 (version " + afterPersist.getVersion() + ")" : "NULL");
+            } catch (Exception e) {
+                log.error("[VERIFY-2] persistStateMachine 후 복원 실패 [{}]", sessionId, e);
+            }
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -459,7 +547,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             factorContext.changeState(newState); // FactorContext 상태 변경 (내부에서 버전업 가능)
             // factorContext.incrementVersion(); // changeState에서 버전업 안 한다면 여기서
 
-            resetAndStartStateMachine(stateMachine, sessionId, newState, factorContext); // SM 상태와 ExtendedState를 factorContext와 동기화
+            updateAndStartStateMachine(stateMachine, sessionId, newState, factorContext); // SM 상태 업데이트 (ExtendedState 보존)
 
             persistStateMachine(stateMachine, sessionId); // 헬퍼 메서드 사용
             log.info("[MFA SM Service] [{}] 상태만 업데이트 완료: {}. FactorContext 버전: {}", sessionId, newState, factorContext.getVersion());
@@ -482,8 +570,41 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
     @Override
     public void releaseStateMachine(String sessionId) {
-        log.info("[MFA SM Service] [{}] 세션에 대한 상태 머신 컨텍스트 정리 요청.", sessionId);
-        // Redis에서 "spring:statemachine:context:" + sessionId 키를 직접 삭제하는 로직 추가 가능
+        String lockKey = getLockKey(sessionId);
+        RLock lock = redissonClient.getLock(lockKey);
+        boolean lockAcquired = false;
+
+        try {
+            log.debug("[MFA SM Service] [{}] SM 해제 위한 락 획득 시도.", sessionId);
+            lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+
+            if (!lockAcquired) {
+                log.warn("[MFA SM Service] [{}] SM 해제 위한 락 획득 실패. 타임아웃.", sessionId);
+                return;
+            }
+            log.debug("[MFA SM Service] [{}] SM 해제 위한 락 획득 성공.", sessionId);
+
+            // Redis에서 State Machine 컨텍스트 키 삭제
+            String redisKey = "spring:statemachine:context:" + sessionId;
+            long deletedCount = redissonClient.getKeys().delete(redisKey);
+
+            if (deletedCount > 0) {
+                log.info("[MFA SM Service] [{}] 상태 머신 컨텍스트 정리 완료. 삭제된 키 개수: {}", sessionId, deletedCount);
+            } else {
+                log.debug("[MFA SM Service] [{}] 정리할 상태 머신 컨텍스트가 존재하지 않음.", sessionId);
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("[MFA SM Service] [{}] SM 해제 중 인터럽트 발생.", sessionId, e);
+        } catch (Exception e) {
+            log.error("[MFA SM Service] [{}] SM 해제 중 오류 발생.", sessionId, e);
+        } finally {
+            if (lockAcquired && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+                log.debug("[MFA SM Service] [{}] SM 해제 락 해제.", sessionId);
+            }
+        }
     }
 
     private Message<MfaEvent> createEventMessage(MfaEvent event, FactorContext context, HttpServletRequest request) {
@@ -543,23 +664,99 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             return null;
         }
 
-        // Set 타입 Deep copy
-        if (value instanceof java.util.Set) {
-            return new java.util.HashSet<>((java.util.Set<?>) value);
+        // 불변 객체는 그대로 반환 (복사 불필요)
+        if (isImmutableType(value)) {
+            return value;
         }
 
-        // List 타입 Deep copy
-        if (value instanceof java.util.List) {
-            return new java.util.ArrayList<>((java.util.List<?>) value);
+        try {
+            // Set 타입 Deep copy - 내부 요소도 재귀적으로 복사
+            if (value instanceof java.util.Set) {
+                java.util.Set<?> original = (java.util.Set<?>) value;
+                java.util.Set<Object> deepCopy = new java.util.HashSet<>();
+                for (Object item : original) {
+                    deepCopy.add(deepCopyItem(item));
+                }
+                return deepCopy;
+            }
+
+            // List 타입 Deep copy - 내부 요소도 재귀적으로 복사
+            if (value instanceof java.util.List) {
+                java.util.List<?> original = (java.util.List<?>) value;
+                java.util.List<Object> deepCopy = new java.util.ArrayList<>();
+                for (Object item : original) {
+                    deepCopy.add(deepCopyItem(item));
+                }
+                return deepCopy;
+            }
+
+            // Map 타입 Deep copy - 키와 값 모두 재귀적으로 복사
+            if (value instanceof java.util.Map) {
+                java.util.Map<?, ?> original = (java.util.Map<?, ?>) value;
+                java.util.Map<Object, Object> deepCopy = new java.util.HashMap<>();
+                for (java.util.Map.Entry<?, ?> entry : original.entrySet()) {
+                    deepCopy.put(
+                        deepCopyItem(entry.getKey()),
+                        deepCopyItem(entry.getValue())
+                    );
+                }
+                return deepCopy;
+            }
+
+            // Serializable 객체는 직렬화를 통한 진짜 Deep copy
+            if (value instanceof java.io.Serializable) {
+                return org.apache.commons.lang3.SerializationUtils.clone((java.io.Serializable) value);
+            }
+
+            // 복사 불가능한 객체는 원본 반환 (경고 로그)
+            log.warn("[MFA SM Service] deepCopyIfNeeded - 복사 불가능한 타입 ({}): {}. 원본 참조 반환.",
+                     value.getClass().getName(), key);
+            return value;
+
+        } catch (Exception e) {
+            log.error("[MFA SM Service] deepCopyIfNeeded - Deep copy 실패 (key: {}). 원본 참조 반환.", key, e);
+            return value; // 복사 실패 시 원본 반환 (기존 동작 유지)
+        }
+    }
+
+    // 개별 아이템 Deep copy
+    private Object deepCopyItem(Object item) {
+        if (item == null || isImmutableType(item)) {
+            return item;
         }
 
-        // Map 타입 Deep copy
-        if (value instanceof java.util.Map) {
-            return new java.util.HashMap<>((java.util.Map<?, ?>) value);
+        if (item instanceof java.io.Serializable) {
+            try {
+                return org.apache.commons.lang3.SerializationUtils.clone((java.io.Serializable) item);
+            } catch (Exception e) {
+                log.warn("[MFA SM Service] deepCopyItem - 직렬화 실패. 원본 참조 반환: {}", item.getClass().getName(), e);
+                return item;
+            }
         }
 
-        // 기본 타입 및 불변 객체는 그대로 반환
-        return value;
+        log.warn("[MFA SM Service] deepCopyItem - Serializable 아님. 원본 참조 반환: {}", item.getClass().getName());
+        return item;
+    }
+
+    // 불변 타입 체크
+    private boolean isImmutableType(Object value) {
+        return value instanceof String
+            || value instanceof Integer
+            || value instanceof Long
+            || value instanceof Double
+            || value instanceof Float
+            || value instanceof Boolean
+            || value instanceof Character
+            || value instanceof Byte
+            || value instanceof Short
+            || value instanceof java.math.BigDecimal
+            || value instanceof java.math.BigInteger
+            || value instanceof java.time.LocalDate
+            || value instanceof java.time.LocalDateTime
+            || value instanceof java.time.ZonedDateTime
+            || value instanceof java.time.Instant
+            || value instanceof java.util.UUID
+            || value.getClass().isEnum();
     }
 
     // 이벤트 처리 결과를 담는 내부 레코드 (Java 14+ 사용 가능)

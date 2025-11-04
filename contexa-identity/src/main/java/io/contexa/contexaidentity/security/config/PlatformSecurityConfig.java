@@ -55,12 +55,13 @@ public class PlatformSecurityConfig {
 //                                    "/", "/authMode","/home",
                                     "/loginForm", "/register",
                                     "/loginOtt", "/ott/sent",
-                                    "/loginPasskey",
-                                    "/mfa/select-factor","/mfa/ott/request-code-ui", "/mfa/challenge/ott", "/mfa/challenge/passkey", "/mfa/failure",
+                                    "/loginPasskey","/login/mfa-ott",
+                                    "/mfa/select-factor","/mfa/ott/request-code-ui", "/mfa/challenge/ott",
+                                    "/mfa/challenge/passkey", "/mfa/failure","/mfa/ott/generate-code","/mfa/ott/code-sent",
                                     "/api/register",
                                     "/api/auth/login", "/api/auth/refresh",
                                     "/api/ott/generate",
-                                    "/webauthn/register/options", "/webauthn/register",
+                                    "/webauthn/register/options", "/webauthn/register","/login/mfa-webauthn",
                                     "/webauthn/authenticate/options", "/login/webauthn",
                                     "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/config"
                             ).permitAll()
@@ -82,6 +83,7 @@ public class PlatformSecurityConfig {
                             .invalidateHttpSession(false)
                             .clearAuthentication(true)
                     )
+                    .securityContext(sc -> sc.securityContextRepository(new HttpSessionSecurityContextRepository()))
                 ;
         };
         return registry
@@ -90,7 +92,7 @@ public class PlatformSecurityConfig {
                         .primaryAuthentication(auth -> auth.restLogin(rest ->
                                 rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .ott(Customizer.withDefaults())
-                        .passkey(Customizer.withDefaults())
+//                        .passkey(Customizer.withDefaults())
                         .order(20)
                 ).oauth2(Customizer.withDefaults())
                 .build();

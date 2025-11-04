@@ -5,7 +5,6 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.validator.MfaContextValidator;
 import io.contexa.contexaidentity.security.core.validator.ValidationResult;
-import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaRequestHandler;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.filter.handler.StateMachineAwareMfaRequestHandler;
@@ -41,6 +40,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     private final MfaUrlMatcher urlMatcher;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
+    private final AuthUrlProvider authUrlProvider;
 
     public MfaContinuationFilter(MfaPolicyProvider mfaPolicyProvider,
                                  AuthContextProperties authContextProperties,
@@ -48,8 +48,8 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                                  ApplicationContext applicationContext) {
         this.responseWriter = Objects.requireNonNull(responseWriter);
 
-        AuthUrlProvider authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
-        this.urlMatcher = new MfaUrlMatcher(authContextProperties, authUrlProvider, applicationContext);
+        this.authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
+        this.urlMatcher = new MfaUrlMatcher(authUrlProvider, applicationContext);
         this.stateMachineIntegrator = applicationContext.getBean(MfaStateMachineIntegrator.class);
 
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
@@ -79,8 +79,28 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         log.debug("MfaContinuationFilter processing request: {} {} using {} repository",
                 request.getMethod(), request.getRequestURI(), sessionRepository.getRepositoryType());
 
+        // ===== 검증 포인트 4: MfaContinuationFilter에서 호출 시점 Session ID 및 Cookie 확인 =====
+        String detectedSessionId = sessionRepository.getSessionId(request);
+        boolean sessionExists = sessionRepository.existsSession(detectedSessionId);
+        log.warn("[VERIFY-4] MfaContinuationFilter - URI: {}, 감지된 MFA Session ID: {}, 존재 여부: {}",
+                 request.getRequestURI(), detectedSessionId, sessionExists);
+
+        // Cookie 확인
+        jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (jakarta.servlet.http.Cookie cookie : cookies) {
+                if (cookie.getName().contains("mfa") || cookie.getName().contains("session")) {
+                    log.warn("[VERIFY-4] Cookie 발견 - name: {}, value: {}", cookie.getName(), cookie.getValue());
+                }
+            }
+        }
+
         // 통합된 검증 로직 사용
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+
+        log.warn("[VERIFY-4] loadFactorContextFromRequest 결과 - FactorContext: {}",
+                 ctx != null ? "존재 (version " + ctx.getVersion() + ", state: " + ctx.getCurrentState() + ")" : "NULL");
+
         ValidationResult validation = MfaContextValidator.validateFactorSelectionContext(ctx, sessionRepository);
 
         if (validation.hasErrors()) {
@@ -129,17 +149,11 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         errorResponse.put("message", "MFA 세션이 유효하지 않습니다.");
         errorResponse.put("errors", validation.getErrors());
         errorResponse.put("warnings", validation.getWarnings());
-        errorResponse.put("redirectUrl", request.getContextPath() + "/loginForm");
+        errorResponse.put("redirectUrl", request.getContextPath() + authUrlProvider.getPrimaryLoginPage());
         errorResponse.put("repositoryType", sessionRepository.getRepositoryType());
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                 "MFA_SESSION_INVALID", String.join(", ", validation.getErrors()),
                 request.getRequestURI(), errorResponse);
-    }
-
-    private boolean isValidMfaContext(FactorContext ctx) {
-        return ctx != null &&
-                ctx.getMfaSessionId() != null &&
-                AuthType.MFA.name().equalsIgnoreCase(ctx.getFlowTypeName());
     }
 }

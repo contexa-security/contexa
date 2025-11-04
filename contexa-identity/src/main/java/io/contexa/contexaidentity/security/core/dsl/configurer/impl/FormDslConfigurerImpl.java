@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.context.SecurityContextRepository;
 
@@ -16,8 +17,9 @@ public final class FormDslConfigurerImpl
         extends AbstractOptionsBuilderConfigurer<FormDslConfigurerImpl, FormOptions, FormOptions.Builder, FormDslConfigurer>
         implements FormDslConfigurer {
 
-    public FormDslConfigurerImpl() {
-        super(FormOptions.builder());
+    public FormDslConfigurerImpl(ApplicationContext applicationContext) {
+        super(FormOptions.builder(applicationContext));
+        setApplicationContext(applicationContext);
     }
 
     @Override
