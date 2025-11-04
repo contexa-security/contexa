@@ -1,8 +1,6 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
-import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -21,14 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
-import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * 완전 일원화된 MfaFactorProcessingSuccessHandler
@@ -39,28 +34,25 @@ import java.util.stream.Collectors;
 @Slf4j
 public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
 
-    private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthResponseWriter responseWriter;
-    private final ApplicationContext applicationContext;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
 
     public MfaFactorProcessingSuccessHandler(MfaStateMachineIntegrator mfaStateMachineIntegrator,
-                                             MfaPolicyProvider mfaPolicyProvider,
+                                             MfaPolicyProvider mfaPolicyProvider, // 파라미터는 유지 (DI)
                                              AuthResponseWriter responseWriter,
-                                             ApplicationContext applicationContext,
+                                             ApplicationContext applicationContext, // 파라미터는 유지 (DI)
                                              AuthContextProperties authContextProperties,
                                              MfaSessionRepository sessionRepository,
                                              TokenService tokenService,
                                              AuthUrlProvider authUrlProvider) {
         super(tokenService,responseWriter,sessionRepository,mfaStateMachineIntegrator,authContextProperties);
-        this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
-        this.applicationContext = applicationContext;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
+        // mfaPolicyProvider, applicationContext: 파라미터로 받지만 필드에 저장하지 않음 (현재 미사용)
     }
 
     @Override
@@ -173,20 +165,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                          nextEvent, factorContext.getMfaSessionId());
             }
 
-            // Phase 2: 모든 이벤트 처리 후 최신 상태 로드
-            FactorContext refreshedContext = stateMachineIntegrator.loadFactorContext(
-                factorContext.getMfaSessionId()
-            );
-
-            if (refreshedContext == null) {
-                handleInvalidContext(response, request, "CONTEXT_LOST_AFTER_POLICY",
-                                   "정책 처리 후 컨텍스트 유실.", authentication);
-                return;
-            }
-
-            factorContext = refreshedContext;
-            log.debug("Context refreshed after policy processing. New state: {}",
-                     factorContext.getCurrentState());
+            // Note: sendEvent() 메서드가 factorContext를 이미 최신 상태로 업데이트함
+            // 별도의 재로드 불필요 (Performance Optimization)
         }
 
         // 6. 최종 상태 확인 및 응답
@@ -328,54 +308,9 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 request.getRequestURI());
     }
 
-    @Nullable
-    private AuthenticationFlowConfig findMfaFlowConfig(String flowTypeName) {
-        if (!StringUtils.hasText(flowTypeName)) {
-            return null;
-        }
-
-        PlatformConfig platformConfig;
-        try {
-            platformConfig = applicationContext.getBean(PlatformConfig.class);
-        } catch (Exception e) {
-            log.error("PlatformConfig bean not found in ApplicationContext", e);
-            return null;
-        }
-
-        if (platformConfig == null || platformConfig.getFlows() == null) {
-            log.error("PlatformConfig or its flows list is null");
-            return null;
-        }
-
-        List<AuthenticationFlowConfig> matchingFlows = platformConfig.getFlows().stream()
-                .filter(flow -> flowTypeName.equalsIgnoreCase(flow.getTypeName()))
-                .collect(Collectors.toList());
-
-        if (matchingFlows.isEmpty()) {
-            log.warn("No AuthenticationFlowConfig found with typeName '{}'", flowTypeName);
-            return null;
-        }
-
-        if (matchingFlows.size() > 1) {
-            log.error("CRITICAL: Multiple AuthenticationFlowConfigs found for typeName '{}'. Using first one.",
-                    flowTypeName);
-        }
-
-        return matchingFlows.get(0);
-    }
-    private void handleConfigError(HttpServletResponse response, HttpServletRequest request,
-                                   FactorContext ctx, String message) throws IOException {
-        log.error("Configuration error for flow '{}': {}", ctx.getFlowTypeName(), message);
-        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "MFA_FLOW_CONFIG_ERROR", message, request.getRequestURI());
-
-        // State Machine 정리
-        try {
-            stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
-        } catch (Exception e) {
-            log.warn("Failed to release State Machine session after config error: {}", ctx.getMfaSessionId(), e);
-        }
-    }
+    // Phase 1.2: Dead Code 제거
+    // - findMfaFlowConfig(): 미사용 메서드 제거
+    // - handleConfigError(): PrimaryAuthenticationSuccessHandler에 동일 메서드 존재 (중복 제거)
 
     private void handleGenericError(HttpServletResponse response, HttpServletRequest request,
                                     FactorContext ctx, String message) throws IOException {
