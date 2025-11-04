@@ -76,8 +76,10 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
 
         // 기본 속성 설정
         ctx.setMfaRequiredAsPerPolicy(decision.isRequired());
-        ctx.setAttribute("mfaDecision", decision);
+        // Phase 3.4: MfaDecision 객체는 Kryo 직렬화 불가(no-arg 생성자 없음)이므로 필요한 정보만 저장
+        ctx.setAttribute("mfaDecisionType", decision.getType().name());
         ctx.setAttribute("requiredFactorCount", decision.getFactorCount());
+        ctx.setAttribute("mfaDecisionReason", decision.getReason());
 
         // Phase 2: 메타데이터 적용 (사용자 정보 캐싱 포함)
         if (decision.getMetadata() != null) {
@@ -101,10 +103,27 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
             // P1-1: 부모 클래스의 공통 메서드 사용
             AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(ctx);
             if (mfaFlowConfig != null) {
-                Set<AuthType> availableFactors = mfaFlowConfig.getRegisteredFactorOptions().keySet();
+                // Phase 3.4: Defensive copy for serialization safety
+                Set<AuthType> availableFactors = new HashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
                 ctx.setAttribute("availableFactors", availableFactors);
                 ctx.setAttribute("availableFactorCount", availableFactors.size());
-                ctx.setAttribute("mfaFlowConfig", mfaFlowConfig);
+
+                // Phase 3.4: Store only serializable values instead of entire config
+                ctx.setAttribute("flowTypeName", mfaFlowConfig.getTypeName());
+                ctx.setAttribute("flowOrder", mfaFlowConfig.getOrder());
+
+                log.info("[InitializeMfaAction] Set availableFactors: {} (count: {}) for session: {}, version: {}",
+                         availableFactors, availableFactors.size(), ctx.getMfaSessionId(), ctx.getVersion());
+
+                // 즉시 ExtendedState에 반영 확인 (Phase 3.3: Type-safe getter 사용)
+                Set<AuthType> verifyFactors = ctx.getSetAttribute("availableFactors");
+                if (verifyFactors == null || verifyFactors.isEmpty()) {
+                    log.error("[InitializeMfaAction] availableFactors verification FAILED for session: {}",
+                             ctx.getMfaSessionId());
+                } else {
+                    log.debug("[InitializeMfaAction] availableFactors verified: {} for session: {}",
+                             verifyFactors, ctx.getMfaSessionId());
+                }
 
                 // StateConfig 설정 (OAuth2/Session 구분을 위해)
                 if (mfaFlowConfig.getStateConfig() != null) {

@@ -38,7 +38,6 @@ public final class AuthenticationFlowConfig {
     private final MfaAsepAttributes mfaAsepAttributes;
     private final MfaPageConfig mfaPageConfig; // MFA 커스텀 페이지 설정
     private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; // ⭐ MFA AuthenticationEntryPoint
-
     private final List<AuthenticationStepConfig> stepConfigs;
 
     private AuthenticationFlowConfig(Builder builder) {
@@ -50,8 +49,7 @@ public final class AuthenticationFlowConfig {
         this.mfaPolicyProvider = builder.mfaPolicyProvider;
         this.mfaFailureHandler = builder.mfaFailureHandler;
         this.finalSuccessHandler = builder.finalSuccessHandler;
-        this.registeredFactorOptions = builder.registeredFactorOptions != null ? Map.copyOf(builder.registeredFactorOptions) :
-                Collections.emptyMap();
+        this.registeredFactorOptions = builder.registeredFactorOptions != null ? Map.copyOf(builder.registeredFactorOptions) : Collections.emptyMap();
         this.defaultRetryPolicy = builder.defaultRetryPolicy;
         this.defaultAdaptiveConfig = builder.defaultAdaptiveConfig;
         this.defaultDeviceTrustEnabled = builder.defaultDeviceTrustEnabled;

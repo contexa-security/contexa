@@ -30,13 +30,33 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
         // 팩터별 챌린지 처리
         switch (factorType) {
             case "OTT":
-                log.info("Initiating OTT challenge for session: {}", sessionId);
+                // Phase 2.2: SelectFactorAction에서 설정한 ottDeliveryMethod 활용
+                String ottDeliveryMethod = (String) factorContext.getAttribute("ottDeliveryMethod");
+                if (ottDeliveryMethod == null) {
+                    log.warn("[InitiateChallengeAction] ottDeliveryMethod not set, defaulting to EMAIL for session: {}", sessionId);
+                    ottDeliveryMethod = "EMAIL";
+                    factorContext.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
+                }
+
+                log.info("[InitiateChallengeAction] Initiating OTT challenge via {} for session: {}",
+                        ottDeliveryMethod, sessionId);
                 factorContext.setAttribute("ottCodeSent", true);
+                factorContext.setAttribute("ottDeliveryMethodUsed", ottDeliveryMethod); // 실제 사용된 방법 기록
                 break;
 
             case "PASSKEY":
-                log.info("Initiating Passkey challenge for session: {}", sessionId);
+                // Phase 2.2: SelectFactorAction에서 설정한 passkeyType 활용
+                String passkeyType = (String) factorContext.getAttribute("passkeyType");
+                if (passkeyType == null) {
+                    log.warn("[InitiateChallengeAction] passkeyType not set, defaulting to PLATFORM for session: {}", sessionId);
+                    passkeyType = "PLATFORM";
+                    factorContext.setAttribute("passkeyType", passkeyType);
+                }
+
+                log.info("[InitiateChallengeAction] Initiating Passkey challenge with type {} for session: {}",
+                        passkeyType, sessionId);
                 factorContext.setAttribute("passkeyOptionsGenerated", true);
+                factorContext.setAttribute("passkeyTypeUsed", passkeyType); // 실제 사용된 타입 기록
                 break;
 
             default:

@@ -16,5 +16,5 @@ public @interface SecurityCookieValue {
 
     boolean required() default true;
 
-    String defaultValue() default ValueConstants.DEFAULT_NONE;
+    String defaultValue() default "NONE";
 }

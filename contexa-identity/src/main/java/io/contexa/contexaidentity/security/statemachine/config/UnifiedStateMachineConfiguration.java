@@ -47,10 +47,8 @@ public class UnifiedStateMachineConfiguration {
     private final AuthContextProperties authContextProperties;
 
 
-    /**
-     * State Machine 영속화 전략
-     */
-//    @Bean
+
+    /*@Bean
     public StateMachinePersist<MfaState, MfaEvent, String> stateMachinePersist(
             @Qualifier("stateMachineRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
 
@@ -75,7 +73,7 @@ public class UnifiedStateMachineConfiguration {
             default:
                 return new InMemoryStateMachinePersist();
         }
-    }
+    }*/
 
     @Bean
     public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(RedisStateMachineRepository redisStateMachineRepository) {

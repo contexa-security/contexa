@@ -2,6 +2,9 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.domain.dto.UserDto;
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 완전 일원화된 UnifiedAuthenticationSuccessHandler
@@ -45,6 +49,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
+    private final ApplicationContext applicationContext;
 
     public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, TokenService tokenService, AuthResponseWriter responseWriter, AuthContextProperties authContextProperties, ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator, MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider) {
         super(tokenService,responseWriter,sessionRepository,stateMachineIntegrator,authContextProperties);
@@ -53,6 +58,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
+        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -140,30 +146,30 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         switch (currentState) {
             case MFA_NOT_REQUIRED, MFA_SUCCESSFUL:
                 log.info("MFA not required for user: {}. Proceeding with final authentication success.", username);
-                handleFinalAuthenticationSuccess(request, response, authentication, factorContext);
+                handleFinalAuthenticationSuccess(request, response, authentication, finalFactorContext);
                 break;
 
             case AWAITING_FACTOR_SELECTION:
                 log.info("MFA required for user: {}. State: AWAITING_FACTOR_SELECTION", username);
-                handleFactorSelectionRequired(request, response, factorContext);
+                handleFactorSelectionRequired(request, response, finalFactorContext);
                 break;
 
             case FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION:
                 log.info("MFA required for user: {}. Proceeding directly to challenge", username);
-                handleDirectChallenge(request, response, factorContext);
+                handleDirectChallenge(request, response, finalFactorContext);
                 break;
 
             case PRIMARY_AUTHENTICATION_COMPLETED:
                 log.error("State remained PRIMARY_AUTHENTICATION_COMPLETED for user: {}. Next event may have failed.", username);
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, factorContext, request);
-                handleConfigError(response, request, factorContext, "MFA 초기화 후 다음 단계로 전이되지 않았습니다.");
+                handleConfigError(response, request, finalFactorContext, "MFA 초기화 후 다음 단계로 전이되지 않았습니다.");
                 break;
 
             default:
                 log.error("Unexpected FactorContext state ({}) for user {} after policy evaluation",
                         currentState, username);
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, factorContext, request);
-                handleConfigError(response, request, factorContext, "MFA 처리 중 예상치 못한 상태입니다.");
+                handleConfigError(response, request, finalFactorContext, "MFA 처리 중 예상치 못한 상태입니다.");
         }
     }
 
@@ -352,8 +358,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     /**
      * Phase 2: MfaDecision에 따라 다음 이벤트 전송
      */
-    private boolean sendNextMfaEvent(io.contexa.contexaidentity.security.core.mfa.model.MfaDecision decision,
-                                     String mfaSessionId, HttpServletRequest request) {
+    private boolean sendNextMfaEvent(MfaDecision decision, String mfaSessionId, HttpServletRequest request) {
         FactorContext context = stateMachineIntegrator.loadFactorContext(mfaSessionId);
         if (context == null) {
             log.error("FactorContext not found for session: {}", mfaSessionId);
@@ -374,8 +379,101 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         }
 
         // MFA 필요 - 자동으로 챌린지 시작
+        // 자동 팩터 결정 및 설정
+        AuthType autoSelectedFactor = determineAutoFactor(context, decision);
+        if (autoSelectedFactor == null) {
+            log.error("Failed to determine auto factor for session: {}", mfaSessionId);
+            return false;
+        }
+
+        // Context에 팩터 설정
+        context.setCurrentProcessingFactor(autoSelectedFactor);
+        context.setAttribute("autoSelected", true);
+
+        // 다음 stepId 결정 (FlowConfig에서 조회)
+        setCurrentStepId(context, autoSelectedFactor);
+
+        // 이벤트 전송 (sendEvent 내부에서 자동으로 persist하므로 중복 저장 제거)
         boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
-        log.debug("INITIATE_CHALLENGE_AUTO event sent for session: {}, accepted: {}", mfaSessionId, sent);
+        log.info("INITIATE_CHALLENGE_AUTO event sent for session: {}, accepted: {}, factor: {}",
+                  mfaSessionId, sent, autoSelectedFactor);
         return sent;
+    }
+
+    /**
+     * 자동 팩터 결정 로직
+     *
+     * @param context FactorContext
+     * @param decision MfaDecision
+     * @return 결정된 팩터 (실패 시 null)
+     */
+    private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {
+        String sessionId = context.getMfaSessionId();
+
+        // 1. MfaDecision의 requiredFactors에서 첫 번째 팩터
+        if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {
+            AuthType firstFactor = decision.getRequiredFactors().getFirst();
+
+            // 사용 가능한 팩터인지 확인
+            if (context.getAvailableFactors() != null &&
+                context.getAvailableFactors().contains(firstFactor)) {
+                log.info("Auto-selected factor from MfaDecision: {} for session: {}",
+                         firstFactor, sessionId);
+                return firstFactor;
+            }
+        }
+
+        // 2. AvailableFactors에서 첫 번째 팩터 (폴백)
+        Set<AuthType> availableFactors = context.getAvailableFactors();
+        if (availableFactors != null && !availableFactors.isEmpty()) {
+            AuthType firstAvailable = availableFactors.iterator().next();
+            log.info("Auto-selected first available factor: {} for session: {}",
+                     firstAvailable, sessionId);
+            return firstAvailable;
+        }
+
+        log.error("No available factors for auto-selection in session: {}", sessionId);
+        return null;
+    }
+
+    /**
+     * FlowConfig에서 팩터에 해당하는 stepId를 찾아 설정
+     *
+     * @param context FactorContext
+     * @param factorType 팩터 타입
+     */
+    private void setCurrentStepId(FactorContext context, AuthType factorType) {
+        try {
+            // PlatformConfig에서 MFA FlowConfig 조회
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+
+            AuthenticationFlowConfig flowConfig = platformConfig.getFlows().stream()
+                .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
+                .findFirst()
+                .orElse(null);
+
+            if (flowConfig == null) {
+                log.warn("MFA FlowConfig not found, stepId will not be set");
+                return;
+            }
+
+            // 팩터 타입과 일치하는 스텝 찾기
+            AuthenticationStepConfig nextStep = flowConfig.getStepConfigs().stream()
+                .filter(step -> factorType.name().equalsIgnoreCase(step.getType()))
+                .findFirst()
+                .orElse(null);
+
+            if (nextStep != null) {
+                context.setCurrentStepId(nextStep.getStepId());
+                log.debug("Set currentStepId: {} for factor: {} in session: {}",
+                         nextStep.getStepId(), factorType, context.getMfaSessionId());
+            } else {
+                log.warn("No step config found for factor: {} in session: {}",
+                        factorType, context.getMfaSessionId());
+            }
+        } catch (Exception e) {
+            log.error("Error setting currentStepId for factor: {} in session: {}",
+                     factorType, context.getMfaSessionId(), e);
+        }
     }
 }

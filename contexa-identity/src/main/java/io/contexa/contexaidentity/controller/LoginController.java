@@ -526,18 +526,16 @@ public class LoginController {
 
         try {
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            if (platformConfig != null && platformConfig.getFlows() != null) {
-                return platformConfig.getFlows().stream()
-                        .filter(flow -> flowTypeName.equalsIgnoreCase(flow.getTypeName()))
-                        .findFirst()
-                        .orElseGet(() -> {
-                            String sessionId = (request != null && request.getSession(false) != null) ?
-                                    request.getSession(false).getId() : "N/A";
-                            log.warn("LoginController (Session: {}): No AuthenticationFlowConfig found with typeName: {}",
-                                    sessionId, flowTypeName);
-                            return null;
-                        });
-            }
+            return platformConfig.getFlows().stream()
+                    .filter(flow -> flowTypeName.equalsIgnoreCase(flow.getTypeName()))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        String sessionId = (request != null && request.getSession(false) != null) ?
+                                request.getSession(false).getId() : "N/A";
+                        log.warn("LoginController (Session: {}): No AuthenticationFlowConfig found with typeName: {}",
+                                sessionId, flowTypeName);
+                        return null;
+                    });
         } catch (Exception e) {
             String sessionId = (request != null && request.getSession(false) != null) ?
                     request.getSession(false).getId() : "N/A";

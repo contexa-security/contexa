@@ -59,7 +59,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         factorContext.setCurrentProcessingFactor(authType);
 
         // 선택 시간 기록
-        factorContext.setAttribute("factorSelectedAt", System.currentTimeMillis());
+        long selectionTime = System.currentTimeMillis();
+        factorContext.setAttribute("factorSelectedAt", selectionTime);
 
         // 팩터별 추가 설정 - 시스템 설정이나 사용자 설정에서 가져옴
         switch (authType) {
@@ -83,9 +84,11 @@ public class SelectFactorAction extends AbstractMfaStateAction {
                 log.debug("No additional settings for factor: {}", authType);
         }
 
-        // 상태 머신 변수 업데이트
-        context.getExtendedState().getVariables().put("currentSelectedFactor", authType.name());
-        context.getExtendedState().getVariables().put("factorSelectionTime", System.currentTimeMillis());
+        // Phase 2.1: currentSelectedFactor 중복 제거
+        // factorContext.setCurrentProcessingFactor(authType)로 이미 설정되어 있으므로
+        // ExtendedState에 중복 저장하지 않음
+        // 단, factorSelectionTime은 State Machine 내부 타이밍 추적용으로 유지
+        context.getExtendedState().getVariables().put("factorSelectionTime", selectionTime);
 
         log.info("Factor selection completed for session: {}, factor: {}", sessionId, authType);
     }

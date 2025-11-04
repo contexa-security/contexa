@@ -109,11 +109,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             O options, @Nullable AuthenticationFlowConfig currentFlow,
             AuthenticationStepConfig myStepConfig, @Nullable List<AuthenticationStepConfig> allSteps,
             ApplicationContext appContext) {
-        /*if (options.getSuccessHandler() != null) {
-            log.debug("AuthenticationFeature [{}]: Using successHandler from options: {}", getId(), options.getSuccessHandler().getClass().getSimpleName());
-            return options.getSuccessHandler();
-        }
-*/
+
         if (currentFlow != null && "mfa".equalsIgnoreCase(currentFlow.getTypeName()) && allSteps != null) {
             int currentStepIndex = allSteps.indexOf(myStepConfig);
             boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
@@ -132,22 +128,8 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
     protected PlatformAuthenticationFailureHandler  resolveFailureHandler(O options, @Nullable AuthenticationFlowConfig currentFlow, ApplicationContext appContext) {
 
-        /*if (options.getFailureHandler() != null) {
-            log.debug("AuthenticationFeature [{}]: Using failureHandler from options: {}", getId(), options.getFailureHandler().getClass().getSimpleName());
-            return options.getFailureHandler();
-        }*/
-
         if (currentFlow != null && "mfa".equalsIgnoreCase(currentFlow.getTypeName())) {
             return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-            /*Object mfaSpecificFailureHandler = currentFlow.getMfaFailureHandler();
-            if (mfaSpecificFailureHandler instanceof PlatformAuthenticationFailureHandler  springSecurityFailureHandler) {
-                log.debug("AuthenticationFeature [{}]: Using MfaFailureHandler from current MFA flow config.", getId());
-                return springSecurityFailureHandler;
-
-            } else {
-                log.debug("AuthenticationFeature [{}]: No MfaFailureHandler set in MFA flow config. Using platform default MfaAuthenticationFailureHandler.", getId());
-                return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-            }*/
         }
 
         log.debug("AuthenticationFeature [{}]: Resolving default failureHandler.", getId());

@@ -11,7 +11,10 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Custom MFA Controller Example
@@ -59,8 +62,9 @@ public class CustomMfaController {
         // 방법 1: Filter가 주입한 attributes 사용 (권장)
         String mfaSessionId = (String) request.getAttribute("mfaSessionId");
         String username = (String) request.getAttribute("username");
-        @SuppressWarnings("unchecked")
-        List<AuthType> factors = (List<AuthType>) request.getAttribute("availableFactors");
+
+        // Type-safe availableFactors 변환 (Set 또는 List 모두 처리)
+        List<AuthType> factors = extractAvailableFactors(request);
 
         // 방법 2: 직접 FactorContext 로드 (필요한 경우)
         // FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
@@ -157,5 +161,40 @@ public class CustomMfaController {
         log.debug("Custom MFA failure page with error: {}", errorMessage);
 
         return "custom/mfa-failure";
+    }
+
+    /**
+     * Type-safe availableFactors 추출 (Set → List 변환)
+     *
+     * FactorContext.getAvailableFactors()는 Set<AuthType>을 반환하지만,
+     * request attributes에는 Set 또는 List로 저장될 수 있습니다.
+     * ClassCastException을 방지하기 위해 안전하게 변환합니다.
+     */
+    @SuppressWarnings("unchecked")
+    private List<AuthType> extractAvailableFactors(HttpServletRequest request) {
+        Object factorsObj = request.getAttribute("availableFactors");
+
+        if (factorsObj == null) {
+            log.warn("[CustomMfaController] availableFactors attribute is null");
+            return Collections.emptyList();
+        }
+
+        try {
+            if (factorsObj instanceof Set) {
+                Set<AuthType> factorsSet = (Set<AuthType>) factorsObj;
+                log.debug("[CustomMfaController] Converting Set<AuthType> to List<AuthType>, size: {}", factorsSet.size());
+                return new ArrayList<>(factorsSet);
+            } else if (factorsObj instanceof List) {
+                List<AuthType> factorsList = (List<AuthType>) factorsObj;
+                log.debug("[CustomMfaController] Using List<AuthType> directly, size: {}", factorsList.size());
+                return factorsList;
+            } else {
+                log.error("[CustomMfaController] Unexpected availableFactors type: {}", factorsObj.getClass().getName());
+                return Collections.emptyList();
+            }
+        } catch (ClassCastException e) {
+            log.error("[CustomMfaController] Type casting failed for availableFactors", e);
+            return Collections.emptyList();
+        }
     }
 }

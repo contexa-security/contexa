@@ -27,6 +27,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationConverter;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
@@ -86,7 +87,8 @@ public class PlatformSecurityConfig {
         return registry
                 .global(globalHttpCustomizer)
                 .mfa(mfa -> mfa
-                        .primaryAuthentication(rest -> rest.restLogin(Customizer.withDefaults()))
+                        .primaryAuthentication(auth -> auth.restLogin(rest ->
+                                rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .ott(Customizer.withDefaults())
                         .passkey(Customizer.withDefaults())
                         .order(20)

@@ -9,12 +9,15 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.session.SessionManagementFilter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 
@@ -56,7 +59,7 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
         BaseAuthenticationFilter filter = createAuthenticationFilter(http, authenticationManager, applicationContext, properties);
 
         // 공통 설정 적용
-        configureFilter(filter);
+        configureFilter(filter, (HttpSecurity) http);
 
         http.addFilterBefore(postProcess(filter), UsernamePasswordAuthenticationFilter.class);
     }
@@ -75,18 +78,13 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
      * 필터에 공통 설정을 적용하는 메서드
      * 리플렉션을 사용하여 필터 타입에 관계없이 설정 적용
      */
-    protected void configureFilter(BaseAuthenticationFilter filter) {
+    protected void configureFilter(BaseAuthenticationFilter filter, HttpSecurity http) {
 
         if (successHandler != null) {
             filter.setSuccessHandler(successHandler);
         }
         if (failureHandler != null) {
             filter.setFailureHandler(failureHandler);
-        }
-        StateType stateType = properties.getStateType();
-
-        if (securityContextRepository == null && stateType == StateType.SESSION) {
-            securityContextRepository = new HttpSessionSecurityContextRepository();
         }
 
         filter.setSecurityContextRepository(Objects.requireNonNullElseGet(securityContextRepository,

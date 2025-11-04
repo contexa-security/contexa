@@ -76,22 +76,19 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         }
 
         ExtendedState extendedState = stateMachine.getExtendedState();
-        extendedState.getVariables().clear(); // 이전 ExtendedState 내용 삭제
-        /*if (factorContext != null) {
+        extendedState.getVariables().clear();
+
+        if (factorContext != null) {
             StateContextHelper.setFactorContext(extendedState, factorContext);
-            log.debug("[MFA SM Service] [{}] 리셋 중 FactorContext (버전:{})를 ExtendedState에 설정.", machineId, factorContext.getVersion());
-        }*/
+            log.debug("[MFA SM Service] [{}] 리셋 전 FactorContext (버전:{})를 ExtendedState에 설정.", machineId, factorContext.getVersion());
+        }
 
         StateMachineContext<MfaState, MfaEvent> newContext = new DefaultStateMachineContext<>(
                 targetState, null, null, extendedState, null, machineId
         );
         stateMachine.getStateMachineAccessor()
                 .doWithAllRegions(access -> access.resetStateMachineReactively(newContext).block());
-        log.debug("[MFA SM Service] [{}] SM 상태({})로 리셋 완료.", machineId, targetState);
-        if (factorContext != null) {
-            StateContextHelper.setFactorContext(extendedState, factorContext);
-            log.debug("[MFA SM Service] [{}] 리셋 중 FactorContext (버전:{})를 ExtendedState에 설정.", machineId, factorContext.getVersion());
-        }
+        log.debug("[MFA SM Service] [{}] SM 상태({})로 리셋 완료. FactorContext 포함: {}", machineId, targetState, (factorContext != null));
         stateMachine.startReactively().block(); // 리셋 후 항상 시작
         log.debug("[MFA SM Service] [{}] 리셋된 SM 시작 완료.", machineId);
     }
@@ -232,6 +229,21 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         MfaState smStateAfterEvent = stateMachine.getState() != null ? stateMachine.getState().getId() : originalExternalContext.getCurrentState();
         FactorContext contextFromSmAfterEvent = StateContextHelper.getFactorContext(stateMachine);
 
+        // 검증: contextFromSm 획득 후 속성 검증 로그 추가
+        if (contextFromSmAfterEvent != null) {
+            Object factorsObj = contextFromSmAfterEvent.getAttribute("availableFactors");
+            log.debug("[sendEventInternal] contextFromSm retrieved - availableFactors: {}, state: {}, session: {}",
+                     factorsObj, smStateAfterEvent, originalExternalContext.getMfaSessionId());
+
+            if (factorsObj == null) {
+                log.warn("[sendEventInternal] availableFactors is NULL in contextFromSm for session: {}",
+                        originalExternalContext.getMfaSessionId());
+            }
+        } else {
+            log.error("[sendEventInternal] contextFromSm is NULL for session: {}",
+                     originalExternalContext.getMfaSessionId());
+        }
+
         return new Result(eventAccepted, smStateAfterEvent, contextFromSmAfterEvent);
     }
 
@@ -239,21 +251,47 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
      * SM 내부의 FactorContext 변경사항을 외부 FactorContext 객체에 동기화하는 헬퍼 메서드
      */
     private void synchronizeExternalContext(FactorContext externalContext, FactorContext contextFromSm, MfaState smActualState) {
-        if (externalContext == null) return;
+        if (externalContext == null) {
+            log.warn("[MFA SM Service] External context is null, skipping synchronization");
+            return;
+        }
 
         if (contextFromSm != null) {
             externalContext.changeState(smActualState); // SM의 실제 상태로 외부 context 상태 업데이트
             externalContext.setVersion(contextFromSm.getVersion()); // SM 내부 FactorContext의 버전 사용
-            // Attributes 병합 또는 덮어쓰기 (여기서는 SM 내부 것을 우선)
-            externalContext.getAttributes().clear();
-            externalContext.getAttributes().putAll(contextFromSm.getAttributes());
-            // 기타 필요한 FactorContext 필드들도 contextFromSm의 값으로 업데이트
+
+            // Phase 3.1: Attributes Deep Copy 구현
+            // Attributes 병합: SM 내부 속성을 외부 context에 병합 (clear 제거하여 기존 속성 보존)
+            if (contextFromSm.getAttributes() != null) {
+                log.debug("[MFA SM Service] [{}] Merging {} attributes from SM to external context",
+                         externalContext.getMfaSessionId(), contextFromSm.getAttributes().size());
+                contextFromSm.getAttributes().forEach((key, value) -> {
+                    // Deep copy for collection types
+                    Object copiedValue = deepCopyIfNeeded(key, value);
+                    externalContext.setAttribute(key, copiedValue);
+                    if ("availableFactors".equals(key)) {
+                        log.info("[MFA SM Service] [{}] Synced availableFactors: {}",
+                                externalContext.getMfaSessionId(), copiedValue);
+                    }
+                });
+            }
+
+            // Phase 3.2: 누락된 필드 동기화 추가
+            // 기본 필드들
             externalContext.setCurrentProcessingFactor(contextFromSm.getCurrentProcessingFactor());
             externalContext.setCurrentStepId(contextFromSm.getCurrentStepId());
             externalContext.setMfaRequiredAsPerPolicy(contextFromSm.isMfaRequiredAsPerPolicy());
             externalContext.setRetryCount(contextFromSm.getRetryCount());
             externalContext.setLastError(contextFromSm.getLastError());
-            // ... (completedFactors 등 중요 필드도 필요시 동기화) ...
+
+            // Phase 3.2.1: completedFactors는 FactorContext 내부에서 관리되므로
+            // 외부에서 강제 동기화하지 않음 (불변 컬렉션 오류 방지)
+            // completedFactors는 각 Action에서 factorContext.addCompletedFactor()로 추가됨
+
+            // 타임스탬프 필드들
+            if (contextFromSm.getLastActivityTimestamp() != null) {
+                externalContext.updateLastActivityTimestamp();
+            }
         } else {
             // SM에서 FactorContext를 찾을 수 없는 예외적인 경우
             log.warn("[MFA SM Service] [{}] SM 내부에서 FactorContext를 찾을 수 없음. 외부 context의 상태만 SM 실제 상태로 업데이트.", externalContext.getMfaSessionId());
@@ -488,6 +526,40 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
     private boolean isTerminalState(MfaState state) {
         if (state == null) return false;
         return state.isTerminal();
+    }
+
+    /**
+     * Phase 3.1: Attributes Deep Copy 헬퍼 메서드
+     *
+     * Collection 타입의 속성값에 대해 Deep copy를 수행하여
+     * 외부에서 수정해도 State Machine 내부 데이터가 영향받지 않도록 합니다.
+     *
+     * @param key 속성 키
+     * @param value 속성 값
+     * @return Deep copy된 값 또는 원본 값
+     */
+    private Object deepCopyIfNeeded(String key, Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        // Set 타입 Deep copy
+        if (value instanceof java.util.Set) {
+            return new java.util.HashSet<>((java.util.Set<?>) value);
+        }
+
+        // List 타입 Deep copy
+        if (value instanceof java.util.List) {
+            return new java.util.ArrayList<>((java.util.List<?>) value);
+        }
+
+        // Map 타입 Deep copy
+        if (value instanceof java.util.Map) {
+            return new java.util.HashMap<>((java.util.Map<?, ?>) value);
+        }
+
+        // 기본 타입 및 불변 객체는 그대로 반환
+        return value;
     }
 
     // 이벤트 처리 결과를 담는 내부 레코드 (Java 14+ 사용 가능)

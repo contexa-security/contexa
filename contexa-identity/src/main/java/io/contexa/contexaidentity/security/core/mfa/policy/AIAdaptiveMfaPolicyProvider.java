@@ -119,45 +119,45 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
 
     /**
      * AI 평가 메타데이터로 컨텍스트를 보강합니다.
-     * 
+     *
      * AI 평가가 수행된 경우, 평가 결과와 관련된 추가 정보를
      * 컨텍스트에 저장하여 후속 처리나 감사에 활용할 수 있도록 합니다.
-     * 
+     *
+     * Phase 3.4: MfaDecision 객체는 Kryo 직렬화 불가이므로,
+     * InitializeMfaAction에서 저장한 개별 속성들을 직접 사용합니다.
+     *
      * @param ctx MFA 팩터 컨텍스트
      */
     private void enrichContextWithAIMetadata(FactorContext ctx) {
-        // mfaDecision 속성이 이미 부모 클래스에서 설정됨
-        Object decisionObj = ctx.getAttribute("mfaDecision");
-        
-        if (decisionObj instanceof MfaDecision) {
-            MfaDecision decision = (MfaDecision) decisionObj;
-            
-            // AI 평가 플래그 설정
+        // Phase 3.4: MfaDecision 객체는 저장되지 않으므로, 이미 저장된 속성들을 직접 사용
+        // InitializeMfaAction에서 decision.getMetadata().forEach(ctx::setAttribute)로 복사된 속성 활용
+
+        Object riskScore = ctx.getAttribute("riskScore");
+        if (riskScore != null) {
+            ctx.setAttribute("aiRiskScore", riskScore);
             ctx.setAttribute("aiEvaluated", true);
             ctx.setAttribute("aiEvaluatorUsed", "AIAdaptivePolicyEvaluator");
-            
-            // 메타데이터에서 AI 관련 정보 추출
-            if (decision.getMetadata() != null) {
-                Object riskScore = decision.getMetadata().get("riskScore");
-                if (riskScore != null) {
-                    ctx.setAttribute("aiRiskScore", riskScore);
-                    log.debug("AI risk score for user {}: {}", ctx.getUsername(), riskScore);
-                }
-                
-                Object aiAttributes = decision.getMetadata().get("aiAttributes");
-                if (aiAttributes != null) {
-                    ctx.setAttribute("aiAssessmentDetails", aiAttributes);
-                }
-            }
-            
-            // 차단 결정인 경우 추가 로깅
-            if (decision.isBlocked()) {
-                log.warn("AI blocked authentication for user: {} - Reason: {}", 
-                        ctx.getUsername(), decision.getReason());
-            }
-            
-            log.info("AI-enhanced MFA evaluation completed for user {}: Decision type={}", 
-                    ctx.getUsername(), decision.getType());
+            log.debug("AI risk score for user {}: {}", ctx.getUsername(), riskScore);
+        }
+
+        Object aiAttributes = ctx.getAttribute("aiAttributes");
+        if (aiAttributes != null) {
+            ctx.setAttribute("aiAssessmentDetails", aiAttributes);
+        }
+
+        // 차단 결정인 경우 추가 로깅 (InitializeMfaAction Line 92-96에서 설정됨)
+        Boolean blocked = (Boolean) ctx.getAttribute("blocked");
+        if (Boolean.TRUE.equals(blocked)) {
+            String blockReason = (String) ctx.getAttribute("blockReason");
+            log.warn("AI blocked authentication for user: {} - Reason: {}",
+                    ctx.getUsername(), blockReason != null ? blockReason : "UNKNOWN");
+        }
+
+        // DecisionType 로깅 (InitializeMfaAction Line 80에서 설정됨)
+        String decisionType = (String) ctx.getAttribute("mfaDecisionType");
+        if (decisionType != null) {
+            log.info("AI-enhanced MFA evaluation completed for user {}: Decision type={}",
+                    ctx.getUsername(), decisionType);
         }
     }
     

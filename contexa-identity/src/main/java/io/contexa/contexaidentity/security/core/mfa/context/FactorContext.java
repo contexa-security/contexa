@@ -4,7 +4,6 @@ import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
-import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.Getter;
@@ -25,7 +24,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 @Getter
 @Slf4j
@@ -302,8 +300,16 @@ public class FactorContext implements FactorContextExtensions,Serializable{
                 "FactorContext is read-only. Cannot modify attributes."
             );
         }
+
+        // Phase 3.4: Serializable 검증 (Redis 직렬화를 위해)
+        if (value != null && !(value instanceof Serializable)) {
+            throw new IllegalArgumentException(
+                "Attribute must be Serializable for Redis persistence: " +
+                name + " (" + value.getClass().getName() + ")"
+            );
+        }
+
         this.attributes.put(name, value);
-        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
     }
 
     @Nullable
@@ -344,12 +350,28 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     @Override
     public Set<AuthType> getAvailableFactors() {
         Object availableFactorsObj = getAttribute("availableFactors");
-        if (availableFactorsObj instanceof Set) {
-            @SuppressWarnings("unchecked")
-            Set<AuthType> factors = (Set<AuthType>) availableFactorsObj;
-            return new HashSet<>(factors);
+
+        if (availableFactorsObj == null) {
+            log.warn("[FactorContext] availableFactors attribute is NULL for session: {} - not initialized yet?", mfaSessionId);
+            return null;
         }
-        return Collections.emptySet();
+
+        if (availableFactorsObj instanceof Set) {
+            try {
+                @SuppressWarnings("unchecked")
+                Set<AuthType> factors = (Set<AuthType>) availableFactorsObj;
+                log.debug("[FactorContext] Retrieved availableFactors: {} for session: {}", factors, mfaSessionId);
+                return new HashSet<>(factors);
+            } catch (ClassCastException e) {
+                log.error("[FactorContext] availableFactors type cast failed for session: {}, type: {}",
+                         mfaSessionId, availableFactorsObj.getClass(), e);
+                return null;
+            }
+        }
+
+        log.error("[FactorContext] availableFactors attribute type mismatch: {} for session: {}",
+                 availableFactorsObj.getClass().getName(), mfaSessionId);
+        return null;
     }
 
     /**
@@ -491,78 +513,153 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         }
     }
 
-    @Getter
-    public static class CompletedFactorInfo implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private final AuthType factorType;
-        private final String stepId;
-        private final Instant completionTime;
-        @Nullable private final transient AuthenticationProcessingOptions factorOptions;
+    // ===== Phase 3.3: Type-safe Attribute Getters =====
 
-        public CompletedFactorInfo(AuthType factorType, String stepId, Instant completionTime,
-                                   @Nullable AuthenticationProcessingOptions factorOptions) {
-            this.factorType = factorType;
-            this.stepId = stepId;
-            this.completionTime = completionTime;
-            this.factorOptions = factorOptions;
+    /**
+     * Type-safe String 속성 조회
+     *
+     * @param key 속성 키
+     * @return String 값 또는 null
+     */
+    @Nullable
+    public String getStringAttribute(String key) {
+        Object value = getAttribute(key);
+        if (value instanceof String) {
+            return (String) value;
         }
-
-        @Override
-        public String toString() {
-            return "CompletedFactorInfo{" +
-                    "factorType=" + factorType +
-                    ", stepId='" + stepId + '\'' +
-                    ", completionTime=" + completionTime +
-                    '}';
+        if (value != null) {
+            log.warn("[FactorContext] Attribute '{}' is not a String: {}", key, value.getClass().getName());
         }
+        return null;
     }
 
     /**
-     * 읽기 전용 스냅샷 생성 (Single Source of Truth 패턴)
-     * State Machine에서 로드한 FactorContext를 읽기 전용으로 변환
+     * Type-safe Long 속성 조회
      *
-     * @param source 원본 FactorContext
-     * @return 읽기 전용 복사본
+     * @param key 속성 키
+     * @return Long 값 또는 null
      */
-    public static FactorContext readOnlySnapshot(FactorContext source) {
-        if (source == null) {
-            return null;
+    @Nullable
+    public Long getLongAttribute(String key) {
+        Object value = getAttribute(key);
+        if (value instanceof Long) {
+            return (Long) value;
         }
+        if (value instanceof Integer) {
+            return ((Integer) value).longValue();
+        }
+        if (value != null) {
+            log.warn("[FactorContext] Attribute '{}' is not a Long/Integer: {}", key, value.getClass().getName());
+        }
+        return null;
+    }
 
-        FactorContext snapshot = new FactorContext();
+    /**
+     * Type-safe Boolean 속성 조회
+     *
+     * @param key 속성 키
+     * @return Boolean 값 또는 null
+     */
+    @Nullable
+    public Boolean getBooleanAttribute(String key) {
+        Object value = getAttribute(key);
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        if (value != null) {
+            log.warn("[FactorContext] Attribute '{}' is not a Boolean: {}", key, value.getClass().getName());
+        }
+        return null;
+    }
 
-        // 기본 정보 복사
-        snapshot.mfaSessionId = source.mfaSessionId;
-        snapshot.currentMfaState = new AtomicReference<>(source.getCurrentState());
-        snapshot.version.set(source.getVersion());
+    /**
+     * Type-safe Integer 속성 조회
+     *
+     * @param key 속성 키
+     * @return Integer 값 또는 null
+     */
+    @Nullable
+    public Integer getIntegerAttribute(String key) {
+        Object value = getAttribute(key);
+        if (value instanceof Integer) {
+            return (Integer) value;
+        }
+        if (value instanceof Long) {
+            return ((Long) value).intValue();
+        }
+        if (value != null) {
+            log.warn("[FactorContext] Attribute '{}' is not an Integer/Long: {}", key, value.getClass().getName());
+        }
+        return null;
+    }
 
-        // 인증 정보 복사
-        snapshot.primaryAuthentication = source.primaryAuthentication;
-        snapshot.username = source.username;
+    /**
+     * Type-safe Set 속성 조회
+     *
+     * @param key 속성 키
+     * @param <T> Set 원소 타입
+     * @return Set 값 또는 empty Set
+     */
+    public <T> Set<T> getSetAttribute(String key) {
+        Object value = getAttribute(key);
+        if (value instanceof Set) {
+            try {
+                return new HashSet<>((Set<T>) value);
+            } catch (ClassCastException e) {
+                log.error("[FactorContext] Failed to cast Set attribute '{}': {}", key, e.getMessage());
+                return new HashSet<>();
+            }
+        }
+        if (value != null) {
+            log.warn("[FactorContext] Attribute '{}' is not a Set: {}", key, value.getClass().getName());
+        }
+        return new HashSet<>();
+    }
 
-        // 상태 정보 복사
-        snapshot.flowTypeName = source.flowTypeName;
-        snapshot.stateConfig = source.stateConfig;
-        snapshot.currentProcessingFactor = source.currentProcessingFactor;
-        snapshot.currentStepId = source.currentStepId;
-        snapshot.mfaRequiredAsPerPolicy = source.mfaRequiredAsPerPolicy;
-        snapshot.retryCount = source.retryCount;
-        snapshot.lastError = source.lastError;
-        snapshot.lastActivityTimestamp = source.lastActivityTimestamp;
+    /**
+     * Type-safe List 속성 조회
+     *
+     * @param key 속성 키
+     * @param <T> List 원소 타입
+     * @return List 값 또는 empty List
+     */
+    public <T> List<T> getListAttribute(String key) {
+        Object value = getAttribute(key);
+        if (value instanceof List) {
+            try {
+                return new ArrayList<>((List<T>) value);
+            } catch (ClassCastException e) {
+                log.error("[FactorContext] Failed to cast List attribute '{}': {}", key, e.getMessage());
+                return new ArrayList<>();
+            }
+        }
+        if (value != null) {
+            log.warn("[FactorContext] Attribute '{}' is not a List: {}", key, value.getClass().getName());
+        }
+        return new ArrayList<>();
+    }
 
-        // 컬렉션 복사 (deep copy)
-        source.completedFactors.forEach(snapshot.completedFactors::add);
-        snapshot.failedAttempts.putAll(source.failedAttempts);
-        snapshot.factorAttemptCounts.putAll(source.factorAttemptCounts);
-        snapshot.mfaAttemptHistory.addAll(source.mfaAttemptHistory);
-        snapshot.attributes.putAll(source.attributes);
-
-        // 읽기 전용 플래그 설정
-        snapshot.readOnly = true;
-
-        log.debug("Created read-only snapshot of FactorContext (ID: {}) for user '{}', state: {}, version: {}",
-                snapshot.mfaSessionId, snapshot.username, snapshot.getCurrentState(), snapshot.getVersion());
-
-        return snapshot;
+    /**
+     * Type-safe Map 속성 조회
+     *
+     * @param key 속성 키
+     * @param <K> Map 키 타입
+     * @param <V> Map 값 타입
+     * @return Map 값 또는 empty Map
+     */
+    public <K, V> Map<K, V> getMapAttribute(String key) {
+        Object value = getAttribute(key);
+        if (value instanceof Map) {
+            try {
+                return new HashMap<>((Map<K, V>) value);
+            } catch (ClassCastException e) {
+                log.error("[FactorContext] Failed to cast Map attribute '{}': {}", key, e.getMessage());
+                return new HashMap<>();
+            }
+        }
+        if (value != null) {
+            log.warn("[FactorContext] Attribute '{}' is not a Map: {}", key, value.getClass().getName());
+        }
+        return new HashMap<>();
     }
 }

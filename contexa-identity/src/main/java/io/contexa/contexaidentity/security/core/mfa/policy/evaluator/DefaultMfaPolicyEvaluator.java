@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -319,10 +320,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return MfaDecision.DecisionType.STANDARD_MFA;
     }
     
-    /**
-     * DSL에서 사용 가능한 MFA 팩터를 가져옵니다.
-     * 순환 참조 문제를 해결하기 위해 ApplicationContext에서 직접 조회합니다.
-     */
+
     private Set<AuthType> getAvailableFactorsFromDsl(FactorContext context) {
         // 1. 컨텍스트에 이미 설정되어 있는지 확인
         Object configObj = context.getAttribute("mfaFlowConfig");
@@ -350,25 +348,26 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     /**
-     * ApplicationContext에서 AuthenticationFlowConfig(MFA)를 찾습니다.
+     * PlatformConfig에서 AuthenticationFlowConfig(MFA)를 찾습니다.
+     * LoginController의 findFlowConfigByName 패턴을 적용하여 순환 참조 문제를 해결합니다.
      */
     private AuthenticationFlowConfig findMfaFlowConfigFromContext() {
         try {
-            Map<String, AuthenticationFlowConfig> flowConfigs =
-                    applicationContext.getBeansOfType(AuthenticationFlowConfig.class);
+            // PlatformConfig 빈에서 MFA 플로우 조회 (LoginController 패턴)
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
 
-            for (AuthenticationFlowConfig config : flowConfigs.values()) {
-                // MFA 플로우 설정인지 확인 (typeName 사용)
-                String typeName = config.getTypeName();
-                if (typeName != null && isMfaFlowType(typeName)) {
-                    log.debug("Found MFA FlowConfig: {}", typeName);
-                    return config;
-                }
-            }
-
-            log.warn("No MFA AuthenticationFlowConfig found in ApplicationContext");
+            return platformConfig.getFlows().stream()
+                    .filter(flow -> {
+                        String typeName = flow.getTypeName();
+                        return isMfaFlowType(typeName);
+                    })
+                    .findFirst()
+                    .orElseGet(() -> {
+                        log.warn("No MFA AuthenticationFlowConfig found in PlatformConfig");
+                        return null;
+                    });
         } catch (Exception e) {
-            log.error("Error finding MFA FlowConfig from ApplicationContext", e);
+            log.error("Error finding MFA FlowConfig from PlatformConfig", e);
         }
 
         return null;
@@ -383,7 +382,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         }
 
         Map<AuthType, ?> factorOptions = config.getRegisteredFactorOptions();
-        if (factorOptions == null || factorOptions.isEmpty()) {
+        if (factorOptions.isEmpty()) {
             log.debug("No factors registered in flow config");
             return Collections.emptySet();
         }

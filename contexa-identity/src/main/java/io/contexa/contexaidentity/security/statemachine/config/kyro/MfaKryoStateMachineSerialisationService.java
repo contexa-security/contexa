@@ -2,8 +2,10 @@ package io.contexa.contexaidentity.security.statemachine.config.kyro;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexaidentity.security.enums.StateType;
 import io.contexa.contexaidentity.security.service.CustomUserDetails;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -39,6 +41,9 @@ public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSer
         kryo.register(DefaultStateMachineContext.class);
         kryo.register(DefaultExtendedState.class);
         kryo.register(FactorContext.class);
+        kryo.register(StateConfig.class);
+        kryo.register(StateType.class, new DefaultSerializers.EnumSerializer(StateType.class));
+        // Phase 3.4: MfaDecision은 FactorContext에 저장하지 않으므로 등록 불필요
         if (MfaState.class.isEnum()) {
             kryo.register(MfaState.class, new DefaultSerializers.EnumSerializer(MfaState.class));
         }

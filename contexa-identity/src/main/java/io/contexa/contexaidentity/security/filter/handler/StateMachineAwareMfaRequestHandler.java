@@ -363,9 +363,19 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
 
         if (accepted) {
-            // 챌린지 시작 시간 기록
-            Instant challengeStartTime = MfaTimeUtils.nowInstant();
-            context.setAttribute("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
+            // 챌린지 시작 시간 기록 - Action에서 설정한 값이 있으면 재사용
+            Object existingChallengeTime = context.getAttribute("challengeInitiatedAt");
+            Instant challengeStartTime;
+            if (existingChallengeTime instanceof Long) {
+                challengeStartTime = MfaTimeUtils.fromMillis((Long) existingChallengeTime);
+                log.debug("[StateMachineAwareMfaRequestHandler] Reusing challengeInitiatedAt from Action: {} for session: {}",
+                        existingChallengeTime, sessionId);
+            } else {
+                challengeStartTime = MfaTimeUtils.nowInstant();
+                context.setAttribute("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
+                log.debug("[StateMachineAwareMfaRequestHandler] Set new challengeInitiatedAt: {} for session: {}",
+                        MfaTimeUtils.toMillis(challengeStartTime), sessionId);
+            }
             context.setAttribute("ottCodeSent", true); // OTT의 경우
 
             // 챌린지 만료 시간 계산
