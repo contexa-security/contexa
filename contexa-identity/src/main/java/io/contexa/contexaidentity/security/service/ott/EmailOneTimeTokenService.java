@@ -46,14 +46,11 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         Assert.hasText(username, "Username cannot be empty");
         Assert.hasText(emailPurpose, "Email purpose cannot be empty");
 
-        SecureRandom random = new SecureRandom();
-        String numericCode = String.format("%06d", random.nextInt(1_000_000));
-
         GenerateOneTimeTokenRequest internalTokenRequest = new GenerateOneTimeTokenRequest(username);
         OneTimeToken internalOneTimeToken = delegate.generate(internalTokenRequest);
 
-        log.info("Saved mapping: User-facing code '{}' -> Internal token '{}' for user '{}'. Validity: {}s",
-                numericCode, internalOneTimeToken.getTokenValue(), username, authContextProperties.getMfa().getOtpTokenValiditySeconds());
+        log.info("Saved mapping: Internal token '{}' for user '{}'. Validity: {}s",
+                internalOneTimeToken.getTokenValue(), username, authContextProperties.getMfa().getOtpTokenValiditySeconds());
 
         long tokenValidityMinutes = Duration.ofSeconds(authContextProperties.getMfa().getOtpTokenValiditySeconds()).toMinutes();
 
@@ -64,12 +61,12 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                         "<p>This code will expire in %d minutes.</p>" +
                         "<p>If you did not request this code, please ignore this email.</p>" +
                         "<p>Thank you.</p>",
-                username, emailPurpose, numericCode, tokenValidityMinutes
+                username, emailPurpose, internalOneTimeToken.getTokenValue(), tokenValidityMinutes
         );
 
 //        emailService.sendHtmlMessage(username, emailSubject, htmlBody);
         log.info("Verification code ({}) for {} sent to {}. Token validity display: {} minutes.",
-                numericCode, emailPurpose, username, tokenValidityMinutes);
+                internalOneTimeToken.getTokenValue(), emailPurpose, username, tokenValidityMinutes);
 
         return internalOneTimeToken;
     }
