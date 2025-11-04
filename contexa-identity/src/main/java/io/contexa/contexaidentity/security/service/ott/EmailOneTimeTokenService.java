@@ -33,7 +33,6 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         this.delegate = new JdbcOneTimeTokenService(primaryJdbcTemplate);
         this.emailService = emailService;
         this.authContextProperties = authContextProperties;
-//        this.delegate.setTokenValidity(Duration.ofSeconds(authContextProperties.getMfa().getOtpTokenValiditySeconds()));
         log.info("EmailOneTimeTokenService initialized. OTT Token Validity: {} seconds (from MfaSettings).",
                 authContextProperties.getMfa().getOtpTokenValiditySeconds());
     }
