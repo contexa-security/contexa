@@ -165,8 +165,6 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                          nextEvent, factorContext.getMfaSessionId());
             }
 
-            // Note: sendEvent() 메서드가 factorContext를 이미 최신 상태로 업데이트함
-            // 별도의 재로드 불필요 (Performance Optimization)
         }
 
         // 6. 최종 상태 확인 및 응답
@@ -307,10 +305,6 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 "STATE_TRANSITION_ERROR", "상태 전이 오류가 발생했습니다.",
                 request.getRequestURI());
     }
-
-    // Phase 1.2: Dead Code 제거
-    // - findMfaFlowConfig(): 미사용 메서드 제거
-    // - handleConfigError(): PrimaryAuthenticationSuccessHandler에 동일 메서드 존재 (중복 제거)
 
     private void handleGenericError(HttpServletResponse response, HttpServletRequest request,
                                     FactorContext ctx, String message) throws IOException {
