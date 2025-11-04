@@ -407,9 +407,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         <label for="token">인증 코드</label>
                         <input type="text" id="token" name="token"
                                class="form-control"
-                               placeholder="000000"
-                               maxlength="6"
-                               pattern="[0-9]{6}"
                                required
                                autofocus>
                     </div>

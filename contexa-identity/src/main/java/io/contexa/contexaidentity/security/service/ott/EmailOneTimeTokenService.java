@@ -6,15 +6,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
-import org.springframework.web.util.UriComponentsBuilder;
 
-import javax.sql.DataSource;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.time.Duration;
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @Slf4j
@@ -22,6 +18,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
 
     private final JdbcOneTimeTokenService delegate;
     private final EmailService emailService;
+    private final TransactionTemplate transactionTemplate;
     private final AuthContextProperties authContextProperties;
 
     @Value("${app.url.base:http://localhost:8080}")
@@ -29,9 +26,11 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
 
     public EmailOneTimeTokenService(EmailService emailService,
                                     JdbcTemplate primaryJdbcTemplate,
+                                    TransactionTemplate transactionTemplate,
                                     AuthContextProperties authContextProperties) {
         this.delegate = new JdbcOneTimeTokenService(primaryJdbcTemplate);
         this.emailService = emailService;
+        this.transactionTemplate = transactionTemplate;
         this.authContextProperties = authContextProperties;
         log.info("EmailOneTimeTokenService initialized. OTT Token Validity: {} seconds (from MfaSettings).",
                 authContextProperties.getMfa().getOtpTokenValiditySeconds());
@@ -47,10 +46,13 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         Assert.hasText(emailPurpose, "Email purpose cannot be empty");
 
         GenerateOneTimeTokenRequest internalTokenRequest = new GenerateOneTimeTokenRequest(username);
-        OneTimeToken internalOneTimeToken = delegate.generate(internalTokenRequest);
+        AtomicReference<OneTimeToken> internalOneTimeToken = new AtomicReference<>();
+        transactionTemplate.executeWithoutResult(status -> {
+            internalOneTimeToken.set(delegate.generate(internalTokenRequest));
+        });
 
         log.info("Saved mapping: Internal token '{}' for user '{}'. Validity: {}s",
-                internalOneTimeToken.getTokenValue(), username, authContextProperties.getMfa().getOtpTokenValiditySeconds());
+                internalOneTimeToken.get().getTokenValue(), username, authContextProperties.getMfa().getOtpTokenValiditySeconds());
 
         long tokenValidityMinutes = Duration.ofSeconds(authContextProperties.getMfa().getOtpTokenValiditySeconds()).toMinutes();
 
@@ -61,14 +63,14 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                         "<p>This code will expire in %d minutes.</p>" +
                         "<p>If you did not request this code, please ignore this email.</p>" +
                         "<p>Thank you.</p>",
-                username, emailPurpose, internalOneTimeToken.getTokenValue(), tokenValidityMinutes
+                username, emailPurpose, internalOneTimeToken.get().getTokenValue(), tokenValidityMinutes
         );
 
 //        emailService.sendHtmlMessage(username, emailSubject, htmlBody);
         log.info("Verification code ({}) for {} sent to {}. Token validity display: {} minutes.",
-                internalOneTimeToken.getTokenValue(), emailPurpose, username, tokenValidityMinutes);
+                internalOneTimeToken.get().getTokenValue(), emailPurpose, username, tokenValidityMinutes);
 
-        return internalOneTimeToken;
+        return internalOneTimeToken.get();
     }
 
     @Override
