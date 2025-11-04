@@ -70,7 +70,7 @@ public class CheckCompletionAction extends AbstractMfaStateAction {
             log.info("All factors completed for session: {}", sessionId);
             // Phase 2 개선: Action은 이벤트를 추천만 하고, Handler가 전송
             factorContext.setAttribute("nextEventRecommendation", MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
-            factorContext.setAttribute("completionDecision", decision);
+            factorContext.setAttribute("completionDecision", decision.isCompleted());
 
         } else if (decision.isNeedsFactorSelection()) {
             // 다음 팩터가 이미 자동 결정되었는지 확인
