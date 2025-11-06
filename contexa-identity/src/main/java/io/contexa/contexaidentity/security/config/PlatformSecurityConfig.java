@@ -51,8 +51,8 @@ public class PlatformSecurityConfig {
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers(
                                     "/css/**", "/js/**", "/images/**", "/favicon.ico",
-                                    "/authMode","/",
-//                                    "/", "/authMode","/home",
+//                                    "/authMode","/",
+                                    "/", "/authMode","/home",
                                     "/loginForm", "/register",
                                     "/loginOtt", "/ott/sent",
                                     "/loginPasskey","/login/mfa-ott",

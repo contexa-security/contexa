@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.core.mfa.policy;
 
 import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.CompositeMfaPolicyEvaluator;
@@ -41,12 +42,13 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
 
     /**
      * AI 적응형 MFA 정책 제공자 생성자
-     * 
+     *
      * @param userRepository 사용자 저장소
      * @param applicationContext Spring 애플리케이션 컨텍스트
      * @param stateMachineIntegrator MFA 상태 머신 통합자
      * @param properties 인증 컨텍스트 설정
      * @param compositePolicyEvaluator Composite 패턴 평가자
+     * @param platformConfig 플랫폼 설정 (Phase 2 개선: 직접 주입)
      * @param aiCoreOperations AI 코어 오퍼레이션 (nullable)
      */
     public AIAdaptiveMfaPolicyProvider(
@@ -55,9 +57,10 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
             MfaStateMachineIntegrator stateMachineIntegrator,
             AuthContextProperties properties,
             CompositeMfaPolicyEvaluator compositePolicyEvaluator,
+            PlatformConfig platformConfig,
             AICoreOperations aiCoreOperations) {
-        
-        super(userRepository, applicationContext, stateMachineIntegrator, properties, compositePolicyEvaluator);
+
+        super(userRepository, applicationContext, stateMachineIntegrator, properties, compositePolicyEvaluator, platformConfig);
         this.compositePolicyEvaluator = compositePolicyEvaluator;
         this.aiCoreOperations = aiCoreOperations;
 

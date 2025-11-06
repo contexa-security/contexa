@@ -271,9 +271,41 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
      * 실제 상태 머신 이벤트 전송 및 결과 처리를 위한 내부 헬퍼 메서드
      */
     private Result sendEventInternal(StateMachine<MfaState, MfaEvent> stateMachine, Message<MfaEvent> message, FactorContext originalExternalContext) {
+        String sessionId = originalExternalContext.getMfaSessionId();
+        MfaEvent event = message.getPayload();
+        MfaState currentState = stateMachine.getState() != null ? stateMachine.getState().getId() : null;
+
+        log.debug("[SM Internal] 이벤트 전송 시작 - Event: {}, CurrentState: {}, Session: {}",
+                 event, currentState, sessionId);
+
         Boolean accepted = stateMachine.sendEvent(Mono.just(message))
+                .doOnNext(result -> log.debug("[SM Internal] 이벤트 결과 수신 - ResultType: {}, Session: {}",
+                                              result.getResultType(), sessionId))
+                .doOnError(error -> log.error("[SM Internal] 이벤트 처리 중 에러 발생 - Event: {}, Session: {}",
+                                             event, sessionId, error))
+                .doOnComplete(() -> log.debug("[SM Internal] Reactive Stream 완료 - Event: {}, Session: {}",
+                                             event, sessionId))
                 .map(result -> result.getResultType() == StateMachineEventResult.ResultType.ACCEPTED)
-                .blockFirst(Duration.ofSeconds(EVENT_PROCESSING_TIMEOUT_SECONDS));
+                .timeout(Duration.ofSeconds(EVENT_PROCESSING_TIMEOUT_SECONDS))
+                .doOnNext(isAccepted -> log.debug("[SM Internal] 이벤트 수락 여부: {} - Event: {}, Session: {}",
+                                                 isAccepted, event, sessionId))
+                .blockFirst(Duration.ofSeconds(EVENT_PROCESSING_TIMEOUT_SECONDS + 1));
+
+        log.debug("[SM Internal] blockFirst() 반환 완료 - accepted: {}, Event: {}, Session: {}",
+                 accepted, event, sessionId);
+
+        // Phase 1: 타임아웃 폴백 처리
+        if (accepted == null) {
+            log.error("[SM Internal] ⚠️ 이벤트 처리 타임아웃 발생 - Event: {}, State: {}, Session: {}, Timeout: {}초",
+                     event, currentState, sessionId, EVENT_PROCESSING_TIMEOUT_SECONDS);
+            log.error("[SM Internal] State Machine이 응답하지 않음. 이벤트 거부로 처리.");
+
+            // 폴백: 이벤트 거부로 처리, 현재 상태 유지
+            MfaState fallbackState = stateMachine.getState() != null ? stateMachine.getState().getId() : originalExternalContext.getCurrentState();
+            FactorContext fallbackContext = StateContextHelper.getFactorContext(stateMachine);
+
+            return new Result(false, fallbackState, fallbackContext != null ? fallbackContext : originalExternalContext);
+        }
 
         boolean eventAccepted = Boolean.TRUE.equals(accepted);
         MfaState smStateAfterEvent = stateMachine.getState() != null ? stateMachine.getState().getId() : originalExternalContext.getCurrentState();

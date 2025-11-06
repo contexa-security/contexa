@@ -12,6 +12,7 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,10 +45,34 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     protected final MfaStateMachineIntegrator stateMachineIntegrator;
     protected final AuthContextProperties properties;
     protected final MfaPolicyEvaluator policyEvaluator;
+    protected final PlatformConfig platformConfig; // Phase 2 개선: 직접 주입
 
-    // Phase 2: MFA FlowConfig 캐싱 (성능 최적화)
-    private volatile AuthenticationFlowConfig cachedMfaFlowConfig;
-    private final Object flowConfigLock = new Object();
+    // Phase 2 개선: Eager initialization으로 변경 (synchronized 제거)
+    private AuthenticationFlowConfig cachedMfaFlowConfig;
+
+    /**
+     * Phase 2 개선: Bean 초기화 시 MFA FlowConfig를 캐싱 (Blocking 없음)
+     * Reactive context에서 synchronized block 제거
+     */
+    @PostConstruct
+    public void initializeMfaFlowConfig() {
+        try {
+            if (platformConfig != null && platformConfig.getFlows() != null) {
+                cachedMfaFlowConfig = platformConfig.getFlows().stream()
+                        .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (cachedMfaFlowConfig != null) {
+                    log.info("MFA flow configuration initialized successfully at startup");
+                } else {
+                    log.warn("No MFA flow configuration found during initialization");
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error initializing MFA flow configuration", e);
+        }
+    }
 
 
     /**
@@ -278,53 +303,21 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     }
 
     /**
-     * Phase 2 개선: MFA FlowConfig 캐싱 (Double-checked locking)
-     * Bean 조회 및 필터링 99% 제거, CPU 사용량 감소
+     * Phase 2 개선: MFA FlowConfig 조회 (Blocking 제거)
+     * @PostConstruct에서 초기화된 캐시만 반환
      */
     @Nullable
     private AuthenticationFlowConfig findMfaFlowConfig() {
-        // Double-checked locking
-        if (cachedMfaFlowConfig != null) {
-            return cachedMfaFlowConfig;
-        }
-
-        synchronized (flowConfigLock) {
-            if (cachedMfaFlowConfig != null) {
-                return cachedMfaFlowConfig;
-            }
-
-            try {
-                PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-                if (platformConfig != null && platformConfig.getFlows() != null) {
-                    AuthenticationFlowConfig config = platformConfig.getFlows().stream()
-                            .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
-                            .findFirst()
-                            .orElse(null);
-
-                    if (config != null) {
-                        cachedMfaFlowConfig = config;
-                        log.info("MFA flow configuration cached successfully");
-                    } else {
-                        log.warn("No MFA flow configuration found");
-                    }
-
-                    return config;
-                }
-            } catch (Exception e) {
-                log.error("Error caching MFA flow configuration", e);
-            }
-            return null;
-        }
+        return cachedMfaFlowConfig;
     }
 
     /**
-     * 설정 변경 시 캐시 무효화
+     * 설정 변경 시 캐시 무효화 (Phase 2 개선: synchronized 제거)
      */
     public void invalidateFlowConfigCache() {
-        synchronized (flowConfigLock) {
-            cachedMfaFlowConfig = null;
-            log.info("MFA flow configuration cache invalidated");
-        }
+        cachedMfaFlowConfig = null;
+        log.info("MFA flow configuration cache invalidated. Re-initializing...");
+        initializeMfaFlowConfig();
     }
 
     private HttpServletRequest getCurrentRequest() {

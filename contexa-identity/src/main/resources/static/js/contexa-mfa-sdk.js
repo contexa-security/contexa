@@ -477,7 +477,7 @@
                     cancel: '/mfa/cancel',
                     status: '/mfa/status',
                     requestOttCode: '/mfa/request-ott-code',
-                    context: '/mfa/context',
+                    context: '/api/mfa/context',  // MfaApiController 경로와 일치
                     completeFactor: '/mfa/complete-factor',
                     config: '/api/mfa/config' // SDK 초기화 전용, /api 유지
                 },

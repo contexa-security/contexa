@@ -129,6 +129,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="_csrf" content="{{csrfToken}}">
+            <meta name="_csrf_header" content="{{csrfHeaderName}}">
+            <meta name="_csrf_parameter" content="{{csrfParameterName}}">
             <title>인증 코드 요청</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -273,6 +276,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="_csrf" content="{{csrfToken}}">
+            <meta name="_csrf_header" content="{{csrfHeaderName}}">
+            <meta name="_csrf_parameter" content="{{csrfParameterName}}">
             <title>MFA - 인증 코드 입력</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -502,6 +508,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="_csrf" content="{{csrfToken}}">
+            <meta name="_csrf_header" content="{{csrfHeaderName}}">
+            <meta name="_csrf_parameter" content="{{csrfParameterName}}">
             <title>MFA - Passkey 인증</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -632,6 +641,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="_csrf" content="{{csrfToken}}">
+            <meta name="_csrf_header" content="{{csrfHeaderName}}">
+            <meta name="_csrf_parameter" content="{{csrfParameterName}}">
             <title>MFA - 인증 방법 선택</title>
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1346,6 +1358,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String html = MfaHtmlTemplates.fromTemplate(SELECT_FACTOR_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
+            .withValue("csrfToken", getCsrfToken(request))
+            .withValue("csrfHeaderName", getCsrfHeaderName(request))
+            .withValue("csrfParameterName", getCsrfParameterName(request))
             .withRawHtml("factorButtons", factorButtonsHtml.toString())
             .render();
 
@@ -1667,6 +1682,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("ottRequestUrl", fullOttRequestUrl)
+            .withValue("csrfToken", getCsrfToken(request))
+            .withValue("csrfHeaderName", getCsrfHeaderName(request))
+            .withValue("csrfParameterName", getCsrfParameterName(request))
             .withRawHtml("usernameInput", usernameInput)
             .withRawHtml("hiddenInputs", hiddenInputs)
             .render();
@@ -1717,6 +1735,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withValue("username", username)
             .withValue("ottVerifyUrl", fullOttVerifyUrl)
             .withValue("ottResendUrl", fullOttResendUrl)
+            .withValue("csrfToken", getCsrfToken(request))
+            .withValue("csrfHeaderName", getCsrfHeaderName(request))
+            .withValue("csrfParameterName", getCsrfParameterName(request))
             .withRawHtml("hiddenInputs", hiddenInputs)
             .withRawHtml("resendHiddenInputs", resendHiddenInputs)
             .render();
@@ -1751,6 +1772,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String html = MfaHtmlTemplates.fromTemplate(PASSKEY_CHALLENGE_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
+            .withValue("csrfToken", getCsrfToken(request))
+            .withValue("csrfHeaderName", getCsrfHeaderName(request))
+            .withValue("csrfParameterName", getCsrfParameterName(request))
             .render();
 
         // Step 4: 응답 전송

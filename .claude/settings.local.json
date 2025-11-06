@@ -44,7 +44,12 @@
       "Bash(test.txt)",
       "Bash(MFA_REFACTORING_PLAN.md)",
       "Bash(git log:*)",
-      "Bash(del \"d:\\projects\\contexa\\contexa-identity\\src\\main\\java\\io\\contexa\\contexaidentity\\security\\properties\\OttFactorSettings.java\")"
+      "Bash(del \"d:\\projects\\contexa\\contexa-identity\\src\\main\\java\\io\\contexa\\contexaidentity\\security\\properties\\OttFactorSettings.java\")",
+      "Bash(.gradlew:*)",
+      "Bash(gradlew :contexa-identity:build:*)",
+      "Bash(gradlew.bat :contexa-identity:build:*)",
+      "Bash(./gradlew.bat :contexa-identity:build -x test)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []

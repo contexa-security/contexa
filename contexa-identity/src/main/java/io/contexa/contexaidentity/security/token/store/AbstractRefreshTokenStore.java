@@ -40,6 +40,20 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
         Objects.requireNonNull(refreshToken, "refreshToken cannot be null");
         Objects.requireNonNull(username, "username cannot be null");
 
+        // JWT 기본 형식 검증 (빈 문자열 체크)
+        if (refreshToken.trim().isEmpty()) {
+            log.warn("Empty refreshToken provided, cannot save. User: {}", username);
+            return;
+        }
+
+        // JWT 형식 검증 (header.payload.signature)
+        String[] parts = refreshToken.split("\\.");
+        if (parts.length != 3) {
+            log.warn("Malformed JWT token (expected 3 parts separated by dots, got {}). User: {}",
+                     parts.length, username);
+            return;
+        }
+
         try {
             // Spring Security OAuth2 표준 JwtDecoder로 RSA 서명 토큰 파싱
             Jwt jwt = jwtDecoder.decode(refreshToken);

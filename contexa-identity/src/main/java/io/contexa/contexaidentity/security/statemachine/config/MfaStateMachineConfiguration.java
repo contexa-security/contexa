@@ -36,7 +36,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
 
     // Phase 2: 새로운 정책 평가 Actions
     private final DetermineNextFactorAction determineNextFactorAction;
-    private final CheckCompletionAction checkCompletionAction;
+    // Phase 3: CheckCompletionAction 제거됨 (Handler에서 직접 평가)
 
     private StateMachineRuntimePersister<MfaState, MfaEvent, String> stateMachinePersister;
 
@@ -156,12 +156,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(determineNextFactorAction)
                 .and()
 
-                // Phase 2: 내부 전이 - 완료 여부 확인 (상태 변경 없이 Action만 실행)
-                .withInternal()
-                .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
-                .event(MfaEvent.CHECK_COMPLETION)
-                .action(checkCompletionAction)
-                .and()
+                // Phase 3: CHECK_COMPLETION 전이 제거됨 (Handler에서 직접 평가)
 
                 // 검증 실패 (재시도 가능)
                 .withExternal()
@@ -184,7 +179,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.ALL_FACTORS_COMPLETED)
                 .event(MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED)
-                .guard(allFactorsCompletedGuard)
+//                .guard(allFactorsCompletedGuard)
                 .and()
 
                 // 추가 팩터 필요

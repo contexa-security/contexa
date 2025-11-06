@@ -38,9 +38,18 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
     @Override
     protected boolean doEvaluate(StateContext<MfaState, MfaEvent> context,
                                  FactorContext factorContext) {
+        // Phase 2: FactorContext null 체크 추가
+        if (factorContext == null) {
+            log.error("[AllFactorsCompletedGuard] ⚠️ FactorContext is NULL! Cannot evaluate. Returning false.");
+            return false; // Reactive Stream 완료 보장
+        }
+
         String sessionId = factorContext.getMfaSessionId();
 
         try {
+            log.debug("[AllFactorsCompletedGuard] Guard 평가 시작 - Session: {}, CurrentState: {}",
+                     sessionId, factorContext.getCurrentState());
+
             // 완료된 팩터 수 (null 안전)
             int completedCount = factorContext.getCompletedFactors() != null ?
                     factorContext.getCompletedFactors().size() : 0;
@@ -50,30 +59,34 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
 
             // 추가: 유효성 검증
             if (requiredCount <= 0) {
-                log.error("Invalid required factor count ({}) for session: {}. Defaulting to 1.",
+                log.error("[AllFactorsCompletedGuard] Invalid required factor count ({}) for session: {}. Defaulting to 1.",
                         requiredCount, sessionId);
                 requiredCount = 1;
             }
 
-            log.debug("Session {}: completed factors={}, required factors={} ({})",
+            log.debug("[AllFactorsCompletedGuard] Session {}: completed factors={}, required factors={} ({})",
                     sessionId, completedCount, requiredCount,
                     completedCount >= requiredCount ? "SATISFIED" : "NOT_SATISFIED");
 
             boolean allCompleted = completedCount >= requiredCount;
 
             if (allCompleted) {
-                log.info("All required factors completed for session: {} ({}/{})",
+                log.info("[AllFactorsCompletedGuard] ✅ All required factors completed for session: {} ({}/{})",
                         sessionId, completedCount, requiredCount);
             } else {
-                log.debug("More factors required for session: {} ({}/{})",
+                log.debug("[AllFactorsCompletedGuard] More factors required for session: {} ({}/{})",
                         sessionId, completedCount, requiredCount);
             }
+
+            log.debug("[AllFactorsCompletedGuard] Guard 평가 완료 - Session: {}, Result: {}",
+                     sessionId, allCompleted);
 
             return allCompleted;
 
         } catch (Exception e) {
-            log.error("Error evaluating all factors completed for session: {}. Defaulting to false.", sessionId, e);
-            return false; // 오류 시 안전하게 false 반환
+            log.error("[AllFactorsCompletedGuard] ⚠️ Exception during guard evaluation for session: {}. Returning false to complete Reactive Stream.",
+                     sessionId, e);
+            return false; // 오류 시 안전하게 false 반환 (Reactive Stream 완료 보장)
         }
     }
 

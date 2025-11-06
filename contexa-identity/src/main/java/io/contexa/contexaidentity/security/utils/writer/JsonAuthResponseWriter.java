@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,7 +25,14 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        objectMapper.writeValue(response.getWriter(), data);
+
+        // JSON 직렬화를 먼저 완료
+        String jsonResponse = objectMapper.writeValueAsString(data);
+
+        // getWriter() 호출 (Spring Session 커밋 트리거)
+        PrintWriter writer = response.getWriter();
+        writer.write(jsonResponse);
+        writer.flush();
     }
 
     @Override

@@ -143,8 +143,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
 
         TokenTransportResult finalResult = TokenTransportResult.builder()
                 .body(responseData)
-                .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
-                .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
+//                .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
+//                .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
                 .headers(transportResult != null ? transportResult.getHeaders() : null)
                 .build();
 
@@ -168,7 +168,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         }
         
         // 8. Zero Trust 이벤트 발행
-        publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
+//        publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
     }
 
     /**
@@ -184,11 +184,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
     private void processDefaultResponse(HttpServletResponse response, TokenTransportResult result)
             throws IOException {
         // 쿠키 설정
-        if (result.getCookiesToSet() != null) {
+        /*if (result.getCookiesToSet() != null) {
             for (ResponseCookie cookie : result.getCookiesToSet()) {
                 response.addHeader("Set-Cookie", cookie.toString());
             }
-        }
+        }*/
 
         responseWriter.writeSuccessResponse(response, result.getBody(), HttpServletResponse.SC_OK);
     }
@@ -242,17 +242,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         Map<String, Object> responseData = new HashMap<>();
 
         // OAuth2/JWT 모드: 토큰 포함
-        if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
+      /*  if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
             if (transportResult != null && transportResult.getBody() != null) {
                 responseData.putAll(transportResult.getBody());
             }
-        }
+        }*/
 
         // 공통 응답 데이터
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "인증이 완료되었습니다.");
         responseData.put("redirectUrl", determineTargetUrl(request, response, authentication));
-        responseData.put("authentication", authentication);
+        // authentication 객체 제거: Users 엔티티 직렬화 에러 방지
         responseData.put("stateType", stateType.name());
 
         log.debug("Response data built for StateType: {}, contains tokens: {}",

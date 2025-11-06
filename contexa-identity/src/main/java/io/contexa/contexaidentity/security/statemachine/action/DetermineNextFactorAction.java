@@ -40,9 +40,25 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
                             FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
-        log.debug("Determining next factor for session: {}", sessionId);
+        log.debug("Determining next factor and checking completion for session: {}", sessionId);
 
-        // PolicyProvider에서 결정만 받아옴 (읽기 전용)
+        // Phase 3: 1. 먼저 완료 여부 체크
+        int completedCount = factorContext.getCompletedFactors().size();
+        int requiredCount = policyProvider.getRequiredFactorCount(
+            factorContext.getUsername(),
+            factorContext.getFlowTypeName()
+        );
+
+        if (completedCount >= requiredCount) {
+            // 모든 필수 팩터 완료
+            factorContext.setAttribute("nextEventRecommendation",
+                                       MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
+            log.info("All required factors completed ({}/{}) for session: {}",
+                     completedCount, requiredCount, sessionId);
+            return;
+        }
+
+        // Phase 3: 2. 다음 팩터 결정 (기존 로직)
         NextFactorDecision decision = policyProvider.evaluateNextFactor(factorContext);
 
         if (decision.getErrorMessage() != null) {
@@ -53,16 +69,25 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
         }
 
         if (decision.isHasNextFactor()) {
-            // State Machine Action에서만 수정 가능
+            // 다음 팩터가 자동 결정됨
             factorContext.setCurrentProcessingFactor(decision.getNextFactorType());
             factorContext.setCurrentStepId(decision.getNextStepId());
             factorContext.removeAttribute("needsDetermineNextFactor");
 
-            log.info("Next factor determined: {} (StepId: {}) for session: {}",
+            // Phase 3: 이벤트 추천
+            factorContext.setAttribute("nextEventRecommendation", MfaEvent.FACTOR_SELECTED);
+
+            log.info("Next factor auto-selected: {} (StepId: {}) for session: {}",
                      decision.getNextFactorType(), decision.getNextStepId(), sessionId);
-        } else if (decision.isAllFactorsCompleted()) {
-            log.info("No more factors to process for session: {}", sessionId);
+        } else {
+            // 수동 선택 필요
             factorContext.removeAttribute("needsDetermineNextFactor");
+
+            // Phase 3: 이벤트 추천
+            factorContext.setAttribute("nextEventRecommendation",
+                                       MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
+
+            log.info("Manual factor selection required for session: {}", sessionId);
         }
     }
 }

@@ -134,8 +134,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             return;
         }
 
-        boolean accepted = stateMachineIntegrator.sendEvent(
-                MfaEvent.SUBMIT_FACTOR_CREDENTIAL, ctx, request);
+        boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.SUBMIT_FACTOR_CREDENTIAL, ctx, request);
 
         if (!accepted) {
             log.error("State Machine rejected SUBMIT_FACTOR_CREDENTIAL event for session: {} in state: {}",
@@ -151,8 +150,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
 
 
-        FactorIdentifier factorIdentifier = FactorIdentifier.of(
-                ctx.getFlowTypeName(), ctx.getCurrentStepId());
+        FactorIdentifier factorIdentifier = FactorIdentifier.of(ctx.getFlowTypeName(), ctx.getCurrentStepId());
 
         Filter delegateFactorFilter = configuredFactorFilterProvider.getFilter(factorIdentifier);
 

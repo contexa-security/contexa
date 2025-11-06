@@ -15,6 +15,7 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.writer.JsonAuthResponseWriter;
 import lombok.RequiredArgsConstructor;
+import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -55,13 +56,13 @@ public class MfaInfrastructureAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public MfaFactorProcessingSuccessHandler mfaFactorProcessingSuccessHandler(MfaStateMachineIntegrator mfaStateMachineIntegrator,
-                                                                               MfaPolicyProvider mfaPolicyProvider,
                                                                                AuthResponseWriter authResponseWriter,
                                                                                ApplicationContext applicationContext,
                                                                                MfaSessionRepository mfaSessionRepository,
-                                                                               AuthUrlProvider authUrlProvider) {
-        return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, mfaPolicyProvider, authResponseWriter,
-                applicationContext, authContextProperties, mfaSessionRepository, tokenService, authUrlProvider);
+                                                                               AuthUrlProvider authUrlProvider,
+                                                                               ModelMapper modelMapper) {
+        return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
+                applicationContext, authContextProperties, mfaSessionRepository, tokenService, authUrlProvider, modelMapper);
     }
 
 

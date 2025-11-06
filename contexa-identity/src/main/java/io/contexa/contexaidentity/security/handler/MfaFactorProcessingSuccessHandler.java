@@ -1,9 +1,10 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
@@ -16,9 +17,11 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,32 +41,52 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
+    private final ModelMapper modelMapper;
+    // Phase 3: MfaPolicyProvider 제거 - 모든 비즈니스 로직은 DetermineNextFactorAction에서 처리
 
     public MfaFactorProcessingSuccessHandler(MfaStateMachineIntegrator mfaStateMachineIntegrator,
-                                             MfaPolicyProvider mfaPolicyProvider, // 파라미터는 유지 (DI)
                                              AuthResponseWriter responseWriter,
                                              ApplicationContext applicationContext, // 파라미터는 유지 (DI)
                                              AuthContextProperties authContextProperties,
                                              MfaSessionRepository sessionRepository,
                                              TokenService tokenService,
-                                             AuthUrlProvider authUrlProvider) {
+                                             AuthUrlProvider authUrlProvider,
+                                             ModelMapper modelMapper) {
         super(tokenService,responseWriter,sessionRepository,mfaStateMachineIntegrator,authContextProperties);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
-        // mfaPolicyProvider, applicationContext: 파라미터로 받지만 필드에 저장하지 않음 (현재 미사용)
+        this.modelMapper = modelMapper;
+        // applicationContext: 파라미터로 받지만 필드에 저장하지 않음 (현재 미사용)
     }
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
+
+        // ⭐ Users 엔티티 직렬화 방지: CustomUserDetails를 UserDto로 변환
+        // Spring Security OTT 필터는 CustomUserDetails를 principal로 사용하지만
+        // HttpSession이 Redis에 직렬화될 때 Users 엔티티는 직렬화 불가능
+        if (authentication.getPrincipal() instanceof CustomUserDetails customUserDetails) {
+            UserDto userDto = modelMapper.map(customUserDetails.getAccount(), UserDto.class);
+            Authentication newAuth = new RestAuthenticationToken(
+                userDto,
+                authentication.getCredentials(),
+                authentication.getAuthorities()
+            );
+            SecurityContextHolder.getContext().setAuthentication(newAuth);
+            authentication = newAuth;
+            log.debug("Converted CustomUserDetails to UserDto for serialization safety. User: {}", userDto.getUsername());
+        }
+
         log.debug("MFA Factor successfully processed for user: {} using {} repository",
-                (((CustomUserDetails)authentication.getPrincipal())).getAccount().getUsername(), sessionRepository.getRepositoryType());
+                getPrincipalUsername(authentication), sessionRepository.getRepositoryType());
 
         // 1. FactorContext 로드 (SM 서비스는 내부적으로 락 사용 및 최신 상태 복원)
         FactorContext factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
-        if (factorContext == null || !Objects.equals(factorContext.getUsername(), (((CustomUserDetails)authentication.getPrincipal())).getAccount().getUsername())) {
+        String username = getPrincipalUsername(authentication);
+        if (factorContext == null || !Objects.equals(factorContext.getUsername(), username)) {
             handleInvalidContext(response, request, "MFA_FACTOR_SUCCESS_NO_CONTEXT",
                     "MFA 팩터 처리 성공 후 컨텍스트를 찾을 수 없거나 사용자가 일치하지 않습니다.", authentication);
             return;
@@ -88,64 +111,23 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             return;
         }
 
-        // Phase 2.1: 불필요한 중간 로드 제거 - sendEvent()가 이미 factorContext를 업데이트함
-        // 3. 이벤트 처리 후 상태 확인 (컨텍스트는 sendEvent에서 이미 업데이트됨)
-
-        // 4. 현재 상태 및 플래그에 따라 다음 단계 결정
+        // 3. 현재 상태 및 플래그에 따라 다음 단계 결정
         MfaState currentState = factorContext.getCurrentState();
         log.debug("State after FACTOR_VERIFIED_SUCCESS event: {} for session: {}", currentState, factorContext.getMfaSessionId());
 
         if (currentState == MfaState.FACTOR_VERIFICATION_COMPLETED) {
-            // Phase 2: 다음 팩터 결정 필요 여부 확인 (읽기만)
-            if (Boolean.TRUE.equals(factorContext.getAttribute("needsDetermineNextFactor"))) {
-                log.debug("Sending DETERMINE_NEXT_FACTOR event for session: {}",
-                         factorContext.getMfaSessionId());
+            // Phase 3: DetermineNextFactorAction이 완료 체크 및 다음 이벤트 결정
+            log.debug("Sending DETERMINE_NEXT_FACTOR event for session: {}", factorContext.getMfaSessionId());
 
-                // Phase 2: State Machine에 이벤트 전송 (수정은 Action에서)
-                boolean determined = stateMachineIntegrator.sendEvent(
-                    MfaEvent.DETERMINE_NEXT_FACTOR, factorContext, request
-                );
+            boolean determined = stateMachineIntegrator.sendEvent(MfaEvent.DETERMINE_NEXT_FACTOR, factorContext, request);
 
-                if (!determined) {
-                    log.error("Failed to determine next factor for session: {}",
-                             factorContext.getMfaSessionId());
-                    handleStateTransitionError(response, request, factorContext);
-                    return;
-                }
-            }
-
-            // Phase 2: 완료 여부 확인 (읽기만)
-            log.debug("Sending CHECK_COMPLETION event for session: {}",
-                     factorContext.getMfaSessionId());
-
-            // Phase 2.2: State Machine에 이벤트 전송 및 에러 처리
-            boolean completionChecked = false;
-            try {
-                completionChecked = stateMachineIntegrator.sendEvent(
-                    MfaEvent.CHECK_COMPLETION, factorContext, request
-                );
-
-                if (!completionChecked) {
-                    log.error("Failed to check completion for session: {}",
-                             factorContext.getMfaSessionId());
-                    handleStateTransitionError(response, request, factorContext);
-                    return;
-                }
-
-            } catch (Exception e) {
-                // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
-                log.error("Exception during CHECK_COMPLETION for session: {}: {}",
-                         factorContext.getMfaSessionId(), e.getMessage(), e);
-
-                // 공통 메서드를 사용하여 errorEventRecommendation 처리
-                processErrorEventRecommendation(factorContext, request, factorContext.getMfaSessionId());
-
-                // 에러 응답 전송
+            if (!determined) {
+                log.error("Failed to determine next factor for session: {}", factorContext.getMfaSessionId());
                 handleStateTransitionError(response, request, factorContext);
                 return;
             }
 
-            // Phase 2.3: CheckCompletionAction이 추천한 정상 이벤트 처리
+            // Phase 4: Action이 설정한 추천 이벤트 전송
             MfaEvent nextEvent = (MfaEvent) factorContext.getAttribute("nextEventRecommendation");
             if (nextEvent != null) {
                 log.debug("Processing recommended event: {} for session: {}",
@@ -153,25 +135,23 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
                 boolean eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
                 if (!eventSent) {
-                    log.error("Failed to send recommended event: {} for session: {}",
-                             nextEvent, factorContext.getMfaSessionId());
+                    log.error("Failed to send recommended event: {} for session: {}", nextEvent, factorContext.getMfaSessionId());
                     handleStateTransitionError(response, request, factorContext);
                     return;
                 }
 
                 // Clear the recommendation after processing
                 factorContext.removeAttribute("nextEventRecommendation");
-                log.debug("Recommended event {} processed successfully for session: {}",
-                         nextEvent, factorContext.getMfaSessionId());
+                log.debug("Recommended event {} processed successfully for session: {}", nextEvent, factorContext.getMfaSessionId());
             }
 
         }
 
-        // 6. 최종 상태 확인 및 응답
+        // 5. 최종 상태 확인 및 응답
         currentState = factorContext.getCurrentState();
         log.debug("Final state: {} for session: {}", currentState, factorContext.getMfaSessionId());
 
-        // 7. 상태에 따른 응답 처리
+        // 6. 상태에 따른 응답 처리
         if (currentState == MfaState.ALL_FACTORS_COMPLETED || currentState == MfaState.MFA_SUCCESSFUL) {
             // 모든 팩터 완료 - 최종 성공 처리
             log.info("All required MFA factors completed for user: {}", factorContext.getUsername());
@@ -317,6 +297,20 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
         } catch (Exception e) {
             log.warn("Failed to release State Machine session after generic error: {}", ctx.getMfaSessionId(), e);
+        }
+    }
+
+    /**
+     * Authentication에서 username 추출 (CustomUserDetails 또는 UserDto 모두 지원)
+     */
+    private String getPrincipalUsername(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof CustomUserDetails customUserDetails) {
+            return customUserDetails.getAccount().getUsername();
+        } else if (principal instanceof UserDto userDto) {
+            return userDto.getUsername();
+        } else {
+            return principal.toString();
         }
     }
 }

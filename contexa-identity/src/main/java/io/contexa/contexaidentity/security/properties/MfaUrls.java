@@ -60,7 +60,7 @@ public class MfaUrls {
      * MFA Context 조회 URL (GET)
      * SDK에서 FactorContext 정보를 동적으로 가져오기 위해 사용
      */
-    private String context = "/mfa/context";
+    private String context = "/api/mfa/context";
 
     /**
      * OTT 코드 재전송 요청 URL (POST)

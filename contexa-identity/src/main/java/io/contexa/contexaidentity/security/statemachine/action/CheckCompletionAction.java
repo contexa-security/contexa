@@ -1,9 +1,11 @@
 package io.contexa.contexaidentity.security.statemachine.action;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.policy.CompletionDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
+import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.RequiredArgsConstructor;
@@ -36,8 +38,9 @@ import org.springframework.stereotype.Component;
 public class CheckCompletionAction extends AbstractMfaStateAction {
 
     private final MfaPolicyProvider policyProvider;
+    private final PlatformConfig platformConfig; // Phase 2 개선: 직접 주입으로 blocking 제거
 
-    // P1-1: ApplicationContext는 부모 클래스에서 자동 주입됨
+    // P1-1: ApplicationContext는 부모 클래스에서 자동 주입됨 (하지만 더 이상 사용 안 함)
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
@@ -45,8 +48,12 @@ public class CheckCompletionAction extends AbstractMfaStateAction {
         String sessionId = factorContext.getMfaSessionId();
         log.debug("Checking completion for session: {}", sessionId);
 
-        // FlowConfig 조회
-        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(factorContext);
+        // Phase 2 개선: ApplicationContext bean lookup 제거 → 직접 주입된 PlatformConfig 사용
+        AuthenticationFlowConfig mfaFlowConfig = platformConfig.getFlows().stream()
+                .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
+                .findFirst()
+                .orElse(null);
+
         if (mfaFlowConfig == null) {
             log.error("MFA flow config not found for session: {}", sessionId);
             factorContext.changeState(MfaState.MFA_SYSTEM_ERROR);
@@ -91,5 +98,5 @@ public class CheckCompletionAction extends AbstractMfaStateAction {
         }
     }
 
-    // P1-1: findMfaFlowConfig() 메서드는 AbstractMfaStateAction으로 이동됨
+    // Phase 2 개선: findMfaFlowConfig() 호출 제거 - ApplicationContext blocking 제거
 }
