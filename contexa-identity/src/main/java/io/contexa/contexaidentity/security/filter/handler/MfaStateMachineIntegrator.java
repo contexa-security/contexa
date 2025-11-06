@@ -245,27 +245,114 @@ public class MfaStateMachineIntegrator {
     }
 
     /**
-     * Phase 5: 이벤트 거부 사유 분석
-     * State Machine이 이벤트를 거부했을 때 상세 사유 제공
+     * Phase 6: 이벤트 거부 사유 상세 분석
+     * State Machine이 이벤트를 거부했을 때 다음 정보를 제공:
+     * 1. 거부 사유
+     * 2. 해당 이벤트가 가능한 소스 상태들
+     * 3. 현재 상태에서 가능한 이벤트들
+     * 4. nextEventRecommendation (있는 경우)
      */
     private String analyzeEventRejectionReason(FactorContext context, MfaEvent event) {
         MfaState currentState = context.getCurrentState();
 
+        // Terminal state 체크
         if (currentState.isTerminal()) {
-            return String.format("State %s is terminal - no further events allowed", currentState);
+            return String.format("State [%s] is terminal - no further events allowed", currentState);
         }
 
-        switch (currentState) {
-            case MFA_SESSION_EXPIRED:
-                return "MFA session has expired";
-            case MFA_RETRY_LIMIT_EXCEEDED:
-            case MFA_FAILED_TERMINAL:
-                return "MFA has failed and reached terminal state";
-            case NONE:
-                return "State Machine not properly initialized";
-            default:
-                return String.format("Event %s not valid for current state %s", event, currentState);
+        // 특수 상태별 메시지
+        if (currentState == MfaState.MFA_SESSION_EXPIRED) {
+            return "MFA session has expired";
         }
+        if (currentState == MfaState.MFA_RETRY_LIMIT_EXCEEDED || currentState == MfaState.MFA_FAILED_TERMINAL) {
+            return "MFA has failed and reached terminal state";
+        }
+        if (currentState == MfaState.NONE) {
+            return "State Machine not properly initialized";
+        }
+
+        // Phase 6: 상세 거부 사유 생성
+        StringBuilder reason = new StringBuilder();
+        reason.append(String.format("Event [%s] not valid for current state [%s]. ", event, currentState));
+
+        // 해당 이벤트가 가능한 소스 상태들 표시
+        String validSourceStates = getValidSourceStatesForEvent(event);
+        if (validSourceStates != null && !validSourceStates.isEmpty()) {
+            reason.append(String.format("Valid source states for %s: [%s]. ", event, validSourceStates));
+        }
+
+        // 현재 상태에서 가능한 이벤트들 표시
+        String validEvents = getValidEventsForState(currentState);
+        if (validEvents != null && !validEvents.isEmpty()) {
+            reason.append(String.format("Valid events for %s: [%s]. ", currentState, validEvents));
+        }
+
+        // nextEventRecommendation 확인
+        Object recommended = context.getAttribute("nextEventRecommendation");
+        if (recommended != null) {
+            reason.append(String.format("Recommended event: [%s]. ", recommended));
+        } else {
+            reason.append("No event recommendation available. ");
+        }
+
+        return reason.toString();
+    }
+
+    /**
+     * Phase 6: 이벤트별 유효한 소스 상태 반환
+     * State Machine Configuration 기반 매핑
+     */
+    private String getValidSourceStatesForEvent(MfaEvent event) {
+        return switch (event) {
+            case PRIMARY_AUTH_SUCCESS -> "NONE";
+            case MFA_NOT_REQUIRED, MFA_REQUIRED_SELECT_FACTOR, INITIATE_CHALLENGE_AUTO ->
+                    "PRIMARY_AUTHENTICATION_COMPLETED";
+            case FACTOR_SELECTED ->
+                    "AWAITING_FACTOR_SELECTION, FACTOR_VERIFICATION_COMPLETED";
+            case INITIATE_CHALLENGE ->
+                    "AWAITING_FACTOR_CHALLENGE_INITIATION, FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION";
+            case SUBMIT_FACTOR_CREDENTIAL ->
+                    "FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION";
+            case FACTOR_VERIFIED_SUCCESS, FACTOR_VERIFICATION_FAILED ->
+                    "FACTOR_VERIFICATION_PENDING";
+            case DETERMINE_NEXT_FACTOR, ALL_REQUIRED_FACTORS_COMPLETED ->
+                    "FACTOR_VERIFICATION_COMPLETED";
+            case ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN ->
+                    "ALL_FACTORS_COMPLETED";
+            case SESSION_TIMEOUT, RETRY_LIMIT_EXCEEDED, USER_ABORTED_MFA, SYSTEM_ERROR ->
+                    "Multiple non-terminal states (terminal event)";
+            default -> "Unknown event";
+        };
+    }
+
+    /**
+     * Phase 6: 상태별 유효한 이벤트 반환
+     * State Machine Configuration 기반 매핑
+     */
+    private String getValidEventsForState(MfaState state) {
+        return switch (state) {
+            case NONE ->
+                    "PRIMARY_AUTH_SUCCESS";
+            case PRIMARY_AUTHENTICATION_COMPLETED ->
+                    "MFA_NOT_REQUIRED, MFA_REQUIRED_SELECT_FACTOR, INITIATE_CHALLENGE_AUTO, SESSION_TIMEOUT, SYSTEM_ERROR";
+            case AWAITING_FACTOR_SELECTION ->
+                    "FACTOR_SELECTED, SESSION_TIMEOUT, USER_ABORTED_MFA, SYSTEM_ERROR";
+            case AWAITING_FACTOR_CHALLENGE_INITIATION ->
+                    "INITIATE_CHALLENGE, SESSION_TIMEOUT, USER_ABORTED_MFA, SYSTEM_ERROR";
+            case FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ->
+                    "INITIATE_CHALLENGE, SUBMIT_FACTOR_CREDENTIAL, SESSION_TIMEOUT, USER_ABORTED_MFA, SYSTEM_ERROR";
+            case FACTOR_VERIFICATION_PENDING ->
+                    "FACTOR_VERIFIED_SUCCESS, FACTOR_VERIFICATION_FAILED, SESSION_TIMEOUT, RETRY_LIMIT_EXCEEDED, SYSTEM_ERROR";
+            case FACTOR_VERIFICATION_COMPLETED ->
+                    "DETERMINE_NEXT_FACTOR, ALL_REQUIRED_FACTORS_COMPLETED, FACTOR_SELECTED, SESSION_TIMEOUT, SYSTEM_ERROR";
+            case ALL_FACTORS_COMPLETED ->
+                    "ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN, SESSION_TIMEOUT, SYSTEM_ERROR";
+            case MFA_SUCCESSFUL, MFA_NOT_REQUIRED, MFA_FAILED_TERMINAL, MFA_SESSION_EXPIRED,
+                 MFA_RETRY_LIMIT_EXCEEDED, MFA_CANCELLED, MFA_SYSTEM_ERROR ->
+                    "None (terminal state)";
+            default ->
+                    "Unknown state";
+        };
     }
 
     /**

@@ -120,19 +120,12 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initiateChallengeAction)
                 .and()
 
-                /*  // 챌린지 성공적 시작 -> 사용자 입력 대기
-                  .withExternal()
-                  .source(MfaState.FACTOR_CHALLENGE_INITIATED)
-                  .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
-                  .event(MfaEvent.CHALLENGE_INITIATED_SUCCESSFULLY)
-                  .and()
-
-                  // 챌린지 시작 실패 -> 팩터 선택으로 돌아감
-                  .withExternal()
-                  .source(MfaState.FACTOR_CHALLENGE_INITIATED)
-                  .target(MfaState.AWAITING_FACTOR_SELECTION)
-                  .event(MfaEvent.CHALLENGE_INITIATION_FAILED)
-                  .and()*/
+                // Phase 6: 챌린지 만료 후 재시작 허용 (내부 전이 - 상태 변경 없이 액션만 실행)
+                .withInternal()
+                .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
+                .event(MfaEvent.INITIATE_CHALLENGE)
+                .action(initiateChallengeAction)
+                .and()
 
                 // 검증 시도
                 .withExternal()

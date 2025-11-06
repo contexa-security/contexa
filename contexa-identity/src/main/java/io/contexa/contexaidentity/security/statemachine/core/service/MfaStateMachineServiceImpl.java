@@ -40,7 +40,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
     private static final long LOCK_WAIT_TIME_SECONDS = 10;
     private static final long LOCK_LEASE_TIME_SECONDS = 30;
     private static final MfaState FALLBACK_INITIAL_MFA_STATE = MfaState.NONE; // 실제 초기 상태로 변경 필요
-    private static final long EVENT_PROCESSING_TIMEOUT_SECONDS = 5;
+    private static final long EVENT_PROCESSING_TIMEOUT_SECONDS = 50;
 
     private String getLockKey(String sessionId) {
         return "mfa_lock:session:" + sessionId;

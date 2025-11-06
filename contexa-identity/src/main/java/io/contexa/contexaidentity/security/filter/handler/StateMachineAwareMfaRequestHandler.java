@@ -2,12 +2,14 @@ package io.contexa.contexaidentity.security.filter.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
+import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.properties.MfaSettings;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
+import io.contexa.contexaidentity.security.utils.MfaTimeUtils;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -198,7 +202,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
 
     /**
-     * 요청 타입별 처리
+     * Phase 6: 요청 타입별 처리 - 원본 복원
+     *
+     * CHALLENGE_INITIATION과 OTT_CODE_REQUEST는 모두 handleChallengeInitiation()을 호출합니다.
+     * hasActiveChallengeForFactor() 로직이 중복 이벤트 전송을 방지하며, 클라이언트 응답은 항상 전송됩니다.
      */
     private void processRequestByType(MfaRequestType requestType, HttpServletRequest request,
                                       HttpServletResponse response, FactorContext context,
@@ -209,8 +216,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 break;
 
             case CHALLENGE_INITIATION:
-            case OTT_CODE_REQUEST:
                 handleChallengeInitiation(request, response, context);
+                break;
+
+            case OTT_CODE_REQUEST:
+                // OTT 코드 생성 요청 - FilterChain 통과하여 OneTimeTokenGenerationFilter 실행
+                filterChain.doFilter(request, response);
                 break;
 
             case FACTOR_VERIFICATION:
@@ -259,29 +270,97 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     }
 
     /**
-     * 챌린지 시작 처리 - State Machine Guard 의존
-     * - 모든 검증은 Guard에서 수행
-     * - Handler는 이벤트 전송 및 응답만 처리
+     * 챌린지 시작 처리 - 원래 로직 복원
      */
     private void handleChallengeInitiation(HttpServletRequest request, HttpServletResponse response,
                                            FactorContext context) throws IOException {
         String sessionId = context.getMfaSessionId();
+        MfaSettings mfaSettings = authContextProperties.getMfa();
+
         log.debug("Handling challenge initiation for session: {}", sessionId);
 
-        // State Machine Guard가 모든 검증 수행
+        // 포괄적인 상태 검증
+        if (!isValidStateForChallengeInitiation(context)) {
+            handleInvalidStateError(request, response, context, "INVALID_STATE_FOR_CHALLENGE",
+                    "챌린지 시작이 불가능한 상태입니다. 현재 상태: " + context.getCurrentState());
+            return;
+        }
+
+        // 현재 처리 팩터 확인
+        if (context.getCurrentProcessingFactor() == null) {
+            handleInvalidStateError(request, response, context, "NO_PROCESSING_FACTOR",
+                    "처리할 팩터가 선택되지 않았습니다.");
+            return;
+        }
+
+        // 이전 챌린지가 아직 유효한지 확인
+        if (hasActiveChallengeForFactor(context)) {
+            log.info("Active challenge exists for session: {}, reusing existing challenge", sessionId);
+
+            // 기존 챌린지 정보로 응답
+            Object challengeTime = context.getAttribute("challengeInitiatedAt");
+            Instant challengeStart = MfaTimeUtils.fromMillis((Long) challengeTime);
+            Duration remaining = MfaTimeUtils.getRemainingChallengeTime(challengeStart, mfaSettings);
+
+            Map<String, Object> reuseResponse = createSuccessResponse(context, "CHALLENGE_REUSED",
+                    "기존 챌린지를 재사용합니다.");
+            reuseResponse.put("challengeUrl", determineNextStepUrl(context, request));
+            reuseResponse.put("factorType", context.getCurrentProcessingFactor());
+            reuseResponse.put("remainingTimeMs", remaining.toMillis());
+            reuseResponse.put("challengeReused", true);
+
+            responseWriter.writeSuccessResponse(response, reuseResponse, HttpServletResponse.SC_OK);
+            return; // 상태는 그대로 유지
+        }
+
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
 
         if (accepted) {
+            // 챌린지 시작 시간 기록
+            Instant challengeStartTime = MfaTimeUtils.nowInstant();
+            context.setAttribute("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
+            context.setAttribute("ottCodeSent", true); // OTT의 경우
+
+            // 챌린지 만료 시간 계산
+            Instant challengeExpiryTime = MfaTimeUtils.calculateChallengeExpiry(challengeStartTime, mfaSettings);
+            Duration challengeDuration = MfaTimeUtils.getRemainingChallengeTime(challengeStartTime, mfaSettings);
+
             Map<String, Object> successResponse = createSuccessResponse(context, "CHALLENGE_INITIATED",
                     "챌린지가 시작되었습니다.");
             successResponse.put("factorType", context.getCurrentProcessingFactor());
             successResponse.put("challengeUrl", determineNextStepUrl(context, request));
+            successResponse.put("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
+            successResponse.put("challengeInitiatedAtISO", MfaTimeUtils.toIsoString(challengeStartTime));
+            successResponse.put("challengeExpiresAt", MfaTimeUtils.toMillis(challengeExpiryTime));
+            successResponse.put("challengeExpiresAtISO", MfaTimeUtils.toIsoString(challengeExpiryTime));
+            successResponse.put("challengeTimeoutMs", mfaSettings.getChallengeTimeoutMs());
+            successResponse.put("remainingTimeMs", challengeDuration.toMillis());
+            successResponse.put("remainingTimeDisplay", MfaTimeUtils.toDisplayString(challengeDuration));
 
             responseWriter.writeSuccessResponse(response, successResponse, HttpServletResponse.SC_OK);
         } else {
             handleInvalidStateError(request, response, context, "CHALLENGE_INITIATION_FAILED",
                     "챌린지 시작에 실패했습니다.");
         }
+    }
+
+    private boolean isValidStateForChallengeInitiation(FactorContext context) {
+        MfaState currentState = context.getCurrentState();
+        return currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
+               currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
+    }
+
+    /**
+     * 활성 챌린지 존재 여부 확인
+     */
+    private boolean hasActiveChallengeForFactor(FactorContext context) {
+        Object challengeTime = context.getAttribute("challengeInitiatedAt");
+        if (!(challengeTime instanceof Long)) {
+            return false;
+        }
+
+        // 챌린지가 만료되지 않았다면 활성 상태
+        return !mfaSettings.isChallengeExpired((Long) challengeTime);
     }
 
     private void handleCancelMfa(HttpServletRequest request, HttpServletResponse response,
