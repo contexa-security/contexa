@@ -83,8 +83,18 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         log.debug("MFA Factor successfully processed for user: {} using {} repository",
                 getPrincipalUsername(authentication), sessionRepository.getRepositoryType());
 
-        // 1. FactorContext 로드 (SM 서비스는 내부적으로 락 사용 및 최신 상태 복원)
-        FactorContext factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        // ✅ 최적화: Request Attribute에서 먼저 조회 (MfaContinuationFilter/MfaStepFilterWrapper에서 저장)
+        FactorContext factorContext = (FactorContext) request.getAttribute(
+                "io.contexa.mfa.FactorContext");
+
+        if (factorContext == null) {
+            // Fallback: 직접 로드 (SM 서비스는 내부적으로 락 사용 및 최신 상태 복원)
+            log.debug("FactorContext not found in request attribute, loading from State Machine");
+            factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        } else {
+            log.debug("FactorContext retrieved from request attribute for session: {}", factorContext.getMfaSessionId());
+        }
+
         String username = getPrincipalUsername(authentication);
         if (factorContext == null || !Objects.equals(factorContext.getUsername(), username)) {
             handleInvalidContext(response, request, "MFA_FACTOR_SUCCESS_NO_CONTEXT",

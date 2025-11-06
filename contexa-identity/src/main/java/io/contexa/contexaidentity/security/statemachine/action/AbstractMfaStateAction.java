@@ -61,16 +61,9 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
             log.error("Business exception in action {} for session: {}: {}",
                     this.getClass().getSimpleName(), sessionId, e.getMessage());
 
-            // 1. 에러 정보를 컨텍스트에 저장
+            // 1. 에러 정보를 컨텍스트에 저장 (Single Source of Truth: FactorContext만 사용)
             assert factorContext != null;
             factorContext.setLastError(e.getMessage());
-            factorContext.setAttribute("lastErrorType", e.getClass().getSimpleName());
-            factorContext.setAttribute("lastErrorTime", System.currentTimeMillis());
-
-            // 2. State Machine에 에러 상태 저장
-            context.getExtendedState().getVariables().put("actionError", true);
-            context.getExtendedState().getVariables().put("actionErrorMessage", e.getMessage());
-            context.getExtendedState().getVariables().put("actionErrorType", e.getClass().getSimpleName());
 
             // 3. 에러 이벤트 전송
             handleBusinessException(context, factorContext, e);
@@ -116,11 +109,9 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     protected void handleBusinessException(StateContext<MfaState, MfaEvent> context,
                                            FactorContext factorContext,
                                            RuntimeException e) {
-        // 에러 정보 저장
+        // 에러 정보 저장 (Single Source of Truth: FactorContext만 사용)
         if (factorContext != null) {
             factorContext.setLastError(e.getMessage());
-            factorContext.setAttribute("lastErrorType", e.getClass().getSimpleName());
-            factorContext.setAttribute("lastErrorTime", System.currentTimeMillis());
 
             // Phase 2 개선: 이벤트 추천 저장 (Handler가 처리)
             if (e instanceof InvalidFactorException) {

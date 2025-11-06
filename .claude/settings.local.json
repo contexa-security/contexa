@@ -49,7 +49,9 @@
       "Bash(gradlew :contexa-identity:build:*)",
       "Bash(gradlew.bat :contexa-identity:build:*)",
       "Bash(./gradlew.bat :contexa-identity:build -x test)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(gradlew.bat :contexa-identity:compileJava:*)",
+      "Bash(./gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

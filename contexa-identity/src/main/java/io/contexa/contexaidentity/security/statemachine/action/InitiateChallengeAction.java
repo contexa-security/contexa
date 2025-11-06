@@ -40,8 +40,6 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
 
                 log.info("[InitiateChallengeAction] Initiating OTT challenge via {} for session: {}",
                         ottDeliveryMethod, sessionId);
-                factorContext.setAttribute("ottCodeSent", true);
-                factorContext.setAttribute("ottDeliveryMethodUsed", ottDeliveryMethod); // 실제 사용된 방법 기록
                 break;
 
             case "PASSKEY":
@@ -55,8 +53,6 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
 
                 log.info("[InitiateChallengeAction] Initiating Passkey challenge with type {} for session: {}",
                         passkeyType, sessionId);
-                factorContext.setAttribute("passkeyOptionsGenerated", true);
-                factorContext.setAttribute("passkeyTypeUsed", passkeyType); // 실제 사용된 타입 기록
                 break;
 
             default:

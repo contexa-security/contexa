@@ -8,90 +8,55 @@ package io.contexa.contexaidentity.security.filter.matcher;
  */
 public enum MfaRequestType {
 
-    // === 초기화 관련 ===
-    /**
-     * MFA 프로세스 시작 요청
-     * - 1차 인증 완료 후 MFA 프로세스 개시
-     * - State: PRIMARY_AUTHENTICATION_COMPLETED -> AWAITING_FACTOR_SELECTION
-     */
-    MFA_INITIATE("MFA 프로세스 시작", true, false),
-
     // === 팩터 선택 관련 ===
     /**
-     * 팩터 선택 페이지 요청 (레거시)
-     * - 팩터 선택 UI 렌더링 요청
-     */
-    SELECT_FACTOR("팩터 선택 페이지 요청", false, false),
-
-    /**
-     * 팩터 선택 처리 (신규)
+     * 팩터 선택 처리
      * - 사용자가 선택한 팩터 처리
      * - Event: FACTOR_SELECTED
+     * - GET: 팩터 선택 UI 페이지, POST: 팩터 선택 API 처리
      */
     FACTOR_SELECTION("팩터 선택 처리", true, false),
 
     // === 챌린지 관련 ===
     /**
-     * 챌린지 시작 (신규)
+     * 챌린지 시작
      * - 선택된 팩터에 대한 챌린지 프로세스 시작
      * - Event: INITIATE_CHALLENGE
      */
     CHALLENGE_INITIATION("챌린지 시작", true, false),
 
+    // === OTT 전용 타입 ===
     /**
-     * 챌린지 요청 (레거시)
-     * - 챌린지 데이터 요청
+     * OTT 코드 요청 (신규)
+     * - OTT 코드 생성 및 이메일 전송 요청
+     * - Event: INITIATE_CHALLENGE
+     * - URL: POST /mfa/ott/generate-code
      */
-    CHALLENGE_REQUEST("챌린지 요청", false, false),
+    OTT_CODE_REQUEST("OTT 코드 요청", true, false),
 
     /**
-     * 토큰 생성 (레거시 - OTT 등)
-     * - OTP, SMS 등의 토큰 생성 요청
+     * OTT 코드 검증 (신규)
+     * - 사용자가 입력한 OTT 코드 검증
+     * - FilterChain으로 위임하여 OttAuthenticationFilter에서 처리
+     * - URL: POST /login/mfa-ott
      */
-    TOKEN_GENERATION("토큰 생성 (OTT 등)", false, false),
+    OTT_CODE_VERIFY("OTT 코드 검증", false, false),
 
     // === 검증 관련 ===
     /**
-     * 팩터 검증 (신규)
+     * 팩터 검증
      * - 제출된 팩터 자격증명 검증
      * - Event: SUBMIT_FACTOR_CREDENTIAL
      */
     FACTOR_VERIFICATION("팩터 검증", true, false),
 
-    /**
-     * 검증 처리 (레거시)
-     * - 일반적인 검증 요청
-     */
-    VERIFICATION("검증 처리", false, false),
-
-    // === 상태 관리 ===
-    /**
-     * 상태 확인 (신규)
-     * - 현재 MFA 진행 상태 조회
-     * - 터미널 상태에서도 허용
-     */
-    STATUS_CHECK("상태 확인", false, true),
-
-    /**
-     * 세션 갱신 (신규)
-     * - MFA 세션 유효 시간 연장
-     * - 터미널 상태에서도 허용
-     */
-    SESSION_REFRESH("세션 갱신", false, true),
-
     // === 제어 관련 ===
     /**
-     * MFA 취소 (신규)
+     * MFA 취소
      * - 사용자에 의한 MFA 프로세스 취소
      * - Event: USER_ABORTED_MFA
      */
     CANCEL_MFA("MFA 취소", true, false),
-
-    /**
-     * 취소 처리 (레거시)
-     * - 일반적인 취소 요청
-     */
-    CANCEL("취소 처리", false, false),
 
     // === 인증 관련 ===
     /**
@@ -153,30 +118,24 @@ public enum MfaRequestType {
         }
 
         return switch (legacyType.toUpperCase().trim()) {
-            case "MFA_INITIATE" -> MFA_INITIATE;
-            case "SELECT_FACTOR" -> SELECT_FACTOR;
-            case "TOKEN_GENERATION" -> TOKEN_GENERATION;
+            case "SELECT_FACTOR" -> FACTOR_SELECTION; // 레거시 호환: SELECT_FACTOR → FACTOR_SELECTION
+            case "TOKEN_GENERATION" -> OTT_CODE_REQUEST; // 레거시 호환: TOKEN_GENERATION → OTT_CODE_REQUEST
             case "LOGIN_PROCESSING" -> LOGIN_PROCESSING;
-            case "CHALLENGE_REQUEST" -> CHALLENGE_REQUEST;
-            case "VERIFICATION" -> VERIFICATION;
-            case "CANCEL" -> CANCEL;
+            case "CHALLENGE_REQUEST" -> CHALLENGE_INITIATION; // 레거시 호환: CHALLENGE_REQUEST → CHALLENGE_INITIATION
+            case "VERIFICATION" -> FACTOR_VERIFICATION; // 레거시 호환: VERIFICATION → FACTOR_VERIFICATION
+            case "CANCEL" -> CANCEL_MFA; // 레거시 호환: CANCEL → CANCEL_MFA
             default -> UNKNOWN;
         };
     }
 
     /**
-     * 신규 타입을 레거시 타입으로 변환 (하위 호환성)
-     * @return 레거시 호환 타입
+     * 레거시 타입으로 변환 (하위 호환성)
+     * @deprecated 레거시 타입이 제거되어 더 이상 필요하지 않음. 모든 타입이 직접 사용됨.
+     * @return 자기 자신 반환
      */
+    @Deprecated(since = "2025-01", forRemoval = true)
     public MfaRequestType toLegacyType() {
-        return switch (this) {
-            case FACTOR_SELECTION -> SELECT_FACTOR;
-            case CHALLENGE_INITIATION -> MFA_INITIATE;
-            case FACTOR_VERIFICATION -> TOKEN_GENERATION;
-            case CANCEL_MFA -> CANCEL;
-            case STATUS_CHECK, SESSION_REFRESH -> UNKNOWN; // 레거시에서 지원하지 않음
-            default -> this;
-        };
+        return this; // 레거시 타입 제거로 인해 모든 타입이 직접 사용됨
     }
 
     /**
@@ -189,21 +148,15 @@ public enum MfaRequestType {
         if (requestUri == null) return UNKNOWN;
 
         String uri = requestUri.toLowerCase();
-        String httpMethod = method != null ? method.toUpperCase() : "GET";
-
-        // MFA 시작
-        if (uri.contains("/mfa/initiate") || uri.contains("/mfa/start")) {
-            return MFA_INITIATE;
-        }
 
         // 팩터 선택
         if (uri.contains("/mfa/select-factor")) {
-            return "POST".equals(httpMethod) ? FACTOR_SELECTION : SELECT_FACTOR;
+            return FACTOR_SELECTION;
         }
 
         // 챌린지
         if (uri.contains("/mfa/challenge")) {
-            return "POST".equals(httpMethod) ? CHALLENGE_INITIATION : CHALLENGE_REQUEST;
+            return CHALLENGE_INITIATION;
         }
 
         // 검증
@@ -211,18 +164,14 @@ public enum MfaRequestType {
             return FACTOR_VERIFICATION;
         }
 
-        // 토큰 생성 (OTT)
-        if (uri.contains("/mfa/token") || uri.contains("/mfa/otp") || uri.contains("/mfa/sms")) {
-            return TOKEN_GENERATION;
+        // OTT 코드 생성
+        if (uri.contains("/mfa/ott/generate") || uri.contains("/mfa/token") || uri.contains("/mfa/otp") || uri.contains("/mfa/sms")) {
+            return OTT_CODE_REQUEST;
         }
 
-        // 상태 관리
-        if (uri.contains("/mfa/status")) {
-            return STATUS_CHECK;
-        }
-
-        if (uri.contains("/mfa/refresh")) {
-            return SESSION_REFRESH;
+        // OTT 코드 검증
+        if (uri.contains("/login/mfa-ott")) {
+            return OTT_CODE_VERIFY;
         }
 
         // 취소
@@ -245,15 +194,12 @@ public enum MfaRequestType {
     public int getPriority() {
         return switch (this) {
             case LOGIN_PROCESSING -> 1;           // 최고 우선순위
-            case MFA_INITIATE -> 2;
-            case FACTOR_SELECTION, SELECT_FACTOR -> 3;
-            case CHALLENGE_INITIATION, CHALLENGE_REQUEST -> 4;
-            case FACTOR_VERIFICATION, VERIFICATION -> 5;
-            case TOKEN_GENERATION -> 6;
-            case STATUS_CHECK -> 7;
-            case SESSION_REFRESH -> 8;
-            case CANCEL_MFA, CANCEL -> 9;
-            case UNKNOWN -> 10;                   // 최저 우선순위
+            case FACTOR_SELECTION -> 2;
+            case CHALLENGE_INITIATION -> 3;
+            case FACTOR_VERIFICATION -> 4;
+            case OTT_CODE_REQUEST, OTT_CODE_VERIFY -> 5; // OTT 전용 타입
+            case CANCEL_MFA -> 6;
+            case UNKNOWN -> 7;                   // 최저 우선순위
         };
     }
 
@@ -262,10 +208,7 @@ public enum MfaRequestType {
      * @return true: 안전한 요청 (GET 등), false: 위험한 요청 (POST 등)
      */
     public boolean isSafeRequest() {
-        return switch (this) {
-            case STATUS_CHECK, SELECT_FACTOR, CHALLENGE_REQUEST -> true;
-            default -> false;
-        };
+        return false; // 모든 MFA 요청은 POST로 간주
     }
 
     /**

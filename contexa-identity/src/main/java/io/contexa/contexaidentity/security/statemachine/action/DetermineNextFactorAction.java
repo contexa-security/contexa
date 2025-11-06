@@ -40,25 +40,9 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
                             FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
-        log.debug("Determining next factor and checking completion for session: {}", sessionId);
+        log.debug("Determining next factor for session: {}", sessionId);
 
-        // Phase 3: 1. 먼저 완료 여부 체크
-        int completedCount = factorContext.getCompletedFactors().size();
-        int requiredCount = policyProvider.getRequiredFactorCount(
-            factorContext.getUsername(),
-            factorContext.getFlowTypeName()
-        );
-
-        if (completedCount >= requiredCount) {
-            // 모든 필수 팩터 완료
-            factorContext.setAttribute("nextEventRecommendation",
-                                       MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
-            log.info("All required factors completed ({}/{}) for session: {}",
-                     completedCount, requiredCount, sessionId);
-            return;
-        }
-
-        // Phase 3: 2. 다음 팩터 결정 (기존 로직)
+        // Phase 4: 중복된 완료 체크 제거 (CheckCompletionAction이 담당)
         NextFactorDecision decision = policyProvider.evaluateNextFactor(factorContext);
 
         if (decision.getErrorMessage() != null) {
@@ -72,18 +56,14 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
             // 다음 팩터가 자동 결정됨
             factorContext.setCurrentProcessingFactor(decision.getNextFactorType());
             factorContext.setCurrentStepId(decision.getNextStepId());
-            factorContext.removeAttribute("needsDetermineNextFactor");
-
-            // Phase 3: 이벤트 추천
+            // Phase 4: 이벤트 추천
             factorContext.setAttribute("nextEventRecommendation", MfaEvent.FACTOR_SELECTED);
 
             log.info("Next factor auto-selected: {} (StepId: {}) for session: {}",
                      decision.getNextFactorType(), decision.getNextStepId(), sessionId);
         } else {
             // 수동 선택 필요
-            factorContext.removeAttribute("needsDetermineNextFactor");
-
-            // Phase 3: 이벤트 추천
+            // Phase 4: 이벤트 추천
             factorContext.setAttribute("nextEventRecommendation",
                                        MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
 

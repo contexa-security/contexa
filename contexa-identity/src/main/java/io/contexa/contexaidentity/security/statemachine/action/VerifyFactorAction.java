@@ -6,37 +6,24 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
 import org.springframework.statemachine.StateContext;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class VerifyFactorAction extends AbstractMfaStateAction {
 
-    private final ApplicationContext applicationContext;
-
-    public VerifyFactorAction(ApplicationContext applicationContext) {
-        this.applicationContext = applicationContext;
-    }
+    private final PlatformConfig platformConfig;
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context, FactorContext factorContext){
         String sessionId = factorContext.getMfaSessionId();
         String currentStepId = factorContext.getCurrentStepId();
-
-        if (currentStepId == null || currentStepId.isEmpty()) {
-            log.error("Cannot verify factor: currentStepId is null or empty for session: {}. Transitioning to SYSTEM_ERROR.", sessionId);
-            factorContext.setLastError("currentStepId is missing during factor verification.");
-            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
-            // 시스템 에러 이벤트를 보내거나 상태를 직접 변경 (상태 머신 설정에 따라 다름)
-            // 여기서는 상태를 직접 변경하는 대신, 예외를 발생시켜 AbstractMfaStateAction의 에러 핸들링 로직을 타도록 유도 가능
-            throw new IllegalStateException("currentStepId is null or empty for session: " + sessionId);
-        }
 
         log.info("Verifying factor for step: {} in session: {}", currentStepId, sessionId);
 
@@ -44,7 +31,6 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
                 factorContext.getCurrentProcessingFactor().name() : null;
         if (factorType == null) {
             // currentStepId 로부터 factorType 추론 시도 (Robustness)
-            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
             Optional<AuthenticationFlowConfig> flowConfigOpt = platformConfig.getFlows().stream()
                     .filter(f -> f.getTypeName().equalsIgnoreCase(factorContext.getFlowTypeName()))
                     .findFirst();
@@ -84,7 +70,6 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
     private AuthenticationStepConfig createCompletedStep(String stepId,
                                                          String factorType,
                                                          FactorContext factorContext) {
-        PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
         AuthenticationFlowConfig currentFlow = platformConfig.getFlows().stream()
                 .filter(f -> f.getTypeName().equalsIgnoreCase(factorContext.getFlowTypeName()))
                 .findFirst()
@@ -119,11 +104,6 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
 
     private void updateVerificationSuccess(FactorContext factorContext,
                                            AuthenticationStepConfig completedStep) {
-        factorContext.setAttribute(
-                "lastVerificationTime_" + completedStep.getStepId(), // stepId를 사용해 더 고유하게
-                LocalDateTime.now().toString()
-        );
-
         Integer successCount = (Integer) factorContext.getAttribute("verificationSuccessCount");
         factorContext.setAttribute("verificationSuccessCount", (successCount == null ? 0 : successCount) + 1);
     }

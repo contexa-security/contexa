@@ -35,6 +35,10 @@ import java.util.Objects;
 @Slf4j
 public class MfaContinuationFilter extends OncePerRequestFilter {
 
+    // ✅ 최적화: Request Attribute 키 정의 (필터 체인 간 컨텍스트 공유)
+    public static final String FACTOR_CONTEXT_ATTR = "io.contexa.mfa.FactorContext";
+    public static final String VALIDATION_RESULT_ATTR = "io.contexa.mfa.ValidationResult";
+
     private final AuthResponseWriter responseWriter;
     private final MfaRequestHandler requestHandler;
     private final MfaUrlMatcher urlMatcher;
@@ -79,29 +83,21 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         log.debug("MfaContinuationFilter processing request: {} {} using {} repository",
                 request.getMethod(), request.getRequestURI(), sessionRepository.getRepositoryType());
 
-        // ===== 검증 포인트 4: MfaContinuationFilter에서 호출 시점 Session ID 및 Cookie 확인 =====
-        String detectedSessionId = sessionRepository.getSessionId(request);
-        boolean sessionExists = sessionRepository.existsSession(detectedSessionId);
-        log.warn("[VERIFY-4] MfaContinuationFilter - URI: {}, 감지된 MFA Session ID: {}, 존재 여부: {}",
-                 request.getRequestURI(), detectedSessionId, sessionExists);
-
-        // Cookie 확인
-        jakarta.servlet.http.Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (jakarta.servlet.http.Cookie cookie : cookies) {
-                if (cookie.getName().contains("mfa") || cookie.getName().contains("session")) {
-                    log.warn("[VERIFY-4] Cookie 발견 - name: {}, value: {}", cookie.getName(), cookie.getValue());
-                }
-            }
-        }
-
-        // 통합된 검증 로직 사용
+        // ✅ High 수정 2: 세션 조회 중복 제거
+        // 디버깅용 세션 조회 로직(Line 87-100)을 제거하고 loadFactorContextFromRequest()에서 한 번만 조회
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
 
-        log.warn("[VERIFY-4] loadFactorContextFromRequest 결과 - FactorContext: {}",
-                 ctx != null ? "존재 (version " + ctx.getVersion() + ", state: " + ctx.getCurrentState() + ")" : "NULL");
+        // ✅ 최적화: FactorContext를 Request Attribute에 저장 (중복 로드 방지)
+        if (ctx != null) {
+            request.setAttribute(FACTOR_CONTEXT_ATTR, ctx);
+            log.debug("FactorContext saved to request attribute for session: {}", ctx.getMfaSessionId());
+        }
 
         ValidationResult validation = MfaContextValidator.validateFactorSelectionContext(ctx, sessionRepository);
+
+        // ✅ 최적화: ValidationResult를 Request Attribute에 저장 (중복 검증 방지)
+        request.setAttribute(VALIDATION_RESULT_ATTR, validation);
+        log.debug("ValidationResult saved to request attribute - hasErrors: {}", validation.hasErrors());
 
         if (validation.hasErrors()) {
             log.warn("Invalid MFA context for request: {} - Errors: {}",
@@ -134,14 +130,21 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
      */
     private void handleInvalidContext(HttpServletRequest request, HttpServletResponse response,
                                       ValidationResult validation) throws IOException {
-        String oldSessionId = sessionRepository.getSessionId(request);
-        if (oldSessionId != null) {
+        // ✅ High 수정 2: Request Attribute에서 FactorContext 조회 (세션 조회 중복 제거)
+        FactorContext ctx = (FactorContext) request.getAttribute(FACTOR_CONTEXT_ATTR);
+        String oldSessionId = ctx != null ? ctx.getMfaSessionId() : sessionRepository.getSessionId(request);
+
+        // ✅ Medium 수정 2: 세션이 실제로 존재하는 경우에만 정리
+        if (oldSessionId != null && sessionRepository.existsSession(oldSessionId)) {
             try {
                 stateMachineIntegrator.releaseStateMachine(oldSessionId);
                 sessionRepository.removeSession(oldSessionId, request, response);
+                log.debug("Invalid session cleaned up: {}", oldSessionId);
             } catch (Exception e) {
                 log.warn("Failed to cleanup invalid session: {}", oldSessionId, e);
             }
+        } else if (oldSessionId != null) {
+            log.debug("Session {} does not exist, skipping cleanup", oldSessionId);
         }
 
         Map<String, Object> errorResponse = new HashMap<>();

@@ -60,7 +60,6 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
     public void blockUser(FactorContext factorContext, String reason) {
         factorContext.setAttribute("blocked", true);
         factorContext.setAttribute("blockReason", reason);
-        factorContext.setAttribute("blockedAt", System.currentTimeMillis());
 
         log.warn("[BlockedUserGuard] User {} blocked for session: {}, reason: {}",
                 factorContext.getUsername(), factorContext.getMfaSessionId(), reason);
@@ -74,7 +73,6 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
     public void unblockUser(FactorContext factorContext) {
         factorContext.removeAttribute("blocked");
         factorContext.removeAttribute("blockReason");
-        factorContext.removeAttribute("blockedAt");
 
         log.info("[BlockedUserGuard] User {} unblocked for session: {}",
                 factorContext.getUsername(), factorContext.getMfaSessionId());

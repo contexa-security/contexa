@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 /**
  * Repository 패턴 기반 완전 일원화된 MfaStateMachineIntegrator
  *
@@ -73,34 +75,29 @@ public class MfaStateMachineIntegrator {
 
     /**
      * Phase 2: 추가 헤더와 함께 이벤트 전송
+     * Phase 5: 사전 검증 제거 - State Machine에 완전 위임
      */
-    public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, java.util.Map<String, Object> additionalHeaders) {
+    public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders) {
         String sessionId = context.getMfaSessionId();
-        log.debug("Sending event {} to unified State Machine for session: {}", event, sessionId);
+        log.debug("Sending event {} to State Machine for session: {}", event, sessionId);
 
         try {
             sessionRepository.refreshSession(sessionId);
 
-            if (!isValidEventForCurrentState(event, context.getCurrentState())) {
-                log.warn("Event {} is not valid for current state {} in session: {}",
-                        event, context.getCurrentState(), sessionId);
-                return false;
-            }
-
+            // Phase 5: State Machine에 직접 위임 (사전 검증 제거)
             boolean accepted = stateMachineService.sendEvent(event, context, request, additionalHeaders);
 
             if (accepted) {
-                log.debug("Event {} accepted by unified State Machine for session: {}", event, sessionId);
+                log.debug("Event {} accepted by State Machine for session: {}", event, sessionId);
             } else {
-                // 개선: 구체적인 거부 사유 분석
                 String rejectionReason = analyzeEventRejectionReason(context, event);
-                log.warn("Event {} rejected by unified State Machine for session: {} - Reason: {}",
+                log.warn("Event {} rejected by State Machine for session: {} - Reason: {}",
                         event, sessionId, rejectionReason);
             }
 
             return accepted;
         } catch (Exception e) {
-            log.error("Failed to send event {} to unified State Machine for session: {}", event, sessionId, e);
+            log.error("Failed to send event {} to State Machine for session: {}", event, sessionId, e);
             return false;
         }
     }
@@ -248,34 +245,8 @@ public class MfaStateMachineIntegrator {
     }
 
     /**
-     * 개선: 이벤트 유효성 검증
-     */
-    private boolean isValidEventForCurrentState(MfaEvent event, MfaState currentState) {
-        // 기본적인 이벤트-상태 유효성 검증 로직
-        switch (event) {
-            case MFA_NOT_REQUIRED:
-                return currentState == MfaState.PRIMARY_AUTHENTICATION_COMPLETED;
-            case MFA_REQUIRED_SELECT_FACTOR:
-                return currentState == MfaState.PRIMARY_AUTHENTICATION_COMPLETED;
-            case FACTOR_SELECTED:
-                return currentState == MfaState.AWAITING_FACTOR_SELECTION;
-            case INITIATE_CHALLENGE:
-                return currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION;
-            case SUBMIT_FACTOR_CREDENTIAL:
-                return currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
-            case FACTOR_VERIFIED_SUCCESS:
-                return currentState == MfaState.FACTOR_VERIFICATION_PENDING ||
-                        currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
-            case FACTOR_VERIFICATION_FAILED:
-                return currentState == MfaState.FACTOR_VERIFICATION_PENDING ||
-                        currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
-            default:
-                return true; // 기타 이벤트는 기본적으로 허용
-        }
-    }
-
-    /**
-     * 개선: 이벤트 거부 사유 분석
+     * Phase 5: 이벤트 거부 사유 분석
+     * State Machine이 이벤트를 거부했을 때 상세 사유 제공
      */
     private String analyzeEventRejectionReason(FactorContext context, MfaEvent event) {
         MfaState currentState = context.getCurrentState();
@@ -295,19 +266,6 @@ public class MfaStateMachineIntegrator {
             default:
                 return String.format("Event %s not valid for current state %s", event, currentState);
         }
-    }
-
-    /**
-     * 시스템 속성인지 확인
-     */
-    private boolean isSystemAttribute(String key) {
-        return key.startsWith("_") ||
-                "currentState".equals(key) ||
-                "version".equals(key) ||
-                "lastUpdated".equals(key) ||
-                "stateHash".equals(key) ||
-                "storageType".equals(key) ||
-                "mfaSessionId".equals(key);
     }
 
     /**

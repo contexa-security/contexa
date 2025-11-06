@@ -473,6 +473,16 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
             log.debug("[MFA SM Service] [{}] FactorContext 저장 위한 락 획득.", sessionId);
 
+            // ✅ Redis 키 존재 여부 먼저 확인 (수정 2 - Use-After-Release 방지)
+            String redisKey = "spring:statemachine:context:" + sessionId;
+            long keyExists = redissonClient.getKeys().countExists(redisKey);
+
+            if (keyExists == 0) {
+                log.info("[MFA SM Service] [{}] State Machine context does not exist (likely released). Skipping save.", sessionId);
+                return; // ✅ 조기 종료 - 블로킹 방지
+            }
+            log.debug("[MFA SM Service] [{}] State Machine context exists. Proceeding with save.", sessionId);
+
             stateMachine = stateMachineProvider.getObject();
 
             // ===== 근본 해결: resetAndStartStateMachine() 제거 =====

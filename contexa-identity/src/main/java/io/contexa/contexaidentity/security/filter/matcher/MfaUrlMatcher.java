@@ -32,30 +32,33 @@ public class MfaUrlMatcher {
     }
 
     private void initializeMatchers() {
-        // MFA 시작
-        addMatcher(MfaRequestType.MFA_INITIATE,
-                authUrlProvider.getMfaInitiate(), "GET");
-
-        // 팩터 선택
-        addMatcher(MfaRequestType.SELECT_FACTOR,
+        // 팩터 선택 (GET: 페이지 요청, POST: 선택 처리)
+        addMatcher(MfaRequestType.FACTOR_SELECTION,
                 authUrlProvider.getMfaSelectFactor(), "GET");
+        addMatcher(MfaRequestType.FACTOR_SELECTION,
+                authUrlProvider.getMfaSelectFactor(), "POST");
 
-        // OTT 토큰 생성
-        addMatcher(MfaRequestType.TOKEN_GENERATION,
+        // OTT 코드 요청 (생성 및 이메일 전송)
+        addMatcher(MfaRequestType.OTT_CODE_REQUEST,
                 authUrlProvider.getOttCodeGeneration(), "POST");
 
-        // OTT 로그인 처리
-        addMatcher(MfaRequestType.LOGIN_PROCESSING,
+        // OTT 코드 검증
+        addMatcher(MfaRequestType.OTT_CODE_VERIFY,
                 authUrlProvider.getOttLoginProcessing(), "POST");
 
-        // Passkey 로그인 처리
+        // Passkey 검증 처리
         addMatcher(MfaRequestType.LOGIN_PROCESSING,
                 authUrlProvider.getPasskeyLoginProcessing(), "POST");
+
+        // MFA 취소
+        addMatcher(MfaRequestType.CANCEL_MFA,
+                authUrlProvider.getMfaCancel(), "POST");
     }
 
     private void addMatcher(MfaRequestType type, String pattern, String method) {
         if (pattern != null && !pattern.isEmpty()) {
-            RequestMatcher matcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, pattern);
+            HttpMethod httpMethod = method != null ? HttpMethod.valueOf(method.toUpperCase()) : HttpMethod.POST;
+            RequestMatcher matcher = PathPatternRequestMatcher.withDefaults().matcher(httpMethod, pattern);
 
             matcherMap.computeIfAbsent(type, k -> new ArrayList<>()).add(matcher);
             configuredUrls.add(pattern + " [" + method + "]");

@@ -21,16 +21,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
                              FactorContext factorContext) throws Exception {
         String sessionId = factorContext.getMfaSessionId();
 
-        // 선택된 팩터 타입 추출 - 메시지 헤더 우선
+        // 선택된 팩터 타입 추출 - Single Source: MessageHeader (Handler가 설정)
         String selectedFactor = (String) context.getMessageHeader("selectedFactor");
-        if (selectedFactor == null) {
-            selectedFactor = (String) context.getExtendedState().getVariables().get("selectedFactor");
-        }
-
-        // FactorContext의 attribute에서도 확인 (Handler에서 설정한 경우)
-        if (selectedFactor == null) {
-            selectedFactor = (String) factorContext.getAttribute("selectedFactor");
-        }
 
         if (selectedFactor == null) {
             factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);

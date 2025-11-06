@@ -71,10 +71,19 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
         long startTime = System.currentTimeMillis();
 
-        // 통합된 검증 로직 사용
-        FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
-        ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx, sessionRepository);
+        FactorContext ctx = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
 
+        if (ctx == null) {
+            log.debug("FactorContext not found in request attribute, loading from State Machine");
+            ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+            if (ctx != null) {
+                request.setAttribute("io.contexa.mfa.FactorContext", ctx);
+            }
+        } else {
+            log.debug("FactorContext retrieved from request attribute for session: {}", ctx.getMfaSessionId());
+        }
+
+        ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx, sessionRepository);
         if (validation.hasErrors()) {
             log.warn("Invalid context for MFA factor processing using {} repository. URI: {}, Errors: {}",
                     sessionRepository.getRepositoryType(), request.getRequestURI(), validation.getErrors());
@@ -94,23 +103,9 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             return;
         }
 
-        // 경고 로깅
         if (validation.hasWarnings()) {
             log.warn("MFA factor processing warnings: {}", validation.getWarnings());
         }
-
-        // 개선: Repository를 통한 세션 검증
-        if (!sessionRepository.existsSession(ctx.getMfaSessionId())) {
-            log.warn("MFA session {} not found in {} repository during factor processing",
-                    ctx.getMfaSessionId(), sessionRepository.getRepositoryType());
-            ensureMinimumDelay(startTime);
-            if (!response.isCommitted()) {
-                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Session not found");
-            }
-            return;
-        }
-
-        // 세션 타임아웃 및 재시도 한계 확인
         if (isSessionExpired(ctx)) {
             log.warn("MFA session expired for session: {}", ctx.getMfaSessionId());
             stateMachineIntegrator.sendEvent(MfaEvent.SESSION_TIMEOUT, ctx, request);
@@ -135,7 +130,6 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
 
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.SUBMIT_FACTOR_CREDENTIAL, ctx, request);
-
         if (!accepted) {
             log.error("State Machine rejected SUBMIT_FACTOR_CREDENTIAL event for session: {} in state: {}",
                     ctx.getMfaSessionId(), ctx.getCurrentState());
@@ -149,7 +143,6 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             return;
         }
 
-
         FactorIdentifier factorIdentifier = FactorIdentifier.of(ctx.getFlowTypeName(), ctx.getCurrentStepId());
 
         Filter delegateFactorFilter = configuredFactorFilterProvider.getFilter(factorIdentifier);
@@ -159,10 +152,6 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
                     factorIdentifier, delegateFactorFilter.getClass().getName(),
                     sessionRepository.getRepositoryType());
 
-            ctx.setAttribute("verificationStartTime", System.currentTimeMillis());
-            stateMachineIntegrator.saveFactorContext(ctx);
-
-            // FilterChain 래퍼에 Repository 정보 전달
             FilterChain wrappedChain = new RepositoryAwareStateMachineFilterChain(
                     chain, ctx, request, stateMachineIntegrator, sessionRepository, startTime,mfaSettings);
 
@@ -204,7 +193,6 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
      */
     private void ensureMinimumDelay(long startTime) {
         long elapsed = System.currentTimeMillis() - startTime;
-        // 개선: MfaSettings 에서 최소 지연 시간 가져오기
         long minDelayMs = mfaSettings.getMinimumDelayMs();
         if (elapsed < minDelayMs) {
             try {
@@ -222,83 +210,74 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
     private static class RepositoryAwareStateMachineFilterChain implements FilterChain {
         private final FilterChain delegate;
         private final FactorContext context;
-        private final HttpServletRequest request; // HttpServletRequest 저장
+        private final HttpServletRequest request;
         private final MfaStateMachineIntegrator stateMachineIntegrator;
         private final MfaSessionRepository sessionRepository;
-        private final long startTime; // 요청 시작 시간 (최소 지연 시간 보장용)
-        private final MfaSettings mfaSettings; // MfaSettings 주입
+        private final long startTime;
+        private final MfaSettings mfaSettings;
 
         public RepositoryAwareStateMachineFilterChain(FilterChain delegate, FactorContext context,
-                                                      HttpServletRequest request, // request 추가
+                                                      HttpServletRequest request,
                                                       MfaStateMachineIntegrator stateMachineIntegrator,
                                                       MfaSessionRepository sessionRepository,
-                                                      long startTime, MfaSettings mfaSettings) { // mfaSettings 추가
+                                                      long startTime, MfaSettings mfaSettings) {
             this.delegate = delegate;
             this.context = context;
-            this.request = request; // 저장
+            this.request = request;
             this.stateMachineIntegrator = stateMachineIntegrator;
             this.sessionRepository = sessionRepository;
             this.startTime = startTime;
-            this.mfaSettings = mfaSettings; // 저장
+            this.mfaSettings = mfaSettings;
         }
 
         @Override
-        public void doFilter(jakarta.servlet.ServletRequest servletRequest, // 이름 변경 (shadowing 방지)
+        public void doFilter(jakarta.servlet.ServletRequest servletRequest,
                              jakarta.servlet.ServletResponse servletResponse)
                 throws IOException, ServletException {
 
             HttpServletResponse httpResponse = (HttpServletResponse) servletResponse;
-//            MfaState beforeState = stateMachineIntegrator.getCurrentState(sessionRepository.getSessionId(request));
 
             try {
-                delegate.doFilter(servletRequest, servletResponse); // 원래 필터 체인 실행
+                delegate.doFilter(servletRequest, servletResponse);
 
-                // 검증 시간 기록
-                long verificationTime = System.currentTimeMillis() - startTime;
-                context.setAttribute("lastVerificationTime", verificationTime);
-                context.updateLastActivityTimestamp(); // 활동 시간 갱신 추가
-
-                // 세션 갱신 (Repository 사용)
-                sessionRepository.refreshSession(context.getMfaSessionId());
-
-                // FactorContext를 StateMachine에 저장
-                stateMachineIntegrator.saveFactorContext(context);
-                log.debug("MFA Step Filter Wrapper (session {}): FactorContext saved after delegate filter execution. Current state: {}",
-                        context.getMfaSessionId(), context.getCurrentState());
-
-                // 상태 변경 및 이벤트 전송은 각 Factor의 Success/Failure Handler가 담당해야 함.
-                // 여기서 임의로 이벤트를 보내는 로직은 제거.
-                // 핸들러가 이미 응답을 커밋했을 수 있으므로, 응답 커밋 여부 확인은 여전히 유효.
                 if (httpResponse.isCommitted()) {
-                    log.debug("MFA Step Filter Wrapper (session {}): Response already committed by delegate filter or its handlers.", context.getMfaSessionId());
+                    log.debug("MFA Step Filter Wrapper (session {}): Response committed - final auth success. Skipping saveFactorContext.",
+                              context.getMfaSessionId());
+                    return;
                 }
 
-                /*if (!httpResponse.isCommitted()) {
-                    if (beforeState == context.getCurrentState()) {
-                        stateMachineIntegrator.sendEvent(
-                                MfaEvent.FACTOR_VERIFICATION_FAILED, context, this.request);
-                    }
-                }*/
+                if (!sessionRepository.existsSession(context.getMfaSessionId())) {
+                    log.debug("MFA Step Filter Wrapper (session {}): Session no longer exists. Skipping saveFactorContext.",
+                              context.getMfaSessionId());
+                    return;
+                }
+
+                long verificationTime = System.currentTimeMillis() - startTime;
+                context.updateLastActivityTimestamp();
+                sessionRepository.refreshSession(context.getMfaSessionId());
+
+                log.debug("MFA Step Filter Wrapper (session {}): FactorContext already saved by handler. Verification time: {}ms, Current state: {}",
+                        context.getMfaSessionId(), verificationTime, context.getCurrentState());
 
             } catch (Exception e) {
                 log.error("MFA Step Filter Wrapper (session {}): Error during delegate filter execution using {} repository.",
                         context.getMfaSessionId(), sessionRepository.getRepositoryType(), e);
 
-                // AuthenticationException은 해당 Factor의 FailureHandler에서 처리되어야 함.
-                // 그 외 예외는 시스템 에러로 간주하고 상태 머신에 알림.
-                if (!(e instanceof org.springframework.security.core.AuthenticationException)) {
-                    log.debug("MFA Step Filter Wrapper (session {}): Sending SYSTEM_ERROR event due to non-AuthenticationException.", context.getMfaSessionId());
+                if (e instanceof org.springframework.security.core.AuthenticationException) {
+                    log.debug("MFA Step Filter Wrapper (session {}): AuthenticationException - already saved by FailureHandler",
+                             context.getMfaSessionId());
+                } else {
+                    log.debug("MFA Step Filter Wrapper (session {}): Sending SYSTEM_ERROR event due to non-AuthenticationException.",
+                             context.getMfaSessionId());
                     stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, context, this.request);
                 }
-                // 예외를 다시 던져서 Spring Security의 표준 예외 처리 메커니즘 (예: ExceptionTranslationFilter, ASEPFilter)이 처리하도록 함.
                 throw e;
             } finally {
-                // 최소 지연 시간 보장
                 ensureMinimumDelay(startTime);
             }
         }
 
-        private void ensureMinimumDelay(long processingStartTime) { // 메서드 이름 변경 및 mfaSettings 사용
+        private void ensureMinimumDelay(long processingStartTime) {
             long elapsed = System.currentTimeMillis() - processingStartTime;
             long minDelayMs = mfaSettings.getMinimumDelayMs();
             if (elapsed < minDelayMs) {

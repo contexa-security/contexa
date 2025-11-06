@@ -26,7 +26,6 @@ public class HandleFailureAction extends AbstractMfaStateAction {
         }
 
         factorContext.setLastError(failureReason != null ? failureReason : "Unknown error");
-        factorContext.setAttribute("lastFailureTime", System.currentTimeMillis());
 
         int retryCount = factorContext.getRetryCount();
         factorContext.setRetryCount(retryCount + 1);

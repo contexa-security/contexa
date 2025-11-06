@@ -135,6 +135,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         if (factorContext != null && factorContext.getMfaSessionId() != null) {
             stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
             sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
+
+            // ✅ 수정 3: 세션 해제 플래그 설정 (FilterChain에서 saveFactorContext 스킵 신호)
+            request.setAttribute("mfaSessionReleased", true);
+            log.debug("Set mfaSessionReleased flag for session: {}", factorContext.getMfaSessionId());
         }
 
         // 4. 응답 데이터 구성
@@ -143,8 +147,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
 
         TokenTransportResult finalResult = TokenTransportResult.builder()
                 .body(responseData)
-//                .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
-//                .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
+                .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
+                .cookiesToRemove(transportResult != null ? transportResult.getCookiesToRemove() : null)
                 .headers(transportResult != null ? transportResult.getHeaders() : null)
                 .build();
 
@@ -184,11 +188,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
     private void processDefaultResponse(HttpServletResponse response, TokenTransportResult result)
             throws IOException {
         // 쿠키 설정
-        /*if (result.getCookiesToSet() != null) {
+        if (result.getCookiesToSet() != null) {
             for (ResponseCookie cookie : result.getCookiesToSet()) {
                 response.addHeader("Set-Cookie", cookie.toString());
             }
-        }*/
+        }
 
         responseWriter.writeSuccessResponse(response, result.getBody(), HttpServletResponse.SC_OK);
     }
@@ -242,11 +246,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         Map<String, Object> responseData = new HashMap<>();
 
         // OAuth2/JWT 모드: 토큰 포함
-      /*  if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
+        if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
             if (transportResult != null && transportResult.getBody() != null) {
                 responseData.putAll(transportResult.getBody());
             }
-        }*/
+        }
 
         // 공통 응답 데이터
         responseData.put("status", "MFA_COMPLETED");

@@ -138,8 +138,6 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
         Object riskScore = ctx.getAttribute("riskScore");
         if (riskScore != null) {
             ctx.setAttribute("aiRiskScore", riskScore);
-            ctx.setAttribute("aiEvaluated", true);
-            ctx.setAttribute("aiEvaluatorUsed", "AIAdaptivePolicyEvaluator");
             log.debug("AI risk score for user {}: {}", ctx.getUsername(), riskScore);
         }
 

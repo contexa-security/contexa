@@ -41,9 +41,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class InitializeMfaAction extends AbstractMfaStateAction {
 
-    private final PlatformConfig platformConfig; // Phase 2 개선: 직접 주입으로 blocking 제거
-
-    // P1-1: ApplicationContext는 부모 클래스에서 자동 주입됨 (하지만 더 이상 사용 안 함)
+    private final PlatformConfig platformConfig;
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
@@ -52,17 +50,12 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
         log.info("Initializing MFA for session: {}, user: {}",
                 sessionId, factorContext.getUsername());
 
-        // Step 1: 기본 초기화
-        factorContext.setAttribute("mfaInitializedAt", System.currentTimeMillis());
-        factorContext.setAttribute("primaryAuthCompleted", true);
-
         HttpServletRequest request = (HttpServletRequest) context.getMessageHeader("request");
         if (request != null) {
             factorContext.setAttribute("userAgent", request.getHeader("User-Agent"));
             factorContext.setAttribute("clientIp", request.getRemoteAddr());
         }
 
-        // Step 2: Phase 2 - MfaDecision 적용
         MfaDecision decision = (MfaDecision) context.getMessageHeader("mfaDecision");
         if (decision != null) {
             applyMfaDecisionToContext(factorContext, decision);
@@ -115,7 +108,6 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                 // Phase 3.4: Defensive copy for serialization safety
                 Set<AuthType> availableFactors = new HashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
                 ctx.setAttribute("availableFactors", availableFactors);
-                ctx.setAttribute("availableFactorCount", availableFactors.size());
 
                 // Phase 3.4: Store only serializable values instead of entire config
                 ctx.setAttribute("flowTypeName", mfaFlowConfig.getTypeName());

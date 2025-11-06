@@ -64,7 +64,6 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
             // 챌린지 발송 시간 기록
             factorContext.setAttribute("challengeInitiatedAt", System.currentTimeMillis());
-            factorContext.setAttribute("ottTokenGenerated", true);
             factorContext.setAttribute("ottTokenValue", token.getTokenValue());
 
             // 개선: Repository를 통한 세션 갱신

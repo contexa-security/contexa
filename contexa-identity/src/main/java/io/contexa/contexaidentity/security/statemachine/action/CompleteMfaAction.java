@@ -25,9 +25,6 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
         // 완료된 팩터 목록 로깅
         logCompletedFactors(factorContext);
 
-        // MFA 완료 시간 설정
-        factorContext.setAttribute("completedAt", LocalDateTime.now());
-
         // Phase 2 개선: State Machine이 상태 전이를 담당
         // ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN 이벤트로 인한 전이가
         // 이미 MFA_SUCCESSFUL로 상태를 변경하므로 여기서 중복 호출 불필요
@@ -53,15 +50,6 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
     }
 
     private void performCompletionTasks(FactorContext factorContext) {
-        // 감사 로그 기록을 위한 준비
-        factorContext.setAttribute("completionTimestamp", System.currentTimeMillis());
-
-        // 완료된 팩터들의 상세 정보 저장
-        if (factorContext.getCompletedFactors() != null) {
-            factorContext.setAttribute("totalFactorsCompleted",
-                    factorContext.getCompletedFactors().size());
-        }
-
         // 세션 지속 시간 계산
         long createdAt = factorContext.getCreatedAt();
         long durationSeconds = (System.currentTimeMillis() - createdAt) / 1000;

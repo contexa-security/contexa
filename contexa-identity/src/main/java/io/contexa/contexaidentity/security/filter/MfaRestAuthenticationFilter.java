@@ -200,10 +200,6 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         factorContext.setAttribute("userAgent", request.getHeader("User-Agent"));
         factorContext.setAttribute("loginTimestamp", System.currentTimeMillis());
 
-        // 분산환경 추가 정보
-        factorContext.setAttribute("repositoryType", sessionRepository.getRepositoryType());
-        factorContext.setAttribute("distributedSync", sessionRepository.supportsDistributedSync());
-
         log.debug("Enhanced FactorContext with security info: deviceId={}, repository={}",
                 deviceId, sessionRepository.getRepositoryType());
     }

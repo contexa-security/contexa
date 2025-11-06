@@ -86,6 +86,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         // Phase 2.2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송 및 에러 처리
         Map<String, Object> headers = new HashMap<>();
         headers.put("mfaDecision", decision);
+        headers.put("request", request);
 
         try {
             boolean initialized = stateMachineIntegrator.sendEvent(MfaEvent.PRIMARY_AUTH_SUCCESS, factorContext, request, headers);
@@ -388,7 +389,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
         // Context에 팩터 설정
         context.setCurrentProcessingFactor(autoSelectedFactor);
-        context.setAttribute("autoSelected", true);
 
         // 다음 stepId 결정 (FlowConfig에서 조회)
         setCurrentStepId(context, autoSelectedFactor);
