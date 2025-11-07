@@ -154,7 +154,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
                     chain, ctx, request, stateMachineIntegrator, sessionRepository, startTime,mfaSettings);
 
             delegateFactorFilter.doFilter(request, response, wrappedChain);
-            chain.doFilter(request,response);
+
         } else {
             log.error("No delegate filter found for factorIdentifier: {}", factorIdentifier);
             ensureMinimumDelay(startTime);

@@ -68,6 +68,16 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         log.debug("MFA Factor successfully processed for user: {} using {} repository", getPrincipalUsername(authentication), sessionRepository.getRepositoryType());
 
+        // CustomUserDetails → UserDto로 Authentication 교체 (Redis 직렬화 안전성)
+        // Spring Security가 이미 OneTimeTokenAuthenticationToken(CustomUserDetails)을
+        // SecurityContext에 저장했으므로, Redis 직렬화 전에 UserDto로 교체
+        Authentication serializableAuth = replaceWithSerializableAuthentication(authentication);
+        if (serializableAuth != null) {
+            SecurityContextHolder.getContext().setAuthentication(serializableAuth);
+            log.debug("Authentication replaced with serializable UserDto principal for user: {}",
+                    getPrincipalUsername(serializableAuth));
+        }
+
         FactorContext factorContext = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
 
         if (factorContext == null) {
@@ -345,5 +355,52 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         } else {
             return principal.toString();
         }
+    }
+
+    /**
+     * CustomUserDetails Principal을 UserDto로 교체하여 Redis 직렬화 가능한 Authentication 생성
+     *
+     * Spring Security의 AbstractAuthenticationProcessingFilter가 successHandler 호출 전에
+     * SecurityContext에 Authentication을 저장하지만, Spring Session은 response.flush() 시점에
+     * SecurityContext를 Redis에 직렬화합니다.
+     *
+     * OneTimeTokenAuthenticationToken의 Principal은 CustomUserDetails(Users 엔티티 포함)이므로
+     * Redis 직렬화 시 NotSerializableException이 발생합니다.
+     *
+     * 이 메서드는 response.flush() 전에 Authentication을 UserDto 기반으로 교체하여
+     * Redis 직렬화 안전성을 보장합니다.
+     *
+     * @param authentication 원본 Authentication (OneTimeTokenAuthenticationToken with CustomUserDetails)
+     * @return UserDto Principal을 가진 RestAuthenticationToken, 교체 불필요 시 null
+     */
+    private Authentication replaceWithSerializableAuthentication(Authentication authentication) {
+        Object principal = authentication.getPrincipal();
+
+        // CustomUserDetails인 경우에만 교체
+        if (principal instanceof CustomUserDetails customUserDetails) {
+            try {
+                // CustomUserDetails → UserDto 변환 (ModelMapper 사용)
+                UserDto userDto = modelMapper.map(customUserDetails.getAccount(), UserDto.class);
+
+                // RestAuthenticationToken으로 교체 (UserDto는 Serializable)
+                RestAuthenticationToken serializableToken = new RestAuthenticationToken(
+                    userDto,
+                    authentication.getCredentials(),
+                    authentication.getAuthorities()
+                );
+
+                log.debug("Replaced CustomUserDetails with UserDto for user: {} (Redis serialization safety)",
+                          userDto.getUsername());
+                return serializableToken;
+
+            } catch (Exception e) {
+                log.error("Failed to replace Authentication with serializable version. " +
+                         "CustomUserDetails will remain in SecurityContext (may cause Redis serialization error)", e);
+                return null;
+            }
+        }
+
+        // 이미 UserDto이거나 다른 Serializable 타입이면 교체 불필요
+        return null;
     }
 }
