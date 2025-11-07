@@ -92,7 +92,7 @@ public class PlatformSecurityConfig {
                         .primaryAuthentication(auth -> auth.restLogin(rest ->
                                 rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .ott(Customizer.withDefaults())
-//                        .passkey(Customizer.withDefaults())
+                        .passkey(Customizer.withDefaults())
                         .order(20)
                 ).oauth2(Customizer.withDefaults())
                 .build();

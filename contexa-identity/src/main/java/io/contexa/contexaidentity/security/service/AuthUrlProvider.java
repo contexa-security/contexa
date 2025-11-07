@@ -424,6 +424,12 @@ public class AuthUrlProvider {
             "loginProcessing", getRecoveryCodeLoginProcessing()
         ));
 
+        // WebAuthn (Passkey) - Spring Security 표준 엔드포인트
+        urls.put("webauthn", Map.of(
+            "assertionOptions", getPasskeyAssertionOptions(),
+            "assertionVerify", getPasskeyLoginProcessing()  // MFA Passkey 검증: /login/mfa-webauthn
+        ));
+
         // API (SDK 호환성)
         urls.put("api", Map.of(
             "selectFactor", getMfaSelectFactor(),
@@ -431,7 +437,6 @@ public class AuthUrlProvider {
             "status", getMfaStatus(),
             "requestOttCode", getMfaRequestOttCode(),
             "context", getMfaContext(),
-            "assertionOptions", getPasskeyAssertionOptions(),
             "config", getMfaConfig()
         ));
 

@@ -42,7 +42,6 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
         String sessionId = factorContext.getMfaSessionId();
         log.debug("Determining next factor for session: {}", sessionId);
 
-        // Phase 4: 중복된 완료 체크 제거 (CheckCompletionAction이 담당)
         NextFactorDecision decision = policyProvider.evaluateNextFactor(factorContext);
 
         if (decision.getErrorMessage() != null) {
