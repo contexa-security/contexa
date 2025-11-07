@@ -41,8 +41,10 @@ public class PasskeyUrls {
     /**
      * WebAuthn assertion options URL (Spring Security 표준)
      * Passkey 인증 시 Assertion Options 요청
+     *
+     * Spring Security 6.x WebAuthn의 기본 엔드포인트: /webauthn/authenticate/options
      */
-    private String assertionOptions = "/webauthn/assertion/options";
+    private String assertionOptions = "/webauthn/authenticate/options";
 
     /**
      * WebAuthn registration options URL (Spring Security 표준)
