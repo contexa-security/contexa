@@ -69,7 +69,7 @@ public final class AuthenticationFlowConfig {
                 .mfaPolicyProvider(this.mfaPolicyProvider)
                 .mfaFailureHandler(this.mfaFailureHandler)
                 .finalSuccessHandler(this.finalSuccessHandler)
-                .registeredFactorOptions(this.registeredFactorOptions != null ? new HashMap<>(this.registeredFactorOptions) : null)
+                .registeredFactorOptions(this.registeredFactorOptions != null ? new LinkedHashMap<>(this.registeredFactorOptions) : null)
                 .defaultRetryPolicy(this.defaultRetryPolicy)
                 .defaultAdaptiveConfig(this.defaultAdaptiveConfig)
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
