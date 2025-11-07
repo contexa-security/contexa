@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.security.identification.UserIdentificat
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -563,9 +564,9 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
             
             // FactorContext 에서 추가 정보 추출
             if (factorContext != null) {
-                builder.authenticationType(factorContext.getCurrentProcessingFactor() != null ? 
+                builder.authenticationType(factorContext.getCurrentProcessingFactor() != null ?
                                           factorContext.getCurrentProcessingFactor().toString() : "PRIMARY")
-                       .deviceId((String) factorContext.getAttribute("deviceId"));
+                       .deviceId((String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
                 
                 // 공격 패턴 감지
                 boolean bruteForce = failureCount > 10;
@@ -603,12 +604,12 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         if (factorContext == null) {
             return 1;
         }
-        
-        Object failCount = factorContext.getAttribute("failureCount");
+
+        Object failCount = factorContext.getAttribute(FactorContextAttributes.StateControl.FAILURE_COUNT);
         if (failCount instanceof Integer) {
             return (Integer) failCount;
         }
-        
+
         return 1;
     }
     
@@ -655,7 +656,7 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
             return false;
         }
 
-        MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute("errorEventRecommendation");
+        MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION);
 
         if (errorEvent != null) {
             log.debug("Processing error event recommendation: {} for session: {}",

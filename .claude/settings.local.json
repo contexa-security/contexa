@@ -51,7 +51,10 @@
       "Bash(./gradlew.bat :contexa-identity:build -x test)",
       "Bash(nul)",
       "Bash(gradlew.bat :contexa-identity:compileJava:*)",
-      "Bash(./gradlew.bat:*)"
+      "Bash(./gradlew.bat:*)",
+      "Bash(for const in \"PRIMARY_AUTH_COMPLETED_AT\" \"CHALLENGE_INITIATED_AT\" \"VERIFICATION_STARTED_AT\" \"FACTOR_COMPLETED_AT\" \"MFA_COMPLETED_AT\" \"LAST_ATTEMPT_AT\" \"LAST_FAILED_AT\" \"LOGIN_TIMESTAMP\" \"FACTOR_SELECTED_AT\")",
+      "Bash(do echo -n \"$const: \")",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -65,30 +66,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
 
-        // ⭐ Users 엔티티 직렬화 방지: CustomUserDetails를 UserDto로 변환
-        // Spring Security OTT 필터는 CustomUserDetails를 principal로 사용하지만
-        // HttpSession이 Redis에 직렬화될 때 Users 엔티티는 직렬화 불가능
-        if (authentication.getPrincipal() instanceof CustomUserDetails customUserDetails) {
-            UserDto userDto = modelMapper.map(customUserDetails.getAccount(), UserDto.class);
-            Authentication newAuth = new RestAuthenticationToken(
-                userDto,
-                authentication.getCredentials(),
-                authentication.getAuthorities()
-            );
-            SecurityContextHolder.getContext().setAuthentication(newAuth);
-            authentication = newAuth;
-            log.debug("Converted CustomUserDetails to UserDto for serialization safety. User: {}", userDto.getUsername());
-        }
+        log.debug("MFA Factor successfully processed for user: {} using {} repository", getPrincipalUsername(authentication), sessionRepository.getRepositoryType());
 
-        log.debug("MFA Factor successfully processed for user: {} using {} repository",
-                getPrincipalUsername(authentication), sessionRepository.getRepositoryType());
-
-        // ✅ 최적화: Request Attribute에서 먼저 조회 (MfaContinuationFilter/MfaStepFilterWrapper에서 저장)
-        FactorContext factorContext = (FactorContext) request.getAttribute(
-                "io.contexa.mfa.FactorContext");
+        FactorContext factorContext = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
 
         if (factorContext == null) {
-            // Fallback: 직접 로드 (SM 서비스는 내부적으로 락 사용 및 최신 상태 복원)
             log.debug("FactorContext not found in request attribute, loading from State Machine");
             factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
         } else {
@@ -138,12 +120,23 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             }
 
             // Phase 4: Action이 설정한 추천 이벤트 전송
-            MfaEvent nextEvent = (MfaEvent) factorContext.getAttribute("nextEventRecommendation");
+            MfaEvent nextEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
             if (nextEvent != null) {
                 log.debug("Processing recommended event: {} for session: {}",
                          nextEvent, factorContext.getMfaSessionId());
 
-                boolean eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
+                // FACTOR_SELECTED 이벤트일 때 currentProcessingFactor를 MessageHeader로 전달
+                boolean eventSent;
+                if (nextEvent == MfaEvent.FACTOR_SELECTED && factorContext.getCurrentProcessingFactor() != null) {
+                    Map<String, Object> headers = new HashMap<>();
+                    headers.put("selectedFactor", factorContext.getCurrentProcessingFactor().name());
+                    log.debug("Adding selectedFactor header: {} for session: {}",
+                             factorContext.getCurrentProcessingFactor().name(), factorContext.getMfaSessionId());
+                    eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request, headers);
+                } else {
+                    eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
+                }
+
                 if (!eventSent) {
                     log.error("Failed to send recommended event: {} for session: {}", nextEvent, factorContext.getMfaSessionId());
                     handleStateTransitionError(response, request, factorContext);
@@ -182,7 +175,12 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     factorContext, nextUrl, currentStep);
             responseBody.put("nextFactorType", nextFactor.name());
 
-            responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
+            if (!response.isCommitted()) {
+                responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
+            } else {
+                log.warn("Response already committed for user: {}, cannot write MFA continue response",
+                        factorContext.getUsername());
+            }
 
         } else if (currentState == MfaState.AWAITING_FACTOR_SELECTION) {
             // 수동 선택 필요 (정책상 다음 팩터가 필요하지만 자동 선택 불가)
@@ -200,7 +198,12 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     .toList();
             responseBody.put("availableFactors", factorDetails);
 
-            responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
+            if (!response.isCommitted()) {
+                responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
+            } else {
+                log.warn("Response already committed for user: {}, cannot write factor selection response",
+                        factorContext.getUsername());
+            }
 
         } else {
             // 예상치 못한 상태
@@ -237,8 +240,13 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("mfaSessionId", factorContext.getMfaSessionId());
 
-        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                "SESSION_NOT_FOUND", "MFA 세션을 찾을 수 없습니다.", request.getRequestURI(), errorResponse);
+        if (!response.isCommitted()) {
+            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
+                    "SESSION_NOT_FOUND", "MFA 세션을 찾을 수 없습니다.", request.getRequestURI(), errorResponse);
+        } else {
+            log.warn("Response already committed, cannot write SESSION_NOT_FOUND error for session: {}",
+                    factorContext.getMfaSessionId());
+        }
     }
 
     /**
@@ -264,8 +272,12 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         Map<String, Object> errorResponse = new HashMap<>();
 
-        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, errorCode,
-                "MFA 세션 컨텍스트 오류: " + logMessage, request.getRequestURI(), errorResponse);
+        if (!response.isCommitted()) {
+            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, errorCode,
+                    "MFA 세션 컨텍스트 오류: " + logMessage, request.getRequestURI(), errorResponse);
+        } else {
+            log.warn("Response already committed, cannot write INVALID_CONTEXT error: {}", errorCode);
+        }
     }
 
     // Phase 1.2: syncContextFromStateMachine() 제거 - Dead Code (미사용 메서드)
@@ -291,16 +303,27 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         // SYSTEM_ERROR 이벤트 전송
         stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, ctx, request);
 
-        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "STATE_TRANSITION_ERROR", "상태 전이 오류가 발생했습니다.",
-                request.getRequestURI());
+        if (!response.isCommitted()) {
+            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "STATE_TRANSITION_ERROR", "상태 전이 오류가 발생했습니다.",
+                    request.getRequestURI());
+        } else {
+            log.warn("Response already committed, cannot write STATE_TRANSITION_ERROR for session: {}",
+                    ctx.getMfaSessionId());
+        }
     }
 
     private void handleGenericError(HttpServletResponse response, HttpServletRequest request,
                                     FactorContext ctx, String message) throws IOException {
         log.error("Generic error during MFA factor processing for user {}: {}", ctx.getUsername(), message);
-        responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "MFA_PROCESSING_ERROR", message, request.getRequestURI());
+
+        if (!response.isCommitted()) {
+            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    "MFA_PROCESSING_ERROR", message, request.getRequestURI());
+        } else {
+            log.warn("Response already committed, cannot write MFA_PROCESSING_ERROR for user: {}",
+                    ctx.getUsername());
+        }
 
         // State Machine 정리
         try {

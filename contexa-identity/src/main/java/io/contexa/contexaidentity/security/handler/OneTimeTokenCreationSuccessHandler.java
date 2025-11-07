@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
@@ -63,8 +64,8 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                     factorContext.getUsername(), factorContext.getMfaSessionId(), sessionRepository.getRepositoryType());
 
             // 챌린지 발송 시간 기록
-            factorContext.setAttribute("challengeInitiatedAt", System.currentTimeMillis());
-            factorContext.setAttribute("ottTokenValue", token.getTokenValue());
+            factorContext.setAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT,
+                                     System.currentTimeMillis());
 
             // 개선: Repository를 통한 세션 갱신
             sessionRepository.refreshSession(factorContext.getMfaSessionId());

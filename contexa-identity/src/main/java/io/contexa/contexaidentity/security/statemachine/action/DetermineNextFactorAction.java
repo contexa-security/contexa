@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.statemachine.action;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.NextFactorDecision;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
@@ -56,21 +57,21 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
             factorContext.setCurrentProcessingFactor(decision.getNextFactorType());
             factorContext.setCurrentStepId(decision.getNextStepId());
             // Phase 4: 이벤트 추천
-            factorContext.setAttribute("nextEventRecommendation", MfaEvent.FACTOR_SELECTED);
+            factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION, MfaEvent.FACTOR_SELECTED);
 
             log.info("Next factor auto-selected: {} (StepId: {}) for session: {}",
                      decision.getNextFactorType(), decision.getNextStepId(), sessionId);
         } else if (decision.isAllFactorsCompleted()) {
             // 모든 필수 팩터 완료
             // Phase 4: 이벤트 추천
-            factorContext.setAttribute("nextEventRecommendation",
+            factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION,
                                        MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
 
             log.info("All required factors completed for session: {}", sessionId);
         } else {
             // 수동 선택 필요 (다음 팩터가 자동 결정되지 않음)
             // Phase 4: 이벤트 추천
-            factorContext.setAttribute("nextEventRecommendation",
+            factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION,
                                        MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
 
             log.info("Manual factor selection required for session: {}", sessionId);

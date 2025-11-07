@@ -843,6 +843,9 @@
         /**
          * 팩터 선택 (High-level API)
          * Legacy: mfa-select-factor.js 전체 로직 통합
+         *
+         * Note: autoRedirect 로직 제거됨 (race condition 방지)
+         * 호출자가 result를 확인하고 명시적으로 리다이렉트해야 함
          */
         async selectFactor(factorType) {
             try {
@@ -859,10 +862,7 @@
                     sessionStorage.setItem('currentMfaFactor', result.nextFactorType);
                 }
 
-                if (this.options.autoRedirect && result.nextStepUrl) {
-                    window.location.href = result.nextStepUrl;
-                }
-
+                // autoRedirect 로직 제거 - 템플릿에서 명시적으로 처리
                 return result;
             } catch (error) {
                 // 에러 응답에 message가 있으면 포함
@@ -875,6 +875,9 @@
         /**
          * OTT 검증 (High-level API)
          * Legacy: mfa-verity-ott.js 전체 로직 통합
+         *
+         * Note: autoRedirect 로직 제거됨 (race condition 방지)
+         * 호출자가 result를 확인하고 명시적으로 리다이렉트해야 함
          */
         async verifyOtt(code, username = null) {
             try {
@@ -889,18 +892,12 @@
                     sessionStorage.setItem('currentMfaStepId', result.nextStepId);
                 }
 
-                // 자동 리다이렉트
-                if (this.options.autoRedirect) {
-                    if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
-                        window.location.href = result.redirectUrl;
-                    } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
-                        if (result.nextFactorType) {
-                            sessionStorage.setItem('currentMfaFactor', result.nextFactorType);
-                        }
-                        window.location.href = result.nextStepUrl;
-                    }
+                // nextFactorType 저장
+                if (result.nextFactorType) {
+                    sessionStorage.setItem('currentMfaFactor', result.nextFactorType);
                 }
 
+                // autoRedirect 로직 제거 - 템플릿에서 명시적으로 처리
                 return result;
             } catch (error) {
                 const errorMsg = error.response?.message || 'OTT verification failed';
@@ -912,6 +909,9 @@
         /**
          * Passkey 인증 (High-level API)
          * Legacy: mfa-verity-passkey.js 전체 로직 통합
+         *
+         * Note: autoRedirect 로직 제거됨 (race condition 방지)
+         * 호출자가 result를 확인하고 명시적으로 리다이렉트해야 함
          */
         async verifyPasskey() {
             try {
@@ -968,12 +968,7 @@
                 // 8. 토큰 저장 (필요시)
                 this.handleAuthenticationResult(mfaResult);
 
-                // 9. 자동 리다이렉트
-                if (this.options.autoRedirect && mfaResult.redirectUrl) {
-                    ContexaMFAUtils.log(`Redirecting to: ${mfaResult.redirectUrl}`, 'info');
-                    window.location.href = mfaResult.redirectUrl;
-                }
-
+                // autoRedirect 로직 제거 - 템플릿에서 명시적으로 처리
                 return mfaResult;
             } catch (error) {
                 const errorMsg = error.response?.message || 'Passkey verification failed';

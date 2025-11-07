@@ -33,10 +33,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     private final VerifyFactorAction verifyFactorAction;
     private final CompleteMfaAction completeMfaAction;
     private final HandleFailureAction handleFailureAction;
-
-    // Phase 2: 새로운 정책 평가 Actions
     private final DetermineNextFactorAction determineNextFactorAction;
-    // Phase 3: CheckCompletionAction 제거됨 (Handler에서 직접 평가)
 
     private StateMachineRuntimePersister<MfaState, MfaEvent, String> stateMachinePersister;
 
@@ -183,14 +180,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .guard(allFactorsCompletedGuard.negate())
                 .and()
 
-                // Phase 2: CheckCompletionAction에서 팩터 선택 필요 시 전송 (수동 선택)
+                // Phase 2: 팩터 선택 필요 시 전송 (수동 선택)
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
                 .and()
 
-                // Phase 2: CheckCompletionAction에서 다음 팩터 자동 선택됨
+                // Phase 2: 다음 팩터 자동 선택됨
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
@@ -260,6 +257,11 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .and()
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)
+                .target(MfaState.MFA_SYSTEM_ERROR)
+                .event(MfaEvent.SYSTEM_ERROR)
+                .and()
+                .withExternal()
+                .source(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
                 .target(MfaState.MFA_SYSTEM_ERROR)
                 .event(MfaEvent.SYSTEM_ERROR)
                 .and()

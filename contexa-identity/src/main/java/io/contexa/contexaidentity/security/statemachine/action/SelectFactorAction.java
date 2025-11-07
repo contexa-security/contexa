@@ -2,6 +2,7 @@
 package io.contexa.contexaidentity.security.statemachine.action;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -24,8 +25,16 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         // 선택된 팩터 타입 추출 - Single Source: MessageHeader (Handler가 설정)
         String selectedFactor = (String) context.getMessageHeader("selectedFactor");
 
+        // 방어 코드: MessageHeader가 없으면 currentProcessingFactor 폴백
+        if (selectedFactor == null && factorContext.getCurrentProcessingFactor() != null) {
+            selectedFactor = factorContext.getCurrentProcessingFactor().name();
+            log.warn("selectedFactor header missing for session: {}, using currentProcessingFactor: {}",
+                     sessionId, selectedFactor);
+        }
+
         if (selectedFactor == null) {
-            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
+            factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No factor selected for session: " + sessionId);
         }
 
@@ -36,13 +45,15 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         try {
             authType = AuthType.valueOf(selectedFactor.toUpperCase());
         } catch (IllegalArgumentException e) {
-            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
+            factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalArgumentException("Invalid factor type: " + selectedFactor);
         }
 
         // 선택된 팩터가 사용 가능한 팩터인지 검증
         if (!factorContext.getAvailableFactors().contains(authType)) {
-            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
+            factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("Selected factor " + authType +
                     " is not available for user: " + factorContext.getUsername());
         }
@@ -52,35 +63,27 @@ public class SelectFactorAction extends AbstractMfaStateAction {
 
         // 선택 시간 기록
         long selectionTime = System.currentTimeMillis();
-        factorContext.setAttribute("factorSelectedAt", selectionTime);
+        factorContext.setAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT, selectionTime);
 
         // 팩터별 추가 설정 - 시스템 설정이나 사용자 설정에서 가져옴
         switch (authType) {
             case OTT:
                 // OTT 전송 방법 설정 - 하드코딩 제거
                 String ottDeliveryMethod = determineOttDeliveryMethod(context, factorContext);
-                factorContext.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
-                log.debug("OTT delivery method set to: {} for session: {}",
-                        ottDeliveryMethod, sessionId);
+                factorContext.setAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD, ottDeliveryMethod);
+                log.debug("OTT delivery method set to: {} for session: {}", ottDeliveryMethod, sessionId);
                 break;
 
             case PASSKEY:
                 // Passkey 타입 설정 - 하드코딩 제거
                 String passkeyType = determinePasskeyType(context, factorContext);
-                factorContext.setAttribute("passkeyType", passkeyType);
-                log.debug("Passkey type set to: {} for session: {}",
-                        passkeyType, sessionId);
+                factorContext.setAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE, passkeyType);
+                log.debug("Passkey type set to: {} for session: {}", passkeyType, sessionId);
                 break;
 
             default:
                 log.debug("No additional settings for factor: {}", authType);
         }
-
-        // Phase 2.1: currentSelectedFactor 중복 제거
-        // factorContext.setCurrentProcessingFactor(authType)로 이미 설정되어 있으므로
-        // ExtendedState에 중복 저장하지 않음
-        // 단, factorSelectionTime은 State Machine 내부 타이밍 추적용으로 유지
-        context.getExtendedState().getVariables().put("factorSelectionTime", selectionTime);
 
         log.info("Factor selection completed for session: {}, factor: {}", sessionId, authType);
     }
@@ -98,7 +101,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         }
 
         // 2. 사용자 설정 확인
-        String userPreference = (String) factorContext.getAttribute("userOttPreference");
+        String userPreference = (String) factorContext.getAttribute(
+            FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE);
         if (userPreference != null) {
             return validateOttDeliveryMethod(userPreference);
         }
@@ -122,7 +126,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         }
 
         // 2. 디바이스 정보 기반 결정
-        String userAgent = (String) factorContext.getAttribute("userAgent");
+        String userAgent = (String) factorContext.getAttribute(
+            FactorContextAttributes.DeviceAndSession.USER_AGENT);
         if (userAgent != null) {
             if (userAgent.contains("Mobile")) {
                 return "MOBILE";
@@ -180,7 +185,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         // 사용 가능한 팩터가 있는지 확인
         if (factorContext.getAvailableFactors() == null ||
                 factorContext.getAvailableFactors().isEmpty()) {
-            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
+            factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No MFA factors available for user: " +
                     factorContext.getUsername());
         }

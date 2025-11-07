@@ -408,6 +408,20 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             context.setAttribute("selectedFactor", selectedFactor);
             request.setAttribute("selectedFactor", selectedFactor);
 
+            // 사용자가 선택한 OTT 전송 방법 파라미터 전달
+            String ottDeliveryMethod = request.getParameter("ottDeliveryMethod");
+            if (ottDeliveryMethod != null) {
+                context.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
+                request.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
+            }
+
+            // 사용자가 선택한 Passkey 타입 파라미터 전달
+            String passkeyType = request.getParameter("passkeyType");
+            if (passkeyType != null) {
+                context.setAttribute("passkeyType", passkeyType);
+                request.setAttribute("passkeyType", passkeyType);
+            }
+
             // State Machine 이벤트 전송
             return stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
         } catch (Exception e) {
@@ -418,10 +432,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleFactorSelectionSuccess(HttpServletRequest request, HttpServletResponse response,
                                               FactorContext context, String selectedFactor) throws IOException {
-        // ✅ High 수정 1: 이중 이벤트 전송 제거
-        // Line 803의 FACTOR_SELECTED 이벤트 Action에서 이미 다음 팩터를 결정하므로
-        // DETERMINE_NEXT_FACTOR 이벤트는 중복입니다.
-
         Map<String, Object> successResponse = createSuccessResponse(context, "FACTOR_SELECTED",
                 "팩터가 성공적으로 선택되었습니다.");
         successResponse.put("selectedFactor", selectedFactor);

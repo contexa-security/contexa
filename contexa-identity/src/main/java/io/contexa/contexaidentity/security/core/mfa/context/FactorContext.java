@@ -361,7 +361,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
                 @SuppressWarnings("unchecked")
                 Set<AuthType> factors = (Set<AuthType>) availableFactorsObj;
                 log.debug("[FactorContext] Retrieved availableFactors: {} for session: {}", factors, mfaSessionId);
-                return new HashSet<>(factors);
+                return new LinkedHashSet<>(factors);
             } catch (ClassCastException e) {
                 log.error("[FactorContext] availableFactors type cast failed for session: {}, type: {}",
                          mfaSessionId, availableFactorsObj.getClass(), e);

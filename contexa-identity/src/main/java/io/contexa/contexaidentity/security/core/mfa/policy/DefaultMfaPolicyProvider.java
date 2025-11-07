@@ -253,20 +253,18 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 .map(AuthenticationStepConfig::getStepId)
                 .collect(Collectors.toSet());
 
-        List<AuthenticationStepConfig> sortedSteps = flowSteps.stream()
-                .sorted(Comparator.comparingInt(AuthenticationStepConfig::getOrder))
-                .toList();
+        // DSL 등록 순서 (availableFactors)를 우선 사용
+        for (AuthType factor : availableFactors) {
+            // 해당 팩터의 미완료 Step 찾기
+            Optional<AuthenticationStepConfig> nextStep = flowSteps.stream()
+                    .filter(step -> factor.name().equalsIgnoreCase(step.getType()))
+                    .filter(step -> !completedStepIds.contains(step.getStepId()))
+                    .min(Comparator.comparingInt(AuthenticationStepConfig::getOrder));
 
-        for (AuthenticationStepConfig stepInFlow : sortedSteps) {
-            AuthType factorInOrder = parseAuthType(stepInFlow.getType());
-
-            if (factorInOrder != null &&
-                    availableFactors.contains(factorInOrder) &&
-                    !completedStepIds.contains(stepInFlow.getStepId())) {
-
-                log.debug("Next MFA factor determined by policy: {} (StepId: {})",
-                        factorInOrder, stepInFlow.getStepId());
-                return factorInOrder;
+            if (nextStep.isPresent()) {
+                log.debug("Next MFA factor determined by DSL order: {} (StepId: {})",
+                        factor, nextStep.get().getStepId());
+                return factor;
             }
         }
 

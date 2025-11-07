@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexacommon.entity.Users;
@@ -252,8 +253,8 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
     
     /**
-     * 팩터를 우선순위에 따라 정렬합니다.
-     * 사용자 선호 팩터를 최우선으로 배치합니다.
+     * 팩터를 DSL 순서에 따라 정렬합니다.
+     * 사용자 선호 팩터가 있으면 맨 앞으로 이동합니다.
      */
     private List<AuthType> prioritizeFactors(
             List<AuthType> factors,
@@ -261,41 +262,16 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             FactorContext context,
             AuthType preferredFactor) {
 
-        // 기본 우선순위 맵 (높을수록 우선)
-        Map<AuthType, Integer> basePriorityMap = new HashMap<>();
-        basePriorityMap.put(AuthType.PASSKEY, 100);  // 가장 안전하고 편리
-        basePriorityMap.put(AuthType.OTT, 90);       // 일회용 토큰
-        basePriorityMap.put(AuthType.MFA, 80);       // 일반 MFA
-        basePriorityMap.put(AuthType.RECOVERY_CODE, 70);  // 복구 코드
+        // DSL 순서를 기본으로 유지
+        List<AuthType> result = new ArrayList<>(factors);
 
-        // 컨텍스트 기반 우선순위 조정
-        Map<AuthType, Integer> adjustedPriorityMap = new HashMap<>(basePriorityMap);
-
-        // 위험도가 높으면 PASSKEY 우선순위 증가
-        Double riskScore = (Double) context.getAttribute("riskScore");
-        if (riskScore != null && riskScore > 0.7) {
-            adjustedPriorityMap.put(AuthType.PASSKEY, 110);
+        // 사용자 선호 팩터가 있으면 맨 앞으로 이동
+        if (preferredFactor != null && result.contains(preferredFactor)) {
+            result.remove(preferredFactor);
+            result.addFirst(preferredFactor);
         }
 
-        // 관리자는 PASSKEY 우선
-        if (isAdminUser(user)) {
-            adjustedPriorityMap.put(AuthType.PASSKEY, 105);
-        }
-
-        return factors.stream()
-            .sorted((f1, f2) -> {
-                // 선호 팩터가 있으면 최우선
-                if (preferredFactor != null) {
-                    if (f1 == preferredFactor) return -1;
-                    if (f2 == preferredFactor) return 1;
-                }
-
-                // 우선순위 비교
-                int priority1 = adjustedPriorityMap.getOrDefault(f1, 0);
-                int priority2 = adjustedPriorityMap.getOrDefault(f2, 0);
-                return Integer.compare(priority2, priority1); // 내림차순
-            })
-            .collect(Collectors.toList());
+        return result;
     }
     
     /**
@@ -322,23 +298,22 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     
 
     private Set<AuthType> getAvailableFactorsFromDsl(FactorContext context) {
-        // 1. 컨텍스트에 이미 설정되어 있는지 확인
-        Object configObj = context.getAttribute("mfaFlowConfig");
-        if (configObj instanceof AuthenticationFlowConfig) {
-            Set<AuthType> factors = extractFactorsFromConfig((AuthenticationFlowConfig) configObj);
-            if (!factors.isEmpty()) {
-                return factors;
-            }
+        // 1. InitializeMfaAction에서 이미 설정한 availableFactors 확인
+        Set<AuthType> availableFactors = context.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
+        if (availableFactors != null && !availableFactors.isEmpty()) {
+            log.debug("DSL에서 사용 가능한 팩터 (Context에서 조회): {}", availableFactors);
+            return availableFactors;
         }
 
-        // 2. ApplicationContext에서 직접 조회 (순환 참조 해결!)
+        // 2. Context에 없으면 ApplicationContext에서 직접 조회 (폴백)
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext();
         if (mfaFlowConfig != null) {
             Set<AuthType> factors = extractFactorsFromConfig(mfaFlowConfig);
             if (!factors.isEmpty()) {
-                // 다음 호출을 위해 컨텍스트에 저장
-                context.setAttribute("mfaFlowConfig", mfaFlowConfig);
-                log.debug("DSL에서 사용 가능한 팩터 (ApplicationContext 조회): {}", factors);
+                // Redis 직렬화 안전: AuthType Set만 저장 (AuthenticationFlowConfig는 Serializable 아님)
+                context.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS,
+                                   new LinkedHashSet<>(factors));
+                log.debug("DSL에서 사용 가능한 팩터 (ApplicationContext 조회 후 저장): {}", factors);
                 return factors;
             }
         }
@@ -524,28 +499,10 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 .map(AuthType::name)
                 .collect(Collectors.toList()));
 
-        // 사용자 선호 팩터
-        String preferredFactor = user.getPreferredMfaFactor();
-        if (preferredFactor != null && !preferredFactor.isEmpty()) {
-            metadata.put("userPreferredFactor", preferredFactor);
-        }
-
-        // 위험도
-        Double riskScore = (Double) context.getAttribute("riskScore");
+        // 위험도 (실제 사용됨: AIAdaptiveMfaPolicyProvider 등)
+        Double riskScore = (Double) context.getAttribute(FactorContextAttributes.Policy.RISK_SCORE);
         if (riskScore != null) {
-            metadata.put("riskScore", riskScore);
-        }
-
-        // 관리자 여부
-        metadata.put("isAdmin", isAdminUser(user));
-
-        // MFA 활성화 여부
-        metadata.put("mfaEnabled", user.isMfaEnabled());
-
-        // 플로우 타입
-        String flowType = context.getFlowTypeName();
-        if (flowType != null) {
-            metadata.put("flowType", flowType);
+            metadata.put(FactorContextAttributes.Policy.RISK_SCORE, riskScore);
         }
 
         return metadata;

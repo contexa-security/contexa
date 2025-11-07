@@ -93,7 +93,7 @@ public class MfaTimeUtils {
      * @return true: 만료됨, false: 유효함
      */
     public static boolean isChallengeExpired(FactorContext context, MfaSettings mfaSettings) {
-        Object challengeTime = context.getAttribute("challengeInitiatedAt");
+        Object challengeTime = context.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT);
         if (challengeTime instanceof Long challengeTimeMs) {
             return mfaSettings.isChallengeExpired(challengeTimeMs);
         } else if (challengeTime instanceof Instant challengeInstant) {

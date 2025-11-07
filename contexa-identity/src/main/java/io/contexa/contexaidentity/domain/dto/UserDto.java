@@ -1,5 +1,7 @@
 package io.contexa.contexaidentity.domain.dto;
 
+import io.contexa.contexacommon.entity.UserGroup;
+import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -7,6 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Set;
 
 @Data
 @Builder

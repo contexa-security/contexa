@@ -153,7 +153,7 @@ public class MfaContextValidator {
         }
 
         // 15. 챌린지 만료 시간 체크
-        Object challengeTime = ctx.getAttribute("challengeInitiatedAt");
+        Object challengeTime = ctx.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT);
         if (challengeTime instanceof Long) {
             long elapsed = System.currentTimeMillis() - (Long) challengeTime;
             if (elapsed > 300000) { // 5분 초과

@@ -8,6 +8,7 @@ import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.enums.StateType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
@@ -118,7 +119,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         TokenTransportResult transportResult = null;
 
         if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
-            String deviceId = factorContext != null ? (String) factorContext.getAttribute("deviceId") : null;
+            String deviceId = factorContext != null ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID) : null;
             tokenPair = tokenService.createTokenPair(finalAuthentication, deviceId, request, response);
             String accessToken = tokenPair.getAccessToken();
             String refreshToken = tokenPair.getRefreshToken();
@@ -296,18 +297,18 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
             // FactorContext 에서 추가 정보 추출
             if (factorContext != null) {
                 builder.mfaCompleted(factorContext.isCompleted())
-                       .deviceId((String) factorContext.getAttribute("deviceId"))
-                       .mfaMethod(factorContext.getCurrentProcessingFactor() != null ? 
+                       .deviceId((String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID))
+                       .mfaMethod(factorContext.getCurrentProcessingFactor() != null ?
                                  factorContext.getCurrentProcessingFactor().toString() : null);
-                
+
                 // AI 위험 평가 정보
-                Double aiRiskScore = (Double) factorContext.getAttribute("aiRiskScore");
+                Double aiRiskScore = (Double) factorContext.getAttribute(FactorContextAttributes.Policy.AI_RISK_SCORE);
                 if (aiRiskScore != null) {
                     builder.trustScore(1.0 - aiRiskScore); // 위험 점수를 신뢰 점수로 변환
                 }
-                
+
                 // 이상 징후 감지
-                Boolean blocked = (Boolean) factorContext.getAttribute("blocked");
+                Boolean blocked = (Boolean) factorContext.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
                 builder.anomalyDetected(blocked != null && blocked);
                 
                 // 세션 컨텍스트
@@ -430,7 +431,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
             return false;
         }
 
-        MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute("errorEventRecommendation");
+        MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION);
 
         if (errorEvent != null) {
             log.debug("Processing error event recommendation: {} for session: {}",

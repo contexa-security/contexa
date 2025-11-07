@@ -231,37 +231,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     </button>
                 </form>
 
-                <!-- Progressive Enhancement: JavaScript SDK 지원 -->
-                <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
-                <script>
-                    // JavaScript 활성화 시 SDK를 통한 향상된 UX 제공
-                    if (typeof ContexaMFA !== 'undefined') {
-                        const form = document.getElementById('ott-request-form');
-                        const submitButton = form.querySelector('button[type="submit"]');
-
-                        form.addEventListener('submit', async (e) => {
-                            e.preventDefault();
-
-                            const username = form.querySelector('[name="username"]').value;
-                            submitButton.disabled = true;
-                            submitButton.textContent = '전송 중...';
-
-                            try {
-                                const mfa = new ContexaMFA.Client({ autoRedirect: true });
-                                await mfa.init();
-                                await mfa.apiClient.requestOttCode({ username });
-
-                                // SDK가 자동 리다이렉트 처리
-                            } catch (error) {
-                                console.error('SDK 요청 실패, Form 제출로 fallback:', error);
-                                // JavaScript 실패 시 Form 제출로 fallback
-                                submitButton.disabled = false;
-                                submitButton.textContent = '인증 코드 전송';
-                                form.submit();
-                            }
-                        });
-                    }
-                </script>
+                <!-- Form submit만 사용 (SDK Progressive Enhancement 불필요) -->
             </div>
         </body>
         </html>
@@ -443,7 +413,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         const codeInput = document.getElementById('token');
 
                         // SDK 초기화
-                        const mfa = new ContexaMFA.Client({ autoRedirect: true });
+                        const mfa = new ContexaMFA.Client({ autoRedirect: false });
                         mfa.init().catch(console.error);
 
                         // 검증 Form Progressive Enhancement
@@ -455,38 +425,27 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             verifyButton.textContent = '확인 중...';
 
                             try {
-                                await mfa.verifyOtt(code);
-                                // SDK가 자동 리다이렉트 처리
+                                const result = await mfa.verifyOtt(code);
+
+                                // 명시적 리다이렉트 처리
+                                if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
+                                    window.location.href = result.redirectUrl;
+                                } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
+                                    window.location.href = result.nextStepUrl;
+                                } else if (result.nextStepUrl) {
+                                    window.location.href = result.nextStepUrl;
+                                } else if (result.redirectUrl) {
+                                    window.location.href = result.redirectUrl;
+                                }
                             } catch (error) {
-                                console.error('SDK 검증 실패, Form 제출로 fallback:', error);
-                                // JavaScript 실패 시 Form 제출로 fallback
+                                console.error('OTT 검증 실패:', error);
+                                alert('인증 코드 확인 실패: ' + (error.message || '알 수 없는 오류'));
                                 verifyButton.disabled = false;
                                 verifyButton.textContent = '확인';
-                                verifyForm.submit();
                             }
                         });
 
-                        // 재전송 Form Progressive Enhancement
-                        resendForm.addEventListener('submit', async (e) => {
-                            e.preventDefault();
-
-                            resendButton.disabled = true;
-                            resendButton.textContent = '전송 중...';
-
-                            try {
-                                await mfa.apiClient.requestOttCode();
-                                alert('인증 코드가 재전송되었습니다.');
-                                codeInput.value = '';
-                                codeInput.focus();
-                            } catch (error) {
-                                console.error('SDK 재전송 실패, Form 제출로 fallback:', error);
-                                // JavaScript 실패 시 Form 제출로 fallback
-                                resendForm.submit();
-                            } finally {
-                                resendButton.disabled = false;
-                                resendButton.textContent = '코드 재전송';
-                            }
-                        });
+                        // 재전송 버튼은 form submit 그대로 사용 (SDK 불필요)
                     }
                 </script>
             </div>
@@ -606,7 +565,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                 <script>
                     const authButton = document.getElementById('auth-button');
-                    const mfa = new ContexaMFA.Client({ autoRedirect: true });
+                    const mfa = new ContexaMFA.Client({ autoRedirect: false });
 
                     // SDK 초기화
                     mfa.init().catch(console.error);
@@ -617,11 +576,21 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         authButton.textContent = '인증 진행 중...';
 
                         try {
-                            await mfa.verifyPasskey();
-                            // SDK가 자동 리다이렉트 처리
+                            const result = await mfa.verifyPasskey();
+
+                            // 명시적 리다이렉트 처리
+                            if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
+                                window.location.href = result.redirectUrl;
+                            } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
+                                window.location.href = result.nextStepUrl;
+                            } else if (result.redirectUrl) {
+                                window.location.href = result.redirectUrl;
+                            } else if (result.nextStepUrl) {
+                                window.location.href = result.nextStepUrl;
+                            }
                         } catch (error) {
                             console.error('Passkey 인증 실패:', error);
-                            alert('인증 실패: ' + error.message);
+                            alert('인증 실패: ' + (error.message || '알 수 없는 오류'));
                             authButton.disabled = false;
                             authButton.textContent = 'Passkey 인증 시작';
                         }
@@ -747,7 +716,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     // JavaScript 활성화 시 SDK를 통한 향상된 UX 제공
                     if (typeof ContexaMFA !== 'undefined') {
                         const forms = document.querySelectorAll('.factor-form');
-                        const mfa = new ContexaMFA.Client({ autoRedirect: true });
+                        const mfa = new ContexaMFA.Client({ autoRedirect: false });
 
                         // SDK 초기화
                         mfa.init().catch(console.error);
@@ -764,14 +733,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 button.textContent = '처리 중...';
 
                                 try {
-                                    await mfa.selectFactor(factorType);
-                                    // SDK가 자동 리다이렉트 처리
+                                    const result = await mfa.selectFactor(factorType);
+
+                                    // 명시적 리다이렉트 처리
+                                    if (result.nextStepUrl) {
+                                        window.location.href = result.nextStepUrl;
+                                    } else if (result.redirectUrl) {
+                                        window.location.href = result.redirectUrl;
+                                    }
                                 } catch (error) {
-                                    console.error('SDK factor 선택 실패, Form 제출로 fallback:', error);
-                                    // JavaScript 실패 시 Form 제출로 fallback
+                                    console.error('Factor 선택 실패:', error);
+                                    alert('인증 방법 선택 실패: ' + (error.message || '알 수 없는 오류'));
                                     button.disabled = false;
                                     button.textContent = originalText;
-                                    form.submit();
                                 }
                             });
                         });

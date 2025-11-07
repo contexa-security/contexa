@@ -285,7 +285,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             "PrimaryAuthenticationOptions must not be null for MFA flow [" + this.mfaFlowTypeName + "]. " +
             "Either configure .primaryAuthentication() DSL or ensure the first step (order=0) has valid FormOptions or RestOptions.");
 
-        Map<AuthType, AuthenticationProcessingOptions> factorOptionsMap = new HashMap<>();
+        Map<AuthType, AuthenticationProcessingOptions> factorOptionsMap = new LinkedHashMap<>();
         for (int i = 1; i < configuredSteps.size(); i++) {
             AuthenticationStepConfig step = configuredSteps.get(i);
             Object stepOptionsObject = step.getOptions().get("_options");
@@ -311,7 +311,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .mfaPolicyProvider(this.policyProvider)
                 .mfaFailureHandler(this.mfaFailureHandler)
                 .finalSuccessHandler(this.finalSuccessHandler)
-                .registeredFactorOptions(Collections.unmodifiableMap(factorOptionsMap))
+                .registeredFactorOptions(new LinkedHashMap<>(factorOptionsMap))
                 .defaultRetryPolicy(this.defaultRetryPolicy)
                 .defaultAdaptiveConfig(this.defaultAdaptiveConfig)
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)

@@ -162,7 +162,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
         SecurityExceptionHandlerInvoker handlerInvoker = new SecurityExceptionHandlerInvoker(finalArgumentResolvers, finalReturnValueHandlers);
         ASEPFilter asepFilter = new ASEPFilter(this.methodRegistry, handlerInvoker, this.messageConverters);
 
-        http.addFilterAfter(asepFilter, SecurityContextHolderFilter.class);
+//        http.addFilterAfter(asepFilter, SecurityContextHolderFilter.class);
         log.info("ASEP: ASEPFilter added by AsepConfigurer for flow: {}", flowTypeName);
     }
 

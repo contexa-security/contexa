@@ -11,9 +11,7 @@ import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.properties.MfaSettings;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
-import jakarta.servlet.Filter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
+import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -156,6 +154,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
                     chain, ctx, request, stateMachineIntegrator, sessionRepository, startTime,mfaSettings);
 
             delegateFactorFilter.doFilter(request, response, wrappedChain);
+            chain.doFilter(request,response);
         } else {
             log.error("No delegate filter found for factorIdentifier: {}", factorIdentifier);
             ensureMinimumDelay(startTime);
@@ -231,9 +230,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
 
         @Override
-        public void doFilter(jakarta.servlet.ServletRequest servletRequest,
-                             jakarta.servlet.ServletResponse servletResponse)
-                throws IOException, ServletException {
+        public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse) throws IOException, ServletException {
 
             HttpServletResponse httpResponse = (HttpServletResponse) servletResponse;
 

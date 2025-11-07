@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.statemachine.action;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -115,13 +116,16 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
 
             // Phase 2 개선: 이벤트 추천 저장 (Handler가 처리)
             if (e instanceof InvalidFactorException) {
-                factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
+                factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                         MfaEvent.SYSTEM_ERROR);
 
             } else if (e instanceof ChallengeGenerationException) {
-                factorContext.setAttribute("errorEventRecommendation", MfaEvent.CHALLENGE_INITIATION_FAILED);
+                factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                         MfaEvent.CHALLENGE_INITIATION_FAILED);
 
             } else if (e instanceof FactorVerificationException) {
-                factorContext.setAttribute("errorEventRecommendation", MfaEvent.FACTOR_VERIFICATION_FAILED);
+                factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                         MfaEvent.FACTOR_VERIFICATION_FAILED);
             }
         }
     }
@@ -134,7 +138,8 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
                                             FactorContext factorContext) {
         if (factorContext != null) {
             // Phase 2 개선: 직접 state 변경 대신 이벤트 추천
-            factorContext.setAttribute("errorEventRecommendation", MfaEvent.SESSION_TIMEOUT);
+            factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                     MfaEvent.SESSION_TIMEOUT);
             factorContext.setLastError("Session timeout");
         }
     }
@@ -151,9 +156,8 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
             factorContext.changeState(MfaState.MFA_SYSTEM_ERROR);
         }
 
-        // Dead Letter Queue로 전송할 수 있도록 이벤트 발행
-        context.getExtendedState().getVariables().put("unexpectedError", e);
-        context.getExtendedState().getVariables().put("errorTimestamp", System.currentTimeMillis());
+        // TODO: Dead Letter Queue 구현 시 unexpectedError 이벤트 발행 추가
+        // 현재는 FactorContext.lastError에 저장되어 있음
     }
 
     /**

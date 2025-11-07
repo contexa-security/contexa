@@ -28,7 +28,9 @@ import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -393,7 +395,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         // 다음 stepId 결정 (FlowConfig에서 조회)
         setCurrentStepId(context, autoSelectedFactor);
 
-        // 이벤트 전송 (sendEvent 내부에서 자동으로 persist하므로 중복 저장 제거)
+        // 이벤트 전송
         boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
         log.info("INITIATE_CHALLENGE_AUTO event sent for session: {}, accepted: {}, factor: {}",
                   mfaSessionId, sent, autoSelectedFactor);
@@ -426,7 +428,9 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         // 2. AvailableFactors에서 첫 번째 팩터 (폴백)
         Set<AuthType> availableFactors = context.getAvailableFactors();
         if (availableFactors != null && !availableFactors.isEmpty()) {
-            AuthType firstAvailable = availableFactors.iterator().next();
+            // LinkedHashSet의 순서를 보장하기 위해 List로 변환 후 getFirst() 사용
+            List<AuthType> factorList = new ArrayList<>(availableFactors);
+            AuthType firstAvailable = factorList.getFirst();
             log.info("Auto-selected first available factor: {} for session: {}",
                      firstAvailable, sessionId);
             return firstAvailable;

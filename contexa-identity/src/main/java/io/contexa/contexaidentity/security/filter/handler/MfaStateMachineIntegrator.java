@@ -288,7 +288,7 @@ public class MfaStateMachineIntegrator {
         }
 
         // nextEventRecommendation 확인
-        Object recommended = context.getAttribute("nextEventRecommendation");
+        Object recommended = context.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
         if (recommended != null) {
             reason.append(String.format("Recommended event: [%s]. ", recommended));
         } else {

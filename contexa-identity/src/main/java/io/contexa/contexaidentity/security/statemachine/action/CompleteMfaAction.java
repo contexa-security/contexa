@@ -50,14 +50,12 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
     }
 
     private void performCompletionTasks(FactorContext factorContext) {
-        // 세션 지속 시간 계산
-        long createdAt = factorContext.getCreatedAt();
-        long durationSeconds = (System.currentTimeMillis() - createdAt) / 1000;
-        factorContext.setAttribute("mfaDurationSeconds", durationSeconds);
+        // 추가 완료 작업이 필요한 경우 여기에 구현
+        // 예: 감사 로그, 메트릭스 수집 등
     }
 
     private void updateEventMetadata(StateContext<MfaState, MfaEvent> context) {
-        context.getExtendedState().getVariables().put("mfaCompletedAt", LocalDateTime.now());
-        context.getExtendedState().getVariables().put("completionStatus", "SUCCESS");
+        // 추가 이벤트 메타데이터가 필요한 경우 여기에 구현
+        // FactorContext에 이미 완료 정보가 저장되어 있음
     }
 }

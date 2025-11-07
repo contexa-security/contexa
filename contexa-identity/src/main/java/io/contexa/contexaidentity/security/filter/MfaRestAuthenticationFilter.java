@@ -4,6 +4,7 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexaidentity.domain.LoginRequest;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
@@ -195,10 +196,13 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
      */
     private void enhanceFactorContextWithSecurityInfo(FactorContext factorContext, HttpServletRequest request) {
         String deviceId = getOrCreateDeviceId(request);
-        factorContext.setAttribute("deviceId", deviceId);
-        factorContext.setAttribute("clientIp", getClientIpAddress(request));
-        factorContext.setAttribute("userAgent", request.getHeader("User-Agent"));
-        factorContext.setAttribute("loginTimestamp", System.currentTimeMillis());
+        factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID, deviceId);
+        factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP,
+                                  getClientIpAddress(request));
+        factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.USER_AGENT,
+                                  request.getHeader("User-Agent"));
+        factorContext.setAttribute(FactorContextAttributes.Timestamps.LOGIN_TIMESTAMP,
+                                  System.currentTimeMillis());
 
         log.debug("Enhanced FactorContext with security info: deviceId={}, repository={}",
                 deviceId, sessionRepository.getRepositoryType());

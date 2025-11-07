@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.statemachine.action;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
@@ -13,7 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 import org.springframework.stereotype.Component;
 
+import java.io.Serializable;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -52,8 +55,10 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
 
         HttpServletRequest request = (HttpServletRequest) context.getMessageHeader("request");
         if (request != null) {
-            factorContext.setAttribute("userAgent", request.getHeader("User-Agent"));
-            factorContext.setAttribute("clientIp", request.getRemoteAddr());
+            factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.USER_AGENT,
+                                     request.getHeader("User-Agent"));
+            factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP,
+                                     request.getRemoteAddr());
         }
 
         MfaDecision decision = (MfaDecision) context.getMessageHeader("mfaDecision");
@@ -75,23 +80,37 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
         // 기본 속성 설정
         ctx.setMfaRequiredAsPerPolicy(decision.isRequired());
         // Phase 3.4: MfaDecision 객체는 Kryo 직렬화 불가(no-arg 생성자 없음)이므로 필요한 정보만 저장
-        ctx.setAttribute("mfaDecisionType", decision.getType().name());
-        ctx.setAttribute("requiredFactorCount", decision.getFactorCount());
-        ctx.setAttribute("mfaDecisionReason", decision.getReason());
+        ctx.setAttribute(FactorContextAttributes.StateControl.MFA_DECISION_TYPE,
+                        decision.getType().name());
 
-        // Phase 2: 메타데이터 적용 (사용자 정보 캐싱 포함)
+        // Phase 2: 메타데이터 적용 (Serializable 검증 강화)
         if (decision.getMetadata() != null) {
-            decision.getMetadata().forEach(ctx::setAttribute);
+            decision.getMetadata().forEach((key, value) -> {
+                if (value == null || value instanceof Serializable) {
+                    ctx.setAttribute(key, value);
+                } else {
+                    log.warn("Non-serializable metadata skipped for session {}: key={}, type={}",
+                             sessionId, key, value.getClass().getName());
+                }
+            });
             // userInfo가 메타데이터에 있으면 캐싱
-            if (decision.getMetadata().containsKey("userInfo")) {
+            if (decision.getMetadata().containsKey(FactorContextAttributes.StateControl.USER_INFO)) {
                 log.debug("User info cached in context for user: {}", ctx.getUsername());
             }
         }
 
+        // TODO: userOttPreference 설정 추가 예정
+        // Users 엔티티에 ottDeliveryPreference 필드 추가 후
+        // 사용자의 OTT 전송 방법 선호 설정을 메타데이터에 포함시켜야 함
+        // ctx.setAttribute(FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE,
+        //                  user.getOttDeliveryPreference());
+        // 현재는 SelectFactorAction에서 시스템 기본값(EMAIL)을 사용함
+
         // 차단 결정 처리
         if (decision.isBlocked()) {
-            ctx.setAttribute("blocked", true);
-            ctx.setAttribute("blockReason", decision.getReason());
+            ctx.setAttribute(FactorContextAttributes.StateControl.BLOCKED, true);
+            ctx.setAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON,
+                           decision.getReason());
             log.warn("Authentication blocked for user {}: {}",
                     ctx.getUsername(), decision.getReason());
         }
@@ -105,19 +124,15 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                     .orElse(null);
 
             if (mfaFlowConfig != null) {
-                // Phase 3.4: Defensive copy for serialization safety
-                Set<AuthType> availableFactors = new HashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
-                ctx.setAttribute("availableFactors", availableFactors);
-
-                // Phase 3.4: Store only serializable values instead of entire config
-                ctx.setAttribute("flowTypeName", mfaFlowConfig.getTypeName());
-                ctx.setAttribute("flowOrder", mfaFlowConfig.getOrder());
+                // Phase 3.4: Defensive copy for serialization safety (LinkedHashSet for order preservation)
+                Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
+                ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
 
                 log.info("[InitializeMfaAction] Set availableFactors: {} (count: {}) for session: {}, version: {}",
                          availableFactors, availableFactors.size(), ctx.getMfaSessionId(), ctx.getVersion());
 
                 // 즉시 ExtendedState에 반영 확인 (Phase 3.3: Type-safe getter 사용)
-                Set<AuthType> verifyFactors = ctx.getSetAttribute("availableFactors");
+                Set<AuthType> verifyFactors = ctx.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
                 if (verifyFactors == null || verifyFactors.isEmpty()) {
                     log.error("[InitializeMfaAction] availableFactors verification FAILED for session: {}",
                              ctx.getMfaSessionId());
@@ -139,8 +154,8 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                 // MFA FlowConfig 없으면 decision에서 가져오기
                 List<AuthType> requiredFactors = decision.getRequiredFactors();
                 if (requiredFactors != null && !requiredFactors.isEmpty()) {
-                    Set<AuthType> availableFactors = new HashSet<>(requiredFactors);
-                    ctx.setAttribute("availableFactors", availableFactors);
+                    Set<AuthType> availableFactors = new LinkedHashSet<>(requiredFactors);
+                    ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
                     log.debug("Available factors loaded from decision for user: {}, factors: {}",
                             ctx.getUsername(), availableFactors);
                 } else {

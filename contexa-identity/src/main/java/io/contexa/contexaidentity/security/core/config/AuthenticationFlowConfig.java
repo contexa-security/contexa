@@ -49,7 +49,7 @@ public final class AuthenticationFlowConfig {
         this.mfaPolicyProvider = builder.mfaPolicyProvider;
         this.mfaFailureHandler = builder.mfaFailureHandler;
         this.finalSuccessHandler = builder.finalSuccessHandler;
-        this.registeredFactorOptions = builder.registeredFactorOptions != null ? Map.copyOf(builder.registeredFactorOptions) : Collections.emptyMap();
+        this.registeredFactorOptions = builder.registeredFactorOptions != null ? Collections.unmodifiableMap(new LinkedHashMap<>(builder.registeredFactorOptions)) : Collections.emptyMap();
         this.defaultRetryPolicy = builder.defaultRetryPolicy;
         this.defaultAdaptiveConfig = builder.defaultAdaptiveConfig;
         this.defaultDeviceTrustEnabled = builder.defaultDeviceTrustEnabled;
@@ -95,7 +95,7 @@ public final class AuthenticationFlowConfig {
         private MfaPolicyProvider mfaPolicyProvider;
         private AuthenticationFailureHandler mfaFailureHandler;
         private AuthenticationSuccessHandler finalSuccessHandler;
-        private Map<AuthType, AuthenticationProcessingOptions> registeredFactorOptions = new HashMap<>();
+        private Map<AuthType, AuthenticationProcessingOptions> registeredFactorOptions = new LinkedHashMap<>();
         private RetryPolicy defaultRetryPolicy;
         private AdaptiveConfig defaultAdaptiveConfig;
         private boolean defaultDeviceTrustEnabled;
@@ -131,7 +131,7 @@ public final class AuthenticationFlowConfig {
 
         public Builder primaryAuthenticationOptions(PrimaryAuthenticationOptions opts) { this.primaryAuthenticationOptions = opts; return this; }
         public Builder registeredFactorOptions(Map<AuthType, AuthenticationProcessingOptions> options) {
-            this.registeredFactorOptions = (options != null) ? new HashMap<>(options) : new HashMap<>();
+            this.registeredFactorOptions = (options != null) ? new LinkedHashMap<>(options) : new LinkedHashMap<>();
             return this;
         }
         public Builder mfaPolicyProvider(MfaPolicyProvider provider) { this.mfaPolicyProvider = provider; return this; }

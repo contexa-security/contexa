@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.statemachine.guard;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,7 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
         String sessionId = factorContext.getMfaSessionId();
 
         // factorSelectedAt 속성 확인
-        Object selectedAtObj = factorContext.getAttribute("factorSelectedAt");
+        Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
 
         if (!(selectedAtObj instanceof Long)) {
             log.debug("[FactorSelectionTimeoutGuard] factorSelectedAt not set for session: {}, allowing transition",
@@ -67,7 +68,7 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
      */
     private long getSelectionTimeoutMs(FactorContext factorContext) {
         // 커스텀 타임아웃이 설정되어 있으면 사용
-        Object customTimeoutObj = factorContext.getAttribute("factorSelectionTimeoutMs");
+        Object customTimeoutObj = factorContext.getAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS);
         if (customTimeoutObj instanceof Long) {
             return (Long) customTimeoutObj;
         }
@@ -95,7 +96,7 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
      * @return 남은 시간 (밀리초), 선택 시간이 설정되지 않았으면 타임아웃 전체 시간 반환
      */
     public long getRemainingSelectionTimeMs(FactorContext factorContext) {
-        Object selectedAtObj = factorContext.getAttribute("factorSelectedAt");
+        Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
 
         if (!(selectedAtObj instanceof Long)) {
             return getSelectionTimeoutMs(factorContext);
@@ -126,7 +127,7 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
      * @param timeoutMs 타임아웃 (밀리초)
      */
     public void setSelectionTimeout(FactorContext factorContext, long timeoutMs) {
-        factorContext.setAttribute("factorSelectionTimeoutMs", timeoutMs);
+        factorContext.setAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS, timeoutMs);
         log.debug("[FactorSelectionTimeoutGuard] Custom selection timeout set to {}ms for session: {}",
                 timeoutMs, factorContext.getMfaSessionId());
     }

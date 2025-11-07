@@ -37,22 +37,9 @@ public class HandleFailureAction extends AbstractMfaStateAction {
 
         if (factorContext.getRetryCount() >= maxRetries) {
             log.warn("Max retry attempts exceeded for session: {}", sessionId);
-
-            // ExtendedState에 재시도 초과 플래그 설정
-            context.getExtendedState().getVariables().put("retryLimitExceeded", true);
-            context.getExtendedState().getVariables().put("exceedTime", System.currentTimeMillis());
-
-            // 현재 처리 중인 팩터 정보 저장
-            if (factorContext.getCurrentProcessingFactor() != null) {
-                context.getExtendedState().getVariables().put("failedFactor",
-                        factorContext.getCurrentProcessingFactor().name());
-            }
         } else {
             log.info("Retry attempt {} of {} for session: {}",
                     factorContext.getRetryCount(), maxRetries, sessionId);
-
-            // 재시도 가능 상태 설정
-            context.getExtendedState().getVariables().put("retryAllowed", true);
         }
     }
 }

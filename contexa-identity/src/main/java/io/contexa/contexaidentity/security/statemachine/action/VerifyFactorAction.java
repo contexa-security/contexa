@@ -4,6 +4,7 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.RequiredArgsConstructor;
@@ -46,7 +47,7 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
                 String errorMsg = "Factor type for verification cannot be determined. Session: " + sessionId + ", StepId: " + currentStepId;
                 log.error("Cannot determine factor type for verification. currentProcessingFactor is null and could not be derived from stepId {} in session {}", currentStepId, sessionId);
                 factorContext.setLastError(errorMsg);
-                factorContext.setAttribute("errorEventRecommendation", MfaEvent.SYSTEM_ERROR);
+                factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION, MfaEvent.SYSTEM_ERROR);
                 throw new IllegalStateException(errorMsg);
             }
             log.warn("currentProcessingFactor was null for session {}, derived factorType {} from stepId {}", sessionId, factorType, currentStepId);
@@ -62,7 +63,6 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
         factorContext.addCompletedFactor(completedStep); // addCompletedFactor는 내부적으로 버전 증가
         updateVerificationSuccess(factorContext, completedStep);
         factorContext.setRetryCount(0); // 해당 팩터에 대한 재시도 횟수 초기화
-        factorContext.setAttribute("needsDetermineNextFactor", true);
 
         log.info("Factor {} (StepId: {}) verified successfully for session: {}", factorType, currentStepId, sessionId);
     }
@@ -104,7 +104,7 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
 
     private void updateVerificationSuccess(FactorContext factorContext,
                                            AuthenticationStepConfig completedStep) {
-        Integer successCount = (Integer) factorContext.getAttribute("verificationSuccessCount");
-        factorContext.setAttribute("verificationSuccessCount", (successCount == null ? 0 : successCount) + 1);
+        Integer successCount = (Integer) factorContext.getAttribute(FactorContextAttributes.StateControl.VERIFICATION_SUCCESS_COUNT);
+        factorContext.setAttribute(FactorContextAttributes.StateControl.VERIFICATION_SUCCESS_COUNT, (successCount == null ? 0 : successCount) + 1);
     }
 }
