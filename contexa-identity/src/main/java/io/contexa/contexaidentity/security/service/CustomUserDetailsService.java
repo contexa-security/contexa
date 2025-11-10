@@ -32,6 +32,6 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .toList();
 
         userDto.setAuthorities(authorities);
-        new CustomUserDetails(userDto);
+        return new CustomUserDetails(userDto);
     }
 }

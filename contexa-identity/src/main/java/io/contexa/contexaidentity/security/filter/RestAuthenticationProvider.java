@@ -19,7 +19,6 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
 
     private final UserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
-    private final ModelMapper modelMapper;
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
@@ -31,10 +30,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         if(!passwordEncoder.matches(password, userDetails.getPassword())){
             throw new BadCredentialsException("Invalid password");
         }
-        UserDto userDto = modelMapper.map(userDetails.getAccount(), UserDto.class);
-        OneTimeTokenAuthenticationToken authenticated = OneTimeTokenAuthenticationToken.authenticated(userDetails,
-                userDetails.getAuthorities());
-        return new RestAuthenticationToken(userDto, userDetails.getPassword(), userDetails.getAuthorities());
+        return OneTimeTokenAuthenticationToken.authenticated(userDetails, userDetails.getAuthorities());
     }
 
     @Override
