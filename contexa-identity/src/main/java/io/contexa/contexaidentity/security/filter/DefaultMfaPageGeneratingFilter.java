@@ -573,6 +573,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     Passkey 인증 시작
                 </button>
 
+                <!-- Passkey 등록 링크 -->
+                <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0;">
+                    <p style="color: #666; font-size: 14px; margin-bottom: 8px;">
+                        등록된 Passkey가 없으신가요?
+                    </p>
+                    <a href="{{contextPath}}/webauthn/register"
+                       style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">
+                        Passkey 등록하기 →
+                    </a>
+                </div>
+
                 <!-- Spring Security WebAuthn JavaScript (기반 라이브러리) -->
                 <script src="{{contextPath}}/login/webauthn.js"></script>
 
