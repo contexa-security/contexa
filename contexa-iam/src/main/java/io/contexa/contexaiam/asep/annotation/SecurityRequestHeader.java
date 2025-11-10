@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.asep.annotation;
 
 import org.springframework.core.annotation.AliasFor;
+import org.springframework.messaging.handler.annotation.ValueConstants;
 
 import java.lang.annotation.*;
 

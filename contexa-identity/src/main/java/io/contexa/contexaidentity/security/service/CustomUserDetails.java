@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.service;
 
+import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
 import io.contexa.contexacommon.entity.Users;
 import org.springframework.security.core.GrantedAuthority;
@@ -10,19 +11,18 @@ import java.util.Collection;
 
 public class CustomUserDetails implements UserDetails {
 
-    private final Users user;
+    private final UserDto user;
 
-    public CustomUserDetails(Users user) {
+    public CustomUserDetails(UserDto user) {
         this.user = user;
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRoleNames().stream().map(MfaGrantedAuthority::new)
-                .toList();
+        return user.getAuthorities();
     }
 
-    public Users getAccount() {
+    public UserDto getAccount() {
         return user;
     }
 

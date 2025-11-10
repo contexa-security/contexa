@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -31,6 +32,8 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             throw new BadCredentialsException("Invalid password");
         }
         UserDto userDto = modelMapper.map(userDetails.getAccount(), UserDto.class);
+        OneTimeTokenAuthenticationToken authenticated = OneTimeTokenAuthenticationToken.authenticated(userDetails,
+                userDetails.getAuthorities());
         return new RestAuthenticationToken(userDto, userDetails.getPassword(), userDetails.getAuthorities());
     }
 

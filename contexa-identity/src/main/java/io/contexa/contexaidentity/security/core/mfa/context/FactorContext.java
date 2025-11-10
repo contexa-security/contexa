@@ -72,7 +72,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
         this.mfaSessionId = mfaSessionId;
         this.primaryAuthentication = primaryAuthentication;
-        this.username = ((UserDto)primaryAuthentication.getPrincipal()).getUsername();
+        this.username = primaryAuthentication.getName();
         this.currentMfaState = new AtomicReference<>(initialState);
         this.flowTypeName = flowTypeName;
         this.lastActivityTimestamp = Instant.now();

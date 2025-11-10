@@ -1884,7 +1884,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (authentication != null
             && authentication.isAuthenticated()
             && !(authentication instanceof AnonymousAuthenticationToken)) {
-            return ((UserDto)authentication.getPrincipal()).getUsername();
+            return authentication.getName();
         }
 
         return null;

@@ -105,15 +105,13 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
                                                           @Nullable FactorContext factorContext) throws IOException {
 
         if (response.isCommitted()) {
-            log.warn("Response already committed for user: {}", ((UserDto)finalAuthentication.getPrincipal()).getUsername());
+            log.warn("Response already committed for user: {}", finalAuthentication.getName());
             return;
         }
 
         // 1. StateType 결정 (OAuth2/Session 구분)
         StateType stateType = determineStateType(factorContext);
-        log.debug("Determined StateType: {} for user: {}", stateType,
-                ((UserDto)finalAuthentication.getPrincipal()).getUsername());
-
+        log.debug("Determined StateType: {} for user: {}", stateType, finalAuthentication.getName());
         // 2. 조건부 토큰 생성 (OAuth2/JWT만 토큰 발급)
         TokenPair tokenPair;
         TokenTransportResult transportResult = null;

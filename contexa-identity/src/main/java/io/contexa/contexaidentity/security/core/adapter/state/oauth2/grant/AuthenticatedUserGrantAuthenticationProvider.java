@@ -1,10 +1,12 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
+import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
 import io.contexa.contexaidentity.security.service.CustomUserDetails;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.modelmapper.ModelMapper;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -255,8 +257,13 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
      * @return 인증된 사용자 Authentication
      */
     private Authentication createAuthenticatedUser(Users user, Set<String> scopes) {
-        // CustomUserDetails를 통해 실제 DB 권한 조회
-        CustomUserDetails userDetails = new CustomUserDetails(user);
+
+        UserDto userDto = new ModelMapper().map(user, UserDto.class);
+        List<MfaGrantedAuthority> authorities = user.getRoleNames().stream().map(MfaGrantedAuthority::new)
+                .toList();
+        userDto.setAuthorities(authorities);
+
+        CustomUserDetails userDetails = new CustomUserDetails(userDto);
         Collection<? extends GrantedAuthority> dbAuthorities = userDetails.getAuthorities();
 
         // OAuth2 스코프를 SCOPE_ 권한으로 추가

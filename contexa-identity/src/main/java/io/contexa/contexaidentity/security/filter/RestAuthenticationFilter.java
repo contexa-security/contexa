@@ -51,7 +51,7 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
         String mfaSessionId = sessionRepository.generateUniqueSessionId(baseId, request);
 
         log.debug("Initializing MFA session for single-factor authentication. Session: {}, User: {}",
-                  mfaSessionId, ((UserDto) authentication.getPrincipal()).getUsername());
+                  mfaSessionId, authentication.getName());
 
         // 2. FactorContext 생성
         FactorContext factorContext = new FactorContext(
@@ -65,7 +65,7 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
         stateMachineIntegrator.initializeStateMachine(factorContext, request, response);
 
         log.info("MFA session initialized for single-factor authentication. Session: {}, User: {}",
-                 mfaSessionId, ((UserDto) authentication.getPrincipal()).getUsername());
+                 mfaSessionId, authentication.getName());
 
         // 4. Security Context 설정
         SecurityContext context = securityContextHolderStrategy.createEmptyContext();

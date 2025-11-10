@@ -20,7 +20,5 @@ public class UserDto implements Serializable {
     private String username;
     private int age;
     private String password;
-    private List<String> roles;
-    private List<String> permissions;
-    private List<Long> selectedGroupIds;
+    private List<MfaGrantedAuthority> authorities;
 }
