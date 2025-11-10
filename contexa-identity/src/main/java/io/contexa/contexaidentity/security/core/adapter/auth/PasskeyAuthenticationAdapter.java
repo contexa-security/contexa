@@ -25,9 +25,6 @@ public class PasskeyAuthenticationAdapter extends AbstractAuthenticationAdapter<
                                          PlatformAuthenticationSuccessHandler successHandler,
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
 
-        // SecurityFilterChainRegistrar.replaceWebAuthnHandlersIfNeeded()에서
-        // WebAuthnAuthenticationFilter의 loginProcessingUrl을 PasskeyUrls.loginProcessing (/login/mfa-webauthn)으로 변경함
-        // 여기서는 WebAuthn DSL 기본 설정만 수행
         http.webAuthn(web -> {
             web.rpName(opts.getRpName())
                     .rpId(opts.getRpId())
