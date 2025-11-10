@@ -33,7 +33,6 @@ import java.util.Map;
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
-    private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthContextProperties authContextProperties;
     private final AuthResponseWriter responseWriter;
     private final ApplicationContext applicationContext;
@@ -41,13 +40,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private final MfaSettings mfaSettings;
     private final AuthUrlProvider authUrlProvider;
 
-    public StateMachineAwareMfaRequestHandler(MfaPolicyProvider mfaPolicyProvider,
-                                              AuthContextProperties authContextProperties,
+    public StateMachineAwareMfaRequestHandler(AuthContextProperties authContextProperties,
                                               AuthResponseWriter responseWriter,
                                               ApplicationContext applicationContext,
                                               MfaStateMachineIntegrator stateMachineIntegrator,
                                               AuthUrlProvider authUrlProvider) {
-        this.mfaPolicyProvider = mfaPolicyProvider;
         this.authContextProperties = authContextProperties;
         this.responseWriter = responseWriter;
         this.applicationContext = applicationContext;

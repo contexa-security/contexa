@@ -10,7 +10,8 @@ public class PasskeyUrls {
     // === MFA Flow URLs ===
 
     /**
-     * Passkey 검증 처리 URL (POST) - Filter가 처리
+     * Passkey 검증 처리 URL (POST) - WebAuthnAuthenticationFilter가 처리
+     * SecurityFilterChainRegistrar에서 WebAuthnAuthenticationFilter의 loginProcessingUrl을 이 값으로 변경함
      */
     private String loginProcessing = "/login/mfa-webauthn";
 

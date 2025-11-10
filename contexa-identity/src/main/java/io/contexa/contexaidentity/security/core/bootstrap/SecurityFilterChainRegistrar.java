@@ -11,6 +11,7 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
+import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -19,9 +20,11 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
@@ -272,7 +275,24 @@ public class SecurityFilterChainRegistrar {
                     log.info("WebAuthn Failure Handler replaced: {}",
                             customFailureHandler.getClass().getSimpleName());
 
-                    log.info("WebAuthnAuthenticationFilter handlers replacement completed for flow: {}",
+                    // loginProcessingUrl 변경 (AuthContextProperties에서 PasskeyUrls 가져오기)
+                    try {
+                        AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
+                        String customLoginProcessingUrl = authProps.getUrls().getFactors().getPasskey().getLoginProcessing();
+
+                        if (customLoginProcessingUrl != null && !customLoginProcessingUrl.isEmpty()) {
+                            AntPathRequestMatcher customMatcher = new AntPathRequestMatcher(
+                                    customLoginProcessingUrl,
+                                    HttpMethod.POST.name()
+                            );
+                            authFilter.setRequiresAuthenticationRequestMatcher(customMatcher);
+                            log.info("WebAuthn loginProcessingUrl changed to: {}", customLoginProcessingUrl);
+                        }
+                    } catch (Exception e) {
+                        log.error("Failed to change WebAuthn loginProcessingUrl", e);
+                    }
+
+                    log.info("WebAuthnAuthenticationFilter handlers and URL replacement completed for flow: {}",
                             flowConfig.getTypeName());
 
                     return; // 찾았으면 종료

@@ -87,7 +87,6 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
         Assert.notNull(adapterRegistry, "FeatureRegistry bean not found.");
 
         MfaContinuationFilter mfaContinuationFilter = new MfaContinuationFilter(
-                mfaPolicyProvider,
                 authContextProperties,
                 responseWriter,
                 applicationContext

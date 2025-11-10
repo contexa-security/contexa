@@ -975,7 +975,13 @@
         async performWebAuthnAuthentication(headers, contextPath) {
             // Phase 1: Assertion Options 요청
             ContexaMFAUtils.log('Requesting assertion options...', 'debug');
-            const optionsResponse = await fetch(`${contextPath}/webauthn/authenticate/options`, {
+
+            // SDK 초기화 확인
+            await this.apiClient.init();
+
+            // 동적 엔드포인트 사용 (URL 하드코딩 제거)
+            const assertionOptionsUrl = this.apiClient.endpoints.webauthn?.assertionOptions || `${contextPath}/webauthn/authenticate/options`;
+            const optionsResponse = await fetch(assertionOptionsUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1037,7 +1043,10 @@
 
             // Phase 5: Assertion POST (Spring Security WebAuthnAuthenticationFilter 처리)
             ContexaMFAUtils.log('Sending assertion to Spring Security...', 'debug');
-            const authenticationResponse = await fetch(`${contextPath}/login/webauthn`, {
+
+            // 동적 엔드포인트 사용 (URL 하드코딩 제거)
+            const loginProcessingUrl = this.apiClient.endpoints.passkey?.loginProcessing || `${contextPath}/login/webauthn`;
+            const authenticationResponse = await fetch(loginProcessingUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -46,8 +46,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
 
-    public MfaContinuationFilter(MfaPolicyProvider mfaPolicyProvider,
-                                 AuthContextProperties authContextProperties,
+    public MfaContinuationFilter(AuthContextProperties authContextProperties,
                                  AuthResponseWriter responseWriter,
                                  ApplicationContext applicationContext) {
         this.responseWriter = Objects.requireNonNull(responseWriter);
@@ -59,7 +58,6 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
 
         this.requestHandler = new StateMachineAwareMfaRequestHandler(
-                mfaPolicyProvider,
                 authContextProperties,
                 responseWriter,
                 applicationContext,
