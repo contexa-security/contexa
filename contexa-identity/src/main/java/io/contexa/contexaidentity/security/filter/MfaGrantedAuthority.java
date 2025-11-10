@@ -4,9 +4,13 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.SpringSecurityCoreVersion;
 import org.springframework.util.Assert;
 
+import java.io.Serial;
+import java.io.Serializable;
+
 public class MfaGrantedAuthority implements GrantedAuthority {
 
-    private static final long serialVersionUID = SpringSecurityCoreVersion.SERIAL_VERSION_UID;
+    @Serial
+    private static final long serialVersionUID = 1L;
     private String role;
 
     public MfaGrantedAuthority() {}

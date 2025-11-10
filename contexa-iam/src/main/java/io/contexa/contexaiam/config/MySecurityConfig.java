@@ -54,7 +54,7 @@ import org.springframework.session.data.redis.config.annotation.web.http.EnableR
 @Configuration
 @RequiredArgsConstructor
 @EnableMethodSecurity
-@EnableRedisHttpSession
+//@EnableRedisHttpSession
 public class MySecurityConfig {
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
     private final CustomAuthenticationProvider customAuthenticationProvider;

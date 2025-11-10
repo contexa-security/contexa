@@ -5,7 +5,6 @@ import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 public class PasskeyAuthenticationAdapter extends AbstractAuthenticationAdapter<PasskeyOptions> {
@@ -29,9 +28,9 @@ public class PasskeyAuthenticationAdapter extends AbstractAuthenticationAdapter<
         http.webAuthn(web -> {
             web.rpName(opts.getRpName())
                     .rpId(opts.getRpId())
-                    .allowedOrigins(opts.getAllowedOrigins())
-                    .messageConverter(new MappingJackson2HttpMessageConverter());
+                    .allowedOrigins(opts.getAllowedOrigins());
         });
     }
+
 }
 

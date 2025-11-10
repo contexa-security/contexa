@@ -1,12 +1,9 @@
 package io.contexa.contexaidentity.security.filter;
 
-import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.service.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -30,7 +27,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         if(!passwordEncoder.matches(password, userDetails.getPassword())){
             throw new BadCredentialsException("Invalid password");
         }
-        return OneTimeTokenAuthenticationToken.authenticated(userDetails, userDetails.getAuthorities());
+        return RestAuthenticationToken.authenticated(userDetails, userDetails.getAuthorities());
     }
 
     @Override

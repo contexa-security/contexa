@@ -68,15 +68,14 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         log.debug("MFA Factor successfully processed for user: {} using {} repository", getPrincipalUsername(authentication), sessionRepository.getRepositoryType());
 
-        // CustomUserDetails → UserDto로 Authentication 교체 (Redis 직렬화 안전성)
-        // Spring Security가 이미 OneTimeTokenAuthenticationToken(CustomUserDetails)을
-        // SecurityContext에 저장했으므로, Redis 직렬화 전에 UserDto로 교체
+/*
         Authentication serializableAuth = replaceWithSerializableAuthentication(authentication);
         if (serializableAuth != null) {
             SecurityContextHolder.getContext().setAuthentication(serializableAuth);
             log.debug("Authentication replaced with serializable UserDto principal for user: {}",
                     getPrincipalUsername(serializableAuth));
         }
+*/
 
         FactorContext factorContext = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
 

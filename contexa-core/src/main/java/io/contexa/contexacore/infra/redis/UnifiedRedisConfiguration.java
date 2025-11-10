@@ -1,5 +1,6 @@
 package io.contexa.contexacore.infra.redis;
 
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import io.contexa.contexacore.soar.notification.SoarApprovalNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,8 +16,11 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.security.jackson2.SecurityJackson2Modules;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -179,6 +183,50 @@ public class UnifiedRedisConfiguration {
         template.afterPropertiesSet();
         return template;
     }
+
+    /**
+     * Spring Session 전용 Redis Serializer
+     * <p>
+     * Spring Session이 HttpSession을 Redis에 저장할 때 사용
+     * GenericJackson2JsonRedisSerializer를 사용하여 PublicKeyCredentialCreationOptions 등
+     * Serializable을 구현하지 않은 객체도 직렬화 가능
+     * <p>
+     * 주요 사용 사례:
+     * <ul>
+     *   <li>WebAuthn PublicKeyCredentialCreationOptions 세션 저장</li>
+     *   <li>Spring Security Authentication 객체 (CustomUserDetails 등)</li>
+     *   <li>CsrfToken 등 Spring Security 내부 객체</li>
+     * </ul>
+     * <p>
+     * GenericJackson2JsonRedisSerializer 기본 설정 재현:
+     * - 타입 정보를 @class 속성으로 저장 (JsonTypeInfo.As.PROPERTY)
+     * - JavaTimeModule 추가로 LocalDateTime 등 처리
+     */
+    /*@Bean
+    public RedisSerializer<Object> springSessionDefaultRedisSerializer() {
+        log.info("Creating Spring Session RedisSerializer with Spring Security Jackson modules");
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        // JavaTimeModule 등록
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        // Spring Security Jackson 모듈 등록 (필수!)
+        // CsrfToken, Authentication 등 Spring Security 내부 객체 직렬화 지원
+        mapper.registerModules(SecurityJackson2Modules.getModules(getClass().getClassLoader()));
+
+        // 타입 정보 처리 (@class 속성으로 저장)
+        mapper.activateDefaultTyping(
+            BasicPolymorphicTypeValidator.builder()
+                .allowIfSubType(Object.class)
+                .build(),
+            ObjectMapper.DefaultTyping.NON_FINAL,
+            JsonTypeInfo.As.PROPERTY
+        );
+
+        return new GenericJackson2JsonRedisSerializer(mapper);
+    }*/
 
     @Bean
     public RedisDistributedLockService redisDistributedLockService(

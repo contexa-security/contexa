@@ -3,16 +3,18 @@ package io.contexa.contexaidentity.security.service;
 import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
 import io.contexa.contexacommon.entity.Users;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 
-
 public class CustomUserDetails implements UserDetails {
 
-    private final UserDto user;
+    private UserDto user;
 
+    public CustomUserDetails(){}
     public CustomUserDetails(UserDto user) {
         this.user = user;
     }
