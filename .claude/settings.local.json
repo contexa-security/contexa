@@ -54,7 +54,17 @@
       "Bash(./gradlew.bat:*)",
       "Bash(for const in \"PRIMARY_AUTH_COMPLETED_AT\" \"CHALLENGE_INITIATED_AT\" \"VERIFICATION_STARTED_AT\" \"FACTOR_COMPLETED_AT\" \"MFA_COMPLETED_AT\" \"LAST_ATTEMPT_AT\" \"LAST_FAILED_AT\" \"LOGIN_TIMESTAMP\" \"FACTOR_SELECTED_AT\")",
       "Bash(do echo -n \"$const: \")",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(dir /s /b nul 2)",
+      "Bash(NUL)",
+      "Bash(dir /s /b *WebAuthn*.java 2)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(../gradlew.bat compileJava)",
+      "Bash(del nul)",
+      "Bash(del contexa-identitynul)",
+      "Bash(del contexa-identitysrcmainjavaiocontexacontexaidentitysecurityfilternul)",
+      "Bash(del contexa-identitysrcmainjavaiocontexacontexaidentitysecurityhandlernul)"
     ],
     "deny": [],
     "ask": []

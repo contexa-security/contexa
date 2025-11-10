@@ -908,73 +908,161 @@
 
         /**
          * Passkey 인증 (High-level API)
-         * Legacy: mfa-verity-passkey.js 전체 로직 통합
          *
-         * Note: autoRedirect 로직 제거됨 (race condition 방지)
-         * 호출자가 result를 확인하고 명시적으로 리다이렉트해야 함
+         * Spring Security 표준 WebAuthn 플로우를 따르며, MfaFactorProcessingSuccessHandler가
+         * State Machine 통합을 자동으로 처리합니다.
+         *
+         * 플로우:
+         * 1. POST /webauthn/authenticate/options - Assertion Options 요청
+         * 2. navigator.credentials.get() - 브라우저 생체 인증
+         * 3. POST /login/webauthn - WebAuthnAuthenticationFilter 처리
+         * 4. MfaFactorProcessingSuccessHandler 호출:
+         *    - State Machine에 FACTOR_VERIFIED_SUCCESS 이벤트 전송
+         *    - DETERMINE_NEXT_FACTOR 실행
+         *    - OAuth2 토큰 발급 (필요시)
+         *    - redirectUrl 결정 (다음 팩터 또는 최종 성공 URL)
+         * 5. SDK는 redirectUrl을 받아 페이지 이동
+         *
+         * Note: MfaFactorProcessingSuccessHandler가 모든 State Machine 처리를 완료하므로
+         *       SDK는 별도의 notifyFactorComplete() 호출이 불필요합니다.
+         *
+         * Legacy: mfa-verity-passkey.js 전체 로직 통합
          */
         async verifyPasskey() {
             try {
-                // 1. Spring Security 표준 엔드포인트에서 Assertion Options 가져오기
-                const options = await this.apiClient.getPasskeyOptions();
+                ContexaMFAUtils.log('Starting Spring Security WebAuthn authentication flow...', 'debug');
 
-                // 2. PublicKeyCredentialRequestOptions 구성
-                const publicKey = {
-                    challenge: ContexaMFAUtils.base64UrlToArrayBuffer(options.challenge),
-                    rpId: options.rpId,
-                    timeout: options.timeout || 60000,
-                    userVerification: options.userVerification || 'preferred'
-                };
+                // 1. CSRF 헤더 준비
+                const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+                const csrfHeaderName = document.querySelector('meta[name="_csrf_header"]')?.content;
+                const headers = csrfToken && csrfHeaderName ? { [csrfHeaderName]: csrfToken } : {};
 
-                // allowCredentials 변환
-                if (options.allowCredentials && Array.isArray(options.allowCredentials)) {
-                    publicKey.allowCredentials = options.allowCredentials.map(cred => ({
-                        type: cred.type || 'public-key',
-                        id: ContexaMFAUtils.base64UrlToArrayBuffer(cred.id),
-                        transports: cred.transports
-                    }));
-                }
+                // 2. Spring Security 표준 WebAuthn 인증 실행
+                const contextPath = this.apiClient.contextPath || '';
+                const result = await this.performWebAuthnAuthentication(headers, contextPath);
 
-                // 3. WebAuthn API 호출 (사용자 인증)
-                ContexaMFAUtils.log('Starting WebAuthn authentication...', 'debug');
-                const credential = await navigator.credentials.get({ publicKey });
+                ContexaMFAUtils.log(`Spring Security authentication completed.`, 'debug');
+                ContexaMFAUtils.log(`Status: ${result.status}, RedirectUrl: ${result.redirectUrl || result.nextStepUrl}`, 'debug');
 
-                // 4. PublicKeyCredential 객체 생성 (Spring Security 6.4+ 형식)
-                const publicKeyCredential = {
-                    id: credential.id,
-                    rawId: ContexaMFAUtils.arrayBufferToBase64Url(credential.rawId),
-                    type: credential.type,
-                    response: {
-                        clientDataJSON: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.clientDataJSON),
-                        authenticatorData: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.authenticatorData),
-                        signature: ContexaMFAUtils.arrayBufferToBase64Url(credential.response.signature),
-                        userHandle: credential.response.userHandle ?
-                            ContexaMFAUtils.arrayBufferToBase64Url(credential.response.userHandle) : null
-                    },
-                    clientExtensionResults: credential.getClientExtensionResults()
-                };
+                // 3. 상태 업데이트 (MfaFactorProcessingSuccessHandler 응답 반영)
+                this.stateTracker.updateFromServerResponse(result);
 
-                // 5. Spring Security 표준 엔드포인트로 검증
-                ContexaMFAUtils.log('Verifying credential with Spring Security...', 'debug');
-                const verifyResult = await this.apiClient.verifyPasskey(publicKeyCredential);
+                // 4. OAuth2 토큰 저장 (SuccessHandler가 발급한 경우)
+                this.handleAuthenticationResult(result);
 
-                // 6. ⭐ MFA State Machine에 팩터 완료 알림
-                ContexaMFAUtils.log('Notifying MFA State Machine...', 'debug');
-                const mfaResult = await this.apiClient.notifyFactorComplete('PASSKEY');
-
-                // 7. 상태 업데이트
-                this.stateTracker.updateFromServerResponse(mfaResult);
-
-                // 8. 토큰 저장 (필요시)
-                this.handleAuthenticationResult(mfaResult);
-
-                // autoRedirect 로직 제거 - 템플릿에서 명시적으로 처리
-                return mfaResult;
+                // 5. MFA 플로우 결과 반환
+                return result;
             } catch (error) {
-                const errorMsg = error.response?.message || 'Passkey verification failed';
-                ContexaMFAUtils.log(`${errorMsg}`, 'error', error);
+                const errorMsg = error.response?.message || error.message || 'Passkey verification failed';
+                ContexaMFAUtils.log(`Passkey verification failed: ${errorMsg}`, 'error', error);
                 throw error;
             }
+        }
+
+        /**
+         * Spring Security WebAuthn 인증 플로우 실행
+         *
+         * Spring Security의 webauthn.js 로직을 따르되, 자동 리다이렉트를 제거하여
+         * SDK가 MFA 플로우 제어를 유지할 수 있도록 합니다.
+         *
+         * @param {Object} headers - CSRF 헤더
+         * @param {string} contextPath - 애플리케이션 컨텍스트 경로
+         * @returns {Promise<Object>} MfaFactorProcessingSuccessHandler 응답
+         *
+         * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter
+         * @see webauthn.js authenticate() function
+         */
+        async performWebAuthnAuthentication(headers, contextPath) {
+            // Phase 1: Assertion Options 요청
+            ContexaMFAUtils.log('Requesting assertion options...', 'debug');
+            const optionsResponse = await fetch(`${contextPath}/webauthn/authenticate/options`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers
+                }
+            });
+
+            if (!optionsResponse.ok) {
+                throw new Error(`Failed to fetch assertion options: HTTP ${optionsResponse.status}`);
+            }
+
+            const options = await optionsResponse.json();
+
+            // Phase 2: Base64URL 디코딩 및 Credential Request Options 구성
+            const decodedAllowCredentials = !options.allowCredentials ? [] :
+                options.allowCredentials.map(cred => ({
+                    ...cred,
+                    id: ContexaMFAUtils.base64UrlToArrayBuffer(cred.id)
+                }));
+
+            const decodedOptions = {
+                ...options,
+                allowCredentials: decodedAllowCredentials,
+                challenge: ContexaMFAUtils.base64UrlToArrayBuffer(options.challenge)
+            };
+
+            // Phase 3: WebAuthn API 호출 (브라우저 생체 인증)
+            ContexaMFAUtils.log('Starting WebAuthn ceremony (user authentication)...', 'debug');
+            const credential = await navigator.credentials.get({
+                publicKey: decodedOptions
+            });
+
+            if (!credential) {
+                throw new Error('WebAuthn authentication cancelled or failed');
+            }
+
+            ContexaMFAUtils.log('User authentication successful, preparing assertion...', 'debug');
+
+            // Phase 4: Assertion 데이터 준비 (Base64URL 인코딩)
+            const { response, type: credType } = credential;
+            let userHandle;
+            if (response.userHandle) {
+                userHandle = ContexaMFAUtils.arrayBufferToBase64Url(response.userHandle);
+            }
+
+            const body = {
+                id: credential.id,
+                rawId: ContexaMFAUtils.arrayBufferToBase64Url(credential.rawId),
+                response: {
+                    authenticatorData: ContexaMFAUtils.arrayBufferToBase64Url(response.authenticatorData),
+                    clientDataJSON: ContexaMFAUtils.arrayBufferToBase64Url(response.clientDataJSON),
+                    signature: ContexaMFAUtils.arrayBufferToBase64Url(response.signature),
+                    userHandle
+                },
+                credType,
+                clientExtensionResults: credential.getClientExtensionResults(),
+                authenticatorAttachment: credential.authenticatorAttachment
+            };
+
+            // Phase 5: Assertion POST (Spring Security WebAuthnAuthenticationFilter 처리)
+            ContexaMFAUtils.log('Sending assertion to Spring Security...', 'debug');
+            const authenticationResponse = await fetch(`${contextPath}/login/webauthn`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (!authenticationResponse.ok) {
+                throw new Error(`WebAuthn authentication failed: HTTP ${authenticationResponse.status}`);
+            }
+
+            const authenticationResult = await authenticationResponse.json();
+
+            // Phase 6: 응답 검증 (MfaFactorProcessingSuccessHandler 응답 구조)
+            if (!authenticationResult.authenticated) {
+                throw new Error('WebAuthn authentication failed: Server returned authenticated=false');
+            }
+
+            if (!authenticationResult.redirectUrl && !authenticationResult.nextStepUrl) {
+                throw new Error('WebAuthn authentication failed: No redirect URL provided');
+            }
+
+            ContexaMFAUtils.log('Spring Security authentication successful', 'debug');
+            return authenticationResult;
         }
 
         /**

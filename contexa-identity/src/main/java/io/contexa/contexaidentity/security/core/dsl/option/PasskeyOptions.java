@@ -33,8 +33,8 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions { // f
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<PasskeyOptions, Builder> {
         private String assertionOptionsEndpoint;
         private String rpName = "contexa-identity";
-        private String rpId = "contexa";
-        private Set<String> allowedOrigins = new HashSet<>();
+        private String rpId = "localhost";
+        private Set<String> allowedOrigins = Set.of("http://localhost:8080");
         private PasskeyAsepAttributes asepAttributes;
 
         public Builder(ApplicationContext applicationContext) {

@@ -35,3 +35,27 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Windows ###
+# Windows 시스템 파일
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Windows 명령어 출력 아티팩트
+nul
+*.tmp
+*.temp
+
+### IDE/Editor Temporary Files ###
+# 임시 텍스트 파일
+*.txt~
+*_backup
+*_temp.txt
+
+### Project Specific ###
+# 개발 중 임시 파일
+**/temp/
+**/tmp/
+*.draft.*

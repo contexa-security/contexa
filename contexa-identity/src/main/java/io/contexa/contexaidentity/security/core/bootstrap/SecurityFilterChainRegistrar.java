@@ -212,9 +212,7 @@ public class SecurityFilterChainRegistrar {
         // Filter Chain에서 WebAuthnAuthenticationFilter 찾기
         for (Filter filter : builtChain.getFilters()) {
             // AbstractAuthenticationProcessingFilter를 상속한 필터 중에서
-            if (filter instanceof AbstractAuthenticationProcessingFilter) {
-                AbstractAuthenticationProcessingFilter authFilter =
-                    (AbstractAuthenticationProcessingFilter) filter;
+            if (filter instanceof AbstractAuthenticationProcessingFilter authFilter) {
 
                 // 클래스 이름으로 WebAuthnAuthenticationFilter 식별
                 String filterClassName = filter.getClass().getSimpleName();

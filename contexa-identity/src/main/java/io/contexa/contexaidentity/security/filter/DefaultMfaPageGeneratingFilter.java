@@ -114,6 +114,18 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         """;
 
     /**
+     * CSRF Headers for WebAuthn JavaScript
+     *
+     * <p>
+     * Spring Security webauthn.js에 전달할 CSRF 헤더를 JSON 형식으로 정의합니다.
+     * </p>
+     *
+     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#CSRF_HEADERS
+     */
+    private static final String CSRF_HEADERS = """
+        {"{{headerName}}" : "{{headerValue}}"}""";
+
+    /**
      * OTT 요청 페이지 템플릿
      *
      * <p>
@@ -561,40 +573,43 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     Passkey 인증 시작
                 </button>
 
-                <!-- JavaScript SDK (WebAuthn API 사용) -->
+                <!-- Spring Security WebAuthn JavaScript (기반 라이브러리) -->
+                <script src="{{contextPath}}/login/webauthn.js"></script>
+
+                <!-- Contexa MFA SDK (MFA 플로우 관리 Wrapper) -->
                 <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                 <script>
-                    const authButton = document.getElementById('auth-button');
-                    const mfa = new ContexaMFA.Client({ autoRedirect: false });
+                    if (typeof ContexaMFA !== 'undefined') {
+                        const authButton = document.getElementById('auth-button');
+                        const mfa = new ContexaMFA.Client({ autoRedirect: false });
 
-                    // SDK 초기화
-                    mfa.init().catch(console.error);
+                        // SDK 초기화
+                        mfa.init().catch(console.error);
 
-                    // 사용자 명시적 클릭으로만 시작
-                    authButton.addEventListener('click', async () => {
-                        authButton.disabled = true;
-                        authButton.textContent = '인증 진행 중...';
+                        // Passkey 인증
+                        authButton.addEventListener('click', async () => {
+                            authButton.disabled = true;
+                            authButton.textContent = '인증 진행 중...';
 
-                        try {
-                            const result = await mfa.verifyPasskey();
+                            try {
+                                const result = await mfa.verifyPasskey();
 
-                            // 명시적 리다이렉트 처리
-                            if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
-                                window.location.href = result.redirectUrl;
-                            } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
-                                window.location.href = result.nextStepUrl;
-                            } else if (result.redirectUrl) {
-                                window.location.href = result.redirectUrl;
-                            } else if (result.nextStepUrl) {
-                                window.location.href = result.nextStepUrl;
+                                // 명시적 리다이렉트 처리
+                                if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
+                                    window.location.href = result.redirectUrl;
+                                } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
+                                    window.location.href = result.nextStepUrl;
+                                } else if (result.redirectUrl) {
+                                    window.location.href = result.redirectUrl;
+                                } else if (result.nextStepUrl) {
+                                    window.location.href = result.nextStepUrl;
+                                }
+                            } catch (error) {
+                                console.error('Passkey 인증 실패:', error);
+                                window.location.href = '{{contextPath}}/mfa/failure?error=' + encodeURIComponent(error.message || '알 수 없는 오류');
                             }
-                        } catch (error) {
-                            console.error('Passkey 인증 실패:', error);
-                            alert('인증 실패: ' + (error.message || '알 수 없는 오류'));
-                            authButton.disabled = false;
-                            authButton.textContent = 'Passkey 인증 시작';
-                        }
-                    });
+                        });
+                    }
                 </script>
             </div>
         </body>
@@ -1742,16 +1757,24 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             username = "(알 수 없음)";
         }
 
-        // Step 3: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        // Step 3: CSRF Headers 생성 (Spring Security 표준 패턴)
+        String csrfHeaderName = getCsrfHeaderName(request);
+        String csrfToken = getCsrfToken(request);
+        String csrfHeaders = CSRF_HEADERS
+            .replace("{{headerName}}", csrfHeaderName)
+            .replace("{{headerValue}}", csrfToken);
+
+        // Step 4: 템플릿 렌더링 (MfaHtmlTemplates 사용)
         String html = MfaHtmlTemplates.fromTemplate(PASSKEY_CHALLENGE_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
-            .withValue("csrfToken", getCsrfToken(request))
-            .withValue("csrfHeaderName", getCsrfHeaderName(request))
+            .withValue("csrfToken", csrfToken)
+            .withValue("csrfHeaderName", csrfHeaderName)
             .withValue("csrfParameterName", getCsrfParameterName(request))
+            .withValue("csrfHeaders", csrfHeaders)
             .render();
 
-        // Step 4: 응답 전송
+        // Step 5: 응답 전송
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
