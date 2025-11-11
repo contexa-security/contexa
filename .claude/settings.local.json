@@ -68,7 +68,9 @@
       "Bash(../gradlew.bat bootRun)",
       "Bash(timeout 20 cmd:*)",
       "Bash(..gradlew.bat compileJava)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(.gradlew.bat :contexa-identity:compileJava)",
+      "Bash(cmd /c gradlew.bat :contexa-identity:compileJava)"
     ],
     "deny": [],
     "ask": []
