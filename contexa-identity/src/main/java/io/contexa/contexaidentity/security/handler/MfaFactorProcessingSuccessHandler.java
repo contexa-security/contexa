@@ -228,7 +228,9 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("status", "MFA_CONTINUE");
         responseBody.put("message", message);
+        responseBody.put("authenticated", false); // MFA_CONTINUE는 중간 단계
         responseBody.put("nextStepUrl", nextStepUrl);
+        responseBody.put("nextStepId", factorContext.getCurrentStepId()); // X-MFA-Step-Id 헤더용
         responseBody.put("mfaSessionId", factorContext.getMfaSessionId());
         responseBody.put("progress", createProgressInfo(currentStep, 3)); // 총 3단계
 

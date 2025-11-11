@@ -46,6 +46,10 @@ public class MfaUrlMatcher {
         addMatcher(MfaRequestType.OTT_CODE_VERIFY,
                 authUrlProvider.getOttLoginProcessing(), "POST");
 
+        // Passkey 챌린지 시작 (INITIATE_CHALLENGE 이벤트 발송)
+        addMatcher(MfaRequestType.CHALLENGE_INITIATION,
+                authUrlProvider.getPasskeyChallengeUi(), "POST");
+
         // Passkey 검증 처리
         addMatcher(MfaRequestType.LOGIN_PROCESSING,
                 authUrlProvider.getPasskeyLoginProcessing(), "POST");

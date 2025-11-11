@@ -252,6 +252,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         }
 
         // 공통 응답 데이터
+        responseData.put("authenticated", true);  // Spring Security WebAuthn 호환성
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "인증이 완료되었습니다.");
         responseData.put("redirectUrl", determineTargetUrl(request, response, authentication));

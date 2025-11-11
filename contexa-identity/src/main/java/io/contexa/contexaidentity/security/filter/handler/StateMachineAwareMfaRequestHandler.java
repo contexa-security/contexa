@@ -349,8 +349,25 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     /**
      * 활성 챌린지 존재 여부 확인
+     *
+     * 팩터 타입별 챌린지 재사용 정책 적용:
+     * - OTT: 이메일 발송 비용 있음 → 재사용 허용 (중복 발송 방지)
+     * - Passkey: UI 페이지 표시 비용 없음 → 재사용 불가 (매번 상태 전이 필요)
+     * - 향후 팩터: AuthType enum에 정책 정의
      */
     private boolean hasActiveChallengeForFactor(FactorContext context) {
+        AuthType currentFactor = context.getCurrentProcessingFactor();
+        if (currentFactor == null) {
+            return false;
+        }
+
+        // 팩터 타입별 챌린지 재사용 정책 확인
+        // 챌린지 재사용을 허용하지 않는 팩터는 항상 false 반환
+        if (!currentFactor.isAllowChallengeReuse()) {
+            return false;
+        }
+
+        // 챌린지 재사용을 허용하는 팩터만 만료 시간 확인
         Object challengeTime = context.getAttribute("challengeInitiatedAt");
         if (!(challengeTime instanceof Long)) {
             return false;

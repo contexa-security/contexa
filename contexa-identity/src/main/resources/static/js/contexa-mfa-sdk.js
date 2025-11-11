@@ -1062,12 +1062,22 @@
             const authenticationResult = await authenticationResponse.json();
 
             // Phase 6: 응답 검증 (MfaFactorProcessingSuccessHandler 응답 구조)
-            if (!authenticationResult.authenticated) {
-                throw new Error('WebAuthn authentication failed: Server returned authenticated=false');
+            // MFA_COMPLETED 상태에서만 authenticated 체크 (MFA_CONTINUE는 중간 단계이므로 체크 안함)
+            if (authenticationResult.status === "MFA_COMPLETED" && !authenticationResult.authenticated) {
+                throw new Error('WebAuthn authentication failed: Server returned authenticated=false for MFA_COMPLETED');
             }
 
-            if (!authenticationResult.redirectUrl && !authenticationResult.nextStepUrl) {
-                throw new Error('WebAuthn authentication failed: No redirect URL provided');
+            // 상태별 필수 속성 검증
+            if (authenticationResult.status === "MFA_COMPLETED") {
+                // 최종 완료: redirectUrl 필수
+                if (!authenticationResult.redirectUrl) {
+                    throw new Error('WebAuthn authentication failed: No redirectUrl for MFA_COMPLETED');
+                }
+            } else if (authenticationResult.status === "MFA_CONTINUE") {
+                // 중간 단계: nextStepUrl 필수
+                if (!authenticationResult.nextStepUrl) {
+                    throw new Error('WebAuthn authentication failed: No nextStepUrl for MFA_CONTINUE');
+                }
             }
 
             ContexaMFAUtils.log('Spring Security authentication successful', 'debug');

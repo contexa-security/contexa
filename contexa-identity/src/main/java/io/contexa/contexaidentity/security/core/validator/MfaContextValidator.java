@@ -168,12 +168,14 @@ public class MfaContextValidator {
 
     private static boolean isFactorProcessingState(MfaState state) {
         return state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
+                state == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
                 state == MfaState.FACTOR_VERIFICATION_PENDING ||
                 state == MfaState.FACTOR_VERIFICATION_IN_PROGRESS;
     }
 
     private static boolean isFactorSelectionOrProcessingState(MfaState state) {
         return state == MfaState.AWAITING_FACTOR_SELECTION ||
+                state == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
                 state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
                 state == MfaState.PRIMARY_AUTHENTICATION_COMPLETED;
     }

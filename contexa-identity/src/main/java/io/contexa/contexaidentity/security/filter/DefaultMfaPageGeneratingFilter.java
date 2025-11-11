@@ -967,8 +967,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         // Passkey Challenge Page
         if (isPasskeyChallengePage(requestUri)) {
-            handlePasskeyChallengePage(request, response);
-            return;
+            // GET 요청만 페이지 생성, POST 요청은 FilterChain 진행 (INITIATE_CHALLENGE 이벤트 처리)
+            if ("GET".equalsIgnoreCase(request.getMethod())) {
+                handlePasskeyChallengePage(request, response);
+                return;
+            }
         }
 
         // Step 4: MFA Utility Pages

@@ -231,7 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     } else {
                         displayStepMessage('OTT', "Passkey 옵션 요청에 실패했습니다.", "error");
                     }
-                } else if (response.ok && result.status === "MFA_COMPLETE") {
+                } else if (response.ok && result.status === "MFA_COMPLETED") {
                     if (authMode === "header" || authMode === "header_cookie") {
                         TokenMemory.accessToken = result.accessToken;
                         if (authMode === "header" && result.refreshToken) TokenMemory.refreshToken = result.refreshToken;
@@ -335,7 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 const result = await loginResponse.json();
 
-                if (loginResponse.ok && result.status === "MFA_COMPLETE") {
+                if (loginResponse.ok && result.status === "MFA_COMPLETED") {
                     if (authMode === "header" || authMode === "header_cookie") {
                         TokenMemory.accessToken = result.accessToken;
                         if (authMode === "header" && result.refreshToken) TokenMemory.refreshToken = result.refreshToken;
