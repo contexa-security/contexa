@@ -5,6 +5,7 @@ import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
@@ -27,6 +28,7 @@ import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEnti
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -394,7 +396,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         Object principal = authentication.getPrincipal();
         if (principal instanceof PublicKeyCredentialUserEntity entity) {
             try {
-                return RestAuthenticationToken.authenticated(entity.getName(), authentication.getAuthorities());
+                UserDto userDto = new UserDto();
+                userDto.setUsername(entity.getName());
+                userDto.setAuthorities(authentication.getAuthorities());
+
+                return RestAuthenticationToken.authenticated(new CustomUserDetails(userDto), authentication.getAuthorities());
 
             } catch (Exception e) {
                 log.error("Failed to replace Authentication with serializable version. " +

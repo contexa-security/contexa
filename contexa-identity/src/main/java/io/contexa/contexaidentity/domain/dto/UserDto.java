@@ -6,8 +6,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.security.core.GrantedAuthority;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -20,5 +22,5 @@ public class UserDto implements Serializable {
     private String username;
     private int age;
     private String password;
-    private List<MfaGrantedAuthority> authorities;
+    private Collection<? extends GrantedAuthority> authorities;
 }

@@ -17,7 +17,7 @@
             <h1 class="text-4xl font-bold text-app-primary tracking-tight">인증 플랫폼에 오신 것을 환영합니다!</h1>
             <div sec:authorize="isAuthenticated()" class="mt-6">
                 <p class="text-xl text-slate-700">
-                    <strong sec:authentication="principal.name" class="text-app-accent">사용자</strong>님, 안녕하세요.
+                    <strong sec:authentication="principal.username" class="text-app-accent">사용자</strong>님, 안녕하세요.
                 </p>
                 <p class="mt-2 text-slate-600">
                     플랫폼의 다양한 기능을 자유롭게 이용해보세요.
