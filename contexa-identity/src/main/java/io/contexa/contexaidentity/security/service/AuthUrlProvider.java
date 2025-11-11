@@ -1,8 +1,9 @@
 package io.contexa.contexaidentity.security.service;
 
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
-import lombok.RequiredArgsConstructor;
+import io.contexa.contexaidentity.security.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 
@@ -22,16 +23,28 @@ import java.util.stream.Stream;
  *   <li>URL 중복 검증</li>
  *   <li>URL 형식 검증</li>
  *   <li>집계 메서드 (필터, SDK용)</li>
+ *   <li>MFA 커스텀 페이지 설정 지원 (DSL .mfaPage() 설정)</li>
  * </ul>
  *
  * @since 2025-01
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AuthUrlProvider {
 
     private final AuthContextProperties properties;
+    private final MfaPageConfig mfaPageConfig;
+
+    /**
+     * Constructor
+     *
+     * @param properties 인증 URL 설정
+     * @param mfaPageConfig MFA 커스텀 페이지 설정 (null 허용)
+     */
+    public AuthUrlProvider(AuthContextProperties properties, @Nullable MfaPageConfig mfaPageConfig) {
+        this.properties = properties;
+        this.mfaPageConfig = mfaPageConfig;
+    }
 
     // ========================================
     // Primary Authentication URLs
@@ -99,17 +112,37 @@ public class AuthUrlProvider {
 
     /**
      * MFA 설정 URL
-     * @return GET /mfa/configure (기본값)
+     *
+     * <p>
+     * 우선순위:
+     * 1. MfaPageConfig.configurePageUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/mfa/configure)
+     * </p>
+     *
+     * @return MFA 설정 페이지 URL
      */
     public String getMfaConfigure() {
+        if (mfaPageConfig != null && mfaPageConfig.hasCustomConfigurePage()) {
+            return mfaPageConfig.getConfigurePageUrl();
+        }
         return properties.getUrls().getMfa().getConfigure();
     }
 
     /**
      * Factor 선택 URL (GET: 페이지, POST: API 처리)
-     * @return /mfa/select-factor (기본값)
+     *
+     * <p>
+     * 우선순위:
+     * 1. MfaPageConfig.selectFactorPageUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/mfa/select-factor)
+     * </p>
+     *
+     * @return Factor 선택 페이지 URL
      */
     public String getMfaSelectFactor() {
+        if (mfaPageConfig != null && mfaPageConfig.hasCustomSelectFactorPage()) {
+            return mfaPageConfig.getSelectFactorPageUrl();
+        }
         return properties.getUrls().getMfa().getSelectFactor();
     }
 
@@ -123,9 +156,19 @@ public class AuthUrlProvider {
 
     /**
      * MFA 실패 페이지 URL
-     * @return /mfa/failure (기본값)
+     *
+     * <p>
+     * 우선순위:
+     * 1. MfaPageConfig.failurePageUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/mfa/failure)
+     * </p>
+     *
+     * @return MFA 실패 페이지 URL
      */
     public String getMfaFailure() {
+        if (mfaPageConfig != null && mfaPageConfig.hasCustomFailurePage()) {
+            return mfaPageConfig.getFailurePageUrl();
+        }
         return properties.getUrls().getMfa().getFailure();
     }
 
@@ -183,9 +226,19 @@ public class AuthUrlProvider {
 
     /**
      * OTT 코드 요청 UI 페이지 (이메일 입력)
-     * @return GET /mfa/ott/request-code-ui (기본값)
+     *
+     * <p>
+     * 우선순위:
+     * 1. MfaPageConfig.ottRequestPageUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/mfa/ott/request-code-ui)
+     * </p>
+     *
+     * @return OTT 코드 요청 페이지 URL
      */
     public String getOttRequestCodeUi() {
+        if (mfaPageConfig != null && mfaPageConfig.hasCustomOttRequestPage()) {
+            return mfaPageConfig.getOttRequestPageUrl();
+        }
         return properties.getUrls().getFactors().getOtt().getRequestCodeUi();
     }
 
@@ -207,9 +260,19 @@ public class AuthUrlProvider {
 
     /**
      * OTT 코드 입력 챌린지 UI
-     * @return GET /mfa/challenge/ott (기본값)
+     *
+     * <p>
+     * 우선순위:
+     * 1. MfaPageConfig.ottVerifyPageUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/mfa/challenge/ott)
+     * </p>
+     *
+     * @return OTT 코드 검증 챌린지 페이지 URL
      */
     public String getOttChallengeUi() {
+        if (mfaPageConfig != null && mfaPageConfig.hasCustomOttVerifyPage()) {
+            return mfaPageConfig.getOttVerifyPageUrl();
+        }
         return properties.getUrls().getFactors().getOtt().getChallengeUi();
     }
 
@@ -275,9 +338,19 @@ public class AuthUrlProvider {
 
     /**
      * Passkey 챌린지 UI 페이지
-     * @return GET /mfa/challenge/passkey (기본값)
+     *
+     * <p>
+     * 우선순위:
+     * 1. MfaPageConfig.passkeyChallengePageUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/mfa/challenge/passkey)
+     * </p>
+     *
+     * @return Passkey 챌린지 페이지 URL
      */
     public String getPasskeyChallengeUi() {
+        if (mfaPageConfig != null && mfaPageConfig.hasCustomPasskeyPage()) {
+            return mfaPageConfig.getPasskeyChallengePageUrl();
+        }
         return properties.getUrls().getFactors().getPasskey().getChallengeUi();
     }
 

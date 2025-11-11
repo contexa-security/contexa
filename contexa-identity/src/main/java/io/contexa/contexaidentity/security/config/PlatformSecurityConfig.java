@@ -88,6 +88,9 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
+                .rest(rest -> rest.order(30)).oauth2(Customizer.withDefaults())
+                .ott(ott -> ott.order(40)).oauth2(Customizer.withDefaults())
+                .passkey(passkey -> passkey.order(50)).oauth2(Customizer.withDefaults())
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.restLogin(rest ->
                                 rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
