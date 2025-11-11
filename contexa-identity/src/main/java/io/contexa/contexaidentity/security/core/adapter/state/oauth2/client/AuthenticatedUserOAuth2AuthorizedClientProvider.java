@@ -77,15 +77,14 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
         }
 
         // Principal (사용자 인증 정보) 확인
-        Authentication principal = context.getPrincipal();
-        if (principal == null) {
+        Authentication authentication = context.getPrincipal();
+        if (authentication == null) {
             OAuth2Error error = new OAuth2Error("invalid_principal",
                     "Principal is required for authenticated-user grant", null);
             throw new OAuth2AuthenticationException(error);
         }
 
-        UserDto userDto = (UserDto)principal.getPrincipal();
-        String username = userDto.getUsername();
+        String username = authentication.getName();
         String deviceId = context.getAttribute("device_id");
 
         if (log.isDebugEnabled()) {

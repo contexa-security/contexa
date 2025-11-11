@@ -32,19 +32,10 @@ public class MfaContextValidator {
             return result;
         }
 
-        // 3. 플로우 타입 체크
-        if (!"MFA".equalsIgnoreCase(ctx.getFlowTypeName())) {
-            result.addError("Invalid flow type: " + ctx.getFlowTypeName() + " (expected: MFA)");
-        }
-
-        // 4. Repository를 통한 세션 존재 확인
-        if (sessionRepository != null && !sessionRepository.existsSession(ctx.getMfaSessionId())) {
-            result.addError("MFA session not found in repository: " + ctx.getMfaSessionId());
-        }
-
-        // 5. 터미널 상태 체크
+        // 3. 터미널 상태 체크 (Warning → Error 변경, Phase 2 최적화)
         if (ctx.getCurrentState().isTerminal()) {
-            result.addWarning("Context is in terminal state: " + ctx.getCurrentState());
+            result.addError("Context is in terminal state: " + ctx.getCurrentState());
+            return result; // 터미널 상태에서는 더 이상 진행 불가
         }
 
         // 6. 사용자명 체크
@@ -77,9 +68,9 @@ public class MfaContextValidator {
             result.addError("Invalid state for factor processing: " + currentState);
         }
 
-        // 9. 현재 단계 ID 체크
+        // 9. 현재 단계 ID 체크 (Warning → Error 변경, Phase 2 최적화)
         if (!StringUtils.hasText(ctx.getCurrentStepId())) {
-            result.addWarning("Current step ID is null or empty");
+            result.addError("Current step ID is null or empty");
         }
 
         return result;
@@ -152,25 +143,17 @@ public class MfaContextValidator {
             result.addError("Invalid state for factor verification: " + currentState);
         }
 
-        // 15. 챌린지 만료 시간 체크
-        Object challengeTime = ctx.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT);
-        if (challengeTime instanceof Long) {
-            long elapsed = System.currentTimeMillis() - (Long) challengeTime;
-            if (elapsed > 300000) { // 5분 초과
-                result.addWarning("Challenge may have expired (elapsed: " + elapsed + "ms)");
-            }
-        }
+        // Phase 2 최적화: 챌린지 만료 시간 체크 제거 (MfaStepFilterWrapper가 처리)
 
         return result;
     }
 
     // === 헬퍼 메서드들 ===
 
+    // Phase 2 최적화: Option 2 변경에 맞춰 상태 목록 수정
     private static boolean isFactorProcessingState(MfaState state) {
         return state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
-                state == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
-                state == MfaState.FACTOR_VERIFICATION_PENDING ||
-                state == MfaState.FACTOR_VERIFICATION_IN_PROGRESS;
+                state == MfaState.FACTOR_VERIFICATION_PENDING;
     }
 
     private static boolean isFactorSelectionOrProcessingState(MfaState state) {

@@ -131,15 +131,23 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 log.debug("Processing recommended event: {} for session: {}",
                          nextEvent, factorContext.getMfaSessionId());
 
-                // FACTOR_SELECTED 이벤트일 때 currentProcessingFactor를 MessageHeader로 전달
+                // 이벤트별 처리 로직
                 boolean eventSent;
                 if (nextEvent == MfaEvent.FACTOR_SELECTED && factorContext.getCurrentProcessingFactor() != null) {
+                    // 수동 팩터 선택: SelectFactorAction이 selectedFactor 헤더를 사용
                     Map<String, Object> headers = new HashMap<>();
                     headers.put("selectedFactor", factorContext.getCurrentProcessingFactor().name());
                     log.debug("Adding selectedFactor header: {} for session: {}",
                              factorContext.getCurrentProcessingFactor().name(), factorContext.getMfaSessionId());
                     eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request, headers);
+                } else if (nextEvent == MfaEvent.INITIATE_CHALLENGE_AUTO) {
+                    // Phase 2.3: 자동 팩터 선택 후 챌린지 시작
+                    // DetermineNextFactorAction이 이미 currentProcessingFactor와 팩터별 속성 설정 완료
+                    log.debug("Sending INITIATE_CHALLENGE_AUTO event for session: {}, factor: {}",
+                             factorContext.getMfaSessionId(), factorContext.getCurrentProcessingFactor());
+                    eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
                 } else {
+                    // 기타 이벤트 (ALL_REQUIRED_FACTORS_COMPLETED, MFA_REQUIRED_SELECT_FACTOR 등)
                     eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
                 }
 
@@ -186,6 +194,25 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             } else {
                 log.warn("Response already committed for user: {}, cannot write MFA continue response",
                         factorContext.getUsername());
+            }
+
+        } else if (currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION &&
+                factorContext.getCurrentProcessingFactor() != null) {
+            // Phase 2.3: 챌린지가 자동으로 준비됨 (Option 2 경로)
+            AuthType nextFactor = factorContext.getCurrentProcessingFactor();
+            log.info("Challenge automatically initiated for factor: {} for user: {}",
+                    nextFactor, factorContext.getUsername());
+
+            String nextUrl = determineNextFactorUrl(nextFactor, request);
+            int currentStep = (nextFactor == AuthType.OTT) ? 2 : 3;
+            Map<String, Object> responseBody = createMfaContinueResponse(
+                    "챌린지가 준비되었습니다: " + nextFactor.name(),
+                    factorContext, nextUrl, currentStep);
+            responseBody.put("nextFactorType", nextFactor.name());
+            responseBody.put("challengeReady", true);
+
+            if (!response.isCommitted()) {
+                responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             }
 
         } else if (currentState == MfaState.AWAITING_FACTOR_SELECTION) {

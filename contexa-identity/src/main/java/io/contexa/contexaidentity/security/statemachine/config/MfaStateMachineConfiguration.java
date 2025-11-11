@@ -195,6 +195,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(selectFactorAction)
                 .and()
 
+                // Phase 2.3: Option 2 - 다음 팩터 자동 선택 후 바로 챌린지 (2차 → 3차 전이)
+                .withExternal()
+                .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
+                .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
+                .event(MfaEvent.INITIATE_CHALLENGE_AUTO)
+                .action(initiateChallengeAction)
+                .and()
+
                 // 최종 성공
                 .withExternal()
                 .source(MfaState.ALL_FACTORS_COMPLETED)

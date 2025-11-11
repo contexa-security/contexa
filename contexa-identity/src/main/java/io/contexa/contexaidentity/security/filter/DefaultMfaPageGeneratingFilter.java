@@ -597,35 +597,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         authButton.disabled = true;
                         authButton.textContent = '초기화 중...';
 
-                        // SDK 초기화 및 챌린지 시작 (OTT 패턴 적용)
+                        // SDK 초기화 (챌린지는 백엔드에서 이미 시작됨)
                         (async () => {
                             try {
                                 await mfa.init();
 
-                                // 챌린지 시작 API 호출 (INITIATE_CHALLENGE 이벤트 발송)
-                                const challengeUrl = '{{contextPath}}/mfa/challenge/passkey';
-                                const response = await fetch(challengeUrl, {
-                                    method: 'POST',
-                                    headers: ContexaMFA.Utils.createHeaders()
-                                });
-
-                                if (response.ok) {
-                                    const result = await response.json();
-                                    mfa.stateTracker.updateFromServerResponse(result);
-                                    console.log('Passkey challenge initiated:', result);
-
-                                    // 챌린지 완료 후 버튼 활성화
-                                    authButton.disabled = false;
-                                    authButton.textContent = 'Passkey로 인증';
-                                } else {
-                                    console.error('Failed to initiate Passkey challenge:', response.status);
-                                    authButton.disabled = false;
-                                    authButton.textContent = 'Passkey로 인증 (초기화 실패)';
-                                }
-                            } catch (error) {
-                                console.error('Failed to initialize Passkey challenge:', error);
+                                // Phase 2.3: 백엔드에서 INITIATE_CHALLENGE_AUTO로 챌린지 시작 완료
+                                // JavaScript는 더 이상 INITIATE_CHALLENGE를 보낼 필요 없음
                                 authButton.disabled = false;
-                                authButton.textContent = 'Passkey로 인증 (초기화 실패)';
+                                authButton.textContent = 'Passkey로 인증';
+                                console.log('Passkey challenge ready (auto-initiated by backend)');
+                            } catch (error) {
+                                console.error('Failed to initialize SDK:', error);
+                                authButton.disabled = false;
+                                authButton.textContent = 'Passkey로 인증';
                             }
                         })();
 

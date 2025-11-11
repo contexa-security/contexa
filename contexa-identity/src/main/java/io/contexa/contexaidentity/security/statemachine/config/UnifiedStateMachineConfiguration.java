@@ -4,8 +4,6 @@ import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.config.kyro.MfaKryoStateMachineSerialisationService;
 import io.contexa.contexaidentity.security.statemachine.core.event.MfaEventPublisher;
-import io.contexa.contexaidentity.security.statemachine.core.persist.InMemoryStateMachinePersist;
-import io.contexa.contexaidentity.security.statemachine.core.persist.ResilientRedisStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.statemachine.listener.MfaStateChangeListener;
@@ -18,9 +16,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.*;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.statemachine.StateMachine;
-import org.springframework.statemachine.StateMachinePersist;
 import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.statemachine.data.redis.RedisPersistingStateMachineInterceptor;
 import org.springframework.statemachine.data.redis.RedisRepositoryStateMachinePersist;
@@ -45,35 +41,6 @@ public class UnifiedStateMachineConfiguration {
 
     private final StateMachineProperties properties;
     private final AuthContextProperties authContextProperties;
-
-
-
-    /*@Bean
-    public StateMachinePersist<MfaState, MfaEvent, String> stateMachinePersist(
-            @Qualifier("stateMachineRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
-
-        String persistenceType = properties.getPersistence() != null ?
-                properties.getPersistence().getType() : "memory";
-
-        log.info("Configuring State Machine persistence with type: {}", persistenceType);
-
-        switch (persistenceType.toLowerCase()) {
-            case "redis":
-                StateMachinePersist<MfaState, MfaEvent, String> fallback = null;
-                if (properties.getPersistence() != null && properties.getPersistence().isEnableFallback()) {
-                    fallback = new InMemoryStateMachinePersist();
-                }
-
-                int ttlMinutes = properties.getPersistence() != null && properties.getPersistence().getTtlMinutes() != null
-                        ? properties.getPersistence().getTtlMinutes() : 30;
-
-                return new ResilientRedisStateMachinePersist(redisTemplate, fallback, ttlMinutes);
-
-            case "memory":
-            default:
-                return new InMemoryStateMachinePersist();
-        }
-    }*/
 
     @Bean
     public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(RedisStateMachineRepository redisStateMachineRepository) {
@@ -119,7 +86,7 @@ public class UnifiedStateMachineConfiguration {
     public CommonsPool2TargetSource poolTargetSource() {
         CommonsPool2TargetSource pool = new CommonsPool2TargetSource();
         pool.setTargetBeanName("mfaStateMachineTarget"); // 프로토타입 빈 이름
-        pool.setMaxSize(10); // 풀 최대 크기 (설정값으로 관리 권장)
+        pool.setMaxSize(20); // 풀 최대 크기 (설정값으로 관리 권장)
 
         return pool;
     }
@@ -130,7 +97,7 @@ public class UnifiedStateMachineConfiguration {
     // 또는 StateMachine<MfaState, MfaEvent> 타입으로 직접 반환 시도.
     @Bean(name = "pooledMfaStateMachine")
     @Primary
-    @Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS) // 예시: 요청 스코프
+    @Scope(value = "request", proxyMode = ScopedProxyMode.TARGET_CLASS)
     // @Scope(value = "prototype", proxyMode = ScopedProxyMode.TARGET_CLASS) // 또는 매번 새 프록시(풀에서 가져옴)
     public StateMachine<MfaState, MfaEvent> pooledMfaStateMachine(@Qualifier("poolTargetSource") CommonsPool2TargetSource targetSource) {
         ProxyFactoryBean pfb = new ProxyFactoryBean();

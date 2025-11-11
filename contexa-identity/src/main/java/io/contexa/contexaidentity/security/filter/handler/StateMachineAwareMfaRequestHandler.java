@@ -343,6 +343,8 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private boolean isValidStateForChallengeInitiation(FactorContext context) {
         MfaState currentState = context.getCurrentState();
+        // AWAITING_FACTOR_CHALLENGE_INITIATION: OTT 챌린지 시작에서 사용
+        // FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION: 내부 전이(챌린지 재시작)에서 사용
         return currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
                currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
     }
