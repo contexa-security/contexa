@@ -67,7 +67,8 @@
       "Bash(del contexa-identitysrcmainjavaiocontexacontexaidentitysecurityhandlernul)",
       "Bash(../gradlew.bat bootRun)",
       "Bash(timeout 20 cmd:*)",
-      "Bash(..gradlew.bat compileJava)"
+      "Bash(..gradlew.bat compileJava)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []
