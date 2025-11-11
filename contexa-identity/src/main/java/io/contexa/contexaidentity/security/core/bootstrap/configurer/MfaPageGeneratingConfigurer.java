@@ -17,11 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.ExceptionHandlingConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.util.matcher.AndRequestMatcher;
-import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
-import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
-import org.springframework.security.web.util.matcher.RequestHeaderRequestMatcher;
-import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.security.web.util.matcher.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.accept.ContentNegotiationStrategy;
@@ -96,7 +92,6 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             MfaStateMachineIntegrator stateMachineIntegrator =
                     applicationContext.getBean(MfaStateMachineIntegrator.class);
 
-            // DefaultMfaPageGeneratingFilter 생성 (AuthenticationFlowConfig 기반)
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
                     flowConfig,              // DSL 설정 전체 전달
                     stateMachineIntegrator

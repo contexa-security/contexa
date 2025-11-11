@@ -33,17 +33,29 @@ import java.util.stream.Stream;
 public class AuthUrlProvider {
 
     private final AuthContextProperties properties;
-    private final MfaPageConfig mfaPageConfig;
+    private MfaPageConfig mfaPageConfig = new MfaPageConfig();
 
     /**
      * Constructor
      *
      * @param properties 인증 URL 설정
+     */
+    public AuthUrlProvider(AuthContextProperties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * MFA 커스텀 페이지 설정 (DSL .mfaPage()로 설정된 값 주입)
+     *
+     * SecurityConfigurer에서 AuthenticationFlowConfig.getMfaPageConfig()를 가져와서 설정합니다.
+     *
      * @param mfaPageConfig MFA 커스텀 페이지 설정 (null 허용)
      */
-    public AuthUrlProvider(AuthContextProperties properties, @Nullable MfaPageConfig mfaPageConfig) {
-        this.properties = properties;
-        this.mfaPageConfig = mfaPageConfig;
+    public void setMfaPageConfig(@Nullable MfaPageConfig mfaPageConfig) {
+        if (mfaPageConfig != null) {
+            this.mfaPageConfig = mfaPageConfig;
+            log.info("MFA custom page configuration applied to AuthUrlProvider: {}", mfaPageConfig);
+        }
     }
 
     // ========================================
