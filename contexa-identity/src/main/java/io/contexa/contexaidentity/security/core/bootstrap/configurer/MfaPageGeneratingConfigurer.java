@@ -11,6 +11,7 @@ import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEn
 import io.contexa.contexaidentity.security.filter.DefaultMfaPageGeneratingFilter;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.MfaPageConfig;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
@@ -91,10 +92,13 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             // 필수 의존성 가져오기
             MfaStateMachineIntegrator stateMachineIntegrator =
                     applicationContext.getBean(MfaStateMachineIntegrator.class);
+            AuthUrlProvider authUrlProvider =
+                    applicationContext.getBean(AuthUrlProvider.class);
 
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
                     flowConfig,              // DSL 설정 전체 전달
-                    stateMachineIntegrator
+                    stateMachineIntegrator,
+                    authUrlProvider          // URL 우선순위 로직 제공
             );
 
             // ⭐ Spring Security FormLoginConfigurer 패턴: SharedObject로 등록

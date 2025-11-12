@@ -7,7 +7,10 @@
       "Bash(taskkill:*)",
       "Bash(netstat:*)",
       "Bash(cmd /c \"taskkill /F /PID 35312\")",
-      "Bash(./gradlew :contexa-identity:compileJava:*)"
+      "Bash(./gradlew :contexa-identity:compileJava:*)",
+      "Bash(..gradlew.bat :contexa-identity:test:*)",
+      "Bash(cmd /c \"cd /d D:\\projects\\contexa && ..\\gradlew.bat :contexa-identity:test --tests MfaStateMachineLoadTest --stacktrace 2>&1\")",
+      "Bash(cmd /c \"D:\\projects\\gradlew.bat :contexa-identity:test --tests MfaStateMachineLoadTest --stacktrace\")"
     ],
     "deny": [],
     "ask": []

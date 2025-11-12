@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticatio
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.MfaPageConfig;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -68,6 +69,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private final AuthenticationFlowConfig mfaFlowConfig;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
+    private final AuthUrlProvider authUrlProvider;
 
     // ========== HTML 템플릿 상수 (Spring Security 패턴) ==========
 
@@ -899,22 +901,28 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      *
      * @param mfaFlowConfig DSL로 구성된 MFA 플로우 설정 (AuthenticationFlowConfig)
      * @param stateMachineIntegrator MFA State Machine 통합 객체
+     * @param authUrlProvider URL 우선순위 로직을 제공하는 AuthUrlProvider (SSOT)
      * @throws IllegalArgumentException MFA 플로우가 아닌 경우
      */
     public DefaultMfaPageGeneratingFilter(
             AuthenticationFlowConfig mfaFlowConfig,
-            MfaStateMachineIntegrator stateMachineIntegrator) {
+            MfaStateMachineIntegrator stateMachineIntegrator,
+            AuthUrlProvider authUrlProvider) {
         Assert.notNull(mfaFlowConfig, "AuthenticationFlowConfig cannot be null");
         Assert.isTrue(AuthType.MFA.name().equalsIgnoreCase(mfaFlowConfig.getTypeName()),
                 "This filter only works with MFA flow config. Provided flow type: " + mfaFlowConfig.getTypeName());
         Assert.notNull(stateMachineIntegrator, "MfaStateMachineIntegrator cannot be null");
+        Assert.notNull(authUrlProvider, "AuthUrlProvider cannot be null");
 
         this.mfaFlowConfig = mfaFlowConfig;
         this.stateMachineIntegrator = stateMachineIntegrator;
+        this.authUrlProvider = authUrlProvider;
 
-        log.info("DefaultMfaPageGeneratingFilter initialized for MFA flow. Primary auth page: {}, Select factor page: {}",
+        log.info("DefaultMfaPageGeneratingFilter initialized for MFA flow. Primary auth page: {}, Select factor page: {}, OTT code URL: {}, OTT processing URL: {}",
                 extractPrimaryLoginPage(),
-                extractSelectFactorUrl());
+                extractSelectFactorUrl(),
+                extractOttCodeGenerationUrl(),
+                extractOttLoginProcessingUrl());
     }
 
     @Override
@@ -1188,13 +1196,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      * <p>
      * OTT 요청 페이지의 Form action URL로 사용됩니다.
      * JavaScript 비활성화 시 이 URL로 POST 요청이 전송됩니다.
+     * AuthUrlProvider를 통해 DSL 커스텀 URL 우선순위가 적용됩니다.
      * </p>
      *
-     * @return OTT 코드 생성 API URL (기본: /mfa/ott/generate-code)
+     * @return OTT 코드 생성 API URL (DSL Options > MfaPageConfig > AuthContextProperties > 기본값)
      */
     private String extractOttCodeGenerationUrl() {
-        // TODO: AuthUrlConfig에서 가져오도록 개선 필요
-        return "/mfa/ott/generate-code"; // OttUrls.codeGeneration
+        return authUrlProvider.getOttCodeGeneration();
     }
 
     /**
@@ -1203,13 +1211,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      * <p>
      * OTT 검증 페이지의 Form action URL로 사용됩니다.
      * Spring Security OTT Filter가 이 경로에서 POST 요청을 처리합니다.
+     * AuthUrlProvider를 통해 DSL 커스텀 URL 우선순위가 적용됩니다.
      * </p>
      *
-     * @return OTT 검증 처리 URL (기본: /login/mfa-ott)
+     * @return OTT 검증 처리 URL (DSL Options > MfaPageConfig > AuthContextProperties > 기본값)
      */
     private String extractOttLoginProcessingUrl() {
-        // TODO: AuthUrlConfig에서 가져오도록 개선 필요
-        return "/login/mfa-ott"; // OttUrls.loginProcessing
+        return authUrlProvider.getOttLoginProcessing();
     }
 
     // ===== Passkey Challenge Page =====
