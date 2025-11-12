@@ -26,7 +26,7 @@ public final class FormAuthenticationAdapter extends AbstractAuthenticationAdapt
                                          PlatformAuthenticationSuccessHandler successHandler,
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
         http.formLogin(form -> {
-            form.loginPage(opts.getLoginPage())
+            form
                     .loginProcessingUrl(opts.getLoginProcessingUrl())
                     .usernameParameter(opts.getUsernameParameter())
                     .passwordParameter(opts.getPasswordParameter())
@@ -34,6 +34,10 @@ public final class FormAuthenticationAdapter extends AbstractAuthenticationAdapt
                     .permitAll(opts.isPermitAll())
                     .successHandler(successHandler)
                     .failureHandler(failureHandler);
+
+            if (opts.getLoginPage() != null) {
+                form.loginPage(opts.getLoginPage());
+            }
 
             if (opts.getSecurityContextRepository() != null) {
                 form.securityContextRepository(opts.getSecurityContextRepository());

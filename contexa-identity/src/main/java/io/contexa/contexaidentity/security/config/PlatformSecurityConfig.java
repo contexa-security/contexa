@@ -1,37 +1,16 @@
 package io.contexa.contexaidentity.security.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
-import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexaidentity.security.filter.RestAuthenticationProvider;
-import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
-import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
-import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.ott.OneTimeTokenAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.web.authentication.logout.LogoutHandler;
-import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationConverter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.util.StringUtils;
-
-import java.io.IOException;
-import java.util.Map;
 
 @Slf4j
 @Configuration
@@ -39,9 +18,6 @@ import java.util.Map;
 @EnableWebSecurity
 public class PlatformSecurityConfig {
 
-    private final ApplicationContext applicationContext;
-    private final ObjectMapper objectMapper;
-    private final RestAuthenticationProvider restAuthenticationProvider;
     @Bean
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
         log.info("Configuring Platform Security DSL...");
@@ -53,7 +29,7 @@ public class PlatformSecurityConfig {
                                     "/css/**", "/js/**", "/images/**", "/favicon.ico",
 //                                    "/authMode","/",
                                     "/", "/authMode","/home",
-                                    "/loginForm", "/register",
+                                    "/loginForm", "/register","/login",
                                     "/loginOtt", "/ott/sent",
                                     "/loginPasskey","/login/mfa-ott",
                                     "/mfa/select-factor","/mfa/ott/request-code-ui", "/mfa/challenge/ott",
@@ -69,11 +45,7 @@ public class PlatformSecurityConfig {
                             .requestMatchers("/admin", "/api/admin/**").hasRole("ADMIN")
                             .anyRequest().authenticated()
                     )
-                    .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable))
-                    .sessionManagement(session -> session
-                                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                    )
-                    .logout(logout -> logout
+                    /*.logout(logout -> logout
                             .addLogoutHandler(applicationContext.getBean("oauth2LogoutHandler", LogoutHandler.class))
                             .logoutSuccessHandler((request, response, authentication) -> {
                                 response.setStatus(HttpServletResponse.SC_OK);
@@ -82,21 +54,21 @@ public class PlatformSecurityConfig {
                             })
                             .invalidateHttpSession(false)
                             .clearAuthentication(true)
-                    )
+                    )*/
                     .securityContext(sc -> sc.securityContextRepository(new HttpSessionSecurityContextRepository()))
                 ;
         };
         return registry
                 .global(globalHttpCustomizer)
-                .rest(rest -> rest.order(30)).oauth2(Customizer.withDefaults())
+                .form(form -> form.order(1)).session(Customizer.withDefaults())
+                .rest(rest -> rest.order(10)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(40)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(50)).oauth2(Customizer.withDefaults())
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.restLogin(rest ->
                                 rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
-//                        .ott(Customizer.withDefaults())
-                        .ott(ott -> ott.tokenGeneratingUrl("/customGeneration"))
+                        .ott(Customizer.withDefaults())
                         /*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")

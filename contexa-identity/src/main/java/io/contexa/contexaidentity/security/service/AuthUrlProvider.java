@@ -208,7 +208,8 @@ public class AuthUrlProvider {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginPage())) {
             return primaryAuthOptions.getLoginPage();
         }
-        return properties.getUrls().getPrimary().getFormLoginPage();
+        return null;
+//        return properties.getUrls().getPrimary().getFormLoginPage();
     }
 
     /**

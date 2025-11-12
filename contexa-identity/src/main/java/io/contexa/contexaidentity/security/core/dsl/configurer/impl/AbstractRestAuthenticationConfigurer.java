@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import io.contexa.contexaidentity.security.enums.StateType;
 import io.contexa.contexaidentity.security.filter.BaseAuthenticationFilter;
+import io.contexa.contexaidentity.security.filter.RestAuthenticationProvider;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
@@ -12,6 +13,8 @@ import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
@@ -49,15 +52,16 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
 
         ApplicationContext applicationContext = http.getSharedObject(ApplicationContext.class);
         properties = applicationContext.getBean(AuthContextProperties.class);
+        UserDetailsService userDetailsService = applicationContext.getBean(UserDetailsService.class);
+        PasswordEncoder passwordEncoder = applicationContext.getBean(PasswordEncoder.class);
 
         if (this.requestMatcher == null) {
             this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
-            ;
         }
 
         // 템플릿 메서드 - 하위 클래스에서 필터 생성
         BaseAuthenticationFilter filter = createAuthenticationFilter(http, authenticationManager, applicationContext, properties);
-
+        http.authenticationProvider(new RestAuthenticationProvider(userDetailsService, passwordEncoder));
         // 공통 설정 적용
         configureFilter(filter, (HttpSecurity) http);
 
