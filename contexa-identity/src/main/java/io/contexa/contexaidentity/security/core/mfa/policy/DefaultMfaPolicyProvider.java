@@ -8,7 +8,6 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.MfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.enums.AuthType;
-import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -42,12 +41,9 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
     protected final UserRepository userRepository;
     protected final ApplicationContext applicationContext;
-    protected final MfaStateMachineIntegrator stateMachineIntegrator;
     protected final AuthContextProperties properties;
     protected final MfaPolicyEvaluator policyEvaluator;
-    protected final PlatformConfig platformConfig; // Phase 2 개선: 직접 주입
-
-    // Phase 2 개선: Eager initialization으로 변경 (synchronized 제거)
+    protected final PlatformConfig platformConfig;
     private AuthenticationFlowConfig cachedMfaFlowConfig;
 
     /**
@@ -57,7 +53,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     @PostConstruct
     public void initializeMfaFlowConfig() {
         try {
-            if (platformConfig != null && platformConfig.getFlows() != null) {
+            if (platformConfig != null) {
                 cachedMfaFlowConfig = platformConfig.getFlows().stream()
                         .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
                         .findFirst()

@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.statemachine.core.service;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.statemachine.support.StateContextHelper;
@@ -9,10 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.aop.framework.Advised;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.Message;
+import org.springframework.statemachine.config.StateMachineFactory;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.statemachine.ExtendedState;
@@ -29,27 +28,74 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * MFA StateMachine 서비스 구현체
+ *
+ * P0 변경사항:
+ * - ObjectProvider → StateMachineFactory로 변경 (Factory 패턴)
+ * - acquireStateMachine(), releaseStateMachineInstance() 추가 (리소스 관리)
+ * - 모든 메서드에 finally 블록 리소스 정리 추가
+ * - Proxy 언래핑 로직 제거 (Factory 직접 생성으로 불필요)
+ *
+ * 보존사항:
+ * - Redisson Lock 패턴 완전 보존
+ * - Deep Copy 동기화 로직 완전 보존
+ * - FactorContext 관리 로직 완전 보존
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
-    private final ObjectProvider<StateMachine<MfaState, MfaEvent>> stateMachineProvider;
+    private final StateMachineFactory<MfaState, MfaEvent> stateMachineFactory;
     private final StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister;
     private final RedissonClient redissonClient;
+    private final StateMachineProperties properties; // P2: Properties 주입
 
     private static final long LOCK_WAIT_TIME_SECONDS = 10;
     private static final long LOCK_LEASE_TIME_SECONDS = 30;
     private static final MfaState FALLBACK_INITIAL_MFA_STATE = MfaState.NONE; // 실제 초기 상태로 변경 필요
-    private static final long EVENT_PROCESSING_TIMEOUT_SECONDS = 50;
+
+    // P2: Properties에서 timeout 가져오기 (EVENT_PROCESSING_TIMEOUT_SECONDS 제거)
 
     private String getLockKey(String sessionId) {
         return "mfa_lock:session:" + sessionId;
     }
 
+    /**
+     * P0: StateMachine 인스턴스 획득 (Factory 패턴)
+     *
+     * @param sessionId MFA 세션 ID (machineId로 사용)
+     * @return 새로운 StateMachine 인스턴스
+     */
+    private StateMachine<MfaState, MfaEvent> acquireStateMachine(String sessionId) {
+        StateMachine<MfaState, MfaEvent> sm = stateMachineFactory.getStateMachine(sessionId);
+        log.debug("[MFA SM Service] [{}] StateMachine 인스턴스 생성 완료 (Factory)", sessionId);
+        return sm;
+    }
+
+    /**
+     * P0: StateMachine 인스턴스 리소스 정리 (공식 권장)
+     *
+     * @param sm        StateMachine 인스턴스
+     * @param sessionId MFA 세션 ID
+     */
+    private void releaseStateMachineInstance(StateMachine<MfaState, MfaEvent> sm, String sessionId) {
+        if (sm != null) {
+            try {
+                // 공식 권장: stopReactively() 호출로 리소스 정리
+                sm.stopReactively().block(Duration.ofSeconds(5));
+                log.debug("[MFA SM Service] [{}] StateMachine 인스턴스 정리 완료", sessionId);
+            } catch (Exception e) {
+                log.warn("[MFA SM Service] [{}] StateMachine 정리 중 오류 (무시됨): {}", sessionId, e.getMessage());
+            }
+            // GC가 자동으로 메모리 정리
+        }
+    }
+
     // 상태 머신 인스턴스 획득 및 상태 복원/초기화 로직을 담당하는 헬퍼 메서드
     private StateMachine<MfaState, MfaEvent> getAndPrepareStateMachine(String machineId, MfaState initialStateIfNotRestored, FactorContext initialFactorContextForReset) {
-        StateMachine<MfaState, MfaEvent> stateMachine = stateMachineProvider.getObject();
+        StateMachine<MfaState, MfaEvent> stateMachine = acquireStateMachine(machineId);
         try {
             stateMachinePersister.restore(stateMachine, machineId);
             log.debug("[MFA SM Service] [{}] 풀에서 가져온 SM에 상태 복원 완료. 현재 상태: {}", machineId, stateMachine.getState() != null ? stateMachine.getState().getId() : "N/A");
@@ -164,7 +210,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
             log.debug("[MFA SM Service] [{}] SM 초기화 위한 락 획득.", sessionId);
 
-            stateMachine = stateMachineProvider.getObject();
+            stateMachine = acquireStateMachine(sessionId);
 
             // 외부에서 전달된 FactorContext의 초기 상태 및 정보로 StateMachine을 리셋하고 시작
             resetAndStartStateMachine(stateMachine, sessionId, context.getCurrentState(), context);
@@ -189,6 +235,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             log.error("[MFA SM Service] [{}] SM 초기화 중 오류 발생.", sessionId, e);
             throw new MfaStateMachineException("Error during State Machine initialization for " + sessionId + ": " + e.getMessage(), e);
         } finally {
+            releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
                 log.debug("[MFA SM Service] [{}] SM 초기화 락 해제.", sessionId);
@@ -261,6 +308,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             log.error("[MFA SM Service] [{}] 이벤트 ({}) 처리 중 오류 발생.", sessionId, event, e);
             throw new MfaStateMachineException("Error during MFA event processing for " + sessionId + ": " + e.getMessage(), e);
         } finally {
+            releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
                 log.debug("[MFA SM Service] [{}] 이벤트 ({}) 처리 락 해제.", sessionId, event);
@@ -271,14 +319,33 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
     /**
      * 실제 상태 머신 이벤트 전송 및 결과 처리를 위한 내부 헬퍼 메서드
      */
+    /**
+     * P2: Reactor 기반 이벤트 전송 최적화
+     *
+     * Reactor 체인 구성:
+     * - sendEvent: 비동기 이벤트 전송
+     * - doOnNext/doOnError/doOnComplete: 각 단계별 로깅
+     * - map: 결과 타입 변환 (ACCEPTED → boolean)
+     * - timeout: Properties 기반 타임아웃 설정
+     * - blockFirst: 결과 대기 (타임아웃 + 1초)
+     *
+     * 타임아웃 처리:
+     * - null 반환 시 폴백 처리
+     * - 현재 상태 유지 및 이벤트 거부
+     */
     private Result sendEventInternal(StateMachine<MfaState, MfaEvent> stateMachine, Message<MfaEvent> message, FactorContext originalExternalContext) {
         String sessionId = originalExternalContext.getMfaSessionId();
         MfaEvent event = message.getPayload();
         MfaState currentState = stateMachine.getState() != null ? stateMachine.getState().getId() : null;
 
-        log.debug("[SM Internal] 이벤트 전송 시작 - Event: {}, CurrentState: {}, Session: {}",
-                 event, currentState, sessionId);
+        // P2: Properties에서 timeout 가져오기
+        int timeoutSeconds = properties.getMfa().getTransitionTimeoutSeconds() != null ?
+            properties.getMfa().getTransitionTimeoutSeconds() : 5;
 
+        log.debug("[SM Internal] 이벤트 전송 시작 - Event: {}, CurrentState: {}, Session: {}, Timeout: {}초",
+                 event, currentState, sessionId, timeoutSeconds);
+
+        // P2: Reactor 체인 최적화
         Boolean accepted = stateMachine.sendEvent(Mono.just(message))
                 .doOnNext(result -> log.debug("[SM Internal] 이벤트 결과 수신 - ResultType: {}, Session: {}",
                                               result.getResultType(), sessionId))
@@ -287,18 +354,18 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 .doOnComplete(() -> log.debug("[SM Internal] Reactive Stream 완료 - Event: {}, Session: {}",
                                              event, sessionId))
                 .map(result -> result.getResultType() == StateMachineEventResult.ResultType.ACCEPTED)
-                .timeout(Duration.ofSeconds(EVENT_PROCESSING_TIMEOUT_SECONDS))
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .doOnNext(isAccepted -> log.debug("[SM Internal] 이벤트 수락 여부: {} - Event: {}, Session: {}",
                                                  isAccepted, event, sessionId))
-                .blockFirst(Duration.ofSeconds(EVENT_PROCESSING_TIMEOUT_SECONDS + 1));
+                .blockFirst(Duration.ofSeconds(timeoutSeconds + 1));
 
         log.debug("[SM Internal] blockFirst() 반환 완료 - accepted: {}, Event: {}, Session: {}",
                  accepted, event, sessionId);
 
-        // Phase 1: 타임아웃 폴백 처리
+        // P2: 타임아웃 폴백 처리
         if (accepted == null) {
             log.error("[SM Internal] ⚠️ 이벤트 처리 타임아웃 발생 - Event: {}, State: {}, Session: {}, Timeout: {}초",
-                     event, currentState, sessionId, EVENT_PROCESSING_TIMEOUT_SECONDS);
+                     event, currentState, sessionId, timeoutSeconds);
             log.error("[SM Internal] State Machine이 응답하지 않음. 이벤트 거부로 처리.");
 
             // 폴백: 이벤트 거부로 처리, 현재 상태 유지
@@ -384,32 +451,14 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
 
     /**
-     * 상태 머신을 영속화하는 헬퍼 메서드 (프록시 처리 포함)
+     * P0: 상태 머신을 영속화하는 헬퍼 메서드 (Proxy 언래핑 제거)
+     *
+     * Factory 패턴에서는 Proxy 없이 직접 인스턴스를 생성하므로
+     * Proxy 언래핑 로직이 불필요합니다.
      */
     private void persistStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String sessionId) throws Exception {
-        StateMachine<MfaState, MfaEvent> machineToPersist = stateMachine;
-        if (stateMachine instanceof Advised) {
-            try {
-                Object target = ((Advised) stateMachine).getTargetSource().getTarget();
-                if (target instanceof StateMachine) {
-                    // 프록시가 한 번 더 감싸져 있을 가능성 고려
-                    if (target instanceof Advised) {
-                        Object innerTarget = ((Advised) target).getTargetSource().getTarget();
-                        if (innerTarget instanceof StateMachine) {
-                            machineToPersist = (StateMachine<MfaState, MfaEvent>) innerTarget;
-                        }
-                    } else {
-                        machineToPersist = (StateMachine<MfaState, MfaEvent>) target;
-                    }
-                    log.debug("[MFA SM Service] [{}] 원본 StateMachine 객체 추출 성공 (persist).", sessionId);
-                } else {
-                    log.warn("[MFA SM Service] [{}] 프록시 원본이 StateMachine 타입 아님 (persist). 프록시 사용.", sessionId);
-                }
-            } catch (Exception e) {
-                log.error("[MFA SM Service] [{}] 원본 StateMachine 추출 실패 (persist). 프록시 사용.", sessionId, e);
-            }
-        }
-        stateMachinePersister.persist(machineToPersist, sessionId);
+        stateMachinePersister.persist(stateMachine, sessionId);
+        log.debug("[MFA SM Service] [{}] StateMachine 영속화 완료", sessionId);
     }
 
     // getFactorContext, saveFactorContext, getCurrentState, updateStateOnly, releaseStateMachine 등도
@@ -450,6 +499,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             log.error("[MFA SM Service] [{}] FactorContext 조회 중 오류 발생.", sessionId, e);
             throw new MfaStateMachineException("Error during getFactorContext for " + sessionId + ": " + e.getMessage(), e);
         } finally {
+            releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
                 log.debug("[MFA SM Service] [{}] FactorContext 조회 락 해제.", sessionId);
@@ -484,7 +534,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
             log.debug("[MFA SM Service] [{}] State Machine context exists. Proceeding with save.", sessionId);
 
-            stateMachine = stateMachineProvider.getObject();
+            stateMachine = acquireStateMachine(sessionId);
 
             // ===== 근본 해결: resetAndStartStateMachine() 제거 =====
             // 기존 StateMachine 복원 시도
@@ -522,11 +572,15 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
             // ===== 검증: 복원 테스트 =====
             try {
-                StateMachine<MfaState, MfaEvent> testMachine = stateMachineProvider.getObject();
-                stateMachinePersister.restore(testMachine, sessionId);
-                FactorContext afterPersist = StateContextHelper.getFactorContext(testMachine);
-                log.warn("[VERIFY-2] persistStateMachine 호출 후 복원 [{}] - FactorContext: {}",
-                         sessionId, afterPersist != null ? "존재 (version " + afterPersist.getVersion() + ")" : "NULL");
+                StateMachine<MfaState, MfaEvent> testMachine = acquireStateMachine(sessionId);
+                try {
+                    stateMachinePersister.restore(testMachine, sessionId);
+                    FactorContext afterPersist = StateContextHelper.getFactorContext(testMachine);
+                    log.warn("[VERIFY-2] persistStateMachine 호출 후 복원 [{}] - FactorContext: {}",
+                             sessionId, afterPersist != null ? "존재 (version " + afterPersist.getVersion() + ")" : "NULL");
+                } finally {
+                    releaseStateMachineInstance(testMachine, sessionId);
+                }
             } catch (Exception e) {
                 log.error("[VERIFY-2] persistStateMachine 후 복원 실패 [{}]", sessionId, e);
             }
@@ -539,6 +593,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             log.error("[MFA SM Service] [{}] FactorContext 저장 중 오류 발생.", sessionId, e);
             throw new MfaStateMachineException("Error during saving FactorContext for " + sessionId + ": " + e.getMessage(), e);
         } finally {
+            releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
                 log.debug("[MFA SM Service] [{}] FactorContext 저장 락 해제.", sessionId);
@@ -604,6 +659,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             log.error("[MFA SM Service] [{}] 상태만 업데이트 중 오류 발생.", sessionId, e);
             throw new MfaStateMachineException("Error during state-only update for " + sessionId + ": " + e.getMessage(), e);
         } finally {
+            releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
                 log.debug("[MFA SM Service] [{}] 상태만 업데이트 락 해제.", sessionId);

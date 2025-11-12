@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.statemachine.action.StateDoActionPolicy;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
 import org.springframework.statemachine.config.EnumStateMachineConfigurerAdapter;
 import org.springframework.statemachine.config.builders.StateMachineConfigurationConfigurer;
@@ -15,8 +16,8 @@ import org.springframework.statemachine.config.builders.StateMachineStateConfigu
 import org.springframework.statemachine.config.builders.StateMachineTransitionConfigurer;
 import org.springframework.statemachine.listener.StateMachineListener;
 import org.springframework.statemachine.listener.StateMachineListenerAdapter;
-import org.springframework.statemachine.persist.StateMachineRuntimePersister;
 import org.springframework.statemachine.state.State;
+import org.springframework.statemachine.transition.TransitionConflictPolicy;
 
 import java.util.EnumSet;
 
@@ -25,6 +26,9 @@ import java.util.EnumSet;
 @EnableStateMachineFactory
 @RequiredArgsConstructor
 public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdapter<MfaState, MfaEvent> {
+
+    // P1: StateMachineProperties 주입
+    private final StateMachineProperties properties;
 
     // Actions
     private final InitializeMfaAction initializeMfaAction;
@@ -35,21 +39,43 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     private final HandleFailureAction handleFailureAction;
     private final DetermineNextFactorAction determineNextFactorAction;
 
-    private StateMachineRuntimePersister<MfaState, MfaEvent, String> stateMachinePersister;
-
     // Guards
     private final AllFactorsCompletedGuard allFactorsCompletedGuard;
     private final RetryLimitGuard retryLimitGuard;
 
+    /**
+     * P1: StateMachine 설정 개선
+     *
+     * Factory 기반 패턴:
+     * - autoStartup(false): Factory에서 명시적 start() 제어
+     * - machineId 제거: sessionId 기반 동적 ID 사용
+     *
+     * P1 Properties 활용:
+     * - MFA 관련 설정 로깅 (최대 재시도, 세션 타임아웃, 전이 타임아웃)
+     *
+     * P1 Policy 설정:
+     * - StateDoActionPolicy.TIMEOUT_CANCEL: Action 실행 타임아웃 시 취소
+     * - TransitionConflictPolicy.PARENT: 전이 충돌 시 부모 우선
+     */
     @Override
     public void configure(StateMachineConfigurationConfigurer<MfaState, MfaEvent> config) throws Exception {
-//        config
-//                .withPersistence()
-//                .runtimePersister(stateMachinePersister);
+        // P1: Properties 로깅 (Guard 및 Handler에서 활용)
+        log.info("===================================================");
+        log.info("MFA StateMachine Configuration (Properties-based)");
+        log.info("  - MFA 최대 재시도: {}", properties.getMfa().getMaxRetries());
+        log.info("  - MFA 세션 타임아웃: {}분", properties.getMfa().getSessionTimeoutMinutes());
+        log.info("  - MFA 전이 타임아웃: {}초", properties.getMfa().getTransitionTimeoutSeconds());
+        log.info("  - MFA 동시 세션 제한: {}", properties.getMfa().getMaxConcurrentSessions());
+        log.info("  - MFA 메트릭 수집: {}", properties.getMfa().isEnableMetrics());
+        log.info("  - StateDoActionPolicy: TIMEOUT_CANCEL");
+        log.info("  - TransitionConflictPolicy: PARENT");
+        log.info("===================================================");
+
         config
                 .withConfiguration()
                 .autoStartup(false)
-                .machineId("mfaStateMachine")
+                .stateDoActionPolicy(StateDoActionPolicy.TIMEOUT_CANCEL)
+                .transitionConflictPolicy(TransitionConflictPolicy.PARENT)
                 .listener(listener());
     }
 
@@ -291,16 +317,51 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.SYSTEM_ERROR);
     }
 
+    /**
+     * P1: Error Handling Listener
+     *
+     * StateMachine 실행 중 발생하는 오류를 감지하고 로깅합니다:
+     * - stateChanged: 상태 전이 로깅
+     * - stateMachineError: 오류 발생 시 상세 로깅
+     * - eventNotAccepted: 이벤트 거부 시 로깅
+     * - stateMachineStopped: 인스턴스 종료 로깅
+     */
     @Bean
     public StateMachineListener<MfaState, MfaEvent> listener() {
         return new StateMachineListenerAdapter<MfaState, MfaEvent>() {
             @Override
             public void stateChanged(State<MfaState, MfaEvent> from, State<MfaState, MfaEvent> to) {
                 if (from != null) {
-                    log.info("State changed from {} to {}", from.getId(), to.getId());
+                    log.info("[MFA SM] State changed: {} → {}", from.getId(), to.getId());
                 } else {
-                    log.info("State machine started with state: {}", to.getId());
+                    log.info("[MFA SM] State machine started with state: {}", to.getId());
                 }
+            }
+
+            @Override
+            public void stateMachineError(org.springframework.statemachine.StateMachine<MfaState, MfaEvent> stateMachine,
+                                          Exception exception) {
+                String machineId = stateMachine.getId();
+                MfaState currentState = stateMachine.getState() != null ?
+                    stateMachine.getState().getId() : null;
+
+                log.error("[MFA SM] [{}] StateMachine 오류 발생 (현재 상태: {}): {}",
+                    machineId, currentState, exception.getMessage(), exception);
+            }
+
+            @Override
+            public void eventNotAccepted(org.springframework.messaging.Message<MfaEvent> event) {
+                MfaEvent mfaEvent = event.getPayload();
+                Object sessionId = event.getHeaders().get("sessionId");
+
+                log.warn("[MFA SM] [{}] 이벤트 거부됨: {} (헤더: {})",
+                    sessionId, mfaEvent, event.getHeaders());
+            }
+
+            @Override
+            public void stateMachineStopped(org.springframework.statemachine.StateMachine<MfaState, MfaEvent> stateMachine) {
+                String machineId = stateMachine.getId();
+                log.debug("[MFA SM] [{}] StateMachine 종료됨", machineId);
             }
         };
     }

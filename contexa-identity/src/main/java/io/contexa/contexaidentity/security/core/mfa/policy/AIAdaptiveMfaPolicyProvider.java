@@ -5,7 +5,6 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.CompositeMfaPolicyEvaluator;
-import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +44,6 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
      *
      * @param userRepository 사용자 저장소
      * @param applicationContext Spring 애플리케이션 컨텍스트
-     * @param stateMachineIntegrator MFA 상태 머신 통합자
      * @param properties 인증 컨텍스트 설정
      * @param compositePolicyEvaluator Composite 패턴 평가자
      * @param platformConfig 플랫폼 설정 (Phase 2 개선: 직접 주입)
@@ -54,13 +52,12 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
     public AIAdaptiveMfaPolicyProvider(
             UserRepository userRepository,
             ApplicationContext applicationContext,
-            MfaStateMachineIntegrator stateMachineIntegrator,
             AuthContextProperties properties,
             CompositeMfaPolicyEvaluator compositePolicyEvaluator,
             PlatformConfig platformConfig,
             AICoreOperations aiCoreOperations) {
 
-        super(userRepository, applicationContext, stateMachineIntegrator, properties, compositePolicyEvaluator, platformConfig);
+        super(userRepository, applicationContext, properties, compositePolicyEvaluator, platformConfig);
         this.compositePolicyEvaluator = compositePolicyEvaluator;
         this.aiCoreOperations = aiCoreOperations;
 

@@ -96,11 +96,10 @@ public class PlatformSecurityConfig {
                                 rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        .passkey(Customizer.withDefaults())
-                        .mfaPage(page ->
+                        /*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
                         .order(20)
                 ).oauth2(Customizer.withDefaults())
                 .build();
