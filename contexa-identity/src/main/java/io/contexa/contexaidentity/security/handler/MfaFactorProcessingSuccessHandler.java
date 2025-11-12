@@ -45,24 +45,18 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
-    private final ModelMapper modelMapper;
-    // Phase 3: MfaPolicyProvider 제거 - 모든 비즈니스 로직은 DetermineNextFactorAction에서 처리
 
     public MfaFactorProcessingSuccessHandler(MfaStateMachineIntegrator mfaStateMachineIntegrator,
                                              AuthResponseWriter responseWriter,
-                                             ApplicationContext applicationContext, // 파라미터는 유지 (DI)
                                              AuthContextProperties authContextProperties,
                                              MfaSessionRepository sessionRepository,
                                              TokenService tokenService,
-                                             AuthUrlProvider authUrlProvider,
-                                             ModelMapper modelMapper) {
+                                             AuthUrlProvider authUrlProvider) {
         super(tokenService,responseWriter,sessionRepository,mfaStateMachineIntegrator,authContextProperties);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
-        this.modelMapper = modelMapper;
-        // applicationContext: 파라미터로 받지만 필드에 저장하지 않음 (현재 미사용)
     }
 
     @Override

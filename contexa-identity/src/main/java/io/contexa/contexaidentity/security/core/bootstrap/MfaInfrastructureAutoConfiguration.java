@@ -57,12 +57,10 @@ public class MfaInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public MfaFactorProcessingSuccessHandler mfaFactorProcessingSuccessHandler(MfaStateMachineIntegrator mfaStateMachineIntegrator,
                                                                                AuthResponseWriter authResponseWriter,
-                                                                               ApplicationContext applicationContext,
                                                                                MfaSessionRepository mfaSessionRepository,
-                                                                               AuthUrlProvider authUrlProvider,
-                                                                               ModelMapper modelMapper) {
+                                                                               AuthUrlProvider authUrlProvider) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
-                applicationContext, authContextProperties, mfaSessionRepository, tokenService, authUrlProvider, modelMapper);
+                authContextProperties, mfaSessionRepository, tokenService, authUrlProvider);
     }
 
 

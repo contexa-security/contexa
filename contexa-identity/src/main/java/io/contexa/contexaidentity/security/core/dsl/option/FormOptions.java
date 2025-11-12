@@ -53,7 +53,6 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         public Builder(ApplicationContext applicationContext) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for FormOptions.Builder");
 
-            // AuthUrlProvider를 통해 동적으로 URL 가져오기
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             this.loginPage = urlProvider.getPrimaryLoginPage();

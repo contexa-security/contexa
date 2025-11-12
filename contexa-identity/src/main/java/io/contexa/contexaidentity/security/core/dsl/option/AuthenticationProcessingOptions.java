@@ -19,7 +19,7 @@ public abstract class AuthenticationProcessingOptions extends AbstractOptions {
     protected AuthenticationProcessingOptions(AbstractAuthenticationProcessingOptionsBuilder<?, ?> builder) {
         super(builder);
         Objects.requireNonNull(builder, "Builder cannot be null");
-        this.loginProcessingUrl = builder.loginProcessingUrl; // Can be null if not set by subclass
+        this.loginProcessingUrl = builder.loginProcessingUrl;
         this.order = builder.order;
         this.successHandler = builder.successHandler;
         this.failureHandler = builder.failureHandler;

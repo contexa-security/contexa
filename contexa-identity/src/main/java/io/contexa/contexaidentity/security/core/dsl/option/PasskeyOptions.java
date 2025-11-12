@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.core.dsl.option;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.PasskeyAsepAttributes;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import lombok.Getter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.util.Assert;
@@ -41,8 +42,7 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions { // f
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
 
             // AuthUrlProvider를 통해 동적으로 URL 가져오기
-            io.contexa.contexaidentity.security.service.AuthUrlProvider urlProvider =
-                applicationContext.getBean(io.contexa.contexaidentity.security.service.AuthUrlProvider.class);
+            AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             this.assertionOptionsEndpoint = urlProvider.getPasskeyAssertionOptions();
 

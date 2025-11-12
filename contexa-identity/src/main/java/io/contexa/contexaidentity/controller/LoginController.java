@@ -1,21 +1,14 @@
 package io.contexa.contexaidentity.controller;
 
-import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
-import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
-import io.contexa.contexaidentity.security.core.config.PlatformConfig;
-import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
-import org.springframework.lang.Nullable;
 import org.springframework.security.web.WebAttributes;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -23,9 +16,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import java.util.Map;
-import java.util.Optional;
 
 /**
  * 완전 일원화된 LoginController
@@ -38,8 +28,6 @@ import java.util.Optional;
 @Slf4j
 public class LoginController {
 
-    private final ApplicationContext applicationContext;
-    private final AuthContextProperties authContextProperties;
     private final AuthUrlProvider authUrlProvider;
 
     // 완전 일원화: State Machine 통합자만 사용
@@ -190,25 +178,8 @@ public class LoginController {
             log.debug("Single OTT flow: FactorContext found but no username. Continuing with default flow.");
         }
 
+        // ⭐ Phase 4: AuthUrlProvider가 우선순위 처리 (OttOptions > properties > defaults)
         String tokenGeneratingUrl = authUrlProvider.getOttCodeGeneration();
-
-        // MFA 플로우인 경우에만 설정 확인
-        if (ctx != null && AuthType.MFA.name().equalsIgnoreCase(ctx.getFlowTypeName())) {
-            AuthenticationFlowConfig mfaFlowConfig = findFlowConfigByName(AuthType.MFA.name(), request);
-            if (mfaFlowConfig != null && StringUtils.hasText(ctx.getCurrentStepId())) {
-                Optional<AuthenticationStepConfig> currentOttStepOpt = mfaFlowConfig.getStepConfigs().stream()
-                        .filter(step -> ctx.getCurrentStepId().equals(step.getStepId()) &&
-                                AuthType.OTT.name().equalsIgnoreCase(step.getType()))
-                        .findFirst();
-
-                if (currentOttStepOpt.isPresent()) {
-                    OttOptions ottOptions = getOttOptionsFromFlowOrFirstStep(currentOttStepOpt.get());
-                    if (ottOptions != null && StringUtils.hasText(ottOptions.getTokenGeneratingUrl())) {
-                        tokenGeneratingUrl = ottOptions.getTokenGeneratingUrl();
-                    }
-                }
-            }
-        }
 
         model.addAttribute("ottCodeRequestApiUrl", getContextPath(request) + tokenGeneratingUrl);
         model.addAttribute("storageType", "UNIFIED_STATE_MACHINE"); // 디버깅용
@@ -271,28 +242,8 @@ public class LoginController {
             return createMfaErrorRedirect(request, "mfa_session_expired");
         }
 
-        // MFA 플로우인 경우 설정 확인
-        if (AuthType.MFA.name().equalsIgnoreCase(ctx.getFlowTypeName())) {
-            AuthenticationFlowConfig mfaFlowConfig = findFlowConfigByName(AuthType.MFA.name(), request);
-            if (mfaFlowConfig != null && StringUtils.hasText(ctx.getCurrentStepId())) {
-                Optional<AuthenticationStepConfig> currentOttStepOpt = mfaFlowConfig.getStepConfigs().stream()
-                        .filter(step -> ctx.getCurrentStepId().equals(step.getStepId()) &&
-                                AuthType.OTT.name().equalsIgnoreCase(step.getType()))
-                        .findFirst();
-
-                if (currentOttStepOpt.isPresent()) {
-                    OttOptions ottOptions = getOttOptionsFromFlowOrFirstStep(currentOttStepOpt.get());
-                    if (ottOptions != null) {
-                        if (StringUtils.hasText(ottOptions.getLoginProcessingUrl())) {
-                            processingUrl = ottOptions.getLoginProcessingUrl();
-                        }
-                        if (StringUtils.hasText(ottOptions.getTokenGeneratingUrl())) {
-                            resendUrl = ottOptions.getTokenGeneratingUrl();
-                        }
-                    }
-                }
-            }
-        }
+        // P0.3: AuthUrlProvider가 이미 우선순위 로직 처리 (OttOptions > MfaPageConfig > properties)
+        // 중복 제거 - AuthUrlProvider에서 이미 처리함
 
         model.addAttribute("ottProcessingUrl", getContextPath(request) + processingUrl);
         model.addAttribute("singleOttResendUrl", getContextPath(request) + resendUrl);
@@ -367,27 +318,8 @@ public class LoginController {
         model.addAttribute("currentState", ctx.getCurrentState().name());
         model.addAttribute("pageTitle", "MFA - 이메일 인증 코드 요청");
 
+        // P0.3: AuthUrlProvider가 이미 우선순위 로직 처리 (OttOptions > MfaPageConfig > properties)
         String tokenGeneratingUrl = authUrlProvider.getOttCodeGeneration();
-        AuthenticationFlowConfig mfaFlowConfig = findFlowConfigByName(AuthType.MFA.name(), request);
-
-        if (mfaFlowConfig != null) {
-            Optional<AuthenticationStepConfig> currentOttStepOpt = mfaFlowConfig.getStepConfigs().stream()
-                    .filter(step -> ctx.getCurrentStepId().equals(step.getStepId()) &&
-                            AuthType.OTT.name().equalsIgnoreCase(step.getType()))
-                    .findFirst();
-
-            if (currentOttStepOpt.isPresent()) {
-                AuthenticationStepConfig currentOttStep = currentOttStepOpt.get();
-                Object optionsObj = currentOttStep.getOptions().get("_options");
-                if (optionsObj instanceof OttOptions ottOptions) {
-                    if (StringUtils.hasText(ottOptions.getTokenGeneratingUrl())) {
-                        tokenGeneratingUrl = ottOptions.getTokenGeneratingUrl();
-                        log.info("MFA OTT Request Code UI: Using tokenGeneratingUrl from MFA OTT Step (StepId: {}): {}",
-                                ctx.getCurrentStepId(), tokenGeneratingUrl);
-                    }
-                }
-            }
-        }
 
         model.addAttribute("mfaOttCodeRequestFormActionUrl", getContextPath(request) + tokenGeneratingUrl);
         model.addAttribute("storageType", "UNIFIED_STATE_MACHINE"); // 디버깅용
@@ -412,25 +344,8 @@ public class LoginController {
         model.addAttribute("currentState", ctx.getCurrentState().name());
         model.addAttribute("pageTitle", "MFA - 코드 입력");
 
+        // P0.3: AuthUrlProvider가 이미 우선순위 로직 처리 (OttOptions > MfaPageConfig > properties)
         String loginProcessingUrl = authUrlProvider.getOttLoginProcessing();
-        AuthenticationFlowConfig mfaFlowConfig = findFlowConfigByName(AuthType.MFA.name(), request);
-
-        if (mfaFlowConfig != null) {
-            Optional<AuthenticationStepConfig> currentOttStepOpt = mfaFlowConfig.getStepConfigs().stream()
-                    .filter(step -> ctx.getCurrentStepId().equals(step.getStepId()) &&
-                            AuthType.OTT.name().equalsIgnoreCase(step.getType()))
-                    .findFirst();
-
-            if (currentOttStepOpt.isPresent()) {
-                AuthenticationStepConfig currentOttStep = currentOttStepOpt.get();
-                Object optionsObj = currentOttStep.getOptions().get("_options");
-                if (optionsObj instanceof OttOptions ottOptions && StringUtils.hasText(ottOptions.getLoginProcessingUrl())) {
-                    loginProcessingUrl = ottOptions.getLoginProcessingUrl();
-                    log.info("MFA OTT Challenge UI: Using loginProcessingUrl from MFA OTT Step (StepId: {}): {}",
-                            ctx.getCurrentStepId(), loginProcessingUrl);
-                }
-            }
-        }
 
         model.addAttribute("mfaOttProcessingUrl", getContextPath(request) + loginProcessingUrl);
         model.addAttribute("mfaResendOttUrl", getContextPath(request) + authUrlProvider.getMfaRequestOttCode());
@@ -518,44 +433,5 @@ public class LoginController {
         return "logout";
     }
 
-    // === 유틸리티 메서드들 (기존과 동일) ===
-
-    @Nullable
-    private AuthenticationFlowConfig findFlowConfigByName(String flowTypeName, @Nullable HttpServletRequest request) {
-        if (!StringUtils.hasText(flowTypeName)) return null;
-
-        try {
-            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            return platformConfig.getFlows().stream()
-                    .filter(flow -> flowTypeName.equalsIgnoreCase(flow.getTypeName()))
-                    .findFirst()
-                    .orElseGet(() -> {
-                        String sessionId = (request != null && request.getSession(false) != null) ?
-                                request.getSession(false).getId() : "N/A";
-                        log.warn("LoginController (Session: {}): No AuthenticationFlowConfig found with typeName: {}",
-                                sessionId, flowTypeName);
-                        return null;
-                    });
-        } catch (Exception e) {
-            String sessionId = (request != null && request.getSession(false) != null) ?
-                    request.getSession(false).getId() : "N/A";
-            log.warn("LoginController (Session: {}): Error finding flow config by name '{}': {}",
-                    sessionId, flowTypeName, e.getMessage());
-        }
-        return null;
-    }
-
-    @Nullable
-    private OttOptions getOttOptionsFromFlowOrFirstStep(AuthenticationStepConfig flowConfig) {
-        if (flowConfig == null) return null;
-
-        Map<String, Object> flowLevelOptionsMap = flowConfig.getOptions();
-        if (flowLevelOptionsMap != null) {
-            Object flowOttOptionsObj = flowLevelOptionsMap.get(OttOptions.class.getName());
-            if (flowOttOptionsObj instanceof OttOptions castedOptions) {
-                return castedOptions;
-            }
-        }
-        return null;
-    }
+    // P0.3: 유틸리티 메서드 제거 - AuthUrlProvider가 우선순위 로직을 담당하므로 불필요
 }

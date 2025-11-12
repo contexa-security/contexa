@@ -8,9 +8,11 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
+import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.MfaContinuationFilter;
 import io.contexa.contexaidentity.security.filter.MfaStepFilterWrapper;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import org.slf4j.Logger;
@@ -91,6 +93,40 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                 responseWriter,
                 applicationContext
         );
+
+        // ⭐ Phase 2 & 3: MFA Flow에서 Primary + Factor Options를 AuthUrlProvider에 주입하고 URL Matcher 초기화
+        if (currentFlow.getRegisteredFactorOptions() != null && !currentFlow.getRegisteredFactorOptions().isEmpty()) {
+            try {
+                AuthUrlProvider authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
+
+                // P0.4: Primary Authentication Options 주입
+                if (currentFlow.getPrimaryAuthenticationOptions() != null) {
+                    authUrlProvider.setPrimaryAuthenticationOptions(currentFlow.getPrimaryAuthenticationOptions());
+                    log.info("✅ Primary authentication options injected to AuthUrlProvider");
+                }
+
+                // Factor Options 주입
+                authUrlProvider.updateFactorOptions(currentFlow.getRegisteredFactorOptions());
+                log.info("✅ Factor options injected to AuthUrlProvider: {} factors", currentFlow.getRegisteredFactorOptions().size());
+
+                // URL Matcher 초기화
+                mfaContinuationFilter.initializeUrlMatchers();
+                log.info("✅ MfaContinuationFilter URL matchers initialized");
+            } catch (Exception e) {
+                // P0.2: 초기화 실패 시 시스템 시작을 중단하여 잘못된 설정으로 실행되는 것을 방지
+                log.error("🚨 Critical: Failed to inject options or initialize URL matchers", e);
+                throw new IllegalStateException(
+                    "MFA initialization failed: Unable to inject authentication options or initialize URL matchers. " +
+                    "MFA flow cannot proceed safely. Please check your configuration.", e);
+            }
+        } else {
+            // P0.2: Factor Options가 없는 경우도 에러로 처리 (MFA flow인데 factor가 없으면 비정상)
+            log.error("🚨 Critical: MFA flow has no registered factor options");
+            throw new IllegalStateException(
+                "MFA initialization failed: No factor options registered. " +
+                "MFA flow requires at least one secondary factor (OTT, Passkey, etc.).");
+        }
+
         http.addFilterBefore(mfaContinuationFilter, LogoutFilter.class);
 
         // MfaStepFilterWrapper에 필요한 RequestMatcher 생성

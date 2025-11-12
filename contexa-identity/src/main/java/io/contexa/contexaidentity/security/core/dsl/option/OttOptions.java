@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.core.dsl.option;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.OttAsepAttributes;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import lombok.Getter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
@@ -44,8 +45,8 @@ public final class OttOptions extends AuthenticationProcessingOptions { // final
 
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<OttOptions, Builder> {
-        private String tokenGeneratingUrl = "/mfa/ott/generate-code"; // 기본값
-        private String defaultSubmitPageUrl = "/mfa/challenge/ott"; // 기본값
+        private String tokenGeneratingUrl; // urlProvider에서 설정
+        private String defaultSubmitPageUrl; // urlProvider에서 설정
         private String usernameParameter = "username"; // 기본값
         private String tokenParameter = "token"; // 기본값
         private boolean showDefaultSubmitPage = true; // 기본값
@@ -55,8 +56,19 @@ public final class OttOptions extends AuthenticationProcessingOptions { // final
 
         public Builder(ApplicationContext applicationContext) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for OttOptions.Builder");
+
+            // AuthUrlProvider를 통해 동적으로 URL 가져오기
+            AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
+
+            // OTT 관련 URL 설정
+            this.tokenGeneratingUrl = urlProvider.getOttCodeGeneration();
+            this.defaultSubmitPageUrl = urlProvider.getOttChallengeUi();
+
+            // 부모 클래스 설정
+            super.loginProcessingUrl(urlProvider.getOttLoginProcessing());
+
+            // 기존 서비스 주입
             this.oneTimeTokenService = applicationContext.getBean(OneTimeTokenService.class);
-            super.loginProcessingUrl("/login/mfa-ott"); // OTT 인증 처리 URL 기본값 (OttUrls.loginProcessing)
         }
 
         @Override

@@ -34,6 +34,7 @@ public class SecurityPlatformInitializer implements SecurityPlatform {
         if (flows.isEmpty() && !this.config.getFlows().isEmpty()) {
             log.warn("No FlowContexts were created by FlowContextFactory, but PlatformConfig has flows defined. Check FlowContextFactory logic and HttpSecurity provider.");
         }
+
         securityConfigurerOrchestrator.applyConfigurations(flows, context, config);
         registrar.registerSecurityFilterChains(flows, context.applicationContext());
         log.info("SecurityPlatformInitializer: Security platform initialization complete.");

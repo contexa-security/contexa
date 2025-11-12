@@ -39,6 +39,9 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     public static final String FACTOR_CONTEXT_ATTR = "io.contexa.mfa.FactorContext";
     public static final String VALIDATION_RESULT_ATTR = "io.contexa.mfa.ValidationResult";
 
+    // P1.1: 초기화 상태 플래그
+    private volatile boolean initialized = false;
+
     private final AuthResponseWriter responseWriter;
     private final MfaRequestHandler requestHandler;
     private final MfaUrlMatcher urlMatcher;
@@ -72,6 +75,14 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+
+        // P1.1: 초기화 상태 검증
+        if (!initialized) {
+            log.error("🚨 MfaContinuationFilter not initialized. URL matchers must be initialized before processing requests.");
+            response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                "MFA service is initializing. Please try again in a moment.");
+            return;
+        }
 
         if (!urlMatcher.isMfaRequest(request)) {
             filterChain.doFilter(request, response);
@@ -156,5 +167,23 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                 "MFA_SESSION_INVALID", String.join(", ", validation.getErrors()),
                 request.getRequestURI(), errorResponse);
+    }
+
+    /**
+     * ⭐ Phase 3: URL Matcher 동적 초기화
+     *
+     * <p>
+     * MfaAuthenticationAdapter가 Factor Options를 AuthUrlProvider에 주입한 후
+     * 이 메서드를 호출하여 MfaUrlMatcher를 초기화합니다.
+     * </p>
+     *
+     * <p>
+     * 호출 시점: MfaAuthenticationAdapter.apply() 내에서 Factor Options 주입 직후
+     * </p>
+     */
+    public void initializeUrlMatchers() {
+        urlMatcher.initializeMatchers();
+        initialized = true; // P1.1: 초기화 완료 플래그 설정
+        log.info("✅ MfaContinuationFilter URL matchers initialized and filter is now ready");
     }
 }

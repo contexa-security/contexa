@@ -44,9 +44,7 @@ public class OttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttO
                                             PlatformAuthenticationSuccessHandler successHandler,// 코드 생성 성공 핸들러
                                             PlatformAuthenticationFailureHandler failureHandler) throws Exception { // 코드 검증 실패 핸들러
 
-        String getRequestUrlForForwardingFilter = opts.getLoginProcessingUrl(); // 예: /login/ott 또는 /login/mfa-ott
-        String postProcessingUrlForAuthFilter = opts.getLoginProcessingUrl();   // 이 URL로 자동 POST
-
+        String loginProcessingUrl = opts.getLoginProcessingUrl();
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         ApplicationContext appContext = platformContext.applicationContext();
         UserDetailsService userDetailsService = appContext.getBean(UserDetailsService.class);
@@ -54,7 +52,7 @@ public class OttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttO
 
         http.oneTimeTokenLogin(ott -> {
             ott.defaultSubmitPageUrl(opts.getDefaultSubmitPageUrl()) // 사용자가 직접 코드 입력하는 페이지 (선택적)
-                    .loginProcessingUrl(postProcessingUrlForAuthFilter) // 코드 "검증"을 처리할 POST URL
+                    .loginProcessingUrl(loginProcessingUrl) // 코드 "검증"을 처리할 POST URL
                     .showDefaultSubmitPage(opts.isShowDefaultSubmitPage())
                     .tokenGeneratingUrl(opts.getTokenGeneratingUrl()) // 코드 "생성/발송"을 처리할 POST URL (GenerateOneTimeTokenFilter가 처리)
                     .tokenService(opts.getOneTimeTokenService())
@@ -64,7 +62,5 @@ public class OttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttO
                     .failureHandler(failureHandler)
                     .authenticationProvider(new OneTimeTokenAuthenticationProvider(oneTimeTokenService, userDetailsService));
         });
-        log.info("OttAuthenticationAdapter: Configured OttForwardingFilter for GET {} and OneTimeTokenLogin for POST {} (Generation at {})",
-                getRequestUrlForForwardingFilter, postProcessingUrlForAuthFilter, opts.getTokenGeneratingUrl());
     }
 }

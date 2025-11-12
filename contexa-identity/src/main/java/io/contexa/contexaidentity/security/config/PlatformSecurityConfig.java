@@ -95,7 +95,8 @@ public class PlatformSecurityConfig {
                         .primaryAuthentication(auth -> auth.restLogin(rest ->
                                 rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
-                        .ott(Customizer.withDefaults())
+//                        .ott(Customizer.withDefaults())
+                        .ott(ott -> ott.tokenGeneratingUrl("/customGeneration"))
                         /*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")

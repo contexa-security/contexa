@@ -1,10 +1,16 @@
 package io.contexa.contexaidentity.security.service;
 
+import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
+import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
+import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
+import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
+import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 
 import java.util.*;
@@ -36,12 +42,53 @@ public class AuthUrlProvider {
     private MfaPageConfig mfaPageConfig = new MfaPageConfig();
 
     /**
+     * Factor Options 저장소 (DSL에서 설정한 커스텀 URL 정보)
+     * Key: AuthType (OTT, PASSKEY 등)
+     * Value: AuthenticationProcessingOptions (OttOptions, PasskeyOptions 등)
+     */
+    private final Map<AuthType, AuthenticationProcessingOptions> factorOptionsMap = new HashMap<>();
+
+    /**
+     * P0.4: Primary Authentication Options 저장소 (MFA 1차 인증 설정)
+     */
+    private PrimaryAuthenticationOptions primaryAuthOptions;
+
+    /**
      * Constructor
      *
      * @param properties 인증 URL 설정
      */
     public AuthUrlProvider(AuthContextProperties properties) {
         this.properties = properties;
+    }
+
+    /**
+     * P0.4: Primary Authentication Options 설정
+     *
+     * <p>
+     * MfaAuthenticationAdapter에서 AuthenticationFlowConfig.getPrimaryAuthenticationOptions()를 가져와서 주입합니다.
+     * </p>
+     *
+     * @param primaryAuthOptions Primary 인증 옵션 (null 허용)
+     */
+    public void setPrimaryAuthenticationOptions(@Nullable PrimaryAuthenticationOptions primaryAuthOptions) {
+        if (primaryAuthOptions != null) {
+            log.info("📋 Primary Authentication Options 설정:");
+            log.debug("  [변경 전] Form Login Processing: {}", getPrimaryFormLoginProcessing());
+            log.debug("  [변경 전] Login Page: {}", getPrimaryLoginPage());
+            log.debug("  [변경 전] Login Failure: {}", getPrimaryLoginFailure());
+
+            this.primaryAuthOptions = primaryAuthOptions;
+
+            log.info("✅ Primary authentication options set: loginPage={}, failureUrl={}, loginProcessingUrl={}",
+                primaryAuthOptions.getLoginPage(),
+                primaryAuthOptions.getFailureUrl(),
+                primaryAuthOptions.getLoginProcessingUrl());
+
+            log.debug("  [변경 후] Form Login Processing: {}", getPrimaryFormLoginProcessing());
+            log.debug("  [변경 후] Login Page: {}", getPrimaryLoginPage());
+            log.debug("  [변경 후] Login Failure: {}", getPrimaryLoginFailure());
+        }
     }
 
     /**
@@ -58,39 +105,127 @@ public class AuthUrlProvider {
         }
     }
 
+    /**
+     * Factor Options 업데이트 (DSL에서 설정한 커스텀 URL 주입)
+     *
+     * <p>
+     * MfaAuthenticationAdapter에서 AuthenticationFlowConfig.getRegisteredFactorOptions()를 가져와서 주입합니다.
+     * 이 메서드를 통해 OttOptions, PasskeyOptions 등의 커스텀 URL 설정이 AuthUrlProvider에 반영됩니다.
+     * </p>
+     *
+     * <p>
+     * 우선순위: DSL Factor Options > AuthContextProperties > 기본값
+     * </p>
+     *
+     * @param options Factor Options Map (null 허용)
+     */
+    public void updateFactorOptions(@Nullable Map<AuthType, AuthenticationProcessingOptions> options) {
+        if (options != null && !options.isEmpty()) {
+            // P1.3: 업데이트 전 기존 URL 로깅
+            log.info("📋 Factor Options 업데이트 시작:");
+            log.debug("  [변경 전] OTT Code Generation: {}", getOttCodeGeneration());
+            log.debug("  [변경 전] OTT Login Processing: {}", getOttLoginProcessing());
+            log.debug("  [변경 전] Passkey Login Processing: {}", getPasskeyLoginProcessing());
+
+            this.factorOptionsMap.putAll(options);
+            log.info("✅ Factor options updated in AuthUrlProvider: {}", options.keySet());
+
+            // P1.3: 업데이트 후 새 URL 로깅
+            options.forEach((authType, opts) -> {
+                if (opts instanceof OttOptions ottOpts) {
+                    log.info("  - OTT: tokenGeneratingUrl={}, loginProcessing={}",
+                        ottOpts.getTokenGeneratingUrl(), ottOpts.getLoginProcessingUrl());
+                } else if (opts instanceof PasskeyOptions passkeyOpts) {
+                    log.info("  - Passkey: loginProcessing={}",
+                        passkeyOpts.getLoginProcessingUrl());
+                }
+            });
+
+            log.debug("  [변경 후] OTT Code Generation: {}", getOttCodeGeneration());
+            log.debug("  [변경 후] OTT Login Processing: {}", getOttLoginProcessing());
+            log.debug("  [변경 후] Passkey Login Processing: {}", getPasskeyLoginProcessing());
+        } else {
+            log.debug("No factor options to update (null or empty)");
+        }
+    }
+
     // ========================================
     // Primary Authentication URLs
     // ========================================
 
     /**
      * Form 로그인 처리 URL
+     *
+     * <p>
+     * 우선순위:
+     * 1. PrimaryAuthenticationOptions.loginProcessingUrl (MFA 1차 인증 DSL 설정)
+     * 2. AuthContextProperties 기본값 (/login)
+     * </p>
+     *
      * @return POST /login (기본값)
      */
     public String getPrimaryFormLoginProcessing() {
+        if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginProcessingUrl())) {
+            if (primaryAuthOptions.isFormLogin()) {
+                return primaryAuthOptions.getLoginProcessingUrl();
+            }
+        }
         return properties.getUrls().getPrimary().getFormLoginProcessing();
     }
 
     /**
      * REST API 로그인 처리 URL
+     *
+     * <p>
+     * 우선순위:
+     * 1. PrimaryAuthenticationOptions.loginProcessingUrl (MFA 1차 인증 DSL 설정, REST 타입)
+     * 2. AuthContextProperties 기본값 (/api/auth/login)
+     * </p>
+     *
      * @return POST /api/auth/login (기본값)
      */
     public String getPrimaryRestLoginProcessing() {
+        if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginProcessingUrl())) {
+            if (primaryAuthOptions.isRestLogin()) {
+                return primaryAuthOptions.getLoginProcessingUrl();
+            }
+        }
         return properties.getUrls().getPrimary().getRestLoginProcessing();
     }
 
     /**
      * 로그인 페이지 URL
+     *
+     * <p>
+     * 우선순위:
+     * 1. PrimaryAuthenticationOptions.loginPage (MFA 1차 인증 DSL 설정)
+     * 2. AuthContextProperties 기본값 (/loginForm)
+     * </p>
+     *
      * @return GET /loginForm (기본값)
      */
     public String getPrimaryLoginPage() {
+        if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginPage())) {
+            return primaryAuthOptions.getLoginPage();
+        }
         return properties.getUrls().getPrimary().getFormLoginPage();
     }
 
     /**
      * 로그인 실패 URL
+     *
+     * <p>
+     * 우선순위:
+     * 1. PrimaryAuthenticationOptions.failureUrl (MFA 1차 인증 DSL 설정)
+     * 2. AuthContextProperties 기본값 (/login?error)
+     * </p>
+     *
      * @return /login?error (기본값)
      */
     public String getPrimaryLoginFailure() {
+        if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getFailureUrl())) {
+            return primaryAuthOptions.getFailureUrl();
+        }
         return properties.getUrls().getPrimary().getLoginFailure();
     }
 
@@ -256,9 +391,24 @@ public class AuthUrlProvider {
 
     /**
      * OTT 코드 생성 URL
+     *
+     * <p>
+     * 우선순위:
+     * 1. OttOptions.tokenGeneratingUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/mfa/ott/generate-code)
+     * </p>
+     *
      * @return POST /mfa/ott/generate-code (기본값)
      */
     public String getOttCodeGeneration() {
+        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.OTT);
+        if (ottOpts instanceof OttOptions ottOptions) {
+            String customUrl = ottOptions.getTokenGeneratingUrl();
+            if (StringUtils.hasText(customUrl)) {
+                return customUrl;
+            }
+        }
+
         return properties.getUrls().getFactors().getOtt().getCodeGeneration();
     }
 
@@ -275,24 +425,49 @@ public class AuthUrlProvider {
      *
      * <p>
      * 우선순위:
-     * 1. MfaPageConfig.ottVerifyPageUrl (DSL 커스텀 설정)
-     * 2. AuthContextProperties 기본값 (/mfa/challenge/ott)
+     * 1. OttOptions.defaultSubmitPageUrl (DSL 커스텀 설정 - API URL)
+     * 2. MfaPageConfig.ottVerifyPageUrl (DSL 커스텀 설정 - UI 페이지)
+     * 3. AuthContextProperties 기본값 (/mfa/challenge/ott)
      * </p>
      *
      * @return OTT 코드 검증 챌린지 페이지 URL
      */
     public String getOttChallengeUi() {
+        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.OTT);
+        if (ottOpts instanceof OttOptions ottOptions) {
+            String customUrl = ottOptions.getDefaultSubmitPageUrl();
+            if (StringUtils.hasText(customUrl)) {
+                return customUrl;
+            }
+        }
+
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttVerifyPage()) {
             return mfaPageConfig.getOttVerifyPageUrl();
         }
+
         return properties.getUrls().getFactors().getOtt().getChallengeUi();
     }
 
     /**
      * OTT 코드 검증 처리 URL (Filter가 처리)
+     *
+     * <p>
+     * 우선순위:
+     * 1. OttOptions.loginProcessingUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/login/mfa-ott)
+     * </p>
+     *
      * @return POST /login/mfa-ott (기본값)
      */
     public String getOttLoginProcessing() {
+        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.OTT);
+        if (ottOpts instanceof OttOptions ottOptions) {
+            String customUrl = ottOptions.getLoginProcessingUrl();
+            if (StringUtils.hasText(customUrl)) {
+                return customUrl;
+            }
+        }
+
         return properties.getUrls().getFactors().getOtt().getLoginProcessing();
     }
 
@@ -342,9 +517,24 @@ public class AuthUrlProvider {
 
     /**
      * Passkey 검증 처리 URL (Filter가 처리)
+     *
+     * <p>
+     * 우선순위:
+     * 1. PasskeyOptions.loginProcessingUrl (DSL 커스텀 설정)
+     * 2. AuthContextProperties 기본값 (/login/mfa-webauthn)
+     * </p>
+     *
      * @return POST /login/mfa-webauthn (기본값)
      */
     public String getPasskeyLoginProcessing() {
+        AuthenticationProcessingOptions passkeyOpts = factorOptionsMap.get(AuthType.PASSKEY);
+        if (passkeyOpts instanceof PasskeyOptions passkeyOptions) {
+            String customUrl = passkeyOptions.getLoginProcessingUrl();
+            if (StringUtils.hasText(customUrl)) {
+                return customUrl;
+            }
+        }
+
         return properties.getUrls().getFactors().getPasskey().getLoginProcessing();
     }
 
