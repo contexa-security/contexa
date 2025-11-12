@@ -10,7 +10,8 @@
       "Bash(./gradlew :contexa-identity:compileJava:*)",
       "Bash(..gradlew.bat :contexa-identity:test:*)",
       "Bash(cmd /c \"cd /d D:\\projects\\contexa && ..\\gradlew.bat :contexa-identity:test --tests MfaStateMachineLoadTest --stacktrace 2>&1\")",
-      "Bash(cmd /c \"D:\\projects\\gradlew.bat :contexa-identity:test --tests MfaStateMachineLoadTest --stacktrace\")"
+      "Bash(cmd /c \"D:\\projects\\gradlew.bat :contexa-identity:test --tests MfaStateMachineLoadTest --stacktrace\")",
+      "Bash(cmd /c \"D:\\projects\\gradlew.bat :contexa-identity:compileJava\")"
     ],
     "deny": [],
     "ask": []
