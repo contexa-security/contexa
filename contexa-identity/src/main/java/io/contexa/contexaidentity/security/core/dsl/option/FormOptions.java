@@ -35,8 +35,22 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         this.asepAttributes = builder.asepAttributes;
     }
 
+    /**
+     * 단일 인증용 Builder 생성 (기본)
+     * @param applicationContext ApplicationContext
+     * @return Builder
+     */
     public static Builder builder(ApplicationContext applicationContext) {
-        return new Builder(applicationContext);
+        return new Builder(applicationContext, false);
+    }
+
+    /**
+     * MFA 1차 인증용 Builder 생성
+     * @param applicationContext ApplicationContext
+     * @return Builder
+     */
+    public static Builder builderForMfa(ApplicationContext applicationContext) {
+        return new Builder(applicationContext, true);
     }
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<FormOptions, Builder> {
@@ -50,16 +64,37 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         private SafeHttpFormLoginCustomizer rawFormLoginCustomizer;
         private FormAsepAttributes asepAttributes;
 
+        /**
+         * 단일 인증용 생성자 (기본 - 하위 호환성)
+         */
         public Builder(ApplicationContext applicationContext) {
+            this(applicationContext, false);
+        }
+
+        /**
+         * 단일/MFA 구분 생성자
+         * @param applicationContext ApplicationContext
+         * @param isMfaMode true: MFA 1차 인증, false: 단일 인증
+         */
+        private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for FormOptions.Builder");
 
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
-            this.loginPage = urlProvider.getPrimaryLoginPage();
-            this.defaultSuccessUrl = urlProvider.getPrimaryLoginSuccess();
-            this.failureUrl = urlProvider.getPrimaryLoginFailure();
+            if (isMfaMode) {
+                // MFA 1차 인증 URL
+                this.loginPage = urlProvider.getPrimaryLoginPage();
+                this.defaultSuccessUrl = urlProvider.getPrimaryLoginSuccess();
+                this.failureUrl = urlProvider.getPrimaryLoginFailure();
+                super.loginProcessingUrl(urlProvider.getPrimaryFormLoginProcessing());
+            } else {
+                // 단일 인증 URL (Spring Security 기본값)
+                this.loginPage = urlProvider.getSingleFormLoginPage();
+                this.defaultSuccessUrl = urlProvider.getSingleLoginSuccess();
+                this.failureUrl = urlProvider.getSingleLoginFailure();
+                super.loginProcessingUrl(urlProvider.getSingleFormLoginProcessing());
+            }
 
-            super.loginProcessingUrl(urlProvider.getPrimaryFormLoginProcessing());
             super.order(100);
         }
 

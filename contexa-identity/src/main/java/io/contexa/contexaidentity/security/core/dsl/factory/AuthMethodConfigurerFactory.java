@@ -32,8 +32,14 @@ public final class AuthMethodConfigurerFactory {
             case FORM -> {
                 yield new FormDslConfigurerImpl(this.applicationContext);
             }
-            case REST, MFA_REST-> {
+            case MFA_FORM -> {
+                yield new FormDslConfigurerImpl(this.applicationContext, true);
+            }
+            case REST -> {
                 yield new RestDslConfigurerImpl(this.applicationContext);
+            }
+            case MFA_REST -> {
+                yield new RestDslConfigurerImpl(this.applicationContext, true);
             }
 
             case OTT -> {

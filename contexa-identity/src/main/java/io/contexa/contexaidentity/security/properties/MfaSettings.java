@@ -185,15 +185,6 @@ public class MfaSettings {
     @NestedConfigurationProperty
     private MemorySettings memory = new MemorySettings();
 
-
-
-    // === 중첩된 팩터 설정 ===
-    /**
-     * MFA Passkey 팩터 설정
-     */
-    @NestedConfigurationProperty
-    private PasskeyFactorSettings passkeyFactor = new PasskeyFactorSettings();
-
     /**
      * SMS 팩터 설정
      */

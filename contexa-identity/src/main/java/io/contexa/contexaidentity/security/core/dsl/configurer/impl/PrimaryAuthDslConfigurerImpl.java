@@ -55,10 +55,10 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
         AuthMethodConfigurerFactory factory = new AuthMethodConfigurerFactory(this.applicationContext);
 
         if (formLoginCustomizer != null) {
+            // MFA 1차 인증용 FormDslConfigurer 생성 (AuthType.MFA_FORM)
             FormDslConfigurerImpl formDslBuilder = (FormDslConfigurerImpl) factory.createFactorConfigurer(
-                    AuthType.FORM, FormDslConfigurer.class
+                AuthType.MFA_FORM, FormDslConfigurer.class
             );
-            formDslBuilder.setApplicationContext(this.applicationContext);
             formLoginCustomizer.customize(formDslBuilder);
             FormOptions builtFormOptions = formDslBuilder.buildConcreteOptions();
 
@@ -67,13 +67,12 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
             log.debug("PrimaryAuth: FormLogin options built. Processing URL: {}", determinedLoginProcessingUrl);
 
         } else if (restLoginCustomizer != null) {
+            // MFA 1차 인증용 RestDslConfigurer 생성 (AuthType.MFA_REST)
             RestDslConfigurerImpl restDslBuilder = (RestDslConfigurerImpl) factory.createFactorConfigurer(
-                    AuthType.MFA_REST, RestDslConfigurer.class
+                AuthType.MFA_REST, RestDslConfigurer.class
             );
-            restDslBuilder.setApplicationContext(this.applicationContext);
             restLoginCustomizer.customize(restDslBuilder);
-//            RestOptions builtRestOptions = restDslBuilder.buildConcreteOptions();
-            RestOptions builtRestOptions = (RestOptions) restDslBuilder.buildConcreteOptions();
+            RestOptions builtRestOptions = restDslBuilder.buildConcreteOptions();
 
             optionsBuilder.restOptions(builtRestOptions);
             determinedLoginProcessingUrl = builtRestOptions.getLoginProcessingUrl();

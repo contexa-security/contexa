@@ -12,6 +12,7 @@ import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.FlowContextFactory;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.validator.*;
+import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
@@ -69,6 +70,7 @@ public class SecurityPlatformConfiguration {
                 "form", UsernamePasswordAuthenticationFilter.class,
                 "rest", RestAuthenticationFilter.class,
                 "mfa_rest", MfaRestAuthenticationFilter.class,
+                "mfa_form", MfaFormAuthenticationFilter.class,
                 "ott", OneTimeTokenAuthenticationFilter.class,
                 "passkey", WebAuthnAuthenticationFilter.class
         );

@@ -438,8 +438,8 @@
         _getDefaultEndpoints() {
             return {
                 primary: {
-                    formLoginPage: '/loginForm',
-                    formLoginProcessing: '/login',
+                    formLoginPage: '/mfa/login',
+                    formLoginProcessing: '/mfa/login',
                     restLoginProcessing: '/api/auth/login',
                     loginFailure: '/login?error',
                     loginSuccess: '/home'
@@ -461,7 +461,7 @@
                     codeSent: '/mfa/ott/code-sent',
                     defaultFailure: '/mfa/challenge/ott?error=true',
                     singleOttRequestEmail: '/loginOtt',
-                    singleOttCodeGeneration: '/login/ott/generate',
+                    singleOttCodeGeneration: '/ott/generate',
                     singleOttChallenge: '/loginOttVerifyCode',
                     singleOttSent: '/ott/sent'
                 },

@@ -37,9 +37,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             // 1. Assertion Options 요청
-            // 서버 엔드포인트는 Spring Security WebAuthn이 기본 제공하는 /webauthn/assertion/options 또는 커스텀 엔드포인트
-            // 현재 PlatformSecurityConfig에는 `/webauthn/assertion/options`로 단일 Passkey 로그인 옵션 요청 경로가 설정됨
-            const optionsResponse = await fetch("/webauthn/assertion/options", {
+            // Spring Security 6.4+ WebAuthn 표준 엔드포인트: /webauthn/authenticate/options
+            const optionsResponse = await fetch("/webauthn/authenticate/options", {
                 method: "POST", // Spring Security WebAuthn 기본은 POST
                 credentials: "same-origin",
                 headers: {

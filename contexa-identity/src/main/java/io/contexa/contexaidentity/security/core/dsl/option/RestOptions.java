@@ -20,8 +20,18 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         this.asepAttributes = builder.asepAttributes; // 추가
     }
 
+    /**
+     * 단일 인증용 Builder 생성 (기본)
+     */
     public static Builder builder(org.springframework.context.ApplicationContext applicationContext) {
-        return new Builder(applicationContext);
+        return new Builder(applicationContext, false);
+    }
+
+    /**
+     * MFA 1차 인증용 Builder 생성
+     */
+    public static Builder builderForMfa(org.springframework.context.ApplicationContext applicationContext) {
+        return new Builder(applicationContext, true);
     }
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<RestOptions, Builder> {
@@ -29,14 +39,32 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         private String passwordParameter = "password";
         private RestAsepAttributes asepAttributes; // 추가
 
+        /**
+         * 단일 인증용 생성자 (기본 - 하위 호환성)
+         */
         public Builder(org.springframework.context.ApplicationContext applicationContext) {
+            this(applicationContext, false);
+        }
+
+        /**
+         * 단일/MFA 구분 생성자
+         * @param applicationContext ApplicationContext
+         * @param isMfaMode true: MFA 1차 인증, false: 단일 인증
+         */
+        private Builder(org.springframework.context.ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for RestOptions.Builder");
 
             // AuthUrlProvider를 통해 동적으로 URL 가져오기
             io.contexa.contexaidentity.security.service.AuthUrlProvider urlProvider =
                 applicationContext.getBean(io.contexa.contexaidentity.security.service.AuthUrlProvider.class);
 
-            super.loginProcessingUrl(urlProvider.getPrimaryRestLoginProcessing());
+            if (isMfaMode) {
+                // MFA 1차 인증 URL
+                super.loginProcessingUrl(urlProvider.getPrimaryRestLoginProcessing());
+            } else {
+                // 단일 인증 URL
+                super.loginProcessingUrl(urlProvider.getSingleRestLoginProcessing());
+            }
             super.order(200);
         }
 

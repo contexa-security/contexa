@@ -208,8 +208,7 @@ public class AuthUrlProvider {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginPage())) {
             return primaryAuthOptions.getLoginPage();
         }
-        return null;
-//        return properties.getUrls().getPrimary().getFormLoginPage();
+        return properties.getUrls().getPrimary().getFormLoginPage();
     }
 
     /**
@@ -244,6 +243,162 @@ public class AuthUrlProvider {
      */
     public String getLogoutPage() {
         return properties.getUrls().getPrimary().getLogoutPage();
+    }
+
+    // ========================================
+    // Single Authentication URLs (MFA 없는 독립 인증)
+    // ========================================
+
+    /**
+     * 단일 Form 로그인 처리 URL
+     * @return POST /login (Spring Security 기본값)
+     */
+    public String getSingleFormLoginProcessing() {
+        return properties.getUrls().getSingle().getFormLoginProcessing();
+    }
+
+    /**
+     * 단일 Form 로그인 페이지 URL
+     * @return GET /login (Spring Security 기본값)
+     */
+    public String getSingleFormLoginPage() {
+        return properties.getUrls().getSingle().getFormLoginPage();
+    }
+
+    /**
+     * 단일 REST API 로그인 처리 URL
+     * @return POST /api/auth/login (기본값)
+     */
+    public String getSingleRestLoginProcessing() {
+        return properties.getUrls().getSingle().getRestLoginProcessing();
+    }
+
+    /**
+     * 단일 로그인 실패 URL
+     * @return /login?error (기본값)
+     */
+    public String getSingleLoginFailure() {
+        return properties.getUrls().getSingle().getLoginFailure();
+    }
+
+    /**
+     * 단일 로그인 성공 URL
+     * @return / (기본값)
+     */
+    public String getSingleLoginSuccess() {
+        return properties.getUrls().getSingle().getLoginSuccess();
+    }
+
+    /**
+     * 단일 OTT 이메일 요청 페이지
+     * @return GET /login/ott (기본값)
+     */
+    public String getSingleOttRequestEmail() {
+        return properties.getUrls().getSingle().getOtt().getRequestEmail();
+    }
+
+    /**
+     * 단일 OTT 코드 생성 URL
+     * @return POST /login/ott/generate (기본값)
+     */
+    public String getSingleOttCodeGeneration() {
+        return properties.getUrls().getSingle().getOtt().getCodeGeneration();
+    }
+
+    /**
+     * 단일 OTT 코드 전송 완료 페이지
+     * @return GET /login/ott/sent (기본값)
+     */
+    public String getSingleOttCodeSent() {
+        return properties.getUrls().getSingle().getOtt().getCodeSent();
+    }
+
+    /**
+     * 단일 OTT 챌린지 페이지
+     * @return GET /login/ott/verify (기본값)
+     */
+    public String getSingleOttChallenge() {
+        return properties.getUrls().getSingle().getOtt().getChallenge();
+    }
+
+    /**
+     * 단일 OTT 로그인 처리 URL
+     * @return POST /login/ott (Spring Security OneTimeTokenLogin 기본값)
+     */
+    public String getSingleOttLoginProcessing() {
+        return properties.getUrls().getSingle().getOtt().getLoginProcessing();
+    }
+
+    /**
+     * 단일 OTT 코드 전송 완료 페이지
+     * @return GET /ott/sent (기본값)
+     */
+    public String getSingleOttSent() {
+        return properties.getUrls().getFactors().getOtt().getSingleOttSent();
+    }
+
+    /**
+     * 단일 OTT 로그인 실패 URL
+     * @return /login/ott?error (기본값)
+     */
+    public String getSingleOttLoginFailure() {
+        return properties.getUrls().getSingle().getOtt().getLoginFailure();
+    }
+
+    /**
+     * 단일 Passkey 로그인 페이지
+     * @return GET /login/webauthn (기본값)
+     */
+    public String getSinglePasskeyLoginPage() {
+        return properties.getUrls().getSingle().getPasskey().getLoginPage();
+    }
+
+    /**
+     * 단일 Passkey 로그인 처리 URL
+     * @return POST /login/webauthn (Spring Security WebAuthn 기본값)
+     */
+    public String getSinglePasskeyLoginProcessing() {
+        return properties.getUrls().getSingle().getPasskey().getLoginProcessing();
+    }
+
+    /**
+     * 단일 Passkey 로그인 실패 URL
+     * @return /login/webauthn?error (기본값)
+     */
+    public String getSinglePasskeyLoginFailure() {
+        return properties.getUrls().getSingle().getPasskey().getLoginFailure();
+    }
+
+    /**
+     * 단일 Passkey Assertion Options URL (Spring Security 표준)
+     * @return /webauthn/authenticate/options (Spring Security 기본값)
+     */
+    public String getSinglePasskeyAssertionOptions() {
+        return properties.getUrls().getSingle().getPasskey().getAssertionOptions();
+    }
+
+    /**
+     * 단일 Passkey Registration Options URL (Spring Security 표준)
+     * @return /webauthn/registration/options (Spring Security 기본값)
+     */
+    public String getSinglePasskeyRegistrationOptions() {
+        return properties.getUrls().getSingle().getPasskey().getRegistrationOptions();
+    }
+
+    /**
+     * 단일 Passkey 등록 요청 URL
+     * @return POST /passkey/register-request (기본값)
+     */
+    public String getSinglePasskeyRegistrationRequest() {
+        return properties.getUrls().getSingle().getPasskey().getRegistrationRequest();
+    }
+
+    /**
+     * 단일 Passkey 등록 처리 URL
+     * @return POST /webauthn/register (기본값)
+     */
+    public String getSinglePasskeyRegistrationProcessing() {
+        return properties.getUrls().getSingle().getPasskey().getRegistrationProcessing();
     }
 
     // ========================================
@@ -478,38 +633,6 @@ public class AuthUrlProvider {
      */
     public String getOttDefaultFailure() {
         return properties.getUrls().getFactors().getOtt().getDefaultFailure();
-    }
-
-    /**
-     * 단일 OTT 이메일 요청 페이지
-     * @return GET /loginOtt (기본값)
-     */
-    public String getSingleOttRequestEmail() {
-        return properties.getUrls().getFactors().getOtt().getSingleOttRequestEmail();
-    }
-
-    /**
-     * 단일 OTT 코드 생성 URL
-     * @return POST /login/ott/generate (기본값)
-     */
-    public String getSingleOttCodeGeneration() {
-        return properties.getUrls().getFactors().getOtt().getSingleOttCodeGeneration();
-    }
-
-    /**
-     * 단일 OTT 챌린지 페이지
-     * @return GET /loginOttVerifyCode (기본값)
-     */
-    public String getSingleOttChallenge() {
-        return properties.getUrls().getFactors().getOtt().getSingleOttChallenge();
-    }
-
-    /**
-     * 단일 OTT 코드 전송 완료 페이지
-     * @return GET /ott/sent (기본값)
-     */
-    public String getSingleOttSent() {
-        return properties.getUrls().getFactors().getOtt().getSingleOttSent();
     }
 
     // ========================================
@@ -773,8 +896,15 @@ public class AuthUrlProvider {
         addUrlWithContext(urlToContexts, getMfaConfig(), "Mfa.config");
         addUrlWithContext(urlToContexts, getPasskeyAssertionOptions(), "Passkey.assertionOptions");
 
-        // 의도된 중복 URL 정의 (리다이렉트 목적지가 같은 경우)
-        Set<String> allowedDuplicates = Set.of("/home", "/loginForm");
+        // 의도된 중복 URL 정의
+        // - Form Login: GET(페이지 표시) + POST(로그인 처리)에 같은 URL 사용 (Spring Security 표준 패턴)
+        // - 리다이렉트 목적지가 같은 경우
+        Set<String> allowedDuplicates = Set.of(
+            "/login",      // Single Auth Form Login (GET 페이지 + POST 처리)
+            "/mfa/login",  // MFA Primary Auth Form Login (GET 페이지 + POST 처리)
+            "/home",
+            "/loginForm"
+        );
 
         // 중복 검사
         List<String> problematicDuplicates = new ArrayList<>();

@@ -24,7 +24,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
@@ -111,7 +113,9 @@ public class SecurityFilterChainRegistrar {
 
             // ⭐ Passkey (WebAuthn) 핸들러 교체: Spring Security WebAuthn DSL이 커스텀 핸들러 등록을 지원하지 않으므로
             // Filter Chain 빌드 후 WebAuthnAuthenticationFilter를 찾아서 핸들러를 교체합니다.
-            replaceWebAuthnHandlersIfNeeded(builtChain, flowConfig, appContext);
+            if (AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
+                replaceWebAuthnHandlersIfNeeded(builtChain, flowConfig, appContext);
+            }
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
                 Objects.requireNonNull(step, "AuthenticationStepConfig in flow cannot be null.");
@@ -206,23 +210,15 @@ public class SecurityFilterChainRegistrar {
                 .anyMatch(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()));
 
         if (!hasPasskeyStep) {
-            return; // Passkey 스텝이 없으면 처리 불필요
+            return;
         }
 
-        log.debug("🔧 Passkey step detected in flow '{}', searching for WebAuthnAuthenticationFilter...",
-                flowConfig.getTypeName());
-
-        // Filter Chain에서 WebAuthnAuthenticationFilter 찾기
         for (Filter filter : builtChain.getFilters()) {
-            // AbstractAuthenticationProcessingFilter를 상속한 필터 중에서
             if (filter instanceof AbstractAuthenticationProcessingFilter authFilter) {
-
-                // 클래스 이름으로 WebAuthnAuthenticationFilter 식별
                 String filterClassName = filter.getClass().getSimpleName();
-                if (filterClassName.contains("WebAuthn")) {
-                    log.info("🔧 Found WebAuthnAuthenticationFilter, replacing handlers...");
 
-                    // Passkey 스텝 찾기
+                if (filterClassName.contains("WebAuthn")) {
+
                     AuthenticationStepConfig passkeyStep = flowConfig.getStepConfigs().stream()
                             .filter(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()))
                             .findFirst()
@@ -232,59 +228,18 @@ public class SecurityFilterChainRegistrar {
                         log.warn("⚠️ Passkey step configuration not found, cannot replace handlers");
                         return;
                     }
-
-                    // Success Handler 결정: Spring Bean으로부터 가져오기
-                    // MFA Flow에서 Passkey는 intermediate factor이므로 MfaFactorProcessingSuccessHandler 사용
-                    PlatformAuthenticationSuccessHandler customSuccessHandler;
-                    if (AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
-                        // MFA Flow: Passkey는 secondary factor이므로 MfaFactorProcessingSuccessHandler
-                        try {
-                            customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
-                            log.debug("Using MfaFactorProcessingSuccessHandler for Passkey in MFA flow");
-                        } catch (Exception e) {
-                            log.error(" Failed to retrieve MfaFactorProcessingSuccessHandler bean from ApplicationContext", e);
-                            return;
-                        }
-                    } else {
-                        // Single Flow: PrimaryAuthenticationSuccessHandler
-                        try {
-                            customSuccessHandler = appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
-                            log.debug("Using PrimaryAuthenticationSuccessHandler for Passkey in single flow");
-                        } catch (Exception e) {
-                            log.error(" Failed to retrieve PrimaryAuthenticationSuccessHandler bean from ApplicationContext", e);
-                            return;
-                        }
-                    }
-
-                    // Failure Handler 결정: Spring Bean으로부터 가져오기
-                    PlatformAuthenticationFailureHandler customFailureHandler;
                     try {
-                        customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-                        log.debug("Using UnifiedAuthenticationFailureHandler for Passkey");
-                    } catch (Exception e) {
-                        log.error(" Failed to retrieve UnifiedAuthenticationFailureHandler bean from ApplicationContext", e);
-                        return;
-                    }
 
-                    // 핸들러 교체
-                    authFilter.setAuthenticationSuccessHandler(customSuccessHandler);
-                    log.info("WebAuthn Success Handler replaced: {}",
-                            customSuccessHandler.getClass().getSimpleName());
+                        PlatformAuthenticationSuccessHandler customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
+                        PlatformAuthenticationFailureHandler customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
+                        authFilter.setAuthenticationSuccessHandler(customSuccessHandler);
+                        authFilter.setAuthenticationFailureHandler(customFailureHandler);
 
-                    authFilter.setAuthenticationFailureHandler(customFailureHandler);
-                    log.info("WebAuthn Failure Handler replaced: {}",
-                            customFailureHandler.getClass().getSimpleName());
-
-                    // loginProcessingUrl 변경 (AuthContextProperties에서 PasskeyUrls 가져오기)
-                    try {
                         AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
                         String customLoginProcessingUrl = authProps.getUrls().getFactors().getPasskey().getLoginProcessing();
 
                         if (customLoginProcessingUrl != null && !customLoginProcessingUrl.isEmpty()) {
-                            AntPathRequestMatcher customMatcher = new AntPathRequestMatcher(
-                                    customLoginProcessingUrl,
-                                    HttpMethod.POST.name()
-                            );
+                            RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, customLoginProcessingUrl);
                             authFilter.setRequiresAuthenticationRequestMatcher(customMatcher);
                             log.info("WebAuthn loginProcessingUrl changed to: {}", customLoginProcessingUrl);
                         }
@@ -292,10 +247,9 @@ public class SecurityFilterChainRegistrar {
                         log.error("Failed to change WebAuthn loginProcessingUrl", e);
                     }
 
-                    log.info("WebAuthnAuthenticationFilter handlers and URL replacement completed for flow: {}",
-                            flowConfig.getTypeName());
+                    log.info("WebAuthnAuthenticationFilter handlers and URL replacement completed for flow: {}", flowConfig.getTypeName());
 
-                    return; // 찾았으면 종료
+                    return;
                 }
             }
         }

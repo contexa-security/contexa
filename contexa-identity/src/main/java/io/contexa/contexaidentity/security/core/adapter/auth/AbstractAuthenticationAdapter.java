@@ -7,6 +7,7 @@ import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
+import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.handler.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -75,28 +76,41 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         ApplicationContext appContext = platformContext.applicationContext();
         Objects.requireNonNull(appContext, "ApplicationContext from PlatformContext cannot be null");
 
-        AbstractMfaAuthenticationSuccessHandler mfaSuccessHandler = (AbstractMfaAuthenticationSuccessHandler)resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, appContext);
-        UnifiedAuthenticationFailureHandler mfaFailureHandler = (UnifiedAuthenticationFailureHandler)resolveFailureHandler(options, currentFlow, appContext);
+        // 핸들러 결정 (MFA 아니면 null)
+        PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, appContext);
+        PlatformAuthenticationFailureHandler failureHandler = resolveFailureHandler(options, currentFlow, appContext);
 
-        if(options.getSuccessHandler() != null) mfaSuccessHandler.setDelegateHandler(options.getSuccessHandler());
-        if(options.getFailureHandler() != null) mfaFailureHandler.setDelegateHandler(options.getFailureHandler());
+        // null 체크 후 위임 핸들러 설정 (MFA일 때만)
+        if (successHandler != null) {
+            AbstractMfaAuthenticationSuccessHandler mfaSuccessHandler = (AbstractMfaAuthenticationSuccessHandler) successHandler;
+            if (options.getSuccessHandler() != null) {
+                mfaSuccessHandler.setDelegateHandler(options.getSuccessHandler());
+            }
+        }
+
+        if (failureHandler != null) {
+            UnifiedAuthenticationFailureHandler mfaFailureHandler = (UnifiedAuthenticationFailureHandler) failureHandler;
+            if (options.getFailureHandler() != null) {
+                mfaFailureHandler.setDelegateHandler(options.getFailureHandler());
+            }
+        }
 
         OneTimeTokenGenerationSuccessHandler generationSuccessHandler;
 
         if (this instanceof OttAuthenticationAdapter ottAdapter) {
                 generationSuccessHandler = determineDefaultOttGenerationSuccessHandler(appContext);
                 log.debug("AuthenticationFeature [{}]: Using provided successHandler as OneTimeTokenGenerationSuccessHandler: {}",
-                        getId(), mfaSuccessHandler.getClass().getName());
+                        getId(), successHandler != null ? successHandler.getClass().getName() : "null");
 
                 if (generationSuccessHandler == null) {
                     log.error("AuthenticationFeature [{}]: CRITICAL - determineDefaultOttSuccessHandler returned null. This should not happen. Review OttAuthenticationAdapter.determineDefaultOttSuccessHandler.", getId());
                     throw new IllegalStateException("Unable to determine a valid OneTimeTokenGenerationSuccessHandler for OTT feature " + getId() +
-                            ". Resolved successHandler was: " + mfaSuccessHandler.getClass().getName() +
+                            ". Resolved successHandler was: " + (successHandler != null ? successHandler.getClass().getName() : "null") +
                             " and determineDefaultOttSuccessHandler also returned null.");
                 }
-            ottAdapter.configureHttpSecurityForOtt(http, (OttOptions)options, generationSuccessHandler, mfaSuccessHandler, mfaFailureHandler);
+            ottAdapter.configureHttpSecurityForOtt(http, (OttOptions)options, generationSuccessHandler, successHandler, failureHandler);
         } else {
-            configureHttpSecurity(http, options, currentFlow, mfaSuccessHandler, mfaFailureHandler);
+            configureHttpSecurity(http, options, currentFlow, successHandler, failureHandler);
         }
 
         options.applyCommonSecurityConfigs(http);
@@ -110,7 +124,14 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             AuthenticationStepConfig myStepConfig, @Nullable List<AuthenticationStepConfig> allSteps,
             ApplicationContext appContext) {
 
-        if (currentFlow != null && "mfa".equalsIgnoreCase(currentFlow.getTypeName()) && allSteps != null) {
+        // MFA가 아니면 null 리턴 (Spring Security 기본 동작 사용)
+        if (currentFlow == null || !AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName())) {
+            log.debug("AuthenticationFeature [{}]: Non-MFA flow detected, returning null handler to use Spring Security defaults", getId());
+            return null;
+        }
+
+        // MFA일 때만 핸들러 반환
+        if (allSteps != null) {
             int currentStepIndex = allSteps.indexOf(myStepConfig);
             boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
 
@@ -122,17 +143,21 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 return appContext.getBean(MfaFactorProcessingSuccessHandler.class);
             }
         }
-        log.debug("AuthenticationFeature [{}]: Resolving default successHandler.", getId());
+
+        log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
         return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
     }
 
     protected PlatformAuthenticationFailureHandler  resolveFailureHandler(O options, @Nullable AuthenticationFlowConfig currentFlow, ApplicationContext appContext) {
 
-        if (currentFlow != null && "mfa".equalsIgnoreCase(currentFlow.getTypeName())) {
-            return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
+        // MFA가 아니면 null 리턴 (Spring Security 기본 동작 사용)
+        if (currentFlow == null || !AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName())) {
+            log.debug("AuthenticationFeature [{}]: Non-MFA flow detected, returning null failure handler to use Spring Security defaults", getId());
+            return null;
         }
 
-        log.debug("AuthenticationFeature [{}]: Resolving default failureHandler.", getId());
+        // MFA일 때만 UnifiedAuthenticationFailureHandler 반환
+        log.debug("AuthenticationFeature [{}]: MFA flow detected, using UnifiedAuthenticationFailureHandler", getId());
         return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
     }
 

@@ -17,8 +17,21 @@ public final class FormDslConfigurerImpl
         extends AbstractOptionsBuilderConfigurer<FormDslConfigurerImpl, FormOptions, FormOptions.Builder, FormDslConfigurer>
         implements FormDslConfigurer {
 
+    /**
+     * 단일 인증용 생성자 (기본)
+     */
     public FormDslConfigurerImpl(ApplicationContext applicationContext) {
         super(FormOptions.builder(applicationContext));
+        setApplicationContext(applicationContext);
+    }
+
+    /**
+     * MFA 1차 인증용 생성자
+     * @param applicationContext ApplicationContext
+     * @param isMfaMode true: MFA 1차 인증, false: 단일 인증 (사용하지 않음)
+     */
+    public FormDslConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
+        super(isMfaMode ? FormOptions.builderForMfa(applicationContext) : FormOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 

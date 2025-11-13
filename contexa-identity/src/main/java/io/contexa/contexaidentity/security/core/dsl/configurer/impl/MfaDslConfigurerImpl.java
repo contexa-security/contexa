@@ -31,6 +31,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 
@@ -222,7 +223,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             primaryAuthOptionsForFlow = this.primaryAuthConfigurer.buildOptions();
             AuthenticationProcessingOptions primaryConcreteOptions = primaryAuthOptionsForFlow.isFormLogin() ?
                     primaryAuthOptionsForFlow.getFormOptions() : primaryAuthOptionsForFlow.getRestOptions();
-            AuthType primaryAuthType = primaryAuthOptionsForFlow.isFormLogin() ? AuthType.FORM : AuthType.MFA_REST;
+            AuthType primaryAuthType = primaryAuthOptionsForFlow.isFormLogin() ? AuthType.MFA_FORM : AuthType.MFA_REST;
 
             // 기존 order 0 스텝 제거 (중복 방지)
             configuredSteps.removeIf(s -> s.getOrder() == 0);
@@ -255,8 +256,8 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
         AuthenticationStepConfig firstConfiguredStep = configuredSteps.getFirst();
         Assert.isTrue(firstConfiguredStep.getOrder() == 0, "MFA flow's first step must have order 0.");
-        Assert.isTrue(AuthType.FORM.name().equalsIgnoreCase(firstConfiguredStep.getType()) || AuthType.MFA_REST.name().equalsIgnoreCase(firstConfiguredStep.getType()),
-                "MFA flow must start with a FORM or REST primary authentication step. Current first step: " + firstConfiguredStep.getType());
+        Assert.isTrue(AuthType.MFA_FORM.name().equalsIgnoreCase(firstConfiguredStep.getType()) || AuthType.MFA_REST.name().equalsIgnoreCase(firstConfiguredStep.getType()),
+                "MFA flow must start with a MFA_FORM or MFA_REST primary authentication step. Current first step: " + firstConfiguredStep.getType());
         Assert.isTrue(configuredSteps.size() > 1, "MFA flow must have at least one secondary authentication factor.");
 
         if (primaryAuthOptionsForFlow == null) {
@@ -336,8 +337,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         // PrimaryAuthenticationOptions에서 loginPage 가져오기
         String loginPageUrl = primaryAuthOptions.getLoginPage();
 
-        // ⭐ loginPage null 안정성 체크 (방어적 코딩)
-        if (!org.springframework.util.StringUtils.hasText(loginPageUrl)) {
+        if (!StringUtils.hasText(loginPageUrl)) {
             loginPageUrl = "/loginForm";
             log.warn("loginPage not configured in PrimaryAuthenticationOptions. Using default: /loginForm");
         }
@@ -350,16 +350,8 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             throw new DslConfigurationException("Failed to retrieve ObjectMapper bean from ApplicationContext for MfaAuthenticationEntryPoint", e);
         }
 
-        // MfaAuthenticationEntryPoint 생성
         MfaAuthenticationEntryPoint entryPoint = new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl, this.mfaPageConfig);
-
-        log.info("MfaAuthenticationEntryPoint created with loginPage: {}, mfaPageConfig: {}", loginPageUrl, this.mfaPageConfig);
-
         return entryPoint;
-    }
-
-    public MfaAuthenticationEntryPoint getMfaAuthenticationEntryPoint() {
-        return this.mfaAuthenticationEntryPoint;
     }
 }
 

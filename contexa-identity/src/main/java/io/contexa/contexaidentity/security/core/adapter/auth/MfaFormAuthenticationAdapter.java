@@ -1,32 +1,31 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexaidentity.security.core.dsl.configurer.impl.FormAuthenticationConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.impl.MfaFormAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.stereotype.Component;
 
 /**
- * 단일 Form 인증 어댑터 (MFA 없음)
+ * MFA Form 인증 어댑터
  */
 @Component
-public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapter<FormLoginConfigurer<HttpSecurity>> {
+public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAdapter<MfaFormAuthenticationConfigurer<HttpSecurity>> {
 
     @Override
     public String getId() {
-        return AuthType.FORM.name().toLowerCase();
+        return AuthType.MFA_FORM.name().toLowerCase();
     }
 
     @Override
-    protected FormLoginConfigurer<HttpSecurity> createConfigurer() {
-        return new FormLoginConfigurer<>();
+    protected MfaFormAuthenticationConfigurer<HttpSecurity> createConfigurer() {
+        return new MfaFormAuthenticationConfigurer<>();
     }
 
     @Override
-    protected void configureFormAuthentication(FormLoginConfigurer<HttpSecurity> configurer,
+    protected void configureFormAuthentication(MfaFormAuthenticationConfigurer<HttpSecurity> configurer,
                                                FormOptions opts,
                                                PlatformAuthenticationSuccessHandler successHandler,
                                                PlatformAuthenticationFailureHandler failureHandler) {
@@ -36,13 +35,13 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
                 .passwordParameter(opts.getPasswordParameter())
                 .loginPage(opts.getLoginPage())
                 .failureUrl(opts.getFailureUrl())
-                .successHandler(successHandler)
+                .successHandler(successHandler)  // MFA용 핸들러 (필수)
                 .failureHandler(failureHandler)
                 .permitAll(opts.isPermitAll());
     }
 
     @Override
-    protected void configureSecurityContext(FormLoginConfigurer<HttpSecurity> configurer,
+    protected void configureSecurityContext(MfaFormAuthenticationConfigurer<HttpSecurity> configurer,
                                             FormOptions opts) {
         configurer.securityContextRepository(opts.getSecurityContextRepository());
     }

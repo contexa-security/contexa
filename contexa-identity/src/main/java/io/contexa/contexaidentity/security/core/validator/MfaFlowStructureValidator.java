@@ -28,8 +28,8 @@ public class MfaFlowStructureValidator implements Validator<AuthenticationFlowCo
         // 1. 1차 인증 검사
         AuthenticationStepConfig firstStep = steps.get(0);
         if (firstStep.getOrder() != 0 ||
-                ! ("form".equalsIgnoreCase(firstStep.getType()) || "mfa_rest".equalsIgnoreCase(firstStep.getType())) ) {
-            result.addError(String.format("치명적 오류: %s의 첫 번째 인증 단계는 'form' 또는 'rest' 방식이어야 하며, order는 0이어야 합니다. 현재: type='%s', order=%d",
+                ! ("mfa_form".equalsIgnoreCase(firstStep.getType()) || "mfa_rest".equalsIgnoreCase(firstStep.getType())) ) {
+            result.addError(String.format("치명적 오류: %s의 첫 번째 인증 단계는 'mfa_form' 또는 'mfa_rest' 방식이어야 하며, order는 0이어야 합니다. 현재: type='%s', order=%d",
                     flowIdentifier, firstStep.getType(), firstStep.getOrder()));
         }
 

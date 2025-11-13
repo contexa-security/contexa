@@ -3,24 +3,27 @@ package io.contexa.contexaidentity.security.properties;
 import lombok.Data;
 
 /**
- * 1차 인증 URL 설정
+ * MFA 1차 인증 URL 설정
  */
 @Data
 public class PrimaryAuthUrls {
     /**
      * Form 로그인 처리 URL (POST)
+     * MFA 기본값: /mfa/login
      */
-    private String formLoginProcessing = "/login";
+    private String formLoginProcessing = "/mfa/login";
 
     /**
      * Form 로그인 페이지 URL (GET)
+     * MFA 기본값: /mfa/login
      */
-    private String formLoginPage = "/loginForm";
+    private String formLoginPage = "/mfa/login";
 
     /**
      * REST API 로그인 처리 URL (POST)
+     * MFA 기본값: /api/mfa/login
      */
-    private String restLoginProcessing = "/api/auth/login";
+    private String restLoginProcessing = "/api/mfa/login";
 
     /**
      * 로그인 실패 리다이렉트 URL

@@ -636,7 +636,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 }
                             } catch (error) {
                                 console.error('Passkey 인증 실패:', error);
-                                window.location.href = '{{contextPath}}/mfa/failure?error=' + encodeURIComponent(error.message || '알 수 없는 오류');
+                                window.location.href = '{{contextPath}}{{failureUrl}}?error=' + encodeURIComponent(error.message || '알 수 없는 오류');
                             }
                         });
                     }
@@ -1047,16 +1047,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             if (primaryOpts.isFormLogin()) {
                 FormOptions formOpts = primaryOpts.getFormOptions();
                 return StringUtils.hasText(formOpts.getLoginPage()) ?
-                        formOpts.getLoginPage() : "/loginForm"; // 기본값
+                        formOpts.getLoginPage() : authUrlProvider.getPrimaryLoginPage(); // AuthUrlProvider 사용
             }
 
             // ⭐ REST 인증인 경우 - PrimaryAuthenticationOptions의 loginPage 사용
             if (primaryOpts.isRestLogin()) {
                 String loginPage = primaryOpts.getLoginPage();
-                return StringUtils.hasText(loginPage) ? loginPage : "/loginForm"; // 기본값
+                return StringUtils.hasText(loginPage) ? loginPage : authUrlProvider.getPrimaryLoginPage(); // AuthUrlProvider 사용
             }
         }
-        return "/loginForm"; // 폴백 기본값
+        return authUrlProvider.getPrimaryLoginPage(); // AuthUrlProvider 폴백 기본값
     }
 
     /**
@@ -1068,8 +1068,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
      * @return 커스텀 페이지인 경우 true, 기본 페이지인 경우 false
      */
     private boolean isCustomLoginPage(String loginPage) {
-        // loginPage가 명시적으로 설정되고 기본값("/loginForm")과 다른 경우 커스텀으로 판단
-        return StringUtils.hasText(loginPage) && !"/loginForm".equals(loginPage);
+        // loginPage가 명시적으로 설정되고 AuthUrlProvider의 기본값과 다른 경우 커스텀으로 판단
+        String defaultLoginPage = authUrlProvider.getPrimaryLoginPage();
+        return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
     }
 
     // ===== MFA Select Factor Page (2차 인증 선택) =====
@@ -1109,7 +1110,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (pageConfig != null && StringUtils.hasText(pageConfig.getSelectFactorPageUrl())) {
             return pageConfig.getSelectFactorPageUrl();
         }
-        return "/mfa/select-factor"; // 기본값
+        return authUrlProvider.getMfaSelectFactor(); // AuthUrlProvider 사용
     }
 
     // ===== OTT Challenge Pages =====
@@ -1176,7 +1177,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (pageConfig != null && StringUtils.hasText(pageConfig.getOttRequestPageUrl())) {
             return pageConfig.getOttRequestPageUrl();
         }
-        return "/mfa/ott/request-code-ui"; // 기본값
+        return authUrlProvider.getOttRequestCodeUi(); // AuthUrlProvider 사용
     }
 
     /**
@@ -1187,7 +1188,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (pageConfig != null && StringUtils.hasText(pageConfig.getOttVerifyPageUrl())) {
             return pageConfig.getOttVerifyPageUrl();
         }
-        return "/mfa/challenge/ott"; // 기본값
+        return authUrlProvider.getOttChallengeUi(); // AuthUrlProvider 사용
     }
 
     /**
@@ -1257,7 +1258,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (pageConfig != null && StringUtils.hasText(pageConfig.getPasskeyChallengePageUrl())) {
             return pageConfig.getPasskeyChallengePageUrl();
         }
-        return "/mfa/challenge/passkey"; // 기본값
+        return authUrlProvider.getPasskeyChallengeUi(); // AuthUrlProvider 사용
     }
 
     // ===== Utility Pages =====
@@ -1270,7 +1271,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (pageConfig != null && StringUtils.hasText(pageConfig.getConfigurePageUrl())) {
             return requestUri.equals(pageConfig.getConfigurePageUrl());
         }
-        return requestUri.equals("/mfa/configure"); // 기본값
+        return requestUri.equals(authUrlProvider.getMfaConfigure()); // AuthUrlProvider 사용
     }
 
     /**
@@ -1292,7 +1293,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (pageConfig != null && StringUtils.hasText(pageConfig.getFailurePageUrl())) {
             return requestUri.equals(pageConfig.getFailurePageUrl());
         }
-        return requestUri.equals("/mfa/failure"); // 기본값
+        return requestUri.equals(authUrlProvider.getMfaFailure()); // AuthUrlProvider 사용
     }
 
     /**
@@ -1803,7 +1804,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .replace("{{headerName}}", csrfHeaderName)
             .replace("{{headerValue}}", csrfToken);
 
-        // Step 4: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        // Step 4: Failure URL 추출
+        String failureUrl = authUrlProvider.getMfaFailure();
+
+        // Step 5: 템플릿 렌더링 (MfaHtmlTemplates 사용)
         String html = MfaHtmlTemplates.fromTemplate(PASSKEY_CHALLENGE_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
@@ -1811,6 +1815,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withValue("csrfHeaderName", csrfHeaderName)
             .withValue("csrfParameterName", getCsrfParameterName(request))
             .withValue("csrfHeaders", csrfHeaders)
+            .withValue("failureUrl", failureUrl)
             .render();
 
         // Step 5: 응답 전송

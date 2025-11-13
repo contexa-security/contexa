@@ -16,12 +16,27 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
 @Data
 public class AuthUrlConfig {
 
+    /**
+     * 단일 인증 URL 설정 (MFA 없는 독립 인증)
+     */
+    @NestedConfigurationProperty
+    private SingleAuthUrls single = new SingleAuthUrls();
+
+    /**
+     * MFA 1차 인증 URL 설정
+     */
     @NestedConfigurationProperty
     private PrimaryAuthUrls primary = new PrimaryAuthUrls();
 
+    /**
+     * MFA 라이프사이클 URL 설정
+     */
     @NestedConfigurationProperty
     private MfaUrls mfa = new MfaUrls();
 
+    /**
+     * MFA Factor(2차 인증) URL 설정
+     */
     @NestedConfigurationProperty
     private FactorUrls factors = new FactorUrls();
 }

@@ -16,8 +16,21 @@ public final class RestDslConfigurerImpl // <H extends HttpSecurityBuilder<H>> �
         extends AbstractOptionsBuilderConfigurer<RestDslConfigurerImpl, RestOptions, RestOptions.Builder, RestDslConfigurer>
         implements RestDslConfigurer {
 
+    /**
+     * 단일 인증용 생성자 (기본)
+     */
     public RestDslConfigurerImpl(ApplicationContext applicationContext) {
         super(RestOptions.builder(applicationContext));
+        setApplicationContext(applicationContext);
+    }
+
+    /**
+     * MFA 1차 인증용 생성자
+     * @param applicationContext ApplicationContext
+     * @param isMfaMode true: MFA 1차 인증, false: 단일 인증 (사용하지 않음)
+     */
+    public RestDslConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
+        super(isMfaMode ? RestOptions.builderForMfa(applicationContext) : RestOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 
