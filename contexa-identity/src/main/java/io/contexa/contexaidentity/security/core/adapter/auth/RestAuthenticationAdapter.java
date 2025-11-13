@@ -34,9 +34,7 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
                                                PlatformAuthenticationSuccessHandler successHandler,
                                                PlatformAuthenticationFailureHandler failureHandler) {
 
-        configurer.loginProcessingUrl(opts.getLoginProcessingUrl())
-                .successHandler(successHandler)
-                .failureHandler(failureHandler);
+        configurer.loginProcessingUrl(opts.getLoginProcessingUrl());
 
         if (opts.getSuccessHandler() != null) {
             configurer.successHandler(opts.getSuccessHandler());
