@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.FormAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -34,11 +35,27 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
                 .loginProcessingUrl(opts.getLoginProcessingUrl())
                 .usernameParameter(opts.getUsernameParameter())
                 .passwordParameter(opts.getPasswordParameter())
-                .loginPage(opts.getLoginPage())
                 .failureUrl(opts.getFailureUrl())
-                .successHandler(successHandler)
-                .failureHandler(failureHandler)
                 .permitAll(opts.isPermitAll());
+
+        if (opts.getLoginPage() != null) {
+            configurer.loginPage(opts.getLoginPage());
+        }
+        if (opts.getSuccessHandler() != null) {
+            configurer.successHandler(opts.getSuccessHandler());
+        }
+        if (opts.getFailureHandler() != null) {
+            configurer.failureHandler(opts.getFailureHandler());
+        }
+
+        SafeHttpFormLoginCustomizer rawLogin = opts.getRawFormLoginCustomizer();
+        if (rawLogin != null) {
+            try {
+                rawLogin.customize(configurer);
+            } catch (Exception e) {
+                throw new RuntimeException("Error customizing raw form login for " + getId(), e);
+            }
+        }
     }
 
     @Override

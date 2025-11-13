@@ -58,9 +58,14 @@ public class OttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttO
                     .tokenService(opts.getOneTimeTokenService())
                     .tokenGenerationSuccessHandler(opts.getTokenGenerationSuccessHandler() == null ?
                             tokenGenerationSuccessHandler:opts.getTokenGenerationSuccessHandler())
-                    .successHandler(successHandler)
-                    .failureHandler(failureHandler)
                     .authenticationProvider(new OneTimeTokenAuthenticationProvider(oneTimeTokenService, userDetailsService));
+
+            if (opts.getSuccessHandler() != null) {
+                ott.successHandler(opts.getSuccessHandler());
+            }
+            if (opts.getFailureHandler() != null) {
+                ott.failureHandler(opts.getFailureHandler());
+            }
         });
     }
 }

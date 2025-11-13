@@ -32,7 +32,9 @@
       "Bash(cmd.exe /c \"cd D:\\projects && gradlew.bat :contexa-identity:compileJava\")",
       "Bash(cmd /c \"cd /d D:\\projects && gradlew.bat :contexa-identity:compileJava 2>&1\")",
       "Bash(cmd /c \"cd /d D:\\projects && gradlew.bat :contexa-identity:compileJava 2>&1 | findstr /C:\"error\" /C:\"ERROR\" /C:\"BUILD\" /C:\"SUCCESS\" /C:\"실패\"\")",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(dir /s /b *.imports 2)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []
