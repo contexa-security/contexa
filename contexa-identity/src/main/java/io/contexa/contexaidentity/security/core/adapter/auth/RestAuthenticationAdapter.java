@@ -1,12 +1,15 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.RestAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexaidentity.security.filter.DefaultRestLoginPageGeneratingFilter;
+import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.stereotype.Component;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * 단일 REST 인증 어댑터
@@ -43,5 +46,16 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
     protected void configureSecurityContext(RestAuthenticationConfigurer configurer,
                                             RestOptions opts) {
         configurer.securityContextRepository(opts.getSecurityContextRepository());
+    }
+
+    @Override
+    protected void configureHttpSecurity(HttpSecurity http, RestOptions opts,
+                                         AuthenticationFlowConfig currentFlow,
+                                         PlatformAuthenticationSuccessHandler successHandler,
+                                         PlatformAuthenticationFailureHandler failureHandler) throws Exception {
+        super.configureHttpSecurity(http, opts, currentFlow, successHandler, failureHandler);
+
+        DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter();
+        http.addFilterBefore(loginPageFilter, RestAuthenticationFilter.class);
     }
 }

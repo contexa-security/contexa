@@ -85,8 +85,7 @@ public final class PasskeyDslConfigurerImpl
         if (passkeyAsepAttributesCustomizer != null) {
             passkeyAsepAttributesCustomizer.customize(attributes);
         }
-        // builder.setSharedObject(PasskeyAsepAttributes.class, attributes); // 제거
-        getOptionsBuilder().asepAttributes(attributes); // PasskeyOptions.Builder에 저장
+        getOptionsBuilder().asepAttributes(attributes);
         log.debug("ASEP: PasskeyAsepAttributes configured and will be stored within PasskeyOptions.");
         return self();
     }
@@ -95,6 +94,4 @@ public final class PasskeyDslConfigurerImpl
     protected PasskeyDslConfigurerImpl self() {
         return this;
     }
-
-    // configure(H builder) 메서드는 AbstractOptionsBuilderConfigurer에서 제거되었으므로 여기서도 불필요
 }

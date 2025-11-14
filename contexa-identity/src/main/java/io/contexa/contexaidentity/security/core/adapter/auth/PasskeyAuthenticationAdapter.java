@@ -16,5 +16,6 @@ public class PasskeyAuthenticationAdapter extends BasePasskeyAuthenticationAdapt
     public int getOrder() {
         return 400;
     }
+
 }
 

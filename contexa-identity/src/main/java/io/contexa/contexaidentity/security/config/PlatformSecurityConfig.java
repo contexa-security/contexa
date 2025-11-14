@@ -23,7 +23,7 @@ public class PlatformSecurityConfig {
         log.info("Configuring Platform Security DSL...");
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
-                http
+                http.securityMatcher()
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers(
                                     "/css/**", "/js/**", "/images/**", "/favicon.ico",
@@ -61,20 +61,20 @@ public class PlatformSecurityConfig {
         return registry
                 .global(globalHttpCustomizer)
                 .form(form -> form.order(20)).session(Customizer.withDefaults())
-                .rest(rest -> rest.order(30)).oauth2(Customizer.withDefaults())
+                .rest(rest -> rest.order(10)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(40)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(50)).oauth2(Customizer.withDefaults())
-                .mfa(mfa -> mfa
+                /*.mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        /*.mfaPage(page ->
+                        *//*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*//*
                         .order(60)
-                ).oauth2(Customizer.withDefaults())
+                ).oauth2(Customizer.withDefaults())*/
                 .build();
     }
 }
