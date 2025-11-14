@@ -585,6 +585,89 @@
         },
 
         /**
+         * 1차 인증: Form 로그인 (MfaFormAuthenticationFilter 통신)
+         *
+         * Form 기반 MFA 인증을 위한 메서드입니다.
+         * MfaFormAuthenticationFilter와 통신하여 application/x-www-form-urlencoded 형식으로 전송합니다.
+         *
+         * @param {string} username - 사용자명
+         * @param {string} password - 비밀번호
+         * @returns {Promise<Object>} 로그인 결과
+         *   - mfaRequired: MFA 필요 여부
+         *   - nextStepUrl: 다음 단계 URL (MFA 필요 시)
+         *   - success: 로그인 성공 여부 (MFA 불필요 시)
+         *
+         * @example
+         * const mfa = new ContexaMFA.Client();
+         * try {
+         *     const result = await mfa.apiClient.loginForm('username', 'password');
+         *     if (result.status === 'MFA_REQUIRED_SELECT_FACTOR') {
+         *         window.location.href = result.nextStepUrl;
+         *     } else {
+         *         window.location.href = '/home';
+         *     }
+         * } catch (error) {
+         *     console.error('Login failed:', error);
+         * }
+         */
+        async loginForm(username, password) {
+            await this.init();
+
+            // Form 데이터 준비 (application/x-www-form-urlencoded)
+            const formData = new URLSearchParams();
+            formData.append('username', username);
+            formData.append('password', password);
+
+            const csrfToken = ContexaMFAUtils.getCsrfToken();
+            if (csrfToken) {
+                const csrfParamName = document.querySelector('meta[name="_csrf_parameter"]')?.content || '_csrf';
+                formData.append(csrfParamName, csrfToken);
+            }
+
+            const response = await fetch(this.endpoints.primary.formLoginProcessing, {
+                method: 'POST',
+                headers: ContexaMFAUtils.createHeaders({
+                    contentType: 'application/x-www-form-urlencoded'
+                }),
+                body: formData.toString()
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: '로그인 실패: 사용자명 또는 비밀번호를 확인하세요.' }));
+                throw new MFAError(
+                    errorData.message || `Login failed: ${response.status}`,
+                    errorData,
+                    response.status
+                );
+            }
+
+            const result = await response.json();
+
+            // MFA 필요 여부에 따른 상태 처리 (REST와 동일)
+            if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
+                result.status === 'MFA_REQUIRED') {
+                // MFA 필요 - 세션에 username 저장
+                sessionStorage.setItem('mfaUsername', username);
+                sessionStorage.setItem('mfaSessionId', result.mfaSessionId);
+                this.state = 'MFA_REQUIRED';
+                const message = result.message || 'MFA required';
+                ContexaMFAUtils.log(`✅ Primary authentication successful (Form): ${message}`, 'info', result);
+            } else if (result.status === 'MFA_COMPLETED') {
+                // MFA 불필요 - 인증 완료 (서버가 토큰 발급 완료)
+                this.state = 'AUTHENTICATED';
+                const message = result.message || 'Login successful';
+                ContexaMFAUtils.log(`✅ ${message} (MFA completed, tokens issued)`, 'info', result);
+            } else {
+                // 기타 상태
+                this.state = 'AUTHENTICATED';
+                const message = result.message || 'Login successful';
+                ContexaMFAUtils.log(`✅ ${message}`, 'info', result);
+            }
+
+            return result;
+        },
+
+        /**
          * 팩터 선택
          * Legacy: mfa-select-factor.js:119-159
          */

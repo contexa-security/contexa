@@ -1405,7 +1405,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Primary Form Login Page 생성 (기본 1차 인증 페이지)
+     * Primary Form Login Page 생성 (MFA 인증용)
+     *
+     * REST 인증과 동일하게 contexa-mfa-sdk.js를 사용하여 MFA 플로우를 처리합니다.
+     * JavaScript를 사용하여 비동기로 인증 요청을 처리합니다.
+     *
+     * @param request HTTP 요청
+     * @param response HTTP 응답
+     * @param formOpts Form 인증 옵션
+     * @throws IOException 페이지 생성 실패 시
      */
     private void generatePrimaryFormLoginPage(HttpServletRequest request, HttpServletResponse response, FormOptions formOpts)
             throws IOException {
@@ -1413,8 +1421,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         PrintWriter writer = response.getWriter();
 
         String loginProcessingUrl = formOpts.getLoginProcessingUrl();
-        String usernameParam = formOpts.getUsernameParameter();
-        String passwordParam = formOpts.getPasswordParameter();
 
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
@@ -1441,29 +1447,116 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         .message { padding: 12px; margin-bottom: 16px; border-radius: 6px; }
         .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
         input { width: 100%%; padding: 12px; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
         input:focus { outline: none; border-color: #007bff; }
         button { width: 100%%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
         button:hover { background: #0056b3; }
         button:disabled { background: #6c757d; cursor: not-allowed; }
         .form-footer { margin-top: 16px; text-align: center; font-size: 14px; color: #666; }
+        .spinner { display: none; text-align: center; margin-top: 8px; }
+        .spinner.active { display: block; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>로그인</h1>
-        %s
-        %s
-        <form method="post" action="%s">
-            <input type="hidden" name="%s" value="%s">
-            <input type="text" name="%s" placeholder="사용자명 또는 이메일" required autofocus>
-            <input type="password" name="%s" placeholder="비밀번호" required>
-            <button type="submit">로그인</button>
-        </form>
-        <div class="form-footer">
+        <div id="message-area">
+            %s
+            %s
+        </div>
+        <div id="loginContainer" class="form">
+            <input type="text" id="username" placeholder="사용자명 또는 이메일" required autofocus>
+            <input type="password" id="password" placeholder="비밀번호" required>
+            <button type="button" id="loginButton">로그인</button>
+            <div class="spinner" id="spinner">인증 중...</div>
+        </div>
+        <div class="form-footer" id="form-footer">
             로그인 후 다단계 인증(MFA)이 진행됩니다.
         </div>
     </div>
+
+    <script src="/js/contexa-mfa-sdk.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageArea = document.getElementById('message-area');
+            const loginButton = document.getElementById('loginButton');
+            const spinner = document.getElementById('spinner');
+            const formFooter = document.getElementById('form-footer');
+
+            // SDK 초기화 (autoRedirect: true - 자동 리다이렉트)
+            const mfa = new ContexaMFA.Client({ autoRedirect: true });
+
+            loginButton.addEventListener('click', async () => {
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                if (!username || !password) {
+                    messageArea.innerHTML = '<div class="message error">사용자명과 비밀번호를 입력하세요.</div>';
+                    return;
+                }
+
+                // UI 상태 변경
+                loginButton.disabled = true;
+                spinner.classList.add('active');
+                messageArea.innerHTML = '';
+
+                try {
+                    // SDK의 loginForm 메서드 호출
+                    const result = await mfa.apiClient.loginForm(username, password);
+
+                    // 디버그: 서버 응답 확인
+                    console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
+                    console.log('[DEBUG] result.status:', result.status);
+                    console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
+
+                    // MFA 필요 여부에 따른 분기 처리
+                    if (result.status === 'MFA_COMPLETED') {
+                        // MFA 불필요 - 즉시 홈으로 리다이렉트 (서버가 토큰 발급 완료)
+                        messageArea.innerHTML = '<div class="message success">로그인 성공! 홈으로 이동합니다...</div>';
+                        const redirectUrl = result.redirectUrl || '/home';
+                        setTimeout(() => {
+                            window.location.href = redirectUrl;
+                        }, 500);
+                    } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
+                               result.status === 'MFA_REQUIRED') {
+                        // MFA 필요 - Factor 선택 페이지로 리다이렉트
+                        messageArea.innerHTML = '<div class="message success">로그인 성공! 다단계 인증을 진행합니다...</div>';
+                        const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
+                        setTimeout(() => {
+                            window.location.href = nextStepUrl;
+                        }, 500);
+                    } else {
+                        // 기타 응답 - 메시지만 표시
+                        const message = result.message || '로그인 성공!';
+                        messageArea.innerHTML = '<div class="message success">' + message + '</div>';
+                    }
+                } catch (error) {
+                    // 차단 상태 감지
+                    if (error.response && error.response.blocked === true) {
+                        // 계정 차단 상태 - footer 숨기고 버튼 비활성화 유지
+                        const supportContact = error.response.supportContact || '관리자';
+                        messageArea.innerHTML = '<div class="message error">' +
+                            error.message + '<br>문의: ' + supportContact + '</div>';
+                        formFooter.style.display = 'none';
+                        loginButton.disabled = true;
+                    } else {
+                        // 일반 로그인 실패 - 재시도 가능
+                        messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
+                        loginButton.disabled = false;
+                        spinner.classList.remove('active');
+                    }
+                }
+            });
+
+            // Enter 키 처리
+            document.getElementById('password').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    loginButton.click();
+                }
+            });
+        });
+    </script>
 </body>
 </html>
                 """.formatted(
@@ -1471,18 +1564,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfHeaderName,
                 csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : "",
-                loginProcessingUrl,
-                csrfParameterName,
-                csrfToken,
-                usernameParam,
-                passwordParam
+                logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : ""
         );
 
         writer.write(html);
         writer.flush();
 
-        log.debug("Generated default primary form login page for MFA flow. Processing URL: {}", loginProcessingUrl);
+        log.debug("SDK 통합 MFA Form 로그인 페이지 생성 완료. Processing URL: {}", loginProcessingUrl);
     }
 
     /**
