@@ -1,7 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
-import io.contexa.contexaidentity.security.core.dsl.configurer.impl.FormAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Component;
 /**
  * 단일 Form 인증 어댑터 (MFA 없음)
  */
-@Component
 public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapter<FormLoginConfigurer<HttpSecurity>> {
 
     @Override

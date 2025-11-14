@@ -3,5 +3,7 @@ io.contexa.contexaidentity.security.core.adapter.auth.RestAuthenticationAdapter
 io.contexa.contexaidentity.security.core.adapter.auth.MfaRestAuthenticationAdapter
 io.contexa.contexaidentity.security.core.adapter.auth.MfaFormAuthenticationAdapter
 io.contexa.contexaidentity.security.core.adapter.auth.OttAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.MfaOttAuthenticationAdapter
 io.contexa.contexaidentity.security.core.adapter.auth.PasskeyAuthenticationAdapter
+io.contexa.contexaidentity.security.core.adapter.auth.MfaPasskeyAuthenticationAdapter
 io.contexa.contexaidentity.security.core.adapter.auth.MfaAuthenticationAdapter

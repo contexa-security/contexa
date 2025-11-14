@@ -318,7 +318,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
                 .mfaAsepAttributes(this.mfaAsepAttributes)
                 .mfaPageConfig(this.mfaPageConfig)
-                .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)  // ⭐ EntryPoint 추가
+                .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
                 .build();
     }
 

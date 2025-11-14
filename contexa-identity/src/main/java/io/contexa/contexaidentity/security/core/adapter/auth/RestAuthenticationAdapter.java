@@ -1,7 +1,5 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
-import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.RestAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -10,12 +8,9 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccess
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 /**
  * 단일 REST 인증 어댑터
  */
-@Component
 public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapter<RestAuthenticationConfigurer<HttpSecurity>> {
 
     @Override

@@ -205,9 +205,9 @@ public class SecurityFilterChainRegistrar {
     private void replaceWebAuthnHandlersIfNeeded(DefaultSecurityFilterChain builtChain,
                                                   AuthenticationFlowConfig flowConfig,
                                                   ApplicationContext appContext) {
-        // Passkey 스텝이 있는지 확인
+        // Passkey 스텝이 있는지 확인 (MFA에서는 MFA_PASSKEY 사용)
         boolean hasPasskeyStep = flowConfig.getStepConfigs().stream()
-                .anyMatch(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()));
+                .anyMatch(step -> AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()));
 
         if (!hasPasskeyStep) {
             return;
@@ -220,12 +220,12 @@ public class SecurityFilterChainRegistrar {
                 if (filterClassName.contains("WebAuthn")) {
 
                     AuthenticationStepConfig passkeyStep = flowConfig.getStepConfigs().stream()
-                            .filter(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()))
+                            .filter(step -> AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()))
                             .findFirst()
                             .orElse(null);
 
                     if (passkeyStep == null) {
-                        log.warn("⚠️ Passkey step configuration not found, cannot replace handlers");
+                        log.warn("⚠️ MFA Passkey step configuration not found, cannot replace handlers");
                         return;
                     }
                     try {

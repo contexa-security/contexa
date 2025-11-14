@@ -34,7 +34,9 @@
       "Bash(cmd /c \"cd /d D:\\projects && gradlew.bat :contexa-identity:compileJava 2>&1 | findstr /C:\"error\" /C:\"ERROR\" /C:\"BUILD\" /C:\"SUCCESS\" /C:\"실패\"\")",
       "Bash(cmd /c:*)",
       "Bash(dir /s /b *.imports 2)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(./gradlew.bat:*)",
+      "Bash(dir D:projectscontexacontexa-identitysrcmainjavaiocontexacontexaidentitysecuritycoreadapterauthMfa*.java)"
     ],
     "deny": [],
     "ask": []

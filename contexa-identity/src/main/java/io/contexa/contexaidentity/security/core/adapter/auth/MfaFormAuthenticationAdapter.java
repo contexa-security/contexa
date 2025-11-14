@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 /**
  * MFA Form 인증 어댑터
  */
-@Component
 public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAdapter<MfaFormAuthenticationConfigurer<HttpSecurity>> {
 
     @Override

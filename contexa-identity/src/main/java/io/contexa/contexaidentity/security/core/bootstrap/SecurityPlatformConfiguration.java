@@ -66,13 +66,15 @@ public class SecurityPlatformConfiguration {
 
     @Bean
     public SecurityFilterChainRegistrar securityFilterChainRegistrar(ConfiguredFactorFilterProvider factorFilterProvider, AdapterRegistry adapterRegistry) {
-        Map<String, Class<? extends Filter>> stepFilterClasses = Map.of(
-                "form", UsernamePasswordAuthenticationFilter.class,
-                "rest", RestAuthenticationFilter.class,
-                "mfa_rest", MfaRestAuthenticationFilter.class,
-                "mfa_form", MfaFormAuthenticationFilter.class,
-                "ott", OneTimeTokenAuthenticationFilter.class,
-                "passkey", WebAuthnAuthenticationFilter.class
+        Map<String, Class<? extends Filter>> stepFilterClasses = Map.ofEntries(
+                Map.entry("form", UsernamePasswordAuthenticationFilter.class),
+                Map.entry("rest", RestAuthenticationFilter.class),
+                Map.entry("mfa_rest", MfaRestAuthenticationFilter.class),
+                Map.entry("mfa_form", MfaFormAuthenticationFilter.class),
+                Map.entry("ott", OneTimeTokenAuthenticationFilter.class),
+                Map.entry("mfa_ott", OneTimeTokenAuthenticationFilter.class),
+                Map.entry("passkey", WebAuthnAuthenticationFilter.class),
+                Map.entry("mfa_passkey", WebAuthnAuthenticationFilter.class)
         );
         return new SecurityFilterChainRegistrar(factorFilterProvider, stepFilterClasses, adapterRegistry);
     }
