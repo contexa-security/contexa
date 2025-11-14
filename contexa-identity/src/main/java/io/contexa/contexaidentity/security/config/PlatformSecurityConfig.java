@@ -62,8 +62,8 @@ public class PlatformSecurityConfig {
                 .global(globalHttpCustomizer)
                 .form(form -> form.order(20)).session(Customizer.withDefaults())
                 .rest(rest -> rest.order(30)).oauth2(Customizer.withDefaults())
-//                .ott(ott -> ott.order(40)).oauth2(Customizer.withDefaults())
-//                .passkey(passkey -> passkey.order(50)).oauth2(Customizer.withDefaults())
+                .ott(ott -> ott.order(40)).oauth2(Customizer.withDefaults())
+                .passkey(passkey -> passkey.order(50)).oauth2(Customizer.withDefaults())
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.securityContextRepository(new HttpSessionSecurityContextRepository())))

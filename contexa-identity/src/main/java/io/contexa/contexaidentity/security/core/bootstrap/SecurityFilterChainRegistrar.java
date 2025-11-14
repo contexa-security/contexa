@@ -97,7 +97,7 @@ public class SecurityFilterChainRegistrar {
         }
         // 2. 설정되지 않은 기본 팩터들에 대한 SecurityFilterChain 생성
         DefaultFactorChainProvider defaultProvider = new DefaultFactorChainProvider(context, this, adapterRegistry); // this 전달
-        defaultProvider.registerDefaultFactorChains(configuredFactorTypes, registry, idx);
+//        defaultProvider.registerDefaultFactorChains(configuredFactorTypes, registry, idx);
 
     }
 
