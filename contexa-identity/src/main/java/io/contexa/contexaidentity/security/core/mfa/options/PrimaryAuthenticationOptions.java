@@ -129,11 +129,11 @@ public final class PrimaryAuthenticationOptions {
 
             // loginPage 기본값 설정 (아직도 null이면)
             if (this.loginPage == null) {
-                this.loginPage = "/loginForm";
+                this.loginPage = "/mfa/login";
             }
             // failureUrl 기본값 설정 (아직도 null이면)
             if (this.failureUrl == null) {
-                this.failureUrl = "/loginForm?error";
+                this.failureUrl = "/mfa/login?error";
             }
 
             // ⭐ URL 보안 검증 (Open Redirect 공격 방지)

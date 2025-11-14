@@ -41,8 +41,8 @@ public class OttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttO
     @Override
     public void configureHttpSecurityForOtt(HttpSecurity http, OttOptions opts,
                                             OneTimeTokenGenerationSuccessHandler tokenGenerationSuccessHandler,
-                                            PlatformAuthenticationSuccessHandler successHandler,// 코드 생성 성공 핸들러
-                                            PlatformAuthenticationFailureHandler failureHandler) throws Exception { // 코드 검증 실패 핸들러
+                                            PlatformAuthenticationSuccessHandler successHandler,
+                                            PlatformAuthenticationFailureHandler failureHandler) throws Exception {
 
         String loginProcessingUrl = opts.getLoginProcessingUrl();
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
@@ -51,21 +51,21 @@ public class OttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttO
         OneTimeTokenService oneTimeTokenService = appContext.getBean(OneTimeTokenService.class);
 
         http.oneTimeTokenLogin(ott -> {
-            ott.defaultSubmitPageUrl(opts.getDefaultSubmitPageUrl()) // 사용자가 직접 코드 입력하는 페이지 (선택적)
-                    .loginProcessingUrl(loginProcessingUrl) // 코드 "검증"을 처리할 POST URL
+            ott.defaultSubmitPageUrl(opts.getDefaultSubmitPageUrl())
+                    .loginProcessingUrl(loginProcessingUrl)
                     .showDefaultSubmitPage(opts.isShowDefaultSubmitPage())
-                    .tokenGeneratingUrl(opts.getTokenGeneratingUrl()) // 코드 "생성/발송"을 처리할 POST URL (GenerateOneTimeTokenFilter가 처리)
+                    .tokenGeneratingUrl(opts.getTokenGeneratingUrl())
                     .tokenService(opts.getOneTimeTokenService())
                     .tokenGenerationSuccessHandler(opts.getTokenGenerationSuccessHandler() == null ?
                             tokenGenerationSuccessHandler:opts.getTokenGenerationSuccessHandler())
                     .authenticationProvider(new OneTimeTokenAuthenticationProvider(oneTimeTokenService, userDetailsService));
 
-            if (opts.getSuccessHandler() != null) {
-                ott.successHandler(opts.getSuccessHandler());
-            }
-            if (opts.getFailureHandler() != null) {
-                ott.failureHandler(opts.getFailureHandler());
-            }
+            if (successHandler != null)  ott.successHandler(successHandler);
+            else if (opts.getSuccessHandler() != null) ott.successHandler(opts.getSuccessHandler());
+
+            if (failureHandler != null) ott.failureHandler(failureHandler);
+            else if (opts.getFailureHandler() != null) ott.failureHandler(opts.getFailureHandler());
+
         });
     }
 }
