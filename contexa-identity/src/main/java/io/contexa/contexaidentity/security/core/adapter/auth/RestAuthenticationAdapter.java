@@ -56,6 +56,6 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
         super.configureHttpSecurity(http, opts, currentFlow, successHandler, failureHandler);
 
         DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter();
-        http.addFilterBefore(loginPageFilter, RestAuthenticationFilter.class);
+        http.addFilterBefore(loginPageFilter, UsernamePasswordAuthenticationFilter.class);
     }
 }
