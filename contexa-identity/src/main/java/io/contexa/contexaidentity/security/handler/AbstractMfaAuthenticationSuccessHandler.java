@@ -201,10 +201,50 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         SavedRequest savedRequest = this.requestCache.getRequest(request, response);
         if (savedRequest != null) {
             this.requestCache.removeRequest(request, response);
-            return savedRequest.getRedirectUrl();
+            String redirectUrl = savedRequest.getRedirectUrl();
+
+            // URL 검증: 유효한 애플리케이션 URL인지 확인
+            if (isValidRedirectUrl(redirectUrl)) {
+                return redirectUrl;
+            } else {
+                log.warn("Invalid saved redirect URL ignored: {}", redirectUrl);
+            }
         }
+
         // AuthUrlConfig에서 MFA 성공 URL 가져오기
         return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
+    }
+
+    /**
+     * Redirect URL 유효성 검증
+     * Chrome DevTools, .well-known, favicon 등 내부 요청 필터링
+     *
+     * @param url 검증할 URL
+     * @return 유효한 URL이면 true, 그렇지 않으면 false
+     */
+    private boolean isValidRedirectUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+
+        // 제외할 패턴들
+        String[] invalidPatterns = {
+            "/.well-known/",
+            "/favicon.ico",
+            "chrome-extension://",
+            "about:",
+            "data:",
+            "blob:",
+            "javascript:"
+        };
+
+        for (String pattern : invalidPatterns) {
+            if (url.contains(pattern)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -256,7 +296,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "인증이 완료되었습니다.");
         responseData.put("redirectUrl", determineTargetUrl(request, response, authentication));
-        // authentication 객체 제거: Users 엔티티 직렬화 에러 방지
         responseData.put("stateType", stateType.name());
 
         log.debug("Response data built for StateType: {}, contains tokens: {}",
