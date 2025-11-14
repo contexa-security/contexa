@@ -68,7 +68,6 @@ public final class PrimaryAuthenticationOptions {
             this.formOptions = formOptions;
             this.restOptions = null;
             if (formOptions != null) {
-                // FormOptions에서 공통 속성 자동 추출
                 this.loginProcessingUrl = formOptions.getLoginProcessingUrl();
                 this.loginPage = formOptions.getLoginPage();
                 this.failureUrl = formOptions.getFailureUrl();
@@ -80,16 +79,13 @@ public final class PrimaryAuthenticationOptions {
             this.restOptions = restOptions;
             this.formOptions = null;
             if (restOptions != null) {
-                // RestOptions에서 loginProcessingUrl만 추출
                 this.loginProcessingUrl = restOptions.getLoginProcessingUrl();
 
-                // ⭐ REST는 loginPage/failureUrl이 없으므로 기본값 설정
-                // DSL에서 명시적으로 오버라이드 가능
                 if (this.loginPage == null) {
-                    this.loginPage = "/loginForm";
+                    this.loginPage = "/mfa/login";
                 }
                 if (this.failureUrl == null) {
-                    this.failureUrl = "/loginForm?error";
+                    this.failureUrl = "/mfa/login?error";
                 }
             }
             return this;

@@ -65,15 +65,15 @@ public class PlatformSecurityConfig {
                 .ott(ott -> ott.order(40)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(50)).oauth2(Customizer.withDefaults())
                 .mfa(mfa -> mfa
-                        .primaryAuthentication(auth -> auth.restLogin(rest ->
-                                rest.securityContextRepository(new HttpSessionSecurityContextRepository())))
+                        .primaryAuthentication(auth -> auth.formLogin(form ->
+                                form.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
                         /*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
                                         .passkeyChallengePages("/custom/challenge/passkey"))*/
-                        .order(10)
+                        .order(60)
                 ).oauth2(Customizer.withDefaults())
                 .build();
     }

@@ -29,7 +29,7 @@ public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder
             }
         }
         if (this.mfaInitiateUrl == null) {
-            this.mfaInitiateUrl = "/mfa"; // 기본값 설정
+        this.mfaInitiateUrl = "/mfa";
         }
     }
 

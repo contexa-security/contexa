@@ -32,12 +32,23 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
                                                PlatformAuthenticationSuccessHandler successHandler,
                                                PlatformAuthenticationFailureHandler failureHandler) {
         configurer
-                .loginProcessingUrl(opts.getLoginProcessingUrl())
-                .usernameParameter(opts.getUsernameParameter())
-                .passwordParameter(opts.getPasswordParameter())
-                .failureUrl(opts.getFailureUrl())
-                .permitAll(opts.isPermitAll());
+                .loginProcessingUrl(opts.getLoginProcessingUrl());
 
+        if (opts.getUsernameParameter() != null) {
+            configurer.usernameParameter(opts.getUsernameParameter());
+        }
+        if (opts.getPasswordParameter() != null) {
+            configurer.passwordParameter(opts.getPasswordParameter());
+        }
+        if (opts.getDefaultSuccessUrl() != null) {
+            configurer.defaultSuccessUrl(opts.getDefaultSuccessUrl());
+        }
+        if (opts.isPermitAll()) {
+            configurer.permitAll();
+        }
+        if (opts.getFailureUrl() != null) {
+            configurer.failureUrl(opts.getFailureUrl());
+        }
         if (opts.getLoginPage() != null) {
             configurer.loginPage(opts.getLoginPage());
         }

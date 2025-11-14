@@ -66,6 +66,12 @@ public final class FormDslConfigurerImpl
     }
 
     @Override
+    public FormDslConfigurer defaultSuccessUrl(String defaultSuccessUrl) {
+        getOptionsBuilder().defaultSuccessUrl(defaultSuccessUrl);
+        return self();
+    }
+
+    @Override
     public FormDslConfigurer defaultSuccessUrl(String defaultSuccessUrl, boolean alwaysUse) {
         getOptionsBuilder().defaultSuccessUrl(defaultSuccessUrl, alwaysUse);
         return self();

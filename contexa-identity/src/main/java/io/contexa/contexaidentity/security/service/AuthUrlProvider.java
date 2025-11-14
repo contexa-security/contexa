@@ -524,7 +524,7 @@ public class AuthUrlProvider {
     }
 
     // ========================================
-    // OTT Factor URLs
+    // OTT Factor URLs (MFA)
     // ========================================
 
     /**
@@ -546,18 +546,18 @@ public class AuthUrlProvider {
     }
 
     /**
-     * OTT 코드 생성 URL
+     * OTT 코드 생성 URL (MFA Factor)
      *
      * <p>
      * 우선순위:
-     * 1. OttOptions.tokenGeneratingUrl (DSL 커스텀 설정)
+     * 1. OttOptions.tokenGeneratingUrl (DSL 커스텀 설정, AuthType.MFA_OTT)
      * 2. AuthContextProperties 기본값 (/mfa/ott/generate-code)
      * </p>
      *
      * @return POST /mfa/ott/generate-code (기본값)
      */
     public String getOttCodeGeneration() {
-        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.OTT);
+        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
             String customUrl = ottOptions.getTokenGeneratingUrl();
             if (StringUtils.hasText(customUrl)) {
@@ -569,27 +569,19 @@ public class AuthUrlProvider {
     }
 
     /**
-     * OTT 코드 전송 완료 페이지
-     * @return GET /mfa/ott/code-sent (기본값)
-     */
-    public String getOttCodeSent() {
-        return properties.getUrls().getFactors().getOtt().getCodeSent();
-    }
-
-    /**
-     * OTT 코드 입력 챌린지 UI
+     * OTT 챌린지 UI (MFA Factor)
      *
      * <p>
      * 우선순위:
-     * 1. OttOptions.defaultSubmitPageUrl (DSL 커스텀 설정 - API URL)
-     * 2. MfaPageConfig.ottVerifyPageUrl (DSL 커스텀 설정 - UI 페이지)
+     * 1. OttOptions.defaultSubmitPageUrl (DSL 커스텀 설정, AuthType.MFA_OTT)
+     * 2. MfaPageConfig.ottVerifyPageUrl (DSL 커스텀 설정)
      * 3. AuthContextProperties 기본값 (/mfa/challenge/ott)
      * </p>
      *
      * @return OTT 코드 검증 챌린지 페이지 URL
      */
     public String getOttChallengeUi() {
-        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.OTT);
+        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
             String customUrl = ottOptions.getDefaultSubmitPageUrl();
             if (StringUtils.hasText(customUrl)) {
@@ -605,18 +597,18 @@ public class AuthUrlProvider {
     }
 
     /**
-     * OTT 코드 검증 처리 URL (Filter가 처리)
+     * OTT 로그인 처리 URL (MFA Factor)
      *
      * <p>
      * 우선순위:
-     * 1. OttOptions.loginProcessingUrl (DSL 커스텀 설정)
+     * 1. OttOptions.loginProcessingUrl (DSL 커스텀 설정, AuthType.MFA_OTT)
      * 2. AuthContextProperties 기본값 (/login/mfa-ott)
      * </p>
      *
      * @return POST /login/mfa-ott (기본값)
      */
     public String getOttLoginProcessing() {
-        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.OTT);
+        AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
             String customUrl = ottOptions.getLoginProcessingUrl();
             if (StringUtils.hasText(customUrl)) {
@@ -628,6 +620,35 @@ public class AuthUrlProvider {
     }
 
     /**
+     * MFA OTT 코드 생성 URL (별칭)
+     */
+    public String getMfaOttCodeGeneration() {
+        return getOttCodeGeneration();
+    }
+
+    /**
+     * MFA OTT 챌린지 UI (별칭)
+     */
+    public String getMfaOttChallengeUi() {
+        return getOttChallengeUi();
+    }
+
+    /**
+     * MFA OTT 로그인 처리 URL (별칭)
+     */
+    public String getMfaOttLoginProcessing() {
+        return getOttLoginProcessing();
+    }
+
+    /**
+     * OTT 코드 전송 완료 페이지
+     * @return GET /mfa/ott/code-sent (기본값)
+     */
+    public String getOttCodeSent() {
+        return properties.getUrls().getFactors().getOtt().getCodeSent();
+    }
+
+    /**
      * OTT 검증 실패 기본 URL
      * @return /mfa/challenge/ott?error=true (기본값)
      */
@@ -636,22 +657,22 @@ public class AuthUrlProvider {
     }
 
     // ========================================
-    // Passkey Factor URLs
+    // Passkey Factor URLs (MFA)
     // ========================================
 
     /**
-     * Passkey 검증 처리 URL (Filter가 처리)
+     * Passkey 로그인 처리 URL (MFA Factor)
      *
      * <p>
      * 우선순위:
-     * 1. PasskeyOptions.loginProcessingUrl (DSL 커스텀 설정)
+     * 1. PasskeyOptions.loginProcessingUrl (DSL 커스텀 설정, AuthType.MFA_PASSKEY)
      * 2. AuthContextProperties 기본값 (/login/mfa-webauthn)
      * </p>
      *
      * @return POST /login/mfa-webauthn (기본값)
      */
     public String getPasskeyLoginProcessing() {
-        AuthenticationProcessingOptions passkeyOpts = factorOptionsMap.get(AuthType.PASSKEY);
+        AuthenticationProcessingOptions passkeyOpts = factorOptionsMap.get(AuthType.MFA_PASSKEY);
         if (passkeyOpts instanceof PasskeyOptions passkeyOptions) {
             String customUrl = passkeyOptions.getLoginProcessingUrl();
             if (StringUtils.hasText(customUrl)) {
@@ -660,6 +681,43 @@ public class AuthUrlProvider {
         }
 
         return properties.getUrls().getFactors().getPasskey().getLoginProcessing();
+    }
+
+    /**
+     * Passkey Assertion Options URL (MFA Factor)
+     *
+     * <p>
+     * 우선순위:
+     * 1. PasskeyOptions.assertionOptionsEndpoint (DSL 커스텀 설정, AuthType.MFA_PASSKEY)
+     * 2. AuthContextProperties 기본값
+     * </p>
+     *
+     * @return WebAuthn assertion options URL
+     */
+    public String getPasskeyAssertionOptions() {
+        AuthenticationProcessingOptions passkeyOpts = factorOptionsMap.get(AuthType.MFA_PASSKEY);
+        if (passkeyOpts instanceof PasskeyOptions passkeyOptions) {
+            String customUrl = passkeyOptions.getAssertionOptionsEndpoint();
+            if (StringUtils.hasText(customUrl)) {
+                return customUrl;
+            }
+        }
+
+        return properties.getUrls().getFactors().getPasskey().getAssertionOptions();
+    }
+
+    /**
+     * MFA Passkey 로그인 처리 URL (별칭)
+     */
+    public String getMfaPasskeyLoginProcessing() {
+        return getPasskeyLoginProcessing();
+    }
+
+    /**
+     * MFA Passkey Assertion Options URL (별칭)
+     */
+    public String getMfaPasskeyAssertionOptions() {
+        return getPasskeyAssertionOptions();
     }
 
     /**
@@ -702,13 +760,6 @@ public class AuthUrlProvider {
      */
     public String getPasskeyRegistrationProcessing() {
         return properties.getUrls().getFactors().getPasskey().getRegistrationProcessing();
-    }
-
-    /**
-     * WebAuthn assertion options URL
-     */
-    public String getPasskeyAssertionOptions() {
-        return properties.getUrls().getFactors().getPasskey().getAssertionOptions();
     }
 
     /**

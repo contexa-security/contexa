@@ -10,6 +10,7 @@ public interface FormDslConfigurer
     FormDslConfigurer loginPage(String loginPageUrl);
     FormDslConfigurer usernameParameter(String usernameParameter);
     FormDslConfigurer passwordParameter(String passwordParameter);
+    FormDslConfigurer defaultSuccessUrl(String defaultSuccessUrl);
     FormDslConfigurer defaultSuccessUrl(String defaultSuccessUrl, boolean alwaysUse);
     FormDslConfigurer failureUrl(String failureUrl);
     FormDslConfigurer permitAll();

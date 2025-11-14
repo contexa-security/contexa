@@ -23,6 +23,14 @@ public final class OttDslConfigurerImpl
         setApplicationContext(applicationContext);
     }
 
+    public OttDslConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
+        super(isMfaMode ?
+            OttOptions.builderForMfa(applicationContext) :
+            OttOptions.builder(applicationContext)
+        );
+        setApplicationContext(applicationContext);
+    }
+
     @Override
     public OttDslConfigurer order(int order) {
         getOptionsBuilder().order(order);

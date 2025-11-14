@@ -82,16 +82,14 @@ public final class FormOptions extends AuthenticationProcessingOptions {
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             if (isMfaMode) {
-                // MFA 1차 인증 URL
                 this.loginPage = urlProvider.getPrimaryLoginPage();
                 this.defaultSuccessUrl = urlProvider.getPrimaryLoginSuccess();
                 this.failureUrl = urlProvider.getPrimaryLoginFailure();
                 super.loginProcessingUrl(urlProvider.getPrimaryFormLoginProcessing());
             } else {
-                // 단일 인증 URL (Spring Security 기본값)
-                this.loginPage = urlProvider.getSingleFormLoginPage();
-                this.defaultSuccessUrl = urlProvider.getSingleLoginSuccess();
-                this.failureUrl = urlProvider.getSingleLoginFailure();
+//                this.loginPage = urlProvider.getSingleFormLoginPage();
+//                this.defaultSuccessUrl = urlProvider.getSingleLoginSuccess();
+//                this.failureUrl = urlProvider.getSingleLoginFailure();
                 super.loginProcessingUrl(urlProvider.getSingleFormLoginProcessing());
             }
 

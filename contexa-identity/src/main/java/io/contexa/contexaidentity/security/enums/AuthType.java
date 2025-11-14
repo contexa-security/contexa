@@ -17,6 +17,8 @@ public enum AuthType {
     MFA(false),
     MFA_FORM(false),
     MFA_REST(false),
+    MFA_OTT(false),
+    MFA_PASSKEY(false),
     PRIMARY(false);
 
     /**

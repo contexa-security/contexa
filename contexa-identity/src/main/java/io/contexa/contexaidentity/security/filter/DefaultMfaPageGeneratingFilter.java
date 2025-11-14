@@ -71,6 +71,66 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
 
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain chain) throws ServletException, IOException {
+
+        String requestUri = normalizeUri(request);
+
+        // Step 1: Primary Authentication Page (1차 인증) - 최우선 처리
+        if (isPrimaryAuthPage(requestUri)) {
+            handlePrimaryAuthPage(request, response);
+            return;
+        }
+
+        // Step 2: MFA Select Factor Page (2차 인증 선택)
+        if (isSelectFactorPage(requestUri)) {
+            handleSelectFactorPage(request, response);
+            return;
+        }
+
+        // Step 3: Factor Challenge Pages (개별 Factor 챌린지)
+
+        // OTT Request Code Page
+        if (isOttRequestPage(requestUri)) {
+            handleOttRequestPage(request, response);
+            return;
+        }
+
+        // OTT Verify Page
+        if (isOttChallengePage(requestUri)) {
+            handleOttChallengePage(request, response);
+            return;
+        }
+
+        // Passkey Challenge Page
+        if (isPasskeyChallengePage(requestUri)) {
+            // GET 요청만 페이지 생성, POST 요청은 FilterChain 진행 (INITIATE_CHALLENGE 이벤트 처리)
+            if ("GET".equalsIgnoreCase(request.getMethod())) {
+                handlePasskeyChallengePage(request, response);
+                return;
+            }
+        }
+
+        // Step 4: MFA Utility Pages
+
+        // MFA Configure Page
+        if (isConfigurePage(requestUri)) {
+            handleConfigurePage(request, response);
+            return;
+        }
+
+        // MFA Failure Page
+        if (isFailurePage(requestUri)) {
+            handleFailurePage(request, response);
+            return;
+        }
+
+        chain.doFilter(request, response);
+    }
+
     // ========== HTML 템플릿 상수 (Spring Security 패턴) ==========
 
     /**
@@ -923,65 +983,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 extractSelectFactorUrl(),
                 extractOttCodeGenerationUrl(),
                 extractOttLoginProcessingUrl());
-    }
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                   HttpServletResponse response,
-                                   FilterChain chain) throws ServletException, IOException {
-
-        String requestUri = normalizeUri(request);
-
-        // Step 1: Primary Authentication Page (1차 인증) - 최우선 처리
-        if (isPrimaryAuthPage(requestUri)) {
-            handlePrimaryAuthPage(request, response);
-            return;
-        }
-
-        // Step 2: MFA Select Factor Page (2차 인증 선택)
-        if (isSelectFactorPage(requestUri)) {
-            handleSelectFactorPage(request, response);
-            return;
-        }
-
-        // Step 3: Factor Challenge Pages (개별 Factor 챌린지)
-
-        // OTT Request Code Page
-        if (isOttRequestPage(requestUri)) {
-            handleOttRequestPage(request, response);
-            return;
-        }
-
-        // OTT Verify Page
-        if (isOttChallengePage(requestUri)) {
-            handleOttChallengePage(request, response);
-            return;
-        }
-
-        // Passkey Challenge Page
-        if (isPasskeyChallengePage(requestUri)) {
-            // GET 요청만 페이지 생성, POST 요청은 FilterChain 진행 (INITIATE_CHALLENGE 이벤트 처리)
-            if ("GET".equalsIgnoreCase(request.getMethod())) {
-                handlePasskeyChallengePage(request, response);
-                return;
-            }
-        }
-
-        // Step 4: MFA Utility Pages
-
-        // MFA Configure Page
-        if (isConfigurePage(requestUri)) {
-            handleConfigurePage(request, response);
-            return;
-        }
-
-        // MFA Failure Page
-        if (isFailurePage(requestUri)) {
-            handleFailurePage(request, response);
-            return;
-        }
-
-        chain.doFilter(request, response);
     }
 
     // ===== Primary Authentication (1차 인증) =====

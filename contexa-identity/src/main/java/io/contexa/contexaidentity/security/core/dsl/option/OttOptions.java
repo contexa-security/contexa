@@ -39,7 +39,11 @@ public final class OttOptions extends AuthenticationProcessingOptions { // final
     }
 
     public static Builder builder(ApplicationContext applicationContext) {
-        return new Builder(applicationContext);
+        return new Builder(applicationContext, false);
+    }
+
+    public static Builder builderForMfa(ApplicationContext applicationContext) {
+        return new Builder(applicationContext, true);
     }
 
 
@@ -54,18 +58,23 @@ public final class OttOptions extends AuthenticationProcessingOptions { // final
         private OneTimeTokenGenerationSuccessHandler tokenGenerationSuccessHandler;
         private OttAsepAttributes asepAttributes;
 
-        public Builder(ApplicationContext applicationContext) {
+        private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for OttOptions.Builder");
 
             // AuthUrlProvider를 통해 동적으로 URL 가져오기
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
-            // OTT 관련 URL 설정
-            this.tokenGeneratingUrl = urlProvider.getOttCodeGeneration();
-            this.defaultSubmitPageUrl = urlProvider.getOttChallengeUi();
-
-            // 부모 클래스 설정
-            super.loginProcessingUrl(urlProvider.getOttLoginProcessing());
+            if (isMfaMode) {
+                // MFA Factor URL
+                this.tokenGeneratingUrl = urlProvider.getMfaOttCodeGeneration();
+                this.defaultSubmitPageUrl = urlProvider.getMfaOttChallengeUi();
+                super.loginProcessingUrl(urlProvider.getMfaOttLoginProcessing());
+            } else {
+                // 단일 인증 URL
+                this.tokenGeneratingUrl = urlProvider.getSingleOttCodeGeneration();
+                this.defaultSubmitPageUrl = urlProvider.getSingleOttChallenge();
+                super.loginProcessingUrl(urlProvider.getSingleOttLoginProcessing());
+            }
 
             // 기존 서비스 주입
             this.oneTimeTokenService = applicationContext.getBean(OneTimeTokenService.class);

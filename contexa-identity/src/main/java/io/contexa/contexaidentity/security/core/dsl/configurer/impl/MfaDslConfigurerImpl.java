@@ -131,12 +131,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
 
     @Override
     public MfaDslConfigurerImpl<H> ott(Customizer<OttDslConfigurer> ottConfigurerCustomizer) {
-        return configureMfaFactor(AuthType.OTT, ottConfigurerCustomizer, OttDslConfigurer.class);
+        return configureMfaFactor(AuthType.MFA_OTT, ottConfigurerCustomizer, OttDslConfigurer.class);
     }
 
     @Override
     public MfaDslConfigurerImpl<H> passkey(Customizer<PasskeyDslConfigurer> passkeyConfigurerCustomizer) {
-        return configureMfaFactor(AuthType.PASSKEY, passkeyConfigurerCustomizer, PasskeyDslConfigurer.class);
+        return configureMfaFactor(AuthType.MFA_PASSKEY, passkeyConfigurerCustomizer, PasskeyDslConfigurer.class);
     }
 
     @Override

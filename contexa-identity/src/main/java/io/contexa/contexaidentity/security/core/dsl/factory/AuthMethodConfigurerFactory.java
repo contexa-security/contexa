@@ -45,8 +45,14 @@ public final class AuthMethodConfigurerFactory {
             case OTT -> {
                 yield new OttDslConfigurerImpl(this.applicationContext);
             }
+            case MFA_OTT -> {
+                yield new OttDslConfigurerImpl(this.applicationContext, true);
+            }
             case PASSKEY -> {
                 yield new PasskeyDslConfigurerImpl(this.applicationContext);
+            }
+            case MFA_PASSKEY -> {
+                yield new PasskeyDslConfigurerImpl(this.applicationContext, true);
             }
             // case RECOVERY_CODE -> { ... }
             default -> {

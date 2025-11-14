@@ -28,7 +28,11 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions { // f
     }
 
     public static Builder builder(ApplicationContext applicationContext) {
-        return new Builder(applicationContext);
+        return new Builder(applicationContext, false);
+    }
+
+    public static Builder builderForMfa(ApplicationContext applicationContext) {
+        return new Builder(applicationContext, true);
     }
 
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<PasskeyOptions, Builder> {
@@ -38,15 +42,21 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions { // f
         private Set<String> allowedOrigins = Set.of("http://localhost:8080");
         private PasskeyAsepAttributes asepAttributes;
 
-        public Builder(ApplicationContext applicationContext) {
+        private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
 
             // AuthUrlProvider를 통해 동적으로 URL 가져오기
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
-            this.assertionOptionsEndpoint = urlProvider.getPasskeyAssertionOptions();
-
-            super.loginProcessingUrl(urlProvider.getPasskeyLoginProcessing());
+            if (isMfaMode) {
+                // MFA Factor URL
+                this.assertionOptionsEndpoint = urlProvider.getMfaPasskeyAssertionOptions();
+                super.loginProcessingUrl(urlProvider.getMfaPasskeyLoginProcessing());
+            } else {
+                // 단일 인증 URL
+                this.assertionOptionsEndpoint = urlProvider.getSinglePasskeyAssertionOptions();
+                super.loginProcessingUrl(urlProvider.getSinglePasskeyLoginProcessing());
+            }
         }
 
         @Override

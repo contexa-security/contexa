@@ -21,6 +21,14 @@ public final class PasskeyDslConfigurerImpl
         setApplicationContext(applicationContext);
     }
 
+    public PasskeyDslConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
+        super(isMfaMode ?
+            PasskeyOptions.builderForMfa(applicationContext) :
+            PasskeyOptions.builder(applicationContext)
+        );
+        setApplicationContext(applicationContext);
+    }
+
     @Override
     public PasskeyDslConfigurer order(int order) {
         getOptionsBuilder().order(order); // AuthenticationProcessingOptions.Builder의 order 사용
