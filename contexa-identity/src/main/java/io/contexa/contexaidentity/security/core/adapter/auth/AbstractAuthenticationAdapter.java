@@ -97,13 +97,13 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
         OneTimeTokenGenerationSuccessHandler generationSuccessHandler;
 
-        if (this instanceof OttAuthenticationAdapter ottAdapter) {
+        if (this instanceof BaseOttAuthenticationAdapter ottAdapter) {
                 generationSuccessHandler = determineDefaultOttGenerationSuccessHandler(appContext);
                 log.debug("AuthenticationFeature [{}]: Using provided successHandler as OneTimeTokenGenerationSuccessHandler: {}",
                         getId(), successHandler != null ? successHandler.getClass().getName() : "null");
 
                 if (generationSuccessHandler == null) {
-                    log.error("AuthenticationFeature [{}]: CRITICAL - determineDefaultOttSuccessHandler returned null. This should not happen. Review OttAuthenticationAdapter.determineDefaultOttSuccessHandler.", getId());
+                    log.error("AuthenticationFeature [{}]: CRITICAL - determineDefaultOttSuccessHandler returned null. This should not happen. Review BaseOttAuthenticationAdapter.determineDefaultOttSuccessHandler.", getId());
                     throw new IllegalStateException("Unable to determine a valid OneTimeTokenGenerationSuccessHandler for OTT feature " + getId() +
                             ". Resolved successHandler was: " + (successHandler != null ? successHandler.getClass().getName() : "null") +
                             " and determineDefaultOttSuccessHandler also returned null.");
