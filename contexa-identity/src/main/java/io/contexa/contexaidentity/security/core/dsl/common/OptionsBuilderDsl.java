@@ -13,16 +13,12 @@ import org.springframework.security.web.context.SecurityContextRepository;
 
 import java.util.List;
 
-// O: Options 타입, S: DSL Configurer 자신의 타입
 public interface OptionsBuilderDsl<O extends AbstractOptions, S extends OptionsBuilderDsl<O, S>> { // O extends AbstractOptions로 변경
 
-    // AuthenticationProcessingOptions에 특화된 메서드들
     S loginProcessingUrl(String url);
     S successHandler(PlatformAuthenticationSuccessHandler successHandler);
     S failureHandler(PlatformAuthenticationFailureHandler failureHandler);
     S securityContextRepository(SecurityContextRepository repository);
-
-    // AbstractOptions (공통 HttpSecurity 설정) 관련 메서드들
     S disableCsrf();
     S cors(Customizer<CorsConfigurer<HttpSecurity>> customizer);
     S headers(Customizer<HeadersConfigurer<HttpSecurity>> customizer);
@@ -31,7 +27,6 @@ public interface OptionsBuilderDsl<O extends AbstractOptions, S extends OptionsB
     S rawHttp(SafeHttpCustomizer<HttpSecurity> customizer);
     S authorizeStaticPermitAll(List<String> patterns); // 추가
     S authorizeStaticPermitAll(String... patterns); // 추가
-
     O buildConcreteOptions();
 }
 

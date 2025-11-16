@@ -67,8 +67,6 @@ public abstract class AbstractOptions {
             });
         }
         for (SafeHttpCustomizer<HttpSecurity> rawCustomizer : rawHttpCustomizers) {
-            // SafeHttpCustomizer는 예외를 던지지 않도록 설계되었다고 가정,
-            // 또는 여기서 try-catch로 감싸거나 customizer.customize가 throws Exception을 선언했다면 전파
             rawCustomizer.customize(http);
         }
     }
