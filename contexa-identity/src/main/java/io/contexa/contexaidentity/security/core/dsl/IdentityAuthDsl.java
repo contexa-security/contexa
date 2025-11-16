@@ -25,28 +25,28 @@ public interface IdentityAuthDsl {
      * @param customizer FormDslConfigurer를 커스터마이징합니다. (이 내부에서 .asep() 호출 가능)
      * @return 다음 단계인 IdentityStateDsl (상태 관리 설정)
      */
-    IdentityStateDsl form(Customizer<FormDslConfigurer> customizer) throws Exception; // throws Exception 추가 (asep() 때문에)
+    IdentityStateDsl form(Customizer<FormConfigurerConfigurer> customizer) throws Exception; // throws Exception 추가 (asep() 때문에)
 
     /**
      * REST API 기반 인증 방식을 설정합니다.
      * @param customizer RestDslConfigurer를 커스터마이징합니다.
      * @return 다음 단계인 IdentityStateDsl
      */
-    IdentityStateDsl rest(Customizer<RestDslConfigurer> customizer) throws Exception;
+    IdentityStateDsl rest(Customizer<RestConfigurerConfigurer> customizer) throws Exception;
 
     /**
      * OTT (One Time Token) 인증 방식을 설정합니다.
      * @param customizer OttDslConfigurer를 커스터마이징합니다.
      * @return 다음 단계인 IdentityStateDsl
      */
-    IdentityStateDsl ott(Customizer<OttDslConfigurer> customizer) throws Exception;
+    IdentityStateDsl ott(Customizer<OttConfigurerConfigurer> customizer) throws Exception;
 
     /**
      * Passkey (WebAuthn) 인증 방식을 설정합니다.
      * @param customizer PasskeyDslConfigurer를 커스터마이징합니다.
      * @return 다음 단계인 IdentityStateDsl
      */
-    IdentityStateDsl passkey(Customizer<PasskeyDslConfigurer> customizer) throws Exception;
+    IdentityStateDsl passkey(Customizer<PasskeyConfigurerConfigurer> customizer) throws Exception;
 
     /**
      * MFA (Multi-Factor Authentication) 흐름을 설정합니다.

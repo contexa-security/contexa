@@ -34,27 +34,27 @@ public final class IdentityDslRegistry<H extends HttpSecurityBuilder<H>> // H는
     }
 
     @Override
-    public IdentityStateDsl form(Customizer<FormDslConfigurer> customizer) throws Exception {
+    public IdentityStateDsl form(Customizer<FormConfigurerConfigurer> customizer) throws Exception {
         log.debug("Registering Form authentication options.");
-        return registerAuthenticationMethod(AuthType.FORM, customizer, 100, FormDslConfigurer.class);
+        return registerAuthenticationMethod(AuthType.FORM, customizer, 100, FormConfigurerConfigurer.class);
     }
 
     @Override
-    public IdentityStateDsl rest(Customizer<RestDslConfigurer> customizer) throws Exception {
+    public IdentityStateDsl rest(Customizer<RestConfigurerConfigurer> customizer) throws Exception {
         log.debug("Registering Rest authentication options.");
-        return registerAuthenticationMethod(AuthType.REST, customizer, 200, RestDslConfigurer.class);
+        return registerAuthenticationMethod(AuthType.REST, customizer, 200, RestConfigurerConfigurer.class);
     }
 
     @Override
-    public IdentityStateDsl ott(Customizer<OttDslConfigurer> customizer) throws Exception {
+    public IdentityStateDsl ott(Customizer<OttConfigurerConfigurer> customizer) throws Exception {
         log.debug("Registering OTT authentication options.");
-        return registerAuthenticationMethod(AuthType.OTT, customizer, 300, OttDslConfigurer.class);
+        return registerAuthenticationMethod(AuthType.OTT, customizer, 300, OttConfigurerConfigurer.class);
     }
 
     @Override
-    public IdentityStateDsl passkey(Customizer<PasskeyDslConfigurer> customizer) throws Exception {
+    public IdentityStateDsl passkey(Customizer<PasskeyConfigurerConfigurer> customizer) throws Exception {
         log.debug("Registering Passkey authentication options.");
-        return registerAuthenticationMethod(AuthType.PASSKEY, customizer, 400, PasskeyDslConfigurer.class);
+        return registerAuthenticationMethod(AuthType.PASSKEY, customizer, 400, PasskeyConfigurerConfigurer.class);
     }
 
     @Override

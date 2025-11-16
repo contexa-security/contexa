@@ -12,10 +12,10 @@ import org.springframework.security.config.Customizer;
  * @param <S> Configurer 자신의 타입 (해당 인터페이스를 구현하는 구체적인 Configurer 인터페이스)
  */
 public interface AuthenticationFactorConfigurer<
-        O extends AuthenticationProcessingOptions, // O의 bound는 AuthenticationProcessingOptions
+        O extends AuthenticationProcessingOptions,
         A extends BaseAsepAttributes,
         S extends AuthenticationFactorConfigurer<O, A, S>>
-        extends OptionsBuilderDsl<O, S>, SecurityConfigurerDsl {
+        extends OptionsBuilderConfigurer<O, S>, SecurityConfigurerDsl {
 
     S order(int order);
     S asep(Customizer<A> asepAttributesCustomizer);

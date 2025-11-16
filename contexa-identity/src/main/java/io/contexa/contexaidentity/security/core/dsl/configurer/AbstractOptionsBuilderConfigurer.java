@@ -25,8 +25,8 @@ public abstract class AbstractOptionsBuilderConfigurer<
         T extends AbstractOptionsBuilderConfigurer<T, O, OB, C>,
         O extends AbstractOptions,
         OB extends AbstractOptions.Builder<O, OB>,
-        C extends OptionsBuilderDsl<O, C> & SecurityConfigurerDsl>
-        implements OptionsBuilderDsl<O, C> {
+        C extends OptionsBuilderConfigurer<O, C> & SecurityConfigurerDsl>
+        implements OptionsBuilderConfigurer<O, C> {
 
     protected final OB optionsBuilder;
     @Setter

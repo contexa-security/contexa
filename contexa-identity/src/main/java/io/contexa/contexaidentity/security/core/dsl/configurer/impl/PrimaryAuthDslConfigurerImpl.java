@@ -1,8 +1,8 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
-import io.contexa.contexaidentity.security.core.dsl.configurer.FormDslConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.FormConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.PrimaryAuthDslConfigurer;
-import io.contexa.contexaidentity.security.core.dsl.configurer.RestDslConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.RestConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurerFactory;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
@@ -23,8 +23,8 @@ import java.util.Objects;
 public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         implements PrimaryAuthDslConfigurer {
 
-    private Customizer<FormDslConfigurer> formLoginCustomizer;
-    private Customizer<RestDslConfigurer> restLoginCustomizer;
+    private Customizer<FormConfigurerConfigurer> formLoginCustomizer;
+    private Customizer<RestConfigurerConfigurer> restLoginCustomizer;
     private final ApplicationContext applicationContext;
 
     public PrimaryAuthDslConfigurerImpl(ApplicationContext applicationContext) {
@@ -32,7 +32,7 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
     }
 
     @Override
-    public PrimaryAuthDslConfigurer formLogin(Customizer<FormDslConfigurer> formLoginCustomizer) {
+    public PrimaryAuthDslConfigurer formLogin(Customizer<FormConfigurerConfigurer> formLoginCustomizer) {
         Assert.notNull(formLoginCustomizer, "formLoginCustomizer cannot be null");
         this.formLoginCustomizer = formLoginCustomizer;
         this.restLoginCustomizer = null;
@@ -40,7 +40,7 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
     }
 
     @Override
-    public PrimaryAuthDslConfigurer restLogin(Customizer<RestDslConfigurer> restLoginCustomizer) {
+    public PrimaryAuthDslConfigurer restLogin(Customizer<RestConfigurerConfigurer> restLoginCustomizer) {
         Assert.notNull(restLoginCustomizer, "restLoginCustomizer cannot be null");
         this.restLoginCustomizer = restLoginCustomizer;
         this.formLoginCustomizer = null;
@@ -56,8 +56,8 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
 
         if (formLoginCustomizer != null) {
             // MFA 1차 인증용 FormDslConfigurer 생성 (AuthType.MFA_FORM)
-            FormDslConfigurerImpl formDslBuilder = (FormDslConfigurerImpl) factory.createFactorConfigurer(
-                AuthType.MFA_FORM, FormDslConfigurer.class
+            FormConfigurerConfigurerImpl formDslBuilder = (FormConfigurerConfigurerImpl) factory.createFactorConfigurer(
+                AuthType.MFA_FORM, FormConfigurerConfigurer.class
             );
             formLoginCustomizer.customize(formDslBuilder);
             FormOptions builtFormOptions = formDslBuilder.buildConcreteOptions();
@@ -68,8 +68,8 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
 
         } else if (restLoginCustomizer != null) {
             // MFA 1차 인증용 RestDslConfigurer 생성 (AuthType.MFA_REST)
-            RestDslConfigurerImpl restDslBuilder = (RestDslConfigurerImpl) factory.createFactorConfigurer(
-                AuthType.MFA_REST, RestDslConfigurer.class
+            RestConfigurerConfigurerImpl restDslBuilder = (RestConfigurerConfigurerImpl) factory.createFactorConfigurer(
+                AuthType.MFA_REST, RestConfigurerConfigurer.class
             );
             restLoginCustomizer.customize(restDslBuilder);
             RestOptions builtRestOptions = restDslBuilder.buildConcreteOptions();

@@ -2,7 +2,7 @@ package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.OttAsepAttributes;
 import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
-import io.contexa.contexaidentity.security.core.dsl.configurer.OttDslConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.OttConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -14,16 +14,16 @@ import org.springframework.security.web.authentication.ott.OneTimeTokenGeneratio
 import org.springframework.security.web.context.SecurityContextRepository;
 
 @Slf4j
-public final class OttDslConfigurerImpl
-        extends AbstractOptionsBuilderConfigurer<OttDslConfigurerImpl, OttOptions, OttOptions.Builder, OttDslConfigurer>
-        implements OttDslConfigurer {
+public final class OttConfigurerConfigurerImpl
+        extends AbstractOptionsBuilderConfigurer<OttConfigurerConfigurerImpl, OttOptions, OttOptions.Builder, OttConfigurerConfigurer>
+        implements OttConfigurerConfigurer {
 
-    public OttDslConfigurerImpl(ApplicationContext applicationContext) {
+    public OttConfigurerConfigurerImpl(ApplicationContext applicationContext) {
         super(OttOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 
-    public OttDslConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
+    public OttConfigurerConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
         super(isMfaMode ?
             OttOptions.builderForMfa(applicationContext) :
             OttOptions.builder(applicationContext)
@@ -32,67 +32,67 @@ public final class OttDslConfigurerImpl
     }
 
     @Override
-    public OttDslConfigurer order(int order) {
+    public OttConfigurerConfigurer order(int order) {
         getOptionsBuilder().order(order);
         return self();
     }
 
     @Override
-    public OttDslConfigurer loginProcessingUrl(String url) {
+    public OttConfigurerConfigurer loginProcessingUrl(String url) {
         getOptionsBuilder().loginProcessingUrl(url);
         return self();
     }
 
     @Override
-    public OttDslConfigurer successHandler(PlatformAuthenticationSuccessHandler successHandler) {
+    public OttConfigurerConfigurer successHandler(PlatformAuthenticationSuccessHandler successHandler) {
         getOptionsBuilder().successHandler(successHandler);
         return self();
     }
 
     @Override
-    public OttDslConfigurer failureHandler(PlatformAuthenticationFailureHandler failureHandler) {
+    public OttConfigurerConfigurer failureHandler(PlatformAuthenticationFailureHandler failureHandler) {
         getOptionsBuilder().failureHandler(failureHandler);
         return self();
     }
 
     @Override
-    public OttDslConfigurer securityContextRepository(SecurityContextRepository repository) {
+    public OttConfigurerConfigurer securityContextRepository(SecurityContextRepository repository) {
         getOptionsBuilder().securityContextRepository(repository);
         return self();
     }
 
     @Override
-    public OttDslConfigurer defaultSubmitPageUrl(String url) {
+    public OttConfigurerConfigurer defaultSubmitPageUrl(String url) {
         getOptionsBuilder().defaultSubmitPageUrl(url);
         return self();
     }
 
     @Override
-    public OttDslConfigurer tokenGeneratingUrl(String url) {
+    public OttConfigurerConfigurer tokenGeneratingUrl(String url) {
         getOptionsBuilder().tokenGeneratingUrl(url);
         return self();
     }
 
     @Override
-    public OttDslConfigurer showDefaultSubmitPage(boolean show) {
+    public OttConfigurerConfigurer showDefaultSubmitPage(boolean show) {
         getOptionsBuilder().showDefaultSubmitPage(show);
         return self();
     }
 
     @Override
-    public OttDslConfigurer tokenService(OneTimeTokenService service) {
+    public OttConfigurerConfigurer tokenService(OneTimeTokenService service) {
         getOptionsBuilder().oneTimeTokenService(service); // OttOptions.Builder에 해당 메소드 필요
         return self();
     }
 
     @Override
-    public OttDslConfigurer tokenGenerationSuccessHandler(OneTimeTokenGenerationSuccessHandler handler) {
+    public OttConfigurerConfigurer tokenGenerationSuccessHandler(OneTimeTokenGenerationSuccessHandler handler) {
         getOptionsBuilder().tokenGenerationSuccessHandler(handler); // OttOptions.Builder에 해당 메소드 필요
         return self();
     }
 
     @Override
-    public OttDslConfigurer asep(Customizer<OttAsepAttributes> ottAsepAttributesCustomizer) {
+    public OttConfigurerConfigurer asep(Customizer<OttAsepAttributes> ottAsepAttributesCustomizer) {
 
         OttAsepAttributes attributes = new OttAsepAttributes();
         if (ottAsepAttributesCustomizer != null) {
@@ -105,7 +105,7 @@ public final class OttDslConfigurerImpl
     }
 
     @Override
-    protected OttDslConfigurerImpl self() {
+    protected OttConfigurerConfigurerImpl self() {
         return this;
     }
 }

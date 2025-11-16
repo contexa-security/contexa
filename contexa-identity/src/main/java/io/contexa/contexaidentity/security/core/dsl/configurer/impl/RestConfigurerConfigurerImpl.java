@@ -2,7 +2,7 @@ package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.RestAsepAttributes;
 import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
-import io.contexa.contexaidentity.security.core.dsl.configurer.RestDslConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.RestConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -12,14 +12,14 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.web.context.SecurityContextRepository;
 
 @Slf4j
-public final class RestDslConfigurerImpl // <H extends HttpSecurityBuilder<H>> 제네릭 제거 또는 유지
-        extends AbstractOptionsBuilderConfigurer<RestDslConfigurerImpl, RestOptions, RestOptions.Builder, RestDslConfigurer>
-        implements RestDslConfigurer {
+public final class RestConfigurerConfigurerImpl // <H extends HttpSecurityBuilder<H>> 제네릭 제거 또는 유지
+        extends AbstractOptionsBuilderConfigurer<RestConfigurerConfigurerImpl, RestOptions, RestOptions.Builder, RestConfigurerConfigurer>
+        implements RestConfigurerConfigurer {
 
     /**
      * 단일 인증용 생성자 (기본)
      */
-    public RestDslConfigurerImpl(ApplicationContext applicationContext) {
+    public RestConfigurerConfigurerImpl(ApplicationContext applicationContext) {
         super(RestOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
@@ -29,43 +29,43 @@ public final class RestDslConfigurerImpl // <H extends HttpSecurityBuilder<H>> �
      * @param applicationContext ApplicationContext
      * @param isMfaMode true: MFA 1차 인증, false: 단일 인증 (사용하지 않음)
      */
-    public RestDslConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
+    public RestConfigurerConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
         super(isMfaMode ? RestOptions.builderForMfa(applicationContext) : RestOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 
     @Override
-    public RestDslConfigurer order(int order) {
+    public RestConfigurerConfigurer order(int order) {
         getOptionsBuilder().order(order); // AuthenticationProcessingOptions.Builder의 order 사용
         return self();
     }
 
     @Override
-    public RestDslConfigurer loginProcessingUrl(String url) {
+    public RestConfigurerConfigurer loginProcessingUrl(String url) {
         super.loginProcessingUrl(url); // AbstractOptionsBuilderConfigurer의 메서드 호출
         return self();
     }
 
     @Override
-    public RestDslConfigurer successHandler(PlatformAuthenticationSuccessHandler  successHandler) {
+    public RestConfigurerConfigurer successHandler(PlatformAuthenticationSuccessHandler  successHandler) {
         super.successHandler(successHandler);
         return self();
     }
 
     @Override
-    public RestDslConfigurer failureHandler(PlatformAuthenticationFailureHandler failureHandler) {
+    public RestConfigurerConfigurer failureHandler(PlatformAuthenticationFailureHandler failureHandler) {
         super.failureHandler(failureHandler);
         return self();
     }
 
     @Override
-    public RestDslConfigurer securityContextRepository(SecurityContextRepository repository) {
+    public RestConfigurerConfigurer securityContextRepository(SecurityContextRepository repository) {
         super.securityContextRepository(repository);
         return self();
     }
 
     @Override
-    public RestDslConfigurer asep(Customizer<RestAsepAttributes> restAsepAttributesCustomizer){
+    public RestConfigurerConfigurer asep(Customizer<RestAsepAttributes> restAsepAttributesCustomizer){
         // H builder = getBuilder(); // 제거
         RestAsepAttributes attributes = new RestAsepAttributes();
         if (restAsepAttributesCustomizer != null) {
@@ -78,7 +78,7 @@ public final class RestDslConfigurerImpl // <H extends HttpSecurityBuilder<H>> �
     }
 
     @Override
-    protected RestDslConfigurerImpl self() {
+    protected RestConfigurerConfigurerImpl self() {
         return this;
     }
 

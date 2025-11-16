@@ -76,12 +76,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     }
 
     @Override
-    public MfaDslConfigurerImpl<H> form(Customizer<FormDslConfigurer> formConfigurerCustomizer) {
+    public MfaDslConfigurerImpl<H> form(Customizer<FormConfigurerConfigurer> formConfigurerCustomizer) {
         throw new UnsupportedOperationException("Use .primaryAuthentication(primary -> primary.formLogin(...)) for MFA flow's primary auth.");
     }
 
     @Override
-    public MfaDslConfigurerImpl<H> rest(Customizer<RestDslConfigurer> restConfigurerCustomizer) {
+    public MfaDslConfigurerImpl<H> rest(Customizer<RestConfigurerConfigurer> restConfigurerCustomizer) {
         throw new UnsupportedOperationException("Use .primaryAuthentication(primary -> primary.restLogin(...)) for MFA flow's primary auth.");
     }
 
@@ -122,13 +122,13 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     }
 
     @Override
-    public MfaDslConfigurerImpl<H> ott(Customizer<OttDslConfigurer> ottConfigurerCustomizer) {
-        return configureMfaFactor(AuthType.MFA_OTT, ottConfigurerCustomizer, OttDslConfigurer.class);
+    public MfaDslConfigurerImpl<H> ott(Customizer<OttConfigurerConfigurer> ottConfigurerCustomizer) {
+        return configureMfaFactor(AuthType.MFA_OTT, ottConfigurerCustomizer, OttConfigurerConfigurer.class);
     }
 
     @Override
-    public MfaDslConfigurerImpl<H> passkey(Customizer<PasskeyDslConfigurer> passkeyConfigurerCustomizer) {
-        return configureMfaFactor(AuthType.MFA_PASSKEY, passkeyConfigurerCustomizer, PasskeyDslConfigurer.class);
+    public MfaDslConfigurerImpl<H> passkey(Customizer<PasskeyConfigurerConfigurer> passkeyConfigurerCustomizer) {
+        return configureMfaFactor(AuthType.MFA_PASSKEY, passkeyConfigurerCustomizer, PasskeyConfigurerConfigurer.class);
     }
 
     @Override

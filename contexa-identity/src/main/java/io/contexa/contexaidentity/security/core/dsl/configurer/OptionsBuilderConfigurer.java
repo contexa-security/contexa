@@ -14,7 +14,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
 
 import java.util.List;
 
-public interface OptionsBuilderDsl<O extends AbstractOptions, S extends OptionsBuilderDsl<O, S>> { // O extends AbstractOptions로 변경
+public interface OptionsBuilderConfigurer<O extends AbstractOptions, S extends OptionsBuilderConfigurer<O, S>> { // O extends AbstractOptions로 변경
 
     S loginProcessingUrl(String url);
     S successHandler(PlatformAuthenticationSuccessHandler successHandler);

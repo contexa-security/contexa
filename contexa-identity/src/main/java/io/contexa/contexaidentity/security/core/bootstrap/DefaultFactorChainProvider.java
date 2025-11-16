@@ -10,7 +10,8 @@ import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
-import io.contexa.contexaidentity.security.core.dsl.configurer.PasskeyDslConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.OttConfigurerConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.PasskeyConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurerFactory;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -237,7 +238,7 @@ public class DefaultFactorChainProvider {
     private AuthenticationProcessingOptions createDefaultOttOptions(AuthMethodConfigurerFactory factory) {
         try {
             var ottConfigurer = factory.createFactorConfigurer(AuthType.OTT,
-                    io.contexa.contexaidentity.security.core.dsl.configurer.OttDslConfigurer.class);
+                    OttConfigurerConfigurer.class);
 
             if (ottConfigurer instanceof AbstractOptionsBuilderConfigurer) {
                 ((AbstractOptionsBuilderConfigurer<?, ?, ?, ?>) ottConfigurer)
@@ -268,7 +269,7 @@ public class DefaultFactorChainProvider {
      */
     private AuthenticationProcessingOptions createDefaultPasskeyOptions(AuthMethodConfigurerFactory factory) {
         try {
-            var passkeyConfigurer = factory.createFactorConfigurer(AuthType.PASSKEY, PasskeyDslConfigurer.class);
+            var passkeyConfigurer = factory.createFactorConfigurer(AuthType.PASSKEY, PasskeyConfigurerConfigurer.class);
 
             if (passkeyConfigurer instanceof AbstractOptionsBuilderConfigurer) {
                 ((AbstractOptionsBuilderConfigurer<?, ?, ?, ?>) passkeyConfigurer).setApplicationContext(applicationContext);
