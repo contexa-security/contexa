@@ -55,26 +55,30 @@ public class PlatformSecurityConfig {
                             .invalidateHttpSession(false)
                             .clearAuthentication(true)
                     )*/
-                    .securityContext(sc -> sc.securityContextRepository(new HttpSessionSecurityContextRepository()))
                 ;
         };
         return registry
                 .global(globalHttpCustomizer)
-                .form(form -> form.order(20)).session(Customizer.withDefaults())
-                .rest(rest -> rest.order(10)).oauth2(Customizer.withDefaults())
-                .ott(ott -> ott.order(40)).oauth2(Customizer.withDefaults())
-                .passkey(passkey -> passkey.order(50)).oauth2(Customizer.withDefaults())
-                /*.mfa(mfa -> mfa
+                /*.form(form -> form.order(10)).session(Customizer.withDefaults())
+                .rest(rest -> rest.order(20)).session(Customizer.withDefaults())
+                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
+                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
+
+                .form(form -> form.order(50)).oauth2(Customizer.withDefaults())
+                .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
+                .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
+                .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
+                .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        *//*.mfaPage(page ->
+                        .mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))*//*
+                                        .passkeyChallengePages("/custom/challenge/passkey"))
                         .order(60)
-                ).oauth2(Customizer.withDefaults())*/
+                ).oauth2(Customizer.withDefaults())
                 .build();
     }
 }

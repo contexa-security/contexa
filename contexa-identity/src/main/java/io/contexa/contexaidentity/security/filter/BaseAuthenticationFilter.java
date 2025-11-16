@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
@@ -34,7 +35,7 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
     protected RequestMatcher requestMatcher;
     protected PlatformAuthenticationSuccessHandler successHandler;
     protected PlatformAuthenticationFailureHandler failureHandler;
-    protected SecurityContextRepository securityContextRepository;
+    protected SecurityContextRepository securityContextRepository = new RequestAttributeSecurityContextRepository();
 
     protected BaseAuthenticationFilter(RequestMatcher requestMatcher, AuthenticationManager authenticationManager,
                                        AuthContextProperties properties) {
