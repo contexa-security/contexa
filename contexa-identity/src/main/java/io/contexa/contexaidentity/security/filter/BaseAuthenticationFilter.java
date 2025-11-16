@@ -30,7 +30,6 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
     protected final AuthContextProperties properties;
     protected final ObjectMapper mapper = new ObjectMapper();
 
-    // Spring Security 필드들
     protected SecurityContextHolderStrategy securityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy();
     protected RequestMatcher requestMatcher;
     protected PlatformAuthenticationSuccessHandler successHandler;

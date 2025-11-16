@@ -8,7 +8,9 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexaidentity.security.enums.StateType;
 import io.contexa.contexaidentity.security.handler.*;
+import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
@@ -76,22 +78,24 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         ApplicationContext appContext = platformContext.applicationContext();
         Objects.requireNonNull(appContext, "ApplicationContext from PlatformContext cannot be null");
 
-        // 핸들러 결정 (MFA 아니면 null)
-        PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, appContext);
-        PlatformAuthenticationFailureHandler failureHandler = resolveFailureHandler(options, currentFlow, appContext);
+        // StateConfig 결정
+        StateConfig resolvedStateConfig = (stateConfig != null) ? stateConfig :
+                (currentFlow != null && currentFlow.getStateConfig() != null) ? currentFlow.getStateConfig() : null;
 
-        // null 체크 후 위임 핸들러 설정 (MFA일 때만)
-        if (successHandler != null) {
-            AbstractMfaAuthenticationSuccessHandler mfaSuccessHandler = (AbstractMfaAuthenticationSuccessHandler) successHandler;
+        // 핸들러 결정 (단일 인증일 때도 StateType에 따라 핸들러 선택)
+        PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, resolvedStateConfig, appContext);
+        PlatformAuthenticationFailureHandler failureHandler = resolveFailureHandler(options, currentFlow, resolvedStateConfig, appContext);
+
+        // 위임 핸들러 설정 (모든 토큰 기반 핸들러)
+        if (successHandler instanceof AbstractTokenBasedSuccessHandler tokenBasedSuccessHandler) {
             if (options.getSuccessHandler() != null) {
-                mfaSuccessHandler.setDelegateHandler(options.getSuccessHandler());
+                tokenBasedSuccessHandler.setDelegateHandler(options.getSuccessHandler());
             }
         }
 
-        if (failureHandler != null) {
-            UnifiedAuthenticationFailureHandler mfaFailureHandler = (UnifiedAuthenticationFailureHandler) failureHandler;
+        if (failureHandler instanceof AbstractTokenBasedFailureHandler tokenBasedFailureHandler) {
             if (options.getFailureHandler() != null) {
-                mfaFailureHandler.setDelegateHandler(options.getFailureHandler());
+                tokenBasedFailureHandler.setDelegateHandler(options.getFailureHandler());
             }
         }
 
@@ -122,43 +126,110 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
     protected PlatformAuthenticationSuccessHandler resolveSuccessHandler(
             O options, @Nullable AuthenticationFlowConfig currentFlow,
             AuthenticationStepConfig myStepConfig, @Nullable List<AuthenticationStepConfig> allSteps,
+            @Nullable StateConfig stateConfig,
             ApplicationContext appContext) {
 
-        // MFA가 아니면 null 리턴 (Spring Security 기본 동작 사용)
-        if (currentFlow == null || !AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName())) {
-            log.debug("AuthenticationFeature [{}]: Non-MFA flow detected, returning null handler to use Spring Security defaults", getId());
-            return null;
-        }
+        // StateType 결정 (stateConfig → AuthContextProperties)
+        StateType stateType = determineStateType(stateConfig, appContext);
+        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
-        // MFA일 때만 핸들러 반환
-        if (allSteps != null) {
-            int currentStepIndex = allSteps.indexOf(myStepConfig);
-            boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
+        log.debug("AuthenticationFeature [{}]: Resolving success handler - MFA: {}, StateType: {}",
+                getId(), isMfaFlow, stateType);
 
-            if (isFirstStepInMfaFlow) {
-                log.debug("AuthenticationFeature [{}]: Resolving successHandler for MFA primary step.", getId());
-                return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
+        if (isMfaFlow) {
+            // MFA 인증 핸들러 선택
+            if (stateType == StateType.SESSION) {
+                log.debug("AuthenticationFeature [{}]: MFA + SESSION mode - using SessionMfaSuccessHandler", getId());
+                return appContext.getBean(SessionMfaSuccessHandler.class);
             } else {
-                log.debug("AuthenticationFeature [{}]: Resolving successHandler for MFA intermediate factor step.", getId());
-                return appContext.getBean(MfaFactorProcessingSuccessHandler.class);
+                // OAuth2 또는 JWT 모드
+                // 1차/2차 구분
+                if (allSteps != null) {
+                    int currentStepIndex = allSteps.indexOf(myStepConfig);
+                    boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
+
+                    if (isFirstStepInMfaFlow) {
+                        log.debug("AuthenticationFeature [{}]: MFA primary step with OAuth2/JWT - using PrimaryAuthenticationSuccessHandler", getId());
+                        return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
+                    } else {
+                        log.debug("AuthenticationFeature [{}]: MFA factor step with OAuth2/JWT - using MfaFactorProcessingSuccessHandler", getId());
+                        return appContext.getBean(MfaFactorProcessingSuccessHandler.class);
+                    }
+                }
+                log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
+                return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
+            }
+        } else {
+            // 단일 인증 핸들러 선택
+            if (stateType == StateType.SESSION) {
+                // SESSION 모드는 Spring Security 기본 핸들러 사용 (null 반환)
+                log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using Spring Security default handler (null)", getId());
+                return null;
+            } else {
+                // OAuth2 또는 JWT 모드
+                log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthSuccessHandler", getId());
+                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
             }
         }
-
-        log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
-        return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
     }
 
-    protected PlatformAuthenticationFailureHandler  resolveFailureHandler(O options, @Nullable AuthenticationFlowConfig currentFlow, ApplicationContext appContext) {
+    protected PlatformAuthenticationFailureHandler resolveFailureHandler(
+            O options, @Nullable AuthenticationFlowConfig currentFlow,
+            @Nullable StateConfig stateConfig,
+            ApplicationContext appContext) {
 
-        // MFA가 아니면 null 리턴 (Spring Security 기본 동작 사용)
-        if (currentFlow == null || !AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName())) {
-            log.debug("AuthenticationFeature [{}]: Non-MFA flow detected, returning null failure handler to use Spring Security defaults", getId());
-            return null;
+        // StateType 결정
+        StateType stateType = determineStateType(stateConfig, appContext);
+        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
+
+        log.debug("AuthenticationFeature [{}]: Resolving failure handler - MFA: {}, StateType: {}",
+                getId(), isMfaFlow, stateType);
+
+        if (isMfaFlow) {
+            // MFA 인증 실패 핸들러 선택
+            if (stateType == StateType.SESSION) {
+                log.debug("AuthenticationFeature [{}]: MFA + SESSION mode - using SessionMfaFailureHandler", getId());
+                return appContext.getBean(SessionMfaFailureHandler.class);
+            } else {
+                // OAuth2 또는 JWT 모드 - UnifiedAuthenticationFailureHandler 사용
+                log.debug("AuthenticationFeature [{}]: MFA + OAuth2/JWT mode - using UnifiedAuthenticationFailureHandler", getId());
+                return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
+            }
+        } else {
+            // 단일 인증 실패 핸들러 선택
+            if (stateType == StateType.SESSION) {
+                // SESSION 모드는 Spring Security 기본 핸들러 사용 (null 반환)
+                log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using Spring Security default handler (null)", getId());
+                return null;
+            } else {
+                // OAuth2 또는 JWT 모드
+                log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthFailureHandler", getId());
+                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
+            }
+        }
+    }
+
+    /**
+     * StateType 결정 메서드
+     *
+     * @param stateConfig StateConfig (nullable)
+     * @param appContext ApplicationContext
+     * @return StateType
+     */
+    protected StateType determineStateType(@Nullable StateConfig stateConfig, ApplicationContext appContext) {
+        // 1. StateConfig에서 가져오기
+        if (stateConfig != null && stateConfig.stateType() != null) {
+            return stateConfig.stateType();
         }
 
-        // MFA일 때만 UnifiedAuthenticationFailureHandler 반환
-        log.debug("AuthenticationFeature [{}]: MFA flow detected, using UnifiedAuthenticationFailureHandler", getId());
-        return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
+        // 2. AuthContextProperties에서 전역 기본값 가져오기
+        try {
+            AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
+            return properties.getStateType();
+        } catch (Exception e) {
+            log.warn("Failed to get AuthContextProperties, using JWT as default StateType", e);
+            return StateType.JWT;
+        }
     }
 
     /**

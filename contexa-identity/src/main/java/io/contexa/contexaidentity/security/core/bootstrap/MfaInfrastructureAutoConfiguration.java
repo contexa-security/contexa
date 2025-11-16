@@ -50,7 +50,8 @@ public class MfaInfrastructureAutoConfiguration {
                                                                                     MfaSessionRepository mfaSessionRepository,
                                                                                     UserIdentificationService userIdentificationService,
                                                                                     AuthUrlProvider authUrlProvider) {
-        return new UnifiedAuthenticationFailureHandler(mfaStateMachineIntegrator, mfaPolicyProvider, authResponseWriter, authContextProperties,mfaSessionRepository, userIdentificationService, authUrlProvider);
+        return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator, mfaPolicyProvider,
+                mfaSessionRepository, userIdentificationService, authUrlProvider);
     }
 
     @Bean

@@ -24,7 +24,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.http.ResponseCookie;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -37,20 +36,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * MFA 인증 성공 처리 핸들러
+ * MFA 인증 성공 처리 핸들러 (OAuth2/JWT 토큰 기반)
  *
  * 토큰 발급과 응답 처리를 담당하며, 사용자 커스텀 로직을 위한 확장점 제공
+ * AbstractTokenBasedSuccessHandler를 상속받아 토큰 생성 로직 재사용
  */
 @Slf4j
-public abstract class AbstractMfaAuthenticationSuccessHandler implements PlatformAuthenticationSuccessHandler, ApplicationEventPublisherAware {
+public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTokenBasedSuccessHandler implements ApplicationEventPublisherAware {
 
-    private final TokenService tokenService;
-    private final AuthResponseWriter responseWriter;
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
-    private final AuthContextProperties authContextProperties;
     private final RequestCache requestCache = new HttpSessionRequestCache();
-    private PlatformAuthenticationSuccessHandler delegateHandler;
     private ApplicationEventPublisher eventPublisher;
 
     // HCAD 계산을 위한 의존성 (optional)
@@ -66,20 +62,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
                                                       MfaSessionRepository sessionRepository,
                                                       MfaStateMachineIntegrator stateMachineIntegrator,
                                                       AuthContextProperties authContextProperties) {
-        this.tokenService = tokenService;
-        this.responseWriter = responseWriter;
+        super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
-        this.authContextProperties = authContextProperties;
     }
 
-    public void setDelegateHandler(@Nullable PlatformAuthenticationSuccessHandler delegateHandler) {
-        this.delegateHandler = delegateHandler;
-        if (delegateHandler != null) {
-            log.info("Delegate handler set: {}", delegateHandler.getClass().getName());
-        }
-    }
-    
     @Override
     public void setApplicationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         this.eventPublisher = applicationEventPublisher;
@@ -118,12 +105,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
 
         if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
             String deviceId = factorContext != null ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID) : null;
-            tokenPair = tokenService.createTokenPair(finalAuthentication, deviceId, request, response);
+            tokenPair = createTokenPair(finalAuthentication, deviceId, request, response);
             String accessToken = tokenPair.getAccessToken();
             String refreshToken = tokenPair.getRefreshToken();
 
             // 토큰 전송 정보 준비
-            transportResult = tokenService.prepareTokensForTransport(accessToken, refreshToken);
+            transportResult = prepareTokenTransport(accessToken, refreshToken);
 
             log.debug("Tokens created for StateType: {}", stateType);
         } else {
@@ -151,14 +138,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
                 .headers(transportResult != null ? transportResult.getHeaders() : null)
                 .build();
 
-        // 5. 위임 핸들러 호출
-        if (delegateHandler != null && !response.isCommitted()) {
-            try {
-                delegateHandler.onAuthenticationSuccess(request, response, finalAuthentication, finalResult);
-            } catch (Exception e) {
-                log.error("Error in delegate handler", e);
-            }
-        }
+        // 5. 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
+        executeDelegateHandler(request, response, finalAuthentication, finalResult);
 
         // 6. 하위 클래스 훅 호출
         if (!response.isCommitted()) {
@@ -187,13 +168,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
     private void processDefaultResponse(HttpServletResponse response, TokenTransportResult result)
             throws IOException {
         // 쿠키 설정
-        if (result.getCookiesToSet() != null) {
-            for (ResponseCookie cookie : result.getCookiesToSet()) {
-                response.addHeader("Set-Cookie", cookie.toString());
-            }
-        }
+        setCookies(response, result);
 
-        responseWriter.writeSuccessResponse(response, result.getBody(), HttpServletResponse.SC_OK);
+        // JSON 응답 작성
+        writeJsonResponse(response, result.getBody());
     }
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response,
@@ -245,6 +223,28 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         }
 
         return true;
+    }
+
+    /**
+     * AbstractTokenBasedSuccessHandler의 abstract 메서드 구현
+     * MFA는 자체 로직을 사용하므로 단순히 기본 URL 반환
+     */
+    @Override
+    protected String determineTargetUrl(HttpServletRequest request) {
+        return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
+    }
+
+    /**
+     * AbstractTokenBasedSuccessHandler의 abstract 메서드 구현
+     * MFA는 자체 buildResponseData 메서드를 사용하므로 stub 구현
+     */
+    @Override
+    protected Map<String, Object> buildResponseData(TokenTransportResult transportResult,
+                                                     Authentication authentication,
+                                                     HttpServletRequest request) {
+        // MFA는 handleFinalAuthenticationSuccess에서 자체 buildResponseData 호출
+        // 이 메서드는 직접 호출되지 않음
+        return new HashMap<>();
     }
 
     /**
@@ -432,23 +432,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler implements Platfor
         }
 
         return detail;
-    }
-
-    /**
-     * 클라이언트 IP 추출 (프록시 고려)
-     */
-    private String extractClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
-        }
-        
-        return request.getRemoteAddr();
     }
 
     /**

@@ -1,6 +1,8 @@
 package io.contexa.contexaidentity.security.filter;
 
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.token.service.TokenService;
+import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,19 +24,24 @@ import java.io.IOException;
  * - JSON Body에서 username/password 읽기
  * - RestAuthenticationToken 사용
  * - MFA 로직 없음 (FactorContext, State Machine 제외)
+ * - OAuth2 토큰 기반 핸들러 기본 탑재
  */
 @Slf4j
 public class RestAuthenticationFilter extends BaseAuthenticationFilter {
 
     public RestAuthenticationFilter(RequestMatcher requestMatcher,
                                     AuthenticationManager authenticationManager,
-                                    AuthContextProperties properties) {
+                                    AuthContextProperties properties,
+                                    TokenService tokenService,
+                                    AuthResponseWriter responseWriter) {
         super(requestMatcher, authenticationManager, properties);
 
         Assert.notNull(authenticationManager, "authenticationManager cannot be null");
         Assert.notNull(properties, "properties cannot be null");
+        Assert.notNull(tokenService, "tokenService cannot be null");
+        Assert.notNull(responseWriter, "responseWriter cannot be null");
 
-        log.info("RestAuthenticationFilter initialized for single-factor authentication");
+        log.info("RestAuthenticationFilter initialized with OAuth2 token-based handlers");
     }
 
     /**
@@ -44,15 +51,12 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                           Authentication authentication) throws IOException, ServletException {
 
-        // Security Context 설정
         SecurityContext context = securityContextHolderStrategy.createEmptyContext();
         context.setAuthentication(authentication);
         securityContextHolderStrategy.setContext(context);
         securityContextRepository.saveContext(context, request, response);
 
         log.info("REST authentication successful for user: {}", authentication.getName());
-
-        // Success Handler 호출
         successHandler.onAuthenticationSuccess(request, response, authentication);
     }
 

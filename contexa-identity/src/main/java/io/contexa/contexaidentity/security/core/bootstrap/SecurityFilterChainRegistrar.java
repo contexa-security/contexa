@@ -2,15 +2,13 @@ package io.contexa.contexaidentity.security.core.bootstrap;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorIdentifier;
 import io.contexa.contexaidentity.security.enums.AuthType;
-import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
-import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
-import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
-import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
-import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
+import io.contexa.contexaidentity.security.enums.StateType;
+import io.contexa.contexaidentity.security.handler.*;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
@@ -111,11 +109,7 @@ public class SecurityFilterChainRegistrar {
             DefaultSecurityFilterChain builtChain = fc.http().build();
             log.debug("Successfully built DefaultSecurityFilterChain for flow: {}", flowConfig.getTypeName());
 
-            // ⭐ Passkey (WebAuthn) 핸들러 교체: Spring Security WebAuthn DSL이 커스텀 핸들러 등록을 지원하지 않으므로
-            // Filter Chain 빌드 후 WebAuthnAuthenticationFilter를 찾아서 핸들러를 교체합니다.
-            if (AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
-                replaceWebAuthnHandlersIfNeeded(builtChain, flowConfig, appContext);
-            }
+            replaceWebAuthnHandlersIfNeeded(builtChain, flowConfig, appContext);
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
                 Objects.requireNonNull(step, "AuthenticationStepConfig in flow cannot be null.");
@@ -205,51 +199,87 @@ public class SecurityFilterChainRegistrar {
     private void replaceWebAuthnHandlersIfNeeded(DefaultSecurityFilterChain builtChain,
                                                   AuthenticationFlowConfig flowConfig,
                                                   ApplicationContext appContext) {
-        // Passkey 스텝이 있는지 확인 (MFA에서는 MFA_PASSKEY 사용)
-        boolean hasPasskeyStep = flowConfig.getStepConfigs().stream()
-                .anyMatch(step -> AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()));
+        // Passkey 스텝이 있는지 확인 (단일: PASSKEY, MFA: MFA_PASSKEY)
+        AuthenticationStepConfig passkeyStep = flowConfig.getStepConfigs().stream()
+                .filter(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()) ||
+                               AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()))
+                .findFirst()
+                .orElse(null);
 
-        if (!hasPasskeyStep) {
+        if (passkeyStep == null) {
             return;
         }
+
+        boolean isMfaFlow = AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName());
 
         for (Filter filter : builtChain.getFilters()) {
             if (filter instanceof AbstractAuthenticationProcessingFilter authFilter) {
                 String filterClassName = filter.getClass().getSimpleName();
 
                 if (filterClassName.contains("WebAuthn")) {
-
-                    AuthenticationStepConfig passkeyStep = flowConfig.getStepConfigs().stream()
-                            .filter(step -> AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()))
-                            .findFirst()
-                            .orElse(null);
-
-                    if (passkeyStep == null) {
-                        log.warn("⚠️ MFA Passkey step configuration not found, cannot replace handlers");
-                        return;
-                    }
                     try {
-
-                        PlatformAuthenticationSuccessHandler customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
-                        PlatformAuthenticationFailureHandler customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-                        authFilter.setAuthenticationSuccessHandler(customSuccessHandler);
-                        authFilter.setAuthenticationFailureHandler(customFailureHandler);
-
+                        // StateType 결정
                         AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
-                        String customLoginProcessingUrl = authProps.getUrls().getFactors().getPasskey().getLoginProcessing();
+                        StateType stateType = (flowConfig.getStateConfig() != null && flowConfig.getStateConfig().stateType() != null) ?
+                                flowConfig.getStateConfig().stateType() : authProps.getStateType();
 
-                        if (customLoginProcessingUrl != null && !customLoginProcessingUrl.isEmpty()) {
-                            RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, customLoginProcessingUrl);
-                            authFilter.setRequiresAuthenticationRequestMatcher(customMatcher);
-                            log.info("WebAuthn loginProcessingUrl changed to: {}", customLoginProcessingUrl);
+                        // 핸들러 선택 로직
+                        PlatformAuthenticationSuccessHandler customSuccessHandler = null;
+                        PlatformAuthenticationFailureHandler customFailureHandler = null;
+
+                        if (isMfaFlow) {
+                            // MFA 인증
+                            if (stateType == StateType.SESSION) {
+                                customSuccessHandler = appContext.getBean(SessionMfaSuccessHandler.class);
+                                customFailureHandler = appContext.getBean(SessionMfaFailureHandler.class);
+                                log.debug("MFA Passkey + SESSION: Using SessionMfa* handlers");
+                            } else {
+                                // OAuth2/JWT
+                                customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
+                                customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
+                                log.debug("MFA Passkey + OAuth2/JWT: Using MfaFactorProcessing* + Unified* handlers");
+                            }
+                        } else {
+                            // 단일 인증
+                            if (stateType == StateType.SESSION) {
+                                // SESSION 모드는 Spring Security 기본 핸들러 사용 (null)
+                                customSuccessHandler = null;
+                                customFailureHandler = null;
+                                log.debug("Single Passkey + SESSION: Using Spring Security default handlers (null)");
+                            } else {
+                                // OAuth2/JWT
+                                customSuccessHandler = appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
+                                customFailureHandler = appContext.getBean(OAuth2SingleAuthFailureHandler.class);
+                                log.debug("Single Passkey + OAuth2/JWT: Using OAuth2SingleAuth* handlers");
+                            }
                         }
+
+                        // 핸들러 설정 (null이 아닌 경우만)
+                        if (customSuccessHandler != null) {
+                            authFilter.setAuthenticationSuccessHandler(customSuccessHandler);
+                        }
+                        if (customFailureHandler != null) {
+                            authFilter.setAuthenticationFailureHandler(customFailureHandler);
+                        }
+
+                        // loginProcessingUrl 변경 (MFA인 경우만)
+                        if (isMfaFlow) {
+                            String customLoginProcessingUrl = authProps.getUrls().getFactors().getPasskey().getLoginProcessing();
+                            if (customLoginProcessingUrl != null && !customLoginProcessingUrl.isEmpty()) {
+                                RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, customLoginProcessingUrl);
+                                authFilter.setRequiresAuthenticationRequestMatcher(customMatcher);
+                                log.info("WebAuthn loginProcessingUrl changed to: {}", customLoginProcessingUrl);
+                            }
+                        }
+
+                        log.info("WebAuthnAuthenticationFilter handlers replacement completed for flow: {}, StateType: {}, MFA: {}",
+                                flowConfig.getTypeName(), stateType, isMfaFlow);
+
+                        return;
+
                     } catch (Exception e) {
-                        log.error("Failed to change WebAuthn loginProcessingUrl", e);
+                        log.error("Failed to replace WebAuthn handlers for flow: {}", flowConfig.getTypeName(), e);
                     }
-
-                    log.info("WebAuthnAuthenticationFilter handlers and URL replacement completed for flow: {}", flowConfig.getTypeName());
-
-                    return;
                 }
             }
         }

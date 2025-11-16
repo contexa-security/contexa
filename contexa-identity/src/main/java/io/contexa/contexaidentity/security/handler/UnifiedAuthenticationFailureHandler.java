@@ -9,7 +9,6 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttribu
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -17,7 +16,6 @@ import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
@@ -38,30 +36,30 @@ import java.util.Map;
  * - response.isCommitted() 체크로 중복 응답 방지
  */
 @Slf4j
-@RequiredArgsConstructor
-public final class UnifiedAuthenticationFailureHandler implements PlatformAuthenticationFailureHandler, ApplicationEventPublisherAware  {
+public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler implements ApplicationEventPublisherAware  {
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaPolicyProvider mfaPolicyProvider;
-    private final AuthResponseWriter responseWriter;
-    private final AuthContextProperties authContextProperties;
     private final MfaSessionRepository sessionRepository;
     private final UserIdentificationService userIdentificationService;
     private final AuthUrlProvider authUrlProvider;
 
-    private PlatformAuthenticationFailureHandler delegateHandler;
     private ApplicationEventPublisher eventPublisher;
 
-    /**
-     * 사용자 커스텀 핸들러 설정
-     */
-    public void setDelegateHandler(@Nullable PlatformAuthenticationFailureHandler delegateHandler) {
-        this.delegateHandler = delegateHandler;
-        if (delegateHandler != null) {
-            log.info("Delegate failure handler set: {}", delegateHandler.getClass().getName());
-        }
+    public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
+                                               MfaStateMachineIntegrator stateMachineIntegrator,
+                                               MfaPolicyProvider mfaPolicyProvider,
+                                               MfaSessionRepository sessionRepository,
+                                               UserIdentificationService userIdentificationService,
+                                               AuthUrlProvider authUrlProvider) {
+        super(responseWriter);
+        this.stateMachineIntegrator = stateMachineIntegrator;
+        this.mfaPolicyProvider = mfaPolicyProvider;
+        this.sessionRepository = sessionRepository;
+        this.userIdentificationService = userIdentificationService;
+        this.authUrlProvider = authUrlProvider;
     }
-    
+
     @Override
     public void setApplicationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         this.eventPublisher = applicationEventPublisher;
@@ -192,15 +190,9 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         errorDetails.put("nextStepUrl", nextStepUrl);
         errorDetails.put("terminal", true);
 
-        // 위임 핸들러 호출
-        if (delegateHandler != null && !response.isCommitted()) {
-            try {
-                delegateHandler.onAuthenticationFailure(request, response, exception, factorContext,
-                        FailureType.MFA_MAX_ATTEMPTS_EXCEEDED, errorDetails);
-            } catch (Exception e) {
-                log.error("Error in delegate failure handler", e);
-            }
-        }
+        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
+        executeDelegateHandler(request, response, exception, factorContext,
+                FailureType.MFA_MAX_ATTEMPTS_EXCEEDED, errorDetails);
 
         // 하위 클래스 훅 호출
         if (!response.isCommitted()) {
@@ -265,15 +257,9 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         errorDetails.put("retryPossibleForCurrentFactor", true);
         errorDetails.put("remainingAttempts", remainingAttempts);
 
-        // 위임 핸들러 호출
-        if (delegateHandler != null && !response.isCommitted()) {
-            try {
-                delegateHandler.onAuthenticationFailure(request, response, exception, factorContext,
-                        FailureType.MFA_FACTOR_FAILED, errorDetails);
-            } catch (Exception e) {
-                log.error("Error in delegate failure handler", e);
-            }
-        }
+        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
+        executeDelegateHandler(request, response, exception, factorContext,
+                FailureType.MFA_FACTOR_FAILED, errorDetails);
 
         // 하위 클래스 훅 호출
         if (!response.isCommitted()) {
@@ -334,15 +320,8 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         errorDetails.put("message", errorMessage);
         errorDetails.put("nextStepUrl", failureRedirectUrl);
 
-        // 위임 핸들러 호출
-        if (delegateHandler != null && !response.isCommitted()) {
-            try {
-                delegateHandler.onAuthenticationFailure(request, response, exception,
-                        factorContext, failureType, errorDetails);
-            } catch (Exception e) {
-                log.error("Error in delegate failure handler", e);
-            }
-        }
+        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
+        executeDelegateHandler(request, response, exception, factorContext, failureType, errorDetails);
 
         // 하위 클래스 훅 호출
         if (!response.isCommitted()) {
@@ -372,15 +351,9 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
 
-        // 위임 핸들러 호출
-        if (delegateHandler != null && !response.isCommitted()) {
-            try {
-                delegateHandler.onAuthenticationFailure(request, response, exception,
-                        factorContext, FailureType.MFA_SESSION_NOT_FOUND, errorDetails);
-            } catch (Exception e) {
-                log.error("Error in delegate failure handler", e);
-            }
-        }
+        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
+        executeDelegateHandler(request, response, exception, factorContext,
+                FailureType.MFA_SESSION_NOT_FOUND, errorDetails);
 
         // 하위 클래스 훅 호출
         if (!response.isCommitted()) {
@@ -683,20 +656,5 @@ public final class UnifiedAuthenticationFailureHandler implements PlatformAuthen
         return false;
     }
 
-    /**
-     * 클라이언트 IP 추출 (프록시 고려)
-     */
-    private String extractClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
-        }
-
-        return request.getRemoteAddr();
-    }
+    // extractClientIp 메서드는 부모 클래스(AbstractTokenBasedFailureHandler)에서 상속받아 사용
 }

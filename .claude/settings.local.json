@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Select-String -Pattern \"BUILD|SUCCESS|FAILED|error\")"
+      "Bash(Select-String -Pattern \"BUILD|SUCCESS|FAILED|error\")",
+      "Bash(.gradlew.bat:*)",
+      "Bash(cmd.exe /c \"D:\\projects\\gradlew.bat :contexa-identity:compileJava\")",
+      "Bash(gradlew.bat:*)",
+      "Bash(D:projectsgradlew.bat :contexa-identity:compileJava)",
+      "Bash(cmd /c \"cd /d D:\\projects && gradlew.bat :contexa-identity:compileJava\")",
+      "Bash(cmd /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\")",
+      "Bash(./gradlew.bat:*)",
+      "Bash(D:projectscontexagradlew.bat :contexa-identity:compileJava)",
+      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\":*)"
     ],
     "deny": [],
     "ask": []
