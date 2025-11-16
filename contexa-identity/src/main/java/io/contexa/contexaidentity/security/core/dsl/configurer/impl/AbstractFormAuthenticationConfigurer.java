@@ -56,14 +56,8 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
             this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
         }
 
-        // 템플릿 메서드 - 하위 클래스에서 필터 생성
         BaseAuthenticationFilter filter = createAuthenticationFilter(http, authenticationManager, applicationContext, properties);
-
-        // Form 인증은 Spring Security의 기본 DaoAuthenticationProvider 사용 (별도 Provider 불필요)
-
-        // 공통 설정 적용
         configureFilter(filter, (HttpSecurity) http);
-
         http.addFilterBefore(postProcess(filter), UsernamePasswordAuthenticationFilter.class);
     }
 
@@ -88,8 +82,19 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
             filter.setFailureHandler(failureHandler);
         }
 
-        filter.setSecurityContextRepository(Objects.requireNonNullElseGet(securityContextRepository,
-                RequestAttributeSecurityContextRepository::new));
+        // SecurityContextRepository 결정 우선순위:
+        // 1. HttpSecurity SharedObject (Adapter에서 설정)
+        // 2. Configurer 필드 (사용자가 명시적으로 설정)
+        // 3. 기본값 (RequestAttributeSecurityContextRepository)
+        SecurityContextRepository resolvedRepository = http.getSharedObject(SecurityContextRepository.class);
+        if (resolvedRepository == null) {
+            resolvedRepository = this.securityContextRepository;
+        }
+        if (resolvedRepository == null) {
+            resolvedRepository = new RequestAttributeSecurityContextRepository();
+        }
+
+        filter.setSecurityContextRepository(resolvedRepository);
     }
 
     public T loginProcessingUrl(String loginProcessingUrl) {

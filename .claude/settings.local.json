@@ -10,7 +10,10 @@
       "Bash(cmd /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\")",
       "Bash(./gradlew.bat:*)",
       "Bash(D:projectscontexagradlew.bat :contexa-identity:compileJava)",
-      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\":*)"
+      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\":*)",
+      "Bash(cd:*)",
+      "Bash(done)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

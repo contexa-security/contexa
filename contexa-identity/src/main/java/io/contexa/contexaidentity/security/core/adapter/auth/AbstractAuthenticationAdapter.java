@@ -15,7 +15,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.NullSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
@@ -81,6 +85,28 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         // StateConfig 결정
         StateConfig resolvedStateConfig = (stateConfig != null) ? stateConfig :
                 (currentFlow != null && currentFlow.getStateConfig() != null) ? currentFlow.getStateConfig() : null;
+
+        // StateType 결정
+        StateType stateType = determineStateType(resolvedStateConfig, appContext);
+
+        // SecurityContextRepository 결정 및 HttpSecurity SharedObject로 설정
+        SecurityContextRepository securityContextRepository = resolveSecurityContextRepository(
+                stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow
+        );
+        http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+
+        log.debug("AuthenticationFeature [{}]: SecurityContextRepository set to: {}",
+                getId(), securityContextRepository.getClass().getSimpleName());
+
+        // OAUTH2/JWT 모드에서 세션 생성 정책을 STATELESS로 설정
+        // SESSION 모드가 아닌 경우, 세션을 생성하지 않도록 명시적으로 설정
+        if (stateType != StateType.SESSION) {
+            http.sessionManagement(session -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            );
+            log.debug("AuthenticationFeature [{}]: SessionCreationPolicy set to STATELESS for StateType: {}",
+                    getId(), stateType);
+        }
 
         // 핸들러 결정 (단일 인증일 때도 StateType에 따라 핸들러 선택)
         PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, resolvedStateConfig, appContext);
@@ -229,6 +255,75 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         } catch (Exception e) {
             log.warn("Failed to get AuthContextProperties, using JWT as default StateType", e);
             return StateType.OAUTH2;
+        }
+    }
+
+    /**
+     * SecurityContextRepository 결정 메서드
+     *
+     * StateType과 AuthType(단일/MFA)에 따라 적절한 SecurityContextRepository를 선택합니다.
+     *
+     * 단일 인증:
+     * - SESSION 모드: HttpSessionSecurityContextRepository (세션에 저장)
+     * - OAUTH2/JWT 모드: NullSecurityContextRepository (세션에 저장하지 않음)
+     *
+     * MFA 인증:
+     * - 1차 인증: NullSecurityContextRepository (세션에 저장하지 않음)
+     * - 최종 인증 SESSION 모드: HttpSessionSecurityContextRepository (세션에 저장)
+     * - 최종 인증 OAUTH2/JWT 모드: NullSecurityContextRepository (세션에 저장하지 않음)
+     *
+     * @param stateType 상태 타입 (SESSION, OAUTH2, JWT)
+     * @param currentFlow 현재 인증 플로우 (nullable)
+     * @param myStepConfig 현재 인증 단계 설정
+     * @param allSteps 모든 인증 단계 목록 (nullable)
+     * @return 결정된 SecurityContextRepository
+     */
+    protected SecurityContextRepository resolveSecurityContextRepository(
+            StateType stateType,
+            @Nullable AuthenticationFlowConfig currentFlow,
+            AuthenticationStepConfig myStepConfig,
+            @Nullable List<AuthenticationStepConfig> allSteps) {
+
+        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
+
+        if (isMfaFlow) {
+            // MFA 인증 흐름
+            if (allSteps != null) {
+                int currentStepIndex = allSteps.indexOf(myStepConfig);
+                boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
+                boolean isFinalStepInMfaFlow = (currentStepIndex == allSteps.size() - 1);
+
+                if (isFirstStepInMfaFlow && !isFinalStepInMfaFlow) {
+                    // 1차 인증 (최종 인증이 아님): 세션에 저장하지 않음
+                    log.debug("AuthenticationFeature [{}]: MFA primary step (not final) - using NullSecurityContextRepository", getId());
+                    return new NullSecurityContextRepository();
+                } else if (isFinalStepInMfaFlow) {
+                    // 최종 인증: StateType에 따라 결정
+                    if (stateType == StateType.SESSION) {
+                        log.debug("AuthenticationFeature [{}]: MFA final step + SESSION mode - using HttpSessionSecurityContextRepository", getId());
+                        return new HttpSessionSecurityContextRepository();
+                    } else {
+                        log.debug("AuthenticationFeature [{}]: MFA final step + OAuth2/JWT mode - using NullSecurityContextRepository", getId());
+                        return new NullSecurityContextRepository();
+                    }
+                } else {
+                    // 중간 인증 단계: 세션에 저장하지 않음
+                    log.debug("AuthenticationFeature [{}]: MFA intermediate step - using NullSecurityContextRepository", getId());
+                    return new NullSecurityContextRepository();
+                }
+            }
+            // allSteps가 null인 경우: Fallback - 세션에 저장하지 않음
+            log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using NullSecurityContextRepository as fallback", getId());
+            return new NullSecurityContextRepository();
+        } else {
+            // 단일 인증: StateType에 따라 결정
+            if (stateType == StateType.SESSION) {
+                log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using HttpSessionSecurityContextRepository", getId());
+                return new HttpSessionSecurityContextRepository();
+            } else {
+                log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using NullSecurityContextRepository", getId());
+                return new NullSecurityContextRepository();
+            }
         }
     }
 

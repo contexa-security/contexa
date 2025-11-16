@@ -87,8 +87,19 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
             filter.setFailureHandler(failureHandler);
         }
 
-        filter.setSecurityContextRepository(Objects.requireNonNullElseGet(securityContextRepository,
-                    RequestAttributeSecurityContextRepository::new));
+        // SecurityContextRepository 결정 우선순위:
+        // 1. HttpSecurity SharedObject (Adapter에서 설정)
+        // 2. Configurer 필드 (사용자가 명시적으로 설정)
+        // 3. 기본값 (RequestAttributeSecurityContextRepository)
+        SecurityContextRepository resolvedRepository = http.getSharedObject(SecurityContextRepository.class);
+        if (resolvedRepository == null) {
+            resolvedRepository = this.securityContextRepository;
+        }
+        if (resolvedRepository == null) {
+            resolvedRepository = new RequestAttributeSecurityContextRepository();
+        }
+
+        filter.setSecurityContextRepository(resolvedRepository);
     }
 
 
