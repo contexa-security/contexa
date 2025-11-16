@@ -204,8 +204,8 @@ public class DefaultFactorChainProvider {
         AuthenticationProcessingOptions defaultOptions = createDefaultOptions(authType);
         stepConfig.getOptions().put("_options", defaultOptions);
 
-        // StateConfig 생성 (기본은 JWT)
-        StateConfig stateConfig = new StateConfig(StateType.JWT.name().toLowerCase(), StateType.JWT);
+        // StateConfig 생성 (기본은 OAUTH2)
+        StateConfig stateConfig = new StateConfig(StateType.OAUTH2.name().toLowerCase(), StateType.OAUTH2);
 
         // AuthenticationFlowConfig 빌드
         return AuthenticationFlowConfig.builder(flowTypeName)

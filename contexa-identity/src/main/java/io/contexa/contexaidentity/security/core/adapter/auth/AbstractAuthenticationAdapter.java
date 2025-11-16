@@ -228,7 +228,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             return properties.getStateType();
         } catch (Exception e) {
             log.warn("Failed to get AuthContextProperties, using JWT as default StateType", e);
-            return StateType.JWT;
+            return StateType.OAUTH2;
         }
     }
 

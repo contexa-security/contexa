@@ -12,7 +12,7 @@ public class AuthContextProperties {
     /**
      * 인증 상태 유지 방식 선택 (JWT, SESSION)
      */
-    private StateType stateType = StateType.JWT;
+    private StateType stateType = StateType.OAUTH2;
 
     /**
      * 인증 상태 유지 방식 선택 (JWT, SESSION)

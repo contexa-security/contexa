@@ -103,7 +103,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         TokenPair tokenPair;
         TokenTransportResult transportResult = null;
 
-        if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
+        if (stateType == StateType.OAUTH2) {
             String deviceId = factorContext != null ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID) : null;
             tokenPair = createTokenPair(finalAuthentication, deviceId, request, response);
             String accessToken = tokenPair.getAccessToken();
@@ -285,7 +285,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         Map<String, Object> responseData = new HashMap<>();
 
         // OAuth2/JWT 모드: 토큰 포함
-        if (stateType == StateType.OAUTH2 || stateType == StateType.JWT) {
+        if (stateType == StateType.OAUTH2) {
             if (transportResult != null && transportResult.getBody() != null) {
                 responseData.putAll(transportResult.getBody());
             }
