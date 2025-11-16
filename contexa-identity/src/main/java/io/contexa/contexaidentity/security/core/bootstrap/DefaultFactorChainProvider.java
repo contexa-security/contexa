@@ -9,7 +9,7 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
-import io.contexa.contexaidentity.security.core.dsl.common.AbstractOptionsBuilderConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.PasskeyDslConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurerFactory;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;

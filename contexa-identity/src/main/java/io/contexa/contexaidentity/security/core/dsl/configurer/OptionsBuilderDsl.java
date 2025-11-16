@@ -1,5 +1,6 @@
-package io.contexa.contexaidentity.security.core.dsl.common;
+package io.contexa.contexaidentity.security.core.dsl.configurer;
 
+import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.option.AbstractOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;

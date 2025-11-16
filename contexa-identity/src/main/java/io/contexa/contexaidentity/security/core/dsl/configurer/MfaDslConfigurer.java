@@ -10,26 +10,16 @@ import org.springframework.security.config.Customizer;
 
 public interface MfaDslConfigurer extends SecurityConfigurerDsl { // SecurityConfigurerDsl 마커 인터페이스 (선택적)
     MfaDslConfigurer order(int order);
-
-    // 각 Factor DSL을 위한 메소드 (이 내부에서 각 Factor의 Configurer가 ASEP 설정을 가질 수 있도록 설계)
     MfaDslConfigurer form(Customizer<FormDslConfigurer> formConfigurer); // MFA의 한 단계로 Form 인증 사용
     MfaDslConfigurer rest(Customizer<RestDslConfigurer> restConfigurer); // MFA의 한 단계로 Rest 인증 사용
     MfaDslConfigurer ott(Customizer<OttDslConfigurer> ottConfigurer);   // MFA의 한 단계로 OTT 인증 사용
     MfaDslConfigurer passkey(Customizer<PasskeyDslConfigurer> passkeyConfigurer); // MFA의 한 단계로 Passkey 인증 사용
-
-    MfaDslConfigurer recoveryFlow(Customizer<RecoveryCodeDslConfigurer> recoveryConfigurerCustomizer); // RecoveryCodeDslConfigurer 정의 필요
     MfaDslConfigurer mfaFailureHandler(PlatformAuthenticationFailureHandler failureHandler);
     MfaDslConfigurer mfaSuccessHandler(PlatformAuthenticationSuccessHandler successHandler);
     MfaDslConfigurer policyProvider(MfaPolicyProvider policyProvider);
     MfaDslConfigurer defaultDeviceTrustEnabled(boolean enable);
     AuthenticationFlowConfig build(); // 최종적으로 AuthenticationFlowConfig 객체 반환
-
-    // MFA 플로우 전체에 대한 ASEP 설정을 위한 DSL 메소드
     MfaDslConfigurer asep(Customizer<MfaAsepAttributes> mfaAsepAttributesCustomizer);
-
-    // Primary Authentication (MFA 이전의 1차 인증) 설정
     MfaDslConfigurer primaryAuthentication(Customizer<PrimaryAuthDslConfigurer> primaryAuthConfig);
-
-    // MFA 커스텀 페이지 설정
     MfaDslConfigurer mfaPage(Customizer<MfaPageConfigurer> mfaPageConfigurer);
 }

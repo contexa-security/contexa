@@ -5,7 +5,7 @@ import io.contexa.contexaidentity.security.core.asep.dsl.BaseAsepAttributes;
 import io.contexa.contexaidentity.security.core.asep.dsl.MfaAsepAttributes;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
-import io.contexa.contexaidentity.security.core.dsl.common.AbstractOptionsBuilderConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.*;
 import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurerFactory;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
@@ -129,14 +129,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     @Override
     public MfaDslConfigurerImpl<H> passkey(Customizer<PasskeyDslConfigurer> passkeyConfigurerCustomizer) {
         return configureMfaFactor(AuthType.MFA_PASSKEY, passkeyConfigurerCustomizer, PasskeyDslConfigurer.class);
-    }
-
-    @Override
-    public MfaDslConfigurerImpl<H> recoveryFlow(Customizer<RecoveryCodeDslConfigurer> recoveryConfigurerCustomizer) {
-        log.debug("Configuring MFA recovery flow step.");
-        // RecoveryCodeDslConfigurer는 AuthenticationFactorConfigurer<RecoveryCodeOptions, ..., RecoveryCodeDslConfigurer>를 구현해야 함
-        // RecoveryCodeOptions가 AbstractOptions를 상속하도록 수정 필요
-        return configureMfaFactor(AuthType.RECOVERY_CODE, recoveryConfigurerCustomizer, RecoveryCodeDslConfigurer.class);
     }
 
     @Override

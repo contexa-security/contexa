@@ -1,7 +1,6 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.BaseAsepAttributes;
-import io.contexa.contexaidentity.security.core.dsl.common.OptionsBuilderDsl;
 import io.contexa.contexaidentity.security.core.dsl.common.SecurityConfigurerDsl;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import org.springframework.security.config.Customizer;

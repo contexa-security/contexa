@@ -7,7 +7,7 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
-import io.contexa.contexaidentity.security.core.dsl.common.AbstractOptionsBuilderConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.AuthenticationFactorConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.MfaDslConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.MfaDslConfigurerImpl;

@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.FormAsepAttributes;
-import io.contexa.contexaidentity.security.core.dsl.common.AbstractOptionsBuilderConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.FormDslConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;

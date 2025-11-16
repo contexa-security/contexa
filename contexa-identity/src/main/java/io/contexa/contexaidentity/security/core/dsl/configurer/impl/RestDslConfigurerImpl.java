@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.RestAsepAttributes;
-import io.contexa.contexaidentity.security.core.dsl.common.AbstractOptionsBuilderConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.RestDslConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
