@@ -3,7 +3,6 @@ package io.contexa.contexaidentity.security.core.mfa.policy;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
-import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.MfaPolicyEvaluator;
@@ -138,34 +137,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         log.debug("Factor {} available from DSL for user {} (requires policy evaluation for full validation)",
                 factorType, username);
         return true;
-    }
-
-    @Override
-    public RetryPolicy getRetryPolicyForFactor(AuthType factorType, FactorContext ctx) {
-        Assert.notNull(factorType, "FactorType cannot be null.");
-        Assert.notNull(ctx, "FactorContext cannot be null.");
-
-        int maxAttempts = switch (factorType) {
-            case OTT -> 5;
-            case PASSKEY -> 3;
-            default -> 3;
-        };
-
-        log.debug("Providing retry policy (max attempts: {}) for factor {} (user {}, session {})",
-                maxAttempts, factorType, ctx.getUsername(), ctx.getMfaSessionId());
-
-        return new RetryPolicy(maxAttempts);
-    }
-
-    @Override
-    public RetryPolicy getRetryPolicy(FactorContext factorContext, AuthenticationStepConfig step) {
-        if (step.getOptions() != null) {
-            Integer maxRetries = (Integer) step.getOptions().get("maxRetries");
-            if (maxRetries != null) {
-                return new RetryPolicy(maxRetries);
-            }
-        }
-        return new RetryPolicy(3);
     }
 
     @Override

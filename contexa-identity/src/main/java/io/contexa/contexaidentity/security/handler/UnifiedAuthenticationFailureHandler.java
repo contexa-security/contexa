@@ -3,7 +3,6 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationFailureEvent;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
@@ -118,170 +117,10 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             return;
         }
 
-        factorContext.recordAttempt(currentProcessingFactor, false,
-                "Verification failed: " + exception.getMessage());
+        factorContext.recordAttempt(currentProcessingFactor, false, "Verification failed: " + exception.getMessage());
 
-        int attempts = factorContext.incrementAttemptCount(currentProcessingFactor);
-        RetryPolicy retryPolicy = mfaPolicyProvider.getRetryPolicyForFactor(currentProcessingFactor, factorContext);
-        int maxAttempts = (retryPolicy != null) ? retryPolicy.getMaxAttempts() : 3;
-
-        Map<String, Object> errorDetails = buildMfaFailureErrorDetails(factorContext, currentProcessingFactor,
-                attempts, maxAttempts);
-        
-        // 실패 이벤트 발행
         publishAuthenticationFailureEvent(request, exception, factorContext);
 
-        if (attempts >= maxAttempts) {
-            handleMaxAttemptsExceeded(request, response, exception, factorContext, currentProcessingFactor,
-                    usernameForLog, sessionIdForLog, maxAttempts, errorDetails);
-        } else {
-            handleRetryableMfaFailure(request, response, exception, factorContext, currentProcessingFactor,
-                    attempts, maxAttempts, errorDetails);
-        }
-    }
-
-    /**
-     * 최대 시도 횟수 초과 처리
-     */
-    private void handleMaxAttemptsExceeded(HttpServletRequest request, HttpServletResponse response,
-                                           AuthenticationException exception, FactorContext factorContext,
-                                           AuthType currentProcessingFactor, String usernameForLog,
-                                           String sessionIdForLog, int maxAttempts,
-                                           Map<String, Object> errorDetails) throws IOException {
-
-        log.warn("MFA max attempts ({}) reached for factor {} using {} repository. User: {}. Session: {}. Terminating MFA.",
-                maxAttempts, currentProcessingFactor, sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog);
-
-        // Phase 2.2: 에러 처리와 함께 이벤트 전송
-        try {
-            boolean eventAccepted = stateMachineIntegrator.sendEvent(
-                    MfaEvent.RETRY_LIMIT_EXCEEDED, factorContext, request);
-
-            if (!eventAccepted) {
-                log.error("State Machine rejected RETRY_LIMIT_EXCEEDED event for session: {}", sessionIdForLog);
-                stateMachineIntegrator.updateStateOnly(factorContext.getMfaSessionId(), MfaState.MFA_FAILED_TERMINAL);
-            }
-
-        } catch (Exception e) {
-            // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
-            log.error("Exception during RETRY_LIMIT_EXCEEDED for session: {}: {}",
-                     sessionIdForLog, e.getMessage(), e);
-
-            // 공통 메서드를 사용하여 errorEventRecommendation 처리
-            boolean processed = processErrorEventRecommendation(factorContext, request, sessionIdForLog);
-
-            // errorEventRecommendation이 처리되지 않았으면 Fallback: 직접 상태 변경
-            if (!processed) {
-                stateMachineIntegrator.updateStateOnly(factorContext.getMfaSessionId(), MfaState.MFA_FAILED_TERMINAL);
-            }
-        }
-
-        cleanupSessionUsingRepository(request, response, factorContext.getMfaSessionId());
-
-        String errorCode = "MFA_MAX_ATTEMPTS_EXCEEDED";
-        String errorMessage = String.format(
-                "%s 인증 최대 시도 횟수(%d회)를 초과했습니다. MFA 인증이 종료됩니다. 다시 로그인해주세요.",
-                currentProcessingFactor.name(), maxAttempts);
-
-        String nextStepUrl = request.getContextPath() +
-                "/loginForm?error=mfa_locked_" + currentProcessingFactor.name().toLowerCase();
-
-        errorDetails.put("message", errorMessage);
-        errorDetails.put("nextStepUrl", nextStepUrl);
-        errorDetails.put("terminal", true);
-
-        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
-        executeDelegateHandler(request, response, exception, factorContext,
-                FailureType.MFA_MAX_ATTEMPTS_EXCEEDED, errorDetails);
-
-        // 하위 클래스 훅 호출
-        if (!response.isCommitted()) {
-            onMfaMaxAttemptsExceeded(request, response, exception, factorContext,
-                    currentProcessingFactor, errorDetails);
-        }
-
-        // 플랫폼 기본 응답
-        if (!response.isCommitted()) {
-            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
-                    errorCode, errorMessage, request.getRequestURI(), errorDetails);
-        }
-    }
-
-    /**
-     * 재시도 가능한 MFA 실패 처리
-     */
-    private void handleRetryableMfaFailure(HttpServletRequest request, HttpServletResponse response,
-                                           AuthenticationException exception, FactorContext factorContext,
-                                           AuthType currentProcessingFactor, int attempts,
-                                           int maxAttempts, Map<String, Object> errorDetails) throws IOException {
-
-        // Phase 2.2: 에러 처리와 함께 이벤트 전송
-        try {
-            boolean eventAccepted = stateMachineIntegrator.sendEvent(
-                    MfaEvent.FACTOR_VERIFICATION_FAILED, factorContext, request);
-
-            if (!eventAccepted) {
-                log.error("State Machine rejected FACTOR_VERIFICATION_FAILED event for session: {}",
-                        factorContext.getMfaSessionId());
-            }
-
-        } catch (Exception e) {
-            // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
-            log.error("Exception during FACTOR_VERIFICATION_FAILED for session: {}: {}",
-                     factorContext.getMfaSessionId(), e.getMessage(), e);
-
-            // 공통 메서드를 사용하여 errorEventRecommendation 처리
-            processErrorEventRecommendation(factorContext, request, factorContext.getMfaSessionId());
-        }
-
-        sessionRepository.refreshSession(factorContext.getMfaSessionId());
-
-        int remainingAttempts = Math.max(0, maxAttempts - attempts);
-        String errorCode = "MFA_FACTOR_VERIFICATION_FAILED";
-        String errorMessage = String.format(
-                "%s 인증에 실패했습니다. (남은 시도: %d회). 다른 인증 수단을 선택하거나 현재 인증을 다시 시도해주세요.",
-                currentProcessingFactor.name(), remainingAttempts);
-
-        // 현재 상태에 따른 다음 URL 결정
-        String nextStepUrl;
-        if (factorContext.getCurrentState() == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION) {
-            // 같은 챌린지 화면으로 (재시도)
-            nextStepUrl = determineFactorVerificationUrl(currentProcessingFactor, request);
-        } else {
-            // 팩터 선택 화면으로
-            nextStepUrl = request.getContextPath() + authUrlProvider.getMfaSelectFactor();
-        }
-
-        errorDetails.put("message", errorMessage);
-        errorDetails.put("nextStepUrl", nextStepUrl);
-        errorDetails.put("retryPossibleForCurrentFactor", true);
-        errorDetails.put("remainingAttempts", remainingAttempts);
-
-        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
-        executeDelegateHandler(request, response, exception, factorContext,
-                FailureType.MFA_FACTOR_FAILED, errorDetails);
-
-        // 하위 클래스 훅 호출
-        if (!response.isCommitted()) {
-            onMfaFactorFailure(request, response, exception, factorContext,
-                    currentProcessingFactor, errorDetails);
-        }
-
-        // 플랫폼 기본 응답
-        if (!response.isCommitted()) {
-            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
-                    errorCode, errorMessage, request.getRequestURI(), errorDetails);
-        }
-    }
-
-    private String determineFactorVerificationUrl(AuthType factorType, HttpServletRequest request) {
-        return switch (factorType) {
-            case OTT -> request.getContextPath() +
-                    authUrlProvider.getOttRequestCodeUi();
-            case PASSKEY -> request.getContextPath() +
-                    authUrlProvider.getPasskeyRegistrationRequest();
-            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
-        };
     }
 
     /**
@@ -426,12 +265,11 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
     private Map<String, Object> buildMfaFailureErrorDetails(FactorContext factorContext,
                                                             AuthType currentProcessingFactor,
-                                                            int attempts, int maxAttempts) {
+                                                            int attempts) {
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
         errorDetails.put("failedFactor", currentProcessingFactor.name().toUpperCase());
         errorDetails.put("attemptsMade", attempts);
-        errorDetails.put("maxAttempts", maxAttempts);
         errorDetails.put("currentState", factorContext.getCurrentState().name());
         errorDetails.put("timestamp", System.currentTimeMillis());
         return errorDetails;

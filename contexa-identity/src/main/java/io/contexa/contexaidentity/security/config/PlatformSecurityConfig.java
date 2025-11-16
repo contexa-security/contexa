@@ -23,7 +23,7 @@ public class PlatformSecurityConfig {
         log.info("Configuring Platform Security DSL...");
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
-                http.securityMatcher()
+                http
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers(
                                     "/css/**", "/js/**", "/images/**", "/favicon.ico",

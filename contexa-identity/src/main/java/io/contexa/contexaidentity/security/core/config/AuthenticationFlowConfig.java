@@ -2,8 +2,6 @@ package io.contexa.contexaidentity.security.core.config;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.MfaAsepAttributes;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
-import io.contexa.contexaidentity.security.core.mfa.AdaptiveConfig;
-import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -32,8 +30,6 @@ public final class AuthenticationFlowConfig {
     private final AuthenticationFailureHandler mfaFailureHandler;
     private final AuthenticationSuccessHandler finalSuccessHandler;
     private final Map<AuthType, AuthenticationProcessingOptions> registeredFactorOptions;
-    private final RetryPolicy defaultRetryPolicy;
-    private final AdaptiveConfig defaultAdaptiveConfig;
     private final boolean defaultDeviceTrustEnabled;
     private final MfaAsepAttributes mfaAsepAttributes;
     private final MfaPageConfig mfaPageConfig;
@@ -50,8 +46,6 @@ public final class AuthenticationFlowConfig {
         this.mfaFailureHandler = builder.mfaFailureHandler;
         this.finalSuccessHandler = builder.finalSuccessHandler;
         this.registeredFactorOptions = builder.registeredFactorOptions != null ? Collections.unmodifiableMap(new LinkedHashMap<>(builder.registeredFactorOptions)) : Collections.emptyMap();
-        this.defaultRetryPolicy = builder.defaultRetryPolicy;
-        this.defaultAdaptiveConfig = builder.defaultAdaptiveConfig;
         this.defaultDeviceTrustEnabled = builder.defaultDeviceTrustEnabled;
         this.mfaAsepAttributes = builder.mfaAsepAttributes;
         this.mfaPageConfig = builder.mfaPageConfig; // MFA 커스텀 페이지 설정
@@ -70,8 +64,6 @@ public final class AuthenticationFlowConfig {
                 .mfaFailureHandler(this.mfaFailureHandler)
                 .finalSuccessHandler(this.finalSuccessHandler)
                 .registeredFactorOptions(this.registeredFactorOptions != null ? new LinkedHashMap<>(this.registeredFactorOptions) : null)
-                .defaultRetryPolicy(this.defaultRetryPolicy)
-                .defaultAdaptiveConfig(this.defaultAdaptiveConfig)
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
                 .mfaAsepAttributes(this.mfaAsepAttributes)
                 .mfaPageConfig(this.mfaPageConfig)
@@ -96,8 +88,6 @@ public final class AuthenticationFlowConfig {
         private AuthenticationFailureHandler mfaFailureHandler;
         private AuthenticationSuccessHandler finalSuccessHandler;
         private Map<AuthType, AuthenticationProcessingOptions> registeredFactorOptions = new LinkedHashMap<>();
-        private RetryPolicy defaultRetryPolicy;
-        private AdaptiveConfig defaultAdaptiveConfig;
         private boolean defaultDeviceTrustEnabled;
         private MfaAsepAttributes mfaAsepAttributes;
         private MfaPageConfig mfaPageConfig; // MFA 커스텀 페이지 설정
@@ -137,8 +127,6 @@ public final class AuthenticationFlowConfig {
         public Builder mfaPolicyProvider(MfaPolicyProvider provider) { this.mfaPolicyProvider = provider; return this; }
         public Builder mfaFailureHandler(AuthenticationFailureHandler handler) { this.mfaFailureHandler = handler; return this; }
         public Builder finalSuccessHandler(AuthenticationSuccessHandler handler) { this.finalSuccessHandler = handler; return this; }
-        public Builder defaultRetryPolicy(RetryPolicy policy) { this.defaultRetryPolicy = policy; return this; }
-        public Builder defaultAdaptiveConfig(AdaptiveConfig config) { this.defaultAdaptiveConfig = config; return this; }
         public Builder defaultDeviceTrustEnabled(boolean enabled) { this.defaultDeviceTrustEnabled = enabled; return this; }
 
         public Builder mfaAsepAttributes(MfaAsepAttributes attributes) {

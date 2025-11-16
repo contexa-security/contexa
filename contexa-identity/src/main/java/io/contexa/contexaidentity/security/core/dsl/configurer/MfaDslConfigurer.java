@@ -3,8 +3,6 @@ package io.contexa.contexaidentity.security.core.dsl.configurer;
 import io.contexa.contexaidentity.security.core.asep.dsl.MfaAsepAttributes;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.common.SecurityConfigurerDsl;
-import io.contexa.contexaidentity.security.core.mfa.configurer.AdaptiveDslConfigurer;
-import io.contexa.contexaidentity.security.core.mfa.configurer.RetryPolicyDslConfigurer;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
@@ -23,8 +21,6 @@ public interface MfaDslConfigurer extends SecurityConfigurerDsl { // SecurityCon
     MfaDslConfigurer mfaFailureHandler(PlatformAuthenticationFailureHandler failureHandler);
     MfaDslConfigurer mfaSuccessHandler(PlatformAuthenticationSuccessHandler successHandler);
     MfaDslConfigurer policyProvider(MfaPolicyProvider policyProvider);
-    MfaDslConfigurer defaultRetryPolicy(Customizer<RetryPolicyDslConfigurer> c);
-    MfaDslConfigurer defaultAdaptivePolicy(Customizer<AdaptiveDslConfigurer> c);
     MfaDslConfigurer defaultDeviceTrustEnabled(boolean enable);
     AuthenticationFlowConfig build(); // 최종적으로 AuthenticationFlowConfig 객체 반환
 

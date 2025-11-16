@@ -2,7 +2,6 @@ package io.contexa.contexaidentity.security.core.mfa.policy;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
-import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -43,19 +42,9 @@ public interface MfaPolicyProvider {
     NextFactorDecision evaluateNextFactor(FactorContext ctx);
 
     /**
-     * 특정 팩터의 재시도 정책 가져오기
-     */
-    RetryPolicy getRetryPolicyForFactor(AuthType factorType, FactorContext ctx);
-
-    /**
      * 특정 팩터가 사용자에게 사용 가능한지 확인
      */
     boolean isFactorAvailableForUser(String username, AuthType factorType, FactorContext ctx);
-
-    /**
-     * 재시도 정책 가져오기
-     */
-    RetryPolicy getRetryPolicy(FactorContext factorContext, AuthenticationStepConfig step);
 
 
     /**

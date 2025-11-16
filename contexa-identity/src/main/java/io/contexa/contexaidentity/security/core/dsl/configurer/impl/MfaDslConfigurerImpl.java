@@ -11,13 +11,6 @@ import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurer
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
-import io.contexa.contexaidentity.security.properties.MfaPageConfig;
-import io.contexa.contexaidentity.security.core.mfa.AdaptiveConfig;
-import io.contexa.contexaidentity.security.core.mfa.RetryPolicy;
-import io.contexa.contexaidentity.security.core.mfa.configurer.AdaptiveDslConfigurer;
-import io.contexa.contexaidentity.security.core.mfa.configurer.AdaptiveDslConfigurerImpl;
-import io.contexa.contexaidentity.security.core.mfa.configurer.RetryPolicyDslConfigurer;
-import io.contexa.contexaidentity.security.core.mfa.configurer.RetryPolicyDslConfigurerImpl;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.enums.AuthType;
@@ -25,6 +18,7 @@ import io.contexa.contexaidentity.security.exception.DslConfigurationException;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import io.contexa.contexaidentity.security.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
@@ -46,8 +40,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private MfaPolicyProvider policyProvider;
     private PlatformAuthenticationFailureHandler mfaFailureHandler;
     private AuthenticationSuccessHandler finalSuccessHandler;
-    private RetryPolicy defaultRetryPolicy;
-    private AdaptiveConfig defaultAdaptiveConfig;
     private boolean defaultDeviceTrustEnabled = false;
     private int order = 200;
 
@@ -162,22 +154,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     @Override
     public MfaDslConfigurerImpl<H> mfaSuccessHandler(PlatformAuthenticationSuccessHandler handler) {
         this.finalSuccessHandler = handler;
-        return this;
-    }
-
-    @Override
-    public MfaDslConfigurerImpl<H> defaultRetryPolicy(Customizer<RetryPolicyDslConfigurer> c) {
-        RetryPolicyDslConfigurerImpl configurer = new RetryPolicyDslConfigurerImpl();
-        c.customize(configurer);
-        this.defaultRetryPolicy = configurer.build();
-        return this;
-    }
-
-    @Override
-    public MfaDslConfigurerImpl<H> defaultAdaptivePolicy(Customizer<AdaptiveDslConfigurer> c) {
-        AdaptiveDslConfigurerImpl configurer = new AdaptiveDslConfigurerImpl();
-        c.customize(configurer);
-        this.defaultAdaptiveConfig = configurer.build();
         return this;
     }
 
@@ -313,8 +289,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .mfaFailureHandler(this.mfaFailureHandler)
                 .finalSuccessHandler(this.finalSuccessHandler)
                 .registeredFactorOptions(new LinkedHashMap<>(factorOptionsMap))
-                .defaultRetryPolicy(this.defaultRetryPolicy)
-                .defaultAdaptiveConfig(this.defaultAdaptiveConfig)
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
                 .mfaAsepAttributes(this.mfaAsepAttributes)
                 .mfaPageConfig(this.mfaPageConfig)
