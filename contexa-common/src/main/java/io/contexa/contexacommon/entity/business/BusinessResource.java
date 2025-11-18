@@ -35,6 +35,7 @@ public class BusinessResource implements Serializable {
     private String description;
 
     @OneToMany(mappedBy = "businessResource", fetch = FetchType.LAZY)
+    @Builder.Default
     private Set<BusinessResourceAction> availableActions = new HashSet<>();
 
     @Override

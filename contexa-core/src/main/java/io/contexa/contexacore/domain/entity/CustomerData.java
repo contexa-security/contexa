@@ -132,12 +132,14 @@ public class CustomerData {
      * 활성 상태
      */
     @Column(name = "active")
+    @Builder.Default
     private Boolean active = true;
 
     /**
      * 2FA 활성화 여부
      */
     @Column(name = "two_factor_enabled")
+    @Builder.Default
     private Boolean twoFactorEnabled = false;
 
     /**

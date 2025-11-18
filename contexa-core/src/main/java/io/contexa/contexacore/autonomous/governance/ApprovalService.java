@@ -531,6 +531,7 @@ public class ApprovalService {
         private int requiredApprovals;
         private List<Approver> approvers;
         private List<ApproverLevel> approverLevels;
+        @lombok.Builder.Default
         private List<ApprovalRequest> requests = new ArrayList<>();
         private PolicyEvolutionGovernance.RiskAssessment riskAssessment;
         private WorkflowStatus status;

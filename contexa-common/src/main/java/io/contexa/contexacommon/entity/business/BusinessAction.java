@@ -31,6 +31,7 @@ public class BusinessAction implements Serializable {
     private String description;
 
     @OneToMany(mappedBy = "businessAction")
+    @Builder.Default
     private Set<BusinessResourceAction> resources = new HashSet<>();
 
     @Override

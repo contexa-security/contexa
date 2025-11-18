@@ -13,7 +13,15 @@
       "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\":*)",
       "Bash(cd:*)",
       "Bash(done)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(./gradlew clean build:*)",
+      "Bash(./gradlew test:*)",
+      "Bash(./gradlew:*)",
+      "Bash(cat:*)",
+      "Bash(Select-String -Pattern \"deprecated|warning\" -Context 2,1)",
+      "Bash(cmd /c \"cd /d D:\\projects\\contexa && gradlew.bat clean build --warning-mode all\")",
+      "Bash(D:projectscontexagradlew.bat clean build --warning-mode all)",
+      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat clean build --warning-mode all\")"
     ],
     "deny": [],
     "ask": []

@@ -17,6 +17,7 @@ public class RoleHierarchyDto {
     private String hierarchyString;
     private String description;
     private Boolean isActive;
+    @Builder.Default
     private List<HierarchyPair> hierarchyPairs = new ArrayList<>();
 
     public record HierarchyPair(String parentRole, String childRole) {}
