@@ -1,5 +1,7 @@
 package io.contexa.contexacoreenterprise.autonomous.evolution;
 
+import io.contexa.contexacore.autonomous.PolicyActivationService;
+import io.contexa.contexacore.autonomous.domain.ActivationResult;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
@@ -23,17 +25,17 @@ import java.util.stream.Collectors;
 
 /**
  * 정책 활성화 서비스
- * 
+ *
  * AI가 생성한 정책을 실제 시스템에 적용하고 관리합니다.
  * 안전한 활성화와 실시간 모니터링을 제공합니다.
- * 
+ *
  * @author contexa
  * @since 1.0.0
  */
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 @ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 @Service
-public class PolicyActivationServiceImpl {
+public class PolicyActivationServiceImpl implements PolicyActivationService {
 
     private static final Logger logger = LoggerFactory.getLogger(PolicyActivationServiceImpl.class);
     
@@ -62,11 +64,12 @@ public class PolicyActivationServiceImpl {
     
     /**
      * 정책 활성화
-     * 
+     *
      * @param proposalId 제안 ID
      * @param activatedBy 활성화 요청자
      * @return 활성화 결과
      */
+    @Override
     @Transactional
     public ActivationResult activatePolicy(Long proposalId, String activatedBy) {
         logger.info("Activating policy {} requested by {}", proposalId, activatedBy);
@@ -115,12 +118,13 @@ public class PolicyActivationServiceImpl {
     
     /**
      * 정책 비활성화
-     * 
+     *
      * @param proposalId 제안 ID
      * @param deactivatedBy 비활성화 요청자
      * @param reason 비활성화 이유
      * @return 비활성화 성공 여부
      */
+    @Override
     @Transactional
     public boolean deactivatePolicy(Long proposalId, String deactivatedBy, String reason) {
         logger.info("Deactivating policy {} requested by {}: {}", proposalId, deactivatedBy, reason);
@@ -667,38 +671,6 @@ public class PolicyActivationServiceImpl {
         private LocalDateTime endTime;
         private ActivationStatus status;
         private String error;
-    }
-    
-    /**
-     * 활성화 결과
-     */
-    @lombok.Builder
-    @lombok.Data
-    public static class ActivationResult {
-        private Long proposalId;
-        private Long versionId;
-        private boolean success;
-        private String message;
-        private LocalDateTime timestamp;
-        
-        public static ActivationResult success(Long proposalId, Long versionId) {
-            return ActivationResult.builder()
-                .proposalId(proposalId)
-                .versionId(versionId)
-                .success(true)
-                .message("Successfully activated")
-                .timestamp(LocalDateTime.now())
-                .build();
-        }
-        
-        public static ActivationResult failure(Long proposalId, String message) {
-            return ActivationResult.builder()
-                .proposalId(proposalId)
-                .success(false)
-                .message(message)
-                .timestamp(LocalDateTime.now())
-                .build();
-        }
     }
     
     /**

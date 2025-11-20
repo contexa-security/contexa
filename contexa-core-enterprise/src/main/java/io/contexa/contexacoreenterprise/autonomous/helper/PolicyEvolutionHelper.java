@@ -1,6 +1,8 @@
 package io.contexa.contexacoreenterprise.autonomous.helper;
 
+import io.contexa.contexacore.autonomous.PolicyEvolutionService;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -43,7 +45,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 @Component
 @RequiredArgsConstructor
-public class PolicyEvolutionHelper {
+public class PolicyEvolutionHelper implements PolicyEvolutionService {
 
     // 기존 서비스 재사용
     private final UnifiedVectorService unifiedVectorService;
@@ -100,16 +102,17 @@ public class PolicyEvolutionHelper {
     
     /**
      * 보안 이벤트로부터 정책 패턴 학습
-     * 
+     *
      * @param event 보안 이벤트
      * @param decision 적용된 결정
      * @param outcome 결과 (성공/실패)
      * @return 학습 결과
      */
-    public Mono<PolicyLearningResult> learnFromEvent(
-            SecurityEvent event, 
-            String decision, 
-            boolean outcome) {
+    @Override
+    public Mono<?> learnFromEvent(
+            SecurityEvent event,
+            String decision,
+            String outcome) {
         
         if (!evolutionEnabled) {
             return Mono.just(PolicyLearningResult.disabled());
@@ -117,15 +120,18 @@ public class PolicyEvolutionHelper {
         
         return Mono.defer(() -> {
             String policyId = extractPolicyId(event);
-            
+
+            // String outcome을 boolean으로 변환
+            boolean result = isPositive(outcome);
+
             // 정책 효과성 업데이트
-            updatePolicyEffectiveness(policyId, outcome);
-            
+            updatePolicyEffectiveness(policyId, result);
+
             // 진화 필요성 평가
             if (shouldEvolvePolicy(policyId)) {
-                return evolvePolicy(policyId, event, decision, outcome);
+                return evolvePolicy(policyId, event, decision, result);
             }
-            
+
             return Mono.just(PolicyLearningResult.recorded(policyId));
         });
     }
@@ -133,7 +139,8 @@ public class PolicyEvolutionHelper {
     /**
      * 정책 진화 (호환성 메서드)
      */
-    public void evolvePolicy(SecurityEvent event, Object assessment) {
+    @Override
+    public void evolvePolicy(SecurityEvent event, ThreatAssessment assessment) {
         // 간단한 정책 진화 로직
         if (event != null) {
             String policyId = "POLICY_" + event.getEventType();
@@ -528,6 +535,13 @@ public class PolicyEvolutionHelper {
     }
     
     // Helper 메서드들
+    private boolean isPositive(String outcome) {
+        if (outcome == null) return false;
+        String normalized = outcome.toUpperCase();
+        return normalized.contains("SUCCESS") || normalized.contains("NORMAL") ||
+               normalized.contains("LOW") || normalized.contains("PASS");
+    }
+
     private String extractPolicyId(SecurityEvent event) {
         return "policy_" + event.getEventType() + "_" + event.getSeverity();
     }

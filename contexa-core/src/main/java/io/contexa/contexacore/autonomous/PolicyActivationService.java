@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous;
 
+import io.contexa.contexacore.autonomous.domain.ActivationResult;
+
 /**
  * PolicyActivationService - 정책 활성화 서비스 인터페이스
  *
@@ -17,9 +19,9 @@ public interface PolicyActivationService {
      *
      * @param proposalId 제안 ID
      * @param approvedBy 승인자
-     * @return 활성화 결과 (Object 타입 - 실제로는 ActivationResult)
+     * @return 활성화 결과
      */
-    Object activatePolicy(Long proposalId, String approvedBy);
+    ActivationResult activatePolicy(Long proposalId, String approvedBy);
 
     /**
      * 정책 비활성화

@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.helper;
 
+import io.contexa.contexacore.autonomous.LearningEngine;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
@@ -26,24 +27,24 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
- * LearningEngineHelper - 학습 엔진 헬퍼
- * 
- * 자율 학습 및 진화를 담당하는 헬퍼 클래스입니다.
+ * LearningEngineHelper - 학습 엔진 구현체
+ *
+ * 자율 학습 및 진화를 담당하는 클래스입니다.
  * SecurityPlaneAgent와 협력하여 지속적인 학습과 개선을 수행합니다.
- * 
+ *
  * 주요 기능:
  * - 이벤트 패턴 학습
  * - 행동 패턴 분석
  * - 피드백 기반 학습
  * - 학습 모델 관리
- * 
+ *
  * @since 1.0.0
  */
 @Slf4j
 @ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 @Component
 @RequiredArgsConstructor
-public class LearningEngineHelper {
+public class LearningEngineHelper implements LearningEngine {
     
     // 기존 서비스 재사용
     private final AITuningService aiTuningService;
@@ -112,13 +113,14 @@ public class LearningEngineHelper {
     
     /**
      * 보안 이벤트로부터 학습
-     * 
+     *
      * @param event 보안 이벤트
      * @param response 시스템 응답
      * @param effectiveness 효과성 (0.0 ~ 1.0)
      * @return 학습 결과
      */
-    public Mono<LearningResult> learnFromEvent(
+    @Override
+    public Mono<?> learnFromEvent(
             SecurityEvent event,
             String response,
             double effectiveness) {
@@ -224,11 +226,12 @@ public class LearningEngineHelper {
     
     /**
      * 학습된 지식 적용
-     * 
+     *
      * @param event 새로운 이벤트
      * @return 예측 및 추천
      */
-    public Mono<PredictionResult> applyLearning(SecurityEvent event) {
+    @Override
+    public Mono<?> applyLearning(SecurityEvent event) {
         if (!learningEnabled) {
             return Mono.empty();
         }

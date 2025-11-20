@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.evolution;
 
+import io.contexa.contexacore.autonomous.ThreatEvaluator;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.strategy.*;
@@ -23,13 +24,15 @@ import java.util.stream.Collectors;
  * 여러 전략을 병렬로 실행하고 가중 평균을 통해 정밀한 위협 평가를 수행합니다.
  * 최소 3개 이상의 전략이 동의해야 최종 결정을 신뢰합니다.
  *
+ * <p>ThreatEvaluator 인터페이스를 구현하여 Core 모듈과의 인터페이스 계약을 준수합니다.</p>
+ *
  * @since 1.0
  */
 @Slf4j
 @ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 @Component
 @RequiredArgsConstructor
-public class IntegratedThreatEvaluator {
+public class IntegratedThreatEvaluator implements ThreatEvaluator {
 
     // 전략 컴포넌트
     // SessionThreatEvaluationStrategy removed - handled by SecurityEventProcessingOrchestrator
@@ -89,6 +92,7 @@ public class IntegratedThreatEvaluator {
      * @param event 보안 이벤트
      * @return 통합 위협 평가 결과
      */
+    @Override
     public ThreatAssessment evaluateIntegrated(SecurityEvent event) {
         String evaluationId = UUID.randomUUID().toString();
         LocalDateTime startTime = LocalDateTime.now();

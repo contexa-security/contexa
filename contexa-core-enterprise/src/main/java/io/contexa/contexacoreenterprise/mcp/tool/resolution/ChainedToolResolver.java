@@ -25,11 +25,13 @@ import java.util.stream.Collectors;
 
 /**
  * ChainedToolResolver - Spring AI 표준 구현
- * 
+ *
  * Spring AI의 DelegatingToolCallbackResolver를 내부적으로 사용하여
  * 캐싱, Circuit Breaker, 메트릭 수집 등의 향상된 기능을 제공합니다.
  * prefix 없이 원본 도구 이름을 사용하며, 메타데이터로 도구 출처를 구분합니다.
- * 
+ *
+ * <p>Common 모듈의 ChainedToolResolver 인터페이스를 구현하여 Core 모듈과의 계약을 준수합니다.</p>
+ *
  * @author AI Security Framework
  * @since 3.0.0
  */
@@ -37,7 +39,7 @@ import java.util.stream.Collectors;
 @Primary
 @Slf4j
 @RequiredArgsConstructor
-public class ChainedToolResolver implements ToolCallbackResolver {
+public class ChainedToolResolver implements ToolCallbackResolver, io.contexa.contexacommon.mcp.tool.ChainedToolResolver {
     
     private final MCPToolMetrics metricsCollector;
     private final SpringBeanToolCallbackResolver springBeanToolCallbackResolver;
@@ -279,6 +281,7 @@ public class ChainedToolResolver implements ToolCallbackResolver {
      * 모든 사용 가능한 도구 반환
      * prefix 없는 원본 이름으로 도구를 반환합니다.
      */
+    @Override
     public ToolCallback[] getAllToolCallbacks() {
         List<ToolCallback> allTools = new ArrayList<>();
         

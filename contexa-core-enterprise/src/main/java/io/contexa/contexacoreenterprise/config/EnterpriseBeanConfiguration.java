@@ -1,21 +1,13 @@
 package io.contexa.contexacoreenterprise.config;
 
-import io.contexa.contexacore.autonomous.LearningEngine;
-import io.contexa.contexacore.autonomous.MemorySystem;
-import io.contexa.contexacore.autonomous.PolicyActivationService;
-import io.contexa.contexacore.autonomous.PolicyEvolutionService;
 import io.contexa.contexacore.autonomous.ThreatEvaluator;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.soar.SoarLab;
 import io.contexa.contexacoreenterprise.autonomous.evolution.IntegratedThreatEvaluator;
-import io.contexa.contexacoreenterprise.autonomous.helper.LearningEngineHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.MemorySystemHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.PolicyEvolutionHelper;
 import io.contexa.contexacore.hcad.service.HCADSimilarityCalculator;
 import io.contexa.contexacore.plane.ZeroTrustHotPathOrchestrator;
-import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyActivationServiceImpl;
 import io.contexa.contexacoreenterprise.plane.ZeroTrustHotPathOrchestratorImpl;
 import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -55,90 +47,6 @@ public class EnterpriseBeanConfiguration {
         if (impl != null) {
             log.info("SoarLab export 완료");
             return request -> impl.processAsync(request);
-        }
-        return null;
-    }
-
-    @Bean
-    public io.contexa.contexacore.autonomous.PolicyEvolutionService corePolicyEvolutionServiceAdapter(@Autowired(required = false) PolicyEvolutionHelper helper) {
-        if (helper != null) {
-            log.info("Core PolicyEvolutionService export 완료");
-            return new io.contexa.contexacore.autonomous.PolicyEvolutionService() {
-                @Override
-                public Mono<?> learnFromEvent(SecurityEvent event, String decision, String outcome) {
-                    boolean result = isPositive(outcome);
-                    return helper.learnFromEvent(event, decision, result);
-                }
-
-                @Override
-                public void evolvePolicy(SecurityEvent event, ThreatAssessment assessment) {
-                    helper.evolvePolicy(event, assessment);
-                }
-
-                private boolean isPositive(String outcome) {
-                    if (outcome == null) return false;
-                    String normalized = outcome.toUpperCase();
-                    return normalized.contains("SUCCESS") || normalized.contains("NORMAL") ||
-                           normalized.contains("LOW") || normalized.contains("PASS");
-                }
-            };
-        }
-        return null;
-    }
-
-    @Bean
-    public LearningEngine learningEngine(@Autowired(required = false) LearningEngineHelper helper) {
-        if (helper != null) {
-            log.info("LearningEngine export 완료");
-            return new LearningEngine() {
-                @Override
-                public Mono<?> learnFromEvent(SecurityEvent event, String response, double effectiveness) {
-                    return helper.learnFromEvent(event, response, effectiveness);
-                }
-
-                @Override
-                public Mono<?> applyLearning(SecurityEvent event) {
-                    return helper.applyLearning(event);
-                }
-            };
-        }
-        return null;
-    }
-
-    @Bean
-    public MemorySystem memorySystem(@Autowired(required = false) MemorySystemHelper helper) {
-        if (helper != null) {
-            log.info("MemorySystem export 완료");
-            return new MemorySystem() {
-                @Override
-                public Mono<Void> storeInWM(String key, Object value, String namespace) {
-                    return helper.storeInWM(key, value, namespace).then();
-                }
-
-                @Override
-                public Mono<Void> storeInSTM(String key, Object value, Map<String, Object> metadata) {
-                    return helper.storeInSTM(key, value, metadata).then();
-                }
-            };
-        }
-        return null;
-    }
-
-    @Bean
-    public PolicyActivationService policyActivationService(@Autowired(required = false) PolicyActivationServiceImpl impl) {
-        if (impl != null) {
-            log.info("PolicyActivationService export 완료");
-            return new PolicyActivationService() {
-                @Override
-                public Object activatePolicy(Long proposalId, String approvedBy) {
-                    return impl.activatePolicy(proposalId, approvedBy);
-                }
-
-                @Override
-                public boolean deactivatePolicy(Long proposalId, String deactivatedBy, String reason) {
-                    return impl.deactivatePolicy(proposalId, deactivatedBy, reason);
-                }
-            };
         }
         return null;
     }

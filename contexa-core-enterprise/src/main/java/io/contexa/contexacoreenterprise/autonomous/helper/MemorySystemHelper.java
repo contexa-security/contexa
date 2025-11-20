@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.helper;
 
+import io.contexa.contexacore.autonomous.MemorySystem;
 import io.contexa.contexacore.autonomous.state.DistributedStateManager;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -25,24 +26,24 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
- * MemorySystemHelper - 메모리 시스템 헬퍼
- * 
- * 자율 진화형 정책 패브릭의 메모리 시스템을 관리하는 헬퍼 클래스입니다.
+ * MemorySystemHelper - 메모리 시스템 구현체
+ *
+ * 자율 진화형 정책 패브릭의 메모리 시스템을 관리하는 클래스입니다.
  * SecurityPlaneAgent와 협력하여 단기/장기/작업 메모리를 관리합니다.
- * 
+ *
  * 주요 기능:
  * - 단기 메모리 (STM) 관리
  * - 장기 메모리 (LTM) 관리
  * - 작업 메모리 (WM) 관리
  * - 메모리 통합 및 전이
- * 
+ *
  * @since 1.0.0
  */
 @Slf4j
 @ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 @Component
 @RequiredArgsConstructor
-public class MemorySystemHelper {
+public class MemorySystemHelper implements MemorySystem {
 
     // 기존 서비스 재사용
     private final UnifiedVectorService unifiedVectorService;
@@ -133,77 +134,79 @@ public class MemorySystemHelper {
     
     /**
      * 단기 메모리에 저장
-     * 
+     *
      * @param key 메모리 키
      * @param value 저장할 값
      * @param metadata 메타데이터
      * @return 저장 결과
      */
-    public Mono<MemoryResult> storeInSTM(String key, Object value, Map<String, Object> metadata) {
+    @Override
+    public Mono<Void> storeInSTM(String key, Object value, Map<String, Object> metadata) {
         if (!memoryEnabled) {
-            return Mono.just(MemoryResult.disabled());
+            return Mono.empty();
         }
-        
+
         return Mono.defer(() -> {
             // 용량 체크 및 필요시 제거
             if (shortTermMemory.size() >= stmCapacity) {
                 evictOldestFromSTM();
             }
-            
+
             // 메모리 아이템 생성
             MemoryItem item = new MemoryItem(
                 key, value, metadata, LocalDateTime.now(), MemoryType.SHORT_TERM
             );
-            
+
             // 저장
             shortTermMemory.put(key, item);
-            
+
             // 인덱스 업데이트
             updateMemoryIndex(key, metadata);
-            
+
             // 접근 패턴 기록
             recordAccess(key, AccessType.WRITE);
-            
+
             totalMemoryWrites.incrementAndGet();
-            
-            return Mono.just(MemoryResult.stored(key, MemoryType.SHORT_TERM));
+
+            return Mono.empty();
         });
     }
     
     /**
      * 작업 메모리에 저장
-     * 
+     *
      * @param key 메모리 키
      * @param value 저장할 값
-     * @param context 작업 컨텍스트
+     * @param namespace 네임스페이스
      * @return 저장 결과
      */
-    public Mono<MemoryResult> storeInWM(String key, Object value, String context) {
+    @Override
+    public Mono<Void> storeInWM(String key, Object value, String namespace) {
         if (!memoryEnabled) {
-            return Mono.just(MemoryResult.disabled());
+            return Mono.empty();
         }
-        
+
         return Mono.defer(() -> {
             // 용량 체크
             if (workingMemory.size() >= wmCapacity) {
                 evictOldestFromWM();
             }
-            
+
             // 작업 메모리 아이템 생성
             WorkingMemoryItem item = new WorkingMemoryItem(
-                key, value, context, LocalDateTime.now()
+                key, value, namespace, LocalDateTime.now()
             );
-            
+
             // 저장
             workingMemory.put(key, item);
-            
+
             // Redis에도 저장 (TTL 설정)
             String redisKey = "wm:" + key;
             redisTemplate.opsForValue().set(redisKey, value, wmTtlSeconds, TimeUnit.SECONDS);
-            
+
             totalMemoryWrites.incrementAndGet();
-            
-            return Mono.just(MemoryResult.stored(key, MemoryType.WORKING));
+
+            return Mono.empty();
         });
     }
     
