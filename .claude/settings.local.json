@@ -11,7 +11,9 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core-enterprise:compileJava -x test)",
       "Bash(Select-String -Pattern \"BUILD|FAILED|SUCCESS|error:|cannot find symbol\")",
       "Bash(git log:*)",
-      "Bash(Select-Object -First 30)"
+      "Bash(Select-Object -First 30)",
+      "Bash(sed:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []
