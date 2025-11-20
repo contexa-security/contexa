@@ -4,7 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

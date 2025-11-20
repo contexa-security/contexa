@@ -15,13 +15,13 @@ import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacore.soar.approval.ApprovalService;
+import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.domain.ZeroTrustDecision;
 import io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager;
-import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
-import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
@@ -1737,7 +1737,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                     if (vectorData != null && vectorData.get("baseline") != null) {
                         // HCADVectorIntegrationService를 통한 베이스라인 업데이트
                         localHcadVectorService.applyLayer3FeedbackToBaseline(
-                            (io.contexa.contexacore.hcad.domain.BaselineVector) vectorData.get("baseline"),
+                            (io.contexa.contexacommon.hcad.domain.BaselineVector) vectorData.get("baseline"),
                             userId
                         );
                         log.debug("[Layer3] Updated baseline vector for user: {}", userId);

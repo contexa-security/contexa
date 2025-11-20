@@ -1,8 +1,8 @@
 package io.contexa.contexacore.simulation;
 
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.HCADBaselineLearningService;
 import io.contexa.contexacore.simulation.config.SimulationConfig;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;

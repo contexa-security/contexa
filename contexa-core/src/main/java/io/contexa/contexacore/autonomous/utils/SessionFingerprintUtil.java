@@ -1,7 +1,7 @@
 package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.MessageDigest;

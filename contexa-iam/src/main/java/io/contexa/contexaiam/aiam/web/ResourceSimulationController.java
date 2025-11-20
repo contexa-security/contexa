@@ -40,13 +40,13 @@ public class ResourceSimulationController {
 
         log.warn("클라이언트 JavaScript 파일 요청 - Mode: {}", simulationMode);
 
-        // API 키 노출 시뮬레이션
+        // API 키 노출 시뮬레이션 (테스트용)
         String jsContent = """
             // App configuration
             const config = {
                 apiEndpoint: 'https://api.example.com',
-                apiKey: 'sk_live_4242424242424242',  // TODO: move to env
-                analyticsKey: 'UA-123456789-1'
+                apiKey: 'YOUR_API_KEY_HERE',  // 환경 변수에서 로드 필요
+                analyticsKey: 'YOUR_ANALYTICS_KEY'
             };
 
             function initApp() {

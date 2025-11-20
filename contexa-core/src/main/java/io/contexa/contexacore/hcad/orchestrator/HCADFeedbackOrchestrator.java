@@ -2,12 +2,12 @@ package io.contexa.contexacore.hcad.orchestrator;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.feedback.FeedbackLoopSystem;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager;
-import io.contexa.contexacore.hcad.util.VectorSimilarityUtil;
+import io.contexa.contexacommon.hcad.util.VectorSimilarityUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

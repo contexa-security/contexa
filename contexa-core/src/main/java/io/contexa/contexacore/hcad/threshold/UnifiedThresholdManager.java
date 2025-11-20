@@ -1,9 +1,7 @@
 package io.contexa.contexacore.hcad.threshold;
 
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.HCADContext;
-import io.contexa.contexacore.hcad.feedback.FeedbackLoopSystem;
-import io.contexa.contexacore.dashboard.metrics.zerotrust.HCADFeedbackLoopMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -35,7 +33,8 @@ public class UnifiedThresholdManager {
 
     private final AdaptiveThresholdManager adaptiveManager;
     private final RedisTemplate<String, Object> redisTemplate;
-    private HCADFeedbackLoopMetrics feedbackMetrics;
+    // Enterprise metrics - optional
+    // private Object feedbackMetrics;
 
     @Autowired
     public UnifiedThresholdManager(
@@ -45,9 +44,9 @@ public class UnifiedThresholdManager {
         this.redisTemplate = redisTemplate;
     }
 
-    public void setFeedbackMetrics(HCADFeedbackLoopMetrics feedbackMetrics) {
-        this.feedbackMetrics = feedbackMetrics;
-    }
+    // public void setFeedbackMetrics(Object feedbackMetrics) {
+        // this.feedbackMetrics = feedbackMetrics;
+    // }
 
     // 기본 임계값 (폴백용)
     private static final double DEFAULT_THRESHOLD = 0.6;
@@ -119,9 +118,9 @@ public class UnifiedThresholdManager {
         unifiedThreshold = Math.max(MIN_THRESHOLD, Math.min(MAX_THRESHOLD, unifiedThreshold));
 
         // ===== 메트릭 수집: 임계값 조정 발생 =====
-        if (feedbackMetrics != null && Math.abs(feedbackAdjustment) > 0.001) {
-            feedbackMetrics.recordThresholdAdjustment();
-        }
+        // if (feedbackMetrics != null && Math.abs(feedbackAdjustment) > 0.001) {
+            // feedbackMetrics.recordThresholdAdjustment();
+        // }
 
         log.debug("Threshold calculation - User: {}, Adaptive: {}, Feedback: {}, Unified: {}",
                  userId, adaptiveThreshold, feedbackAdjustment, unifiedThreshold);

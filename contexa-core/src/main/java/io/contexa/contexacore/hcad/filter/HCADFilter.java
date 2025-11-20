@@ -1,7 +1,7 @@
 package io.contexa.contexacore.hcad.filter;
 
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.HCADAnalysisResult;
+import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.hcad.service.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;

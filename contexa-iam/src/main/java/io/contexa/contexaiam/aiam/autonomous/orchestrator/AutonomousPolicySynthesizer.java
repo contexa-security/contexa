@@ -1,11 +1,11 @@
 package io.contexa.contexaiam.aiam.autonomous.orchestrator;
 
-import io.contexa.contexacore.autonomous.PolicyEvolutionService;
+import io.contexa.contexacoreenterprise.autonomous.PolicyEvolutionService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.event.DynamicThreatResponseEvent;
 import io.contexa.contexacore.autonomous.event.LearnableEvent;
 import io.contexa.contexacore.autonomous.event.StaticAccessAnalysisEvent;
-import io.contexa.contexacore.autonomous.evolution.PolicyEvolutionLabIntegration;
+import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyEvolutionLabIntegration;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexaiam.aiam.labs.synthesis.DynamicThreatResponseSynthesisLab;
 import io.contexa.contexaiam.aiam.service.StaticAccessOptimizationService;

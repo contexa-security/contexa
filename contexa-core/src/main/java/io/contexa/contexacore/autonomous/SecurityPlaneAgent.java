@@ -1,22 +1,14 @@
 package io.contexa.contexacore.autonomous;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.*;
 import io.contexa.contexacore.autonomous.dto.SecurityIncidentDTO;
 import io.contexa.contexacore.autonomous.event.IncidentResolvedEvent;
-import io.contexa.contexacore.autonomous.helper.LearningEngineHelper;
-import io.contexa.contexacore.autonomous.helper.MemorySystemHelper;
-import io.contexa.contexacore.autonomous.helper.PolicyEvolutionHelper;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.service.ISoarContextProvider;
 import io.contexa.contexacore.autonomous.service.ISoarNotifier;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
-import io.contexa.contexacore.autonomous.strategy.DynamicStrategySelector;
-import io.contexa.contexacore.autonomous.strategy.MitreAttackEvaluationStrategy;
-import io.contexa.contexacore.autonomous.strategy.NistCsfEvaluationStrategy;
-import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.ApprovalRequest;
@@ -25,12 +17,11 @@ import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.entity.SoarIncident;
-import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
-import io.contexa.contexacore.simulation.event.SimulationProcessingCompleteEvent;
-import io.contexa.contexacore.soar.approval.McpApprovalNotificationService;
-import io.contexa.contexacore.soar.approval.UnifiedApprovalService;
-import io.contexa.contexacore.soar.lab.SoarLab;
+import io.contexa.contexacore.soar.SoarLab;
+import io.contexa.contexacore.soar.approval.ApprovalService;
+import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
+
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -40,8 +31,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,18 +56,41 @@ import java.util.concurrent.atomic.AtomicLong;
 public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgent {
 
     private final SecurityMonitoringService securityMonitor;
-    private final UnifiedApprovalService approvalService;
-    private final McpApprovalNotificationService notificationService;
-    private final SoarLab soarLab;
-    private final ISoarNotifier soarNotifier;
-    private final ISoarContextProvider contextProvider;
     private final SecurityIncidentRepository incidentRepository;
     private final RedisTemplate<String, Object> redisTemplate;
-    private final PolicyEvolutionHelper policyEvolutionHelper;
-    private final LearningEngineHelper learningEngineHelper;
-    private final MemorySystemHelper memorySystemHelper;
     private final ApplicationEventPublisher eventPublisher;
     private final SecurityPlaneAuditLogger auditLogger;
+
+    // Enterprise 기능 - Spring Boot AutoConfiguration을 통한 직접 주입
+    @Autowired(required = false)
+    private ApprovalService approvalService;
+
+    @Autowired(required = false)
+    private SoarApprovalNotifier notificationService;
+
+    @Autowired(required = false)
+    private ISoarContextProvider contextProvider;
+
+    @Autowired(required = false)
+    private ISoarNotifier soarNotifier;
+
+    @Autowired(required = false)
+    private SoarLab soarLab;
+
+    @Autowired(required = false)
+    private PolicyEvolutionService policyEvolutionService;
+
+    @Autowired(required = false)
+    private LearningEngine learningEngine;
+
+    @Autowired(required = false)
+    private MemorySystem memorySystem;
+
+    @Autowired(required = false)
+    private PolicyActivationService policyActivationService;
+
+    @Autowired(required = false)
+    private ThreatEvaluator threatEvaluator;
     
     @Value("${security.plane.agent.name:SecurityPlaneAgent-1}")
     private String agentName;
@@ -86,8 +98,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Value("${security.plane.agent.auto-start:true}")
     private boolean autoStart;
 
-    @Autowired(required = false)
-    private SecurityEventProcessingOrchestrator processingOrchestrator;
+    @Value("${security.agent.health.max-queue-size:1000}")
+    private int maxQueueSize;
+
+    @Value("${security.agent.health.max-pending-approvals:10}")
+    private int maxPendingApprovals;
+
+    @Value("${security.agent.retry.backoff-ms:5000}")
+    private long retryBackoffMs;
+
+    private final SecurityEventProcessingOrchestrator processingOrchestrator;
 
     @Value("${security.plane.agent.max-concurrent-incidents:10}")
     private int maxConcurrentIncidents;
@@ -233,6 +253,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     
     /**
      * Check pending approvals - runs every 10 seconds
+     *
+     * Enterprise only - UnifiedApprovalService, McpApprovalNotificationService 사용
      */
     @Override
 //    @Scheduled(fixedDelayString = "#{${security.plane.agent.approval-check-interval-seconds:10} * 1000}")
@@ -240,23 +262,29 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         if (!isRunning()) {
             return;
         }
-        
+
+        // Enterprise 모듈 없으면 조용히 리턴
+        if (approvalService == null || notificationService == null) {
+            log.trace("Approval check skipped (Enterprise-only feature not available)");
+            return;
+        }
+
         try {
             log.debug("Agent {} checking pending approvals", agentName);
-            
+
             // Get pending approval IDs from UnifiedApprovalService
             Set<String> pendingApprovalIds = approvalService.getPendingApprovalIds();
             int pendingCount = approvalService.getPendingCount();
-            
+
             // Log pending approvals for visibility
             if (pendingCount > 0) {
                 log.info("Agent {} has {} pending approvals waiting for review",
                     agentName, pendingCount);
-                
+
                 // 비동기 모드에서 알림 전송
                 for (String approvalId : pendingApprovalIds) {
                     log.info("Pending approval ID: {}", approvalId);
-                    
+
                     // Check approval status
                     ApprovalRequest.ApprovalStatus status = approvalService.getApprovalStatus(approvalId);
                     if (status == ApprovalRequest.ApprovalStatus.PENDING) {
@@ -267,7 +295,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                 }
             }
-            
+
         } catch (Exception e) {
             log.error("Error checking approvals", e);
         }
@@ -502,8 +530,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
             activeIncidentHandlers.put(incident.getIncidentId(), handler);
             
-            // 인시던트에서 학습 (LearningEngineHelper)
-            if (learningEngineHelper != null && incident.getAffectedUser() != null) {
+            // 인시던트에서 학습 (Learning Capability)
+            if (incident.getAffectedUser() != null) {
                 SecurityEvent relatedEvent = new SecurityEvent();
                 relatedEvent.setUserId(incident.getAffectedUser());
                 relatedEvent.setEventType(SecurityEvent.EventType.INCIDENT_CREATED);
@@ -513,30 +541,28 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 String response = "INCIDENT_" + incident.getType();
                 double effectiveness = incident.getRiskScore();
 
-                // 실제 학습 호출 추가 (기존에는 로그만 남김)
-                try {
-                    learningEngineHelper.learnFromEvent(relatedEvent, response, effectiveness).subscribe(
-                        result -> log.debug("[SecurityPlaneAgent] Learning from incident {} - status: {}, processed: {}",
-                            incident.getIncidentId(), result.getStatus(), result.getProcessedCount()),
-                        error -> log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
-                            incident.getIncidentId(), error.getMessage(), error)
-                    );
-                } catch (Exception e) {
-                    // 학습 실패가 메인 흐름을 중단하면 안 됨
-                    log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
-                        incident.getIncidentId(), e.getMessage(), e);
+                // Learning Engine을 통한 학습 호출
+                if (learningEngine != null) {
+                    try {
+                        learningEngine.learnFromEvent(relatedEvent, response, effectiveness).subscribe(
+                            result -> log.debug("[SecurityPlaneAgent] Learning from incident {} completed",
+                                incident.getIncidentId()),
+                            error -> log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
+                                incident.getIncidentId(), error.getMessage(), error)
+                        );
+                    } catch (Exception e) {
+                        // 학습 실패가 메인 흐름을 중단하면 안 됨
+                        log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
+                            incident.getIncidentId(), e.getMessage(), e);
+                    }
+                } else {
+                    log.debug("[SecurityPlaneAgent] Learning Engine 없음 - 학습 건너뜀");
                 }
             }
             
-            // 메모리에 인시던트 저장 (MemorySystemHelper)
-            if (memorySystemHelper != null) {
-                String key = "incident:" + incident.getIncidentId();
-                Map<String, Object> metadata = new HashMap<>();
-                metadata.put("type", incident.getType());
-                metadata.put("threatLevel", incident.getThreatLevel());
-                metadata.put("riskScore", incident.getRiskScore());
-                storeInMemory(key, incident);
-            }
+            // 메모리에 인시던트 저장 (Memory Capability)
+            String key = "incident:" + incident.getIncidentId();
+            storeInMemory(key, incident);
             
             // Create SOAR context from incident - ONLY FOR HIGH RISK INCIDENTS
             if (contextProvider != null && soarNotifier != null) {
@@ -639,69 +665,67 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         SoarContext context = contextProvider.createContextFromEvents(List.of(event));
         context = contextProvider.enrichContext(context, additionalInfo);
         
-        // Critical 상황에서 SOAR Lab 직접 호출 (AI 분석 필요)
+        // Critical 상황에서 SOAR Lab 호출 (AI 분석 필요)
         if (assessment.getThreatLevel() == ThreatAssessment.ThreatLevel.CRITICAL) {
             if (soarLab != null) {
-                // SoarLab을 통한 AI 기반 분석 및 도구 실행
+                // SOAR Lab을 통한 AI 기반 분석 및 도구 실행
                 log.info("Invoking SOAR Lab for critical threat analysis");
                 try {
-                    // 비동기 모드로 SOAR Lab 호출 - doProcessAsync 사용!
+                    // 비동기 모드로 SOAR 호출
                     SoarContext finalContext = context;
                     String prompt = String.format(
                         "Critical security event detected: %s with threat level %s and risk score %.2f. Recommended action: %s. Analyze and determine appropriate SOAR tools to execute.",
                         event.getEventId(), assessment.getThreatLevel(), assessment.getRiskScore(), action
                     );
-                    
+
                     // SoarRequest 생성 - ASYNC 모드 명시
-                    finalContext.setExecutionMode(SoarExecutionMode.ASYNC);  // context에 비동기 모드 설정
+                    finalContext.setExecutionMode(SoarExecutionMode.ASYNC);
                     SoarRequest soarRequest = SoarRequest.builder()
                         .context(finalContext)
                         .operation("soarAnalysis")
-                        .initialQuery(prompt)  // initialQuery 대신 query 사용
+                        .initialQuery(prompt)
                         .sessionId(UUID.randomUUID().toString())
                         .organizationId("security-plane")
                         .build();
-                    
-                    // processAsync 사용 - 스트림이 아닌 완전 비동기!
-                    soarLab.processAsync(soarRequest)
-                        .subscribe(
-                            soarResponse -> {
-                                log.info("SOAR Lab 분석 완료 - Event: {}, Response: {}",
-                                    event.getEventId(), soarResponse.getRecommendations());
-                                
-                                // 실행된 액션 카운트 증가
-                                executedActions.incrementAndGet();
-                                
-                                // 자율 진화형 정책 패브릭 활용
-                                evolveThreadEvaluationPolicy(event, assessment);
-                                learnFromSecurityEvent(event, action);
-                                storeInMemory("assessment:" + assessment.getAssessmentId(), assessment);
-                                
-                                // 결과 이벤트 발행
-                                Map<String, Object> resultData = new HashMap<>();
-                                resultData.put("eventId", event.getEventId());
-                                resultData.put("action", action);
-                                resultData.put("soarResponse", soarResponse);
-                                resultData.put("assessmentId", assessment.getAssessmentId());
 
-                                // notifyActionExecuted 메서드가 없으므로 notifyHighRiskTool 사용
-                                soarNotifier.notifyHighRiskTool(
-                                    action,
-                                    resultData,
-                                    finalContext
-                                );
-                            },
-                            error -> {
-                                log.error("SOAR Lab 분석 실패 - Event: {}", event.getEventId(), error);
-                            }
-                        );
-                    
+                    // SOAR Lab을 통한 비동기 처리
+                    soarLab.processAsync(soarRequest)
+                            .subscribe(
+                                soarResponse -> {
+                                    log.info("SOAR 분석 완료 - Event: {}", event.getEventId());
+
+                                    // 실행된 액션 카운트 증가
+                                    executedActions.incrementAndGet();
+
+                                    // 자율 진화형 정책 패브릭 활용
+                                    evolveThreadEvaluationPolicy(event, assessment);
+                                    learnFromSecurityEvent(event, action);
+                                    storeInMemory("assessment:" + assessment.getAssessmentId(), assessment);
+
+                                    // 결과 이벤트 발행
+                                    Map<String, Object> resultData = new HashMap<>();
+                                    resultData.put("eventId", event.getEventId());
+                                    resultData.put("action", action);
+                                    resultData.put("soarResponse", soarResponse);
+                                    resultData.put("assessmentId", assessment.getAssessmentId());
+
+                                    // notifyActionExecuted 메서드가 없으므로 notifyHighRiskTool 사용
+                                    soarNotifier.notifyHighRiskTool(
+                                        action,
+                                        resultData,
+                                        finalContext
+                                    );
+                                },
+                                error -> {
+                                    log.error("SOAR 분석 실패 - Event: {}", event.getEventId(), error);
+                                }
+                            );
+
                 } catch (Exception e) {
                     log.error("Error invoking SOAR Lab for critical event", e);
                 }
             } else {
-                // SOAR Lab이 없으면 notifier를 통해 알림만
-                soarNotifier.notifyCriticalSituation(context);
+                log.debug("[SecurityPlaneAgent] SOAR Lab 없음 - SOAR 분석 건너뜀");
             }
         }
     }
@@ -746,7 +770,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         
         // 오류 발생 시 백오프 전략 적용
         try {
-            Thread.sleep(5000); // 5초 대기
+            Thread.sleep(retryBackoffMs);
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
         }
@@ -784,10 +808,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         
         // Add monitoring statistics
         health.putAll(securityMonitor.getMonitoringStatistics());
-        
-        // Add pending approvals count from UnifiedApprovalService
-        health.put("pending_approvals", approvalService.getPendingCount());
-        
+
+        // Add pending approvals count from UnifiedApprovalService (Enterprise only)
+        if (approvalService != null) {
+            health.put("pending_approvals", approvalService.getPendingCount());
+        } else {
+            health.put("pending_approvals", 0);
+        }
+
         return health;
     }
     
@@ -918,115 +946,115 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     /**
      * 정책 진화를 통한 위협 평가 개선
-     * Helper를 활용하여 정책을 자율적으로 진화시킵니다.
+     * Policy Evolution Service를 활용하여 정책을 자율적으로 진화시킵니다.
      */
     private void evolveThreadEvaluationPolicy(SecurityEvent event, ThreatAssessment assessment) {
-        if (policyEvolutionHelper == null) {
-            return; // Helper가 주입되지 않은 경우 스킵
-        }
-        
-        try {
-            // 정책 학습
-            String decision = assessment.getThreatLevel().toString();
-            boolean outcome = assessment.getRiskScore() > threatThreshold;
-            
-            policyEvolutionHelper.learnFromEvent(event, decision, outcome)
-                .subscribe(
-                    result -> log.debug("정책 학습 완료: {}", result.getStatus()),
-                    error -> log.error("정책 학습 실패", error)
-                );
-        } catch (Exception e) {
-            log.error("정책 진화 중 오류 발생", e);
+        if (policyEvolutionService != null) {
+            try {
+                // 정책 학습
+                String decision = assessment.getThreatLevel().toString();
+                String outcome = assessment.getRiskScore() > threatThreshold ? "HIGH_RISK" : "NORMAL";
+
+                policyEvolutionService.learnFromEvent(event, decision, outcome)
+                    .subscribe(
+                        result -> log.debug("정책 학습 완료"),
+                        error -> log.error("정책 학습 실패", error)
+                    );
+            } catch (Exception e) {
+                log.error("정책 진화 중 오류 발생", e);
+            }
+        } else {
+            log.debug("[SecurityPlaneAgent] Policy Evolution Service 없음 - 정책 진화 건너뜀");
         }
     }
     
     /**
      * 학습 엔진을 통한 패턴 학습
-     * 보안 이벤트로부터 패턴을 학습하고 예측을 수행합니다.
+     * Learning Engine을 활용하여 보안 이벤트로부터 패턴을 학습하고 예측을 수행합니다.
      */
     private void learnFromSecurityEvent(SecurityEvent event, String response) {
-        if (learningEngineHelper == null) {
-            return; // Helper가 주입되지 않은 경우 스킵
-        }
-        
-        try {
-            // 효과성 계산 (간단한 예시)
-            double effectiveness = calculateResponseEffectiveness(event, response);
-            
-            // 학습 수행
-            learningEngineHelper.learnFromEvent(event, response, effectiveness)
-                .subscribe(
-                    result -> {
-                        log.debug("학습 완료: {} 이벤트 처리됨", result.getProcessedCount());
-                        
-                        // 예측 적용
-                        applyLearningPrediction(event);
-                    },
-                    error -> log.error("학습 실패", error)
-                );
-        } catch (Exception e) {
-            log.error("학습 엔진 처리 중 오류", e);
+        if (learningEngine != null) {
+            try {
+                // 효과성 계산
+                double effectiveness = calculateResponseEffectiveness(event, response);
+
+                // Learning Engine을 통한 학습 수행
+                learningEngine.learnFromEvent(event, response, effectiveness)
+                    .subscribe(
+                        result -> {
+                            log.debug("학습 완료");
+
+                            // 예측 적용
+                            applyLearningPrediction(event);
+                        },
+                        error -> log.error("학습 실패", error)
+                    );
+            } catch (Exception e) {
+                log.error("학습 엔진 처리 중 오류", e);
+            }
+        } else {
+            log.debug("[SecurityPlaneAgent] Learning Engine 없음 - 학습 건너뜀");
         }
     }
     
     /**
      * 학습된 지식을 적용하여 예측 수행
+     * Learning Engine을 통해 예측을 수행합니다.
      */
     private void applyLearningPrediction(SecurityEvent event) {
-        if (learningEngineHelper == null) {
-            return;
-        }
-        
-        learningEngineHelper.applyLearning(event)
-            .subscribe(
-                prediction -> {
-                    if (prediction.getConfidence() > 0.8) {
-                        log.info("높은 신뢰도 예측: {} (신뢰도: {})",
-                            prediction.getPredictedResponse(), prediction.getConfidence());
+        if (learningEngine != null) {
+            // Learning Engine을 통한 학습 적용 및 예측
+            learningEngine.applyLearning(event)
+                .subscribe(
+                    prediction -> {
+                        log.debug("학습 기반 예측 완료: {}", event.getEventId());
                         // 예측 결과를 메모리에 저장
                         storeInMemory("prediction:" + event.getEventId(), prediction);
-                    }
-                },
-                error -> log.error("예측 적용 실패", error)
-            );
+                    },
+                    error -> log.error("예측 적용 실패: {}", event.getEventId(), error)
+                );
+        } else {
+            log.debug("[SecurityPlaneAgent] Learning Engine 없음 - 예측 건너뜀");
+        }
     }
     
     /**
      * 메모리 시스템에 중요 정보 저장
+     * Memory System을 통해 WM 및 STM에 저장합니다.
      */
     private void storeInMemory(String key, Object value) {
-        if (memorySystemHelper == null) {
-            return; // Helper가 주입되지 않은 경우 스킵
-        }
+        if (memorySystem != null) {
+            try {
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("timestamp", LocalDateTime.now().toString());
+                metadata.put("agentName", agentName);
 
-        try {
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("timestamp", LocalDateTime.now().toString());
-            metadata.put("agentName", agentName);
-
-            // SecurityIncident는 DTO로 변환하여 저장 (lazy loading 문제 방지)
-            Object valueToStore = value;
-            if (value instanceof SecurityIncident) {
-                valueToStore = SecurityIncidentDTO.fromEntity((SecurityIncident) value);
-            }
-
-            // 작업 메모리에 저장 (빠른 접근용)
-            memorySystemHelper.storeInWM(key, valueToStore, "security-plane")
-                .subscribe(
-                    result -> log.debug("메모리 저장 완료: {}", result.getKey()),
-                    error -> log.error("메모리 저장 실패", error)
-                );
-
-            // 중요한 정보는 단기 메모리에도 저장
-            if (value instanceof ThreatAssessment) {
-                ThreatAssessment ta = (ThreatAssessment) value;
-                if (ta.getThreatLevel() == ThreatAssessment.ThreatLevel.CRITICAL) {
-                    memorySystemHelper.storeInSTM(key, valueToStore, metadata)
-                        .subscribe();
+                // SecurityIncident는 DTO로 변환하여 저장 (lazy loading 문제 방지)
+                Object valueToStore = value;
+                if (value instanceof SecurityIncident) {
+                    valueToStore = SecurityIncidentDTO.fromEntity((SecurityIncident) value);
                 }
+
+                // Memory System을 통한 작업 메모리 저장
+                memorySystem.storeInWM(key, valueToStore, "security-plane")
+                    .subscribe(
+                        result -> log.debug("메모리 저장 완료: {}", key),
+                        error -> log.error("메모리 저장 실패", error)
+                    );
+
+                // 중요한 정보는 단기 메모리에도 저장
+                if (value instanceof ThreatAssessment) {
+                    ThreatAssessment ta = (ThreatAssessment) value;
+                    if (ta.getThreatLevel() == ThreatAssessment.ThreatLevel.CRITICAL) {
+                        memorySystem.storeInSTM(key, valueToStore, metadata)
+                            .subscribe();
+                    }
+                }
+            } catch (Exception e) {
+                log.error("메모리 저장 중 오류", e);
             }
-        } catch (Exception e) {
-            log.error("메모리 저장 중 오류", e);
+        } else {
+            log.debug("[SecurityPlaneAgent] Memory System 없음 - 메모리 저장 건너뜀");
         }
     }
 

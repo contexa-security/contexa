@@ -2,7 +2,7 @@ package io.contexa.contexaiam.aiam.labs.securityCopilot;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
+import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexaiam.aiam.protocol.request.SecurityCopilotRequest;
 import io.contexa.contexaiam.aiam.protocol.response.SecurityCopilotResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -83,7 +83,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
     
     @Autowired
     public SecurityCopilotVectorService(StandardVectorStoreService standardVectorStoreService,
-                                       VectorStoreMetrics vectorStoreMetrics) {
+                                       @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         super(standardVectorStoreService, vectorStoreMetrics);
     }
     

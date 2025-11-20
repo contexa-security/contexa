@@ -36,7 +36,7 @@ public class HotPathStrategy implements ProcessingStrategy {
             log.error("[PassThroughStrategy] HotPathProcessor not available");
             return ProcessingResult.builder()
                 .success(false)
-                .processingPath("PASS_THROUGH")
+                .processingPath(ProcessingResult.ProcessingPath.HOT_PATH)
                 .message("HotPathProcessor not available")
                 .build();
         }
@@ -61,7 +61,7 @@ public class HotPathStrategy implements ProcessingStrategy {
             log.error("[PassThroughStrategy] Error processing event: {}", event.getEventId(), e);
             return ProcessingResult.builder()
                 .success(false)
-                .processingPath("PASS_THROUGH")
+                .processingPath(ProcessingResult.ProcessingPath.HOT_PATH)
                 .message("Processing error: " + e.getMessage())
                 .build();
         }

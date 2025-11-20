@@ -1,11 +1,11 @@
 package io.contexa.contexacore.std.rag.service;
 
-import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
+import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,12 +25,22 @@ import java.util.concurrent.Executors;
  * @since 1.0.0
  */
 @Slf4j
-@RequiredArgsConstructor
 public abstract class AbstractVectorLabService implements VectorOperations {
-    
+
     protected final StandardVectorStoreService standardVectorStoreService;
     protected final VectorStoreMetrics vectorStoreMetrics;
-    
+
+    /**
+     * 생성자: VectorStoreMetrics는 선택적 의존성
+     * Enterprise 모듈이 없으면 null로 주입됨
+     */
+    protected AbstractVectorLabService(
+            StandardVectorStoreService standardVectorStoreService,
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
+        this.standardVectorStoreService = standardVectorStoreService;
+        this.vectorStoreMetrics = vectorStoreMetrics;
+    }
+
     @Value("${spring.ai.vectorstore.lab.batch-size:50}")
     protected int labBatchSize;
     
@@ -110,21 +120,25 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             
             // 4. 메트릭 업데이트
             long duration = System.currentTimeMillis() - startTime;
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE, 1, duration);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE, 1, duration);
 
-            // EventRecorder 인터페이스 호출
-            Map<String, Object> eventMetadata = new HashMap<>();
-            eventMetadata.put("lab_name", getLabName());
-            eventMetadata.put("operation_type", OperationType.STORE.name());
-            eventMetadata.put("document_count", 1);
-            eventMetadata.put("duration", duration);
-            vectorStoreMetrics.recordEvent("vector_store_operation", eventMetadata);
-            
-            log.debug("[{}] 단일 문서 저장 완료: {}", getLabName(), 
+                // EventRecorder 인터페이스 호출
+                Map<String, Object> eventMetadata = new HashMap<>();
+                eventMetadata.put("lab_name", getLabName());
+                eventMetadata.put("operation_type", OperationType.STORE.name());
+                eventMetadata.put("document_count", 1);
+                eventMetadata.put("duration", duration);
+                vectorStoreMetrics.recordEvent("vector_store_operation", eventMetadata);
+            }
+
+            log.debug("[{}] 단일 문서 저장 완료: {}", getLabName(),
                      processedDocument.getMetadata().get("id"));
-            
+
         } catch (Exception e) {
-            vectorStoreMetrics.recordError(getLabName(), OperationType.STORE, e);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordError(getLabName(), OperationType.STORE, e);
+            }
             log.error("[{}] 단일 문서 저장 실패", getLabName(), e);
             throw new VectorStoreException("단일 문서 저장 실패: " + e.getMessage(), e);
         }
@@ -166,14 +180,18 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             }
             
             // 4. 메트릭 업데이트
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE, 
-                                             processedDocuments.size(), 
-                                             System.currentTimeMillis() - startTime);
-            
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE,
+                                                 processedDocuments.size(),
+                                                 System.currentTimeMillis() - startTime);
+            }
+
             log.info("[{}] 배치 문서 저장 완료: {}개", getLabName(), processedDocuments.size());
-            
+
         } catch (Exception e) {
-            vectorStoreMetrics.recordError(getLabName(), OperationType.STORE, e);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordError(getLabName(), OperationType.STORE, e);
+            }
             log.error("[{}] 배치 문서 저장 실패", getLabName(), e);
             throw new VectorStoreException("배치 문서 저장 실패: " + e.getMessage(), e);
         }
@@ -235,17 +253,21 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             labFilters.putAll(getLabSpecificFilters());
             
             List<Document> results = standardVectorStoreService.searchWithFilter(query, labFilters);
-            
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH, 
-                                             results.size(), 
-                                             System.currentTimeMillis() - startTime);
-            
+
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH,
+                                                 results.size(),
+                                                 System.currentTimeMillis() - startTime);
+            }
+
             log.debug("[{}] 검색 완료: 쿼리='{}', 결과={}개", getLabName(), query, results.size());
-            
+
             return results;
-            
+
         } catch (Exception e) {
-            vectorStoreMetrics.recordError(getLabName(), OperationType.SEARCH, e);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordError(getLabName(), OperationType.SEARCH, e);
+            }
             log.error("[{}] 검색 실패: 쿼리='{}'", getLabName(), query, e);
             throw new VectorStoreException("검색 실패: " + e.getMessage(), e);
         }
@@ -260,17 +282,21 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         
         try {
             List<Document> results = standardVectorStoreService.similaritySearch(searchRequest);
-            
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH, 
-                                             results.size(), 
-                                             System.currentTimeMillis() - startTime);
-            
+
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH,
+                                                 results.size(),
+                                                 System.currentTimeMillis() - startTime);
+            }
+
             log.debug("[{}] 고급 검색 완료: 결과={}개", getLabName(), results.size());
-            
+
             return results;
-            
+
         } catch (Exception e) {
-            vectorStoreMetrics.recordError(getLabName(), OperationType.SEARCH, e);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordError(getLabName(), OperationType.SEARCH, e);
+            }
             log.error("[{}] 고급 검색 실패", getLabName(), e);
             throw new VectorStoreException("고급 검색 실패: " + e.getMessage(), e);
         }
@@ -289,18 +315,22 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             
             List<Document> results = standardVectorStoreService.searchByTimeRange(
                 query, startTime, endTime, finalDocumentType);
-            
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH, 
-                                             results.size(), 
-                                             System.currentTimeMillis() - start);
-            
-            log.debug("[{}] 시간 범위 검색 완료: {}~{}, 결과={}개", 
+
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH,
+                                                 results.size(),
+                                                 System.currentTimeMillis() - start);
+            }
+
+            log.debug("[{}] 시간 범위 검색 완료: {}~{}, 결과={}개",
                      getLabName(), startTime, endTime, results.size());
-            
+
             return results;
-            
+
         } catch (Exception e) {
-            vectorStoreMetrics.recordError(getLabName(), OperationType.SEARCH, e);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordError(getLabName(), OperationType.SEARCH, e);
+            }
             log.error("[{}] 시간 범위 검색 실패", getLabName(), e);
             throw new VectorStoreException("시간 범위 검색 실패: " + e.getMessage(), e);
         }
@@ -321,15 +351,19 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         
         try {
             standardVectorStoreService.deleteDocuments(documentIds);
-            
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.DELETE, 
-                                             documentIds.size(), 
-                                             System.currentTimeMillis() - startTime);
-            
+
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordOperation(getLabName(), OperationType.DELETE,
+                                                 documentIds.size(),
+                                                 System.currentTimeMillis() - startTime);
+            }
+
             log.info("[{}] 문서 삭제 완료: {}개", getLabName(), documentIds.size());
-            
+
         } catch (Exception e) {
-            vectorStoreMetrics.recordError(getLabName(), OperationType.DELETE, e);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordError(getLabName(), OperationType.DELETE, e);
+            }
             log.error("[{}] 문서 삭제 실패", getLabName(), e);
             throw new VectorStoreException("문서 삭제 실패: " + e.getMessage(), e);
         }
@@ -362,15 +396,19 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             for (Document doc : processedDocuments) {
                 postProcessDocument(doc, OperationType.UPDATE);
             }
-            
-            vectorStoreMetrics.recordOperation(getLabName(), OperationType.UPDATE, 
-                                             processedDocuments.size(), 
-                                             System.currentTimeMillis() - startTime);
-            
+
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordOperation(getLabName(), OperationType.UPDATE,
+                                                 processedDocuments.size(),
+                                                 System.currentTimeMillis() - startTime);
+            }
+
             log.info("[{}] 문서 업데이트 완료: {}개", getLabName(), processedDocuments.size());
-            
+
         } catch (Exception e) {
-            vectorStoreMetrics.recordError(getLabName(), OperationType.UPDATE, e);
+            if (vectorStoreMetrics != null) {
+                vectorStoreMetrics.recordError(getLabName(), OperationType.UPDATE, e);
+            }
             log.error("[{}] 문서 업데이트 실패", getLabName(), e);
             throw new VectorStoreException("문서 업데이트 실패: " + e.getMessage(), e);
         }
@@ -382,13 +420,15 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     @Override
     public final Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
-        
+
         // 기본 통계
         stats.putAll(standardVectorStoreService.getStatistics());
-        
+
         // Lab별 통계
-        stats.putAll(vectorStoreMetrics.getLabStatistics(getLabName()));
-        
+        if (vectorStoreMetrics != null) {
+            stats.putAll(vectorStoreMetrics.getLabStatistics(getLabName()));
+        }
+
         return stats;
     }
     

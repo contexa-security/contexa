@@ -3,7 +3,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
-import io.contexa.contexacore.dashboard.metrics.zerotrust.EventPublishingMetrics;
+import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.dto.UserDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;

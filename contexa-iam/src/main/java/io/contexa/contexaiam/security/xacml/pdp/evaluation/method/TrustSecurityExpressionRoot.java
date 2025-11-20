@@ -4,7 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.exception.AnomalyDetectedException;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexacore.autonomous.notification.UnifiedNotificationService;
+import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacore.std.operations.AICoreOperations;

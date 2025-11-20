@@ -1,6 +1,10 @@
 bootJar.enabled = false
 jar.enabled = true
 
+tasks.named('resolveMainClassName') {
+    enabled = false
+}
+
 dependencies {
     implementation project(':contexa-common')
     implementation 'org.springframework.boot:spring-boot-starter-security'

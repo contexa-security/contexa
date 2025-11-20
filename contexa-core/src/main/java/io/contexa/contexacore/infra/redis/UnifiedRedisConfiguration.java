@@ -1,7 +1,7 @@
 package io.contexa.contexacore.infra.redis;
 
 import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
-import io.contexa.contexacore.soar.notification.SoarApprovalNotifier;
+import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -136,23 +136,27 @@ public class UnifiedRedisConfiguration {
 
     /**
      * Redis 메시지 리스너 컨테이너
+     * Enterprise의 SoarApprovalNotifier가 있으면 자동으로 등록
      */
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
-            SoarApprovalNotifier soarApprovalNotifier // SoarApprovalNotifier 주입
+            @Autowired(required = false) SoarApprovalNotifier soarApprovalNotifier
     ) {
         log.info("Creating Redis message listener container");
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
 
-        // SoarApprovalNotifier를 리스너로 등록
-        // MessageListenerAdapter를 사용하여 특정 메서드를 호출하도록 설정
-        MessageListenerAdapter listenerAdapter = new MessageListenerAdapter(soarApprovalNotifier, "receiveApprovalNotification");
-        listenerAdapter.setSerializer(generalRedisTemplate(connectionFactory).getValueSerializer()); // JSON 직렬화 사용
-
-        container.addMessageListener(listenerAdapter, new ChannelTopic(SOAR_APPROVAL_CHANNEL));
+        // SoarApprovalNotifier가 있으면 리스너로 등록
+        if (soarApprovalNotifier != null) {
+            log.info("Registering SOAR approval notifier to Redis message listener");
+            MessageListenerAdapter listenerAdapter = new MessageListenerAdapter(soarApprovalNotifier, "receiveApprovalNotification");
+            listenerAdapter.setSerializer(generalRedisTemplate(connectionFactory).getValueSerializer()); // JSON 직렬화 사용
+            container.addMessageListener(listenerAdapter, new ChannelTopic(SOAR_APPROVAL_CHANNEL));
+        } else {
+            log.debug("SOAR approval notifier not available - Redis listener container created without SOAR listeners");
+        }
 
         return container;
     }

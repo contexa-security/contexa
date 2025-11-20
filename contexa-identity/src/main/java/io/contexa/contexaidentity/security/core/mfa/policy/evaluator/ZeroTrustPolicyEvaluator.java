@@ -2,13 +2,14 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.contexa.contexacore.autonomous.notification.UnifiedNotificationService;
+import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -43,12 +44,12 @@ import java.util.concurrent.TimeUnit;
 public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
 
     private final RedisTemplate<String, Double> redisTemplate;
-    private final UnifiedNotificationService notificationService;
+    private final NotificationService notificationService; // Enterprise only - Optional
     private final AuditLogRepository auditLogRepository;
 
     public ZeroTrustPolicyEvaluator(
             @Qualifier("zeroTrustRedisTemplate") RedisTemplate<String, Double> redisTemplate,
-            UnifiedNotificationService notificationService,
+            @Autowired(required = false) NotificationService notificationService,
             AuditLogRepository auditLogRepository) {
         this.redisTemplate = redisTemplate;
         this.notificationService = notificationService;

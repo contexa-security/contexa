@@ -1,8 +1,8 @@
 package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

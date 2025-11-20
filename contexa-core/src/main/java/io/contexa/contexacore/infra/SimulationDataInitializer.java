@@ -5,14 +5,12 @@ import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacore.domain.entity.SecurityAction;
 import io.contexa.contexacore.domain.entity.SoarApprovalRequest;
 import io.contexa.contexacore.domain.entity.ApprovalNotification;
-import io.contexa.contexacore.domain.entity.ToolExecutionContext;
 import io.contexa.contexacommon.annotation.SoarTool;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.repository.ThreatIndicatorRepository;
 import io.contexa.contexacore.repository.SecurityActionRepository;
 import io.contexa.contexacore.repository.SoarApprovalRequestRepository;
 import io.contexa.contexacore.repository.ApprovalNotificationRepository;
-import io.contexa.contexacore.repository.ToolExecutionContextRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,8 +40,7 @@ public class SimulationDataInitializer implements CommandLineRunner {
     private final SecurityActionRepository securityActionRepository;
     private final SoarApprovalRequestRepository soarApprovalRequestRepository;
     private final ApprovalNotificationRepository approvalNotificationRepository;
-    private final ToolExecutionContextRepository toolExecutionContextRepository;
-    
+
     // Kafka Producer - Spring Kafka 표준 API 사용 (Optional)
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
@@ -54,14 +51,12 @@ public class SimulationDataInitializer implements CommandLineRunner {
             SecurityActionRepository securityActionRepository,
             SoarApprovalRequestRepository soarApprovalRequestRepository,
             ApprovalNotificationRepository approvalNotificationRepository,
-            ToolExecutionContextRepository toolExecutionContextRepository,
             @Autowired(required = false) KafkaTemplate<String, Object> kafkaTemplate) {
         this.securityIncidentRepository = securityIncidentRepository;
         this.threatIndicatorRepository = threatIndicatorRepository;
         this.securityActionRepository = securityActionRepository;
         this.soarApprovalRequestRepository = soarApprovalRequestRepository;
         this.approvalNotificationRepository = approvalNotificationRepository;
-        this.toolExecutionContextRepository = toolExecutionContextRepository;
         this.kafkaTemplate = kafkaTemplate;
     }
     
@@ -110,12 +105,8 @@ public class SimulationDataInitializer implements CommandLineRunner {
             // 5. SOAR 승인 요청 생성
             List<SoarApprovalRequest> approvals = createSoarApprovalRequests();
             log.info("{} 개의 SOAR 승인 요청 생성 완료", approvals.size());
-            
-            // 6. 도구 실행 컨텍스트 생성
-            List<ToolExecutionContext> contexts = createToolExecutionContexts();
-            log.info("{} 개의 도구 실행 컨텍스트 생성 완료", contexts.size());
-            
-            // 7. 승인 알림 생성
+
+            // 6. 승인 알림 생성
             List<ApprovalNotification> notifications = createApprovalNotifications(approvals);
             log.info("{} 개의 승인 알림 생성 완료", notifications.size());
             
@@ -159,7 +150,6 @@ public class SimulationDataInitializer implements CommandLineRunner {
         
         // 연관 엔티티부터 삭제 (외래키 제약 조건)
         approvalNotificationRepository.deleteAll();
-        toolExecutionContextRepository.deleteAll();
         soarApprovalRequestRepository.deleteAll();
         securityActionRepository.deleteAll();
         securityIncidentRepository.deleteAll();
@@ -737,68 +727,6 @@ public class SimulationDataInitializer implements CommandLineRunner {
         
         List<SoarApprovalRequest> approvals = Arrays.asList(approval1, approval2, approval3);
         return soarApprovalRequestRepository.saveAll(approvals);
-    }
-    
-    /**
-     * 도구 실행 컨텍스트 생성
-     */
-    private List<ToolExecutionContext> createToolExecutionContexts() {
-        log.info("도구 실행 컨텍스트 생성 중...");
-        
-        List<ToolExecutionContext> contexts = Arrays.asList(
-            ToolExecutionContext.builder()
-                .requestId("APR-2025-001")
-                .incidentId("INC-2025-001")
-                .sessionId("SESSION-001")
-                .toolName("block_ip_advanced")
-                .toolType("SOAR")
-                .toolCallId("CALL-001")
-                .toolArguments("{\"ip_address\":\"203.0.113.45\",\"block_scope\":\"GLOBAL\"}")
-                .promptContent("[{\"role\":\"user\",\"content\":\"Block suspicious IP address\"}]")
-                .chatOptions("{\"toolNames\":[\"block_ip_advanced\"]}")
-                .chatResponse("{\"toolCallId\":\"CALL-001\",\"toolName\":\"block_ip_advanced\"}")
-                .status("PENDING_APPROVAL")
-                .riskLevel("HIGH")
-                .expiresAt(LocalDateTime.now().plusMinutes(30))
-                .build(),
-                
-            ToolExecutionContext.builder()
-                .requestId("APR-2025-002")
-                .incidentId("INC-2025-004")
-                .sessionId("SESSION-002")
-                .toolName("reset_user_credentials")
-                .toolType("SOAR")
-                .toolCallId("CALL-002")
-                .toolArguments("{\"user_account\":\"admin@company.com\",\"force_logout\":true}")
-                .promptContent("[{\"role\":\"user\",\"content\":\"Reset compromised account credentials\"}]")
-                .chatOptions("{\"toolNames\":[\"reset_user_credentials\"]}")
-                .chatResponse("{\"toolCallId\":\"CALL-002\",\"toolName\":\"reset_user_credentials\"}")
-                .status("APPROVED")
-                .riskLevel("HIGH")
-                .executionResult("{\"status\":\"SUCCESS\",\"message\":\"Credentials reset successfully\"}")
-                .executionEndTime(LocalDateTime.now().minusMinutes(10))
-                .expiresAt(LocalDateTime.now().plusMinutes(20))
-                .build(),
-                
-            ToolExecutionContext.builder()
-                .requestId("APR-2025-003")
-                .incidentId("INC-2025-005")
-                .sessionId("SESSION-003")
-                .toolName("emergency_data_isolation")
-                .toolType("SOAR")
-                .toolCallId("CALL-003")
-                .toolArguments("{\"database_instances\":[\"DB-001\",\"BACKUP-001\"]}")
-                .promptContent("[{\"role\":\"user\",\"content\":\"Isolate databases to prevent data exfiltration\"}]")
-                .chatOptions("{\"toolNames\":[\"emergency_data_isolation\"]}")
-                .chatResponse("{\"toolCallId\":\"CALL-003\",\"toolName\":\"emergency_data_isolation\"}")
-                .status("REJECTED")
-                .riskLevel("CRITICAL")
-                .executionError("Request rejected by CISO")
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
-                .build()
-        );
-        
-        return toolExecutionContextRepository.saveAll(contexts);
     }
     
     /**

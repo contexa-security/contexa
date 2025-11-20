@@ -47,7 +47,7 @@ public class ProcessingResult {
     /**
      * 처리 경로 (HOT_PATH, COLD_PATH)
      */
-    private Object processingPath;  // ProcessingPath 또는 String 둘 다 가능
+    private ProcessingPath processingPath;
     
     /**
      * 분석 데이터
@@ -200,7 +200,7 @@ public class ProcessingResult {
     /**
      * 빠른 생성을 위한 정적 팩토리 메서드 - 성공
      */
-    public static ProcessingResult success(Object path, double adjustment) {
+    public static ProcessingResult success(ProcessingPath path, double adjustment) {
         return ProcessingResult.builder()
                 .processingPath(path)
                 .threatScoreAdjustment(adjustment)
@@ -213,7 +213,7 @@ public class ProcessingResult {
     /**
      * 빠른 생성을 위한 정적 팩토리 메서드 - 실패
      */
-    public static ProcessingResult failure(Object path, String error) {
+    public static ProcessingResult failure(ProcessingPath path, String error) {
         return ProcessingResult.builder()
                 .processingPath(path)
                 .success(false)

@@ -1,11 +1,11 @@
 package io.contexa.contexacore.hcad.service;
 
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADAnalysisResult;
-import io.contexa.contexacore.hcad.domain.HCADContext;
-import io.contexa.contexacore.dashboard.metrics.zerotrust.HCADFeedbackLoopMetrics;
+// import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
+// import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.HCADFeedbackLoopMetrics;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.threshold.UnifiedThresholdManager;
-import io.contexa.contexacore.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,24 +44,26 @@ public class HCADAnalysisService {
     private final HCADSimilarityCalculator similarityCalculator;
     private final UnifiedThresholdManager unifiedThresholdManager;
     private final HCADBaselineLearningService baselineLearningService;
-    private final HCADFeedbackLoopMetrics feedbackMetrics;
-    private final EvolutionMetricsCollector evolutionMetricsCollector;
+    // private final Object feedbackMetrics;
+    // private final Object evolutionMetricsCollector;
 
     public HCADAnalysisService(
             HCADContextExtractor contextExtractor,
             HCADBaselineCacheService cacheService,
             HCADSimilarityCalculator similarityCalculator,
             UnifiedThresholdManager unifiedThresholdManager,
-            HCADBaselineLearningService baselineLearningService,
-            @Autowired(required = false) HCADFeedbackLoopMetrics feedbackMetrics,
-            @Autowired(required = false) EvolutionMetricsCollector evolutionMetricsCollector) {
+            HCADBaselineLearningService baselineLearningService
+            // Enterprise metrics - optional
+            // @Autowired(required = false) Object feedbackMetrics,
+            // @Autowired(required = false) Object evolutionMetricsCollector
+    ) {
         this.contextExtractor = contextExtractor;
         this.cacheService = cacheService;
         this.similarityCalculator = similarityCalculator;
         this.unifiedThresholdManager = unifiedThresholdManager;
         this.baselineLearningService = baselineLearningService;
-        this.feedbackMetrics = feedbackMetrics;
-        this.evolutionMetricsCollector = evolutionMetricsCollector;
+        // this.feedbackMetrics = feedbackMetrics;
+        // this.evolutionMetricsCollector = evolutionMetricsCollector;
     }
 
     /**
@@ -119,25 +121,25 @@ public class HCADAnalysisService {
             long processingTime = System.currentTimeMillis() - startTime;
 
             // ===== 메트릭 수집 =====
-            if (feedbackMetrics != null) {
+            // if (feedbackMetrics != null) {
                 // 나노초로 변환 (더 정확한 측정)
-                long durationNanos = processingTime * 1_000_000;
-                feedbackMetrics.recordAnalysis(durationNanos, similarityScore, isAnomaly);
+                // long durationNanos = processingTime * 1_000_000;
+                // feedbackMetrics.recordAnalysis(durationNanos, similarityScore, isAnomaly);
 
                 // EventRecorder 인터페이스 호출
-                Map<String, Object> eventMetadata = new HashMap<>();
-                eventMetadata.put("user_id", userId);
-                eventMetadata.put("similarity_score", similarityScore);
-                eventMetadata.put("anomaly_score", anomalyScore);
-                eventMetadata.put("is_anomaly", isAnomaly);
-                eventMetadata.put("duration_nanos", durationNanos);
-                feedbackMetrics.recordEvent("hcad_analysis", eventMetadata);
-            }
+                // Map<String, Object> eventMetadata = new HashMap<>();
+                // eventMetadata.put("user_id", userId);
+                // eventMetadata.put("similarity_score", similarityScore);
+                // eventMetadata.put("anomaly_score", anomalyScore);
+                // eventMetadata.put("is_anomaly", isAnomaly);
+                // eventMetadata.put("duration_nanos", durationNanos);
+                // feedbackMetrics.recordEvent("hcad_analysis", eventMetadata);
+            // }
 
             // 📊 Prometheus 메트릭 수집 (Micrometer)
-            if (evolutionMetricsCollector != null) {
-                evolutionMetricsCollector.recordHCADAnalysis(processingTime, anomalyScore, isAnomaly);
-            }
+            // if (evolutionMetricsCollector != null) {
+                // evolutionMetricsCollector.recordHCADAnalysis(processingTime, anomalyScore, isAnomaly);
+            // }
 
             if (log.isDebugEnabled()) {
                 log.debug("[HCADAnalysisService] 분석 완료: userId={}, similarity={}, anomaly={}, threshold={}, time={}ms",
@@ -211,42 +213,42 @@ public class HCADAnalysisService {
             long duration = System.nanoTime() - startTime;
 
             // ===== 메트릭 수집 =====
-            if (feedbackMetrics != null) {
-                feedbackMetrics.recordBaselineUpdate();
-                feedbackMetrics.recordFeedbackProcessing(duration);
-            }
+            // if (feedbackMetrics != null) {
+                // feedbackMetrics.recordBaselineUpdate();
+                // feedbackMetrics.recordFeedbackProcessing(duration);
+            // }
 
             // 📊 Prometheus 메트릭 수집 (학습 결정)
-            if (evolutionMetricsCollector != null) {
-                evolutionMetricsCollector.recordHCADLearningDecision(
-                    result.getUserId(),
-                    phase,
-                    "updated",
-                    baseline.getConfidence()
-                );
-            }
+            // if (evolutionMetricsCollector != null) {
+                // evolutionMetricsCollector.recordHCADLearningDecision(
+                    // result.getUserId(),
+                    // phase,
+                    // "updated",
+                    // baseline.getConfidence()
+                // );
+            // }
 
             log.debug("[HCADAnalysisService] 기준선 업데이트: userId={}, similarity={}",
                 result.getUserId(), String.format("%.3f", similarityScore));
         } else {
             // 📊 학습 건너뜀 사유 기록
-            if (evolutionMetricsCollector != null) {
+            // if (evolutionMetricsCollector != null) {
                 // 건너뜀 사유 판단 - 통계적 이상치 여부만 확인 가능
-                String decision;
-                if (baselineLearningService.isStatisticalOutlier(anomalyScore, baseline)) {
-                    decision = "skipped_outlier";
-                } else {
+                // String decision;
+                // if (baselineLearningService.isStatisticalOutlier(anomalyScore, baseline)) {
+                    // decision = "skipped_outlier";
+                // } else {
                     // 의심스러운 컨텍스트이거나 임계값 미달
-                    decision = "skipped";
-                }
+                    // decision = "skipped";
+                // }
 
-                evolutionMetricsCollector.recordHCADLearningDecision(
-                    result.getUserId(),
-                    phase,
-                    decision,
-                    baseline.getConfidence()
-                );
-            }
+                // evolutionMetricsCollector.recordHCADLearningDecision(
+                    // result.getUserId(),
+                    // phase,
+                    // decision,
+                    // baseline.getConfidence()
+                // );
+            // }
         }
     }
 

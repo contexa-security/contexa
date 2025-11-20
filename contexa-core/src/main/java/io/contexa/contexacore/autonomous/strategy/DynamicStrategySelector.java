@@ -2,8 +2,8 @@ package io.contexa.contexacore.autonomous.strategy;
 
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.evolution.IntegratedThreatEvaluator;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.autonomous.ThreatEvaluator;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
 import lombok.RequiredArgsConstructor;
@@ -45,9 +45,9 @@ public class DynamicStrategySelector {
     // 기존 컴포넌트 재사용
     private final ThreatCorrelator threatCorrelator;
 
-    // 통합 위협 평가기
+    // Enterprise 기능 - Spring Boot AutoConfiguration을 통한 직접 주입
     @Autowired(required = false)
-    private IntegratedThreatEvaluator integratedThreatEvaluator;
+    private ThreatEvaluator threatEvaluator;
     
     // 전략 컴포넌트 주입
     // SessionThreatEvaluationStrategy removed - replaced by SecurityEventProcessingOrchestrator
@@ -198,9 +198,9 @@ public class DynamicStrategySelector {
         
         // 2. 컨텍스트 복잡도 계산
         double complexity = calculateComplexity(context);
-        
+
         // 고복잡도 이벤트는 통합 평가기 사용
-        if (complexity > 0.8 && integratedThreatEvaluator != null) {
+        if (complexity > 0.8 && threatEvaluator != null) {
             return new StrategySelectionResult("INTEGRATED", 0.95,
                 LocalDateTime.now().plusSeconds(cacheTimeToLiveSeconds));
         }
@@ -484,8 +484,8 @@ public class DynamicStrategySelector {
      */
     private void registerDefaultStrategies() {
         // 통합 위협 평가기 (최우선)
-        if (integratedThreatEvaluator != null) {
-            strategies.put("INTEGRATED", new IntegratedThreatEvaluationStrategyAdapter(integratedThreatEvaluator));
+        if (threatEvaluator != null) {
+            strategies.put("INTEGRATED", new IntegratedThreatEvaluationStrategyAdapter(threatEvaluator));
             performanceMetrics.put("INTEGRATED", new StrategyPerformanceMetrics());
             log.info("통합 위협 평가 전략 등록: INTEGRATED");
         }
@@ -840,19 +840,19 @@ public class DynamicStrategySelector {
     }
 
     /**
-     * IntegratedThreatEvaluator를 ThreatEvaluationStrategy로 어댑터
+     * ThreatEvaluator를 ThreatEvaluationStrategy로 어댑터
      */
     private static class IntegratedThreatEvaluationStrategyAdapter implements ThreatEvaluationStrategy {
-        private final IntegratedThreatEvaluator evaluator;
+        private final ThreatEvaluator threatEvaluator;
 
-        public IntegratedThreatEvaluationStrategyAdapter(IntegratedThreatEvaluator evaluator) {
-            this.evaluator = evaluator;
+        public IntegratedThreatEvaluationStrategyAdapter(ThreatEvaluator threatEvaluator) {
+            this.threatEvaluator = threatEvaluator;
         }
 
         @Override
         public ThreatAssessment evaluate(SecurityEvent event) {
-            // IntegratedThreatEvaluator 사용
-            return evaluator.evaluateIntegrated(event);
+            // ThreatEvaluator 사용
+            return threatEvaluator.evaluateIntegrated(event);
         }
 
         @Override
@@ -882,7 +882,7 @@ public class DynamicStrategySelector {
 
         @Override
         public boolean isEnabled() {
-            return evaluator != null;
+            return threatEvaluator != null;
         }
 
         @Override

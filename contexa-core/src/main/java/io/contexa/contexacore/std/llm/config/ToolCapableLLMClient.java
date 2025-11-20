@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.llm.config;
 
+import io.contexa.contexacore.std.llm.config.LLMClient;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;

@@ -1,7 +1,6 @@
 package io.contexa.contexacore.std.llm.config;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
-import io.contexa.contexacore.config.ToolCallingConfiguration;
 import io.contexa.contexacore.std.advisor.config.AdvisorConfiguration;
 import io.contexa.contexacore.std.llm.core.LLMOperations;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
@@ -50,7 +49,7 @@ import java.util.Map;
  * 1. 3계층 ChatModel 생성 (Layer 1, 2, 3)
  * 2. UnifiedLLMOrchestrator를 @Primary로 설정
  * 3. AdvisorConfiguration - Advisor 시스템 통합
- * 4. ToolCallingConfiguration - 도구 실행 시스템
+ * 4. ToolCallingConfiguration - 도구 실행 시스템 (Enterprise에서 제공)
  *
  * @since 3.0.0
  */
@@ -59,9 +58,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @AutoConfigureBefore(ChatClientAutoConfiguration.class)
 @Import({
-    // Advisor와 Tool은 별도 관리 (전문 영역)
-    AdvisorConfiguration.class,
-    ToolCallingConfiguration.class
+    AdvisorConfiguration.class
 })
 public class TieredSecurityLLMConfiguration {
 

@@ -42,7 +42,7 @@ public class ColdPathStrategy implements ProcessingStrategy {
             log.error("[ColdPathStrategy] ColdPathProcessor not available");
             return ProcessingResult.builder()
                 .success(false)
-                .processingPath("AI_ANALYSIS")
+                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .message("ColdPathProcessor not available")
                 .build();
         }
@@ -65,7 +65,7 @@ public class ColdPathStrategy implements ProcessingStrategy {
             // CRITICAL FIX: threatScoreAdjustment를 포함한 완전한 결과 반환
             return ProcessingResult.builder()
                 .success(result.isSuccess())
-                .processingPath("AI_ANALYSIS")
+                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .threatScoreAdjustment(result.getThreatScoreAdjustment())  // 추가됨
                 .currentRiskLevel(result.getCurrentRiskLevel())
                 .executedActions(result.getExecutedActions())
@@ -88,7 +88,7 @@ public class ColdPathStrategy implements ProcessingStrategy {
             log.error("[ColdPathStrategy] Error processing event: {}", event.getEventId(), e);
             return ProcessingResult.builder()
                 .success(false)
-                .processingPath("AI_ANALYSIS")
+                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .message("Processing error: " + e.getMessage())
                 .threatScoreAdjustment(0.0)  // 실패 시 조정 없음
                 .build();

@@ -3,6 +3,9 @@ jar.enabled = true
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    
+    // ND4J for vector operations
+    implementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

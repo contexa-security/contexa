@@ -1,7 +1,7 @@
 package io.contexa.contexacore.hcad.service;
 
-import io.contexa.contexacore.hcad.domain.HCADContext;
-import io.contexa.contexacore.hcad.util.VectorSimilarityUtil;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.util.VectorSimilarityUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;

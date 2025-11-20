@@ -95,7 +95,7 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
 
             return ProcessingResult.builder()
                     .success(true)
-                    .processingPath("REALTIME_BLOCK")
+                    .processingPath(ProcessingResult.ProcessingPath.HOT_PATH)
                     .executedActions(executedActions)
                     .metadata(metadata)
                     .message("Critical threat blocked successfully")
@@ -105,7 +105,7 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
             log.error("[RealtimeBlockStrategy] Error blocking critical threat: {}", event.getEventId(), e);
             return ProcessingResult.builder()
                     .success(false)
-                    .processingPath("REALTIME_BLOCK")
+                    .processingPath(ProcessingResult.ProcessingPath.HOT_PATH)
                     .executedActions(executedActions)
                     .message("Blocking error: " + e.getMessage())
                     .build();

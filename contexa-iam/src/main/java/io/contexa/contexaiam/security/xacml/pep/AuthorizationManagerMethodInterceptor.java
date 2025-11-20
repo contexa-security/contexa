@@ -12,7 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
-import io.contexa.contexacore.dashboard.metrics.zerotrust.EventPublishingMetrics;
+import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 
 import java.util.function.Supplier;
 

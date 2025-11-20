@@ -1,8 +1,8 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;

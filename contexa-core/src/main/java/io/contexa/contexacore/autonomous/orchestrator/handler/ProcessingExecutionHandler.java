@@ -9,7 +9,6 @@ import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
-import io.contexa.contexacore.autonomous.evolution.PolicyEvolutionEngine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -128,7 +127,7 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         // 기본 처리 결과 생성
         ProcessingResult fallbackResult = ProcessingResult.builder()
             .success(true)
-            .processingPath(mode.toString())
+            .processingPath(ProcessingResult.ProcessingPath.BYPASS)
             .message("No specific strategy, event logged")
             .build();
 

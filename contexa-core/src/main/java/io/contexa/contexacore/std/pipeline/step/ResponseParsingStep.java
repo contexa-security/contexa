@@ -201,7 +201,7 @@ public class ResponseParsingStep implements PipelineStep {
                     break;
                 }
             }
-            
+
             // } 또는 ]로 끝나는 마지막 위치 찾기
             if (jsonStart >= 0) {
                 char startChar = cleaned.charAt(jsonStart);

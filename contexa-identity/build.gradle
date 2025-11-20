@@ -3,6 +3,7 @@ jar.enabled = false
 
 dependencies {
     implementation project(':contexa-core')
+    implementation project(':contexa-core-enterprise')
     implementation project(':contexa-common')
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'

@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.domain.ApprovalRequest;
-import io.contexa.contexacore.soar.approval.McpApprovalNotificationService;
-import io.contexa.contexacore.soar.event.WebSocketApprovalHandler;
+import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
+import io.contexa.contexacoreenterprise.soar.event.WebSocketApprovalHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;

@@ -1,13 +1,13 @@
 package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.plane.ZeroTrustHotPathOrchestrator;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacommon.metrics.HCADFeedbackMetrics;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADContext;
-import io.contexa.contexacore.dashboard.metrics.zerotrust.HCADFeedbackLoopMetrics;
-import io.contexa.contexacore.plane.ZeroTrustHotPathOrchestrator;
 import io.contexa.contexacore.std.rag.processors.AnomalyScoreRanker;
 import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -17,12 +17,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -43,8 +43,8 @@ public class HCADSimilarityCalculator {
     private final AnomalyScoreRanker anomalyRanker;
     private final DynamicTrustCalculator dynamicTrustCalculator;
     private final FewShotAnomalyDetector fewShotDetector;
-    private final ZeroTrustHotPathOrchestrator zeroTrustOrchestrator;
-    private final HCADFeedbackLoopMetrics feedbackMetrics;
+    private final ZeroTrustHotPathOrchestrator zeroTrustHotPathOrchestrator;
+    private final HCADFeedbackMetrics feedbackMetrics;
 
     @Value("${security.zerotrust.hotpath.enabled:true}")
     private boolean zeroTrustHotPathEnabled;
@@ -56,15 +56,15 @@ public class HCADSimilarityCalculator {
             AnomalyScoreRanker anomalyRanker,
             DynamicTrustCalculator dynamicTrustCalculator,
             FewShotAnomalyDetector fewShotDetector,
-            ZeroTrustHotPathOrchestrator zeroTrustOrchestrator,
-            HCADFeedbackLoopMetrics feedbackMetrics) {
+            @Autowired(required = false) ZeroTrustHotPathOrchestrator zeroTrustHotPathOrchestrator,
+            @Autowired(required = false) HCADFeedbackMetrics feedbackMetrics) {
         this.redisTemplate = redisTemplate;
         this.unifiedVectorService = unifiedVectorService;
         this.threatCorrelator = threatCorrelator;
         this.anomalyRanker = anomalyRanker;
         this.dynamicTrustCalculator = dynamicTrustCalculator;
         this.fewShotDetector = fewShotDetector;
-        this.zeroTrustOrchestrator = zeroTrustOrchestrator;
+        this.zeroTrustHotPathOrchestrator = zeroTrustHotPathOrchestrator;
         this.feedbackMetrics = feedbackMetrics;
     }
 
@@ -108,9 +108,9 @@ public class HCADSimilarityCalculator {
                 threatResult, baselineSimilarity, anomalyScore, correlationScore, context
             );
 
-            // HOT Path Zero Trust 평가
+            // HOT Path Zero Trust 평가 (Enterprise Capability)
             if (zeroTrustHotPathEnabled && result.getFinalSimilarity() >= hotPathThreshold) {
-//                result = applyZeroTrustEvaluation(context, result);
+                result = applyZeroTrustEvaluation(context, result);
             }
 
             long processingTime = System.currentTimeMillis() - startTime;
@@ -146,57 +146,19 @@ public class HCADSimilarityCalculator {
         }
     }
 
-    /**
-     * Zero Trust HOT Path 평가 적용
-     *
-     * HOT Path 통과 예정인 요청에 대해 Zero Trust 평가 수행:
-     * 1. Anti-Evasion 샘플링 체크
-     * 2. 7차원 직교 신호 수집 및 불일치 탐지
-     * 3. 누적 위험 계산 및 공격 모드 업데이트
-     * 4. Honeypot 패턴 분석
-     * 5. Cold Path 라우팅 결정
-     *
-     * @param context HCADContext
-     * @param originalResult 원본 HCAD 결과
-     * @return Zero Trust 평가가 반영된 TrustedSimilarityResult
-     */
     private TrustedSimilarityResult applyZeroTrustEvaluation(HCADContext context, TrustedSimilarityResult originalResult) {
+        if (zeroTrustHotPathOrchestrator == null) {
+            log.debug("[ZeroTrust-HCAD] Zero Trust HOT Path Orchestrator 없음 - 평가 건너뜀");
+            return originalResult;
+        }
+
         try {
             // HCADContext → SecurityEvent 변환
             SecurityEvent event = convertToSecurityEvent(context);
 
-            // Zero Trust 평가 수행
-            ZeroTrustHotPathOrchestrator.ZeroTrustDecision decision =
-                zeroTrustOrchestrator.evaluateHotPathEvent(event, originalResult);
-
-            // Cold Path 라우팅 결정 시 유사도 조정 (HOT Path 우회)
-            if (decision.getDecision() == ZeroTrustHotPathOrchestrator.Decision.ROUTE_TO_COLD_PATH) {
-                // 유사도를 HOT Path 임계값 아래로 강제 조정
-                double adjustedSimilarity = hotPathThreshold - 0.01;
-
-                log.warn("[ZeroTrust-HCAD] HOT Path 우회: userId={}, reason={}, originalSim={}, adjustedSim={}",
-                    context.getUserId(),
-                    decision.getReason(),
-                    String.format("%.3f", originalResult.getFinalSimilarity()),
-                    String.format("%.3f", adjustedSimilarity));
-
-                return TrustedSimilarityResult.builder()
-                    .finalSimilarity(adjustedSimilarity)
-                    .trustScore(originalResult.getTrustScore() * 0.5)  // 신뢰도 절반 감소
-                    .crossValidationPassed(false)  // Cross-Validation 실패 마킹
-                    .threatEvidence("ZeroTrust-RouteToC oldPath: " + decision.getReason())
-                    .threatType("ZERO_TRUST_VIOLATION")
-                    .build();
-            }
-
-            // Graceful Degradation 상태 로깅
-            if (decision.getDecision() == ZeroTrustHotPathOrchestrator.Decision.ALLOW_HOT_PATH_DEGRADED) {
-                log.info("[ZeroTrust-HCAD] HOT Path 허용 (Degraded): userId={}, reason={}",
-                    context.getUserId(), decision.getReason());
-            }
-
-            // HOT Path 허용 시 원본 결과 반환
-            return originalResult;
+            // Zero Trust 평가 및 결과 조정 (Enterprise 직접 호출)
+            // Enterprise에서 Zero Trust 평가를 수행하고, 필요시 조정된 TrustedSimilarityResult를 반환
+            return zeroTrustHotPathOrchestrator.evaluateAndAdjustResult(event, originalResult);
 
         } catch (Exception e) {
             log.error("[ZeroTrust-HCAD] Zero Trust 평가 실패, 원본 결과 사용: userId={}", context.getUserId(), e);
@@ -204,11 +166,6 @@ public class HCADSimilarityCalculator {
         }
     }
 
-    /**
-     * HCADContext를 SecurityEvent로 변환
-     *
-     * Zero Trust 평가에 필요한 SecurityEvent 객체 생성
-     */
     private SecurityEvent convertToSecurityEvent(HCADContext context) {
         return SecurityEvent.builder()
             .eventId(java.util.UUID.randomUUID().toString())
@@ -218,8 +175,8 @@ public class HCADSimilarityCalculator {
             .protocol(context.getHttpMethod())
             .targetResource(context.getRequestPath())
             .sessionId(context.getSessionId())
-            .timestamp(LocalDateTime.now())
-            .riskScore(1.0 - context.getBaselineConfidence())  // 낮은 confidence = 높은 risk
+            .timestamp(java.time.LocalDateTime.now())
+            .riskScore(1.0 - context.getBaselineConfidence())
             .build();
     }
 

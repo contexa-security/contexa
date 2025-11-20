@@ -1,27 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Select-String -Pattern \"BUILD|SUCCESS|FAILED|error\")",
-      "Bash(.gradlew.bat:*)",
-      "Bash(cmd.exe /c \"D:\\projects\\gradlew.bat :contexa-identity:compileJava\")",
-      "Bash(gradlew.bat:*)",
-      "Bash(D:projectsgradlew.bat :contexa-identity:compileJava)",
-      "Bash(cmd /c \"cd /d D:\\projects && gradlew.bat :contexa-identity:compileJava\")",
-      "Bash(cmd /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\")",
-      "Bash(./gradlew.bat:*)",
-      "Bash(D:projectscontexagradlew.bat :contexa-identity:compileJava)",
-      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava\":*)",
-      "Bash(cd:*)",
-      "Bash(done)",
-      "Bash(find:*)",
-      "Bash(./gradlew clean build:*)",
-      "Bash(./gradlew test:*)",
-      "Bash(./gradlew:*)",
-      "Bash(cat:*)",
-      "Bash(Select-String -Pattern \"deprecated|warning\" -Context 2,1)",
-      "Bash(cmd /c \"cd /d D:\\projects\\contexa && gradlew.bat clean build --warning-mode all\")",
-      "Bash(D:projectscontexagradlew.bat clean build --warning-mode all)",
-      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat clean build --warning-mode all\")"
+      "Bash(Select-Object -First 20)",
+      "Bash(git restore:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout:*)",
+      "Bash(../gradlew.bat clean build -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:compileJava -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:compileJava :contexa-core-enterprise:compileJava -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core-enterprise:compileJava -x test)",
+      "Bash(Select-String -Pattern \"BUILD|FAILED|SUCCESS|error:|cannot find symbol\")",
+      "Bash(git log:*)",
+      "Bash(Select-Object -First 30)"
     ],
     "deny": [],
     "ask": []

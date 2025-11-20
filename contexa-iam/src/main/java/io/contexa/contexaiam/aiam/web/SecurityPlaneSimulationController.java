@@ -2,11 +2,11 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
-import io.contexa.contexacore.domain.entity.ToolExecutionContext;
+import io.contexa.contexacoreenterprise.tool.domain.ToolExecutionContext;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.repository.ThreatIndicatorRepository;
-import io.contexa.contexacore.repository.ToolExecutionContextRepository;
-import io.contexa.contexacore.soar.approval.AsyncToolExecutionService;
+import io.contexa.contexacoreenterprise.tool.repository.ToolExecutionContextRepository;
+import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

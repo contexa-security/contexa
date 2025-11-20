@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacore.std.operations.AINativeProcessor;
-import io.contexa.contexacore.autonomous.notification.UnifiedNotificationService;
+import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.DocumentRepository;

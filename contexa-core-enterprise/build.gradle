@@ -1,2 +1,18 @@
 bootJar.enabled = false
 jar.enabled = true
+
+dependencies {
+    // contexa-core 의존성 추가
+    implementation project(':contexa-core')
+    implementation project(':contexa-common')
+
+    // OpenTelemetry for distributed tracing (Core에서 사용하는 버전과 동일)
+    implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
+    implementation 'io.opentelemetry:opentelemetry-sdk:1.32.0'
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-reactor-3.1:1.32.0-alpha'
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.32.0'
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+
+    // Spring AI MCP (Core에서 사용하는 것과 동일)
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
+}

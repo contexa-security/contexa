@@ -1,10 +1,10 @@
 package io.contexa.contexacore.std.labs.behavior;
 
+import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.entity.AuditLog;
@@ -64,7 +64,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     
     @Autowired
     public BehaviorVectorService(StandardVectorStoreService standardVectorStoreService,
-                                VectorStoreMetrics vectorStoreMetrics,
+                                @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
                                 BehaviorETLPipeline behaviorETLPipeline,
                                 AuditLogRepository auditLogRepository) {
         super(standardVectorStoreService, vectorStoreMetrics);

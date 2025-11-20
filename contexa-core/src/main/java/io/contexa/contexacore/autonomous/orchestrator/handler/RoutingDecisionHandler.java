@@ -2,7 +2,7 @@ package io.contexa.contexacore.autonomous.orchestrator.handler;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
-import io.contexa.contexacore.dashboard.metrics.zerotrust.RoutingDecisionMetrics;
+import io.contexa.contexacore.autonomous.metrics.RoutingDecisionMetrics;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.tiered.routing.AdaptiveTierRouter;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;

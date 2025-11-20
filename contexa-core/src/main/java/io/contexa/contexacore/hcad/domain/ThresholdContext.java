@@ -1,5 +1,6 @@
 package io.contexa.contexacore.hcad.domain;
 
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

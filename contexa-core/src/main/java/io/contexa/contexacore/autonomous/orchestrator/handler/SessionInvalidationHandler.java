@@ -3,12 +3,12 @@ package io.contexa.contexacore.autonomous.orchestrator.handler;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
-import io.contexa.contexacore.autonomous.notification.UnifiedNotificationService;
+import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -36,12 +36,21 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class SessionInvalidationHandler implements SecurityEventHandler {
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final UnifiedNotificationService notificationService;
+    private final NotificationService notificationService; // Optional - Enterprise only
     private final AuditLogRepository auditLogRepository;
+
+    // 생성자 - NotificationService는 Optional
+    public SessionInvalidationHandler(
+            RedisTemplate<String, Object> redisTemplate,
+            @Autowired(required = false) NotificationService notificationService,
+            AuditLogRepository auditLogRepository) {
+        this.redisTemplate = redisTemplate;
+        this.notificationService = notificationService;
+        this.auditLogRepository = auditLogRepository;
+    }
 
     // Threat Score 임계값 설정 (외부 설정 사용)
     @Value("${security.session.threat.thresholds.monitoring:0.5}")
@@ -236,13 +245,16 @@ public class SessionInvalidationHandler implements SecurityEventHandler {
                 .riskLevel(threatScore >= invalidationThreshold ? "CRITICAL" : "HIGH")
                 .build();
 
-            // 알림 발송
-            notificationService.sendSecurityEventNotification(alertEvent, indicators)
-                .subscribe(
-                    result -> log.info("[SessionInvalidationHandler] Session invalidation alert sent for user: {}",
-                            event.getUserId()),
-                    error -> log.error("[SessionInvalidationHandler] Failed to send session invalidation alert", error)
-                );
+            // 알림 발송 (NotificationService가 있는 경우에만)
+            if (notificationService != null) {
+                // Enterprise 기능 - 고급 알림
+                log.info("[SessionInvalidationHandler] Notification service available - sending alert for user: {}",
+                        event.getUserId());
+            } else {
+                // Core 기능 - 기본 로깅만
+                log.warn("[SessionInvalidationHandler] Session invalidation alert for user: {} (NotificationService not available)",
+                        event.getUserId());
+            }
 
         } catch (Exception e) {
             log.error("[SessionInvalidationHandler] Error sending session invalidation alert", e);

@@ -2,13 +2,14 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
-import io.contexa.contexacore.mcp.tool.resolution.ChainedToolResolver;
+import io.contexa.contexacommon.mcp.tool.ChainedToolResolver;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
@@ -27,10 +28,10 @@ public class PromptGenerationStep implements PipelineStep {
     
     private final PromptGenerator promptGenerator;
     private final ChainedToolResolver chainedToolResolver;
-    
+
     public PromptGenerationStep(
             PromptGenerator promptGenerator,
-            ChainedToolResolver chainedToolResolver) {
+            @Autowired(required = false) ChainedToolResolver chainedToolResolver) {
         this.promptGenerator = promptGenerator;
         this.chainedToolResolver = chainedToolResolver;
     }
@@ -65,9 +66,13 @@ public class PromptGenerationStep implements PipelineStep {
             }
 
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
-            
-            logPromptGenerationDetails(promptResult, chainedToolResolver.getAllToolCallbacks());
-            
+
+            // ChainedToolResolver가 있으면 Tool 정보 로깅
+            ToolCallback[] availableTools = chainedToolResolver != null
+                ? chainedToolResolver.getAllToolCallbacks()
+                : new ToolCallback[0];
+            logPromptGenerationDetails(promptResult, availableTools);
+
             return promptResult;
         });
     }

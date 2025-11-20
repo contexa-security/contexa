@@ -2,7 +2,7 @@ package io.contexa.contexaiam.aiam.service;
 
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SessionState;
-import io.contexa.contexacore.soar.service.SoarToolCallingService;
+import io.contexa.contexacoreenterprise.soar.service.SoarToolCallingService;
 import io.contexa.contexaiam.aiam.web.SoarSimulationController.SimulationStartRequest;
 import io.contexa.contexaiam.aiam.web.SoarSimulationController.SimulationEvent;
 import lombok.Builder;

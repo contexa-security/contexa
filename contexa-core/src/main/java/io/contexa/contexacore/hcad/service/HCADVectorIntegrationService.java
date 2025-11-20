@@ -2,8 +2,8 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.RequiredArgsConstructor;

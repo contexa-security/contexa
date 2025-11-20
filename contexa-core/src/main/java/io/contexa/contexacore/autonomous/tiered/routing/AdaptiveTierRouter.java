@@ -46,12 +46,20 @@ public class AdaptiveTierRouter {
     private final RedisTemplate<String, String> stringRedisTemplate;
 
     // 리팩토링: 악성 패턴 탐지 로직을 별도 서비스로 분리
-    @Autowired(required = false)
-    private MaliciousPatternDetector patternDetector;
+    private final VectorStoreCacheLayer vectorStoreCache;
+    private final MaliciousPatternDetector patternDetector;
 
-    // 리팩토링: Vector Store 캐시 레이어 통합
-    @Autowired(required = false)
-    private VectorStoreCacheLayer vectorStoreCacheLayer;
+    @Value("${security.router.threshold.soar:0.9}")
+    private double soarThreshold;
+
+    @Value("${security.router.threshold.block:0.8}")
+    private double blockThreshold;
+
+    @Value("${security.router.threshold.analysis-confidence:0.6}")
+    private double analysisConfidenceThreshold;
+
+    @Value("${security.router.threshold.pass-through:0.6}")
+    private double passThroughThreshold;
 
     // Redis 캐시 키 설정
     private static final String ATTACK_PATTERN_KEY_PREFIX = "security:attack:pattern:";
@@ -90,25 +98,30 @@ public class AdaptiveTierRouter {
 
         ProcessingMode mode;
 
-        if (riskScore >= 0.9) {
+        // 1. SOAR 오케스트레이션 (초고위험)
+        if (riskScore >= soarThreshold) {
             mode = ProcessingMode.SOAR_ORCHESTRATION;
-
-        } else if (riskScore >= 0.8 && confidence >= 0.8) {
-            blockedRequests.incrementAndGet();
+            log.warn("High risk event detected (score: {}), routing to SOAR", riskScore);
+        } 
+        // 2. 실시간 차단 (고위험 + 고신뢰)
+        else if (riskScore >= blockThreshold && confidence >= blockThreshold) {
             mode = ProcessingMode.REALTIME_BLOCK;
-
-        } else if (requiresApproval(context)) {
+            log.info("Blocking high risk event (score: {}, confidence: {})", riskScore, confidence);
+        } 
+        // 3. 승인 대기 (중위험 + 민감한 작업)
+        else if (requiresApproval(context)) {
             mode = ProcessingMode.AWAIT_APPROVAL;
-
-        } else if (confidence < 0.6 || riskScore >= 0.6) {
-            // 중간 이상 위험 또는 낮은 신뢰도: AI 분석 (기존 REALTIME_MITIGATE 통합)
-            // 수정: 0.4 → 0.6 (riskScore=0.5는 Unknown이므로 PASS_THROUGH 허용)
+            log.info("Event requires approval, routing to AWAIT_APPROVAL");
+        } 
+        // 4. AI 정밀 분석 (불확실하거나 중위험)
+        else if (confidence < analysisConfidenceThreshold || riskScore >= passThroughThreshold) {
             mode = ProcessingMode.AI_ANALYSIS;
+            log.debug("Routing to AI Analysis (score: {}, confidence: {})", riskScore, confidence);
             enhanceWithContextualAnalysis(context, riskScore, confidence);
-
-        } else if (riskScore < 0.6) {
+        } 
+        // 5. 통과 또는 분석 (저위험)
+        else if (riskScore < passThroughThreshold) {
             if (isKnownAttackPattern(context)) {
-                log.warn("Known attack pattern detected - switching to AI analysis: riskScore={}", riskScore);
                 mode = ProcessingMode.AI_ANALYSIS;
             } else {
                 mode = ProcessingMode.PASS_THROUGH;
@@ -145,7 +158,7 @@ public class AdaptiveTierRouter {
 
     private List<Document> searchSimilarEvents(Map<String, Object> context, int topK) {
         // 리팩토링: VectorStoreCacheLayer 사용 (50-100ms → 5-10ms)
-        if (vectorStoreCacheLayer == null) {
+        if (vectorStoreCache == null) {
             log.warn("[AdaptiveTierRouter] VectorStoreCacheLayer not available");
             return List.of();
         }
@@ -166,7 +179,7 @@ public class AdaptiveTierRouter {
                 .build();
 
             // 리팩토링: 캐시 레이어를 통한 검색
-            return vectorStoreCacheLayer.similaritySearch(request);
+            return vectorStoreCache.similaritySearch(request);
         } catch (Exception e) {
             log.error("[AdaptiveTierRouter] Error searching similar events", e);
             return List.of();
@@ -392,7 +405,7 @@ public class AdaptiveTierRouter {
 
         // 2. AI 기반 패턴 분석 (리팩토링: VectorStoreCacheLayer 사용)
         String payload = (String) context.get("payload");
-        if (payload != null && vectorStoreCacheLayer != null) {
+        if (payload != null && vectorStoreCache != null) {
             try {
                 // 벡터 스토어에서 유사한 패턴 검색
                 SearchRequest searchRequest = SearchRequest.builder()
@@ -401,7 +414,7 @@ public class AdaptiveTierRouter {
                     .similarityThreshold(0.3) // 낮은 임계값으로 넓게 검색
                     .build();
 
-                var similarDocuments = vectorStoreCacheLayer.similaritySearch(searchRequest);
+                var similarDocuments = vectorStoreCache.similaritySearch(searchRequest);
 
                 // 유사한 패턴이 거의 없으면 새로운 패턴
                 if (similarDocuments == null || similarDocuments.isEmpty()) {
@@ -434,7 +447,7 @@ public class AdaptiveTierRouter {
         }
 
         // 3. 휴리스틱 기반 패턴 분석 (AI 서비스 불가 시)
-        if (vectorStoreCacheLayer == null) {
+        if (vectorStoreCache == null) {
             // IP 기반 역사적 패턴 분석
             String sourceIp = (String) context.get("sourceIp");
             if (sourceIp != null && isNewIpPattern(sourceIp, context)) {

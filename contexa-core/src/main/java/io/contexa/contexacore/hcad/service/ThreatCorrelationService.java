@@ -75,7 +75,7 @@ public class ThreatCorrelationService {
             if (timeSeriesAnalyzer != null) {
                 try {
                     // HCADContext 생성 (SecurityEvent → HCADContext 변환)
-                    io.contexa.contexacore.hcad.domain.HCADContext hcadContext =
+                    io.contexa.contexacommon.hcad.domain.HCADContext hcadContext =
                         convertSecurityEventToHCADContext(event);
 
                     double temporalAnomaly = timeSeriesAnalyzer.analyzeTemporalAnomaly(
@@ -201,12 +201,12 @@ public class ThreatCorrelationService {
      * @param event SecurityEvent 객체
      * @return HCADContext 객체
      */
-    private io.contexa.contexacore.hcad.domain.HCADContext convertSecurityEventToHCADContext(SecurityEvent event) {
+    private io.contexa.contexacommon.hcad.domain.HCADContext convertSecurityEventToHCADContext(SecurityEvent event) {
         if (event == null) {
             throw new IllegalArgumentException("SecurityEvent cannot be null");
         }
 
-        return io.contexa.contexacore.hcad.domain.HCADContext.builder()
+        return io.contexa.contexacommon.hcad.domain.HCADContext.builder()
             // 사용자 식별 정보
             .userId(event.getUserId())
             .sessionId(event.getSessionId())

@@ -75,7 +75,7 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
 
             return ProcessingResult.builder()
                 .success(true)
-                .processingPath("SOAR_ORCHESTRATION")
+                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .executedActions(executedActions)
                 .metadata(metadata)
                 .message("SOAR orchestration completed")
@@ -85,7 +85,7 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
             log.error("[SoarOrchestrationStrategy] Error in SOAR orchestration: {}", event.getEventId(), e);
             return ProcessingResult.builder()
                 .success(false)
-                .processingPath("SOAR_ORCHESTRATION")
+                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .executedActions(executedActions)
                 .message("SOAR orchestration error: " + e.getMessage())
                 .build();

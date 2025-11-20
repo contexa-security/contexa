@@ -1,12 +1,12 @@
 package io.contexa.contexacore.std.labs.risk;
 
-import io.contexa.contexacore.domain.VectorDocumentType;
-import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.dashboard.metrics.vectorstore.VectorStoreMetrics;
 import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
+import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import io.contexa.contexacore.domain.VectorDocumentType;
+import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
+import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,7 +85,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
     
     @Autowired
     public RiskAssessmentVectorService(StandardVectorStoreService standardVectorStoreService,
-                                      VectorStoreMetrics vectorStoreMetrics) {
+                                      @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         super(standardVectorStoreService, vectorStoreMetrics);
     }
     

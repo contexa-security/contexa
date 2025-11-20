@@ -1,7 +1,7 @@
 package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacore.domain.VectorDocumentType;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

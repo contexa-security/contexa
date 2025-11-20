@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
-import io.contexa.contexacore.hcad.domain.BaselineVector;
-import io.contexa.contexacore.hcad.domain.HCADContext;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.HCADBaselineCacheService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
 import jakarta.servlet.http.HttpServletRequest;
