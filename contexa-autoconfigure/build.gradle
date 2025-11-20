@@ -1,2 +1,45 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'io.contexa'
+version = '0.1.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+dependencies {
+    // Contexa 모듈
+    api project(':contexa-core')
+    api project(':contexa-common')
+
+    // Spring Boot AutoConfiguration
+    implementation 'org.springframework.boot:spring-boot-autoconfigure'
+    annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    // Optional dependencies (conditional beans)
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
+    compileOnly 'org.springframework.kafka:spring-kafka'
+    compileOnly 'org.redisson:redisson-spring-boot-starter:3.48.0'
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
+}
+
 bootJar.enabled = false
 jar.enabled = true
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
