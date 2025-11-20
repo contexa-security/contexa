@@ -1,0 +1,5 @@
+# Contexa AutoConfiguration
+# Spring Boot 3.x AutoConfiguration 등록
+
+# Core Infrastructure
+io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration

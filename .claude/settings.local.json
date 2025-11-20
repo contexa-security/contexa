@@ -18,7 +18,14 @@
       "Bash(\"d:\\projects\\contexa\\gradlew.bat\" :contexa-core-enterprise:clean :contexa-core-enterprise:build -x test)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:clean :contexa-core:compileJava -x test)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core-enterprise:clean :contexa-core-enterprise:compileJava -x test)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:clean :contexa-core:build :contexa-core-enterprise:clean :contexa-core-enterprise:build -x test)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:clean :contexa-core:build :contexa-core-enterprise:clean :contexa-core-enterprise:build -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:clean :contexa-autoconfigure:build -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:clean :contexa-autoconfigure:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:compileJava --stacktrace)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:clean :contexa-autoconfigure:compileJava -x test)"
     ],
     "deny": [],
     "ask": []
