@@ -1,2 +1,22 @@
-bootJar.enabled = true
+// spring-boot-starter-contexa는 subprojects 설정을 상속받으므로
+// plugins, java, configurations는 이미 적용됨
+
+dependencies {
+    // Contexa AutoConfiguration 모듈
+    api project(':contexa-autoconfigure')
+
+    // Contexa 핵심 모듈 (autoconfigure를 통해 이미 포함되지만 명시적으로 추가)
+    api project(':contexa-core')
+    api project(':contexa-common')
+
+    // Spring Boot Starter 기본 의존성
+    api 'org.springframework.boot:spring-boot-starter'
+}
+
+// Starter는 라이브러리 모듈이므로 bootJar 비활성화
+bootJar.enabled = false
 jar.enabled = true
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

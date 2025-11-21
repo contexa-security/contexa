@@ -27,7 +27,6 @@ import java.util.regex.Pattern;
  * @since 1.0.0
  */
 @Slf4j
-@Service
 public class RiskAssessmentVectorService extends AbstractVectorLabService {
     
     @Value("${spring.ai.risk.zero-trust-threshold:0.8}")

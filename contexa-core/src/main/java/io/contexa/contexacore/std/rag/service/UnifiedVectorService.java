@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -36,7 +35,6 @@ import java.util.concurrent.CompletableFuture;
  * @since 3.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class UnifiedVectorService implements VectorOperations {
 

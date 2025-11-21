@@ -32,7 +32,6 @@ import java.util.regex.Pattern;
  * @since 1.0.0
  */
 @Slf4j
-@Service
 public class BehaviorVectorService extends AbstractVectorLabService {
     
     private final BehaviorETLPipeline behaviorETLPipeline;

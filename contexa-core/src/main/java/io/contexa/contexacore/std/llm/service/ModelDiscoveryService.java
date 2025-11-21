@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
  * 모델 상태를 모니터링합니다.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class ModelDiscoveryService {
 

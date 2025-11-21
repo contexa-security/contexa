@@ -1,0 +1,673 @@
+신한은행
+110-386-835-618
+
+613907
+
+Contexa Spring Boot Starter 최종 통합 실행 계획
+📋 Executive Summary
+목표: Contexa를 Spring Boot Starter 패턴으로 전환하여 사용자가 implementation 'io.contexa:contexa-starter' 한 줄로 사용 가능하도록 구현 현재 상태:
+✅ contexa-autoconfigure 모듈 존재 (비어있음)
+✅ spring-boot-starter-contexa/enterprise 모듈 존재 (비어있음)⚠️ 90개+ @Service/@Component 직접 등록 방식
+⚠️ 25개 Configuration 클래스 산재
+✅ Core-Enterprise 인터페이스 분리 완료
+전략: 점진적 전환 (병행 운영 → 완전 전환)
+Phase 1-3: Infrastructure, AI/LLM (빠른 성과)
+Phase 4: HCAD, Autonomous (복잡도 높음, 신중)
+Phase 5: Enterprise & Starter 패키징
+🏗️ 최종 모듈 구조
+contexa/
+├── contexa-common/                          # 공통 도메인, 엔티티
+├── contexa-core/                            # 핵심 인터페이스, 도메인
+│   └── @Service/@Component 점진적 제거      # ← 리팩토링 대상
+│
+├── contexa-core-enterprise/                 # Enterprise 구현체
+│   └── @Service/@Component 유지             # ← 현재대로 유지
+│
+├── contexa-autoconfigure/                   # ⭐ AutoConfiguration 중앙 집중
+│   ├── core/                                # Core AutoConfiguration
+│   │   ├── infrastructure/                  # Infra (Redis, Kafka 등)
+│   │   ├── llm/                             # AI/LLM
+│   │   ├── rag/                             # RAG & Vector Store
+│   │   ├── hcad/                            # HCAD
+│   │   ├── autonomous/                      # Autonomous
+│   │   └── simulation/                      # Simulation
+│   ├── enterprise/                          # Enterprise AutoConfiguration
+│   │   ├── EnterpriseAutoConfiguration      # Import만
+│   └── META-INF/spring/
+│       └── org.springframework.boot.autoconfigure.AutoConfiguration.imports
+│
+├── spring-boot-starter-contexa/             # ⭐ Community Starter
+│   └── pom.xml (의존성만)
+│       ├── contexa-autoconfigure
+│       ├── contexa-core
+│       ├── contexa-identity
+│       ├── contexa-iam
+│       └── Spring Boot Starters
+│
+└── spring-boot-starter-contexa-enterprise/  # ⭐ Enterprise Starter
+    └── pom.xml (의존성만)
+        ├── spring-boot-starter-contexa
+        ├── contexa-core-enterprise
+        └── Enterprise 의존성 (Kafka, Redis 등)
+🎯 Phase별 실행 계획 (2주 완성)
+Phase 1: Infrastructure & Properties (Day 1-2) - 기반 구축
+Day 1: contexa-autoconfigure 기본 구조 생성
+1.1 디렉토리 구조 생성
+contexa-autoconfigure/src/main/java/io/contexa/autoconfigure/
+├── core/
+│   ├── infrastructure/
+│   ├── llm/
+│   ├── rag/
+│   ├── hcad/
+│   ├── autonomous/
+│   └── simulation/
+├── enterprise/
+└── properties/
+1.2 build.gradle 작성
+dependencies {
+    api project(':contexa-core')
+    api project(':contexa-common')
+    
+    implementation 'org.springframework.boot:spring-boot-autoconfigure'
+    annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-jpa'
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
+    compileOnly 'org.springframework.kafka:spring-kafka'
+    
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+bootJar.enabled = false
+jar.enabled = true
+1.3 Properties 통합 클래스 작성
+// ContextaProperties.java
+@ConfigurationProperties(prefix = "contexa")
+public class ContextaProperties {
+    private boolean enabled = true;
+    private Security security = new Security();
+    private Hcad hcad = new Hcad();
+    private Llm llm = new Llm();
+    private Rag rag = new Rag();
+    private Simulation simulation = new Simulation();
+    
+    @Data
+    public static class Security { /* 기존 속성들 */ }
+    
+    @Data
+    public static class Hcad { /* 기존 속성들 */ }
+    // ...
+}
+
+// ContextaEnterpriseProperties.java
+@ConfigurationProperties(prefix = "contexa.enterprise")
+public class ContextaEnterpriseProperties {
+    private boolean enabled = false;
+    private Evolution evolution = new Evolution();
+    private Intelligence intelligence = new Intelligence();
+    // ...
+}
+커밋: feat(autoconfigure): contexa-autoconfigure 기본 구조 생성
+Day 2: Infrastructure AutoConfiguration (Import 방식)
+2.1 CoreInfrastructureAutoConfiguration 작성
+@AutoConfiguration
+@ConditionalOnProperty(prefix = "contexa", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties(ContextaProperties.class)
+@Import({
+    ApplicationConfig.class,              // ObjectMapper, ModelMapper
+    AsyncConfig.class,                    // @EnableAsync
+    VirtualThreadConfiguration.class,     // 가상 스레드
+    UnifiedRedisConfiguration.class,      // Redis (조건부)
+    RedisAsyncEventConfiguration.class,
+    RedisCacheConfiguration.class,
+    RedisStreamConfiguration.class,
+    RedissonConfiguration.class,
+    KafkaConfiguration.class,             // Kafka (조건부)
+    KafkaTopicConfiguration.class,
+    OpenTelemetryConfiguration.class      // 관찰성
+})
+@ConditionalOnClass(name = "io.contexa.contexacore.config.ApplicationConfig")
+public class CoreInfrastructureAutoConfiguration {
+    // Import만 수행, 추가 Bean 등록은 여기서
+}
+2.2 Redis 조건부 활성화
+// UnifiedRedisConfiguration에 추가
+@ConditionalOnProperty(prefix = "spring.data.redis", name = "host")
+@ConditionalOnClass(RedisConnectionFactory.class)
+public class UnifiedRedisConfiguration {
+    // 기존 코드
+}
+2.3 META-INF 등록
+# META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration
+커밋: feat(autoconfigure): Infrastructure AutoConfiguration 구현
+Phase 2: AI/LLM & RAG (Day 3-4) - 독립적 기능
+Day 3: LLM AutoConfiguration
+3.1 CoreLlmAutoConfiguration 작성
+@AutoConfiguration
+@AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
+@ConditionalOnProperty(prefix = "contexa.llm", name = "enabled", havingValue = "true", matchIfMissing = true)
+@Import({
+    TieredSecurityLLMConfiguration.class,  // 이미 잘 구성됨
+    AdvisorConfiguration.class,
+    PipelineConfiguration.class,
+    PromptTemplateConfig.class
+})
+@ConditionalOnClass(name = "io.contexa.contexacore.std.llm.config.TieredSecurityLLMConfiguration")
+public class CoreLlmAutoConfiguration {
+    // LLM 관련 추가 Bean 등록
+}
+3.2 META-INF 등록
+io.contexa.autoconfigure.core.llm.CoreLlmAutoConfiguration
+커밋: feat(autoconfigure): LLM AutoConfiguration 구현
+Day 4: RAG AutoConfiguration
+4.1 CoreRagAutoConfiguration 작성
+@AutoConfiguration
+@AutoConfigureAfter({CoreInfrastructureAutoConfiguration.class, CoreLlmAutoConfiguration.class})
+@ConditionalOnProperty(prefix = "contexa.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
+@Import({
+    RagConfiguration.class,
+    VectorStoreObservationConfig.class
+})
+@ConditionalOnClass(name = "org.springframework.ai.vectorstore.VectorStore")
+public class CoreRagAutoConfiguration {
+    // Vector Store 관련 Bean 등록
+}
+4.2 STD Service Bean 등록
+@AutoConfiguration
+@AutoConfigureAfter(CoreRagAutoConfiguration.class)
+public class CoreStdAutoConfiguration {
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public UnifiedVectorService unifiedVectorService(
+            @Autowired(required = false) VectorStore vectorStore) {
+        // Bean 등록
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public StandardVectorStoreService standardVectorStoreService() {
+        // Bean 등록
+    }
+    
+    // 나머지 STD 서비스들
+}
+4.3 contexa-core STD 패키지에서 @Service 제거
+// Before
+@Service
+public class UnifiedVectorService { }
+
+// After
+public class UnifiedVectorService { }
+커밋: feat(autoconfigure): RAG & STD AutoConfiguration 구현
+Phase 3: Simulation (Day 5) - 선택적 기능
+Day 5: Simulation AutoConfiguration
+5.1 CoreSimulationAutoConfiguration 작성
+@AutoConfiguration
+@AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
+@ConditionalOnProperty(prefix = "contexa.simulation", name = "enabled", havingValue = "false")
+@Import({
+    SimulationConfiguration.class,
+    SimulationWebSocketConfig.class
+})
+public class CoreSimulationAutoConfiguration {
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public SimulationStatisticsService simulationStatisticsService() {
+        return new SimulationStatisticsService();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public DualModeSimulationService dualModeSimulationService() {
+        return new DualModeSimulationService();
+    }
+    
+    @Bean
+    @ConditionalOnProperty(prefix = "contexa.simulation.data", name = "enabled", havingValue = "true")
+    public SimulationDataInitializer simulationDataInitializer() {
+        return new SimulationDataInitializer();
+    }
+}
+5.2 @Service 제거
+// SimulationStatisticsService, DualModeSimulationService에서 @Service 제거
+커밋: feat(autoconfigure): Simulation AutoConfiguration 구현
+Phase 4: HCAD & Autonomous (Day 6-9) - 복잡도 높음
+Day 6-7: HCAD AutoConfiguration (세심한 의존성 관리)
+6.1 의존성 그래프 분석 및 정리
+// 의존성 순서 파악 (수동 분석 필요)
+1. EmbeddingService (독립적)
+2. HCADBaselineCacheService → EmbeddingService
+3. HCADVectorIntegrationService → UnifiedVectorService
+4. HCADSimilarityCalculator → EmbeddingService, VectorService
+5. ThreatCorrelationService → SimilarityCalculator
+// ... 나머지 15개 서비스 순서 정리
+6.2 CoreHcadAutoConfiguration 작성 (의존성 순서대로)
+@AutoConfiguration
+@AutoConfigureAfter({CoreRagAutoConfiguration.class, CoreStdAutoConfiguration.class})
+@ConditionalOnProperty(prefix = "contexa.hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties(ContextaProperties.Hcad.class)
+public class CoreHcadAutoConfiguration {
+    
+    // 1단계: 독립적 서비스
+    @Bean
+    @ConditionalOnMissingBean
+    public EmbeddingService embeddingService() {
+        return new EmbeddingService();
+    }
+    
+    // 2단계: 1단계 의존
+    @Bean
+    @ConditionalOnMissingBean
+    public HCADBaselineCacheService hcadBaselineCacheService(
+            EmbeddingService embeddingService) {
+        return new HCADBaselineCacheService(embeddingService);
+    }
+    
+    // ... 의존성 순서대로 15개 Bean 등록
+    
+    // Filter는 마지막
+    @Bean
+    @ConditionalOnMissingBean
+    public HCADFilter hcadFilter(
+            HCADAnalysisService hcadAnalysisService) {
+        return new HCADFilter(hcadAnalysisService);
+    }
+}
+6.3 HCAD 서비스에서 @Service 제거 + 생성자 주입 패턴 적용
+// Before
+@Service
+public class HCADAnalysisService {
+    @Autowired
+    private HCADSimilarityCalculator calculator;
+}
+
+// After
+public class HCADAnalysisService {
+    private final HCADSimilarityCalculator calculator;
+    
+    public HCADAnalysisService(HCADSimilarityCalculator calculator) {
+        this.calculator = calculator;
+    }
+}
+6.4 순환 참조 발견 시 해결
+// 순환 참조 발견 예시:
+// A → B → C → A
+// 해결: Lazy 주입 또는 인터페이스 분리
+@Bean
+public ServiceA serviceA(@Lazy ServiceC serviceC) {
+    return new ServiceA(serviceC);
+}
+커밋: feat(autoconfigure): HCAD AutoConfiguration 구현 (15 services)
+Day 8-9: Autonomous AutoConfiguration
+8.1 Autonomous 전략 패턴 Bean 등록
+@AutoConfiguration
+@AutoConfigureAfter(CoreHcadAutoConfiguration.class)
+@ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
+@Import(SecurityPlaneConfiguration.class)  // @EnableAspectJAutoProxy 등
+public class CoreAutonomousAutoConfiguration {
+    
+    // 전략 패턴
+    @Bean
+    @ConditionalOnMissingBean
+    public Layer1FastFilterStrategy layer1FastFilterStrategy() {
+        return new Layer1FastFilterStrategy();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public Layer2ContextualStrategy layer2ContextualStrategy() {
+        return new Layer2ContextualStrategy();
+    }
+    
+    @Bean
+    @ConditionalOnMissingBean
+    public Layer3ExpertStrategy layer3ExpertStrategy() {
+        return new Layer3ExpertStrategy();
+    }
+    
+    // 핸들러
+    @Bean
+    @ConditionalOnMissingBean
+    public RoutingDecisionHandler routingDecisionHandler() {
+        return new RoutingDecisionHandler();
+    }
+    
+    // 오케스트레이터
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityPlaneAgent securityPlaneAgent(
+            List<AIStrategy> strategies,
+            DynamicStrategySelector strategySelector) {
+        return new SecurityPlaneAgent(strategies, strategySelector);
+    }
+    
+    // ... 나머지 20개 컴포넌트
+}
+8.2 Autonomous 클래스에서 @Component 제거 커밋: feat(autoconfigure): Autonomous AutoConfiguration 구현 (20 components)
+Phase 5: Enterprise & Starter 패키징 (Day 10-12)
+Day 10: Enterprise AutoConfiguration
+10.1 EnterpriseAutoConfiguration 작성
+@AutoConfiguration
+@ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true")
+@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.config.EnterpriseBeanConfiguration")
+@EnableConfigurationProperties(ContextaEnterpriseProperties.class)
+@Import({
+    EnterpriseBeanConfiguration.class,       // 기존 유지
+    ToolCallingConfiguration.class,          // 기존 유지
+    StandardMcpClientConfiguration.class,
+    ToolConfiguration.class,
+    ToolExecutionConfiguration.class,
+    SoarToolConfiguration.class
+})
+public class EnterpriseAutoConfiguration {
+    // Enterprise는 현재 패턴 유지 (이미 잘 구성됨)
+    // Helper 클래스들도 @Component 유지
+}
+10.2 META-INF 등록
+# contexa-autoconfigure
+io.contexa.autoconfigure.enterprise.EnterpriseAutoConfiguration
+커밋: feat(autoconfigure): Enterprise AutoConfiguration 구현
+Day 11: Starter 패키징
+11.1 spring-boot-starter-contexa 구성
+// build.gradle
+dependencies {
+    api project(':contexa-autoconfigure')
+    api project(':contexa-core')
+    api project(':contexa-identity')
+    api project(':contexa-iam')
+    api project(':contexa-common')
+    
+    // Spring Boot Starters
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+    api 'org.springframework.boot:spring-boot-starter-security'
+    api 'org.springframework.boot:spring-boot-starter-validation'
+    
+    // AI
+    api 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
+    api 'org.springframework.ai:spring-ai-ollama-spring-boot-starter'
+    api 'org.springframework.ai:spring-ai-anthropic-spring-boot-starter'
+    api 'org.springframework.ai:spring-ai-pgvector-store-spring-boot-starter'
+    
+    // Optional (compileOnly)
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
+    compileOnly 'org.springframework.kafka:spring-kafka'
+    compileOnly 'org.redisson:redisson-spring-boot-starter'
+}
+
+bootJar.enabled = false
+jar.enabled = true
+11.2 README.md 작성
+# Contexa Community Starter
+
+## Quick Start
+```gradle
+dependencies {
+    implementation 'io.contexa:spring-boot-starter-contexa:0.1.0-ALPHA'
+}
+Configuration
+contexa:
+  enabled: true
+  hcad:
+    enabled: true
+  llm:
+    enabled: true
+  rag:
+    enabled: true
+  simulation:
+    enabled: false  # Optional
+
+**11.3 spring-boot-starter-contexa-enterprise 구성**
+```gradle
+dependencies {
+    api project(':spring-boot-starter-contexa')
+    api project(':contexa-core-enterprise')
+    
+    // Enterprise 필수 의존성
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+    api 'org.springframework.kafka:spring-kafka'
+    api 'org.redisson:redisson-spring-boot-starter:3.48.0'
+    api 'org.quartz-scheduler:quartz'
+}
+커밋: feat(starter): Spring Boot Starter 패키징 완료
+Day 12: 예제 애플리케이션 및 문서화
+12.1 examples/minimal-starter 작성
+# application.yml
+contexa:
+  enabled: true
+  hcad:
+    enabled: true
+    similarity:
+      hot-path-threshold: 0.7
+  llm:
+    enabled: true
+  rag:
+    enabled: true
+  simulation:
+    enabled: false
+
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+@SpringBootApplication  // scanBasePackages 제거! ✅
+public class MinimalStarterApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MinimalStarterApplication.class, args);
+    }
+}
+12.2 examples/full-platform 작성
+contexa:
+  enabled: true
+  enterprise:
+    enabled: true  # Enterprise 활성화
+  hcad:
+    enabled: true
+  llm:
+    enabled: true
+  rag:
+    enabled: true
+  simulation:
+    enabled: true
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+12.3 Migration Guide 작성
+# Migration Guide: Component Scan → Starter
+
+## Before (0.0.x)
+```java
+@SpringBootApplication(scanBasePackages = {
+    "io.contexa.contexaidentity",
+    "io.contexa.contexacore.hcad",
+    "io.contexa.contexacore.autonomous",
+    "io.contexa.contexacore.std"
+})
+After (0.1.0-ALPHA)
+@SpringBootApplication  // ✅ scanBasePackages 제거!
+dependencies {
+    implementation 'io.contexa:spring-boot-starter-contexa:0.1.0-ALPHA'
+}
+
+**커밋**: `docs: 예제 애플리케이션 및 마이그레이션 가이드 작성`
+
+---
+
+### **Phase 6: 검증 및 릴리스 (Day 13-14)**
+
+#### Day 13: 통합 테스트
+
+**13.1 AutoConfiguration 테스트**
+```java
+@SpringBootTest
+@TestPropertySource(properties = {
+    "contexa.enabled=true",
+    "contexa.hcad.enabled=true"
+})
+class ContextaAutoConfigurationTest {
+    
+    @Autowired
+    private ApplicationContext context;
+    
+    @Test
+    void shouldLoadHcadBeans() {
+        assertThat(context.getBean(HCADAnalysisService.class)).isNotNull();
+        assertThat(context.getBean(HCADSimilarityCalculator.class)).isNotNull();
+    }
+    
+    @Test
+    void shouldNotLoadEnterpriseBeansWhenDisabled() {
+        assertThat(context.getBeansOfType(PolicyEvolutionHelper.class)).isEmpty();
+    }
+}
+13.2 전체 빌드 검증
+cd d:\projects\contexa
+./gradlew clean build --scan
+체크리스트:
+ 모든 모듈 컴파일 성공
+ 순환 참조 없음
+ JAR 파일 생성 확인
+ 테스트 통과 (최소 80% 커버리지)
+ minimal-starter 실행 성공
+ full-platform 실행 성공
+커밋: test: AutoConfiguration 통합 테스트 추가
+Day 14: 릴리스 준비
+14.1 버전 업데이트
+// build.gradle (루트)
+allprojects {
+    version = '0.1.0-ALPHA'
+}
+14.2 CHANGELOG.md 작성
+# Changelog
+
+## [0.1.0-ALPHA] - 2025-11-XX
+
+### Added ✨
+- 🚀 Spring Boot Starter 패키지 (Community & Enterprise)
+- ⚙️ AutoConfiguration 자동 구성 (90+ beans)
+- 🎯 HCAD AutoConfiguration (15 services)
+- 🤖 Autonomous AutoConfiguration (20 components)
+- 🧠 LLM AutoConfiguration (Tiered security)
+- 📚 RAG AutoConfiguration (Vector store integration)
+- 🎭 Simulation AutoConfiguration (optional)
+- 🏢 Enterprise AutoConfiguration
+- 📦 Properties 통합 (contexa.* prefix)
+
+### Changed 🔄
+- 📁 모듈 구조 재편성 (9개 → 명확한 역할 분리)
+- ⚡ @Service/@Component → @Bean 방식 전환
+- 🔗 의존성 최적화 및 순환 참조 제거
+- 📝 Properties 체계화 (IDE 자동완성 지원)
+
+### Removed ❌
+- 🔍 scanBasePackages 제거 (AutoConfiguration으로 대체)
+
+### Breaking Changes ⚠️
+- Enterprise 기능 사용 시 별도 Starter 필요
+- 기존 application.yml 마이그레이션 필요 (Migration Guide 참고)
+- @ComponentScan 제거됨
+14.3 Git 태깅 및 릴리스
+git add .
+git commit -m "release: v0.1.0-ALPHA - Spring Boot Starter 패키징"
+git tag -a v0.1.0-ALPHA -m "Release v0.1.0-ALPHA - Spring Boot Starter"
+git push origin release/0.1.0-ALPHA-AUTOCONFIG
+git push origin v0.1.0-ALPHA
+14.4 Pull Request to main
+# Release 0.1.0-ALPHA
+
+## Summary
+Contexa를 Spring Boot Starter 패턴으로 전환 완료
+
+## Key Changes
+- ✅ AutoConfiguration 구현 (90+ beans)
+- ✅ Starter 패키징 (Community + Enterprise)
+- ✅ @Service/@Component → @Bean 전환
+- ✅ 의존성 최적화 및 순환 참조 제거
+- ✅ scanBasePackages 제거
+
+## Testing
+- [x] 전체 빌드 성공
+- [x] 순환 참조 없음
+- [x] Community Starter 동작 확인 (minimal-starter)
+- [x] Enterprise Starter 동작 확인 (full-platform)
+- [x] Migration Guide 작성
+
+## Documentation
+- [x] README.md 업데이트
+- [x] CHANGELOG.md 작성
+- [x] Migration Guide 작성
+- [x] 예제 애플리케이션 2개
+📊 진행 추적 대시보드
+Week 1: Core Implementation
+Day Phase 작업  상태  예상 시간
+1 1 autoconfigure 기본 구조 + Properties  ⏳ 4h
+2 1 Infrastructure AutoConfiguration  ⏳ 4h
+3 2 LLM AutoConfiguration ⏳ 4h
+4 2 RAG & STD AutoConfiguration ⏳ 6h
+5 3 Simulation AutoConfiguration  ⏳ 4h
+6-7 4 HCAD AutoConfiguration (복잡) ⏳ 12h
+Week 2: Advanced & Release
+Day Phase 작업  상태  예상 시간
+8-9 4 Autonomous AutoConfiguration  ⏳ 12h
+10  5 Enterprise AutoConfiguration  ⏳ 4h
+11  5 Starter 패키징 ⏳ 4h
+12  5 예제 앱 + 문서화  ⏳ 4h
+13  6 통합 테스트  ⏳ 6h
+14  6 릴리스 준비  ⏳ 4h
+총 예상 시간: 68시간 (약 2주, 하루 5시간 작업 기준)
+🎯 핵심 원칙
+1. 점진적 전환 (병행 운영)
+// 전환 중: ComponentScan + AutoConfiguration 병행
+@SpringBootApplication(
+    scanBasePackages = {
+        "io.contexa.contexaidentity",
+        "io.contexa.contexacore.autonomous",    // 아직 AutoConfiguration 안된 것만
+        // "io.contexa.contexacore.hcad",       // ← AutoConfiguration 완료
+        // "io.contexa.contexacore.std"         // ← AutoConfiguration 완료
+    }
+)
+2. 의존성 순서 엄격 관리
+HCAD, Autonomous는 의존성 그래프 명확히 파악 후 순서대로 Bean 등록
+순환 참조 발견 시 @Lazy 또는 인터페이스 분리
+3. @ConditionalOnProperty 적극 활용
+@ConditionalOnProperty(prefix = "contexa.hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
+4. Enterprise 패턴 유지
+EnterpriseBeanConfiguration의 함수형 인터페이스 export 패턴 유지
+Helper 클래스들 @Component 유지 (이미 잘 작동)
+5. 테스트 주도
+각 AutoConfiguration마다 단위 테스트 작성
+통합 테스트로 전체 동작 검증
+🚨 위험 요소 및 대응 방안
+위험 요소 확률  영향  대응 방안
+HCAD 순환 참조  높음  높음  @Lazy 주입, 인터페이스 분리, 충분한 분석 시간
+Autonomous 복잡도  높음  중간  단계별 전환, 철저한 테스트
+테스트 커버리지 부족 중간  높음  각 Phase마다 테스트 작성 의무화
+성능 저하 낮음  중간  벤치마크 테스트, 지연 초기화 활용
+호환성 문제  중간  높음  Migration Guide 상세 작성
+✅ 성공 기준
+기술적 성공:
+ 전체 빌드 성공 (순환 참조 0개)
+ scanBasePackages 완전 제거
+ 90+ Bean AutoConfiguration 전환
+ 테스트 커버리지 80% 이상
+사용자 경험:
+ 1줄로 Starter 추가 가능
+ application.yml만으로 모든 설정 가능
+ IDE 자동완성 지원
+문서화:
+ Migration Guide 완성
+ 2개 예제 앱 동작
+ CHANGELOG.md 작성
+📚 참고 자료
+Spring Boot Reference: https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.developing-auto-configuration
+Spring Boot Starter 패턴: https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.developing-auto-configuration.custom-starter
+현재 브랜치: release/0.1.0-ALPHA-AUTOCONFIG 최종 목표 버전: 0.1.0-ALPHA 예상 완료일: 2025-12-04 (2주 후)

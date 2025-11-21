@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * AI 모델을 동적으로 선택하여 사용할 수 있는 관리 서비스
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AIModelManager {
 

@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 마스터 브레인의 지휘 하에 세션 생명주기를 관리
  */
 @Slf4j
-@Service
 public class DistributedSessionManager<T extends DomainContext> {
     
     private final RedisEventPublisher eventPublisher;

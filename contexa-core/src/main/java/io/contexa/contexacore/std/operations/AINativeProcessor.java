@@ -17,7 +17,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-@Service
 final public class AINativeProcessor<T extends DomainContext> implements AICoreOperations<T> {
     
     // ==================== 전략 지휘부 핵심 구성 ====================

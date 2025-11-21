@@ -39,7 +39,6 @@ import java.util.UUID;
  * - 각 계층은 자신의 역할만 수행하고 하위 계층에 위임
  */
 @Slf4j
-@Service
 public class DistributedStrategyExecutor<T extends DomainContext> {
     
     private final PipelineOrchestrator orchestrator;

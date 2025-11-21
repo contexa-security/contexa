@@ -25,7 +25,13 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:compileJava --stacktrace)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:clean :contexa-autoconfigure:compileJava -x test)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:clean :contexa-autoconfigure:compileJava -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-core:build :contexa-core-enterprise:build :contexa-autoconfigure:build -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:clean :spring-boot-starter-contexa:build :spring-boot-starter-contexa-enterprise:clean :spring-boot-starter-contexa-enterprise:build -x test)",
+      "Bash(.gradlew.bat :contexa-autoconfigure:compileJava -x test)",
+      "Bash(d:projectscontexagradlew.bat :contexa-autoconfigure:compileJava -x test)",
+      "Bash(cmd /c \"d:\\projects\\contexa\\gradlew.bat :contexa-autoconfigure:compileJava -x test\")",
+      "Bash(powershell -Command \"cd d:\\projects\\contexa; .\\gradlew.bat :contexa-autoconfigure:compileJava -x test\")"
     ],
     "deny": [],
     "ask": []

@@ -5,6 +5,7 @@ dependencies {
     // Contexa 모듈 의존성
     api project(':contexa-core')
     api project(':contexa-common')
+    compileOnly project(':contexa-core-enterprise')
 
     // Spring Boot AutoConfiguration (subprojects 공통 의존성 외 추가)
     implementation 'org.springframework.boot:spring-boot-autoconfigure'

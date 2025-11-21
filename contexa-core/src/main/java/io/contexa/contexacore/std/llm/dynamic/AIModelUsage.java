@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
  * AI 모델을 동적으로 선택하여 사용하는 예시
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AIModelUsage {
 

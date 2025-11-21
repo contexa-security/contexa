@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
  * 
  * @since 1.0.0
  */
-@Service
 @RequiredArgsConstructor
 public class StandardVectorStoreService implements VectorOperations {
 
