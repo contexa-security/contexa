@@ -160,5 +160,195 @@ public class CoreAutonomousAutoConfiguration {
         return new Layer3PromptTemplate(securityEventEnricher);
     }
 
+    // ========== Level 3: 독립적/선택적 의존 (6개) ==========
+
+    /**
+     * 3-1. VectorStoreCacheLayer - Vector Store 캐시 레이어
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer")
+    public VectorStoreCacheLayer vectorStoreCacheLayer() {
+        return new VectorStoreCacheLayer();
+    }
+
+    /**
+     * 3-2. ValidationHandler - 보안 이벤트 유효성 검증 핸들러
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.orchestrator.handler.ValidationHandler")
+    public io.contexa.contexacore.autonomous.orchestrator.handler.ValidationHandler validationHandler() {
+        return new io.contexa.contexacore.autonomous.orchestrator.handler.ValidationHandler();
+    }
+
+    /**
+     * 3-3. VectorSimilarityHandler - 벡터 유사도 기반 평가 핸들러
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.orchestrator.handler.VectorSimilarityHandler")
+    public io.contexa.contexacore.autonomous.orchestrator.handler.VectorSimilarityHandler vectorSimilarityHandler() {
+        return new io.contexa.contexacore.autonomous.orchestrator.handler.VectorSimilarityHandler();
+    }
+
+    /**
+     * 3-4. AuditingHandler - 감사 로깅 핸들러
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler")
+    public io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler auditingHandler() {
+        return new io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler();
+    }
+
+    /**
+     * 3-5. MetricsHandler - 메트릭스 핸들러
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler")
+    public io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler metricsHandler(
+            RedisTemplate<String, Object> redisTemplate) {
+        return new io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler(redisTemplate);
+    }
+
+    /**
+     * 3-6. ThreatScoreHandler - Threat Score 업데이트 핸들러
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.orchestrator.handler.ThreatScoreHandler")
+    public io.contexa.contexacore.autonomous.orchestrator.handler.ThreatScoreHandler threatScoreHandler() {
+        return new io.contexa.contexacore.autonomous.orchestrator.handler.ThreatScoreHandler();
+    }
+
+    // ========== Level 4: Level 3 의존 (1개) ==========
+
+    /**
+     * 4-1. AdaptiveTierRouter - 적응형 계층 라우터
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.tiered.routing.AdaptiveTierRouter")
+    public AdaptiveTierRouter adaptiveTierRouter(
+            @Qualifier("redisTemplate") RedisTemplate<String, ?> redisTemplate,
+            @Qualifier("stringRedisTemplate") RedisTemplate<String, String> stringRedisTemplate,
+            VectorStoreCacheLayer vectorStoreCacheLayer,
+            MaliciousPatternDetector maliciousPatternDetector) {
+        return new AdaptiveTierRouter(
+            (RedisTemplate) redisTemplate,
+            stringRedisTemplate,
+            vectorStoreCacheLayer,
+            maliciousPatternDetector
+        );
+    }
+
+    // ========== Level 5: Level 4 의존 (4개) ==========
+
+    /**
+     * 5-1. Layer1FastFilterStrategy - Layer 1 초고속 필터링 전략
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy")
+    public io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy layer1FastFilterStrategy(
+            @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
+            @Autowired(required = false) org.springframework.ai.embedding.EmbeddingModel embeddingModel,
+            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
+            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
+            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
+            Layer1PromptTemplate layer1PromptTemplate,
+            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
+            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
+            @Autowired(required = false) io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager adaptiveThresholdManager,
+            @Autowired(required = false) io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator hcadFeedbackOrchestrator) {
+        return new io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy(
+            llmOrchestrator, embeddingModel, unifiedVectorService, redisTemplate,
+            securityEventEnricher, layer1PromptTemplate, feedbackProperties,
+            hcadVectorService, adaptiveThresholdManager, hcadFeedbackOrchestrator
+        );
+    }
+
+    /**
+     * 5-2. Layer2ContextualStrategy - Layer 2 컨텍스트 기반 분석 전략
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy")
+    public io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy layer2ContextualStrategy(
+            @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
+            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
+            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
+            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
+            @Autowired(required = false) Layer2PromptTemplate layer2PromptTemplate,
+            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
+            @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
+            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
+            @Autowired(required = false) io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager adaptiveThresholdManager,
+            @Autowired(required = false) io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator hcadFeedbackOrchestrator) {
+        return new io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy(
+            llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
+            layer2PromptTemplate, hcadVectorService, behaviorVectorService, feedbackProperties,
+            adaptiveThresholdManager, hcadFeedbackOrchestrator
+        );
+    }
+
+    /**
+     * 5-3. Layer3ExpertStrategy - Layer 3 전문가 시스템 전략
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy")
+    public io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy layer3ExpertStrategy(
+            @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
+            @Autowired(required = false) io.contexa.contexacore.std.labs.AILabFactory labFactory,
+            @Autowired(required = false) io.contexa.contexacore.soar.approval.ApprovalService approvalService,
+            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
+            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
+            @Autowired(required = false) Layer3PromptTemplate layer3PromptTemplate,
+            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
+            @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
+            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
+            @Autowired(required = false) io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager adaptiveThresholdManager,
+            @Autowired(required = false) io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator hcadFeedbackOrchestrator,
+            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService) {
+        return new io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy(
+            llmOrchestrator, labFactory, approvalService, redisTemplate, securityEventEnricher,
+            layer3PromptTemplate, hcadVectorService, behaviorVectorService, feedbackProperties,
+            adaptiveThresholdManager, hcadFeedbackOrchestrator, unifiedVectorService
+        );
+    }
+
+    /**
+     * 5-4. RoutingDecisionHandler - 라우팅 결정 핸들러
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.orchestrator.handler.RoutingDecisionHandler")
+    public io.contexa.contexacore.autonomous.orchestrator.handler.RoutingDecisionHandler routingDecisionHandler() {
+        return new io.contexa.contexacore.autonomous.orchestrator.handler.RoutingDecisionHandler();
+    }
+
+    // ========== Level 6: Level 5 의존 (1개) ==========
+
+    /**
+     * 6-1. SecurityPlaneAgent - Security Plane 에이전트 메인 클래스
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnClass(name = "io.contexa.contexacore.autonomous.SecurityPlaneAgent")
+    public io.contexa.contexacore.autonomous.SecurityPlaneAgent securityPlaneAgent(
+            io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService securityMonitor,
+            io.contexa.contexacore.repository.SecurityIncidentRepository incidentRepository,
+            RedisTemplate<String, Object> redisTemplate,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
+            io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger auditLogger,
+            io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator processingOrchestrator) {
+        return new io.contexa.contexacore.autonomous.SecurityPlaneAgent(
+            securityMonitor, incidentRepository, redisTemplate, eventPublisher, auditLogger, processingOrchestrator
+        );
+    }
+
 }
 
