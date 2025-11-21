@@ -10,7 +10,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +35,6 @@ import java.util.Map;
  * @since 3.0.0
  */
 @Slf4j
-@Service
 public class HCADAnalysisService {
 
     private final HCADContextExtractor contextExtractor;

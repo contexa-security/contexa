@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -20,7 +19,6 @@ import java.util.Map;
  * - 모달 알림용 상세 정보 생성
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class HCADAuthenticationService {
 

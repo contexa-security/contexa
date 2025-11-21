@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -31,7 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * Note: HCAD 필터용 AdaptiveThresholdManager(hcad.threshold 패키지)와는 다른 용도
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class ZeroTrustThresholdManager {
 

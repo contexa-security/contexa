@@ -7,7 +7,6 @@ import io.contexa.contexacore.hcad.domain.UserTrustProfile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,7 +23,6 @@ import java.util.stream.Collectors;
  * - 글로벌 위협 인텔리전스 연동
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class ThreatCorrelationService {
 

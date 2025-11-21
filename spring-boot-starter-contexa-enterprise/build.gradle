@@ -1,17 +1,25 @@
-// spring-boot-starter-contexa-enterprise는 subprojects 설정을 상속받으므로
-// plugins, java, configurations는 이미 적용됨
+// spring-boot-starter-contexa-enterprise
+// Contexa Enterprise Starter - 엔터프라이즈급 AI-Native IAM 플랫폼
 
 dependencies {
-    // Contexa AutoConfiguration 모듈
-    api project(':contexa-autoconfigure')
+    // ========== Contexa Community Starter (전체 포함) ==========
+    api project(':spring-boot-starter-contexa')
 
-    // Contexa 핵심 모듈
-    api project(':contexa-core')
-    api project(':contexa-common')
+    // ========== Contexa Enterprise 모듈 ==========
     api project(':contexa-core-enterprise')
 
-    // Spring Boot Starter 기본 의존성
-    api 'org.springframework.boot:spring-boot-starter'
+    // ========== Enterprise 필수 의존성 ==========
+    // Redis: HCAD 실시간 분석, 분산 캐싱, 이벤트 스트림
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Kafka: SOAR 통합, 실시간 위협 이벤트 스트리밍
+    api 'org.springframework.kafka:spring-kafka'
+
+    // Redisson: 분산 락, 스케줄링, Pub/Sub
+    api 'org.redisson:redisson-spring-boot-starter:3.48.0'
+
+    // Quartz: Tool Calling 스케줄링
+    api 'org.springframework.boot:spring-boot-starter-quartz'
 }
 
 // Starter는 라이브러리 모듈이므로 bootJar 비활성화

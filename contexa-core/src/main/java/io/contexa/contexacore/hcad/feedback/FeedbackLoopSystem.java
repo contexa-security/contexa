@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -42,7 +41,6 @@ import java.util.stream.Collectors;
  * @since 3.0
  */
 @Slf4j
-@Service
 public class FeedbackLoopSystem {
 
     @Autowired(required = false)

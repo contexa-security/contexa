@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -24,7 +23,6 @@ import java.util.stream.Collectors;
  * Redis를 사용하여 분산 환경에서도 정확한 통계를 유지합니다.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class SimulationStatisticsService {
 

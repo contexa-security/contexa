@@ -5,8 +5,6 @@ import io.contexa.contexacommon.hcad.domain.HCADContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,7 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 3.0.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class DynamicTrustCalculator {
 

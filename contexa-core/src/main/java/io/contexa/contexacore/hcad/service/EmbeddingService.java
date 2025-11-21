@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -33,7 +32,6 @@ import java.util.List;
  * @since 3.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class EmbeddingService {
 

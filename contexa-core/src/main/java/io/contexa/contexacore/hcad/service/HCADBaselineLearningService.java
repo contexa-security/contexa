@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -25,7 +24,6 @@ import java.util.concurrent.CompletableFuture;
  * - 동적 임계값 계산
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class HCADBaselineLearningService {
 

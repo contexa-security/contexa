@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +21,6 @@ import java.util.concurrent.TimeUnit;
  * - 로깅용 세션 ID 마스킹
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class HCADSessionThreatService {
 

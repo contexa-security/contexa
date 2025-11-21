@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -35,7 +34,6 @@ import java.util.stream.Collectors;
  * @since 3.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AdaptiveThresholdManager {
 

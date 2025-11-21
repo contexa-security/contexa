@@ -6,8 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Service;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -21,7 +19,6 @@ import java.util.concurrent.TimeUnit;
  * 성능 목표: 1-5ms
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class HCADContextExtractor {
 

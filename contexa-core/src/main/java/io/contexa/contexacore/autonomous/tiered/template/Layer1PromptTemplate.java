@@ -4,7 +4,6 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
@@ -21,7 +20,6 @@ import java.util.Optional;
  * 98%의 이벤트를 50-100ms 내에 처리하는 첫 번째 방어선
  */
 @Slf4j
-@Component
 public class Layer1PromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;

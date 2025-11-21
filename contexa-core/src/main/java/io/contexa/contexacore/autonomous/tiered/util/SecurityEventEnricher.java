@@ -1,7 +1,6 @@
 package io.contexa.contexacore.autonomous.tiered.util;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +12,6 @@ import java.util.Optional;
  * SecurityEvent의 metadata Map을 통해 추가 필드를 관리하는 헬퍼 클래스입니다.
  * Layer 전략들이 필요로 하는 추가 필드를 안전하게 처리합니다.
  */
-@Component
 public class SecurityEventEnricher {
     
     // 메타데이터 키 상수

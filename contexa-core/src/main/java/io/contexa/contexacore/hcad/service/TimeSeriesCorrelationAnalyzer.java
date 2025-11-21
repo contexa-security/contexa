@@ -7,7 +7,6 @@ import org.apache.commons.math3.stat.correlation.PearsonsCorrelation;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -30,7 +29,6 @@ import java.util.stream.Collectors;
  * @since 3.0.1
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class TimeSeriesCorrelationAnalyzer {
 

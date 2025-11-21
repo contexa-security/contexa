@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,7 +23,6 @@ import java.util.concurrent.TimeUnit;
  * - 메모리 캐시 관리
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class TrustProfileService {
 

@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
@@ -28,7 +27,6 @@ import java.util.List;
  * @since 3.0.1
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class FewShotAnomalyDetector {
 

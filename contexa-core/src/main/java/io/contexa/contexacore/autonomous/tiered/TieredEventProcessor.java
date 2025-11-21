@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,7 +19,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * 이를 통해 수백만 사용자의 이벤트를 효율적으로 처리할 수 있습니다.
  */
 @Slf4j
-@Component
 public class TieredEventProcessor {
     
     @Value("${security.event.tier.critical.max-latency-ms:100}")

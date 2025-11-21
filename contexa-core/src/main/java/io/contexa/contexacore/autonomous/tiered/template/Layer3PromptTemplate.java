@@ -5,7 +5,6 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,6 @@ import java.util.Optional;
  * - Claude Sonnet: 5-10초 → 1-3초 (3-10배 개선!)
  */
 @Slf4j
-@Component
 public class Layer3PromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;

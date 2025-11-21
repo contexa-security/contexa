@@ -10,7 +10,6 @@ import io.contexa.contexacore.hcad.service.TrustProfileService;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -44,7 +43,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 2.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class ZeroTrustDecisionEngine {
 

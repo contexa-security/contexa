@@ -3,6 +3,10 @@ package io.contexa.autoconfigure.enterprise.tool;
 import io.contexa.autoconfigure.properties.ContextaProperties;
 import io.contexa.contexacoreenterprise.config.EnterpriseBeanConfiguration;
 import io.contexa.contexacoreenterprise.config.ToolCallingConfiguration;
+import io.contexa.contexacoreenterprise.mcp.config.StandardMcpClientConfiguration;
+import io.contexa.contexacoreenterprise.mcp.config.ToolConfiguration;
+import io.contexa.contexacoreenterprise.mcp.tool.execution.config.ToolExecutionConfiguration;
+import io.contexa.contexacoreenterprise.soar.config.SoarToolConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -15,9 +19,13 @@ import org.springframework.context.annotation.Import;
  * Contexa Enterprise 모듈의 Tool Calling 자동 구성을 제공합니다.
  * Import 방식으로 기존 Configuration 클래스들을 재사용합니다.
  *
- * 포함된 Configuration:
- * - ToolCallingConfiguration - Spring AI Tool Calling 시스템
+ * 포함된 Configuration (6개):
  * - EnterpriseBeanConfiguration - Enterprise Bean Export
+ * - ToolCallingConfiguration - Spring AI Tool Calling 시스템
+ * - StandardMcpClientConfiguration - Standard MCP Client
+ * - ToolConfiguration - Tool 설정
+ * - ToolExecutionConfiguration - Tool 실행 설정
+ * - SoarToolConfiguration - SOAR Tool 설정
  *
  * 활성화 조건:
  * contexa:
@@ -36,8 +44,12 @@ import org.springframework.context.annotation.Import;
 @EnableConfigurationProperties(ContextaProperties.class)
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.config.ToolCallingConfiguration")
 @Import({
+    EnterpriseBeanConfiguration.class,
     ToolCallingConfiguration.class,
-    EnterpriseBeanConfiguration.class
+    StandardMcpClientConfiguration.class,
+    ToolConfiguration.class,
+    ToolExecutionConfiguration.class,
+    SoarToolConfiguration.class
 })
 public class EnterpriseToolAutoConfiguration {
 

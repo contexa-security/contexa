@@ -15,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -32,7 +31,6 @@ import java.util.stream.Collectors;
  * @since 2.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class HCADVectorIntegrationService {
 

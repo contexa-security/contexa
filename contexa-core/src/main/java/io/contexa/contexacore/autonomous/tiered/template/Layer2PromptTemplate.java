@@ -6,7 +6,6 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
@@ -22,7 +21,6 @@ import java.util.Optional;
  * - Llama3.1:8b: 3-5초 → 100-300ms (15-50배 개선!)
  */
 @Slf4j
-@Component
 public class Layer2PromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;
