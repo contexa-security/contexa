@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -37,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * WebSocket과 SSE를 모두 지원하는 통합 알림 서비스입니다.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class McpApprovalNotificationService {
     

@@ -10,7 +10,6 @@ import org.springframework.messaging.MessagingException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
@@ -22,7 +21,6 @@ import java.time.format.DateTimeFormatter;
  * 승인 요청 및 결과를 이메일로 전송합니다.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class SoarEmailService {
     

@@ -20,7 +20,6 @@ import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -38,7 +37,6 @@ import java.util.stream.Collectors;
  * - 위협 상관관계 분석
  */
 @Slf4j
-@Component
 public class SoarContextRetriever extends ContextRetriever {
 
     private final ContextRetrieverRegistry registry;

@@ -14,7 +14,6 @@ import java.util.Set;
  * Cleans up conflicting key types on startup
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "redis.cleanup.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisKeyCleanup {

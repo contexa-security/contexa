@@ -35,7 +35,6 @@ import java.util.Map;
  * @since 1.0
  */
 @Slf4j
-@Component
 public class SessionInvalidationHandler implements SecurityEventHandler {
 
     private final RedisTemplate<String, Object> redisTemplate;

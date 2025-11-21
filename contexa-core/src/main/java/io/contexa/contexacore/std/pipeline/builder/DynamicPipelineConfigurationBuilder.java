@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
  * - 커스텀 단계 삽입 (특정 위치에 동적 삽입)
  * - 단계 실행 순서 자동 정렬
  */
-@Component
 @Slf4j
 public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
 

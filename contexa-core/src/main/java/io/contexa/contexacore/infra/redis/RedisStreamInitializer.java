@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
  * 
  * 애플리케이션 시작 시 필요한 Redis Stream과 Consumer Group을 자동으로 생성합니다.
  */
-@Component
 public class RedisStreamInitializer implements CommandLineRunner {
     
     private static final Logger logger = LoggerFactory.getLogger(RedisStreamInitializer.class);

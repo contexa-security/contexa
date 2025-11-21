@@ -33,7 +33,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * 스트리밍 + 진단 동시 처리 지원
  */
 @Slf4j
-@Component
 public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, RiskAssessmentResponse> {
 
     private final PipelineOrchestrator orchestrator;

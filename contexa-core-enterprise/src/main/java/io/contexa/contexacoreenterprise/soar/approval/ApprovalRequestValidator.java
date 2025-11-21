@@ -5,7 +5,6 @@ import io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus;
 import io.contexa.contexacore.domain.ApprovalRequest.RiskLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -17,7 +16,6 @@ import java.util.*;
  * 비즈니스 규칙을 적용합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class ApprovalRequestValidator {
     

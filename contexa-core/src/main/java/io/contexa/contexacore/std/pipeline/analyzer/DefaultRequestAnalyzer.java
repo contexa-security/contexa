@@ -15,7 +15,6 @@ import java.util.Map;
  * AI 요청의 복잡도, 컨텍스트 검색 필요성, 응답 속도 요구사항 등을 분석합니다.
  * 분석 결과는 파이프라인 최적화에 사용됩니다.
  */
-@Component
 @Slf4j
 public class DefaultRequestAnalyzer implements RequestAnalyzer {
 

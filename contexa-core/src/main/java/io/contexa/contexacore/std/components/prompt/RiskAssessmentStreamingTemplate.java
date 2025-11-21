@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
  * 조건부 제거: AI 한 번만 실행하여 효율성 극대화
  * SecurityCopilot 방식: ###FINAL_RESPONSE### 마커로 구조화 데이터 전송
  */
-@Component
 @PromptTemplateConfig(
         key = "riskAssessmentStreaming",
         aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessmentStreaming"},

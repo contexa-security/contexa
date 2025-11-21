@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
  * 실시간 이상 탐지와 지속적 학습 동시 수행
  */
 @Slf4j
-@Component
 public class BehavioralAnalysisContextRetriever extends ContextRetriever {
 
     private final ContextRetrieverRegistry registry;

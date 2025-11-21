@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
  * 로컬 Ollama 서버와 통신하여 모델을 관리하고 제공합니다.
  */
 @Slf4j
-@Component
 public class OllamaModelProvider implements ModelProvider {
 
     @Autowired

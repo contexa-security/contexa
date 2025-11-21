@@ -18,7 +18,6 @@ import org.springframework.stereotype.Component;
  *
  * Spring AI 공식 패턴 준수
  */
-@Component
 @PromptTemplateConfig(
         key = "riskAssessment",
         aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessment"},

@@ -3,7 +3,6 @@ package io.contexa.contexacore.infra.redis;
 import io.contexa.contexacore.std.strategy.LabExecutionStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.List;
@@ -21,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 장애 복구 및 페일오버
  */
 @Slf4j
-@Service
 public class DistributedAIStrategyCoordinator {
     
     private final RedisTemplate<String, Object> redisTemplate;

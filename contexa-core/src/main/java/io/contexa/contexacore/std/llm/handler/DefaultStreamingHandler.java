@@ -23,7 +23,6 @@ import java.time.Duration;
  * - 3계층 시스템 최적화
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class DefaultStreamingHandler implements StreamingHandler {
 

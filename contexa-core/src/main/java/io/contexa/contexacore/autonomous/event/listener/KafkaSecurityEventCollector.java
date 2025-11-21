@@ -32,7 +32,6 @@ import static io.contexa.contexacore.autonomous.domain.SecurityEvent.EventType.P
  * Apache Kafka를 통해 실시간 보안 이벤트를 수집하고 처리합니다.
  * 다양한 보안 시스템(IDS, IPS, SIEM, Firewall 등)으로부터 이벤트를 수신합니다.
  */
-@Component
 @Slf4j
 public class KafkaSecurityEventCollector {
     

@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +17,6 @@ import java.util.regex.Pattern;
  * Generation 레벨 체크와 텍스트 파싱 폴백을 모두 지원합니다.
  */
 @Slf4j
-@Component
 public class ToolCallDetectionHelper {
     
     // 텍스트 파싱을 위한 패턴

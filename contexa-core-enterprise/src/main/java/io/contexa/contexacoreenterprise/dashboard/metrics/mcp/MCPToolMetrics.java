@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * 도구 실행 및 해결 메트릭을 수집합니다.
  * Micrometer를 사용하여 메트릭을 외부 모니터링 시스템으로 전송합니다.
  */
-@Component
 @Slf4j
 public class MCPToolMetrics implements DomainMetrics, EventRecorder {
     

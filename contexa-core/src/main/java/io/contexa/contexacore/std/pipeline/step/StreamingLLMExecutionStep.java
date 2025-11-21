@@ -18,7 +18,6 @@ import reactor.core.publisher.Mono;
  * LLMExecutionStep을 확장한 스트리밍 지원 버전
  */
 @Slf4j
-@Component
 @Qualifier("streamingLLMExecutionStep")
 public class StreamingLLMExecutionStep extends LLMExecutionStep {
 

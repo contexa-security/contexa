@@ -23,7 +23,6 @@ import reactor.core.publisher.Mono;
  * 도구 정보를 프롬프트에 통합합니다.
  */
 @Slf4j
-@Component
 public class PromptGenerationStep implements PipelineStep {
     
     private final PromptGenerator promptGenerator;

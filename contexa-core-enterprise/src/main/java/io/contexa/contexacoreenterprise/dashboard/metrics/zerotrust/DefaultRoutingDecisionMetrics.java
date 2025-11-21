@@ -6,7 +6,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +25,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 3.1.0
  */
 @Slf4j
-@Component
 public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics implements RoutingDecisionMetrics {
 
     // 라우팅 경로 카운터

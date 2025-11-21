@@ -28,7 +28,6 @@ import java.util.UUID;
  * 4. 다른 Advisor들이 사용할 수 있는 컨텍스트 제공
  */
 @Slf4j
-@Component
 public class SecurityContextAdvisor extends BaseAdvisor {
     
     private static final String DOMAIN_NAME = "SECURITY";

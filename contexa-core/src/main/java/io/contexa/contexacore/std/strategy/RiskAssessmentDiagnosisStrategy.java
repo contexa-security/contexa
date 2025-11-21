@@ -25,7 +25,6 @@ import reactor.core.publisher.Mono;
  * DiagnosisType.RISK_ASSESSMENT 처리
  */
 @Slf4j
-@Component("riskAssessmentDiagnosisStrategyRefactored")
 public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAssessmentContext, RiskAssessmentResponse> {
 
     @Autowired

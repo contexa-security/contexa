@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class PolicyEffectivenessMonitor {
     

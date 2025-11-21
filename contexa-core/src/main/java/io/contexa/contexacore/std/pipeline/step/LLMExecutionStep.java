@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -26,9 +25,7 @@ import reactor.core.publisher.Mono;
  * - 테스트 시 Mock LLMClient를 주입하여 이 클래스의 로직만 독립적으로 테스트할 수 있습니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@Qualifier("llmExecutionStep")
 public class LLMExecutionStep implements PipelineStep {
 
     private final LLMClient llmClient;

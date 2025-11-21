@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
  * 
  * @since 1.0.0
  */
-@Component("anomalyScoreRanker")
 public class AnomalyScoreRanker implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.anomaly.vector-weight:0.4}")

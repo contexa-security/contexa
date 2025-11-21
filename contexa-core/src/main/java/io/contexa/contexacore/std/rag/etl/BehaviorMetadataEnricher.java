@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
  * 
  * @since 1.0.0
  */
-@Component("behaviorMetadataEnricher")
 public class BehaviorMetadataEnricher implements DocumentTransformer {
     
     @Value("${spring.ai.enricher.behavior.enrich-time-features:true}")

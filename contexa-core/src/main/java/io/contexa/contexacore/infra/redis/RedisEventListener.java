@@ -19,7 +19,6 @@ import java.util.Map;
  * 분산 환경에서 다른 서버의 이벤트 수신
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class RedisEventListener implements MessageListener {
 

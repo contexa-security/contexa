@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -26,7 +25,6 @@ import java.util.stream.Collectors;
  * 다중 채널(WebSocket, Email, SSE)을 통한 승인 알림을 처리합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     

@@ -16,9 +16,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -35,8 +33,6 @@ import java.util.*;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Service
 @RequiredArgsConstructor
 public class PolicyEvolutionEngine {
 

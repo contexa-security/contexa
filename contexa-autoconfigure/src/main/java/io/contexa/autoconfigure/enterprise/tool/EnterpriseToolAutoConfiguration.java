@@ -1,14 +1,14 @@
 package io.contexa.autoconfigure.enterprise.tool;
 
-import io.contexa.autoconfigure.properties.ContextaProperties;
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacoreenterprise.config.EnterpriseBeanConfiguration;
 import io.contexa.contexacoreenterprise.config.ToolCallingConfiguration;
+import io.contexa.contexacoreenterprise.mcp.config.McpIntegrationConfiguration;
 import io.contexa.contexacoreenterprise.mcp.config.StandardMcpClientConfiguration;
 import io.contexa.contexacoreenterprise.mcp.config.ToolConfiguration;
 import io.contexa.contexacoreenterprise.mcp.tool.execution.config.ToolExecutionConfiguration;
 import io.contexa.contexacoreenterprise.soar.config.SoarToolConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
@@ -19,9 +19,10 @@ import org.springframework.context.annotation.Import;
  * Contexa Enterprise 모듈의 Tool Calling 자동 구성을 제공합니다.
  * Import 방식으로 기존 Configuration 클래스들을 재사용합니다.
  *
- * 포함된 Configuration (6개):
+ * 포함된 Configuration (7개):
  * - EnterpriseBeanConfiguration - Enterprise Bean Export
  * - ToolCallingConfiguration - Spring AI Tool Calling 시스템
+ * - McpIntegrationConfiguration - MCP 통합 컴포넌트
  * - StandardMcpClientConfiguration - Standard MCP Client
  * - ToolConfiguration - Tool 설정
  * - ToolExecutionConfiguration - Tool 실행 설정
@@ -39,13 +40,13 @@ import org.springframework.context.annotation.Import;
     prefix = "contexa.enterprise",
     name = "enabled",
     havingValue = "true",
-    matchIfMissing = false
+    matchIfMissing = true
 )
-@EnableConfigurationProperties(ContextaProperties.class)
-@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.config.ToolCallingConfiguration")
+@EnableConfigurationProperties(ContexaProperties.class)
 @Import({
     EnterpriseBeanConfiguration.class,
     ToolCallingConfiguration.class,
+    McpIntegrationConfiguration.class,
     StandardMcpClientConfiguration.class,
     ToolConfiguration.class,
     ToolExecutionConfiguration.class,

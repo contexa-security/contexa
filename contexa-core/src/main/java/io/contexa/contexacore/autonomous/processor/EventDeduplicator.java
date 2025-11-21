@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author contexa
  */
 @Slf4j
-@Component
 public class EventDeduplicator implements EventProcessor<SecurityEvent> {
     
     @Value("${security.deduplication.window-minutes:5}")

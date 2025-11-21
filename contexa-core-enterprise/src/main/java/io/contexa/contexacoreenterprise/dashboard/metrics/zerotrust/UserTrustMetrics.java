@@ -5,7 +5,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @since 3.0.0
  */
 @Slf4j
-@Component
 public class UserTrustMetrics extends AbstractMicrometerMetrics {
 
     // ===== 사용자 신뢰도 추적 =====

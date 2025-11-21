@@ -37,7 +37,6 @@ import static io.contexa.contexacore.autonomous.event.domain.ThreatDetectionEven
  * - HttpRequestEvent: HTTP 요청 (NEW)
  */
 @Slf4j
-@Component
 public class ZeroTrustEventListener {
 
     private final KafkaSecurityEventPublisher kafkaSecurityEventPublisher;

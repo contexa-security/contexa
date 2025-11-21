@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
  * - 객체지향 Strategy 패턴 준수
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
 

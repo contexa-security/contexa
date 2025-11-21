@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
  * @since 3.0.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class UnifiedEventPublishingDecisionEngine {
 

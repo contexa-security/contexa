@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
  * - 체인 프로파일 기반 구성
  */
 @Slf4j
-@Component
 public class AdvisorRegistry {
     
     /**

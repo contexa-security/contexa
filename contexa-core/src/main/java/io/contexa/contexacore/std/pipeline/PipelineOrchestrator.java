@@ -13,7 +13,6 @@ import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -38,7 +37,6 @@ import java.util.Map;
  * 2. 범용 Universal Executor
  */
 @Slf4j
-@Component
 public class PipelineOrchestrator {
 
     private final List<PipelineExecutor> executors;

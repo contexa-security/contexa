@@ -1,4 +1,4 @@
-package io.contexa.contexamcp.oauth2server;/*
+/*
 package io.contexa.contexamcp.oauth2server;
 
 import org.springframework.context.annotation.Bean;

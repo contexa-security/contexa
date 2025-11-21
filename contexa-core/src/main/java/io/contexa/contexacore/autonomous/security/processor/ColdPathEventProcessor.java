@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 2.0
  */
 @Slf4j
-@Component("coldPathEventProcessorRefactored")
 @RequiredArgsConstructor
 public class ColdPathEventProcessor implements IPathProcessor {
     

@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
  * @author contexa
  */
 @Slf4j
-@Component
 public class EventNormalizer implements EventProcessor<SecurityEvent> {
     
     /**

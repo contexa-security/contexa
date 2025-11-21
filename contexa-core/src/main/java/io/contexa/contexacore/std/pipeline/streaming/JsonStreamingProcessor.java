@@ -18,7 +18,6 @@ import java.util.concurrent.atomic.AtomicReference;
  * - 더 이상 AI 모델 호출에 관여하지 않으며, 순수한 스트림 변환(transform) 역할만 수행합니다.
  */
 @Slf4j
-@Component
 public class JsonStreamingProcessor {
 
     /**

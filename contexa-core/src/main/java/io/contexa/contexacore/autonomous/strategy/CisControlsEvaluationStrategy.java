@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
  * CIS Critical Security Controls (Version 8)의 18개 컨트롤을 기반으로
  * 보안 이벤트를 평가하고 우선순위가 지정된 대응 방안을 제시합니다.
  */
-@Component
 public class CisControlsEvaluationStrategy implements ThreatEvaluationStrategy {
     
     private static final Logger logger = LoggerFactory.getLogger(CisControlsEvaluationStrategy.class);

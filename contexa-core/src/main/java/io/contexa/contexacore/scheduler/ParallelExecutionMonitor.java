@@ -3,11 +3,9 @@ package io.contexa.contexacore.scheduler;
 // ParallelExecutionMonitor.java - 병렬 실행 모니터링
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
 @Slf4j
 public class ParallelExecutionMonitor {
 

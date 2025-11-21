@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
  * - 비정상 접근 패턴 탐지 (DB + ML)
  */
 @Slf4j
-@Component
 public class RiskAssessmentContextRetriever extends ContextRetriever {
 
     private final VectorStore vectorStore;

@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
  * - Post-Retrieval 문서 처리
  * - 다양한 검색 전략 지원
  */
-@Component
 public class ContextRetriever {
 
     protected final VectorStore vectorStore;

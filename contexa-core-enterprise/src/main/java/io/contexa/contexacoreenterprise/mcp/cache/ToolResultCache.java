@@ -19,7 +19,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * 도구 실행 결과를 캐싱합니다.
  * Redis를 사용하며, 로컬 캐시도 함께 관리합니다.
  */
-@Component
 @Slf4j
 @RequiredArgsConstructor
 public class ToolResultCache {

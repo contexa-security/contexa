@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
  * 
  * @since 1.0.0
  */
-@Component("threatCorrelator")
 public class ThreatCorrelator implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.threat.correlation-threshold:0.6}")

@@ -9,8 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -28,8 +26,6 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Service
 @RequiredArgsConstructor
 public class PolicyApprovalService {
 

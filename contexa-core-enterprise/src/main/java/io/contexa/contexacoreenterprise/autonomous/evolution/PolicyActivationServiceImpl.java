@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -32,9 +31,6 @@ import java.util.stream.Collectors;
  * @author contexa
  * @since 1.0.0
  */
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Service
 public class PolicyActivationServiceImpl implements PolicyActivationService {
 
     private static final Logger logger = LoggerFactory.getLogger(PolicyActivationServiceImpl.class);

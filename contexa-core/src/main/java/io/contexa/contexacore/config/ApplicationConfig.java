@@ -23,7 +23,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 애플리케이션 전체 설정
  */
 @Slf4j
-@EnableConfigurationProperties({TieredLLMProperties.class, ModelProviderProperties.class})
+@EnableConfigurationProperties({TieredLLMProperties.class, ModelProviderProperties.class, SecurityMappingProperties.class})
 @Configuration
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
 @EnableScheduling

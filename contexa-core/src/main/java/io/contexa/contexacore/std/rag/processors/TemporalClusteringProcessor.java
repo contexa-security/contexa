@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
  * 
  * @since 1.0.0
  */
-@Component("temporalClusteringProcessor")
 public class TemporalClusteringProcessor implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.clustering.max-docs-per-cluster:5}")

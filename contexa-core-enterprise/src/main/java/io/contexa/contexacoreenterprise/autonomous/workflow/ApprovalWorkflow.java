@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -25,7 +24,6 @@ import java.util.concurrent.TimeoutException;
  * 고위험 도구 실행에 대한 승인 워크플로우를 관리합니다.
  * Redis를 사용하여 승인 요청을 저장하고 처리합니다.
  */
-@Component
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalWorkflow {

@@ -22,7 +22,6 @@ import reactor.core.publisher.Mono;
  * - 검색 결과를 다음 단계로 전달
  */
 @Slf4j
-@Component
 public class ContextRetrievalStep implements PipelineStep {
 
     private final ContextRetrieverRegistry contextRetrieverRegistry;

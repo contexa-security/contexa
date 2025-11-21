@@ -8,7 +8,6 @@ import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import java.util.*;
@@ -31,7 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * 이 Provider가 MCP-SOAR 완벽 연동의 핵심 구현체입니다.
  */
 @Slf4j
-@Component("unifiedToolCallbackProvider")
 public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
     
     @Autowired(required = false)

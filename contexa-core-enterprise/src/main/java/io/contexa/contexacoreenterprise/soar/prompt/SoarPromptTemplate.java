@@ -9,7 +9,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 
@@ -26,7 +25,6 @@ import java.util.*;
  * @since 3.0.0
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
     key = "soarAnalysis",
     aliases = {"soar_analysis", "security_analysis"},

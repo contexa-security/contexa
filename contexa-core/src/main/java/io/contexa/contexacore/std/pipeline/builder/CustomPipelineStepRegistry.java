@@ -19,7 +19,6 @@ import java.util.Map;
  * - 신뢰도 점수 계산 단계 등록
  * - 도메인별 특화 처리 단계 등록
  */
-@Component
 @Slf4j
 public class CustomPipelineStepRegistry {
 

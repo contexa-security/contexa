@@ -16,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -32,7 +31,6 @@ import java.util.*;
  * @since 1.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class AwaitApprovalStrategy implements ProcessingStrategy {
 

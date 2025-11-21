@@ -1,8 +1,7 @@
 package io.contexa.autoconfigure.core.hcad;
 
-import io.contexa.autoconfigure.properties.ContextaProperties;
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.metrics.HCADFeedbackMetrics;
-import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
 import io.contexa.contexacore.hcad.engine.ZeroTrustDecisionEngine;
@@ -17,17 +16,14 @@ import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.rag.processors.AnomalyScoreRanker;
 import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Core HCAD AutoConfiguration
@@ -58,8 +54,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContextaProperties.class)
-@ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADAnalysisService")
+@EnableConfigurationProperties(ContexaProperties.class)
 public class CoreHCADAutoConfiguration {
 
     public CoreHCADAutoConfiguration() {
@@ -73,7 +68,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.EmbeddingService")
     public EmbeddingService embeddingService(
             RedisTemplate<String, Object> redisTemplate) {
         return new EmbeddingService(redisTemplate);
@@ -84,7 +78,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADContextExtractor")
     public HCADContextExtractor hcadContextExtractor(
             RedisTemplate<String, Object> redisTemplate) {
         return new HCADContextExtractor(redisTemplate);
@@ -95,7 +88,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.DynamicTrustCalculator")
     public DynamicTrustCalculator dynamicTrustCalculator(
             RedisTemplate<String, Object> redisTemplate) {
         return new DynamicTrustCalculator(redisTemplate);
@@ -106,7 +98,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.TimeSeriesCorrelationAnalyzer")
     public TimeSeriesCorrelationAnalyzer timeSeriesCorrelationAnalyzer(
             @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
         return new TimeSeriesCorrelationAnalyzer(redisTemplate);
@@ -117,7 +108,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADAuthenticationService")
     public HCADAuthenticationService hcadAuthenticationService() {
         return new HCADAuthenticationService();
     }
@@ -127,7 +117,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADBaselineLearningService")
     public HCADBaselineLearningService hcadBaselineLearningService(
             RedisTemplate<String, Object> redisTemplate) {
         return new HCADBaselineLearningService(redisTemplate);
@@ -138,7 +127,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.TrustProfileService")
     public TrustProfileService trustProfileService(
             RedisTemplate<String, Object> redisTemplate) {
         return new TrustProfileService(redisTemplate);
@@ -149,7 +137,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADSessionThreatService")
     public HCADSessionThreatService hcadSessionThreatService(
             RedisTemplate<String, Object> redisTemplate) {
         return new HCADSessionThreatService(redisTemplate);
@@ -162,7 +149,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.FewShotAnomalyDetector")
     public FewShotAnomalyDetector fewShotAnomalyDetector(
             UnifiedVectorService unifiedVectorService) {
         return new FewShotAnomalyDetector(unifiedVectorService);
@@ -173,7 +159,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.ThreatCorrelationService")
     public ThreatCorrelationService threatCorrelationService(
             TimeSeriesCorrelationAnalyzer timeSeriesCorrelationAnalyzer) {
         return new ThreatCorrelationService(timeSeriesCorrelationAnalyzer);
@@ -184,7 +169,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.ZeroTrustThresholdManager")
     public ZeroTrustThresholdManager zeroTrustThresholdManager(
             TrustProfileService trustProfileService,
             @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
@@ -198,7 +182,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADVectorIntegrationService")
     public HCADVectorIntegrationService hcadVectorIntegrationService(
             BehaviorVectorService behaviorVectorService,
             UnifiedVectorService unifiedVectorService,
@@ -217,7 +200,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager")
     public AdaptiveThresholdManager adaptiveThresholdManager() {
         return new AdaptiveThresholdManager();
     }
@@ -229,7 +211,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADBaselineCacheService")
     public HCADBaselineCacheService hcadBaselineCacheService(
             RedisTemplate<String, Object> redisTemplate,
             HCADVectorIntegrationService hcadVectorIntegrationService) {
@@ -241,7 +222,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.feedback.FeedbackLoopSystem")
     public FeedbackLoopSystem feedbackLoopSystem() {
         return new FeedbackLoopSystem();
     }
@@ -253,7 +233,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADSimilarityCalculator")
     public HCADSimilarityCalculator hcadSimilarityCalculator(
             @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
             UnifiedVectorService unifiedVectorService,
@@ -275,7 +254,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.threshold.UnifiedThresholdManager")
     public UnifiedThresholdManager unifiedThresholdManager(
             AdaptiveThresholdManager adaptiveThresholdManager,
             RedisTemplate<String, Object> redisTemplate) {
@@ -287,7 +265,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.engine.ZeroTrustDecisionEngine")
     public ZeroTrustDecisionEngine zeroTrustDecisionEngine(
             TrustProfileService trustProfileService,
             ThreatCorrelationService threatCorrelationService,
@@ -304,7 +281,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.service.HCADAnalysisService")
     public HCADAnalysisService hcadAnalysisService(
             HCADContextExtractor hcadContextExtractor,
             HCADBaselineCacheService hcadBaselineCacheService,
@@ -322,7 +298,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator")
     public HCADFeedbackOrchestrator hcadFeedbackOrchestrator(
             HCADVectorIntegrationService hcadVectorIntegrationService,
             @Autowired(required = false) FeedbackLoopSystem feedbackLoopSystem,
@@ -342,7 +317,6 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.hcad.filter.HCADFilter")
     public HCADFilter hcadFilter(
             HCADAnalysisService hcadAnalysisService,
             @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,

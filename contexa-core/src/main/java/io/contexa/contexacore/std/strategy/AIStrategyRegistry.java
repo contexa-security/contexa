@@ -6,7 +6,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -24,7 +23,6 @@ import java.util.Map;
  * 마이그레이션 기간 동안 기존 DiagnosisStrategyRegistry와 공존
  */
 @Slf4j
-@Component("aiStrategyRegistry")
 public class AIStrategyRegistry {
 
     private final Map<DiagnosisType, AIStrategy<?, ?>> strategies = new HashMap<>();

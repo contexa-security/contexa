@@ -9,8 +9,6 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,9 +27,7 @@ import java.util.stream.Collectors;
  * - 도메인별 프롬프트 분류 및 검색
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class McpPromptIntegrator {
     
     private final McpSyncClient braveSearchMcpClient;

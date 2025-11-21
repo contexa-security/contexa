@@ -2,8 +2,6 @@ package io.contexa.contexacoreenterprise.autonomous.notification;
 
 import io.contexa.contexacore.autonomous.notification.NotificationService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
@@ -17,8 +15,6 @@ import java.util.Map;
  * @since 3.1.0
  */
 @Slf4j
-@Service
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 public class DefaultNotificationService implements NotificationService {
 
     @Override

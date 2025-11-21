@@ -15,7 +15,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @Data
 @ConfigurationProperties(prefix = "contexa.enterprise")
-public class ContextaEnterpriseProperties {
+public class ContexaEnterpriseProperties {
 
     /**
      * Enterprise 기능 전체 활성화 여부 (기본값: false)

@@ -13,7 +13,6 @@ import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -28,7 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 폴링 없이 실시간으로 승인 요청과 응답을 처리합니다.
  */
 @Slf4j
-@Controller
 public class WebSocketApprovalHandler {
     
     private final ObjectMapper objectMapper;

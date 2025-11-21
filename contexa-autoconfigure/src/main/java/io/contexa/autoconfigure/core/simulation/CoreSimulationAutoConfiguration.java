@@ -1,7 +1,7 @@
 package io.contexa.autoconfigure.core.simulation;
 
 import io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration;
-import io.contexa.autoconfigure.properties.ContextaProperties;
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.infra.SimulationDataInitializer;
 import io.contexa.contexacore.repository.ApprovalNotificationRepository;
 import io.contexa.contexacore.repository.AttackResultRepository;
@@ -19,7 +19,6 @@ import io.contexa.contexacore.simulation.tracker.DataBreachTracker;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -57,10 +56,9 @@ import org.springframework.kafka.core.KafkaTemplate;
     prefix = "contexa.simulation",
     name = "enabled",
     havingValue = "true",
-    matchIfMissing = false
+    matchIfMissing = true
 )
-@EnableConfigurationProperties(ContextaProperties.class)
-@ConditionalOnClass(name = "io.contexa.contexacore.simulation.config.SimulationConfiguration")
+@EnableConfigurationProperties(ContexaProperties.class)
 @Import({
     SimulationConfiguration.class,
     SimulationWebSocketConfig.class
@@ -76,7 +74,6 @@ public class CoreSimulationAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.simulation.service.SimulationStatisticsService")
     public SimulationStatisticsService simulationStatisticsService(
             RedisTemplate<String, Object> redisTemplate,
             StringRedisTemplate stringRedisTemplate) {
@@ -88,7 +85,6 @@ public class CoreSimulationAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.simulation.service.DualModeSimulationService")
     public DualModeSimulationService dualModeSimulationService(
             AttackStrategyFactory strategyFactory,
             AttackScenarioGenerator scenarioGenerator,
@@ -105,7 +101,6 @@ public class CoreSimulationAutoConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "contexa.simulation.data", name = "enabled", havingValue = "true")
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.infra.SimulationDataInitializer")
     public SimulationDataInitializer simulationDataInitializer(
             SecurityIncidentRepository securityIncidentRepository,
             ThreatIndicatorRepository threatIndicatorRepository,

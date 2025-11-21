@@ -23,7 +23,7 @@ import java.util.Map;
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class StandardMcpClientConfiguration {
 
     @Value("${spring.ai.mcp.client.request-timeout:30}")
@@ -57,8 +57,9 @@ public class StandardMcpClientConfiguration {
 
 
         } catch (Exception e) {
-            log.error("Brave Search MCP 클라이언트 생성 실패", e);
-            throw new RuntimeException("Brave Search MCP 클라이언트 초기화 실패", e);
+            log.warn("Brave Search MCP 클라이언트 생성 실패: {}", e.getMessage());
+            // 클라이언트 생성 실패시에도 null 대신 기본 구현체 반환
+            return createFallbackMcpClient();
         }
     }
 

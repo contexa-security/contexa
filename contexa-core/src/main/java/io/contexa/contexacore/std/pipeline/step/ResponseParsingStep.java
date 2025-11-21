@@ -30,7 +30,6 @@ import java.util.Map;
  * Spring AI 공식 표준을 완벽하게 준수하는 구현
  */
 @Slf4j
-@Component
 public class ResponseParsingStep implements PipelineStep {
     
     private final ObjectMapper objectMapper = new ObjectMapper();

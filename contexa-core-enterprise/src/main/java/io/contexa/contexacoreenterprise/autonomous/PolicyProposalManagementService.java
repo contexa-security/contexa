@@ -9,8 +9,6 @@ import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Service;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -25,8 +23,6 @@ import java.util.concurrent.CompletableFuture;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Service
 @RequiredArgsConstructor
 public class PolicyProposalManagementService {
     

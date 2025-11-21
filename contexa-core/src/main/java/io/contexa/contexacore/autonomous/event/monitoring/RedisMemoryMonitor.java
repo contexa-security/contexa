@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * - 메트릭 수집 및 알림
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class RedisMemoryMonitor {
 

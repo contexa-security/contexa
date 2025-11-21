@@ -27,7 +27,6 @@ import java.util.Map;
  * - Anonymous
  */
 @Slf4j
-@Service
 public class UserIdentificationService {
     
     private static final String USERNAME_PARAM = "username";

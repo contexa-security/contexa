@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
  * 설정 파일(TieredLLMProperties)을 기반으로 ExecutionContext를 생성
  * 하드코딩 제거 및 설정 기반 동작
  */
-@Component
 @RequiredArgsConstructor
 public class ExecutionContextFactory {
 

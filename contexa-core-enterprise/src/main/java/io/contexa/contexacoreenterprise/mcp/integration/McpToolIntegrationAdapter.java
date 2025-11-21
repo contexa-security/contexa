@@ -4,8 +4,6 @@ import io.contexa.contexacommon.annotation.SoarTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -18,8 +16,6 @@ import java.util.Set;
  * 이를 통해 순환 의존성 없이 MCP 도구를 통합할 수 있습니다.
  */
 @Slf4j
-@Component("mcpToolIntegrationAdapter")
-@ConditionalOnBean(McpFunctionCallbackProvider.class)
 @RequiredArgsConstructor
 public class McpToolIntegrationAdapter implements ToolIntegrationProvider {
     

@@ -31,7 +31,6 @@ import java.util.Random;
  * @since 3.0.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class AdaptiveSamplingEngine {
 

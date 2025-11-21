@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 @Repository
 public class SynthesisPolicyRepository {
     

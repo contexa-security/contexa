@@ -5,7 +5,6 @@ import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -24,7 +23,6 @@ import java.util.concurrent.ConcurrentMap;
  * - 보안 이벤트 추적
  * - 규정 준수 지원
  */
-@Component
 public class AuditLogger {
     
     private static final Logger log = LoggerFactory.getLogger(AuditLogger.class);

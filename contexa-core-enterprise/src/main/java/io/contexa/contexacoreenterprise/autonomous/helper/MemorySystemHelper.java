@@ -9,10 +9,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -40,8 +38,6 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Component
 @RequiredArgsConstructor
 public class MemorySystemHelper implements MemorySystem {
 

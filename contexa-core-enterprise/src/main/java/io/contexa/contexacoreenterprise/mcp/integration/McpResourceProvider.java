@@ -4,8 +4,6 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,9 +26,7 @@ import java.util.stream.Collectors;
  * - 시스템 구성 정보 제공
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class McpResourceProvider {
     
     private final McpSyncClient braveSearchMcpClient;

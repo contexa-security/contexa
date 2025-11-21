@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
  * - 종합 위협 수준 도출
  */
 @Slf4j
-@Component
 public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     
     @Autowired(required = false)

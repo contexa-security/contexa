@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -36,7 +35,6 @@ import java.util.stream.Collectors;
  * @since 1.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AsyncResultDeliveryService {
     

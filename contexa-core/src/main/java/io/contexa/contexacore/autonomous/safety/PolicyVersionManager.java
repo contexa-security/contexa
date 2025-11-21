@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author contexa
  * @since 1.0.0
  */
-@Component
 public class PolicyVersionManager {
     
     private static final Logger logger = LoggerFactory.getLogger(PolicyVersionManager.class);

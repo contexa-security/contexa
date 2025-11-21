@@ -6,7 +6,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 /**
  * 누적 위험 계산기 (7-Signal 기반)
@@ -28,7 +27,6 @@ import org.springframework.stereotype.Service;
  * @since 3.0
  */
 @Slf4j
-@Service
 public class AccumulatedRiskCalculator {
 
     // ===== 신호별 가중치 (application.yml에서 주입) =====

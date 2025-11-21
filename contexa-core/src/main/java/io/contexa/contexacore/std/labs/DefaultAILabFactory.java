@@ -16,7 +16,6 @@ import java.util.Optional;
  * 마이그레이션 기간 동안 기존 시스템과의 호환성 유지
  */
 @Slf4j
-@Component
 public class DefaultAILabFactory implements AILabFactory {
 
     private final ApplicationContext applicationContext;

@@ -16,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 글로벌 컨텍스트 관리
  */
 @Slf4j
-@Component
 public class SharedAdvisorContext {
     
     /**

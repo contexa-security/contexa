@@ -37,7 +37,6 @@ import java.util.concurrent.TimeUnit;
  * Order: HIGHEST_PRECEDENCE + 2.5
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @Order(Ordered.HIGHEST_PRECEDENCE + 2) // HCADFilter와 SecurityEventPublishingFilter 사이
 public class AIFeedbackBlockingFilter extends OncePerRequestFilter {

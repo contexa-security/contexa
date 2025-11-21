@@ -35,7 +35,6 @@ import java.util.Map;
  * eventRedisTemplate을 사용하여 타입 정보 없이 깔끔한 JSON으로 직렬화합니다.
  */
 @Slf4j
-@Component
 public class RedisSecurityEventPublisher implements SecurityEventPublisher {
 
     private final RedisTemplate<String, Object> redisTemplate;

@@ -4,7 +4,6 @@ import io.modelcontextprotocol.client.McpSyncClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,7 +15,6 @@ import java.util.Optional;
  * 
  * StandardMcpClientConfiguration에서 생성된 MCP 클라이언트들을 관리합니다.
  */
-@Component
 @Primary
 @Slf4j
 public class McpClientProviderImpl implements McpClientProvider {

@@ -31,7 +31,6 @@ import java.util.UUID;
  * 발행된 이벤트는 ZeroTrustAuthenticationEventListener가 수신하여
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class AuthorizationEventPublisher {
     

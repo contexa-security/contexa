@@ -27,7 +27,6 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.model.tool.ToolExecutionResult;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -40,7 +39,6 @@ import java.util.*;
  * LLMExecutionStep을 확장하여 SOAR 도구 실행 기능을 6단계 파이프라인에 통합합니다.
  * AI 진단 프로세스 내에서 도구 호출과 Human-in-the-Loop 승인을 처리합니다.
  */
-@Component
 @Qualifier("pipelineSoarToolExecutionStep")
 @Slf4j
 public class PipelineSoarToolExecutionStep extends LLMExecutionStep {

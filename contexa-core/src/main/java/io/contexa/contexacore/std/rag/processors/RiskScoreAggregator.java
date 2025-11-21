@@ -17,7 +17,6 @@ import java.util.stream.Collectors;
  * 
  * @since 1.0.0
  */
-@Component("riskScoreAggregator")
 public class RiskScoreAggregator implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.risk.aggregation.method:WEIGHTED_AVERAGE}")

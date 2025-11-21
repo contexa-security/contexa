@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author AI-Native IAM System
  * @since 2024-01-20
  */
-@Component
 public class PromptGenerator {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PromptGenerator.class);
 

@@ -6,7 +6,6 @@ import io.contexa.contexacore.domain.ApprovalRequest.ApprovalType;
 import io.contexa.contexacore.domain.ApprovalRequest.RiskLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -18,7 +17,6 @@ import java.util.*;
  * 일관성을 보장하고 필수 필드가 누락되지 않도록 합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class ApprovalRequestFactory {
     

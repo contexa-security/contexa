@@ -39,7 +39,8 @@ public class PlatformSecurityConfig {
                                     "/api/ott/generate",
                                     "/webauthn/register/options", "/webauthn/register","/login/mfa-webauthn",
                                     "/webauthn/authenticate/options", "/login/webauthn",
-                                    "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/config"
+                                    "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/config",
+                                    "/sse"
                             ).permitAll()
                             .requestMatchers("/users", "/api/users").hasRole("USER")
                             .requestMatchers("/admin", "/api/admin/**").hasRole("ADMIN")

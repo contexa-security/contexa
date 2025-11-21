@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -21,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
  * 실제 데이터베이스 저장 및 알림 전송을 담당합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class ApprovalEventListener {
     

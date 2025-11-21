@@ -6,7 +6,6 @@ import io.contexa.contexacore.autonomous.event.sampling.AdaptiveSamplingEngine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +35,6 @@ import java.util.concurrent.ThreadLocalRandom;
  * @since 3.0
  */
 @Slf4j
-@Service
 public class AntiEvasionSamplingEngine {
 
     @Autowired

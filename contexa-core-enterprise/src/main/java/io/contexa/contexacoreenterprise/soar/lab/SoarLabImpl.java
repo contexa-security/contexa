@@ -9,7 +9,6 @@ import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -21,7 +20,6 @@ import reactor.core.publisher.Mono;
  * AbstractAILab을 상속하여 Template Method Pattern과 Pipeline Pattern을 결합
  */
 @Slf4j
-@Component
 public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
     private final PipelineOrchestrator orchestrator;

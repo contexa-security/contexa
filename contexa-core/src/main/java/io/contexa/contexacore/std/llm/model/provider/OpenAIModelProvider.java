@@ -30,7 +30,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * OpenAI API를 통해 GPT 모델들을 관리하고 제공합니다.
  */
 @Slf4j
-@Component
 public class OpenAIModelProvider implements ModelProvider {
 
     @Value("${spring.ai.openai.api-key:}")

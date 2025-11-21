@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * Redis Pub/Sub과 Streams를 사용하여 실시간 보안 이벤트를 수집하고 처리합니다.
  * 분산 환경에서 이벤트 동기화와 캐싱을 제공합니다.
  */
-@Component
 public class RedisSecurityEventCollector {
     
     private static final Logger logger = LoggerFactory.getLogger(RedisSecurityEventCollector.class);

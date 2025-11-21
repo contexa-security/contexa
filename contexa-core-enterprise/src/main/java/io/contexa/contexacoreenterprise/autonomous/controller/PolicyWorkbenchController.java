@@ -19,7 +19,6 @@ import io.contexa.contexacore.autonomous.domain.DeactivationRequestDTO;
 import io.contexa.contexacore.autonomous.domain.PolicyOperationResultDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -43,7 +42,6 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
 @RestController
 @RequestMapping("/api/policies")
 @RequiredArgsConstructor

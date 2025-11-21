@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.Duration;
@@ -28,7 +27,6 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 @ConditionalOnBean(PolicyProposalRepository.class)
 public class PolicyUsageMetricsService {

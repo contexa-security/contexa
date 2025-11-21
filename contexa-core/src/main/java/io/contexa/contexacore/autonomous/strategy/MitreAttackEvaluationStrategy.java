@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
  * MITRE ATT&CK 프레임워크의 Tactics, Techniques, Procedures (TTPs)를 기반으로
  * 보안 이벤트를 평가하고 위협 수준을 결정합니다.
  */
-@Component
 public class MitreAttackEvaluationStrategy implements ThreatEvaluationStrategy {
     
     private static final Logger logger = LoggerFactory.getLogger(MitreAttackEvaluationStrategy.class);

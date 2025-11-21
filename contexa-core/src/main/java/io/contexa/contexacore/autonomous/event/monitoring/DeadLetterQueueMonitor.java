@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * - 자동 복구 메커니즘
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class DeadLetterQueueMonitor {
 

@@ -6,7 +6,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -24,7 +23,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 3.1.0
  */
 @Slf4j
-@Component
 public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
 
     private final Map<String, ToolMetrics> toolMetricsMap = new ConcurrentHashMap<>();

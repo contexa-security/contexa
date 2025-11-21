@@ -12,8 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -36,8 +34,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 1.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Service
 @RequiredArgsConstructor
 public class UnifiedNotificationService {
     

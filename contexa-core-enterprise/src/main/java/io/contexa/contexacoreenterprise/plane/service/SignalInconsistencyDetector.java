@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -39,7 +38,6 @@ import java.util.stream.Collectors;
  * @since 3.0
  */
 @Slf4j
-@Service
 public class SignalInconsistencyDetector {
 
     @Autowired

@@ -13,7 +13,6 @@ import java.util.List;
  * SOAR 승인 정책을 조회하는 서비스.
  * 데이터베이스에서 정책을 조회하고, 결과를 캐싱하여 성능을 최적화한다.
  */
-@Component
 public class ApprovalPolicyRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(ApprovalPolicyRepository.class);

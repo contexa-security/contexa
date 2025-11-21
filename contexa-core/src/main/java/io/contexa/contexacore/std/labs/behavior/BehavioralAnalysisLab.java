@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
  * 관리자 피드백을 통한 자가 학습
  */
 @Slf4j
-@Component
 public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisRequest, BehavioralAnalysisResponse> {
 
     private final PipelineOrchestrator orchestrator;

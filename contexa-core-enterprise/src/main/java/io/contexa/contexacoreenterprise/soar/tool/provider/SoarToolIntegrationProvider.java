@@ -9,7 +9,6 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotatedElementUtils;
-import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import java.lang.reflect.Method;
@@ -33,7 +32,6 @@ import java.util.stream.Collectors;
  * SOAR 도구들을 중앙에서 관리할 수 있게 합니다.
  */
 @Slf4j
-@Component("soarToolCallbackProvider")
 @RequiredArgsConstructor
 public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
     

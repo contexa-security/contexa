@@ -10,8 +10,6 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -33,8 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Component
 public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyEvolutionRequest, PolicyEvolutionLab.PolicyEvolutionResponse> {
 
     private final ChatModel chatModel;

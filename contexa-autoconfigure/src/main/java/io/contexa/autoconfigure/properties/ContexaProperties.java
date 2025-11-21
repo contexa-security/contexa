@@ -15,7 +15,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @Data
 @ConfigurationProperties(prefix = "contexa")
-public class ContextaProperties {
+public class ContexaProperties {
 
     /**
      * Contexa 기능 전체 활성화 여부

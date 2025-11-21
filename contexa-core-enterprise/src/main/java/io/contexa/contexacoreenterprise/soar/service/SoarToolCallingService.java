@@ -20,7 +20,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -36,7 +35,6 @@ import java.util.*;
  * - 고위험 도구에 대한 승인 프로세스
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class SoarToolCallingService {
     

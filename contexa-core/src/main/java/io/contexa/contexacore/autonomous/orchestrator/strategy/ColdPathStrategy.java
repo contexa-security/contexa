@@ -26,7 +26,6 @@ import java.util.concurrent.CompletableFuture;
  * @since 1.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class ColdPathStrategy implements ProcessingStrategy {
 

@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
  * XAI(설명 가능한 AI)를 위한 증거 수집 및 추적
  */
 @Slf4j
-@Component
 public class RiskContextEnricher {
 
     private final RedisTemplate<String, Object> redisTemplate;

@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -18,7 +17,6 @@ import java.util.Map;
  * eventRedisTemplate을 사용하여 타입 정보 없이 깔끔한 JSON으로 직렬화합니다.
  */
 @Slf4j
-@Service
 public class RedisEventPublisher {
 
     private final RedisTemplate<String, Object> redisTemplate;

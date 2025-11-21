@@ -3,6 +3,7 @@
 
 # Core Infrastructure
 io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration
+io.contexa.autoconfigure.core.infra.CoreInfrastructureExtendedAutoConfiguration
 
 # Core LLM
 io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
@@ -13,11 +14,28 @@ io.contexa.autoconfigure.enterprise.tool.EnterpriseToolAutoConfiguration
 # Core RAG
 io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration
 
+# Core Std Components
+io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration
+
 # Core HCAD
 io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration
 
 # Core Autonomous
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration
+io.contexa.autoconfigure.core.autonomous.CoreAutonomousEventAutoConfiguration
+io.contexa.autoconfigure.core.autonomous.CoreAutonomousStrategyAutoConfiguration
 
 # Core Simulation
 io.contexa.autoconfigure.core.simulation.CoreSimulationAutoConfiguration
+
+# Enterprise Autonomous
+io.contexa.autoconfigure.enterprise.autonomous.EnterpriseAutonomousAutoConfiguration
+
+# Enterprise Dashboard
+io.contexa.autoconfigure.enterprise.dashboard.EnterpriseDashboardAutoConfiguration
+
+# Enterprise Plane
+io.contexa.autoconfigure.enterprise.plane.EnterprisePlaneAutoConfiguration
+
+# Enterprise SOAR
+io.contexa.autoconfigure.enterprise.soar.EnterpriseSoarAutoConfiguration

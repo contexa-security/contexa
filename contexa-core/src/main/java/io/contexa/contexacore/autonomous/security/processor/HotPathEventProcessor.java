@@ -37,7 +37,6 @@ import java.util.concurrent.CompletableFuture;
  * @since 1.0
  */
 @Slf4j
-@Component
 public class HotPathEventProcessor implements IPathProcessor {
 
     private final RedisTemplate<String, Object> redisTemplate;

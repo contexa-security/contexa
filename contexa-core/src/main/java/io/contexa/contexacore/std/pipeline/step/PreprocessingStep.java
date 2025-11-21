@@ -20,7 +20,6 @@ import reactor.core.publisher.Mono;
  * - 로깅 및 디버깅 정보 수집
  */
 @Slf4j
-@Component
 public class PreprocessingStep implements PipelineStep {
     
     @Override

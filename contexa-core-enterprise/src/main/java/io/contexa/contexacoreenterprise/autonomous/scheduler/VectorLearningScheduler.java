@@ -3,18 +3,14 @@ package io.contexa.contexacoreenterprise.autonomous.scheduler;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Component
 public class VectorLearningScheduler {
 
     private final HCADVectorIntegrationService hcadVectorService;

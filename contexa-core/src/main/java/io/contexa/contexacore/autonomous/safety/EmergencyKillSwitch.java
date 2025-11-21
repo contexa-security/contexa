@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author contexa
  * @since 1.0.0
  */
-@Component
 public class EmergencyKillSwitch {
     
     private static final Logger logger = LoggerFactory.getLogger(EmergencyKillSwitch.class);

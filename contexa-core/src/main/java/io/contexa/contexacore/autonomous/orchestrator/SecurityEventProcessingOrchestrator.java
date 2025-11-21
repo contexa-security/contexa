@@ -4,7 +4,6 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -33,7 +32,6 @@ import java.util.List;
  * @since 1.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SecurityEventProcessingOrchestrator {
 

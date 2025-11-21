@@ -19,7 +19,6 @@ import java.util.Map;
  */
 @Slf4j
 @Data
-@Component
 @ConfigurationProperties(prefix = "spring.ai.security.mapping")
 public class SecurityMappingProperties {
 

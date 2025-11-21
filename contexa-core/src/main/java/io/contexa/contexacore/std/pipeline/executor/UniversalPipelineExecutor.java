@@ -33,7 +33,6 @@ import java.util.stream.Stream;
  * 단일 책임 원칙 (SRP): Executor는 파이프라인 '조율'에만 집중하고, 실제 '실행'과 '생성'은 각 전문 객체에 위임.
  */
 @Slf4j
-@Component
 public class UniversalPipelineExecutor implements PipelineExecutor {
 
     private final Tracer tracer;
@@ -48,8 +47,8 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
             PromptGenerationStep promptGenerationStep,
-            @Qualifier("llmExecutionStep") LLMExecutionStep llmExecutionStep,
-            @Qualifier("pipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep soarToolExecutionStep,
+            LLMExecutionStep llmExecutionStep,
+            PipelineStep soarToolExecutionStep,
             ResponseParsingStep responseParsingStep,
             PostprocessingStep postprocessingStep) {
 

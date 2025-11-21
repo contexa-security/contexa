@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 런타임에 동적으로 도구를 추가/제거할 수 있습니다.
  */
 @Slf4j
-@Component
 public class StaticToolCallbackResolver implements ToolCallbackResolver {
     
     private final Map<String, ToolCallback> staticTools;

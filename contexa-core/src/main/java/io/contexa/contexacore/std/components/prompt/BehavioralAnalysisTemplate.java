@@ -31,7 +31,6 @@ import java.util.Optional;
  * - 권한 변경 이상 탐지
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
         key = "behavioralAnalysis",
         aliases = {"ueba", "behavioral_analysis"},

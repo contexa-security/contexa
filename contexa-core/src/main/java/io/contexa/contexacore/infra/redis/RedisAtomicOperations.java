@@ -23,7 +23,6 @@ import java.util.stream.Stream;
  * @since 1.0.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class RedisAtomicOperations {
 

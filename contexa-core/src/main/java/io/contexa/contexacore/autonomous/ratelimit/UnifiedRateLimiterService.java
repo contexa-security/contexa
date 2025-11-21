@@ -9,7 +9,7 @@ import org.redisson.api.RateIntervalUnit;
 import org.redisson.api.RateType;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+
 
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
@@ -18,16 +18,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 통합 Rate Limiter 서비스
+ * ?�합 Rate Limiter ?�비??
  *
  * 기능:
- * - 중앙 집중식 Rate Limit 정책 관리
- * - 사용자별, IP별, 엔드포인트별 Rate Limiting
- * - 동적 임계값 조정
- * - 분산 환경 지원 (Redisson)
+ * - 중앙 집중??Rate Limit ?�책 관�?
+ * - ?�용?�별, IP�? ?�드?�인?�별 Rate Limiting
+ * - ?�적 ?�계�?조정
+ * - 분산 ?�경 지??(Redisson)
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class UnifiedRateLimiterService {
 
@@ -64,7 +63,7 @@ public class UnifiedRateLimiterService {
 
     @PostConstruct
     public void initialize() {
-        // Metrics 등록
+        // Metrics ?�록
         allowedRequests = Counter.builder("ratelimit.requests.allowed")
             .description("Number of allowed requests")
             .register(meterRegistry);
@@ -82,7 +81,7 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * IP 기반 Rate Limit 확인
+     * IP 기반 Rate Limit ?�인
      */
     public boolean checkIpRateLimit(String ipAddress) {
         String key = "ratelimit:ip:" + ipAddress;
@@ -90,7 +89,7 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * 사용자 기반 Rate Limit 확인
+     * ?�용??기반 Rate Limit ?�인
      */
     public boolean checkUserRateLimit(String userId) {
         String key = "ratelimit:user:" + userId;
@@ -98,7 +97,7 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * 인증 시도 Rate Limit 확인
+     * ?�증 ?�도 Rate Limit ?�인
      */
     public boolean checkAuthRateLimit(String identifier) {
         String key = "ratelimit:auth:" + identifier;
@@ -106,7 +105,7 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * API 엔드포인트 Rate Limit 확인
+     * API ?�드?�인??Rate Limit ?�인
      */
     public boolean checkApiRateLimit(String endpoint) {
         String key = "ratelimit:api:" + endpoint;
@@ -114,14 +113,14 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * 커스텀 Rate Limit 확인
+     * 커스?� Rate Limit ?�인
      */
     public boolean checkCustomRateLimit(String key, long rate, long intervalSeconds) {
         return checkRateLimit("ratelimit:custom:" + key, rate, intervalSeconds, RateLimitType.CUSTOM);
     }
 
     /**
-     * 통합 Rate Limit 체크 로직
+     * ?�합 Rate Limit 체크 로직
      */
     private boolean checkRateLimit(String key, long rate, long intervalSeconds, RateLimitType type) {
         try {
@@ -142,20 +141,20 @@ public class UnifiedRateLimiterService {
 
         } catch (Exception e) {
             log.error("Failed to check rate limit: key={}", key, e);
-            // Fail-open: 에러 시 허용 (가용성 우선)
+            // Fail-open: ?�러 ???�용 (가?�성 ?�선)
             allowedRequests.increment();
             return true;
         }
     }
 
     /**
-     * Rate Limiter 가져오기 (캐시 포함)
+     * Rate Limiter 가?�오�?(캐시 ?�함)
      */
     private RRateLimiter getRateLimiter(String key, long rate, long intervalSeconds) {
         return rateLimiterCache.computeIfAbsent(key, k -> {
             RRateLimiter limiter = redissonClient.getRateLimiter(k);
 
-            // Rate 설정 (처음 또는 변경 시)
+            // Rate ?�정 (처음 ?�는 변�???
             if (!limiter.isExists() || needsReconfiguration(limiter, rate, intervalSeconds)) {
                 limiter.trySetRate(RateType.OVERALL, rate, intervalSeconds, RateIntervalUnit.SECONDS);
                 log.info("Rate limiter configured: key={}, rate={}/{} sec", k, rate, intervalSeconds);
@@ -166,16 +165,16 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * Rate Limiter 재설정 필요 여부 확인
+     * Rate Limiter ?�설???�요 ?��? ?�인
      */
     private boolean needsReconfiguration(RRateLimiter limiter, long rate, long intervalSeconds) {
-        // TODO: 현재 설정과 비교하여 변경 필요 여부 판단
-        // Redisson API 제약으로 현재 설정 조회 불가
+        // TODO: ?�재 ?�정�?비교?�여 변�??�요 ?��? ?�단
+        // Redisson API ?�약?�로 ?�재 ?�정 조회 불�?
         return false;
     }
 
     /**
-     * 동적 Rate Limit 조정
+     * ?�적 Rate Limit 조정
      */
     public void adjustRateLimit(String key, long newRate, long intervalSeconds) {
         try {
@@ -209,7 +208,7 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * 모든 Rate Limiter 정리
+     * 모든 Rate Limiter ?�리
      */
     public void clearAllRateLimiters() {
         rateLimiterCache.clear();
@@ -217,7 +216,7 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * Rate Limit 상태 조회
+     * Rate Limit ?�태 조회
      */
     public RateLimitStatus getRateLimitStatus(String key) {
         try {
@@ -247,18 +246,18 @@ public class UnifiedRateLimiterService {
     }
 
     /**
-     * Rate Limit 타입
+     * Rate Limit ?�??
      */
     public enum RateLimitType {
         IP,      // IP 주소 기반
-        USER,    // 사용자 기반
-        AUTH,    // 인증 시도 기반
-        API,     // API 엔드포인트 기반
-        CUSTOM   // 커스텀
+        USER,    // ?�용??기반
+        AUTH,    // ?�증 ?�도 기반
+        API,     // API ?�드?�인??기반
+        CUSTOM   // 커스?�
     }
 
     /**
-     * Rate Limit 상태 모델
+     * Rate Limit ?�태 모델
      */
     @lombok.Data
     @lombok.Builder

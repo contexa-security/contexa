@@ -19,7 +19,6 @@ import reactor.core.publisher.Mono;
  * RiskAssessmentDiagnosisStrategy의 구조와 로직을 100% 준수하여 구현합니다.
  */
 @Slf4j
-@Component
 public class BehavioralAnalysisDiagnosisStrategy extends AbstractAIStrategy<BehavioralAnalysisContext, BehavioralAnalysisResponse> {
 
     @Autowired

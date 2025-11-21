@@ -1,14 +1,12 @@
 package io.contexa.autoconfigure.core.llm;
 
 import io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration;
-import io.contexa.autoconfigure.properties.ContextaProperties;
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.std.advisor.config.AdvisorConfiguration;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
 import io.contexa.contexacore.std.llm.config.TieredSecurityLLMConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
@@ -23,7 +21,6 @@ import org.springframework.context.annotation.Import;
  * - TieredSecurityLLMConfiguration - 3계층 보안 시스템
  * - AdvisorConfiguration - Spring AI Advisor 시스템
  * - PipelineConfiguration - Pipeline 오케스트레이션
- * - PromptTemplateConfig - Prompt Template 관리
  *
  * 활성화 조건:
  * contexa:
@@ -40,13 +37,11 @@ import org.springframework.context.annotation.Import;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContextaProperties.class)
-@ConditionalOnClass(name = "io.contexa.contexacore.std.llm.config.TieredSecurityLLMConfiguration")
+@EnableConfigurationProperties(ContexaProperties.class)
 @Import({
     TieredSecurityLLMConfiguration.class,
     AdvisorConfiguration.class,
-    PipelineConfiguration.class,
-    PromptTemplateConfig.class
+    PipelineConfiguration.class
 })
 public class CoreLLMAutoConfiguration {
 

@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
  * 설정 파일 변경만으로 새로운 모델을 추가할 수 있습니다.
  */
 @Slf4j
-@Component
 @Primary
 @RequiredArgsConstructor
 public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {

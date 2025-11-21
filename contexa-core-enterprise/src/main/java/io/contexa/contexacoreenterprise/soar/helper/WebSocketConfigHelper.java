@@ -1,7 +1,6 @@
 package io.contexa.contexacoreenterprise.soar.helper;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 /**
  * WebSocket 설정 헬퍼 클래스
@@ -10,7 +9,6 @@ import org.springframework.stereotype.Component;
  * 클라이언트와 서버 간의 엔드포인트 불일치 문제를 해결합니다.
  */
 @Slf4j
-@Component
 public class WebSocketConfigHelper {
     
     // 통일된 WebSocket 엔드포인트

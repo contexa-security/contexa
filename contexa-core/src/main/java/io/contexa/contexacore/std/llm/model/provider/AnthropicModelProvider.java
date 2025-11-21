@@ -28,7 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Claude API를 통해 다양한 Claude 모델을 관리하고 제공합니다.
  */
 @Slf4j
-@Component
 public class AnthropicModelProvider implements ModelProvider {
 
     @Value("${spring.ai.anthropic.api-key:}")

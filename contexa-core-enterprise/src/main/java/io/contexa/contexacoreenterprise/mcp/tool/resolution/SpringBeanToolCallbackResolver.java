@@ -17,7 +17,6 @@ import java.util.Map;
  */
 @Slf4j
 @RequiredArgsConstructor
-@Component
 public class SpringBeanToolCallbackResolver implements ToolCallbackResolver {
     
     private final ApplicationContext applicationContext;

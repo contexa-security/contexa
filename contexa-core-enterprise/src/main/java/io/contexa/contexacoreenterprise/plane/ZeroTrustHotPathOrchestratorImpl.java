@@ -15,7 +15,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +44,6 @@ import java.util.Map;
  * @since 3.0
  */
 @Slf4j
-@Service
 public class ZeroTrustHotPathOrchestratorImpl {
 
     @Autowired

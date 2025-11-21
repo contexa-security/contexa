@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
  * NIST CSF의 5가지 핵심 기능(Identify, Protect, Detect, Respond, Recover)을
  * 기반으로 보안 이벤트를 평가하고 대응 방안을 제시합니다.
  */
-@Component
 public class NistCsfEvaluationStrategy implements ThreatEvaluationStrategy {
     
     private static final Logger logger = LoggerFactory.getLogger(NistCsfEvaluationStrategy.class);

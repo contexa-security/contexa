@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -31,7 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * Security Plane Agent가 감지한 보안 이벤트/인시던트를 SOAR 시스템에 알립니다.
  * 비동기 모드에서는 DB에 알림을 저장하고 나중에 처리합니다.
  */
-@Service
 public class SoarNotifierImpl implements ISoarNotifier {
     
     private static final Logger logger = LoggerFactory.getLogger(SoarNotifierImpl.class);

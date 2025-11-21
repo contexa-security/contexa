@@ -1,6 +1,6 @@
 package io.contexa.autoconfigure.core.rag;
 
-import io.contexa.autoconfigure.properties.ContextaProperties;
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
@@ -31,7 +31,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -64,8 +63,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContextaProperties.class)
-@ConditionalOnClass(name = "io.contexa.contexacore.config.rag.RagConfiguration")
+@EnableConfigurationProperties(ContexaProperties.class)
 @Import({
     RagConfiguration.class,
     VectorStoreObservationConfig.class
@@ -82,7 +80,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.rag.service.StandardVectorStoreService")
     public StandardVectorStoreService standardVectorStoreService(
             PgVectorStoreProperties properties,
             VectorStore vectorStore,
@@ -99,7 +96,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.llm.service.ModelDiscoveryService")
     public ModelDiscoveryService modelDiscoveryService(
             ApplicationContext applicationContext,
             DynamicModelRegistry modelRegistry) {
@@ -114,7 +110,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.llm.dynamic.AIModelManager")
     public AIModelManager aiModelManager() {
         return new AIModelManager();
     }
@@ -125,7 +120,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.operations.DistributedSessionManager")
     public DistributedSessionManager distributedSessionManager(
             RedisEventPublisher eventPublisher,
             AuditLogger auditLogger) {
@@ -140,7 +134,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.labs.behavior.BehaviorVectorService")
     public BehaviorVectorService behaviorVectorService(
             StandardVectorStoreService standardVectorStoreService,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
@@ -157,7 +150,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService")
     public RiskAssessmentVectorService riskAssessmentVectorService(
             StandardVectorStoreService standardVectorStoreService,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
@@ -172,7 +164,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.llm.dynamic.AIModelUsage")
     public AIModelUsage aiModelUsage(
             AIModelManager aiModelManager) {
         return new AIModelUsage(aiModelManager);
@@ -184,7 +175,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.operations.DistributedStrategyExecutor")
     public DistributedStrategyExecutor distributedStrategyExecutor(
             PipelineOrchestrator orchestrator,
             @Qualifier("aiStrategySessionRepository") AIStrategySessionRepository sessionRepository,
@@ -202,7 +192,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.rag.service.UnifiedVectorService")
     public UnifiedVectorService unifiedVectorService(
             VectorStoreCacheLayer cacheLayer,
             StandardVectorStoreService standardService,
@@ -219,7 +208,6 @@ public class CoreRAGAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnClass(name = "io.contexa.contexacore.std.operations.AINativeProcessor")
     public AINativeProcessor aiNativeProcessor(
             DistributedSessionManager sessionManager,
             RedisDistributedLockService distributedLockService,

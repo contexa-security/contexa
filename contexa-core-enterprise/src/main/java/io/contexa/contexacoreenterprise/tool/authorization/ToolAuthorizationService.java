@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 도구 실행 권한을 관리하는 서비스입니다.
  * 사용자, 역할, 정책 기반으로 도구 실행 권한을 확인합니다.
  */
-@Service
 @Slf4j
 public class ToolAuthorizationService {
     

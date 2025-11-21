@@ -156,16 +156,6 @@ public class AdvisorConfiguration {
     
     /**
      * Security Context Advisor Bean
-     * 
-     * 보안 컨텍스트를 자동으로 설정하는 Advisor입니다.
-     * 다른 Advisor들보다 먼저 실행되어 user.id와 session.id를 설정합니다.
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "contexa.advisor.security", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SecurityContextAdvisor securityContextAdvisor(Tracer tracer) {
-        log.info("Security Context Advisor Bean 생성");
-        return new SecurityContextAdvisor(tracer);
-    }
 
     /**
      * SOAR 도메인 Advisor 등록

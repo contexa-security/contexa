@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
  * - 세션 활동 패턴 분석
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy {
     

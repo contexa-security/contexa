@@ -7,7 +7,6 @@ import io.micrometer.core.instrument.*;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,7 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
  *           현재 패키지에 유지됩니다. 향후 리팩토링 시 metrics 패키지로 이동 예정.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
 

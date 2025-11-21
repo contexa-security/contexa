@@ -31,7 +31,6 @@ import java.util.Map;
  * @since 1.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class ProcessingExecutionHandler implements SecurityEventHandler {
 

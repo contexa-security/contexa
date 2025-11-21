@@ -2,11 +2,17 @@ package io.contexa.contexacoreenterprise.soar.config;
 
 import io.contexa.contexacoreenterprise.soar.tool.exception.SoarToolExecutionExceptionProcessor;
 import io.contexa.contexacoreenterprise.mcp.tool.resolution.ChainedToolResolver;
+import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
+import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
+import io.contexa.contexacoreenterprise.soar.helper.ToolCallDetectionHelper;
+import io.contexa.contexacoreenterprise.tool.pipeline.PipelineSoarToolExecutionStep;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.model.tool.DefaultToolCallingManager;
 import org.springframework.ai.model.tool.ToolCallingManager;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -53,10 +59,10 @@ public class SoarToolConfiguration {
 
     /**
      * SOAR Tool 실행 예외 처리기
-     * 
+     *
      * Spring AI의 ToolExecutionExceptionProcessor를 확장하여
      * 보안 도구 특화 예외 처리를 제공합니다.
-     * 
+     *
      * @param throwOnError 예외 발생 시 던질지 여부 (기본값: false)
      * @return SOAR 특화 예외 처리기
      */
@@ -66,5 +72,27 @@ public class SoarToolConfiguration {
             @Value("${spring.ai.tools.throw-exception-on-error:false}") boolean throwOnError) {
         log.info("SOAR Tool Execution Exception Processor Bean 생성 (throwOnError: {})", throwOnError);
         return new SoarToolExecutionExceptionProcessor(throwOnError);
+    }
+
+    /**
+     * SOAR 파이프라인 도구 실행 스텝
+     *
+     * LLMExecutionStep을 확장하여 SOAR 도구 실행 기능을 6단계 파이프라인에 통합합니다.
+     */
+    @Bean
+    @Qualifier("pipelineSoarToolExecutionStep")
+    @ConditionalOnMissingBean(name = "pipelineSoarToolExecutionStep")
+    public PipelineSoarToolExecutionStep pipelineSoarToolExecutionStep(
+            ToolCapableLLMClient toolCapableLLMClient,
+            ApprovalAwareToolCallingManagerDecorator approvalAwareToolCallingManager,
+            ToolCallDetectionHelper toolCallDetectionHelper,
+            ChainedToolResolver chainedToolResolver) {
+        log.info("Pipeline SOAR Tool Execution Step Bean 생성");
+        return new PipelineSoarToolExecutionStep(
+            toolCapableLLMClient,
+            approvalAwareToolCallingManager,
+            toolCallDetectionHelper,
+            chainedToolResolver
+        );
     }
 }

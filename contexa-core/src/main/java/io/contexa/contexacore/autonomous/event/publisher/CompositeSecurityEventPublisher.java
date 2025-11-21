@@ -33,7 +33,6 @@ import java.util.concurrent.CompletableFuture;
  * - 이중화 요구사항: Kafka 장애 대비 Redis 백업 필요 시
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class CompositeSecurityEventPublisher implements SecurityEventPublisher {
     

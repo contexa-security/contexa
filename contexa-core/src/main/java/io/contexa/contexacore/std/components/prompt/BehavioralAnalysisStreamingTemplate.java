@@ -5,7 +5,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import org.springframework.stereotype.Component;
 
-@Component
 @PromptTemplateConfig(
         key = "behavioralAnalysisStreaming",
         description = "User Behavior Anomaly Detection Streaming Template"

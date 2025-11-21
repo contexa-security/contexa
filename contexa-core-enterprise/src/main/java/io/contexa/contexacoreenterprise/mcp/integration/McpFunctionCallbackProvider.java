@@ -7,8 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.mcp.SyncMcpToolCallback;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,9 +23,7 @@ import java.util.stream.Collectors;
  * @since 3.0.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class McpFunctionCallbackProvider {
     
     private final McpSyncClient braveSearchMcpClient;

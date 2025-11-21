@@ -27,7 +27,6 @@ import java.util.concurrent.CompletableFuture;
  * 실패 시 Dead Letter Queue로 전송하여 이벤트 손실을 방지합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     

@@ -381,7 +381,7 @@ public class TieredSecurityLLMConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(ChatClient.Builder.class)
-    @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = false)
+    @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = true)
     public ChatClient.Builder chatClientBuilder(ChatModel primaryChatModel) {
         log.info("Creating basic ChatClient.Builder with {} (Advisor disabled)", primaryChatModel.getClass().getSimpleName());
         return ChatClient.builder(primaryChatModel);

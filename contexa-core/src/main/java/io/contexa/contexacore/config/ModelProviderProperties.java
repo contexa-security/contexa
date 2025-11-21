@@ -18,7 +18,6 @@ import java.util.Map;
  */
 @Slf4j
 @Data
-@Component
 @ConfigurationProperties(prefix = "spring.ai.providers")
 public class ModelProviderProperties {
 

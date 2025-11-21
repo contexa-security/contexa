@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * - 리소스 보호
  */
 @Slf4j
-@Component
 public class BackpressureManager {
 
     private final MeterRegistry meterRegistry;

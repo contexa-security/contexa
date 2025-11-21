@@ -19,7 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author contexa
  * @since 1.0.0
  */
-@Component
 public class PolicyConflictDetector {
     
     private static final Logger logger = LoggerFactory.getLogger(PolicyConflictDetector.class);

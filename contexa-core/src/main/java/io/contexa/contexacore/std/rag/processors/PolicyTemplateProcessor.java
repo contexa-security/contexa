@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
  * 
  * @since 1.0.0
  */
-@Component("policyTemplateProcessor")
 public class PolicyTemplateProcessor implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.policy.min-template-score:0.7}")

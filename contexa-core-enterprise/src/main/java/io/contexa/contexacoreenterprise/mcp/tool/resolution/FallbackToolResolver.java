@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 다른 Resolver가 도구를 찾지 못했을 때 대체 도구를 제공합니다.
  * 기본 동작이나 에러 메시지를 반환하는 도구들을 관리합니다.
  */
-@Component
 @Slf4j
 public class FallbackToolResolver implements ToolCallbackResolver {
     

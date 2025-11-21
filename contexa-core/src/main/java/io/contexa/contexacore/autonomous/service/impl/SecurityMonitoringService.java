@@ -14,7 +14,6 @@ import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -34,7 +33,6 @@ import java.security.NoSuchAlgorithmException;
  * Observer 패턴을 사용하여 보안 이벤트를 실시간으로 모니터링하고
  * 위협을 평가하여 인시던트를 생성합니다.
  */
-@Service
 public class SecurityMonitoringService {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityMonitoringService.class);

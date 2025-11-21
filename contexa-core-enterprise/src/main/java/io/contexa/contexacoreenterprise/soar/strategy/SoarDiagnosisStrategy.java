@@ -11,7 +11,6 @@ import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
 import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -24,7 +23,6 @@ import java.time.LocalDateTime;
  * AILab 패턴을 활용하여 일관된 아키텍처를 유지합니다.
  */
 @Slf4j
-@Component
 public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarResponse> {
 
     private static final int PRIORITY = 10; // 높은 우선순위

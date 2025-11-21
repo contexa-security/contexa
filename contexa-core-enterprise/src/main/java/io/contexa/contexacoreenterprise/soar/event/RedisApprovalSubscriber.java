@@ -10,7 +10,6 @@ import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Set;
@@ -23,7 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 폴링 없이 실시간으로 메시지를 수신합니다.
  */
 @Slf4j
-@Component
 @ConditionalOnProperty(name = "spring.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisApprovalSubscriber implements MessageListener {
     

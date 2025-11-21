@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.io.Serializable;
@@ -27,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 지속적인 상호작용 진단을 가능하게 합니다.
  */
 @Slf4j
-@Component
 public class SoarInteractionManager {
     
     private final RedisTemplate<String, Object> redisTemplate;

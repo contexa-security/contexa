@@ -10,10 +10,7 @@ import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
@@ -30,8 +27,6 @@ import java.util.concurrent.TimeUnit;
  * @since 1.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Component
 @RequiredArgsConstructor
 public class BehavioralAnalysisLabConnector {
 

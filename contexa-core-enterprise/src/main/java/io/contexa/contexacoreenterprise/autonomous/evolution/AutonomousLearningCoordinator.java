@@ -17,12 +17,10 @@ import io.contexa.contexacore.domain.SoarIncidentStatus;
 import io.contexa.contexacore.domain.entity.SoarIncident;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -40,8 +38,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 1.0.0
  */
 @Slf4j
-@ConditionalOnClass(name = "io.contexa.contexacore.repository.PolicyProposalRepository")
-@Service
 public class AutonomousLearningCoordinator {
 
     private final ISecurityPlaneAgent securityPlaneAgent;

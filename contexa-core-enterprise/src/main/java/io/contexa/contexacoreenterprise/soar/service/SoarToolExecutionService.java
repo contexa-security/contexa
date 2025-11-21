@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -17,7 +16,6 @@ import java.util.Map;
  * Spring AI 1.0.0의 실제 ToolCallback 시스템 활용한 완전한 Human-in-the-Loop 구현
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class SoarToolExecutionService {
     

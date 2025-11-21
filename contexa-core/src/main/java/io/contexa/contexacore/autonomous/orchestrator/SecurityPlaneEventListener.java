@@ -15,7 +15,6 @@ import org.springframework.stereotype.Component;
  * 프록시 문제를 방지하고 단일 책임 원칙을 준수
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SecurityPlaneEventListener {
 

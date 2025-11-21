@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -20,7 +19,6 @@ import java.util.UUID;
  * 도구 실행 관련 이벤트를 발행합니다.
  * Spring의 ApplicationEvent 시스템을 사용합니다.
  */
-@Component
 @Slf4j
 @RequiredArgsConstructor
 public class ToolEventPublisher {

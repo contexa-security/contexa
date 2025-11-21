@@ -21,13 +21,12 @@ import java.util.Map;
  * - Fallback Strategy: 등록되지 않은 타입은 기본 Retriever 사용
  */
 @Slf4j
-@Component
 public class ContextRetrieverRegistry {
     
     private final Map<Class<? extends DomainContext>, ContextRetriever> retrieverMap = new HashMap<>();
     private final ContextRetriever defaultRetriever;
     
-    public ContextRetrieverRegistry(@Qualifier("contextRetriever") ContextRetriever defaultRetriever) {
+    public ContextRetrieverRegistry(ContextRetriever defaultRetriever) {
         this.defaultRetriever = defaultRetriever;
         log.info("ContextRetrieverRegistry 초기화 - 기본 Retriever: {}", 
                 defaultRetriever.getClass().getSimpleName());

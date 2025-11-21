@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
  * 런타임에 동적으로 모델을 발견, 등록, 생성합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class DynamicModelRegistry {
 

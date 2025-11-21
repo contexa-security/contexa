@@ -5,7 +5,6 @@ import io.contexa.contexacoreenterprise.dashboard.api.EventRecorder;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -25,7 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
  *           현재 패키지에 유지됩니다. 향후 리팩토링 시 metrics 패키지로 이동 예정.
  */
 @Slf4j
-@Component
 public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.VectorStoreMetrics, DomainMetrics, EventRecorder {
     
     private final Map<String, LabMetrics> labMetrics = new ConcurrentHashMap<>();

@@ -21,7 +21,6 @@ import java.util.Set;
  * 도구 실행의 위험도를 평가합니다.
  * 도구 유형, 실행 컨텍스트, 시간대 등을 고려하여 위험도를 산정합니다.
  */
-@Component
 @Slf4j
 @RequiredArgsConstructor
 public class RiskAssessment {

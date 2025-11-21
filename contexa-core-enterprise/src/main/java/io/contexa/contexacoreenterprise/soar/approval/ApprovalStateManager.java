@@ -5,7 +5,6 @@ import io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -17,7 +16,6 @@ import java.util.*;
  * State Machine 패턴을 구현하여 일관된 상태 관리를 보장합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class ApprovalStateManager {
     

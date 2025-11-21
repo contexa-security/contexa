@@ -30,7 +30,6 @@ import java.util.Optional;
  * - 필요 시 추가 메타데이터 설정
  */
 @Slf4j
-@Component
 public class PostprocessingStep implements PipelineStep {
     
     private final List<DomainResponseProcessor> domainProcessors;

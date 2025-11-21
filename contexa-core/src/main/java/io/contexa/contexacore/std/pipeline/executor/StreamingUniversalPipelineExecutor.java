@@ -24,7 +24,6 @@ import java.util.stream.Stream;
  * UniversalPipelineExecutor를 확장한 스트리밍 전용 실행자
  */
 @Slf4j
-@Component
 public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecutor {
 
     private final List<PipelineStep> orderedSteps;
@@ -36,8 +35,8 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
             PromptGenerationStep promptGenerationStep,
-            @Qualifier("llmExecutionStep") LLMExecutionStep llmExecutionStep,
-            @Qualifier("pipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep soarToolExecutionStep,
+            LLMExecutionStep llmExecutionStep,
+            PipelineStep soarToolExecutionStep,
             ResponseParsingStep responseParsingStep,
             PostprocessingStep postprocessingStep,
             StreamingLLMExecutionStep streamingLLMStep,

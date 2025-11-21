@@ -39,7 +39,6 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Aspect
-@Component
 @ConditionalOnProperty(
     prefix = "spring.ai.vectorstore.debug",
     name = "filter-logging",
