@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 3.0
  */
 @Slf4j
-@Component
+
 @RequiredArgsConstructor
 public class AdaptiveTierRouter {
 

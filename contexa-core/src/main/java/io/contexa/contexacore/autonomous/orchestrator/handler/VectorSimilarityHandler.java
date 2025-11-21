@@ -33,7 +33,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * @since 1.0
  */
 @Slf4j
-@Component
+
 public class VectorSimilarityHandler implements SecurityEventHandler {
 
     @Value("${security.plane.agent.similarity-threshold:0.70}")

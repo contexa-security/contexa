@@ -31,7 +31,16 @@
       "Bash(.gradlew.bat :contexa-autoconfigure:compileJava -x test)",
       "Bash(d:projectscontexagradlew.bat :contexa-autoconfigure:compileJava -x test)",
       "Bash(cmd /c \"d:\\projects\\contexa\\gradlew.bat :contexa-autoconfigure:compileJava -x test\")",
-      "Bash(powershell -Command \"cd d:\\projects\\contexa; .\\gradlew.bat :contexa-autoconfigure:compileJava -x test\")"
+      "Bash(powershell -Command \"cd d:\\projects\\contexa; .\\gradlew.bat :contexa-autoconfigure:compileJava -x test\")",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:clean :contexa-core:compileJava :contexa-autoconfigure:clean :contexa-autoconfigure:compileJava -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:compileJava -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:compileJava --rerun-tasks)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:build :contexa-core-enterprise:build :contexa-autoconfigure:build -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-core:build :contexa-core-enterprise:build :contexa-autoconfigure:build :spring-boot-starter-contexa:build :spring-boot-starter-contexa-enterprise:build -x test)",
+      "Bash(.gradlew.bat:*)",
+      "Bash(./gradlew.bat :contexa-autoconfigure:compileJava:*)",
+      "Bash(find:*)",
+      "Bash(./gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

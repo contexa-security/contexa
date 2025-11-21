@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  * @since 3.0
  */
 @Slf4j
-@Service
+
 public class VectorStoreCacheLayer {
 
     @Autowired(required = false)

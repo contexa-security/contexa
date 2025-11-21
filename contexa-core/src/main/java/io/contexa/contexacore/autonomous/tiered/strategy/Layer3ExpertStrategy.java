@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * 복잡한 공격 시나리오, 위협 인텔리전스, MITRE ATT&CK 매핑을 포함합니다.
  */
 @Slf4j
-@Component
+
 public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     private final UnifiedLLMOrchestrator llmOrchestrator;

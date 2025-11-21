@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 1.0
  */
 @Slf4j
-@Component
+
 @RequiredArgsConstructor
 public class ValidationHandler implements SecurityEventHandler {
 

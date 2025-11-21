@@ -50,7 +50,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * 24시간 자율 운영되는 보안 플레인 에이전트의 진입점입니다.
  * State 패턴과 Template Method 패턴을 사용하여 에이전트 상태를 관리합니다.
  */
-@Component
+
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgent {

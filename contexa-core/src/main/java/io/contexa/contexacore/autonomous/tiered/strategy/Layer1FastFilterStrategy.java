@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
  * AI-Native 접근법으로 전통적인 규칙 기반 시스템을 대체합니다.
  */
 @Slf4j
-@Component
+
 public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
     private final EmbeddingModel embeddingModel;

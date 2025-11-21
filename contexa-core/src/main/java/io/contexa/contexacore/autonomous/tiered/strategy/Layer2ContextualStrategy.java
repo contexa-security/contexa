@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
  * 사용자 행동, 시간적 패턴, 세션 이력을 고려한 정교한 분석을 수행합니다.
  */
 @Slf4j
-@Component
+
 public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
     private final UnifiedLLMOrchestrator llmOrchestrator;

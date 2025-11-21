@@ -33,7 +33,7 @@ import java.util.Map;
  * @author contexa
  * @since 1.0
  */
-@Component
+
 @RequiredArgsConstructor
 public class ThreatScoreHandler implements SecurityEventHandler {
 

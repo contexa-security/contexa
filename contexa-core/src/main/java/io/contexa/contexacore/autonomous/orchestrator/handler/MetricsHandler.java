@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @since 1.0
  */
 @Slf4j
-@Component
+
 @RequiredArgsConstructor
 public class MetricsHandler implements SecurityEventHandler {
 
