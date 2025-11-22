@@ -309,7 +309,7 @@ public class SoarInteractionManager {
             "sessionId", sessionId,
             "timestamp", LocalDateTime.now()
         );
-        brokerTemplate.convertAndSend("/topic/soar/approvals", request);
+        brokerTemplate.convertAndSend("/topic/soar/approvals", (Object) request);
     }
     
     private void notifySessionCreated(InteractionSession session) {
@@ -319,7 +319,7 @@ public class SoarInteractionManager {
             "incidentId", session.getIncidentId(),
             "timestamp", LocalDateTime.now()
         );
-        brokerTemplate.convertAndSend("/topic/soar/sessions", notification);
+        brokerTemplate.convertAndSend("/topic/soar/sessions", (Object) notification);
     }
     
     private void notifySessionUpdated(InteractionSession session) {
@@ -329,7 +329,7 @@ public class SoarInteractionManager {
             "status", session.getStatus(),
             "timestamp", LocalDateTime.now()
         );
-        brokerTemplate.convertAndSend("/topic/soar/sessions", notification);
+        brokerTemplate.convertAndSend("/topic/soar/sessions", (Object) notification);
     }
     
     private void notifySessionClosed(String sessionId, String reason) {
@@ -339,7 +339,7 @@ public class SoarInteractionManager {
             "reason", reason,
             "timestamp", LocalDateTime.now()
         );
-        brokerTemplate.convertAndSend("/topic/soar/sessions", notification);
+        brokerTemplate.convertAndSend("/topic/soar/sessions",(Object)  notification);
     }
     
     private void notifyToolExecuted(String sessionId, String toolName, boolean success) {
@@ -350,7 +350,7 @@ public class SoarInteractionManager {
             "success", success,
             "timestamp", LocalDateTime.now()
         );
-        brokerTemplate.convertAndSend("/topic/soar/tools", notification);
+        brokerTemplate.convertAndSend("/topic/soar/tools",(Object)  notification);
     }
     
     // === Inner Classes ===

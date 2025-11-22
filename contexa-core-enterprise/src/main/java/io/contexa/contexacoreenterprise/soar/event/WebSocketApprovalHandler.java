@@ -344,7 +344,7 @@ public class WebSocketApprovalHandler {
             
             // 단일 토픽으로만 전송 (중복 방지)
             try {
-                brokerTemplate.convertAndSend(TOPIC_APPROVALS, message);
+                brokerTemplate.convertAndSend(TOPIC_APPROVALS, (Object) message);
                 log.info("{} 토픽으로 메시지 전송 완료", TOPIC_APPROVALS);
                 log.debug("전송된 메시지 ID: {}", message.get("messageId"));
             } catch (Exception ex) {
@@ -371,11 +371,8 @@ public class WebSocketApprovalHandler {
             message.put("messageId", approvalId + "_timeout_" + System.currentTimeMillis());
             
             // 특정 승인 ID 토픽으로만 전송 (중복 방지)
-            brokerTemplate.convertAndSend(
-                TOPIC_APPROVAL_RESULT + approvalId, 
-                message
-            );
-            
+            brokerTemplate.convertAndSend(TOPIC_APPROVAL_RESULT + approvalId, (Object) message);
+
             log.info("WebSocket 타임아웃 알림 전송: {} -> {}", approvalId, TOPIC_APPROVAL_RESULT + approvalId);
             
         } catch (Exception e) {
@@ -395,10 +392,10 @@ public class WebSocketApprovalHandler {
             
             // 특정 승인 ID 토픽으로만 전송 (중복 방지)
             brokerTemplate.convertAndSend(
-                TOPIC_APPROVAL_RESULT + approvalId, 
-                message
+                TOPIC_APPROVAL_RESULT + approvalId,
+                (Object) message
             );
-            
+
             log.debug("승인 결과 전송: {} -> {}", approvalId, TOPIC_APPROVAL_RESULT + approvalId);
             
         } catch (Exception e) {
@@ -418,10 +415,10 @@ public class WebSocketApprovalHandler {
         );
         
         brokerTemplate.convertAndSend(
-            TOPIC_APPROVAL_RESULT + approvalId, 
-            message
+            TOPIC_APPROVAL_RESULT + approvalId,
+            (Object) message
         );
-        
+
         log.warn("WebSocket 타임아웃 알림: {} ({}초)", approvalId, timeoutSeconds);
     }
     
@@ -436,11 +433,8 @@ public class WebSocketApprovalHandler {
             "timestamp", LocalDateTime.now()
         );
         
-        brokerTemplate.convertAndSend(
-            TOPIC_APPROVAL_RESULT + approvalId, 
-            message
-        );
-        
+        brokerTemplate.convertAndSend(TOPIC_APPROVAL_RESULT + approvalId, (Object) message);
+
         log.error("WebSocket 오류 알림: {} - {}", approvalId, error);
     }
     
@@ -452,7 +446,7 @@ public class WebSocketApprovalHandler {
      */
     public void broadcastMessage(String topic, Map<String, Object> data) {
         try {
-            brokerTemplate.convertAndSend(topic, data);
+            brokerTemplate.convertAndSend(topic, (Object) data);
             log.debug("WebSocket 메시지 브로드캐스트: {} -> {}", topic, data);
         } catch (Exception e) {
             log.error("WebSocket 메시지 브로드캐스트 실패: {}", topic, e);
@@ -475,7 +469,7 @@ public class WebSocketApprovalHandler {
         
         try {
             // 모든 구독자에게 heartbeat 브로드캐스트
-            brokerTemplate.convertAndSend(TOPIC_APPROVALS, heartbeatMessage);
+            brokerTemplate.convertAndSend(TOPIC_APPROVALS, (Object) heartbeatMessage);
             log.trace("💓 WebSocket Heartbeat 전송 완료: {} 활성 세션", activeUserSessions.size());
             
         } catch (Exception e) {
@@ -532,7 +526,7 @@ public class WebSocketApprovalHandler {
         
         // /topic/test로 전송
         try {
-            brokerTemplate.convertAndSend("/topic/test", testMessage);
+            brokerTemplate.convertAndSend("/topic/test", (Object) testMessage);
             log.info("TEST: /topic/test로 전송 완료");
         } catch (Exception e) {
             log.error("TEST: /topic/test 전송 실패", e);
@@ -540,7 +534,7 @@ public class WebSocketApprovalHandler {
         
         // /topic/soar/approvals로도 전송
         try {
-            brokerTemplate.convertAndSend("/topic/soar/approvals", testMessage);
+            brokerTemplate.convertAndSend("/topic/soar/approvals", (Object) testMessage);
             log.info("TEST: /topic/soar/approvals로 전송 완료");
         } catch (Exception e) {
             log.error("TEST: /topic/soar/approvals 전송 실패", e);

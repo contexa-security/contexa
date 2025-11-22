@@ -149,16 +149,6 @@ public class AttackStrategyFactory {
             )
         );
 
-        registerStrategy("ACCOUNT_ENUMERATION",
-            AccountEnumerationStrategy::new,
-            new StrategyMetadata(
-                AttackResult.AttackType.ACCOUNT_ENUMERATION,
-                IAttackStrategy.AttackCategory.AUTHENTICATION,
-                "Account enumeration through timing analysis",
-                true
-            )
-        );
-
         // 추가 행동 기반 공격 전략
         registerStrategy("BEHAVIORAL_ANOMALY",
             BehavioralAnomalyStrategy::new,

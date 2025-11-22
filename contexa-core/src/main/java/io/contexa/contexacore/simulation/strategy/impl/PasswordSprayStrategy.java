@@ -157,7 +157,7 @@ public class PasswordSprayStrategy implements IAuthenticationAttack {
 
                 attempt.setSuccess(authResult.isSuccess());
                 attempt.setResponseTimeMs(responseTime);
-                attempt.setResponseCode(response.getStatusCodeValue());
+                attempt.setResponseCode(response.getStatusCode().value());
                 attempt.setFailureReason(authResult.getFailureReason());
                 attempt.setBlocked(authResult.isBlocked());
 
@@ -662,7 +662,7 @@ public class PasswordSprayStrategy implements IAuthenticationAttack {
         if (status == HttpStatus.OK || status == HttpStatus.FOUND) {
             // 성공 또는 리다이렉트 - 추가 분석 필요
             if (responseBody.contains("welcome") || responseBody.contains("dashboard") ||
-                responseBody.contains("logout") || response.getHeaders().containsKey("Set-Cookie")) {
+                responseBody.contains("logout") || response.getHeaders().containsHeader("Set-Cookie")) {
                 result.setSuccess(true);
                 result.setFailureReason("LOGIN_SUCCESS");
             } else if (responseBody.contains("invalid") || responseBody.contains("incorrect")) {

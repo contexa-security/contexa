@@ -2,13 +2,13 @@ package io.contexa.contexacore.simulation.client;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.*;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.support.RestTemplateAdapter;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
@@ -69,7 +69,7 @@ public class SimulationClient {
     }
     
     public SimulationClient(
-            RestTemplateBuilder builder,
+            RestTemplate restTemplate,
             @Value("${simulation.client.base-url:http://localhost:8080}") String baseUrl,
             @Value("${simulation.client.timeout:30}") int timeoutSeconds,
             @Value("${simulation.client.retry-count:3}") int retryCount,
@@ -79,12 +79,7 @@ public class SimulationClient {
         this.timeoutSeconds = timeoutSeconds;
         this.retryCount = retryCount;
         this.followRedirects = followRedirects;
-        
-        this.restTemplate = builder
-            .setConnectTimeout(Duration.ofSeconds(timeoutSeconds))
-            .setReadTimeout(Duration.ofSeconds(timeoutSeconds))
-            .additionalInterceptors(createLoggingInterceptor())
-            .build();
+        this.restTemplate = restTemplate;
         
         log.info("SimulationClient 초기화 - BaseURL: {}, Timeout: {}s", baseUrl, timeoutSeconds);
     }
@@ -323,7 +318,7 @@ public class SimulationClient {
     // === Helper Methods ===
     
     private URI buildUri(String path, Map<String, String> params) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl + path);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(baseUrl + path);
         
         if (params != null && !params.isEmpty()) {
             params.forEach(builder::queryParam);

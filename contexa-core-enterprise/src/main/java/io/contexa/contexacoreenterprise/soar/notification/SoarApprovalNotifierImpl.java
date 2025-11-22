@@ -108,7 +108,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
                 
                 // 브로드캐스트 (모든 구독자에게)
                 String topic = topicPrefix + "/approvals";
-                brokerMessagingTemplate.convertAndSend(topic, message);
+                brokerMessagingTemplate.convertAndSend(topic, (Object)message);
                 log.info("WebSocket 알림 전송: {} -> {}", notification.getApprovalId(), topic);
                 
                 // 특정 사용자에게 개별 알림
@@ -192,7 +192,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             );
             
             String topic = topicPrefix + "/approvals";
-            brokerMessagingTemplate.convertAndSend(topic, message);
+            brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
         
         // SSE 알림
@@ -224,7 +224,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             );
             
             String topic = topicPrefix + "/approvals";
-            brokerMessagingTemplate.convertAndSend(topic, message);
+            brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
         
         // SSE 알림
@@ -380,7 +380,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
 
         if (webSocketEnabled) {
             String topic = topicPrefix + "/approvals";
-            brokerMessagingTemplate.convertAndSend(topic, message);
+            brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
 
         if (sseEnabled) {

@@ -95,7 +95,7 @@ public class SoarApprovalController {
                 "timestamp", java.time.Instant.now()
             );
 
-            brokerTemplate.convertAndSend("/topic/soar/approvals", message);
+            brokerTemplate.convertAndSend("/topic/soar/approvals", (Object) message);
             
             Map<String, Object> response = Map.of(
                 "success", true,

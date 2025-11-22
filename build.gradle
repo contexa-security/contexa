@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.4'
+    id 'org.springframework.boot' version '4.0.0'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'java-library'
 }
@@ -36,6 +36,10 @@ subprojects {
         mavenCentral()
         maven { url = 'https://repo.spring.io/milestone' }
         maven { url = 'https://repo.spring.io/snapshot' }
+        maven {
+            name = 'Central Portal Snapshots'
+            url = 'https://central.sonatype.com/repository/maven-snapshots/'
+        }
     }
 
     configurations {
@@ -69,7 +73,7 @@ subprojects {
         implementation 'com.fasterxml.jackson.core:jackson-databind'
         implementation("org.springframework.kafka:spring-kafka:3.3.9")
 
-        implementation platform("org.springframework.ai:spring-ai-bom:1.0.0-SNAPSHOT")
+        implementation platform("org.springframework.ai:spring-ai-bom:1.0.0")
 //        implementation 'org.springframework.ai:spring-ai-starter-model-openai'
         implementation 'org.springframework.ai:spring-ai-advisors-vector-store'
         implementation 'org.springframework.ai:spring-ai-rag'

@@ -251,7 +251,7 @@ public class MFABypassStrategy implements IAuthenticationAttack {
                     // MFA 없이 로그인 성공/실패
                     attempt.setSuccess(response.getStatusCode().is2xxSuccessful());
                     attempt.setResponseTimeMs(responseTime);
-                    attempt.setResponseCode(response.getStatusCodeValue());
+                    attempt.setResponseCode(response.getStatusCode().value());
                     attempt.setFailureReason("NO_MFA_REQUIRED");
                 }
 

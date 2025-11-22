@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-
+import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -22,53 +22,52 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * ?�계 기반 ?�상 ?��? ?�비??
+ * 통계 기반 이상 탐지 서비스
  *
- * BaselineVector??Z-score 기반 ?�계???�상 ?��?�?중앙?�서 관리합?�다.
- * ?�션 ?�이?�킹 ??급격??변?��? ?�반 ?�상 ?�동??구분?�여 처리?�니??
+ * BaselineVector의 Z-score 기반 통계적 이상 탐지를 중앙에서 관리합니다.
+ * 세션 하이재킹 등 급격한 변화와 일반 이상 행동을 구분하여 처리합니다.
  *
  * @author contexa
  * @since 1.0
  */
 @Slf4j
-
 @RequiredArgsConstructor
 public class AnomalyDetectionService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final HCADVectorIntegrationService hcadVectorIntegrationService;
 
-    // Z-score ?�계�?(3-?�그�?규칙)
+    // Z-score 임계값 (3-시그마 규칙)
     @Value("${security.anomaly.zscore.warning:2.0}")
-    private double zscoreWarningThreshold;  // 2 ?��??�차 = 경고 ?��?
+    private double zscoreWarningThreshold;  // 2 표준편차 = 경고 수준
 
     @Value("${security.anomaly.zscore.critical:3.0}")
-    private double zscoreCriticalThreshold; // 3 ?��??�차 = ?�험 ?��?
+    private double zscoreCriticalThreshold; // 3 표준편차 = 위험 수준
 
     @Value("${security.anomaly.zscore.extreme:4.0}")
-    private double zscoreExtremeThreshold;  // 4 ?��??�차 = 극단???�상
+    private double zscoreExtremeThreshold;  // 4 표준편차 = 극단적 이상
 
-    // 급격??변??감�? ?�계�?
+    // 급격한 변화 감지 임계값
     @Value("${security.anomaly.rapid-change.threshold:0.4}")
-    private double rapidChangeThreshold;    // Trust Score 급격??변??기�?
+    private double rapidChangeThreshold;    // Trust Score 급격한 변화 기준
 
     @Value("${security.anomaly.rapid-change.time-window:300}")
-    private int rapidChangeTimeWindowSeconds; // 급격??변???�간 ?�도??(5�?
+    private int rapidChangeTimeWindowSeconds; // 급격한 변화 시간 윈도우 (5분)
 
-    // ?�션 ?�이?�킹 ?��? ?�계�?
+    // 세션 하이재킹 탐지 임계값
     @Value("${security.anomaly.hijack.score-delta:0.3}")
-    private double hijackScoreDeltaThreshold; // ?�션 ?�이?�킹 ?�심 ?�수 변??
+    private double hijackScoreDeltaThreshold; // 세션 하이재킹 의심 점수 변화
 
     @Value("${security.anomaly.hijack.min-zscore:2.5}")
-    private double hijackMinZScore;          // ?�션 ?�이?�킹 최소 Z-score
+    private double hijackMinZScore;          // 세션 하이재킹 최소 Z-score
 
     /**
-     * AI 분석 결과?� ?�계�?기반?�로 ?�상 ?��? ?�행
+     * AI 분석 결과와 통계를 기반으로 이상 탐지 수행
      *
-     * @param event 보안 ?�벤??
-     * @param aiRiskScore AI가 계산???�험 ?�수
+     * @param event 보안 이벤트
+     * @param aiRiskScore AI가 계산한 위험 점수
      * @param processingResult 처리 결과
-     * @return ?�상 ?��? 결과
+     * @return 이상 탐지 결과
      */
     public AnomalyDetectionResult detectAnomaly(SecurityEvent event, double aiRiskScore, ProcessingResult processingResult) {
         String userId = event.getUserId();
@@ -79,163 +78,163 @@ public class AnomalyDetectionService {
             if (baseline == null) {
                 log.info("[AnomalyDetectionService] No baseline for user {}, creating initial baseline", userId);
                 return AnomalyDetectionResult.builder()
-                    .isAnomaly(false)
-                    .anomalyType(AnomalyType.NONE)
-                    .zScore(0.0)
-                    .confidence(0.0)
-                    .reason("Initial baseline creation")
-                    .build();
+                        .isAnomaly(false)
+                        .anomalyType(AnomalyType.NONE)
+                        .zScore(0.0)
+                        .confidence(0.0)
+                        .reason("Initial baseline creation")
+                        .build();
             }
 
-            // 2. HCADContext ?�성 (?�재 ?�벤??기반)
+            // 2. HCADContext 생성 (현재 이벤트 기반)
             HCADContext context = createHCADContext(event);
 
-            // 3. ?�상 ?�수 계산
+            // 3. 이상 점수 계산
             double anomalyScore = baseline.calculateAnomalyScore(context);
 
-            // 4. Z-score 계산 (?�계???�상 ?�단)
+            // 4. Z-score 계산 (통계적 이상 판단)
             double zScore = baseline.calculateZScore(anomalyScore);
 
-            // 5. ?�전 Trust Score 조회 (급격??변??감�???
+            // 5. 이전 Trust Score 조회 (급격한 변화 감지용)
             TrustScoreHistory history = getTrustScoreHistory(userId);
 
-            // 6. 종합 ?�상 ?�단
+            // 6. 종합 이상 판단
             AnomalyDetectionResult result = analyzeAnomaly(
-                userId, aiRiskScore, anomalyScore, zScore, history, processingResult
+                    userId, aiRiskScore, anomalyScore, zScore, history, processingResult
             );
 
-            // 7. 결과 ?�??(?�계 ?�데?�트)
+            // 7. 결과 저장 (통계 업데이트)
             if (result.isAnomaly()) {
                 saveAnomalyDetection(userId, result);
             }
 
-            // 8. BaselineVector ?�계 ?�데?�트
+            // 8. BaselineVector 통계 업데이트
             updateBaselineStatistics(baseline, anomalyScore);
 
             log.info("[AnomalyDetectionService] Anomaly detection for user {} - zScore: {}, type: {}, isAnomaly: {}",
-                userId, String.format("%.3f", zScore), result.getAnomalyType(), result.isAnomaly());
+                    userId, String.format("%.3f", zScore), result.getAnomalyType(), result.isAnomaly());
 
             return result;
 
         } catch (Exception e) {
             log.error("[AnomalyDetectionService] Error detecting anomaly for user: {}", userId, e);
             return AnomalyDetectionResult.builder()
-                .isAnomaly(false)
-                .anomalyType(AnomalyType.NONE)
-                .zScore(0.0)
-                .confidence(0.0)
-                .reason("Error in anomaly detection")
-                .build();
+                    .isAnomaly(false)
+                    .anomalyType(AnomalyType.NONE)
+                    .zScore(0.0)
+                    .confidence(0.0)
+                    .reason("Error in anomaly detection")
+                    .build();
         }
     }
 
     /**
-     * 종합 ?�상 분석
+     * 종합 이상 분석
      *
-     * AI ?�험 ?�수, ?�계??Z-score, 급격??변?��? 종합?�여 ?�단
+     * AI 위험 점수, 통계적 Z-score, 급격한 변화를 종합하여 판단
      */
     private AnomalyDetectionResult analyzeAnomaly(
-        String userId, double aiRiskScore, double anomalyScore,
-        double zScore, TrustScoreHistory history, ProcessingResult processingResult) {
+            String userId, double aiRiskScore, double anomalyScore,
+            double zScore, TrustScoreHistory history, ProcessingResult processingResult) {
 
-        // 1. AI가 ?�전?�다�??�단??경우 (Cold Path false positive 방�?)
+        // 1. AI가 안전하다고 판단한 경우 (Cold Path false positive 방지)
         if (aiRiskScore < 0.3 && zScore < zscoreWarningThreshold) {
             return AnomalyDetectionResult.builder()
-                .isAnomaly(false)
-                .anomalyType(AnomalyType.NONE)
-                .zScore(zScore)
-                .confidence(0.9)
-                .aiRiskScore(aiRiskScore)
-                .reason("AI and statistics both indicate normal behavior")
-                .build();
-        }
-
-        // 2. ?�션 ?�이?�킹 ?�심 (급격??변??+ ?��? Z-score)
-        if (history != null && history.hasRapidChange(rapidChangeThreshold, rapidChangeTimeWindowSeconds)) {
-            if (zScore >= hijackMinZScore && aiRiskScore >= 0.6) {
-                return AnomalyDetectionResult.builder()
-                    .isAnomaly(true)
-                    .anomalyType(AnomalyType.SESSION_HIJACKING)
-                    .severity(AnomalySeverity.CRITICAL)
-                    .zScore(zScore)
-                    .confidence(0.95)
-                    .aiRiskScore(aiRiskScore)
-                    .scoreDelta(history.getScoreDelta())
-                    .reason("Session hijacking suspected - rapid change in behavior pattern")
-                    .recommendedAction("Require MFA immediately")
-                    .build();
-            }
-        }
-
-        // 3. 극단???�계???�상 (4 ?��??�차 ?�상)
-        if (zScore >= zscoreExtremeThreshold) {
-            return AnomalyDetectionResult.builder()
-                .isAnomaly(true)
-                .anomalyType(AnomalyType.EXTREME_DEVIATION)
-                .severity(AnomalySeverity.CRITICAL)
-                .zScore(zScore)
-                .confidence(0.99)
-                .aiRiskScore(aiRiskScore)
-                .reason("Extreme statistical deviation detected")
-                .recommendedAction("Block access and alert security team")
-                .build();
-        }
-
-        // 4. ?��? ?�계???�상 (3 ?��??�차 ?�상)
-        if (zScore >= zscoreCriticalThreshold) {
-            // AI???�험?�다�??�단??경우
-            if (aiRiskScore >= 0.7) {
-                return AnomalyDetectionResult.builder()
-                    .isAnomaly(true)
-                    .anomalyType(AnomalyType.HIGH_RISK_ACTIVITY)
-                    .severity(AnomalySeverity.HIGH)
+                    .isAnomaly(false)
+                    .anomalyType(AnomalyType.NONE)
                     .zScore(zScore)
                     .confidence(0.9)
                     .aiRiskScore(aiRiskScore)
-                    .reason("Both AI and statistics indicate high risk")
-                    .recommendedAction("Require additional authentication")
+                    .reason("AI and statistics both indicate normal behavior")
                     .build();
-            } else {
-                // ?�계?�으로는 ?�상?��?�?AI??보통 ?��?
+        }
+
+        // 2. 세션 하이재킹 의심 (급격한 변화 + 높은 Z-score)
+        if (history != null && history.hasRapidChange(rapidChangeThreshold, rapidChangeTimeWindowSeconds)) {
+            if (zScore >= hijackMinZScore && aiRiskScore >= 0.6) {
                 return AnomalyDetectionResult.builder()
-                    .isAnomaly(true)
-                    .anomalyType(AnomalyType.STATISTICAL_ANOMALY)
-                    .severity(AnomalySeverity.MEDIUM)
-                    .zScore(zScore)
-                    .confidence(0.7)
-                    .aiRiskScore(aiRiskScore)
-                    .reason("Statistical anomaly detected, monitoring required")
-                    .recommendedAction("Enhanced monitoring")
-                    .build();
+                        .isAnomaly(true)
+                        .anomalyType(AnomalyType.SESSION_HIJACKING)
+                        .severity(AnomalySeverity.CRITICAL)
+                        .zScore(zScore)
+                        .confidence(0.95)
+                        .aiRiskScore(aiRiskScore)
+                        .scoreDelta(history.getScoreDelta())
+                        .reason("Session hijacking suspected - rapid change in behavior pattern")
+                        .recommendedAction("Require MFA immediately")
+                        .build();
             }
         }
 
-        // 5. 경고 ?��? ?�상 (2 ?��??�차 ?�상)
+        // 3. 극단적 통계적 이상 (4 표준편차 이상)
+        if (zScore >= zscoreExtremeThreshold) {
+            return AnomalyDetectionResult.builder()
+                    .isAnomaly(true)
+                    .anomalyType(AnomalyType.EXTREME_DEVIATION)
+                    .severity(AnomalySeverity.CRITICAL)
+                    .zScore(zScore)
+                    .confidence(0.99)
+                    .aiRiskScore(aiRiskScore)
+                    .reason("Extreme statistical deviation detected")
+                    .recommendedAction("Block access and alert security team")
+                    .build();
+        }
+
+        // 4. 높은 통계적 이상 (3 표준편차 이상)
+        if (zScore >= zscoreCriticalThreshold) {
+            // AI도 위험하다고 판단한 경우
+            if (aiRiskScore >= 0.7) {
+                return AnomalyDetectionResult.builder()
+                        .isAnomaly(true)
+                        .anomalyType(AnomalyType.HIGH_RISK_ACTIVITY)
+                        .severity(AnomalySeverity.HIGH)
+                        .zScore(zScore)
+                        .confidence(0.9)
+                        .aiRiskScore(aiRiskScore)
+                        .reason("Both AI and statistics indicate high risk")
+                        .recommendedAction("Require additional authentication")
+                        .build();
+            } else {
+                // 통계적으로는 이상이지만 AI는 보통 수준
+                return AnomalyDetectionResult.builder()
+                        .isAnomaly(true)
+                        .anomalyType(AnomalyType.STATISTICAL_ANOMALY)
+                        .severity(AnomalySeverity.MEDIUM)
+                        .zScore(zScore)
+                        .confidence(0.7)
+                        .aiRiskScore(aiRiskScore)
+                        .reason("Statistical anomaly detected, monitoring required")
+                        .recommendedAction("Enhanced monitoring")
+                        .build();
+            }
+        }
+
+        // 5. 경고 수준 이상 (2 표준편차 이상)
         if (zScore >= zscoreWarningThreshold) {
             if (aiRiskScore >= 0.5) {
                 return AnomalyDetectionResult.builder()
-                    .isAnomaly(true)
-                    .anomalyType(AnomalyType.SUSPICIOUS_ACTIVITY)
-                    .severity(AnomalySeverity.MEDIUM)
-                    .zScore(zScore)
-                    .confidence(0.6)
-                    .aiRiskScore(aiRiskScore)
-                    .reason("Suspicious activity detected")
-                    .recommendedAction("Monitor closely")
-                    .build();
+                        .isAnomaly(true)
+                        .anomalyType(AnomalyType.SUSPICIOUS_ACTIVITY)
+                        .severity(AnomalySeverity.MEDIUM)
+                        .zScore(zScore)
+                        .confidence(0.6)
+                        .aiRiskScore(aiRiskScore)
+                        .reason("Suspicious activity detected")
+                        .recommendedAction("Monitor closely")
+                        .build();
             }
         }
 
-        // 6. ?�상 범위 (?�상 ?�음)
+        // 6. 정상 범위 (이상 없음)
         return AnomalyDetectionResult.builder()
-            .isAnomaly(false)
-            .anomalyType(AnomalyType.NONE)
-            .severity(AnomalySeverity.NONE)
-            .zScore(zScore)
-            .confidence(0.8)
-            .aiRiskScore(aiRiskScore)
-            .reason("Within normal behavior range")
-            .build();
+                .isAnomaly(false)
+                .anomalyType(AnomalyType.NONE)
+                .severity(AnomalySeverity.NONE)
+                .zScore(zScore)
+                .confidence(0.8)
+                .aiRiskScore(aiRiskScore)
+                .reason("Within normal behavior range")
+                .build();
     }
 
     /**
@@ -252,23 +251,23 @@ public class AnomalyDetectionService {
     }
 
     /**
-     * HCADContext ?�성
+     * HCADContext 생성
      */
     private HCADContext createHCADContext(SecurityEvent event) {
         return HCADContext.builder()
-            .userId(event.getUserId())
-            .timestamp(Instant.now()) // LocalDateTime??Instant�?변???�요
-            // eventType ?�드가 HCADContext???�으므�??�거
-            .remoteIp(event.getSourceIp()) // getIpAddress() -> getSourceIp()
-            .userAgent(event.getUserAgent())
-            // requestPath?� currentTrustScore ?�드가 HCADContext???�의?�어 ?�음
-            .requestPath("/unknown") // SecurityEvent??requestPath가 ?�으므�?기본�??�용
-            .currentTrustScore(event.getConfidenceScore() != null ? event.getConfidenceScore() : 0.5)
-            .build();
+                .userId(event.getUserId())
+                .timestamp(Instant.now()) // LocalDateTime을 Instant로 변환 필요
+                // eventType 필드가 HCADContext에 없으므로 제거
+                .remoteIp(event.getSourceIp()) // getIpAddress() -> getSourceIp()
+                .userAgent(event.getUserAgent())
+                // requestPath와 currentTrustScore 필드가 HCADContext에 정의되어 있음
+                .requestPath("/unknown") // SecurityEvent에 requestPath가 없으므로 기본값 사용
+                .currentTrustScore(event.getConfidenceScore() != null ? event.getConfidenceScore() : 0.5)
+                .build();
     }
 
     /**
-     * Trust Score ?�력 조회
+     * Trust Score 이력 조회
      */
     private TrustScoreHistory getTrustScoreHistory(String userId) {
         try {
@@ -281,7 +280,7 @@ public class AnomalyDetectionService {
     }
 
     /**
-     * ?�상 ?��? 결과 ?�??
+     * 이상 탐지 결과 저장
      */
     private void saveAnomalyDetection(String userId, AnomalyDetectionResult result) {
         try {
@@ -295,7 +294,7 @@ public class AnomalyDetectionService {
             anomalyData.put("reason", result.getReason());
             anomalyData.put("detectedAt", LocalDateTime.now());
 
-            // TTL ?�정 (?�각?�에 ?�라 ?�르�?
+            // TTL 설정 (심각도에 따라 다르게)
             int ttlMinutes = switch (result.getSeverity()) {
                 case CRITICAL -> 30;
                 case HIGH -> 20;
@@ -311,31 +310,31 @@ public class AnomalyDetectionService {
     }
 
     /**
-     * BaselineVector ?�계 ?�데?�트
+     * BaselineVector 통계 업데이트
      */
     private void updateBaselineStatistics(BaselineVector baseline, double anomalyScore) {
-        // ?�동 ?�균 방식?�로 ?�계 ?�데?�트
-        double alpha = 0.1; // ?�습�?
+        // 이동 평균 방식으로 통계 업데이트
+        double alpha = 0.1; // 학습률
 
         if (baseline.getAnomalyScoreMean() != null) {
             baseline.setAnomalyScoreMean(
-                alpha * anomalyScore + (1 - alpha) * baseline.getAnomalyScoreMean()
+                    alpha * anomalyScore + (1 - alpha) * baseline.getAnomalyScoreMean()
             );
         } else {
             baseline.setAnomalyScoreMean(anomalyScore);
         }
 
-        // ?��??�차 ?�데?�트 (간단??근사)
+        // 표준편차 업데이트 (간단한 근사)
         if (baseline.getAnomalyScoreStdDev() != null) {
             double variance = Math.pow(anomalyScore - baseline.getAnomalyScoreMean(), 2);
             baseline.setAnomalyScoreStdDev(
-                Math.sqrt(alpha * variance + (1 - alpha) * Math.pow(baseline.getAnomalyScoreStdDev(), 2))
+                    Math.sqrt(alpha * variance + (1 - alpha) * Math.pow(baseline.getAnomalyScoreStdDev(), 2))
             );
         } else {
-            baseline.setAnomalyScoreStdDev(0.1); // 초기�?
+            baseline.setAnomalyScoreStdDev(0.1); // 초기값
         }
 
-        // Redis???�??
+        // Redis에 저장
         try {
             String key = ZeroTrustRedisKeys.baselineVector(baseline.getUserId());
             redisTemplate.opsForValue().set(key, baseline, Duration.ofHours(24));
@@ -345,7 +344,7 @@ public class AnomalyDetectionService {
     }
 
     /**
-     * ?�상 ?��? 결과
+     * 이상 탐지 결과
      */
     @Data
     @Builder
@@ -356,25 +355,25 @@ public class AnomalyDetectionService {
         private double zScore;
         private double confidence;
         private double aiRiskScore;
-        private Double scoreDelta;  // Trust Score 변?�량
+        private Double scoreDelta;  // Trust Score 변화량
         private String reason;
         private String recommendedAction;
     }
 
     /**
-     * ?�상 ?�형
+     * 이상 유형
      */
     public enum AnomalyType {
-        NONE,                   // ?�상 ?�음
-        SUSPICIOUS_ACTIVITY,    // ?�심?�러???�동
-        STATISTICAL_ANOMALY,    // ?�계???�상
-        HIGH_RISK_ACTIVITY,     // 고위???�동
-        SESSION_HIJACKING,      // ?�션 ?�이?�킹 ?�심
-        EXTREME_DEVIATION      // 극단???�차
+        NONE,                   // 이상 없음
+        SUSPICIOUS_ACTIVITY,    // 의심스러운 활동
+        STATISTICAL_ANOMALY,    // 통계적 이상
+        HIGH_RISK_ACTIVITY,     // 고위험 활동
+        SESSION_HIJACKING,      // 세션 하이재킹 의심
+        EXTREME_DEVIATION      // 극단적 편차
     }
 
     /**
-     * ?�상 ?�각??
+     * 이상 심각도
      */
     public enum AnomalySeverity {
         NONE,
@@ -385,7 +384,7 @@ public class AnomalyDetectionService {
     }
 
     /**
-     * Trust Score ?�력 (?��? ?�래??
+     * Trust Score 이력 (내부 클래스)
      */
     @Data
     @Builder

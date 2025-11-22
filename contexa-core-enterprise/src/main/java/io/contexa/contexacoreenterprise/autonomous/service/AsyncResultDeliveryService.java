@@ -332,10 +332,10 @@ public class AsyncResultDeliveryService {
                 
                 // 특정 사용자에게 전송
                 String destination = "/queue/soar-results/" + requestId;
-                messagingTemplate.convertAndSend(destination, message);
+                messagingTemplate.convertAndSend(destination, (Object)message);
                 
                 // 브로드캐스트
-                messagingTemplate.convertAndSend("/topic/soar-results", message);
+                messagingTemplate.convertAndSend("/topic/soar-results", (Object)message);
                 
                 log.debug("WebSocket 푸시 성공 - Request ID: {}", requestId);
                 channelMetrics.computeIfAbsent(DeliveryChannel.WEBSOCKET, k -> new AtomicLong()).incrementAndGet();
