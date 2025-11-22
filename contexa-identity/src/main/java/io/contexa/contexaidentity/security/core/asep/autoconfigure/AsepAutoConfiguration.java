@@ -15,14 +15,16 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.format.support.FormattingConversionService;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverters;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 @AutoConfiguration // Spring Boot 2.7+
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -36,10 +38,28 @@ public class AsepAutoConfiguration {
     // 생성자 주입 방식 권장
     public AsepAutoConfiguration(ObjectProvider<HttpMessageConverters> httpMessageConvertersProvider,
                                  ObjectProvider<ConversionService> conversionServiceProvider) {
-        this.httpMessageConverters = httpMessageConvertersProvider.getIfAvailable(() -> new HttpMessageConverters(Collections.emptyList()));
+        this.httpMessageConverters = httpMessageConvertersProvider.getIfAvailable(() -> new HttpMessageConverters(){
+            @Override
+            public Iterator<HttpMessageConverter<?>> iterator() {
+                return null;
+            }
+
+            @Override
+            public void forEach(Consumer<? super HttpMessageConverter<?>> action) {
+                HttpMessageConverters.super.forEach(action);
+            }
+
+            @Override
+            public Spliterator<HttpMessageConverter<?>> spliterator() {
+                return HttpMessageConverters.super.spliterator();
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return true;
+            }
+        });
         this.conversionService = conversionServiceProvider.getIfAvailable(FormattingConversionService::new);
-        log.info("ASEP: AsepAutoConfiguration initialized. HttpMessageConverters count: {}, ConversionService: {}",
-                this.httpMessageConverters.getConverters().size(), this.conversionService.getClass().getSimpleName());
     }
 
     @Bean
@@ -63,7 +83,7 @@ public class AsepAutoConfiguration {
         resolvers.add(new SecurityRequestAttributeArgumentResolver());
         resolvers.add(new SecuritySessionAttributeArgumentResolver());
         // SecurityRequestBodyArgumentResolver는 messageConverters를 필요로 함
-        if (this.httpMessageConverters != null && !this.httpMessageConverters.getConverters().isEmpty()) {
+        if (this.httpMessageConverters != null && !this.httpMessageConverters.isEmpty()) {
             resolvers.add(new SecurityRequestBodyArgumentResolver(this.httpMessageConverters.getConverters()));
         } else {
             log.warn("ASEP: HttpMessageConverters bean not available or empty. SecurityRequestBodyArgumentResolver will not be fully functional.");
@@ -78,7 +98,7 @@ public class AsepAutoConfiguration {
     @ConditionalOnMissingBean(name = "asepDefaultReturnValueHandlers")
     public List<SecurityHandlerMethodReturnValueHandler> asepDefaultReturnValueHandlers() {
         List<SecurityHandlerMethodReturnValueHandler> handlers = new ArrayList<>();
-        if (this.httpMessageConverters != null && !this.httpMessageConverters.getConverters().isEmpty()) {
+        if (this.httpMessageConverters != null && !this.httpMessageConverters.isEmpty()) {
             handlers.add(new ResponseEntityReturnValueHandler(this.httpMessageConverters.getConverters()));
             handlers.add(new SecurityResponseBodyReturnValueHandler(this.httpMessageConverters.getConverters()));
         } else {

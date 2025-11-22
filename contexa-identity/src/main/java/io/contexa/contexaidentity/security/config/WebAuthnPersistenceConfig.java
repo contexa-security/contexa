@@ -23,8 +23,6 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>JdbcOperations Bean: Spring Boot JDBC Auto-configuration</li>
  * </ul>
  *
- * @see org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository
- * @see org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository
  * @since 2025-01
  */
 @Slf4j
@@ -46,12 +44,12 @@ public class WebAuthnPersistenceConfig {
      * @param jdbcOperations Spring Boot가 자동 생성한 JdbcTemplate
      * @return Spring Security가 제공하는 JDBC 기반 Repository 구현체
      */
-    @Bean
+    /*@Bean
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             JdbcOperations jdbcOperations) {
         log.info("Initializing PublicKeyCredentialUserEntityRepository (JDBC-based)");
         return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
-    }
+    }*/
 
     /**
      * Credential Repository Bean 등록
@@ -78,12 +76,12 @@ public class WebAuthnPersistenceConfig {
      * @param jdbcOperations Spring Boot가 자동 생성한 JdbcTemplate
      * @return Spring Security가 제공하는 JDBC 기반 Repository 구현체
      */
-    @Bean
+   /* @Bean
     public UserCredentialRepository userCredentialRepository(
             JdbcOperations jdbcOperations) {
         log.info("Initializing UserCredentialRepository (JDBC-based)");
         return new JdbcUserCredentialRepository(jdbcOperations);
-    }
+    }*/
 
     /**
      * 설정 검증 및 초기화 완료 로그

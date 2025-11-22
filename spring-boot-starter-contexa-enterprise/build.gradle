@@ -10,7 +10,7 @@ dependencies {
 
     // ========== Enterprise 필수 의존성 ==========
     // Redis: HCAD 실시간 분석, 분산 캐싱, 이벤트 스트림
-    api 'org.springframework.boot:spring-boot-starter-data-redis'
+    /*api 'org.springframework.boot:spring-boot-starter-data-redis'
 
     // Kafka: SOAR 통합, 실시간 위협 이벤트 스트리밍
     api 'org.springframework.kafka:spring-kafka'
@@ -19,7 +19,7 @@ dependencies {
     api 'org.redisson:redisson-spring-boot-starter:3.48.0'
 
     // Quartz: Tool Calling 스케줄링
-    api 'org.springframework.boot:spring-boot-starter-quartz'
+    api 'org.springframework.boot:spring-boot-starter-quartz'*/
 }
 
 // Starter는 라이브러리 모듈이므로 bootJar 비활성화
