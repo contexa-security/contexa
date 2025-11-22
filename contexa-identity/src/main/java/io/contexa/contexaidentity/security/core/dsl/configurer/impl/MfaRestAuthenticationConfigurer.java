@@ -19,7 +19,7 @@ public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder
     private String mfaInitiateUrl;
 
     @Override
-    public void init(H http) throws Exception {
+    public void init(H http){
         // MFA 설정 초기화
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         if (platformContext != null) {
@@ -38,7 +38,7 @@ public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder
             H http,
             AuthenticationManager authenticationManager,
             ApplicationContext applicationContext,
-            AuthContextProperties properties) throws Exception {
+            AuthContextProperties properties) {
 
         Assert.notNull(this.mfaInitiateUrl, "mfaInitiateUrl must be configured or have a default value.");
 

@@ -45,7 +45,7 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
     }
 
     @Override
-    public void configure(H http) throws Exception {
+    public void configure(H http) {
         AuthenticationManager authenticationManager = http.getSharedObject(AuthenticationManager.class);
         Assert.notNull(authenticationManager, "AuthenticationManager cannot be null (is it shared from HttpSecurity?)");
 
@@ -69,7 +69,7 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
             H http,
             AuthenticationManager authenticationManager,
             ApplicationContext applicationContext,
-            AuthContextProperties properties) throws Exception;
+            AuthContextProperties properties);
 
     /**
      * 필터에 공통 설정을 적용하는 메서드

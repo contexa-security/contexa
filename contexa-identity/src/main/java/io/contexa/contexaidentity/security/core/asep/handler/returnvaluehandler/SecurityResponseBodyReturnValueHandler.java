@@ -64,7 +64,7 @@ public final class SecurityResponseBodyReturnValueHandler implements SecurityHan
             if (StringUtils.hasText(acceptHeader) && !acceptHeader.equals("*/*")) {
                 try {
                     List<MediaType> acceptedMediaTypes = MediaType.parseMediaTypes(acceptHeader);
-                    acceptedMediaTypes.sort(MediaType.SPECIFICITY_COMPARATOR.thenComparing(MediaType.QUALITY_VALUE_COMPARATOR));
+//                    acceptedMediaTypes.sort(MediaType.SPECIFICITY_COMPARATOR.thenComparing(MediaType.QUALITY_VALUE_COMPARATOR));
                     if (!acceptedMediaTypes.isEmpty()) selectedMediaType = acceptedMediaTypes.get(0);
                 } catch (Exception e) { /* log and ignore */ }
             }

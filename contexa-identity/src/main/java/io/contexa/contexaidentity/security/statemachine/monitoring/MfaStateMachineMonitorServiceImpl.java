@@ -11,8 +11,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.actuate.health.Health;
-import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -29,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitorService, HealthIndicator {
+public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitorService{
 
     private final MeterRegistry meterRegistry;
     private final ApplicationEventPublisher eventPublisher;
@@ -219,25 +217,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         if (ratio < 2.0) return PerformanceAlertEvent.Severity.MEDIUM;
         if (ratio < 3.0) return PerformanceAlertEvent.Severity.HIGH;
         return PerformanceAlertEvent.Severity.CRITICAL;
-    }
-
-    /**
-     * 헬스 체크
-     */
-    @Override
-    public Health health() {
-        double errorRate = calculateErrorRate();
-        boolean isHealthy = errorRate < ERROR_RATE_THRESHOLD;
-
-        Health.Builder builder = isHealthy ? Health.up() : Health.down();
-
-        return builder
-                .withDetail("totalTransitions", totalTransitions.count())
-                .withDetail("failedTransitions", failedTransitions.count())
-                .withDetail("errorRate", String.format("%.2f%%", errorRate * 100))
-                .withDetail("activeSessions", activeSessions.get())
-                .withDetail("stateDistribution", getStateDistributionMap())
-                .build();
     }
 
     @Override
