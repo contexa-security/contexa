@@ -5,6 +5,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcOperations;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
+import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
+import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
+import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 
 /**
  * WebAuthn/Passkey 영속성 설정
@@ -44,12 +48,12 @@ public class WebAuthnPersistenceConfig {
      * @param jdbcOperations Spring Boot가 자동 생성한 JdbcTemplate
      * @return Spring Security가 제공하는 JDBC 기반 Repository 구현체
      */
-    /*@Bean
+    @Bean
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             JdbcOperations jdbcOperations) {
         log.info("Initializing PublicKeyCredentialUserEntityRepository (JDBC-based)");
         return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
-    }*/
+    }
 
     /**
      * Credential Repository Bean 등록
@@ -76,12 +80,12 @@ public class WebAuthnPersistenceConfig {
      * @param jdbcOperations Spring Boot가 자동 생성한 JdbcTemplate
      * @return Spring Security가 제공하는 JDBC 기반 Repository 구현체
      */
-   /* @Bean
+    @Bean
     public UserCredentialRepository userCredentialRepository(
             JdbcOperations jdbcOperations) {
         log.info("Initializing UserCredentialRepository (JDBC-based)");
         return new JdbcUserCredentialRepository(jdbcOperations);
-    }*/
+    }
 
     /**
      * 설정 검증 및 초기화 완료 로그

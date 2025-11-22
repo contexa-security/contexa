@@ -25,6 +25,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @AutoConfiguration // Spring Boot 2.7+
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -38,27 +40,7 @@ public class AsepAutoConfiguration {
     // 생성자 주입 방식 권장
     public AsepAutoConfiguration(ObjectProvider<HttpMessageConverters> httpMessageConvertersProvider,
                                  ObjectProvider<ConversionService> conversionServiceProvider) {
-        this.httpMessageConverters = httpMessageConvertersProvider.getIfAvailable(() -> new HttpMessageConverters(){
-            @Override
-            public Iterator<HttpMessageConverter<?>> iterator() {
-                return null;
-            }
-
-            @Override
-            public void forEach(Consumer<? super HttpMessageConverter<?>> action) {
-                HttpMessageConverters.super.forEach(action);
-            }
-
-            @Override
-            public Spliterator<HttpMessageConverter<?>> spliterator() {
-                return HttpMessageConverters.super.spliterator();
-            }
-
-            @Override
-            public boolean isEmpty() {
-                return true;
-            }
-        });
+        this.httpMessageConverters = httpMessageConvertersProvider.getObject();
         this.conversionService = conversionServiceProvider.getIfAvailable(FormattingConversionService::new);
     }
 
@@ -84,7 +66,8 @@ public class AsepAutoConfiguration {
         resolvers.add(new SecuritySessionAttributeArgumentResolver());
         // SecurityRequestBodyArgumentResolver는 messageConverters를 필요로 함
         if (this.httpMessageConverters != null && !this.httpMessageConverters.isEmpty()) {
-            resolvers.add(new SecurityRequestBodyArgumentResolver(this.httpMessageConverters.getConverters()));
+            List<HttpMessageConverter<?>> messageConverters = StreamSupport.stream(httpMessageConverters.spliterator(), false).toList();
+            resolvers.add(new SecurityRequestBodyArgumentResolver(messageConverters));
         } else {
             log.warn("ASEP: HttpMessageConverters bean not available or empty. SecurityRequestBodyArgumentResolver will not be fully functional.");
             resolvers.add(new SecurityRequestBodyArgumentResolver(Collections.emptyList())); // 빈 리스트로라도 생성
@@ -99,8 +82,9 @@ public class AsepAutoConfiguration {
     public List<SecurityHandlerMethodReturnValueHandler> asepDefaultReturnValueHandlers() {
         List<SecurityHandlerMethodReturnValueHandler> handlers = new ArrayList<>();
         if (this.httpMessageConverters != null && !this.httpMessageConverters.isEmpty()) {
-            handlers.add(new ResponseEntityReturnValueHandler(this.httpMessageConverters.getConverters()));
-            handlers.add(new SecurityResponseBodyReturnValueHandler(this.httpMessageConverters.getConverters()));
+            List<HttpMessageConverter<?>> messageConverters = StreamSupport.stream(httpMessageConverters.spliterator(), false).toList();
+            handlers.add(new ResponseEntityReturnValueHandler(messageConverters));
+            handlers.add(new SecurityResponseBodyReturnValueHandler(messageConverters));
         } else {
             log.warn("ASEP: HttpMessageConverters bean not available or empty. ResponseEntityReturnValueHandler and SecurityResponseBodyReturnValueHandler will not be fully functional.");
             handlers.add(new ResponseEntityReturnValueHandler(Collections.emptyList()));
