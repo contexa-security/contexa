@@ -102,7 +102,10 @@
       "Bash(contexa-core-enterprise/src/main/java/io/contexa/contexacoreenterprise/mcp/integration/McpFunctionCallbackProvider.java)",
       "Bash(for file in \"contexa-core/src/main/java/io/contexa/contexacore/autonomous/event/filter/SecurityEventPublishingFilter.java\" \"contexa-core/src/main/java/io/contexa/contexacore/hcad/filter/HCADFilter.java\" \"contexa-core/src/main/java/io/contexa/contexacore/std/rag/observation/SecurityVectorStoreObservationConvention.java\" \"contexa-core-enterprise/src/main/java/io/contexa/contexacoreenterprise/autonomous/scheduler/PolicyEvolutionScheduler.java\" \"contexa-core-enterprise/src/main/java/io/contexa/contexacoreenterprise/autonomous/scheduler/StaticAnalysisScheduler.java\" \"contexa-core-enterprise/src/main/java/io/contexa/contexacoreenterprise/soar/config/SoarToolConfiguration.java\")",
       "Bash(do echo \"=== $file ===\" grep -n \"@Service\\|@Component\\|@Controller\\|@ConditionalOnClass\" \"$file\")",
-      "Bash(Select-String -Pattern \"spring-security\" -Context 2)"
+      "Bash(Select-String -Pattern \"spring-security\" -Context 2)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-identity:bootRun)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-identity:bootRun --refresh-dependencies)"
     ],
     "deny": [],
     "ask": []

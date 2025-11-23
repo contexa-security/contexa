@@ -15,7 +15,7 @@ dependencies {
     implementation 'org.springframework.security:spring-security-oauth2-authorization-server:1.2.3'
 
     implementation 'com.webauthn4j:webauthn4j-core:0.29.7.RELEASE'
-    implementation 'org.springframework.security:spring-security-webauthn'
+//    implementation 'org.springframework.security:spring-security-webauthn'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'

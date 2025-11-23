@@ -46,7 +46,7 @@ public class StandardMcpClientConfiguration {
                     .build();
 
             // MCP 클라이언트 생성 및 초기화
-            var mcpClient = McpClient.sync(new StdioClientTransport(stdioParams))
+            var mcpClient = McpClient.sync(new StdioClientTransport(stdioParams, null))
                     .requestTimeout(Duration.ofSeconds(requestTimeoutSeconds))
                     .build();
 
@@ -111,7 +111,7 @@ public class StandardMcpClientConfiguration {
             var dummyParams = ServerParameters.builder("echo")
                     .args("Fallback MCP Client")
                     .build();
-            return McpClient.sync(new StdioClientTransport(dummyParams))
+            return McpClient.sync(new StdioClientTransport(dummyParams, null))
                     .requestTimeout(Duration.ofSeconds(5))
                     .build();
         } catch (Exception e) {
