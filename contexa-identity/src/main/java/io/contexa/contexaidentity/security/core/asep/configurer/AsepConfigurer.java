@@ -14,17 +14,15 @@ import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.*;
 import lombok.extern.slf4j.Slf4j;
-//import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
+import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.http.converter.HttpMessageConverter;
-import org.springframework.http.converter.HttpMessageConverters;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 @Slf4j
 public final class AsepConfigurer implements SecurityConfigurer {
@@ -46,7 +44,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
         this.methodRegistry = Objects.requireNonNull(methodRegistry, "SecurityExceptionHandlerMethodRegistry cannot be null");
         this.defaultArgumentResolvers = defaultArgumentResolvers != null ? List.copyOf(defaultArgumentResolvers) : Collections.emptyList();
         this.defaultReturnValueHandlers = defaultReturnValueHandlers != null ? List.copyOf(defaultReturnValueHandlers) : Collections.emptyList();
-        this.messageConverters = StreamSupport.stream(httpMessageConverters.spliterator(), false).collect(Collectors.toList());
+        this.messageConverters = Objects.requireNonNull(httpMessageConverters, "HttpMessageConverters cannot be null").getConverters();
         this.dslAttributesMapping = dslAttributesMapping != null ? Map.copyOf(dslAttributesMapping) : Collections.emptyMap(); // 필드 복원
         this.order = Ordered.LOWEST_PRECEDENCE - 1000;
 

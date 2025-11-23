@@ -39,7 +39,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     }
 
     @Override
-    public void init(HttpSecurity http) {
+    public void init(HttpSecurity http) throws Exception {
         ApplicationContext context = http.getSharedObject(ApplicationContext.class);
         if (context == null) {
             log.warn("OAuth2StateConfigurer: ApplicationContext not found in HttpSecurity sharedObjects during init. " +
@@ -51,7 +51,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     }
 
     @Override
-    public void configure(HttpSecurity http) {
+    public void configure(HttpSecurity http) throws Exception {
         log.debug("OAuth2StateConfigurer configuring HttpSecurity (hash: {}). Adding OAuth2 filters.", http.hashCode());
 
         TokenService tokenService = http.getSharedObject(TokenService.class);
@@ -88,7 +88,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     /**
      * Resource Server 설정 적용
      */
-    private void configureResourceServer(HttpSecurity http){
+    private void configureResourceServer(HttpSecurity http) throws Exception {
 
         http.oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> {
@@ -105,7 +105,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     /**
      * Authorization Server 설정 적용
      */
-    private void configureAuthorizationServer(HttpSecurity http){
+    private void configureAuthorizationServer(HttpSecurity http) throws Exception {
         OAuth2AuthorizationService authorizationService = http.getSharedObject(OAuth2AuthorizationService.class);
         RegisteredClientRepository clientRepository = http.getSharedObject(RegisteredClientRepository.class);
         AuthorizationServerSettings authzServerSettings = http.getSharedObject(AuthorizationServerSettings.class);

@@ -15,18 +15,14 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.format.support.FormattingConversionService;
-import org.springframework.http.converter.HttpMessageConverter;
-import org.springframework.http.converter.HttpMessageConverters;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 import java.util.*;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 @AutoConfiguration // Spring Boot 2.7+
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -40,8 +36,10 @@ public class AsepAutoConfiguration {
     // 생성자 주입 방식 권장
     public AsepAutoConfiguration(ObjectProvider<HttpMessageConverters> httpMessageConvertersProvider,
                                  ObjectProvider<ConversionService> conversionServiceProvider) {
-        this.httpMessageConverters = httpMessageConvertersProvider.getObject();
+        this.httpMessageConverters = httpMessageConvertersProvider.getIfAvailable(() -> new HttpMessageConverters(Collections.emptyList()));
         this.conversionService = conversionServiceProvider.getIfAvailable(FormattingConversionService::new);
+        log.info("ASEP: AsepAutoConfiguration initialized. HttpMessageConverters count: {}, ConversionService: {}",
+                this.httpMessageConverters.getConverters().size(), this.conversionService.getClass().getSimpleName());
     }
 
     @Bean
@@ -65,9 +63,8 @@ public class AsepAutoConfiguration {
         resolvers.add(new SecurityRequestAttributeArgumentResolver());
         resolvers.add(new SecuritySessionAttributeArgumentResolver());
         // SecurityRequestBodyArgumentResolver는 messageConverters를 필요로 함
-        if (this.httpMessageConverters != null && !this.httpMessageConverters.isEmpty()) {
-            List<HttpMessageConverter<?>> messageConverters = StreamSupport.stream(httpMessageConverters.spliterator(), false).toList();
-            resolvers.add(new SecurityRequestBodyArgumentResolver(messageConverters));
+        if (this.httpMessageConverters != null && !this.httpMessageConverters.getConverters().isEmpty()) {
+            resolvers.add(new SecurityRequestBodyArgumentResolver(this.httpMessageConverters.getConverters()));
         } else {
             log.warn("ASEP: HttpMessageConverters bean not available or empty. SecurityRequestBodyArgumentResolver will not be fully functional.");
             resolvers.add(new SecurityRequestBodyArgumentResolver(Collections.emptyList())); // 빈 리스트로라도 생성
@@ -81,10 +78,9 @@ public class AsepAutoConfiguration {
     @ConditionalOnMissingBean(name = "asepDefaultReturnValueHandlers")
     public List<SecurityHandlerMethodReturnValueHandler> asepDefaultReturnValueHandlers() {
         List<SecurityHandlerMethodReturnValueHandler> handlers = new ArrayList<>();
-        if (this.httpMessageConverters != null && !this.httpMessageConverters.isEmpty()) {
-            List<HttpMessageConverter<?>> messageConverters = StreamSupport.stream(httpMessageConverters.spliterator(), false).toList();
-            handlers.add(new ResponseEntityReturnValueHandler(messageConverters));
-            handlers.add(new SecurityResponseBodyReturnValueHandler(messageConverters));
+        if (this.httpMessageConverters != null && !this.httpMessageConverters.getConverters().isEmpty()) {
+            handlers.add(new ResponseEntityReturnValueHandler(this.httpMessageConverters.getConverters()));
+            handlers.add(new SecurityResponseBodyReturnValueHandler(this.httpMessageConverters.getConverters()));
         } else {
             log.warn("ASEP: HttpMessageConverters bean not available or empty. ResponseEntityReturnValueHandler and SecurityResponseBodyReturnValueHandler will not be fully functional.");
             handlers.add(new ResponseEntityReturnValueHandler(Collections.emptyList()));
