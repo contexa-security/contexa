@@ -120,7 +120,8 @@ public class HCADContext {
     private Double trustScore; // 신뢰 점수 (currentTrustScore의 alias)
 
     // ========== Phase 2 개선: 동적 신뢰도 계산용 필드 ==========
-    private Double baselineConfidence; // Baseline 신뢰도 (0.0-1.0)
+    @Builder.Default
+    private Double baselineConfidence = 0.5; // Baseline 신뢰도 (0.0-1.0), 기본값: 중립 0.5
     private Double zScore; // 통계적 Z-Score
     private String deviceType; // 디바이스 타입 (MOBILE, DESKTOP, TABLET, OTHER)
     private Double threatScore; // 위협 점수 (0.0-1.0)

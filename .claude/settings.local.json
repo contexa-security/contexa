@@ -105,7 +105,8 @@
       "Bash(Select-String -Pattern \"spring-security\" -Context 2)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-identity:bootRun)",
       "Bash(Start-Sleep -Seconds 5)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-identity:bootRun --refresh-dependencies)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-identity:bootRun --refresh-dependencies)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava -x test)"
     ],
     "deny": [],
     "ask": []

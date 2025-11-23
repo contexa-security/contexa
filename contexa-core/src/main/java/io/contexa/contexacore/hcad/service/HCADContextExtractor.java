@@ -271,6 +271,9 @@ public class HCADContextExtractor {
             Double trustScore = (Double) redisTemplate.opsForValue().get(trustScoreKey);
             context.setCurrentTrustScore(trustScore != null ? trustScore : 0.5);
 
+            // Baseline 신뢰도 초기화 (처음에는 중립값 0.5로 시작)
+            context.setBaselineConfidence(0.5);
+
             // 실패한 로그인 시도 조회
             String failedLoginKey = "security:failed:login:" + userId;
             String failedCount = (String) redisTemplate.opsForValue().get(failedLoginKey);
@@ -289,6 +292,7 @@ public class HCADContextExtractor {
         } catch (Exception e) {
             log.debug("[HCAD] 보안 정보 추출 실패", e);
             context.setCurrentTrustScore(0.5);
+            context.setBaselineConfidence(0.5);  // 예외 발생 시에도 기본값 설정
             context.setFailedLoginAttempts(0);
             context.setHasValidMFA(false);
         }

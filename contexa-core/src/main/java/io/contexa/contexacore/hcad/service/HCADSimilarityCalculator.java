@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -165,6 +166,17 @@ public class HCADSimilarityCalculator {
     }
 
     private SecurityEvent convertToSecurityEvent(HCADContext context) {
+        // baselineConfidence null 체크 및 기본값 처리
+        Double baselineConfidence = context.getBaselineConfidence();
+        double riskScore = baselineConfidence != null
+            ? (1.0 - baselineConfidence)
+            : 0.5;  // 기본 위험 점수 50%
+
+        if (baselineConfidence == null) {
+            log.warn("[HCAD] baselineConfidence가 null입니다. userId: {}, 기본값 0.5 사용",
+                     context.getUserId());
+        }
+
         return SecurityEvent.builder()
             .eventId(java.util.UUID.randomUUID().toString())
             .eventType(SecurityEvent.EventType.ANOMALY_DETECTED)
@@ -173,8 +185,8 @@ public class HCADSimilarityCalculator {
             .protocol(context.getHttpMethod())
             .targetResource(context.getRequestPath())
             .sessionId(context.getSessionId())
-            .timestamp(java.time.LocalDateTime.now())
-            .riskScore(1.0 - context.getBaselineConfidence())
+            .timestamp(LocalDateTime.now())
+            .riskScore(riskScore)
             .build();
     }
 
