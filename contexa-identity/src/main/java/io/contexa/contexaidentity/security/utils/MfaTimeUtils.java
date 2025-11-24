@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.utils;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexaidentity.security.properties.MfaSettings;
+import io.contexa.contexacommon.properties.MfaSettings;
 import lombok.experimental.UtilityClass;
 
 import java.time.Duration;

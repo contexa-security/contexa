@@ -2,8 +2,8 @@ package io.contexa.contexaidentity.security.token.store;
 
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexaidentity.security.enums.TokenStoreType;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.enums.TokenStoreType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;

@@ -14,6 +14,8 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -50,6 +52,7 @@ import java.util.List;
     havingValue = "true",
     matchIfMissing = true
 )
+@EnableConfigurationProperties(ContexaAdvisorProperties.class)
 public class CoreAdvisorAutoConfiguration {
 
     @Value("${contexa.advisor.chain-profile:STANDARD}")

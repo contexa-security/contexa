@@ -1,6 +1,11 @@
 bootJar.enabled = false
 jar.enabled = true
 
+// 라이브러리 JAR에서 application.yml 제외
+jar {
+    exclude '**/application.yml'
+}
+
 dependencies {
     implementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

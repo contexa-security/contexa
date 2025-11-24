@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.handler;
 
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;

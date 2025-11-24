@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.core.mfa.context;
 
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 
 import java.util.List;
 import java.util.Set;

@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.mfa.model;
 
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;

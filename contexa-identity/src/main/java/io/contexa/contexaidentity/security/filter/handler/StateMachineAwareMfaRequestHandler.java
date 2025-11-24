@@ -2,10 +2,10 @@ package io.contexa.contexaidentity.security.filter.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
-import io.contexa.contexaidentity.security.properties.MfaSettings;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;

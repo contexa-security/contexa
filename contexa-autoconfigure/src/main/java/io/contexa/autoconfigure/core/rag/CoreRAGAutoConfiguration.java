@@ -94,7 +94,7 @@ import java.time.format.DateTimeFormatter;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({ContexaProperties.class, PgVectorStoreProperties.class})
 public class CoreRAGAutoConfiguration {
 
     @Value("${spring.ai.rag.similarity-threshold:0.75}")

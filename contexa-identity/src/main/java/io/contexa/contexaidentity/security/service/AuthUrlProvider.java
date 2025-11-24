@@ -4,9 +4,9 @@ import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcess
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
-import io.contexa.contexaidentity.security.enums.AuthType;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
-import io.contexa.contexaidentity.security.properties.MfaPageConfig;
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;

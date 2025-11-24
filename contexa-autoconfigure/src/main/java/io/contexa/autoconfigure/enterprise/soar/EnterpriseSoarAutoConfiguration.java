@@ -1,6 +1,8 @@
 package io.contexa.autoconfigure.enterprise.soar;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacoreenterprise.properties.SoarProperties;
+import io.contexa.contexacoreenterprise.properties.ToolProperties;
 import io.contexa.contexacoreenterprise.config.NotificationConfig;
 import io.contexa.contexacoreenterprise.soar.tool.provider.SoarToolIntegrationProvider;
 import io.contexa.contexacoreenterprise.soar.strategy.SoarDiagnosisStrategy;
@@ -101,7 +103,7 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({ContexaProperties.class, SoarProperties.class, ToolProperties.class})
 @EnableRetry
 public class EnterpriseSoarAutoConfiguration {
 

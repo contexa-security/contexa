@@ -72,8 +72,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: leaven73@gmail.com        # 발송용 계정
-    password: kyilbzbhynwnndwp  # Gmail 앱 비밀번호 or OAuth2 토큰
+    username: ${MAIL_USERNAME:}        # 발송용 계정
+    password: ${MAIL_PASSWORD:}  # Gmail 앱 비밀번호 or OAuth2 토큰
     protocol: smtp
     default-encoding: UTF-8
 
@@ -94,8 +94,8 @@ spring:
       request-timeout: 300000 # 5분 (밀리초)
   datasource:
     url: jdbc:postgresql://localhost:5432/identity
-    username: admin
-    password: 1111
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:}
     hikari:
       auto-commit: false
     driver-class-name: org.postgresql.Driver

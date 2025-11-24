@@ -2,7 +2,7 @@ package io.contexa.contexaidentity.security.core.mfa.options;
 
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import lombok.Getter;
 import org.springframework.util.Assert;
 

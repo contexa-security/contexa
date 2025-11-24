@@ -4,7 +4,7 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.action.*;
 import io.contexa.contexaidentity.security.statemachine.config.MfaStateMachineConfiguration;
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;

@@ -3,7 +3,7 @@ package io.contexa.contexaidentity.security.core.dsl;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.*;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;

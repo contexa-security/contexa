@@ -2,7 +2,7 @@ package io.contexa.contexaidentity.security.token.store;
 
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.management.EnhancedRefreshTokenStore;
 import io.contexa.contexaidentity.security.token.management.RefreshTokenAnomalyDetector;
 import io.contexa.contexaidentity.security.token.management.RefreshTokenManagementService;

@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.config;
 
-import io.contexa.contexaidentity.security.enums.StateType;
+import io.contexa.contexacommon.enums.StateType;
 
 /**
  * 인증 후 상태 관리 전략 설정을 담는 설정 객체입니다.

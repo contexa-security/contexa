@@ -2,7 +2,7 @@ package io.contexa.contexaidentity.security.core.bootstrap;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;

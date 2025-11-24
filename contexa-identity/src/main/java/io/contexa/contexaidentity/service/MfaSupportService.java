@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.service;
 
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

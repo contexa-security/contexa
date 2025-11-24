@@ -31,7 +31,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class ApplicationConfig {
 
     @Bean
-    @Primary
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
 

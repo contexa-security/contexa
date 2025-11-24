@@ -7,7 +7,7 @@ import io.contexa.contexaidentity.security.core.mfa.policy.AIAdaptiveMfaPolicyPr
 import io.contexa.contexaidentity.security.core.mfa.policy.DefaultMfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.*;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.service.MfaSupportService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.UserRepository;

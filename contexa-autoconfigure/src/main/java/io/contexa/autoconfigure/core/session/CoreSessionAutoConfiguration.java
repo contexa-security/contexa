@@ -1,7 +1,7 @@
 package io.contexa.autoconfigure.core.session;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.infra.session.AIStrategySessionRepository;

@@ -3,7 +3,7 @@ package io.contexa.contexaidentity.security.core.adapter.auth;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.RestAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.DefaultRestLoginPageGeneratingFilter;
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;

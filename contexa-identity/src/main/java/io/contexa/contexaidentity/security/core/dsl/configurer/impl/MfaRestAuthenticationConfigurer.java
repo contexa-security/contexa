@@ -3,7 +3,7 @@ package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.filter.BaseAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;

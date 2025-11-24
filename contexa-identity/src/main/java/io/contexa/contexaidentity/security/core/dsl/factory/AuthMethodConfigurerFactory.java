@@ -4,7 +4,7 @@ import io.contexa.contexaidentity.security.core.asep.dsl.BaseAsepAttributes;
 import io.contexa.contexaidentity.security.core.dsl.configurer.AuthenticationFactorConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.*;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;

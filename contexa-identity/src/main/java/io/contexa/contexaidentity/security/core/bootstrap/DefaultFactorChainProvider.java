@@ -14,8 +14,8 @@ import io.contexa.contexaidentity.security.core.dsl.configurer.OttConfigurerConf
 import io.contexa.contexaidentity.security.core.dsl.configurer.PasskeyConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurerFactory;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
-import io.contexa.contexaidentity.security.enums.AuthType;
-import io.contexa.contexaidentity.security.enums.StateType;
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;

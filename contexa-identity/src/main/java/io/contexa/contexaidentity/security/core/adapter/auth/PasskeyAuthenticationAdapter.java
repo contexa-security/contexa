@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 
 /**
  * 단일 Passkey 인증 어댑터

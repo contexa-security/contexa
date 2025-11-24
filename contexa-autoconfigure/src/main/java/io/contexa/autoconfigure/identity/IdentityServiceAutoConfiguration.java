@@ -1,6 +1,6 @@
 package io.contexa.autoconfigure.identity;
 
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.IdentityUserDetailsService;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;

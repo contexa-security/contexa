@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.config;
 
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;

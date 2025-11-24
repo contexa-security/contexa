@@ -2,7 +2,7 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import org.springframework.lang.Nullable;
 
 import java.util.List;

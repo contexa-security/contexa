@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.filter.matcher;
 
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Getter;

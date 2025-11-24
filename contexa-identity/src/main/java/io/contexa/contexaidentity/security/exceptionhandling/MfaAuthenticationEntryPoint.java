@@ -2,8 +2,8 @@ package io.contexa.contexaidentity.security.exceptionhandling;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaidentity.domain.ErrorResponse;
-import io.contexa.contexaidentity.security.enums.ErrorCode;
-import io.contexa.contexaidentity.security.properties.MfaPageConfig;
+import io.contexa.contexacommon.enums.ErrorCode;
+import io.contexa.contexacommon.properties.MfaPageConfig;
 import io.contexa.contexaidentity.security.utils.WebUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

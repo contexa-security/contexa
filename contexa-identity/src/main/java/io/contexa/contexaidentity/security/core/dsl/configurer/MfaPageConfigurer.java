@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer;
 
-import io.contexa.contexaidentity.security.properties.MfaPageConfig;
+import io.contexa.contexacommon.properties.MfaPageConfig;
 import lombok.Getter;
 import org.springframework.util.Assert;
 

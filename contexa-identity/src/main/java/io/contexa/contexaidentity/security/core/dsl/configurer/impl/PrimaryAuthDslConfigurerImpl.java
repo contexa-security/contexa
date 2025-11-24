@@ -7,7 +7,7 @@ import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurer
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
-import io.contexa.contexaidentity.security.enums.AuthType;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.exception.DslConfigurationException;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;

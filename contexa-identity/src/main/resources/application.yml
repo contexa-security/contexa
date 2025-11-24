@@ -5,8 +5,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/identity
-    username: admin
-    password: 1111
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   # AuthContextProperties 매핑 (spring.auth)
@@ -134,8 +134,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: leaven73@gmail.com
-    password: kyilbzbhynwnndwp
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     protocol: smtp
     default-encoding: UTF-8
     properties:

@@ -13,7 +13,7 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.Authe
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutHandler;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
-import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.store.RefreshTokenStore;

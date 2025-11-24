@@ -2,6 +2,9 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.properties.*;
+
+
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.config.SecurityPlaneConfiguration;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
@@ -63,7 +66,16 @@ import org.springframework.data.redis.core.RedisTemplate;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({
+    ContexaProperties.class,
+    SecurityPlaneProperties.class,
+    SecurityEventProperties.class,
+    SecurityZeroTrustProperties.class,
+    SecuritySessionProperties.class,
+    SecurityColdPathProperties.class,
+    SecurityKafkaProperties.class,
+    SecurityRedisProperties.class
+})
 @Import({
     SecurityPlaneConfiguration.class
 })

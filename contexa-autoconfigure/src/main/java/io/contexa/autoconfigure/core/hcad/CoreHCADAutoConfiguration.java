@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.core.hcad;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacommon.metrics.HCADFeedbackMetrics;
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
@@ -54,7 +55,7 @@ import org.springframework.data.redis.core.RedisTemplate;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({ContexaProperties.class, HcadProperties.class})
 public class CoreHCADAutoConfiguration {
 
     public CoreHCADAutoConfiguration() {
