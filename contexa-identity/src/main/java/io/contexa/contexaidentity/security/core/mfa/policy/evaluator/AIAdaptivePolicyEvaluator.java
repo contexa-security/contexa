@@ -11,9 +11,7 @@ import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -27,25 +25,27 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * AI 적응형 MFA 정책 평가자
- * 
+ *
  * AI Labs (RiskAssessmentLab, BehavioralAnalysisLab)를 활용하여
  * 실시간 위험 평가와 행동 분석을 기반으로 적응형 MFA 정책을 결정합니다.
- * 
+ *
  * 주요 기능:
  * - 실시간 위험도 평가
  * - 사용자 행동 패턴 분석
  * - 동적 MFA 레벨 결정
  * - 고위험 상황 차단
- * 
+ *
  * @author contexa
  * @since 1.0
  */
 @Slf4j
-@RequiredArgsConstructor
-@Component
 public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
-    
+
     private final AICoreOperations aiCoreOperations;
+
+    public AIAdaptivePolicyEvaluator(AICoreOperations aiCoreOperations) {
+        this.aiCoreOperations = aiCoreOperations;
+    }
     
     // AI 평가 설정
     private static final long AI_ASSESSMENT_TIMEOUT_SECONDS = 3;

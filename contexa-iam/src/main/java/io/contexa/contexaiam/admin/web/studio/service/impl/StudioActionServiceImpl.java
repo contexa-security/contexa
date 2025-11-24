@@ -12,7 +12,6 @@ import io.contexa.contexaiam.admin.web.workflow.wizard.service.PermissionWizardS
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.stereotype.Service;
 
 /**
  * [수정됨]
@@ -21,7 +20,6 @@ import org.springframework.stereotype.Service;
  *      멤버십 관리 워크플로우(마법사)를 시작시키는 역할을 수행합니다.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class StudioActionServiceImpl implements StudioActionService {
 

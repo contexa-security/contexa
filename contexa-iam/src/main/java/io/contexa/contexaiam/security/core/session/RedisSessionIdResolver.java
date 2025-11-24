@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Base64;
@@ -22,7 +21,6 @@ import java.util.regex.Pattern;
  * @since 1.0
  */
 @Slf4j
-@Component
 public class RedisSessionIdResolver implements SessionIdResolver {
 
     private static final String DEFAULT_SESSION_COOKIE_NAME = "SESSION";

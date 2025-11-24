@@ -11,7 +11,6 @@ import io.contexa.contexacommon.enums.SecurityLevel;
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingSuggestionResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
@@ -25,7 +24,6 @@ import java.util.stream.Collectors;
  *
  */
 @Slf4j
-@Component
 public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> {
 
     private final PipelineOrchestrator orchestrator;

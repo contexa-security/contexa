@@ -3,8 +3,6 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Primary;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 
@@ -19,14 +17,10 @@ import java.util.*;
  * 2. AIAdaptivePolicyEvaluator (priority: 10) - AI 기반 평가
  * 3. DefaultMfaPolicyEvaluator (priority: -100) - 기본 폴백
  *
- * @Primary로 지정되어 DefaultMfaPolicyProvider가 이 Bean을 주입받습니다.
- *
  * @author contexa
  * @since 2.0
  */
 @Slf4j
-@Component
-@Primary
 public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     
     private final List<MfaPolicyEvaluator> evaluators;

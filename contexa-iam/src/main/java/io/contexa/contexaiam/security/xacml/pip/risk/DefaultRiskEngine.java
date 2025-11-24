@@ -2,10 +2,8 @@ package io.contexa.contexaiam.security.xacml.pip.risk;
 
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import java.util.List;
 
-@Service
 @RequiredArgsConstructor
 public class DefaultRiskEngine implements RiskEngine {
 

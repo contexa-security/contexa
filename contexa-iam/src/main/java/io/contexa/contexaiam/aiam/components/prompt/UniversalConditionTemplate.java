@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 /**
  * 범용 조건 템플릿 생성 프롬프트
@@ -26,7 +25,6 @@ import org.springframework.stereotype.Component;
  * - 시간 기반 접근 제한
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
     key = "generateUniversalConditionTemplates",
     aliases = {"universal_condition_template", "universal_condition", "범용조건"},

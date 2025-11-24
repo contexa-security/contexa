@@ -4,21 +4,21 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 /**
  * 모든 필수 팩터가 완료되었는지 확인하는 Guard
  * Phase 3: PolicyProvider를 필수로 변경, 복잡한 Fallback 제거
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
 
     private final MfaPolicyProvider mfaPolicyProvider;
+
+    public AllFactorsCompletedGuard(MfaPolicyProvider mfaPolicyProvider) {
+        this.mfaPolicyProvider = mfaPolicyProvider;
+    }
 
     @Override
     protected boolean doEvaluate(StateContext<MfaState, MfaEvent> context,

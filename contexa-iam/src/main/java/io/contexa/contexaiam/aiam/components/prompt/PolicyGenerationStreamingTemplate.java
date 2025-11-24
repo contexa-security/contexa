@@ -6,7 +6,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 /**
  * 정책 생성 통합 프롬프트 템플릿 - BusinessPolicyDto 방식
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component;
  * 안정성: AI는 핵심 정책 데이터만 집중, 매핑은 서버에서 처리
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
         key = "policyGenerationStreaming",
         aliases = {"policy_generation_streaming", "generatePolicyFromTextStreaming", "generatePolicyFromText"},

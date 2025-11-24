@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 /**
  * 2단계: 조건 분류 및 호환성 검사를 위한 REST API
  */
-@RestController
 @RequestMapping("/api/conditions")
 @RequiredArgsConstructor
 @Slf4j

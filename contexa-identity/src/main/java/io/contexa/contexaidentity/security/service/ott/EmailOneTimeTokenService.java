@@ -5,14 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.ott.*;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.Assert;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
-@Service
 @Slf4j
 public class EmailOneTimeTokenService implements OneTimeTokenService {
 

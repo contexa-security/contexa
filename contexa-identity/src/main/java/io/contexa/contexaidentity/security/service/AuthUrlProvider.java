@@ -9,7 +9,6 @@ import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import jakarta.annotation.PostConstruct;
 
@@ -35,7 +34,6 @@ import java.util.stream.Stream;
  * @since 2025-01
  */
 @Slf4j
-@Service
 public class AuthUrlProvider {
 
     private final AuthContextProperties properties;

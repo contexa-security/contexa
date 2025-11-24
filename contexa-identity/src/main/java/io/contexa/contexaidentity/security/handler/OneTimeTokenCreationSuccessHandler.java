@@ -9,11 +9,9 @@ import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.ott.OneTimeToken;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
@@ -28,13 +26,20 @@ import java.util.Objects;
  * - State Machine을 단일 진실의 원천으로 사용
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGenerationSuccessHandler {
 
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
     private final MfaSessionRepository sessionRepository;
+
+    public OneTimeTokenCreationSuccessHandler(
+            MfaStateMachineIntegrator mfaStateMachineIntegrator,
+            AuthUrlProvider authUrlProvider,
+            MfaSessionRepository sessionRepository) {
+        this.mfaStateMachineIntegrator = mfaStateMachineIntegrator;
+        this.authUrlProvider = authUrlProvider;
+        this.sessionRepository = sessionRepository;
+    }
 
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, OneTimeToken token)

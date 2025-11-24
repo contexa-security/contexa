@@ -15,7 +15,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,7 +35,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 관리자 페이지 + API 엔드포인트 통합
  * 하드코딩 제거 - ValidationService & MessageProvider 사용
  */
-@Controller
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityCopilotController {

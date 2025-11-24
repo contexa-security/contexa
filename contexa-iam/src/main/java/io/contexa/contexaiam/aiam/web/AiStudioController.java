@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * StudioQuery 전용 컨트롤러 - SecurityCopilot 중복 제거
  * 클라이언트 다국어화 - 서버 하드코딩 제거
  */
-@RestController
 @RequestMapping("/api/ai/studio")
 @RequiredArgsConstructor
 @Slf4j

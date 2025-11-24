@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -40,7 +39,6 @@ import java.util.concurrent.TimeUnit;
  * @since 2.0
  */
 @Slf4j
-@Component
 public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
 
     private final RedisTemplate<String, Double> redisTemplate;

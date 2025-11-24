@@ -24,7 +24,6 @@ import java.util.UUID;
  * 즉시 보안 이벤트를 발행하여 자율보안체제가 실시간 탐지할 수 있도록 합니다.
  */
 @Slf4j
-@RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")

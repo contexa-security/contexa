@@ -9,7 +9,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 /**
  * Phase 2: 다음 팩터 결정 Action
@@ -29,7 +28,6 @@ import org.springframework.stereotype.Component;
  * @since Phase 2
  */
 @Slf4j
-@Component
 public class DetermineNextFactorAction extends AbstractMfaStateAction {
 
     private final MfaPolicyProvider policyProvider;

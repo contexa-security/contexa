@@ -11,13 +11,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 /**
  * [신규] 정책 빌더와 같은 비동기 클라이언트 요청을 처리하기 위한 API 전용 컨트롤러
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/policies") // JavaScript가 호출하는 기본 경로
 @RequiredArgsConstructor
 public class PolicyApiController {

@@ -9,11 +9,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
-@Component
 @Slf4j
 public final class IdentityDslRegistry<H extends HttpSecurityBuilder<H>> // H는 형식적으로 유지
         extends AbstractFlowRegistrar<H> implements IdentityAuthDsl {

@@ -16,7 +16,6 @@ import io.contexa.contexaiam.aiam.protocol.request.AccessGovernanceRequest;
 import io.contexa.contexaiam.aiam.protocol.response.AccessGovernanceResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -34,7 +33,6 @@ import reactor.core.publisher.Mono;
  * - 업무 분리 위반 검사: "업무 분리 원칙에 위반되는 권한 배분이 있는가?"
  */
 @Slf4j
-@Component
 public class AccessGovernanceDiagnosisStrategy extends AbstractAIStrategy<AccessGovernanceContext, AccessGovernanceResponse> {
 
     @Autowired

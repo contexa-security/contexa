@@ -5,13 +5,11 @@ import io.contexa.contexaiam.domain.entity.*;
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Service
 @RequiredArgsConstructor
 public class VisualizationServiceImpl implements VisualizationService {
 

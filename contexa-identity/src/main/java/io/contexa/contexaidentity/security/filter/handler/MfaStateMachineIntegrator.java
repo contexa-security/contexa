@@ -9,9 +9,7 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
@@ -28,13 +26,20 @@ import java.util.Map;
  * - 읽기 전용 스냅샷: 불변 FactorContext 제공으로 안전성 향상
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class MfaStateMachineIntegrator {
 
     private final MfaStateMachineService stateMachineService;
     private final MfaSessionRepository sessionRepository;
     private final AuthContextProperties properties;
+
+    public MfaStateMachineIntegrator(
+            MfaStateMachineService stateMachineService,
+            MfaSessionRepository sessionRepository,
+            AuthContextProperties properties) {
+        this.stateMachineService = stateMachineService;
+        this.sessionRepository = sessionRepository;
+        this.properties = properties;
+    }
 
     @PostConstruct
     public void initialize() {

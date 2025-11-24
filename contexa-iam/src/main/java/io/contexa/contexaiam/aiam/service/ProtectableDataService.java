@@ -4,7 +4,6 @@ import io.contexa.contexacore.domain.entity.CustomerData;
 import io.contexa.contexacore.repository.CustomerDataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -20,7 +19,6 @@ import java.util.Optional;
  * @since 1.0.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class ProtectableDataService {
 

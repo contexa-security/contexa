@@ -26,7 +26,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -49,7 +48,6 @@ import java.util.stream.Collectors;
  * - 업무 분리 위반 검사
  */
 @Slf4j
-@Component
 public class AccessGovernanceContextRetriever extends ContextRetriever {
 
     private final ContextRetrieverRegistry registry;

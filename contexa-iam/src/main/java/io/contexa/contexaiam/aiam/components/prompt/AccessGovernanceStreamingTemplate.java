@@ -5,9 +5,7 @@ import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.AccessGovernanceContext;
-import org.springframework.stereotype.Component;
 
-@Component
 @PromptTemplateConfig(
         key = "accessGovernanceStreaming",
         description = "Access Governance Analysis Streaming Template"

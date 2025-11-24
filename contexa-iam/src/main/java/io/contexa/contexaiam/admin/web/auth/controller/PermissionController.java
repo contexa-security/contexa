@@ -8,7 +8,6 @@ import io.contexa.contexacommon.entity.Permission;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -22,7 +21,6 @@ import java.util.List;
  *      registerPermissionForm과 permissionDetails 메서드 내에서 해당 메서드 '호출' 부분만 제거합니다.
  *      이를 통해 기존 메서드를 보존하면서도 새로운 로직과의 충돌을 해결합니다.
  */
-@Controller
 @RequestMapping("/admin/permissions")
 @RequiredArgsConstructor
 @Slf4j

@@ -5,7 +5,6 @@ import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
 import io.contexa.contexacommon.domain.TrustAssessment;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -17,7 +16,6 @@ import java.util.Map;
  * 필요한 메타데이터를 추가합니다.
  */
 @Slf4j
-@Component
 public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
     
     @Override

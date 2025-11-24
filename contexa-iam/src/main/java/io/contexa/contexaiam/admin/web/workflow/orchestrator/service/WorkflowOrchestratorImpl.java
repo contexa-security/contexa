@@ -6,11 +6,9 @@ import io.contexa.contexaiam.admin.web.workflow.wizard.dto.WizardContext;
 import io.contexa.contexaiam.admin.web.workflow.wizard.service.PermissionWizardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class WorkflowOrchestratorImpl implements WorkflowOrchestrator {
 

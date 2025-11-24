@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.aiam.autonomous.orchestrator;
 
-import io.contexa.contexacoreenterprise.autonomous.PolicyEvolutionService;
+import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.event.DynamicThreatResponseEvent;
 import io.contexa.contexacore.autonomous.event.LearnableEvent;
@@ -19,7 +19,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -43,11 +42,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @since 1.0.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class AutonomousPolicySynthesizer {
     
-    private final PolicyEvolutionService evolutionService;
+    private final PolicyProposalManagementService proposalManagementService;
     private final PolicyEvolutionLabIntegration labIntegration;
     private final DynamicThreatResponseSynthesisLab dynamicThreatLab;
     private final StaticAccessOptimizationService staticAccessService;
@@ -136,7 +134,7 @@ public class AutonomousPolicySynthesizer {
                     PolicyEvolutionProposal proposal = convertToEvolutionProposal(response);
                     
                     // 제안 제출
-                    Long proposalId = evolutionService.submitProposal(proposal);
+                    Long proposalId = proposalManagementService.submitProposal(proposal);
                     
                     log.info("[자율 정책 합성] 정책 제안 제출 완료: ID = {}", proposalId);
                     proposalsGenerated.incrementAndGet();
@@ -173,7 +171,7 @@ public class AutonomousPolicySynthesizer {
                     PolicyEvolutionProposal proposal = convertStaticAccessResponseToProposal(response);
                     
                     // 제안 제출
-                    Long proposalId = evolutionService.submitProposal(proposal);
+                    Long proposalId = proposalManagementService.submitProposal(proposal);
                     
                     log.info("[자율 정책 합성] 정적 접근 최적화 정책 제안 제출 완료: ID = {}", proposalId);
                     proposalsGenerated.incrementAndGet();

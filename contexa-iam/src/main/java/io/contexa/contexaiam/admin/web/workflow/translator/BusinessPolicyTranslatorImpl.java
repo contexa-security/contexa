@@ -8,7 +8,6 @@ import io.contexa.contexaiam.admin.web.workflow.wizard.dto.WizardContext;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +15,6 @@ import java.util.Objects; // [신규] import 추가
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Component
 @RequiredArgsConstructor
 public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
 

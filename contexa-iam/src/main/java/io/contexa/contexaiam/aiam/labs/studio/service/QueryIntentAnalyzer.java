@@ -2,7 +2,6 @@ package io.contexa.contexaiam.aiam.labs.studio.service;
 
 import io.contexa.contexaiam.aiam.labs.studio.domain.QueryIntent;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,7 +11,6 @@ import java.util.Map;
  * 하드코딩 없이 동적 매핑 규칙으로 질문 의도 분석
  */
 @Slf4j
-@Service
 public class QueryIntentAnalyzer {
     
     // 동적 매핑 규칙 - 하드코딩 없음

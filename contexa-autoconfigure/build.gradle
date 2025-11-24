@@ -6,11 +6,19 @@ dependencies {
     api project(':contexa-core')
     api project(':contexa-common')
     compileOnly project(':contexa-core-enterprise')
+    compileOnly project(':contexa-identity')
+    compileOnly project(':contexa-iam')
 
     // Spring Boot AutoConfiguration (subprojects 공통 의존성 외 추가)
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
     // spring-boot-configuration-processor는 subprojects에서 이미 추가됨
+
+    // Spring StateMachine (contexa-identity 사용)
+    compileOnly 'org.springframework.statemachine:spring-statemachine-starter'
+
+    // Spring Security (contexa-iam XACML PEP 사용)
+    compileOnly 'org.springframework.boot:spring-boot-starter-security'
 }
 
 // 라이브러리 모듈이므로 bootJar 비활성화

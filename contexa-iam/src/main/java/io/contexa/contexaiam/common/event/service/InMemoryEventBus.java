@@ -2,7 +2,6 @@ package io.contexa.contexaiam.common.event.service;
 
 import io.contexa.contexaiam.common.event.dto.DomainEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
@@ -10,7 +9,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-@Component
 @Slf4j
 public class InMemoryEventBus implements IntegrationEventBus {
     private final Map<Class<? extends DomainEvent>, List<EventHandler>> subscribers = new ConcurrentHashMap<>();

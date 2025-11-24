@@ -15,7 +15,6 @@ import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingSuggestionResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -28,7 +27,6 @@ import java.util.Map;
  * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
  */
 @Slf4j
-@Component
 public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<ResourceNamingContext, ResourceNamingSuggestionResponse> {
 
     public ResourceNamingDiagnosisStrategy(AILabFactory labFactory) {

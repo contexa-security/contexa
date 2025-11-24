@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,7 +27,6 @@ import java.util.stream.Collectors;
  * 로직을 단순화하고 명확하게 수정하여 메서드 리소스가 정상적으로 DB에 저장되도록 합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class MethodResourceScanner implements ResourceScanner {
 

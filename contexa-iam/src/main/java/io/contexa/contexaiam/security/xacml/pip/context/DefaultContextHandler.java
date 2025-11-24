@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
  * 사용자 정보를 조회하여 컨텍스트를 풍부하게 만듭니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class DefaultContextHandler implements ContextHandler {
 

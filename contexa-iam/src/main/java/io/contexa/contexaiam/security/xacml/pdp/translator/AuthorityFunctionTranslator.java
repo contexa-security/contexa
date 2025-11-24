@@ -3,11 +3,9 @@ package io.contexa.contexaiam.security.xacml.pdp.translator;
 
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.spel.ast.MethodReference;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component
 @Order(30)
 public class AuthorityFunctionTranslator implements SpelFunctionTranslator {
     @Override

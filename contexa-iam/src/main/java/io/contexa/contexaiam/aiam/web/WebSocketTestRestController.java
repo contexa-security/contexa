@@ -22,7 +22,6 @@ import java.util.UUID;
  * 디버깅 및 개발 환경에서 사용
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/test/websocket")
 public class WebSocketTestRestController {
 

@@ -3,7 +3,6 @@ package io.contexa.contexaiam.aiam.listener;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationListener;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.*;
 
 /**
@@ -13,13 +12,11 @@ import org.springframework.web.socket.messaging.*;
  * 디버깅 및 모니터링을 위한 상세한 이벤트 추적 제공
  */
 @Slf4j
-@Component
 public class StompEventListener {
 
     /**
      * WebSocket 연결 이벤트 리스너
      */
-    @Component
     public static class StompConnectedEventListener implements ApplicationListener<SessionConnectedEvent> {
         @Override
         public void onApplicationEvent(SessionConnectedEvent event) {
@@ -36,7 +33,6 @@ public class StompEventListener {
     /**
      * WebSocket 연결 해제 이벤트 리스너
      */
-    @Component
     public static class StompDisconnectEventListener implements ApplicationListener<SessionDisconnectEvent> {
         @Override
         public void onApplicationEvent(SessionDisconnectEvent event) {
@@ -53,7 +49,6 @@ public class StompEventListener {
     /**
      * WebSocket 구독 이벤트 리스너
      */
-    @Component
     public static class StompSubscribeEventListener implements ApplicationListener<SessionSubscribeEvent> {
         @Override
         public void onApplicationEvent(SessionSubscribeEvent event) {
@@ -73,7 +68,6 @@ public class StompEventListener {
     /**
      * WebSocket 구독 해제 이벤트 리스너
      */
-    @Component
     public static class StompUnsubscribeEventListener implements ApplicationListener<SessionUnsubscribeEvent> {
         @Override
         public void onApplicationEvent(SessionUnsubscribeEvent event) {
@@ -92,7 +86,6 @@ public class StompEventListener {
     /**
      * WebSocket 연결 실패 이벤트 리스너
      */
-    @Component
     public static class StompConnectFailureEventListener implements ApplicationListener<SessionConnectEvent> {
         @Override
         public void onApplicationEvent(SessionConnectEvent event) {

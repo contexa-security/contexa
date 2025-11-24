@@ -4,7 +4,6 @@ import io.contexa.contexaiam.aiam.protocol.request.SecurityCopilotItem;
 import io.contexa.contexaiam.aiam.protocol.request.SecurityCopilotRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 /**
  * Security Copilot 요청 검증 서비스
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Service;
  * 단일 책임 원칙 준수
  * 재사용 가능한 검증 로직
  */
-@Service
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityCopilotValidationService {

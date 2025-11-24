@@ -8,10 +8,8 @@ import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.enums.AuthType;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
-import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 
@@ -20,20 +18,25 @@ import java.util.stream.Collectors;
 
 /**
  * 기본 MFA 정책 평가자 구현
- * 
+ *
  * 규칙 기반 정책 평가를 수행합니다.
  * 사용자 역할, 등록된 MFA 팩터, 플로우 타입 등을 고려하여 MFA 요구사항을 결정합니다.
- * 
+ *
  * @author contexa
  * @since 1.0
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
     private final UserRepository userRepository;
     private final ApplicationContext applicationContext;
+
+    public DefaultMfaPolicyEvaluator(
+            UserRepository userRepository,
+            ApplicationContext applicationContext) {
+        this.userRepository = userRepository;
+        this.applicationContext = applicationContext;
+    }
     
     @Override
     public boolean supports(FactorContext context) {

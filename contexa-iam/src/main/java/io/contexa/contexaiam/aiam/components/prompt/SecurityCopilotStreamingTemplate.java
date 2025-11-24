@@ -6,7 +6,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.SecurityCopilotContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 /**
  * ��️ Security Copilot 통합 프롬프트 템플릿 - 기준 템플릿
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Component;
  * 기준 방식: ###FINAL_RESPONSE### 마커로 구조화 데이터 전송
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
         key = "securityCopilotStreaming",
         aliases = {"security_copilot_streaming", "comprehensive_security_streaming", "securityCopilotAnalysis"},

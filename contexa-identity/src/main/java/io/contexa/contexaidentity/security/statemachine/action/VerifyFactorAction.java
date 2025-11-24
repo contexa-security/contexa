@@ -7,19 +7,19 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class VerifyFactorAction extends AbstractMfaStateAction {
 
     private final PlatformConfig platformConfig;
+
+    public VerifyFactorAction(PlatformConfig platformConfig) {
+        this.platformConfig = platformConfig;
+    }
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context, FactorContext factorContext){

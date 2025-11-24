@@ -8,7 +8,6 @@ import io.contexa.contexaiam.aiam.protocol.context.AccessGovernanceContext;
 import io.contexa.contexaiam.aiam.protocol.response.AccessGovernanceResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,7 +32,6 @@ import java.time.format.DateTimeFormatter;
  * - 업무 분리 위반 검사
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
         key = "accessGovernance",
         aliases = {"ueba", "access_governance"},

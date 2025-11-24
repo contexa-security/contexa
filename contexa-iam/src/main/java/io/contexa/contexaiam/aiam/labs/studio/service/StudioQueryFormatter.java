@@ -9,7 +9,6 @@ import io.contexa.contexacommon.entity.Role;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
 import org.hibernate.LazyInitializationException;
-import org.springframework.stereotype.Service;
 
 import java.util.*;
 
@@ -21,7 +20,6 @@ import java.util.*;
  * 전통적 방식 대신 AI-Native 권한 분석 시각화
  */
 @Slf4j
-@Service
 public class StudioQueryFormatter {
 
     /**

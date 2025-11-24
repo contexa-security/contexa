@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 /**
  * IAM 정책 생성 프롬프트 템플릿
@@ -27,7 +26,6 @@ import org.springframework.stereotype.Component;
  * - SpEL 조건식 생성
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
     key = "generatePolicyFromText",
     aliases = {"policy_generation", "policyGeneration"},

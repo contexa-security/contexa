@@ -25,7 +25,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,7 +46,6 @@ import java.util.stream.Collectors;
  * 3. 컨텍스트 정보 조합 및 반환
  */
 @Slf4j
-@Component
 public class PolicyGenerationContextRetriever extends ContextRetriever {
 
     private final RoleRepository roleRepository;

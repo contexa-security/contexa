@@ -6,7 +6,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.statemachine.support.StateContextHelper;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -20,7 +19,6 @@ import org.springframework.statemachine.StateMachineContext;
 import org.springframework.statemachine.StateMachineEventResult;
 import org.springframework.statemachine.persist.StateMachinePersister;
 import org.springframework.statemachine.support.DefaultStateMachineContext;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -43,14 +41,23 @@ import java.util.concurrent.TimeUnit;
  * - FactorContext 관리 로직 완전 보존
  */
 @Slf4j
-@Service
-@RequiredArgsConstructor
 public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
     private final StateMachineFactory<MfaState, MfaEvent> stateMachineFactory;
     private final StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister;
     private final RedissonClient redissonClient;
     private final StateMachineProperties properties; // P2: Properties 주입
+
+    public MfaStateMachineServiceImpl(
+            StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
+            StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
+            RedissonClient redissonClient,
+            StateMachineProperties properties) {
+        this.stateMachineFactory = stateMachineFactory;
+        this.stateMachinePersister = stateMachinePersister;
+        this.redissonClient = redissonClient;
+        this.properties = properties;
+    }
 
     private static final long LOCK_WAIT_TIME_SECONDS = 10;
     private static final long LOCK_LEASE_TIME_SECONDS = 30;

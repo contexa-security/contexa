@@ -2,12 +2,10 @@ package io.contexa.contexaiam.security.xacml.pdp.translator;
 
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.spel.ast.MethodReference;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Component
 @Order(20)
 public class RoleFunctionTranslator implements SpelFunctionTranslator {
     @Override

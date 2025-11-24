@@ -7,10 +7,8 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,14 +20,12 @@ import java.util.Objects;
  * Spring 컨텍스트에서 SecurityConfigurer 빈들을 수집하고,
  * FeatureRegistry를 통해 동적으로 Feature 관련 ConfigurerAdapter들을 추가합니다.
  */
-@Component
 @Slf4j
 public final class DefaultSecurityConfigurerProvider implements SecurityConfigurerProvider {
 
     private final List<SecurityConfigurer> collectedBaseConfigurers;
     private final AdapterRegistry adapterRegistry;
 
-    @Autowired
     public DefaultSecurityConfigurerProvider(
             List<SecurityConfigurer> baseConfigurers, // Spring 컨텍스트에서 모든 SecurityConfigurer 빈 주입
             AdapterRegistry adapterRegistry,

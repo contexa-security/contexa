@@ -17,7 +17,6 @@ import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -28,7 +27,6 @@ import reactor.core.publisher.Mono;
  * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
  */
 @Slf4j
-@Component
 public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<PolicyContext, PolicyResponse> {
 
     public PolicyGenerationDiagnosisStrategy(AILabFactory labFactory) {

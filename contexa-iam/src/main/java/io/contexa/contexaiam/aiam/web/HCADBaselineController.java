@@ -27,7 +27,6 @@ import java.util.Set;
  * @author contexa
  * @since 3.0.0
  */
-@RestController
 @RequestMapping("/api/hcad")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor

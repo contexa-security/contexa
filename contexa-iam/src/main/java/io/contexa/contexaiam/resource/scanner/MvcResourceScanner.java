@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerMethod;
@@ -18,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class MvcResourceScanner implements ResourceScanner {
 

@@ -6,14 +6,12 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Map;
 import java.util.HashMap;
 
-@Controller
 @RequestMapping("/admin/authoring")
 @RequiredArgsConstructor
 public class BusinessPolicyController {
@@ -41,7 +39,6 @@ public class BusinessPolicyController {
         return "redirect:/admin/policies";
     }
 
-    @RestController
     @RequestMapping("/api/admin/authoring")
     @RequiredArgsConstructor
     static class BusinessPolicyApiController {

@@ -7,11 +7,9 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.GroupRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.stereotype.Component;
 import java.util.HashSet;
 import java.util.Set;
 
-@Component
 @RequiredArgsConstructor
 public class GroupAuthorityResolver implements SubjectAuthorityResolver {
     private final GroupRepository groupRepository;

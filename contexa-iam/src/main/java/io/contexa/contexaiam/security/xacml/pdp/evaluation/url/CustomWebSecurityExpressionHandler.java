@@ -15,7 +15,6 @@ import org.springframework.security.authentication.AuthenticationTrustResolverIm
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.access.expression.DefaultHttpSecurityExpressionHandler;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
-import org.springframework.stereotype.Component;
 
 import java.util.function.Supplier;
 
@@ -24,7 +23,6 @@ import java.util.function.Supplier;
  * DefaultHttpSecurityExpressionHandler를 올바르게 상속받아 SpEL 컨텍스트를 확장한다.
  */
 @Slf4j
-@Component("customWebSecurityExpressionHandler")
 @RequiredArgsConstructor
 public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpressionHandler {
 

@@ -18,7 +18,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,7 +33,6 @@ import java.util.Map;
  * 📚 기존 조건 템플릿, 메서드 패턴, SpEL 표현식 등 검색
  */
 @Slf4j
-@Component
 public class ConditionTemplateContextRetriever extends ContextRetriever {
     
     private final ContextRetrieverRegistry registry;

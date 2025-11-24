@@ -25,7 +25,6 @@ import java.util.*;
  * @since 1.0.0
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/protected")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor

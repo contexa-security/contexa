@@ -19,7 +19,6 @@ import io.contexa.contexaiam.domain.dto.AiGeneratedPolicyDraftDto;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -34,7 +33,6 @@ import java.util.*;
  * 스트리밍 + 진단 동시 처리 지원
  */
 @Slf4j
-@Component
 public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGenerationRequest,PolicyResponse> {
 
     private final PipelineOrchestrator orchestrator;

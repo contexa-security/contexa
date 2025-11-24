@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Component;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
@@ -27,7 +26,6 @@ import java.util.Set;
  * 3. Spring Security 표준 패턴 준수
  * 4. 단일 진입점으로 간단하고 명확한 구조
  */
-@Component("customPermissionEvaluator")
 @Slf4j
 @RequiredArgsConstructor
 public class CustomPermissionEvaluator implements PermissionEvaluator {

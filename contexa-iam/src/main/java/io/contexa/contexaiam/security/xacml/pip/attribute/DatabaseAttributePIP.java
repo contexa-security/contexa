@@ -9,7 +9,6 @@ import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -26,7 +25,6 @@ import java.util.stream.Collectors;
  * AI 위험 평가와 동일한 수준의 풍부한 컨텍스트를 지원합니다.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class DatabaseAttributePIP implements AttributeInformationPoint {
 

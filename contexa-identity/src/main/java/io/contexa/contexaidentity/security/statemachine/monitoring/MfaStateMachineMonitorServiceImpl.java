@@ -9,12 +9,10 @@ import io.contexa.contexaidentity.security.statemachine.core.event.MfaStateMachi
 import io.contexa.contexaidentity.security.statemachine.core.event.MfaStateMachineEvents.StateChangeEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,12 +23,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * 이벤트 기반 메트릭 수집 및 성능 모니터링
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitorService{
 
     private final MeterRegistry meterRegistry;
     private final ApplicationEventPublisher eventPublisher;
+
+    public MfaStateMachineMonitorServiceImpl(
+            MeterRegistry meterRegistry,
+            ApplicationEventPublisher eventPublisher) {
+        this.meterRegistry = meterRegistry;
+        this.eventPublisher = eventPublisher;
+    }
 
     // 메트릭 저장
     private final Map<String, Timer> transitionTimers = new ConcurrentHashMap<>();

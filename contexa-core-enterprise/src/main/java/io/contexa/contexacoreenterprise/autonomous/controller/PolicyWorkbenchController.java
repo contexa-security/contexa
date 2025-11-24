@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  * @since 1.0.0
  */
 @Slf4j
-@RestController
+@ResponseBody
 @RequestMapping("/api/policies")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*", maxAge = 3600)

@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
  * 실시간 사용자 행동 모니터링 서비스
  */
 @Slf4j
-@Service
 public class RealTimeBehaviorMonitor {
 
     private final BehaviorRealtimeCacheRepository realtimeCacheRepository;

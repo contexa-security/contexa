@@ -6,7 +6,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 /**
  * 팩터 선택 타임아웃 확인 Guard
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component;
  * Phase 2.4: factorSelectedAt 타임아웃 검증
  */
 @Slf4j
-@Component
 public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
 
     /**

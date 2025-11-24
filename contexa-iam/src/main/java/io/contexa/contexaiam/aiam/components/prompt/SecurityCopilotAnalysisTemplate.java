@@ -8,7 +8,6 @@ import io.contexa.contexaiam.aiam.protocol.context.SecurityCopilotContext;
 import io.contexa.contexaiam.aiam.protocol.response.SecurityCopilotResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 /**
  * SecurityCopilot 포괄적 보안 분석 프롬프트 템플릿
@@ -28,7 +27,6 @@ import org.springframework.stereotype.Component;
  * - 컴플라이언스 평가
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
         key = "securityCopilotAnalysis",
         aliases = {"security_copilot", "comprehensive_security_analysis"},

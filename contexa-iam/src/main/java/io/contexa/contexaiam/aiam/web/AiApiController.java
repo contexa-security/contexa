@@ -28,7 +28,6 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -42,7 +41,6 @@ import java.util.stream.Collectors;
  * 모든 AI 진입점은 오직 aiNativeIAMOperations.execute 사용
  * 스트리밍/동기 모두 동일한 Master Brain 경로
  */
-@RestController
 @RequestMapping("/api/ai/policies")
 @RequiredArgsConstructor
 @Slf4j

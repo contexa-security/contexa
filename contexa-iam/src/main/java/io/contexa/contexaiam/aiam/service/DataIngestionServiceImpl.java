@@ -12,14 +12,12 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
 //@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class DataIngestionServiceImpl implements DataIngestionService {

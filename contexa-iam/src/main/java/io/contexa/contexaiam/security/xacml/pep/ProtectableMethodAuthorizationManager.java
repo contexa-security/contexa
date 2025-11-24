@@ -11,7 +11,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.expression.ExpressionUtils;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -30,7 +29,6 @@ import java.util.stream.Collectors;
  * - @Protectable 애노테이션 정보는 CustomPermissionEvaluator에서 자동 처리
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class ProtectableMethodAuthorizationManager {
     private final MethodSecurityExpressionHandler expressionHandler;

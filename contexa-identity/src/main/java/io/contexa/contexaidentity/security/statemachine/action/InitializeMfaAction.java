@@ -40,11 +40,13 @@ import java.util.Set;
  * @since P1-1 ApplicationContext는 AbstractMfaStateAction으로부터 상속
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class InitializeMfaAction extends AbstractMfaStateAction {
 
     private final PlatformConfig platformConfig;
+
+    public InitializeMfaAction(PlatformConfig platformConfig) {
+        this.platformConfig = platformConfig;
+    }
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,

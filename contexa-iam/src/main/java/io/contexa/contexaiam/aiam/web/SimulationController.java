@@ -24,7 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 
  * 웹 UI에서 공격 시뮬레이션을 실행하고 모니터링할 수 있는 API를 제공합니다.
  */
-@RestController
 @RequestMapping("/api/simulation")
 @CrossOrigin(origins = "*")
 public class SimulationController {

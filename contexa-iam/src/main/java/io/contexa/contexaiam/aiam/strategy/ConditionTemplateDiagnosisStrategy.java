@@ -16,7 +16,6 @@ import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRe
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 /**
@@ -30,7 +29,6 @@ import reactor.core.publisher.Mono;
  * 타입 안전성과 null 안전성 보장
  */
 @Slf4j
-@Component
 public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<ConditionTemplateContext, ConditionTemplateGenerationResponse> {
 
     public ConditionTemplateDiagnosisStrategy(AILabFactory labFactory) {

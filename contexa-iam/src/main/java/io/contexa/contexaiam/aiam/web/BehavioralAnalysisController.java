@@ -36,7 +36,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * WebSocket 실시간 모니터링 지원
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/ai/behavior-analysis")
 @RequiredArgsConstructor
 public class BehavioralAnalysisController {

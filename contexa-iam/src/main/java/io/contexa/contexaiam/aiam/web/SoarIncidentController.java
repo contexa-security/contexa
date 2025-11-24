@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-@RestController
 @RequestMapping("/api/soar/incidents")
 //@PreAuthorize("hasRole('ROLE_SOAR_ADMIN')")
 public class SoarIncidentController {

@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 /**
  * 특화 조건 템플릿 생성 프롬프트
@@ -26,7 +25,6 @@ import org.springframework.stereotype.Component;
  * - 컨텍스트 의존적 조건 처리
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
     key = "generateSpecificConditionTemplates",
     aliases = {"specific_condition_template", "specific_condition", "특화조건"},

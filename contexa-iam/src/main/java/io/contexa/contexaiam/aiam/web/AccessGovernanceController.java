@@ -40,7 +40,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * - 업무 분리 위반 검사: "업무 분리 원칙에 위반되는 권한 배분이 있는가?"
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/ai/access-governance")
 @RequiredArgsConstructor
 public class AccessGovernanceController {

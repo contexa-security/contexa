@@ -2,14 +2,14 @@ package io.contexa.contexaidentity.security.core.validator;
 
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.exception.DslConfigurationException;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
-@Service
-@RequiredArgsConstructor
 public class DslValidatorService {
 
     private final DslValidator dslValidator; // 통합 Validator 하나만 주입
+
+    public DslValidatorService(DslValidator dslValidator) {
+        this.dslValidator = dslValidator;
+    }
 
     /**
      * 제공된 PlatformConfig에 대해 DSL 유효성 검사를 수행합니다.

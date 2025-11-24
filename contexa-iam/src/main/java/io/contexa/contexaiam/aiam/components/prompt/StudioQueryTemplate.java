@@ -8,7 +8,6 @@ import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 /**
  * Authorization Studio 자연어 질의 프롬프트 템플릿
@@ -27,7 +26,6 @@ import org.springframework.stereotype.Component;
  * - AI 기반 권장사항 생성
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
         key = "studioQuery",
         aliases = {"studio_query", "authorization_studio_query", "iam_natural_query"},

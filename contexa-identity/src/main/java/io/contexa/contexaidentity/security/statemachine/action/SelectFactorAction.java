@@ -8,13 +8,11 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 /**
  * MFA 팩터 선택 액션
  */
 @Slf4j
-@Component
 public class SelectFactorAction extends AbstractMfaStateAction {
 
     @Override

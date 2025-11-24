@@ -22,7 +22,6 @@ import java.util.Map;
  * @since 1.0.0
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/vectorstore/test")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")

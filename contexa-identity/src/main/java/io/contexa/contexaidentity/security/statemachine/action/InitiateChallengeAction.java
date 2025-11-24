@@ -6,13 +6,11 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 /**
  * MFA 챌린지 시작 액션
  */
 @Slf4j
-@Component
 public class InitiateChallengeAction extends AbstractMfaStateAction {
 
     @Override

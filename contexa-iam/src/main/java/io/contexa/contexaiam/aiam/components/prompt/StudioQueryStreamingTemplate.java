@@ -6,7 +6,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 /**
  * Authorization Studio 통합 프롬프트 템플릿 - SecurityCopilot 방식
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Component;
  * SecurityCopilot 방식: ###FINAL_RESPONSE### 마커로 구조화 데이터 전송
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
         key = "studioQueryStreaming",
         aliases = {"studio_query_streaming", "authorization_studio_streaming", "studioQuery"},

@@ -4,7 +4,6 @@ import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexacommon.entity.ManagedResource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
  * - 정책 충돌 감지
  * - 자연어 → 정책 변환
  */
-@Service
 @RequiredArgsConstructor
 @Slf4j
 public class ConditionCompatibilityService {

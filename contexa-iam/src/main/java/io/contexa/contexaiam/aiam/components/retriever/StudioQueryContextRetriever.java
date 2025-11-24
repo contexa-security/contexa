@@ -24,7 +24,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -44,7 +43,6 @@ import java.util.stream.Collectors;
  * 5. AI 분석을 위한 종합 컨텍스트 생성
  */
 @Slf4j
-@Component
 public class StudioQueryContextRetriever extends ContextRetriever {
 
     private final VectorStore vectorStore;

@@ -3,10 +3,8 @@ package io.contexa.contexaiam.security.xacml.pip.risk;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
 import java.util.Set;
 
-@Component
 @Order(10)
 public class IpRiskEvaluator implements RiskFactorEvaluator {
     private static final Set<String> TRUSTED_IPS = Set.of("127.0.0.1", "0:0:0:0:0:0:0:1");

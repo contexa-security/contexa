@@ -2,10 +2,10 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
-import io.contexa.contexacoreenterprise.tool.domain.ToolExecutionContext;
+import io.contexa.contexacoreenterprise.domain.entity.ToolExecutionContext;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.repository.ThreatIndicatorRepository;
-import io.contexa.contexacoreenterprise.tool.repository.ToolExecutionContextRepository;
+import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,6 @@ import java.util.concurrent.CompletableFuture;
  * @since 3.0.0
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/security-plane")
 @RequiredArgsConstructor
 public class SecurityPlaneSimulationController {

@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +29,6 @@ import java.util.Map;
  * 명확한 DTO를 사용하여 안정적인 API 계약을 보장하고, PermissionWizardService에 작업을 위임합니다.
  */
 @Slf4j
-@Controller
 @RequestMapping("/admin/policy-wizard")
 @RequiredArgsConstructor
 public class PolicyWizardController {

@@ -9,31 +9,27 @@ import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Primary;
-import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
 /**
  * AI 적응형 MFA 정책 제공자 (Zero Trust 통합)
- * 
+ *
  * DefaultMfaPolicyProvider를 확장하여 Zero Trust 기반 실시간 위험 평가를 통한
  * 적응형 인증 정책을 제공합니다.
- * 
+ *
  * 이 클래스는 Redis에 저장된 threat_score를 실시간으로 조회하여
  * 동기적 AI 호출 없이 밀리초 단위로 MFA 정책을 결정합니다.
- * 
+ *
  * 주요 기능:
  * 1. ZeroTrustPolicyEvaluator를 통한 실시간 위험 평가
  * 2. Redis 기반 threat_score 조회 (5ms 이내)
  * 3. Caffeine 로컬 캐시 적용 (1초 TTL)
  * 4. AI 사용 불가 시 기본 정책으로 폴백
- * 
+ *
  * @author contexa
  * @since 2.0
  */
 @Slf4j
-@Component
-@Primary
 public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
     
     private final CompositeMfaPolicyEvaluator compositePolicyEvaluator;

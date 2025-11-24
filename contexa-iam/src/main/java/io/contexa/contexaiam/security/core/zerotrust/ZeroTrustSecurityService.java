@@ -14,7 +14,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -39,7 +38,6 @@ import java.util.stream.Collectors;
  * @since 1.0
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class ZeroTrustSecurityService {
 

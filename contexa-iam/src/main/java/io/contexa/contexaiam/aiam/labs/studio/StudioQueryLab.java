@@ -17,7 +17,6 @@ import io.contexa.contexacommon.enums.SecurityLevel;
 import io.contexa.contexaiam.aiam.protocol.request.StudioQueryRequest;
 import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -31,7 +30,6 @@ import java.util.List;
  * 스트리밍 + 진단 동시 처리 지원
  */
 @Slf4j
-@Component
 public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQueryResponse> {
 
     private final PipelineOrchestrator orchestrator;

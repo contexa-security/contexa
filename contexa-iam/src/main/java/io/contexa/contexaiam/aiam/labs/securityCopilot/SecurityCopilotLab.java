@@ -25,7 +25,6 @@ import io.contexa.contexacommon.enums.AuditRequirement;
 import io.contexa.contexacommon.enums.SecurityLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SynchronousSink;
@@ -47,7 +46,6 @@ import java.util.regex.Pattern;
  * 진단과 스트리밍 일원화
  */
 @Slf4j
-@Component
 public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, SecurityCopilotResponse> {
 
     private final PipelineOrchestrator orchestrator;

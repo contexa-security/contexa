@@ -13,7 +13,6 @@ import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRe
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
@@ -32,7 +31,6 @@ import java.util.Map;
  * 모든 메서드 시그니처 유지
  */
 @Slf4j
-@Component
 public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemplateGenerationRequest, ConditionTemplateGenerationResponse> {
 
     private final PipelineOrchestrator orchestrator;

@@ -16,7 +16,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -30,7 +29,6 @@ import reactor.core.publisher.Mono;
  * @since 1.0.0
  */
 @Slf4j
-@Component
 public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<DomainContext, DynamicThreatResponseResponse> {
     
     public DynamicThreatResponseSynthesisStrategy(AILabFactory labFactory) {

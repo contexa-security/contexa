@@ -1,0 +1,43 @@
+package io.contexa.autoconfigure.iam;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexaiam.admin.support.context.service.UserContextService;
+import io.contexa.contexaiam.admin.support.context.service.UserContextServiceImpl;
+import io.contexa.contexaiam.common.event.service.InMemoryEventBus;
+import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
+import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.WizardSessionRepository;
+import io.contexa.contexaiam.service.PolicyService;
+import io.contexa.contexacommon.repository.AuditLogRepository;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Bean;
+
+@AutoConfiguration
+public class IamMiscAutoConfiguration {
+
+    // Miscellaneous Components (3개)
+    @Bean
+    @ConditionalOnMissingBean
+    public IntegrationEventBus integrationEventBus() {
+        return new InMemoryEventBus();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PolicyService policyService(
+            PolicyRepository policyRepository,
+            ApplicationEventPublisher eventPublisher) {
+        return new PolicyService(policyRepository, eventPublisher);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public UserContextService userContextService(
+            AuditLogRepository auditLogRepository,
+            WizardSessionRepository wizardSessionRepository,
+            ObjectMapper objectMapper) {
+        return new UserContextServiceImpl(auditLogRepository, wizardSessionRepository, objectMapper);
+    }
+}

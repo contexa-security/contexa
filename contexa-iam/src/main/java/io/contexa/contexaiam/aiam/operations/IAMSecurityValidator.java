@@ -5,7 +5,6 @@ import io.contexa.contexacommon.domain.request.IAMRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.context.SecurityContext;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -21,7 +20,6 @@ import java.util.regex.Pattern;
  * - 위험 패턴 감지
  * - 규정 준수 확인
  */
-@Component
 public class IAMSecurityValidator {
     
     private final RedisTemplate<String, Object> redisTemplate;
@@ -371,7 +369,6 @@ public class IAMSecurityValidator {
     /**
      * 보안 패턴 분석기
      */
-    @Component
     public static class SecurityPatternAnalyzer {
         
         public boolean isAbnormalPattern(String username, String currentPattern, Long requestCount) {
@@ -400,7 +397,6 @@ public class IAMSecurityValidator {
     /**
      * 규정 준수 검사기
      */
-    @Component
     public static class ComplianceChecker {
         
         private final RedisTemplate<String, Object> redisTemplate;

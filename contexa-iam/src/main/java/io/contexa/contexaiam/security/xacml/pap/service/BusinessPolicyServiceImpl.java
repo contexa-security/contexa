@@ -16,7 +16,6 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -30,7 +29,6 @@ import java.util.stream.Collectors;
  * 조건부 ABAC 정책 생성을 모두 처리합니다.
  */
 @Slf4j
-@Service
 @Transactional
 public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 

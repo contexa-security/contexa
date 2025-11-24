@@ -3,12 +3,10 @@ package io.contexa.contexaiam.security.xacml.pap.service;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
 /**
  * Policy 엔티티에 사용자 친화적인 추가 정보(예: 번역된 설명)를 생성하여 채워주는 서비스
  */
-@Service
 @RequiredArgsConstructor
 public class PolicyEnrichmentService {
 

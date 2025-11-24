@@ -22,7 +22,6 @@ import org.springframework.security.core.context.DeferredSecurityContext;
 import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.web.context.HttpRequestResponseHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -51,7 +50,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 1.0
  */
 @Slf4j
-@Component
 public class AIReactiveSecurityContextRepository extends HttpSessionSecurityContextRepository {
 
     @Autowired

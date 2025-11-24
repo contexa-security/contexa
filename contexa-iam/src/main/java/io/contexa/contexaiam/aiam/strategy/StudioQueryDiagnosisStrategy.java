@@ -15,7 +15,6 @@ import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.protocol.request.StudioQueryRequest;
 import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -33,7 +32,6 @@ import java.util.Map;
  * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
  */
 @Slf4j
-@Component
 public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQueryContext, StudioQueryResponse> {
 
     public StudioQueryDiagnosisStrategy(AILabFactory labFactory) {

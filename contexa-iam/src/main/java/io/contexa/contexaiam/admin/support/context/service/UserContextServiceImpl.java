@@ -10,7 +10,6 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.repository.WizardSessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
@@ -18,7 +17,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class UserContextServiceImpl implements UserContextService {
 

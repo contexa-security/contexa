@@ -6,11 +6,9 @@ import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.stereotype.Component;
 import java.util.HashSet;
 import java.util.Set;
 
-@Component
 @RequiredArgsConstructor
 public class RoleAuthorityResolver implements SubjectAuthorityResolver {
     private final RoleRepository roleRepository;

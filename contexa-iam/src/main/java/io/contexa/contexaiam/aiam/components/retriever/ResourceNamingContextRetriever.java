@@ -20,7 +20,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,7 +32,6 @@ import java.util.stream.Collectors;
  * RAG 패턴으로 관련 리소스 네이밍 히스토리를 검색
  */
 @Slf4j
-@Component
 public class ResourceNamingContextRetriever extends ContextRetriever {
 
     private final ContextRetrieverRegistry contextRetrieverRegistry;

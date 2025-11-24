@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -22,7 +21,6 @@ import java.util.Map;
  * MFA 기능 일체 제외
  */
 @Slf4j
-@Component
 public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHandler {
 
     public OAuth2SingleAuthFailureHandler(AuthResponseWriter responseWriter) {

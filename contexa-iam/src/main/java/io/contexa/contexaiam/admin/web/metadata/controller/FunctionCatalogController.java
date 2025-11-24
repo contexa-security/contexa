@@ -7,7 +7,6 @@ import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -24,7 +23,6 @@ import java.util.Map;
  * - 이벤트 기반 복잡성 제거
  */
 @Slf4j
-@Controller
 @RequestMapping("/admin/catalog")
 public class FunctionCatalogController {
 

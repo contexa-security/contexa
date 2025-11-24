@@ -15,7 +15,6 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -38,7 +37,6 @@ import java.util.*;
  * @since 1.0.0
  */
 @Slf4j
-@Component
 public class DynamicThreatResponseContextRetriever extends ContextRetriever {
     
     private final ContextRetrieverRegistry contextRetrieverRegistry;

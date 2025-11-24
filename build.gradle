@@ -24,6 +24,17 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+    // Maven Central 배포 요구사항: 소스 JAR, Javadoc JAR 생성 (Maven Central requirement: Generate source and Javadoc JARs)
+    withSourcesJar()
+    withJavadocJar()
+}
+
+// Javadoc 생성 설정 (Javadoc generation configuration)
+tasks.withType(Javadoc) {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+    // 한국어 주석 에러 무시 (Ignore Korean comment errors)
+    options.addStringOption('Xdoclint:none', '-quiet')
 }
 
 subprojects {

@@ -5,7 +5,6 @@ import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexacommon.entity.ManagedResource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -17,7 +16,6 @@ import java.util.List;
  *      위한 확장 지점으로 역할을 재정의합니다. 현재는 RegistryService로의 위임 역할만 수행합니다.
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class ResourceEnhancementService {
 

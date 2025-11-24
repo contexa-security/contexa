@@ -7,7 +7,6 @@ import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.repository.GroupRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
@@ -17,7 +16,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Service
 @RequiredArgsConstructor
 public class PermissionMatrixServiceImpl implements PermissionMatrixService {
 

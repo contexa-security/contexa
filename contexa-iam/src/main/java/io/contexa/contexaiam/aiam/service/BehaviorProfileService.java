@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -23,7 +22,6 @@ import java.util.stream.Collectors;
  * 사용자 행동 프로파일 관리 서비스
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class BehaviorProfileService {
 

@@ -12,11 +12,9 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
-import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -34,8 +32,6 @@ import java.util.stream.Collectors;
  * - 성능 최적화: 불필요한 동기화 호출 최소화
  */
 @Slf4j
-@RequiredArgsConstructor
-@Component
 public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
     protected final UserRepository userRepository;
@@ -44,6 +40,19 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     protected final MfaPolicyEvaluator policyEvaluator;
     protected final PlatformConfig platformConfig;
     private AuthenticationFlowConfig cachedMfaFlowConfig;
+
+    public DefaultMfaPolicyProvider(
+            UserRepository userRepository,
+            ApplicationContext applicationContext,
+            AuthContextProperties properties,
+            MfaPolicyEvaluator policyEvaluator,
+            PlatformConfig platformConfig) {
+        this.userRepository = userRepository;
+        this.applicationContext = applicationContext;
+        this.properties = properties;
+        this.policyEvaluator = policyEvaluator;
+        this.platformConfig = platformConfig;
+    }
 
     /**
      * Phase 2 개선: Bean 초기화 시 MFA FlowConfig를 캐싱 (Blocking 없음)

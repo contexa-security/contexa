@@ -6,7 +6,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 /**
  * 사용자 차단 상태 확인 Guard
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component;
  * Phase 2.3: blocked/blockReason 속성 활용
  */
 @Slf4j
-@Component
 public class BlockedUserGuard extends AbstractMfaStateGuard {
 
     @Override

@@ -44,7 +44,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * @since 1.0.0
  */
 @Slf4j
-@RestController
 @RequestMapping("/context-proxy")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor

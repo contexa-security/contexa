@@ -1,11 +1,14 @@
-bootJar.enabled = true
-jar.enabled = false
+// 라이브러리 JAR로 전환 (Library JAR conversion)
+// Starter 패턴에 부합하도록 bootJar 비활성화 (Disable bootJar for Starter pattern)
+// 독립 실행은 examples 모듈에서 제공 (Standalone execution provided by examples module)
+bootJar.enabled = false
+jar.enabled = true
 
 dependencies {
     implementation project(':contexa-core')
     implementation project(':contexa-core-enterprise')
     implementation project(':contexa-common')
-    implementation project(':contexa-autoconfigure')
+    // contexa-autoconfigure는 Starter에서 포함 (순환 의존성 방지)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
 

@@ -9,14 +9,12 @@ import io.contexa.contexaiam.admin.web.studio.service.StudioExplorerService;
 import io.contexa.contexaiam.admin.web.studio.service.StudioVisualizerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
-@Controller
 @RequestMapping("/admin/studio")
 @RequiredArgsConstructor
 public class AuthorizationStudioController {

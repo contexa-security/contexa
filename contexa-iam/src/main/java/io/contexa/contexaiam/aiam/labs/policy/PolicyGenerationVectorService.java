@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -27,7 +26,6 @@ import java.util.regex.Pattern;
  * @since 1.0.0
  */
 @Slf4j
-@Service
 public class PolicyGenerationVectorService extends AbstractVectorLabService {
     
     @Value("${spring.ai.policy.confidence-threshold:0.8}")

@@ -14,7 +14,6 @@ import org.springframework.expression.spel.SpelNode;
 import org.springframework.expression.spel.standard.SpelExpression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.ast.*;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +26,6 @@ import java.util.stream.Stream;
  * AST 분석을 통해 정확하고 구조적인 번역을 수행합니다.
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class PolicyTranslator {
 

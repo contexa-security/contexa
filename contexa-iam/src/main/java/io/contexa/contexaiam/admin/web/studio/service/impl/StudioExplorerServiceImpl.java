@@ -5,14 +5,12 @@ import io.contexa.contexaiam.admin.web.studio.service.StudioExplorerService;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class StudioExplorerServiceImpl implements StudioExplorerService {

@@ -39,3 +39,61 @@ io.contexa.autoconfigure.enterprise.plane.EnterprisePlaneAutoConfiguration
 
 # Enterprise SOAR
 io.contexa.autoconfigure.enterprise.soar.EnterpriseSoarAutoConfiguration
+
+# Identity StateMachine
+io.contexa.autoconfigure.identity.IdentityStateMachineAutoConfiguration
+
+# Identity MFA
+io.contexa.autoconfigure.identity.IdentityMfaAutoConfiguration
+
+# Identity Security Core
+io.contexa.autoconfigure.identity.IdentitySecurityCoreAutoConfiguration
+
+# Identity Service
+io.contexa.autoconfigure.identity.IdentityServiceAutoConfiguration
+
+# Identity Handler
+io.contexa.autoconfigure.identity.IdentityHandlerAutoConfiguration
+
+# IAM Infrastructure
+io.contexa.autoconfigure.iam.IamInfrastructureAutoConfiguration
+
+# IAM Security
+io.contexa.autoconfigure.iam.IamSecurityAutoConfiguration
+
+# IAM WebSocket
+io.contexa.autoconfigure.iam.IamWebSocketAutoConfiguration
+
+# IAM Simulation
+io.contexa.autoconfigure.iam.IamSimulationAutoConfiguration
+
+# IAM XACML (Policy-based Access Control)
+io.contexa.autoconfigure.iam.xacml.IamXacmlPrpAutoConfiguration
+io.contexa.autoconfigure.iam.xacml.IamXacmlPipAutoConfiguration
+io.contexa.autoconfigure.iam.xacml.IamXacmlPdpAutoConfiguration
+io.contexa.autoconfigure.iam.xacml.IamXacmlPepAutoConfiguration
+io.contexa.autoconfigure.iam.xacml.IamXacmlPapAutoConfiguration
+
+# IAM AIAM (AI-Powered IAM)
+io.contexa.autoconfigure.iam.aiam.IamAiamInfrastructureAutoConfiguration
+io.contexa.autoconfigure.iam.aiam.IamAiamWebAutoConfiguration
+io.contexa.autoconfigure.iam.aiam.IamAiamServiceStrategyAutoConfiguration
+io.contexa.autoconfigure.iam.aiam.IamAiamLabsAutoConfiguration
+io.contexa.autoconfigure.iam.aiam.IamAiamComponentsAutoConfiguration
+
+# IAM Admin (Admin Web Console)
+io.contexa.autoconfigure.iam.admin.IamAdminAuthAutoConfiguration
+io.contexa.autoconfigure.iam.admin.IamAdminMetadataAutoConfiguration
+io.contexa.autoconfigure.iam.admin.IamAdminMonitoringAutoConfiguration
+io.contexa.autoconfigure.iam.admin.IamAdminStudioAutoConfiguration
+io.contexa.autoconfigure.iam.admin.IamAdminWorkflowAutoConfiguration
+io.contexa.autoconfigure.iam.admin.IamAdminSupportAutoConfiguration
+
+# IAM Security Core
+io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration
+
+# IAM Resource Management
+io.contexa.autoconfigure.iam.IamResourceAutoConfiguration
+
+# IAM Misc Components
+io.contexa.autoconfigure.iam.IamMiscAutoConfiguration

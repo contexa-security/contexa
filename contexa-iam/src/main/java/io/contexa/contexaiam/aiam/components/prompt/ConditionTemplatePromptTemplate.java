@@ -9,7 +9,6 @@ import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationR
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 /**
  * 🔀 조건 템플릿 생성 통합 프롬프트 템플릿
@@ -28,7 +27,6 @@ import org.springframework.stereotype.Component;
  * - 통합된 응답 구조 유지
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
     key = "conditionTemplateGeneration",
     aliases = {"condition_template_generation"},

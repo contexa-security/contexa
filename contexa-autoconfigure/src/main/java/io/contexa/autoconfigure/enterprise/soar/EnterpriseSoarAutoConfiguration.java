@@ -17,6 +17,8 @@ import io.contexa.contexacoreenterprise.soar.event.ApprovalEventListener;
 import io.contexa.contexacoreenterprise.soar.event.WebSocketApprovalHandler;
 import io.contexa.contexacoreenterprise.tool.pipeline.PipelineSoarToolExecutionStep;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
+import io.contexa.contexacoreenterprise.soar.controller.ToolApprovalController;
+import io.contexa.contexacoreenterprise.soar.controller.SoarApprovalController;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
 import io.contexa.contexacoreenterprise.soar.approval.ToolApprovalService;
 import io.contexa.contexacoreenterprise.soar.approval.ConversationHistoryBuilder;
@@ -525,6 +527,45 @@ public class EnterpriseSoarAutoConfiguration {
         return new PipelineSoarToolExecutionStep(
             toolCapableLLMClient, approvalAwareToolCallingManager,
             toolCallDetectionHelper, chainedToolResolver
+        );
+    }
+
+    // ========== Controllers (2개) ==========
+
+    /**
+     * 23. ToolApprovalController - Tool 승인 컨트롤러
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "contexa.soar",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    public ToolApprovalController toolApprovalController(
+            ToolApprovalService approvalService) {
+        return new ToolApprovalController(approvalService);
+    }
+
+    /**
+     * 24. SoarApprovalController - SOAR 승인 컨트롤러
+     * IMPORTANT: @Qualifier("brokerMessagingTemplate") 패턴 반드시 사용
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "contexa.soar",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    public SoarApprovalController soarApprovalController(
+            ApprovalService approvalService,
+            SoarToolExecutionService soarToolExecutionService,
+            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
+        return new SoarApprovalController(
+            approvalService, soarToolExecutionService, brokerTemplate
         );
     }
 }

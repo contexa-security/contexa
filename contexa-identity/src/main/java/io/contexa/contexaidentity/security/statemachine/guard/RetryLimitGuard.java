@@ -5,14 +5,12 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
-import org.springframework.stereotype.Component;
 
 /**
  * 재시도 제한을 확인하는 Guard
  * 팩터별 또는 전체 재시도 횟수를 관리
  */
 @Slf4j
-@Component
 public class RetryLimitGuard extends AbstractMfaStateGuard {
 
     @Override

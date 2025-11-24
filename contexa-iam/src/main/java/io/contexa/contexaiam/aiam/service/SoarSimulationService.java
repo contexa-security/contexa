@@ -10,7 +10,6 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -24,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * AI 진단 프로세스와 통합된 SOAR 워크플로우 실행 및 관리
  */
 @Slf4j
-@Service
 public class SoarSimulationService {
     
     private final SoarToolCallingService soarToolCallingService;

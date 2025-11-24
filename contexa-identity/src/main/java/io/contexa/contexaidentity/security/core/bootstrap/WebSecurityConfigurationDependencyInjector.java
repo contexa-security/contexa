@@ -6,7 +6,6 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
-import org.springframework.stereotype.Component;
 
 /**
  * WebSecurityConfiguration이 PlatformBootstrap에 의존하도록 설정하는 BeanFactoryPostProcessor입니다.
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Component;
  * SecurityFilterChain 빈들을 등록한 후, WebSecurityConfiguration이 이를 주입받을 수 있도록 합니다.</p>
  */
 @Slf4j
-@Component
 public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPostProcessor {
 
     @Override

@@ -15,7 +15,7 @@ import java.util.Map;
  * 관리자가 고위험 도구 실행을 승인/거부
  */
 @Slf4j
-@RestController
+@ResponseBody
 @RequestMapping("/api/soar/approval")
 @RequiredArgsConstructor
 public class ToolApprovalController {

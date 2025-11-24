@@ -2,14 +2,12 @@ package io.contexa.contexaiam.resource;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Component
 @Slf4j
 public class MethodPatternAnalyzer {
 

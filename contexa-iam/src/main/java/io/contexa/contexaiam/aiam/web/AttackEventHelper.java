@@ -10,7 +10,6 @@ import io.contexa.contexacore.simulation.tracker.DataBreachTracker;
 import io.contexa.contexaiam.aiam.service.ProtectableDataService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Optional;
@@ -24,7 +23,6 @@ import java.util.Optional;
  * - 방어 모드: 정상적으로 이벤트 발행
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class AttackEventHelper {
 

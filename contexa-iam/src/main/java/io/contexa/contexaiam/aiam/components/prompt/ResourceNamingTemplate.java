@@ -9,7 +9,6 @@ import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionReque
 import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingSuggestionResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -32,7 +31,6 @@ import java.util.stream.IntStream;
  * - 100% 응답 보장 (누락 없음)
  */
 @Slf4j
-@Component
 @PromptTemplateConfig(
     key = "resource_naming_suggestion",
     aliases = {"resource_naming", "리소스네이밍"},

@@ -10,7 +10,6 @@ import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.dto.DuplicatePolicyDto;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
@@ -21,7 +20,6 @@ import java.util.stream.Collectors;
 /**
  * [최종 구현] 정책 최적화 서비스의 완전한 구현체입니다.
  */
-@Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PolicyOptimizationServiceImpl implements PolicyOptimizationService {

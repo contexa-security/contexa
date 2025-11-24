@@ -4,9 +4,7 @@ package io.contexa.contexaiam.security.xacml.pdp.translator;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.spel.ast.MethodReference;
-import org.springframework.stereotype.Component;
 
-@Component
 @Order(Ordered.LOWEST_PRECEDENCE)
 public class DefaultFunctionTranslator implements SpelFunctionTranslator {
     @Override

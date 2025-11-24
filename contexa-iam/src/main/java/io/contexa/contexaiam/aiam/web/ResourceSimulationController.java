@@ -20,7 +20,6 @@ import java.util.concurrent.ThreadLocalRandom;
  * 실시간으로 보안 이벤트를 발행합니다.
  */
 @Slf4j
-@RestController
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class ResourceSimulationController {

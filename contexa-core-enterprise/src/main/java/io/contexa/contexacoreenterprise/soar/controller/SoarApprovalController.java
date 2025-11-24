@@ -17,7 +17,7 @@ import java.util.Map;
  * WebSocket을 통한 실시간 승인 처리
  */
 @Slf4j
-@RestController
+@ResponseBody
 @RequestMapping("/api/soar/approval")
 public class SoarApprovalController {
     

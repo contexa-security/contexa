@@ -25,7 +25,6 @@ import java.util.Map;
  * AI + MCP + SOAR 통합 시뮬레이션을 위한 REST 및 WebSocket 엔드포인트 제공
  */
 @Slf4j
-@RestController
 @RequestMapping("/api/soar/simulation")
 public class SoarSimulationController {
     

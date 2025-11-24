@@ -1,7 +1,6 @@
 package io.contexa.contexaiam.aiam.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 /**
  * Security Copilot 메시지 제공자
@@ -10,7 +9,6 @@ import org.springframework.stereotype.Component;
  * 다국어 지원 준비
  * 일관된 메시지 관리
  */
-@Component
 @Slf4j
 public class SecurityCopilotMessageProvider {
 

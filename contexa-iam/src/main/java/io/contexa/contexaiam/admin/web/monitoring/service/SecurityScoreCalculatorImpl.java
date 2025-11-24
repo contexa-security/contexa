@@ -3,12 +3,10 @@ package io.contexa.contexaiam.admin.web.monitoring.service;
 import io.contexa.contexaiam.admin.web.monitoring.dto.SecurityScoreDto;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
 
-@Component
 @RequiredArgsConstructor
 public class SecurityScoreCalculatorImpl implements SecurityScoreCalculator {
 
