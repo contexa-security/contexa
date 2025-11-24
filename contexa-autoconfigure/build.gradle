@@ -11,7 +11,7 @@ dependencies {
     // ========== Contexa Enterprise 모듈 (compileOnly) ==========
     // AutoConfiguration 컴파일 시에만 필요, 런타임은 선택적
     compileOnly project(':contexa-core-enterprise')
-    compileOnly project(':contexa-mcp')
+    api project(':contexa-mcp')
 
     // Spring Boot AutoConfiguration (subprojects 공통 의존성 외 추가)
     implementation 'org.springframework.boot:spring-boot-autoconfigure'

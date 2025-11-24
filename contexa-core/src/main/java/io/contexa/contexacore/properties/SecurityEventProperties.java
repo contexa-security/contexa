@@ -30,6 +30,12 @@ public class SecurityEventProperties {
     private TierSettings tier = new TierSettings();
 
     /**
+     * 중복 제거 설정
+     */
+    @NestedConfigurationProperty
+    private DeduplicationSettings deduplication = new DeduplicationSettings();
+
+    /**
      * 퍼블리싱 설정
      */
     @Data
@@ -85,5 +91,15 @@ public class SecurityEventProperties {
             private int maxLatencyMs = 10000;
             private double samplingRate = 0.1;
         }
+    }
+
+    /**
+     * 중복 제거 설정
+     */
+    @Data
+    public static class DeduplicationSettings {
+        private int windowMinutes = 5;
+        private int cacheSize = 10000;
+        private boolean enabled = true;
     }
 }

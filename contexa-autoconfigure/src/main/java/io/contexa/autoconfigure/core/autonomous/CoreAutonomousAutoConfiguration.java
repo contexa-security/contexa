@@ -74,7 +74,9 @@ import org.springframework.data.redis.core.RedisTemplate;
     SecuritySessionProperties.class,
     SecurityColdPathProperties.class,
     SecurityKafkaProperties.class,
-    SecurityRedisProperties.class
+    SecurityRedisProperties.class,
+    SecurityRouterProperties.class,
+    SecurityPipelineProperties.class
 })
 @Import({
     SecurityPlaneConfiguration.class

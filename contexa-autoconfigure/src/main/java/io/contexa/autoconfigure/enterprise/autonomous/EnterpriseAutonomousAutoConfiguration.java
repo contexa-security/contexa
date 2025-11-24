@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.enterprise.autonomous;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
+import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
 import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
@@ -111,7 +112,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties({ContexaProperties.class, SecurityAutonomousProperties.class})
+@EnableConfigurationProperties({ContexaProperties.class, SecurityAutonomousProperties.class, SecurityEvaluatorProperties.class})
 public class EnterpriseAutonomousAutoConfiguration {
 
     public EnterpriseAutonomousAutoConfiguration() {

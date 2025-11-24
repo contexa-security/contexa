@@ -14,7 +14,12 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-identity:compileJava :contexa-autoconfigure:compileJava -x test)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" clean :contexa-common:build :contexa-core:build :contexa-identity:build :contexa-iam:build -x test)",
       "Bash(jar tf:*)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-core:build :contexa-core-enterprise:build :contexa-iam:build :contexa-autoconfigure:build -x test)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-core:build :contexa-core-enterprise:build :contexa-iam:build :contexa-autoconfigure:build -x test)",
+      "Bash(./gradlew :contexa-autoconfigure:dependencies:*)",
+      "Bash(./gradlew :spring-boot-starter-contexa:build:*)",
+      "Bash(./gradlew :contexa-autoconfigure:build:*)",
+      "Bash(./gradlew:*)",
+      "Bash(Select-String:*)"
     ],
     "deny": [],
     "ask": []
