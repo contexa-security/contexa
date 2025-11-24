@@ -16,7 +16,7 @@ import java.util.Map;
 
 /**
  * 🎛️ 기능 카탈로그 컨트롤러 (순환 의존성 @Lazy로 해결)
- * 
+ *
  * 해결 방법:
  * - ResourceRegistryService에 @Lazy 어노테이션 적용
  * - 실제 사용 시점에 빈 초기화

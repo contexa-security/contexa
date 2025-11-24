@@ -13,7 +13,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     // Spring AI MCP Boot Starters (올바른 구현)
-    implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
+    // AutoConfiguration에서 Spring AI 타입을 사용하므로 api로 노출
+    api 'org.springframework.ai:spring-ai-starter-mcp-client'
 
     // Jackson JSON Schema support
     implementation 'com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3'

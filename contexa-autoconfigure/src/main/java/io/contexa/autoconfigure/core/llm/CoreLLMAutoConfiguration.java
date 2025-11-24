@@ -1,9 +1,9 @@
 package io.contexa.autoconfigure.core.llm;
 
+import io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration;
 import io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration;
+import io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.std.advisor.config.AdvisorConfiguration;
-import io.contexa.contexacore.std.llm.config.TieredSecurityLLMConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -15,12 +15,13 @@ import org.springframework.context.annotation.Import;
  * Core LLM AutoConfiguration
  *
  * Contexa 프레임워크의 LLM 관련 자동 구성을 제공합니다.
- * Import 방식으로 기존 Configuration 클래스들을 재사용합니다.
  *
  * 포함된 Configuration:
- * - TieredSecurityLLMConfiguration - 3계층 보안 시스템
- * - AdvisorConfiguration - Spring AI Advisor 시스템
- * - PipelineConfiguration - Pipeline 오케스트레이션
+ * - PipelineConfiguration (Import) - Pipeline 오케스트레이션
+ *
+ * 의존성 AutoConfiguration:
+ * - CoreLLMTieredAutoConfiguration - 3계층 보안 시스템 (@AutoConfigureAfter)
+ * - CoreAdvisorAutoConfiguration - Spring AI Advisor 시스템 (@AutoConfigureAfter)
  *
  * 활성화 조건:
  * contexa:
@@ -30,7 +31,12 @@ import org.springframework.context.annotation.Import;
  * @since 0.1.0-ALPHA
  */
 @AutoConfiguration
-@AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
+@AutoConfigureAfter({
+    CoreInfrastructureAutoConfiguration.class,
+    CoreStdComponentsAutoConfiguration.class,
+    CoreLLMTieredAutoConfiguration.class,
+    CoreAdvisorAutoConfiguration.class
+})
 @ConditionalOnProperty(
     prefix = "contexa.llm",
     name = "enabled",
@@ -39,8 +45,6 @@ import org.springframework.context.annotation.Import;
 )
 @EnableConfigurationProperties(ContexaProperties.class)
 @Import({
-    TieredSecurityLLMConfiguration.class,
-    AdvisorConfiguration.class,
     PipelineConfiguration.class
 })
 public class CoreLLMAutoConfiguration {

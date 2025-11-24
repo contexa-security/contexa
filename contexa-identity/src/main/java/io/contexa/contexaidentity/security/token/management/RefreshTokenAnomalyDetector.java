@@ -41,7 +41,7 @@ public class RefreshTokenAnomalyDetector {
     private static final double MEDIUM_RISK_THRESHOLD = 0.5;
 
     private final StringRedisTemplate redisTemplate;
-    private final RedisEventPublisher eventPublisher;
+    private final RedisEventPublisher redisEventPublisher;
 
     /**
      * 비정상 패턴 감지
@@ -252,7 +252,7 @@ public class RefreshTokenAnomalyDetector {
         eventData.put("description", risk.description());
         eventData.put("timestamp", Instant.now().toString());
 
-        eventPublisher.publishSecurityEvent("HIGH_RISK_ANOMALY_DETECTED",
+        redisEventPublisher.publishSecurityEvent("HIGH_RISK_ANOMALY_DETECTED",
                 "system", "0.0.0.0", eventData);
     }
 

@@ -1,3 +1,4 @@
+/*
 package io.contexa.contexaidentity.controller;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -17,12 +18,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
 
+*/
 /**
  * 완전 일원화된 LoginController
  * - HttpSessionContextPersistence 완전 제거
  * - MfaStateMachineIntegrator를 통한 단일 진실의 원천 사용
  * - State Machine 기반 FactorContext 조회
- */
+ *//*
+
 @Controller
 @RequiredArgsConstructor
 @Slf4j
@@ -37,10 +40,12 @@ public class LoginController {
         return request.getContextPath();
     }
 
-    /**
+    */
+/**
      * 완전 일원화: State Machine에서 FactorContext 로드
      * - 기존 세션 직접 접근 방식 완전 제거
-     */
+     *//*
+
     private FactorContext loadFactorContextFromStateMachine(HttpServletRequest request) {
         try {
             return stateMachineIntegrator.loadFactorContextFromRequest(request);
@@ -50,9 +55,11 @@ public class LoginController {
         }
     }
 
-    /**
+    */
+/**
      * 완전 일원화: MFA 세션 유효성 검증
-     */
+     *//*
+
     private boolean isValidMfaContext(FactorContext ctx, String requiredFactorType) {
         if (ctx == null || !StringUtils.hasText(ctx.getUsername())) {
             return false;
@@ -76,9 +83,11 @@ public class LoginController {
         return true;
     }
 
-    /**
+    */
+/**
      * 완전 일원화: MFA 에러 리다이렉트 생성
-     */
+     *//*
+
     private String createMfaErrorRedirect(HttpServletRequest request, String errorCode) {
         return "redirect:" + getContextPath(request) + authUrlProvider.getPrimaryLoginPage() + "?mfa_error=" + errorCode;
     }
@@ -435,3 +444,4 @@ public class LoginController {
 
     // P0.3: 유틸리티 메서드 제거 - AuthUrlProvider가 우선순위 로직을 담당하므로 불필요
 }
+*/

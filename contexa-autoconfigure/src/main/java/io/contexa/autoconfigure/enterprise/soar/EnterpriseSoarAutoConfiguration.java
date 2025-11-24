@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.enterprise.soar;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacoreenterprise.config.NotificationConfig;
 import io.contexa.contexacoreenterprise.soar.tool.provider.SoarToolIntegrationProvider;
 import io.contexa.contexacoreenterprise.soar.strategy.SoarDiagnosisStrategy;
 import io.contexa.contexacoreenterprise.soar.service.SoarToolExecutionService;
@@ -54,38 +55,42 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.retry.annotation.EnableRetry;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.spring6.SpringTemplateEngine;
+import org.thymeleaf.templatemode.TemplateMode;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 /**
  * Enterprise SOAR AutoConfiguration
  *
+ * <p>
  * Contexa Enterprise 모듈의 SOAR (Security Orchestration, Automation and Response) 자동 구성을 제공합니다.
  * @Bean 방식으로 Enterprise SOAR 서비스들을 명시적으로 등록합니다.
+ * </p>
  *
- * 포함된 컴포넌트 (22개):
- * Level 1: Helper/Utility (4개)
- * - WebSocketConfigHelper, ToolCallDetectionHelper, ConversationHistoryBuilder, ToolApprovalService
+ * <h3>포함된 컴포넌트 (27개):</h3>
+ * <ul>
+ *   <li><strong>Level 0: Infrastructure (3개)</strong> - JavaMailSender, TemplateEngine, NotificationTargetManager</li>
+ *   <li><strong>Level 1: Helper/Utility (4개)</strong> - WebSocketConfigHelper, ToolCallDetectionHelper, ConversationHistoryBuilder, ToolApprovalService</li>
+ *   <li><strong>Level 2: Simple Services (6개)</strong> - SoarPromptTemplate, ApprovalRequestFactory, ApprovalRequestValidator, ApprovalStateManager, SoarEmailService, McpApprovalNotificationService</li>
+ *   <li><strong>Level 3: Medium Services (7개)</strong> - SoarToolIntegrationProvider, SoarDiagnosisStrategy, SoarToolExecutionService, SoarContextRetriever, ApprovalEventListener, RedisApprovalSubscriber, SoarLabImpl</li>
+ *   <li><strong>Level 4: Complex Services (4개)</strong> - SoarToolCallingService, SoarApprovalNotifierImpl, SoarInteractionManager, AsyncToolExecutionService</li>
+ *   <li><strong>Level 5: Highest Services (1개)</strong> - UnifiedApprovalService</li>
+ *   <li><strong>Level 6: Controllers (2개)</strong> - ToolApprovalController, SoarApprovalController</li>
+ * </ul>
  *
- * Level 2: Simple Services (6개)
- * - SoarPromptTemplate, ApprovalRequestFactory, ApprovalRequestValidator, ApprovalStateManager
- * - SoarEmailService, McpApprovalNotificationService
- *
- * Level 3: Medium Services (7개)
- * - SoarToolIntegrationProvider, SoarDiagnosisStrategy, SoarToolExecutionService
- * - SoarContextRetriever, ApprovalEventListener, RedisApprovalSubscriber, SoarLabImpl
- *
- * Level 4: Complex Services (4개)
- * - SoarToolCallingService, SoarApprovalNotifierImpl, SoarInteractionManager, AsyncToolExecutionService
- *
- * Level 5: Highest Services (1개)
- * - UnifiedApprovalService
- *
- * 활성화 조건:
+ * <h3>활성화 조건:</h3>
+ * <pre>
  * contexa:
  *   enterprise:
  *     enabled: true
  *   soar:
  *     enabled: true  (기본값)
+ * </pre>
  *
  * @since 0.1.0-ALPHA
  */
@@ -97,10 +102,72 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
     matchIfMissing = true
 )
 @EnableConfigurationProperties(ContexaProperties.class)
+@EnableRetry
 public class EnterpriseSoarAutoConfiguration {
 
     public EnterpriseSoarAutoConfiguration() {
         // @Bean 방식으로 Enterprise SOAR 서비스 등록
+    }
+
+    // ========== Level 0: Infrastructure (3개) ==========
+
+    /**
+     * JavaMailSender - 이메일 발송 서비스
+     *
+     * <p>
+     * Spring Boot의 자동 구성을 사용하지만, 필요시 커스터마이징 가능합니다.
+     * 실제 메일 설정 값은 application.yml에서 주입됩니다.
+     * </p>
+     *
+     * @return JavaMailSender
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(name = "soar.notification.email.enabled", havingValue = "true", matchIfMissing = true)
+    public JavaMailSender javaMailSender() {
+        return new JavaMailSenderImpl();
+    }
+
+    /**
+     * 이메일 템플릿 엔진
+     *
+     * <p>
+     * Thymeleaf 기반 이메일 템플릿 처리를 제공합니다.
+     * </p>
+     *
+     * @return TemplateEngine
+     */
+    @Bean
+    @ConditionalOnMissingBean(name = "emailTemplateEngine")
+    public TemplateEngine emailTemplateEngine() {
+        SpringTemplateEngine templateEngine = new SpringTemplateEngine();
+
+        // 이메일 템플릿 리졸버 설정
+        ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
+        templateResolver.setPrefix("templates/");
+        templateResolver.setSuffix(".html");
+        templateResolver.setTemplateMode(TemplateMode.HTML);
+        templateResolver.setCharacterEncoding("UTF-8");
+        templateResolver.setCacheable(false);
+        templateResolver.setOrder(1);
+
+        templateEngine.addTemplateResolver(templateResolver);
+        return templateEngine;
+    }
+
+    /**
+     * 알림 타겟 관리자
+     *
+     * <p>
+     * 사용자별 알림 채널 선호도와 연결 상태를 관리합니다.
+     * </p>
+     *
+     * @return NotificationTargetManager
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public NotificationConfig.NotificationTargetManager notificationTargetManager() {
+        return new NotificationConfig.NotificationTargetManager();
     }
 
     // ========== Level 1: Helper/Utility 클래스 (4개) ==========

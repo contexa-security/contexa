@@ -1,10 +1,9 @@
-package io.contexa.contexaidentity.security.config;
+package io.contexa.springbootstartercontexa;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
@@ -16,7 +15,6 @@ import javax.sql.DataSource;
 
 @Configuration
 @RequiredArgsConstructor
-@Import(PlatformSecurityConfig.class)
 public class MySecurityConfig {
 
 

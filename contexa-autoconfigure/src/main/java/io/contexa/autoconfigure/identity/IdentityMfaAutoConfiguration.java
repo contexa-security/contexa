@@ -1,12 +1,14 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexaidentity.security.core.bootstrap.configurer.MfaPageGeneratingConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.AIAdaptiveMfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.DefaultMfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.*;
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
+import io.contexa.contexaidentity.service.MfaSupportService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
@@ -153,5 +155,25 @@ public class IdentityMfaAutoConfiguration {
             platformConfig,
             aiCoreOperations
         );
+    }
+
+    // ========== Level 3: MFA Support Components (2개) ==========
+
+    /**
+     * 3-1. MfaSupportService - MFA 지원 서비스
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public MfaSupportService mfaSupportService(UserRepository userRepository) {
+        return new MfaSupportService(userRepository);
+    }
+
+    /**
+     * 3-2. MfaPageGeneratingConfigurer - MFA 페이지 생성 Configurer
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public MfaPageGeneratingConfigurer mfaPageGeneratingConfigurer(ApplicationContext applicationContext) {
+        return new MfaPageGeneratingConfigurer(applicationContext);
     }
 }

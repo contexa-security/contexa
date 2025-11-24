@@ -1,4 +1,4 @@
-package io.contexa.contexaidentity.security.config;
+package io.contexa.autoconfigure.identity;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -7,6 +7,8 @@ import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.AuthenticatedUserOAuth2AuthorizedClientProvider;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.RestClientAuthenticatedUserTokenResponseClient;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutHandler;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
@@ -20,13 +22,24 @@ import io.contexa.contexaidentity.security.token.transport.TokenTransportStrateg
 import io.contexa.contexaidentity.security.token.validator.OAuth2TokenValidator;
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
@@ -43,6 +56,7 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.token.*;
+import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -53,18 +67,32 @@ import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * OAuth2 Authorization Server 자동 설정
+ * OAuth2 Authorization Server & Client 자동 설정
  *
- * Spring Authorization Server와 Resource Server에 필요한 모든 빈을 자동으로 등록합니다.
+ * Spring Authorization Server, Resource Server, OAuth2 Client에 필요한 모든 빈을 자동으로 등록합니다.
  * 설정은 application.yml의 aidc.security.oauth2 프로퍼티를 통해 제어됩니다.
+ *
+ * <h3>등록되는 빈 (총 18개):</h3>
+ * <ul>
+ *   <li><strong>Authorization Server (11개)</strong>: oauth2StateAdapter, jwtDecoder, jwtEncoder, jwkSource,
+ *       authorizationService, registeredClientRepository, authorizationServerSettings, tokenGenerator,
+ *       tokenCustomizer, oauth2TokenValidator, oauth2TokenService</li>
+ *   <li><strong>OAuth2 Client (3개)</strong>: clientRegistrationRepository, authorizedClientRepository,
+ *       authorizedClientManager</li>
+ *   <li><strong>Handlers (4개)</strong>: oauth2TokenSuccessHandler, oauth2LogoutHandler,
+ *       oauth2LogoutSuccessHandler</li>
+ * </ul>
  */
 @Slf4j
-@Configuration
+@AutoConfiguration
+@AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
 @RequiredArgsConstructor
-public class OAuth2AutoConfiguration {
+public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
 
@@ -388,6 +416,146 @@ public class OAuth2AutoConfiguration {
     public LogoutSuccessHandler oauth2LogoutSuccessHandler(ObjectMapper objectMapper) {
         log.info("Registering OAuth2LogoutSuccessHandler bean");
         return new OAuth2LogoutSuccessHandler(objectMapper);
+    }
+
+    // ========== OAuth2 Client 설정 (3개 빈) ==========
+
+    /**
+     * ClientRegistrationRepository 빈 등록
+     *
+     * <p>내부 Authorization Server를 클라이언트로 등록합니다.
+     * Spring OAuth2 Client 프레임워크를 활용하여 Authorization Server로부터 OAuth2 토큰을 획득합니다.
+     */
+    @Bean
+    public ClientRegistrationRepository clientRegistrationRepository() {
+        String registrationId = "aidc-internal";
+        String clientId = "aidc-client";
+        String clientSecret = "secret";
+        String tokenUri = "http://localhost:8081/oauth2/token";
+
+        log.info("Registering OAuth2 Client: registrationId={}, clientId={}", registrationId, clientId);
+
+        ClientRegistration registration = ClientRegistration
+                .withRegistrationId(registrationId)
+                .clientId(clientId)
+                .clientSecret(clientSecret)
+                // Custom Grant Type: authenticated-user
+                .authorizationGrantType(
+                        new AuthorizationGrantType("urn:ietf:params:oauth:grant-type:authenticated-user"))
+                // Token URI
+                .tokenUri(tokenUri)
+                // Scopes
+                .scope("read", "write", "admin")
+                .build();
+
+        return new InMemoryClientRegistrationRepository(registration);
+    }
+
+    /**
+     * OAuth2AuthorizedClientRepository 빈 등록
+     *
+     * <p>획득한 OAuth2AuthorizedClient를 HTTP Session에 저장합니다.
+     */
+    @Bean
+    public OAuth2AuthorizedClientRepository authorizedClientRepository() {
+        log.info("Registering OAuth2AuthorizedClientRepository (HttpSession-based)");
+        return new HttpSessionOAuth2AuthorizedClientRepository();
+    }
+
+    /**
+     * OAuth2AuthorizedClientManager 빈 등록
+     *
+     * <p>토큰 획득 및 갱신을 관리하는 중앙 컴포넌트입니다.
+     *
+     * <h4>지원하는 Grant Type</h4>
+     * <ol>
+     *   <li>authenticated-user: 사용자 인증 기반 토큰 획득 (내부 Filter 직접 호출)</li>
+     *   <li>refresh_token: Refresh Token 기반 토큰 갱신</li>
+     * </ol>
+     *
+     * <h4>순환 의존성 해결</h4>
+     * <p>ObjectProvider를 사용하여 FilterChainProxy 지연 로딩:
+     * <ul>
+     *   <li>authorizedClientManager 빈 생성 시점에는 FilterChainProxy 접근하지 않음</li>
+     *   <li>RestClientAuthenticatedUserTokenResponseClient가 첫 사용 시 ObjectProvider.getObject() 호출</li>
+     *   <li>이렇게 하면 authorizedClientManager → FilterChainProxy → authorizedClientManager 순환 방지</li>
+     * </ul>
+     */
+    @Bean
+    public OAuth2AuthorizedClientManager authorizedClientManager(
+            ClientRegistrationRepository clientRegistrationRepository,
+            OAuth2AuthorizedClientRepository authorizedClientRepository,
+            ObjectProvider<FilterChainProxy> filterChainProxyProvider,
+            RegisteredClientRepository registeredClientRepository,
+            OAuth2AuthorizationService authorizationService) {
+
+        log.info("Registering OAuth2AuthorizedClientManager with custom providers (ObjectProvider-based lazy loading)");
+
+        // RestClientAuthenticatedUserTokenResponseClient 생성 및 설정
+        // ObjectProvider를 전달 - 실제 Filter 추출은 첫 사용 시 발생
+        RestClientAuthenticatedUserTokenResponseClient tokenResponseClient =
+                new RestClientAuthenticatedUserTokenResponseClient();
+        tokenResponseClient.setFilterChainProxyProvider(filterChainProxyProvider);
+
+        // ClientSecretBasicAuthenticationConverter 설정
+        tokenResponseClient.setClientSecretBasicConverter(
+                new org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretBasicAuthenticationConverter());
+
+        // ClientSecretAuthenticationProvider 설정
+        tokenResponseClient.setClientSecretAuthenticationProvider(
+                new org.springframework.security.oauth2.server.authorization.authentication.ClientSecretAuthenticationProvider(
+                        registeredClientRepository,
+                        authorizationService
+                ));
+
+        // AuthenticatedUserOAuth2AuthorizedClientProvider 생성 및 설정
+        AuthenticatedUserOAuth2AuthorizedClientProvider authenticatedUserProvider =
+                new AuthenticatedUserOAuth2AuthorizedClientProvider();
+        authenticatedUserProvider.setAccessTokenResponseClient(tokenResponseClient);
+
+        // OAuth2AuthorizedClientProvider 조합
+        OAuth2AuthorizedClientProvider authorizedClientProvider =
+                OAuth2AuthorizedClientProviderBuilder.builder()
+                        // Custom: Authenticated User Grant
+                        .provider(authenticatedUserProvider)
+                        // Standard: Refresh Token Grant
+                        .refreshToken()
+                        .build();
+
+        DefaultOAuth2AuthorizedClientManager authorizedClientManager =
+                new DefaultOAuth2AuthorizedClientManager(
+                        clientRegistrationRepository,
+                        authorizedClientRepository);
+
+        authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
+
+        // contextAttributesMapper 설정: OAuth2AuthorizeRequest attributes를 OAuth2AuthorizationContext로 전달
+        authorizedClientManager.setContextAttributesMapper(authorizeRequest -> {
+            Map<String, Object> contextAttributes = new HashMap<>();
+
+            // HttpServletRequest/Response를 OAuth2AuthorizationContext attributes로 복사
+            Object request = authorizeRequest.getAttribute(HttpServletRequest.class.getName());
+            Object response = authorizeRequest.getAttribute(HttpServletResponse.class.getName());
+
+            if (request != null) {
+                contextAttributes.put(HttpServletRequest.class.getName(), request);
+            }
+            if (response != null) {
+                contextAttributes.put(HttpServletResponse.class.getName(), response);
+            }
+
+            // device_id도 전달
+            Object deviceId = authorizeRequest.getAttribute("device_id");
+            if (deviceId != null) {
+                contextAttributes.put("device_id", deviceId);
+            }
+
+            return contextAttributes;
+        });
+
+        log.info("OAuth2AuthorizedClientManager configured successfully with deferred OAuth2TokenEndpointFilter loading");
+
+        return authorizedClientManager;
     }
 
 }

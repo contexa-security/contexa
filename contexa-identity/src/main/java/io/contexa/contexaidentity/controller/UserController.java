@@ -1,3 +1,4 @@
+/*
 package io.contexa.contexaidentity.controller;
 
 import io.contexa.contexaidentity.domain.dto.UserDto;
@@ -60,3 +61,4 @@ public class UserController {
     }
 
 }
+*/

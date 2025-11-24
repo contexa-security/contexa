@@ -1,9 +1,12 @@
-package io.contexa.contexacore.infra.session;
+package io.contexa.autoconfigure.core.session;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
+import io.contexa.contexacore.infra.session.AIStrategySessionRepository;
+import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.infra.session.RedisAIStrategySessionRepository;
 import io.contexa.contexacore.infra.session.generator.HttpSessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.RedisSessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
@@ -12,11 +15,12 @@ import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -35,15 +39,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * - 실시간 모니터링 및 통계 수집
  */
 @Slf4j
-@Configuration
+@AutoConfiguration
+@AutoConfigureAfter(name = "io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration")
 @RequiredArgsConstructor
 @EnableConfigurationProperties(AuthContextProperties.class)
-public class MfaRepositoryAutoConfiguration {
+public class CoreSessionAutoConfiguration {
 
     private final AuthContextProperties properties;
     private final ApplicationContext applicationContext;
     private final Environment environment;
-    private final RedisEventPublisher eventPublisher;
+    private final RedisEventPublisher redisEventPublisher;
     private final RedisDistributedLockService lockService;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -100,6 +105,7 @@ public class MfaRepositoryAutoConfiguration {
      * AI 기능이 활성화된 경우에만 생성
      */
     @Bean
+    @ConditionalOnMissingBean
     public AIStrategySessionRepository aiStrategySessionRepository() {
         log.info("Creating AI Strategy Repository for AI execution");
 
@@ -111,6 +117,7 @@ public class MfaRepositoryAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
     public SessionIdGenerator sessionIdGenerator() {
             return new HttpSessionIdGenerator();
     }
@@ -189,7 +196,7 @@ public class MfaRepositoryAutoConfiguration {
                     redisTemplate,
                     new RedisSessionIdGenerator(redisTemplate),
                     lockService,
-                    eventPublisher,
+                    redisEventPublisher,
                     objectMapper
             );
             repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
@@ -294,4 +301,3 @@ public class MfaRepositoryAutoConfiguration {
                         profile.contains("local"));
     }
 }
-

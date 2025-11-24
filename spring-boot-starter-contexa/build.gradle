@@ -1,22 +1,13 @@
-// spring-boot-starter-contexa
-// Contexa Community Starter - Spring Boot AutoConfiguration 기반 한 줄 통합
-
 dependencies {
-    // ========== Contexa 핵심 모듈 (Core Modules) ==========
     api project(':contexa-autoconfigure')
     api project(':contexa-identity')
-    api project(':contexa-iam')
+//    api project(':contexa-iam')
+    implementation 'org.springframework.boot:spring-boot-starter-security'
 
-    // 전이 의존으로 자동 포함됨 (Auto-included via transitive dependencies):
-    // - contexa-core
-    // - contexa-core-enterprise
-    // - contexa-common
-}
+    bootJar.enabled = false
+    jar.enabled = true
 
-// Starter는 라이브러리 모듈이므로 bootJar 비활성화
-bootJar.enabled = false
-jar.enabled = true
-
-tasks.named('test') {
-    useJUnitPlatform()
+    tasks.named('test') {
+        useJUnitPlatform()
+    }
 }

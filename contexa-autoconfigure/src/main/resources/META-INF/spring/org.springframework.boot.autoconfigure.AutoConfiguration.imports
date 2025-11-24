@@ -5,6 +5,9 @@
 io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration
 io.contexa.autoconfigure.core.infra.CoreInfrastructureExtendedAutoConfiguration
 
+# Core Session Management
+io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
+
 # Core LLM
 io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
 
@@ -48,6 +51,12 @@ io.contexa.autoconfigure.identity.IdentityMfaAutoConfiguration
 
 # Identity Security Core
 io.contexa.autoconfigure.identity.IdentitySecurityCoreAutoConfiguration
+
+# Identity ASEP (Security Exception Handler)
+io.contexa.autoconfigure.identity.IdentityAsepAutoConfiguration
+
+# Identity OAuth2 (Authorization Server)
+io.contexa.autoconfigure.identity.IdentityOAuth2AutoConfiguration
 
 # Identity Service
 io.contexa.autoconfigure.identity.IdentityServiceAutoConfiguration
@@ -97,3 +106,6 @@ io.contexa.autoconfigure.iam.IamResourceAutoConfiguration
 
 # IAM Misc Components
 io.contexa.autoconfigure.iam.IamMiscAutoConfiguration
+
+# MCP (Model Context Protocol) Tool System
+io.contexa.autoconfigure.mcp.McpToolAutoConfiguration

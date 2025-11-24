@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 @RequiredArgsConstructor
 public class SoarActionController {
@@ -25,6 +26,7 @@ public class SoarActionController {
 
     @PostMapping("/api/soar/actions/approvals/{approvalId}")
 //    @PreAuthorize("hasRole('ROLE_SOAR_ADMIN')")
+    @ResponseBody
     public ResponseEntity<Void> handleApproval(
             @PathVariable String approvalId,
             @Valid @RequestBody ApprovalResponseDto responseDto,

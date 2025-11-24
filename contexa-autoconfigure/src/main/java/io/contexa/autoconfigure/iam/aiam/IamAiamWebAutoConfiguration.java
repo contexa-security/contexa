@@ -12,6 +12,7 @@ import io.contexa.contexaiam.aiam.service.SecurityCopilotValidationService;
 import io.contexa.contexaiam.aiam.service.SoarActionService;
 import io.contexa.contexaiam.aiam.web.*;
 import io.contexa.contexaiam.security.core.AIReactiveUserDetailsService;
+import io.contexa.contexaiam.service.PolicyService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -90,5 +91,11 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnMissingBean
     public AIPolicyApprovalViewController aiPolicyApprovalViewController() {
         return new AIPolicyApprovalViewController();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AIPolicyApprovalController aiPolicyApprovalController(PolicyService policyService) {
+        return new AIPolicyApprovalController(policyService);
     }
 }

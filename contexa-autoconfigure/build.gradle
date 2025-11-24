@@ -5,9 +5,10 @@ dependencies {
     // Contexa 모듈 의존성
     api project(':contexa-core')
     api project(':contexa-common')
-    compileOnly project(':contexa-core-enterprise')
-    compileOnly project(':contexa-identity')
-    compileOnly project(':contexa-iam')
+    api project(':contexa-core-enterprise')
+    api project(':contexa-identity')
+    api project(':contexa-iam')
+    api project(':contexa-mcp')
 
     // Spring Boot AutoConfiguration (subprojects 공통 의존성 외 추가)
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
@@ -19,6 +20,11 @@ dependencies {
 
     // Spring Security (contexa-iam XACML PEP 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
+
+    // OAuth2 (contexa-identity OAuth2 및 ASEP 사용)
+    compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    compileOnly 'org.springframework.security:spring-security-oauth2-authorization-server:1.2.3'
 }
 
 // 라이브러리 모듈이므로 bootJar 비활성화
