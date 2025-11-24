@@ -1,4 +1,4 @@
-package io.contexa.autoconfigure.mcp;
+package io.contexa.autoconfigure.enterprise.mcp;
 
 import io.contexa.contexamcp.completions.SecurityCommandCompletion;
 import io.contexa.contexamcp.prompts.SecurityAnalysisPrompts;
@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -18,10 +19,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * MCP Tool AutoConfiguration
+ * Enterprise MCP Tool AutoConfiguration
  *
  * <p>
- * MCP (Model Context Protocol) 도구 시스템 자동 구성
+ * <strong>Enterprise Edition 전용</strong> - MCP (Model Context Protocol) 도구 시스템 자동 구성
+ * </p>
+ *
+ * <p>
+ * 이 AutoConfiguration은 상용 버전(contexa-core-enterprise)에서만 활성화됩니다.
+ * 커뮤니티 버전(contexa-core)에서는 로드되지 않습니다.
  * </p>
  *
  * <h3>등록되는 빈:</h3>
@@ -35,11 +41,15 @@ import java.util.List;
  *
  * <h3>활성화 조건:</h3>
  * <pre>
+ * contexa:
+ *   enterprise:
+ *     enabled: true  # Enterprise 버전 활성화 (필수)
+ *
  * spring:
  *   ai:
  *     mcp:
  *       server:
- *         enabled: true  # (기본값)
+ *         enabled: true  # MCP 서버 활성화 (선택, 기본값 true)
  * </pre>
  *
  * <h3>자동 스캔 컴포넌트:</h3>
@@ -56,13 +66,20 @@ import java.util.List;
  */
 @Slf4j
 @AutoConfiguration
+@ConditionalOnClass(name = "io.contexa.contexamcp.tools.NetworkScanTool")
+@ConditionalOnProperty(
+    prefix = "contexa.enterprise",
+    name = "enabled",
+    havingValue = "true",
+    matchIfMissing = false
+)
 @ConditionalOnProperty(
     prefix = "spring.ai.mcp.server",
     name = "enabled",
     havingValue = "true",
     matchIfMissing = true
 )
-public class McpToolAutoConfiguration {
+public class EnterpriseMcpAutoConfiguration {
 
     /**
      * MCP Tool Provider 등록
@@ -96,7 +113,7 @@ public class McpToolAutoConfiguration {
             IpBlockingTool ipBlockingTool,
             SessionTerminationTool sessionTerminationTool) {
 
-        log.info("MCP Tool Provider 등록 시작");
+        log.info("Enterprise MCP Tool Provider 등록 시작");
 
         ToolCallbackProvider provider = MethodToolCallbackProvider.builder()
                 .toolObjects(
@@ -112,7 +129,7 @@ public class McpToolAutoConfiguration {
                 )
                 .build();
 
-        log.info("{} 개의 @Tool 도구가 MCP를 통해 노출됩니다.", 9);
+        log.info("{} 개의 Enterprise @Tool 도구가 MCP를 통해 노출됩니다.", 9);
 
         return provider;
     }
@@ -134,7 +151,7 @@ public class McpToolAutoConfiguration {
             SecurityLogResource securityLogResource,
             SystemInfoResource systemInfoResource) {
 
-        log.info("MCP Resources 등록 시작");
+        log.info("Enterprise MCP Resources 등록 시작");
 
         List<McpServerFeatures.SyncResourceSpecification> resources = new ArrayList<>();
 
@@ -166,7 +183,7 @@ public class McpToolAutoConfiguration {
     public List<McpServerFeatures.SyncPromptSpecification> mcpPrompts(
             SecurityAnalysisPrompts securityAnalysisPrompts) {
 
-        log.info("MCP Prompts 등록 시작");
+        log.info("Enterprise MCP Prompts 등록 시작");
 
         List<McpServerFeatures.SyncPromptSpecification> prompts = new ArrayList<>();
 
@@ -203,7 +220,7 @@ public class McpToolAutoConfiguration {
     public List<McpServerFeatures.SyncCompletionSpecification> mcpCompletions(
             SecurityCommandCompletion securityCommandCompletion) {
 
-        log.info("MCP Completions 등록 시작");
+        log.info("Enterprise MCP Completions 등록 시작");
 
         List<McpServerFeatures.SyncCompletionSpecification> completions = new ArrayList<>();
 
@@ -249,9 +266,9 @@ public class McpToolAutoConfiguration {
 
         public McpServerInfoLogger() {
             log.info("=====================================");
-            log.info("     MCP Server Configuration");
+            log.info("  Enterprise MCP Server Configuration");
             log.info("=====================================");
-            log.info("MCP 서버가 활성화되었습니다.");
+            log.info("Enterprise MCP 서버가 활성화되었습니다.");
             log.info("");
             log.info("도구 등록 방식:");
             log.info("  - @Component + @Tool 어노테이션 → 자동 등록");
@@ -269,9 +286,10 @@ public class McpToolAutoConfiguration {
             log.info("  spring-ai-starter-mcp-server-webmvc 의존성 필요");
             log.info("");
             log.info("설정 파일(application.yml):");
+            log.info("  contexa.enterprise.enabled=true");
             log.info("  spring.ai.mcp.server.enabled=true");
             log.info("  spring.ai.mcp.server.type=SYNC");
-            log.info("  spring.ai.mcp.server.name=contexa SOAR Platform");
+            log.info("  spring.ai.mcp.server.name=contexa SOAR Platform Enterprise");
             log.info("=====================================");
         }
     }

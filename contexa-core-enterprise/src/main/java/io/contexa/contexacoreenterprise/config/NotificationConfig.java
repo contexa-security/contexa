@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,9 +18,21 @@ import java.util.Properties;
 /**
  * 알림 시스템 설정
  * 이메일, WebSocket, SSE 등 다중 채널 알림을 위한 설정
+ *
+ * <p>
+ * <strong>Enterprise Edition 전용</strong>
+ * contexa-core-enterprise 모듈이 classpath에 있을 때만 활성화됩니다.
+ * </p>
  */
 @Configuration
 @EnableRetry
+@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.soar.notification.NotificationTarget")
+@ConditionalOnProperty(
+    prefix = "contexa.enterprise",
+    name = "enabled",
+    havingValue = "true",
+    matchIfMissing = false
+)
 public class NotificationConfig {
     
     /**

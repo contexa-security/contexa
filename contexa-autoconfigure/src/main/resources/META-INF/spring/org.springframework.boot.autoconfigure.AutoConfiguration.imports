@@ -43,6 +43,9 @@ io.contexa.autoconfigure.enterprise.plane.EnterprisePlaneAutoConfiguration
 # Enterprise SOAR
 io.contexa.autoconfigure.enterprise.soar.EnterpriseSoarAutoConfiguration
 
+# Enterprise MCP (Model Context Protocol)
+io.contexa.autoconfigure.enterprise.mcp.EnterpriseMcpAutoConfiguration
+
 # Identity StateMachine
 io.contexa.autoconfigure.identity.IdentityStateMachineAutoConfiguration
 
@@ -106,6 +109,3 @@ io.contexa.autoconfigure.iam.IamResourceAutoConfiguration
 
 # IAM Misc Components
 io.contexa.autoconfigure.iam.IamMiscAutoConfiguration
-
-# MCP (Model Context Protocol) Tool System
-io.contexa.autoconfigure.mcp.McpToolAutoConfiguration

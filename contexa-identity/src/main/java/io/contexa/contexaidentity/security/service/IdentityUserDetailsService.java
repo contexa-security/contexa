@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-public class CustomUserDetailsService implements UserDetailsService {
+public class IdentityUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
 
-    public CustomUserDetailsService(UserRepository userRepository, ModelMapper modelMapper) {
+    public IdentityUserDetailsService(UserRepository userRepository, ModelMapper modelMapper) {
         this.userRepository = userRepository;
         this.modelMapper = modelMapper;
     }

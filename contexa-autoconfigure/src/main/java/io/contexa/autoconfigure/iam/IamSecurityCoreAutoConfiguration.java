@@ -7,7 +7,7 @@ import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificat
 import io.contexa.contexaiam.security.core.AIReactiveSecurityContextRepository;
 import io.contexa.contexaiam.security.core.AIReactiveUserDetailsService;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
-import io.contexa.contexaiam.security.core.CustomUserDetailsService;
+import io.contexa.contexaiam.security.core.IAMUserDetailsService;
 import io.contexa.contexaiam.security.core.session.RedisSessionIdResolver;
 import io.contexa.contexaiam.security.core.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
@@ -34,8 +34,8 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public CustomUserDetailsService customUserDetailsService(UserRepository userRepository) {
-        return new CustomUserDetailsService(userRepository);
+    public IAMUserDetailsService iamUserDetailsService(UserRepository userRepository) {
+        return new IAMUserDetailsService(userRepository);
     }
 
     @Bean

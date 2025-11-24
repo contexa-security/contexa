@@ -2,7 +2,7 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexaidentity.security.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
-import io.contexa.contexaidentity.security.service.CustomUserDetailsService;
+import io.contexa.contexaidentity.security.service.IdentityUserDetailsService;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.InMemoryCodeStore;
@@ -62,10 +62,10 @@ public class IdentityServiceAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public CustomUserDetailsService customUserDetailsService(
+    public IdentityUserDetailsService identityUserDetailsService(
             UserRepository userRepository,
             ModelMapper modelMapper) {
-        return new CustomUserDetailsService(userRepository, modelMapper);
+        return new IdentityUserDetailsService(userRepository, modelMapper);
     }
 
     /**

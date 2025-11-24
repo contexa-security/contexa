@@ -2,13 +2,16 @@
 // plugins, java, configurations는 이미 적용됨
 
 dependencies {
-    // Contexa 모듈 의존성
+    // ========== Contexa Community 모듈 (api) ==========
     api project(':contexa-core')
     api project(':contexa-common')
-    api project(':contexa-core-enterprise')
     api project(':contexa-identity')
     api project(':contexa-iam')
-    api project(':contexa-mcp')
+
+    // ========== Contexa Enterprise 모듈 (compileOnly) ==========
+    // AutoConfiguration 컴파일 시에만 필요, 런타임은 선택적
+    compileOnly project(':contexa-core-enterprise')
+    compileOnly project(':contexa-mcp')
 
     // Spring Boot AutoConfiguration (subprojects 공통 의존성 외 추가)
     implementation 'org.springframework.boot:spring-boot-autoconfigure'

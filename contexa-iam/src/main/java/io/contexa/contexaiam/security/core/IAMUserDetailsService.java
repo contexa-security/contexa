@@ -9,7 +9,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 
 @RequiredArgsConstructor
-public class CustomUserDetailsService implements UserDetailsService {
+public class IAMUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
