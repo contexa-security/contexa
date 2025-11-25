@@ -31,7 +31,10 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-iam:compileJava :contexa-identity:compileJava :contexa-autoconfigure:compileJava :spring-boot-starter-contexa:compileJava -x test)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-iam:compileJava :contexa-autoconfigure:compileJava :spring-boot-starter-contexa:compileJava -x test)",
       "Bash(cmd /c \"if exist d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\AIReactiveUserDetailsService.java (echo FILE EXISTS && del /f d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\AIReactiveUserDetailsService.java && echo DELETED) else (echo ALREADY DELETED)\")",
-      "Bash(cmd /c \"if exist d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\IAMUserDetailsService.java (echo FILE EXISTS && del /f d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\IAMUserDetailsService.java && echo DELETED) else (echo ALREADY DELETED)\")"
+      "Bash(cmd /c \"if exist d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\IAMUserDetailsService.java (echo FILE EXISTS && del /f d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\IAMUserDetailsService.java && echo DELETED) else (echo ALREADY DELETED)\")",
+      "Bash(Test-Path \"d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\AIReactiveUserDetailsService.java\")",
+      "Bash(Test-Path \"d:\\projects\\contexa\\contexa-iam\\src\\main\\java\\io\\contexa\\contexaiam\\security\\core\\IAMUserDetailsService.java\")",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-iam:compileJava :contexa-autoconfigure:compileJava -x test)"
     ],
     "deny": [],
     "ask": []
