@@ -1,25 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Select-Object -First 10 ProcessName, Id, CPU)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:bootRun)",
-      "Bash(Select-String -Pattern \"BUILD|error:|Started SpringBootStarterContexaApplication|Bean\")",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" clean :contexa-autoconfigure:build :spring-boot-starter-contexa:build -x test)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:build :spring-boot-starter-contexa:bootRun -x test)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:build :contexa-autoconfigure:build :spring-boot-starter-contexa:bootRun -x test)",
-      "Bash(powershell:*)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-identity:build :contexa-autoconfigure:build -x test)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:clean :contexa-common:build :contexa-identity:clean :contexa-identity:build :contexa-autoconfigure:clean :contexa-autoconfigure:build -x test)",
-      "Bash(git ls-tree:*)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-identity:compileJava :contexa-autoconfigure:compileJava -x test)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" clean :contexa-common:build :contexa-core:build :contexa-identity:build :contexa-iam:build -x test)",
-      "Bash(jar tf:*)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:build :contexa-core:build :contexa-core-enterprise:build :contexa-iam:build :contexa-autoconfigure:build -x test)",
-      "Bash(./gradlew :contexa-autoconfigure:dependencies:*)",
-      "Bash(./gradlew :spring-boot-starter-contexa:build:*)",
-      "Bash(./gradlew :contexa-autoconfigure:build:*)",
-      "Bash(./gradlew:*)",
-      "Bash(Select-String:*)"
+      "Bash(Stop-Process -Force)"
     ],
     "deny": [],
     "ask": []
