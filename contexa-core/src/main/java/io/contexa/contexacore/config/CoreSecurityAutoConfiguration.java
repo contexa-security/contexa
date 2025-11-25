@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -38,6 +39,10 @@ import org.springframework.security.core.userdetails.UserDetailsService;
  */
 @Slf4j
 @AutoConfiguration
+@EnableConfigurationProperties({
+    SecurityTrustTierProperties.class,
+    SecurityAnomalyDetectionProperties.class
+})
 @ConditionalOnProperty(
     prefix = "contexa.core.security",
     name = "enabled",
@@ -59,7 +64,7 @@ public class CoreSecurityAutoConfiguration {
      * - HCAD 이상 탐지 (선택적)
      *
      * 활성화 조건:
-     * - contexa.core.security.unified.enabled = true (기본값: false)
+     * - contexa.core.security.unified.enabled = true (기본값: true)
      * - UserDetailsService 빈이 없을 때만 등록
      *
      * 비활성화 시 각 모듈의 UserDetailsService가 사용됩니다
@@ -70,7 +75,7 @@ public class CoreSecurityAutoConfiguration {
         prefix = "contexa.core.security.unified",
         name = "enabled",
         havingValue = "true",
-        matchIfMissing = false
+        matchIfMissing = true
     )
     @ConditionalOnMissingBean(UserDetailsService.class)
     public UnifiedUserDetailsService unifiedUserDetailsService(

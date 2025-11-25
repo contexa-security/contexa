@@ -46,6 +46,11 @@ public class SecurityTrustTierProperties {
      */
     private ThresholdProperties thresholds = new ThresholdProperties();
 
+    /**
+     * Tier별 권한 필터링 규칙
+     */
+    private FilterRules filterRules = new FilterRules();
+
     @Data
     public static class CacheProperties {
         /**
@@ -85,5 +90,32 @@ public class SecurityTrustTierProperties {
         private double tier3 = 0.4;
 
         // TIER_4는 0.4 미만 (Minimal Access)
+    }
+
+    @Data
+    public static class FilterRules {
+        /**
+         * TIER_2 제외 키워드 (민감한 작업)
+         * 기본값: ADMIN, DELETE, MODIFY_CRITICAL
+         */
+        private java.util.List<String> tier2ExcludeKeywords = java.util.Arrays.asList(
+                "ADMIN", "DELETE", "MODIFY_CRITICAL"
+        );
+
+        /**
+         * TIER_3 허용 키워드 (읽기 전용)
+         * 기본값: READ, VIEW, LIST
+         */
+        private java.util.List<String> tier3AllowKeywords = java.util.Arrays.asList(
+                "READ", "VIEW", "LIST"
+        );
+
+        /**
+         * TIER_4 허용 권한 리스트 (최소한의 접근)
+         * 기본값: ROLE_MINIMAL, PERMISSION_VIEW_PROFILE
+         */
+        private java.util.List<String> tier4AllowAuthorities = java.util.Arrays.asList(
+                "ROLE_MINIMAL", "PERMISSION_VIEW_PROFILE"
+        );
     }
 }

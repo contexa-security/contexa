@@ -7,6 +7,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexacommon.security.TrustTier;
 import io.contexa.contexacommon.properties.SecurityTrustTierProperties;
 import io.contexa.contexacommon.properties.SecurityAnomalyDetectionProperties;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
@@ -195,13 +196,13 @@ public class UnifiedUserDetailsService implements UserDetailsService {
             trustScore = trustTierProperties.getDefaults().getTrustScore();
         }
 
-        String trustTier = determineTrustTier(trustScore);
+        TrustTier trustTier = determineTrustTier(trustScore);
         Set<GrantedAuthority> adjustedAuthorities = filterAuthoritiesByTier(originalAuthorities, trustTier);
 
         // UserDto에 Trust Tier 메타데이터 설정
         userDto.setAuthorities(adjustedAuthorities);  // 조정된 권한으로 덮어쓰기
         userDto.setTrustScore(trustScore);
-        userDto.setTrustTier(trustTier);
+        userDto.setTrustTier(trustTier.name());  // Enum → String 변환
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("originalAuthorityCount", originalAuthorities.size());
@@ -209,14 +210,16 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         metadata.put("filteredCount", originalAuthorities.size() - adjustedAuthorities.size());
         userDto.setTrustMetadata(metadata);
 
-        // Redis 캐시
-        String key = String.format("zerotrust:user:trust_tier:%s", userDto.getUsername());
-        redisTemplate.opsForValue().set(
-                key,
-                trustTier,
-                trustTierProperties.getCache().getTtlMinutes(),
-                TimeUnit.MINUTES
-        );
+        // Redis 캐시 (Optional)
+        if (redisTemplate != null) {
+            String key = String.format("zerotrust:user:trust_tier:%s", userDto.getUsername());
+            redisTemplate.opsForValue().set(
+                    key,
+                    trustTier.name(),  // Enum → String 변환
+                    trustTierProperties.getCache().getTtlMinutes(),
+                    TimeUnit.MINUTES
+            );
+        }
 
         log.info("Trust Tier applied for user {}: {} (score: {})",
                 userDto.getUsername(), trustTier, trustScore);
@@ -241,53 +244,52 @@ public class UnifiedUserDetailsService implements UserDetailsService {
     /**
      * Trust Tier 결정
      */
-    private String determineTrustTier(Double trustScore) {
-        if (trustScore >= trustTierProperties.getThresholds().getTier1()) {
-            return "TIER_1";
-        }
-        if (trustScore >= trustTierProperties.getThresholds().getTier2()) {
-            return "TIER_2";
-        }
-        if (trustScore >= trustTierProperties.getThresholds().getTier3()) {
-            return "TIER_3";
-        }
-        return "TIER_4";
+    private TrustTier determineTrustTier(Double trustScore) {
+        return TrustTier.fromScore(trustScore, trustTierProperties.getThresholds());
     }
 
     /**
-     * Trust Tier 기반 권한 필터링
+     * Trust Tier 기반 권한 필터링 (Properties 설정 기반)
      */
     private Set<GrantedAuthority> filterAuthoritiesByTier(
-            Set<GrantedAuthority> authorities, String tier) {
+            Set<GrantedAuthority> authorities, TrustTier tier) {
         Set<GrantedAuthority> filtered = new HashSet<>();
 
         for (GrantedAuthority authority : authorities) {
             String auth = authority.getAuthority().toUpperCase();
 
             switch (tier) {
-                case "TIER_1":
+                case TIER_1:
+                    // Full Access - 모든 권한 허용
                     filtered.add(authority);
                     break;
 
-                case "TIER_2":
-                    if (!auth.contains("ADMIN")
-                        && !auth.contains("DELETE")
-                        && !auth.contains("MODIFY_CRITICAL")) {
+                case TIER_2:
+                    // Limited Sensitive Operations - 민감한 작업 제외
+                    boolean excludedByTier2 = trustTierProperties.getFilterRules().getTier2ExcludeKeywords()
+                            .stream()
+                            .anyMatch(auth::contains);
+                    if (!excludedByTier2) {
                         filtered.add(authority);
                     }
                     break;
 
-                case "TIER_3":
-                    if (auth.contains("READ")
-                        || auth.contains("VIEW")
-                        || auth.contains("LIST")) {
+                case TIER_3:
+                    // Read-Only - 읽기 권한만 허용
+                    boolean allowedByTier3 = trustTierProperties.getFilterRules().getTier3AllowKeywords()
+                            .stream()
+                            .anyMatch(auth::contains);
+                    if (allowedByTier3) {
                         filtered.add(authority);
                     }
                     break;
 
-                case "TIER_4":
-                    if (auth.equals("ROLE_MINIMAL")
-                        || auth.equals("PERMISSION_VIEW_PROFILE")) {
+                case TIER_4:
+                    // Minimal Access - 최소한의 권한만 허용
+                    boolean allowedByTier4 = trustTierProperties.getFilterRules().getTier4AllowAuthorities()
+                            .stream()
+                            .anyMatch(allowed -> auth.equals(allowed.toUpperCase()));
+                    if (allowedByTier4) {
                         filtered.add(authority);
                     }
                     break;
