@@ -58,6 +58,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -106,11 +107,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
  * @since 0.1.0-ALPHA
  */
 @AutoConfiguration
+@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
 @ConditionalOnProperty(
     prefix = "contexa.enterprise",
     name = "enabled",
     havingValue = "true",
-    matchIfMissing = true
+    matchIfMissing = false
 )
 @EnableConfigurationProperties({ContexaProperties.class, SecurityAutonomousProperties.class, SecurityEvaluatorProperties.class})
 public class EnterpriseAutonomousAutoConfiguration {

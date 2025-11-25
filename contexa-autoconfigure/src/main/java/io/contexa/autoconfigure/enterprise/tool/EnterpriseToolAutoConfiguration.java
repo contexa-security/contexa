@@ -49,6 +49,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -130,11 +131,12 @@ import java.util.*;
 @AutoConfiguration
 @EnableAsync(proxyTargetClass = true)
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
+@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl")
 @ConditionalOnProperty(
     prefix = "contexa.enterprise",
     name = "enabled",
     havingValue = "true",
-    matchIfMissing = true
+    matchIfMissing = false
 )
 @EnableConfigurationProperties(ContexaProperties.class)
 public class EnterpriseToolAutoConfiguration {

@@ -15,6 +15,7 @@ import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMet
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -56,11 +57,12 @@ import org.springframework.context.annotation.Bean;
  * @since 0.1.0-ALPHA
  */
 @AutoConfiguration
+@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.UserTrustMetrics")
 @ConditionalOnProperty(
     prefix = "contexa.enterprise",
     name = "enabled",
     havingValue = "true",
-    matchIfMissing = true
+    matchIfMissing = false
 )
 @EnableConfigurationProperties(ContexaProperties.class)
 public class EnterpriseDashboardAutoConfiguration {

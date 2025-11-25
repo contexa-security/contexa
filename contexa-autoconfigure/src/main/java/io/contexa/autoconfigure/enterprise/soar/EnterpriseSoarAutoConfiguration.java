@@ -49,6 +49,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -97,11 +98,12 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
  * @since 0.1.0-ALPHA
  */
 @AutoConfiguration
+@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService")
 @ConditionalOnProperty(
     prefix = "contexa.enterprise",
     name = "enabled",
     havingValue = "true",
-    matchIfMissing = true
+    matchIfMissing = false
 )
 @EnableConfigurationProperties({ContexaProperties.class, SoarProperties.class, ToolProperties.class})
 @EnableRetry
