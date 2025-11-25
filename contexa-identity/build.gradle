@@ -28,9 +28,9 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
     implementation 'com.esotericsoftware:kryo:5.5.0'
-    // AutoConfiguration에서 Kryo serialization과 Redis persistence 클래스를 사용하므로 api로 노출
-    api 'org.springframework.statemachine:spring-statemachine-kryo:4.0.0'
-    api("org.springframework.statemachine:spring-statemachine-data-redis:4.0.0")
+    // StateMachine은 AutoConfiguration에서 처리
+    implementation 'org.springframework.statemachine:spring-statemachine-kryo:4.0.0'
+    implementation("org.springframework.statemachine:spring-statemachine-data-redis:4.0.0")
     implementation('org.springframework.statemachine:spring-statemachine-starter')
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

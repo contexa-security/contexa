@@ -20,6 +20,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.List;
@@ -138,6 +139,7 @@ public class IdentityMfaAutoConfiguration {
      * AICoreOperations가 있을 때만 활성화
      */
     @Bean
+    @Primary
     @ConditionalOnBean(AICoreOperations.class)
     @ConditionalOnMissingBean(name = "aiAdaptiveMfaPolicyProvider")
     public AIAdaptiveMfaPolicyProvider aiAdaptiveMfaPolicyProvider(

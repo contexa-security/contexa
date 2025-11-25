@@ -16,8 +16,8 @@ dependencies {
     // contexa-autoconfigure는 Starter에서 포함 (순환 의존성 방지)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
-    // AutoConfiguration에서 WebClient 설정을 사용하므로 api로 노출
-    api 'org.springframework.boot:spring-boot-starter-webflux'
+    // WebFlux는 AutoConfiguration에서 처리
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
     implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
 

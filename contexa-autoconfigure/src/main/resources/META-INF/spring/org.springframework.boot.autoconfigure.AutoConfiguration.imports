@@ -5,6 +5,9 @@
 io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration
 io.contexa.autoconfigure.core.infra.CoreInfrastructureExtendedAutoConfiguration
 
+# Core JPA (Repository & Entity)
+io.contexa.autoconfigure.core.CoreJpaAutoConfiguration
+
 # Core Session Management
 io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
 
@@ -30,6 +33,9 @@ io.contexa.autoconfigure.core.autonomous.CoreAutonomousStrategyAutoConfiguration
 
 # Core Simulation
 io.contexa.autoconfigure.core.simulation.CoreSimulationAutoConfiguration
+
+# Enterprise JPA (Repository & Entity)
+io.contexa.autoconfigure.enterprise.EnterpriseJpaAutoConfiguration
 
 # Enterprise Autonomous
 io.contexa.autoconfigure.enterprise.autonomous.EnterpriseAutonomousAutoConfiguration

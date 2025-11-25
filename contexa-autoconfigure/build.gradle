@@ -2,11 +2,12 @@
 // plugins, java, configurations는 이미 적용됨
 
 dependencies {
-    // ========== Contexa Community 모듈 (api) ==========
-    api project(':contexa-core')
-    api project(':contexa-common')
-    api project(':contexa-identity')
-    api project(':contexa-iam')
+    // ========== Contexa Community 모듈 (compileOnly) ==========
+    // Spring Boot 표준: AutoConfiguration은 모든 기능 모듈을 compileOnly로 선언
+    compileOnly project(':contexa-common')
+    compileOnly project(':contexa-core')
+    compileOnly project(':contexa-identity')
+    compileOnly project(':contexa-iam')
 
     // ========== Contexa Enterprise 모듈 (compileOnly) ==========
     // AutoConfiguration 컴파일 시에만 필요, 런타임은 선택적
@@ -20,6 +21,7 @@ dependencies {
 
     // Spring StateMachine (contexa-identity 사용)
     compileOnly 'org.springframework.statemachine:spring-statemachine-starter'
+    compileOnly 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
 
     // Spring Security (contexa-iam XACML PEP 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
@@ -28,6 +30,14 @@ dependencies {
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-client'
     compileOnly 'org.springframework.security:spring-security-oauth2-authorization-server:1.2.3'
+
+    // WebFlux (contexa-iam 사용)
+    compileOnly 'org.springframework.boot:spring-boot-starter-webflux'
+
+    // Spring AI MCP (contexa-core, contexa-mcp 사용)
+    compileOnly 'org.springframework.ai:spring-ai-starter-mcp-client'
+    compileOnly 'org.springframework.ai:spring-ai-starter-mcp-server'
+    compileOnly 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 }
 
 // 라이브러리 모듈이므로 bootJar 비활성화

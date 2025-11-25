@@ -5,7 +5,6 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -26,7 +25,6 @@ import java.util.stream.Collectors;
  * MCP를 통해 보안 로그를 리소스로 노출
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SecurityLogResource {
     

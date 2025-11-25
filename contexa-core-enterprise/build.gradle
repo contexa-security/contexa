@@ -5,6 +5,7 @@ dependencies {
     // contexa-core 의존성 추가
     // AutoConfiguration에서 contexa-core의 SOAR, Tool 클래스들을 사용하므로 api로 노출
     api project(':contexa-core')
+    // contexa-common을 직접 사용하므로 명시적으로 선언
     implementation project(':contexa-common')
 
     // OpenTelemetry for distributed tracing (Core에서 사용하는 버전과 동일)

@@ -11,6 +11,11 @@ dependencies {
     // ========== MCP 통합 (Enterprise 전용) ==========
     api project(':contexa-mcp')
 
+    // ========== Enterprise 전용 의존성 ==========
+    api 'org.springframework.ai:spring-ai-starter-mcp-client'
+    api 'org.springframework.ai:spring-ai-starter-mcp-server'
+    api 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+
     // ========== Enterprise 필수 의존성 ==========
     // Redis: HCAD 실시간 분석, 분산 캐싱, 이벤트 스트림
     /*api 'org.springframework.boot:spring-boot-starter-data-redis'

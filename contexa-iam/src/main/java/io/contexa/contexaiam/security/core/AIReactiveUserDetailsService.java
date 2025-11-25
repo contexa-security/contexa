@@ -2,7 +2,7 @@ package io.contexa.contexaiam.security.core;
 
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.exception.AnomalyDetectedException;
-import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
+import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacommon.entity.Users;
@@ -48,7 +48,7 @@ public class AIReactiveUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final RedisTemplate<String, Object> redisTemplate;
-    private final UnifiedNotificationService notificationService;
+    private final NotificationService notificationService; // Enterprise only - Optional
     private final AuditLogRepository auditLogRepository;
     
     @Value("${security.trust.tier.enabled:true}")
@@ -428,30 +428,31 @@ public class AIReactiveUserDetailsService implements UserDetailsService {
 
         Mono.fromRunnable(() -> {
             try {
-                SecurityEvent event = SecurityEvent.builder()
-                    .eventType(SecurityEvent.EventType.ANOMALY_DETECTED)
-                    .severity(SecurityEvent.Severity.HIGH)
-                    .userId(username)
-                    .sourceIp("unknown")
-                    .userAgent("unknown")
-                    .blocked(true)
-                    .description("보안 이상 탐지로 인한 인증 차단")
-                    .targetResource("AUTHENTICATION")
-                    .build();
-
                 double anomalyScore = extractAnomalyScore(anomalyData);
-                ThreatIndicators indicators = ThreatIndicators.builder()
-                    .anomalyDetected(true)
-                    .anomalyScore(anomalyScore)
-                    .riskScore(anomalyScore)
-                    .riskLevel("HIGH")
-                    .build();
 
-                notificationService.sendSecurityEventNotification(event, indicators)
-                    .subscribe(
-                        result -> log.info("[AIReactiveUserDetailsService] Anomaly alert sent for user: {}", username),
-                        error -> log.error("[AIReactiveUserDetailsService] Failed to send anomaly alert", error)
-                    );
+                String message = String.format(
+                    "보안 이상 탐지로 인한 인증 차단 - 사용자: %s, 이상 점수: %.2f",
+                    username, anomalyScore
+                );
+
+                Map<String, Object> data = new HashMap<>();
+                data.put("username", username);
+                data.put("eventType", "ANOMALY_DETECTED");
+                data.put("severity", "HIGH");
+                data.put("anomalyScore", anomalyScore);
+                data.put("blocked", true);
+                data.put("description", "보안 이상 탐지로 인한 인증 차단");
+                data.put("targetResource", "AUTHENTICATION");
+                data.put("anomalyData", anomalyData);
+
+                notificationService.sendNotification(
+                    "ANOMALY_DETECTED",
+                    message,
+                    data,
+                    NotificationService.Priority.HIGH
+                );
+
+                log.info("[AIReactiveUserDetailsService] Anomaly alert sent for user: {}", username);
 
             } catch (Exception e) {
                 log.error("[AIReactiveUserDetailsService] Error sending anomaly alert", e);

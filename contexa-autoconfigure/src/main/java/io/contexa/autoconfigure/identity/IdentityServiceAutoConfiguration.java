@@ -9,6 +9,7 @@ import io.contexa.contexaidentity.security.service.ott.InMemoryCodeStore;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
 import io.contexa.contexacommon.repository.UserRepository;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -16,6 +17,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -81,23 +83,20 @@ public class IdentityServiceAutoConfiguration {
 
     /**
      * 2-1. EmailService - 이메일 발송 서비스
-     * JavaMailSender가 있을 때만 활성화
+     * JavaMailSender가 있으면 실제 이메일을 발송하고, 없으면 로그만 출력
      */
     @Bean
-    @ConditionalOnBean(JavaMailSender.class)
     @ConditionalOnMissingBean
-    public EmailService emailService(JavaMailSender mailSender) {
+    public EmailService emailService(@Autowired(required = false) JavaMailSender mailSender) {
         return new EmailService(mailSender);
     }
 
     /**
-     * 2-2. EmailOneTimeTokenService - 이메일 기반 OTT 서비스
-     * EmailService가 있을 때만 활성화
+     * 2-2. OneTimeTokenService - 이메일 기반 OTT 서비스
      */
     @Bean
-    @ConditionalOnBean(EmailService.class)
-    @ConditionalOnMissingBean
-    public EmailOneTimeTokenService emailOneTimeTokenService(
+    @ConditionalOnMissingBean(OneTimeTokenService.class)
+    public OneTimeTokenService oneTimeTokenService(
             EmailService emailService,
             JdbcTemplate jdbcTemplate,
             TransactionTemplate transactionTemplate,

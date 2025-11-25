@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -17,14 +16,13 @@ import java.util.regex.Pattern;
 
 /**
  * IP Blocking Tool
- * 
+ *
  * 네트워크 방화벽에서 특정 IP 주소를 차단합니다.
  * 보안 위협이 탐지된 IP 주소의 접근을 즉시 차단할 수 있습니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "ip_blocking",

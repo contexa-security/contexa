@@ -8,21 +8,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * Network Scan Tool
- * 
+ *
  * 지정된 IP 대역이나 호스트에 대해 네트워크 스캔을 수행합니다.
  * 포트 스캔, 서비스 탐지, 취약점 식별 기능을 제공합니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "network_scan",

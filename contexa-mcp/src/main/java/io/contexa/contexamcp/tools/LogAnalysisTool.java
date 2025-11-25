@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -18,15 +17,14 @@ import java.util.stream.Collectors;
 
 /**
  * Log Analysis Tool
- * 
+ *
  * 시스템 로그, 보안 로그, 애플리케이션 로그를 분석하여
  * 보안 위협, 이상 패턴, 침해 지표를 탐지합니다.
  * 타임라인 재구성과 포렌식 분석 기능을 제공합니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "log_analysis",

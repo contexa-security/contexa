@@ -8,22 +8,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * File Quarantine Tool
- * 
+ *
  * 악성 파일을 안전한 격리 영역으로 이동시키는 도구입니다.
  * 격리된 파일은 실행 불가능한 상태로 보관되며, 필요시 복원할 수 있습니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  * 고위험 도구 - 승인 필요
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "file_quarantine",

@@ -12,6 +12,7 @@ import io.contexa.contexacore.repository.ThreatIndicatorRepository;
 import io.contexa.contexacore.simulation.config.SimulationWebSocketConfig;
 import io.contexa.contexacore.simulation.factory.AttackStrategyFactory;
 import io.contexa.contexacore.simulation.generator.AttackScenarioGenerator;
+import io.contexa.contexacore.simulation.interceptor.SimulationModeInterceptor;
 import io.contexa.contexacore.simulation.service.DualModeSimulationService;
 import io.contexa.contexacore.simulation.service.SimulationStatisticsService;
 import io.contexa.contexacore.simulation.tracker.DataBreachTracker;
@@ -60,10 +61,11 @@ import java.util.concurrent.ScheduledExecutorService;
  * - simulationMetricsConfig - SimulationMetricsConfig
  * - simulationParameters - SimulationParameters
  *
- * Services (3개):
+ * Services (4개):
  * - SimulationStatisticsService - 시뮬레이션 통계 서비스
  * - DualModeSimulationService - 이중 모드 시뮬레이션 서비스
  * - SimulationDataInitializer - 시뮬레이션 데이터 초기화 (조건부)
+ * - SimulationModeInterceptor - 시뮬레이션 모드 인터셉터
  *
  * 활성화 조건:
  * contexa:
@@ -154,6 +156,15 @@ public class CoreSimulationAutoConfiguration {
             securityIncidentRepository, threatIndicatorRepository, securityActionRepository,
             soarApprovalRequestRepository, approvalNotificationRepository, kafkaTemplate
         );
+    }
+
+    /**
+     * 4. SimulationModeInterceptor - 시뮬레이션 모드 인터셉터
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public SimulationModeInterceptor simulationModeInterceptor() {
+        return new SimulationModeInterceptor();
     }
 
     // ===== Infrastructure Beans (6개) =====

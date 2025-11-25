@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -17,16 +16,15 @@ import java.util.Set;
 
 /**
  * Process Kill Tool
- * 
+ *
  * 악성 또는 의심스러운 프로세스를 종료시킵니다.
  * 프로세스 ID(PID) 또는 프로세스 이름으로 종료 가능하며,
  * 자식 프로세스를 포함한 프로세스 트리 전체를 종료할 수 있습니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  * 고위험 도구 - 승인 필요
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "process_kill",

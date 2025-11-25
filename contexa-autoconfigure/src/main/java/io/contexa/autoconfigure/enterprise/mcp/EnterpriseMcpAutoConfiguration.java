@@ -1,11 +1,17 @@
 package io.contexa.autoconfigure.enterprise.mcp;
 
+import io.contexa.autoconfigure.properties.ContexaEnterpriseProperties;
+import io.contexa.contexacoreenterprise.mcp.tool.execution.config.ToolExecutionProperties;
 import io.contexa.contexamcp.completions.SecurityCommandCompletion;
 import io.contexa.contexamcp.prompts.SecurityAnalysisPrompts;
 import io.contexa.contexamcp.resources.SecurityLogResource;
 import io.contexa.contexamcp.resources.SystemInfoResource;
 import io.contexa.contexamcp.tools.*;
+import io.contexa.contexamcp.service.AuditLogService;
+import io.contexa.contexamcp.service.IpBlockingService;
+import io.contexa.contexamcp.service.UserSessionService;
 import io.modelcontextprotocol.server.McpServerFeatures;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
@@ -13,6 +19,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
 import java.util.ArrayList;
@@ -80,7 +87,148 @@ import java.util.List;
     havingValue = "true",
     matchIfMissing = true
 )
+@EnableConfigurationProperties({
+    ContexaEnterpriseProperties.class,
+    ToolExecutionProperties.class
+})
 public class EnterpriseMcpAutoConfiguration {
+
+    // ========================================
+    // Level 1: MCP Tools (9개)
+    // ========================================
+
+    /**
+     * 1. NetworkScanTool - 네트워크 스캔 도구
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public NetworkScanTool networkScanTool() {
+        return new NetworkScanTool();
+    }
+
+    /**
+     * 2. LogAnalysisTool - 로그 분석 도구
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public LogAnalysisTool logAnalysisTool() {
+        return new LogAnalysisTool();
+    }
+
+    /**
+     * 3. ThreatIntelligenceTool - 위협 인텔리전스 도구
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ThreatIntelligenceTool threatIntelligenceTool() {
+        return new ThreatIntelligenceTool();
+    }
+
+    /**
+     * 4. FileQuarantineTool - 파일 격리 도구
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public FileQuarantineTool fileQuarantineTool() {
+        return new FileQuarantineTool();
+    }
+
+    /**
+     * 5. ProcessKillTool - 프로세스 종료 도구
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ProcessKillTool processKillTool() {
+        return new ProcessKillTool();
+    }
+
+    /**
+     * 6. NetworkIsolationTool - 네트워크 격리 도구
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public NetworkIsolationTool networkIsolationTool() {
+        return new NetworkIsolationTool();
+    }
+
+    /**
+     * 7. AuditLogQueryTool - 감사 로그 조회 도구 (의존성: AuditLogService)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AuditLogQueryTool auditLogQueryTool(AuditLogService auditLogService) {
+        return new AuditLogQueryTool(auditLogService);
+    }
+
+    /**
+     * 8. IpBlockingTool - IP 차단 도구 (의존성: IpBlockingService)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public IpBlockingTool ipBlockingTool(IpBlockingService ipBlockingService) {
+        return new IpBlockingTool(ipBlockingService);
+    }
+
+    /**
+     * 9. SessionTerminationTool - 세션 종료 도구 (의존성: UserSessionService)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public SessionTerminationTool sessionTerminationTool(UserSessionService userSessionService) {
+        return new SessionTerminationTool(userSessionService);
+    }
+
+    // ========================================
+    // Level 2: MCP Resources (2개)
+    // ========================================
+
+    /**
+     * 1. SecurityLogResource - 보안 로그 리소스 (의존성: ObjectMapper)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityLogResource securityLogResource(ObjectMapper objectMapper) {
+        return new SecurityLogResource(objectMapper);
+    }
+
+    /**
+     * 2. SystemInfoResource - 시스템 정보 리소스 (의존성: ObjectMapper)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public SystemInfoResource systemInfoResource(ObjectMapper objectMapper) {
+        return new SystemInfoResource(objectMapper);
+    }
+
+    // ========================================
+    // Level 3: MCP Prompts (1개)
+    // ========================================
+
+    /**
+     * SecurityAnalysisPrompts - 보안 분석 프롬프트
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityAnalysisPrompts securityAnalysisPrompts() {
+        return new SecurityAnalysisPrompts();
+    }
+
+    // ========================================
+    // Level 4: MCP Completions (1개)
+    // ========================================
+
+    /**
+     * SecurityCommandCompletion - 보안 명령어 자동 완성
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityCommandCompletion securityCommandCompletion() {
+        return new SecurityCommandCompletion();
+    }
+
+    // ========================================
+    // Level 5: MCP Aggregators (기존 유지)
+    // ========================================
 
     /**
      * MCP Tool Provider 등록

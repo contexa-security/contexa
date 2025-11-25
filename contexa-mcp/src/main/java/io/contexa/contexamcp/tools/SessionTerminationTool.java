@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,15 +17,14 @@ import java.util.stream.Collectors;
 
 /**
  * Session Termination Tool
- * 
+ *
  * 특정 사용자의 모든 활성 세션을 즉시 종료합니다.
  * 계정 탈취가 의심되거나 보안 위협이 감지된 경우 사용됩니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  * 고위험 도구 - 승인 필요
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "session_termination",

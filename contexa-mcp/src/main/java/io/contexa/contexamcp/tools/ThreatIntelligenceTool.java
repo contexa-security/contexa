@@ -8,22 +8,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * Threat Intelligence Tool
- * 
+ *
  * IP 주소, 도메인, 파일 해시 등의 침해 지표(IoC)를 조회하고
  * 위협 정보를 수집합니다. 알려진 위협 행위자, 공격 캠페인, 멀웨어 정보를 제공하며
  * 실시간 위협 평가와 대응 권고사항을 생성합니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "threat_intelligence",

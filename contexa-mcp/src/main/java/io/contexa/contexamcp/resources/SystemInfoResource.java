@@ -5,7 +5,6 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -20,7 +19,6 @@ import java.util.Map;
  * MCP를 통해 시스템 보안 정보를 리소스로 노출
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SystemInfoResource {
     

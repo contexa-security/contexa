@@ -55,7 +55,7 @@ import org.springframework.data.redis.core.RedisTemplate;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties({ContexaProperties.class, HcadProperties.class})
+@EnableConfigurationProperties({ContexaProperties.class, HcadProperties.class, FeedbackIntegrationProperties.class})
 public class CoreHCADAutoConfiguration {
 
     public CoreHCADAutoConfiguration() {

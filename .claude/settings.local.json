@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Stop-Process -Force)"
+      "Bash(Select-Object -Unique Filename)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-mcp:compileJava :contexa-autoconfigure:compileJava -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" clean :contexa-autoconfigure:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:bootRun --stacktrace)",
+      "Bash(Start-Sleep -Seconds 10)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" clean build -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" --stop)"
     ],
     "deny": [],
     "ask": []

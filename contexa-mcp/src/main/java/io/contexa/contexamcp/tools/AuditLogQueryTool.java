@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Collections;
@@ -18,14 +17,13 @@ import java.util.List;
 
 /**
  * Audit Log Query Tool
- * 
+ *
  * 감사 로그를 조회하여 보안 위협을 분석합니다.
  * 사용자 ID 또는 IP 주소로 로그를 검색할 수 있습니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "audit_log_query",

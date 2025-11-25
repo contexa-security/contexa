@@ -8,22 +8,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * Network Isolation Tool
- * 
+ *
  * 감염되거나 의심스러운 호스트를 네트워크에서 격리시킵니다.
  * 특정 IP, 포트, 프로토콜을 차단하거나 전체 네트워크 세그먼트를 격리할 수 있습니다.
- * 
+ *
  * Spring AI @Tool 어노테이션 기반 구현
  * 고위험 도구 - 승인 필요
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 @SoarTool(
     name = "network_isolation",

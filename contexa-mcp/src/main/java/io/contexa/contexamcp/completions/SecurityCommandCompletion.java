@@ -2,19 +2,17 @@ package io.contexa.contexamcp.completions;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 
 /**
  * Security Command Completion
  * 보안 명령어 자동 완성 기능 제공
- * 
+ *
  * 현재 Spring AI MCP의 Completion API가 완전히 정의되지 않아
  * 기본적인 구조만 구현
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SecurityCommandCompletion {
     

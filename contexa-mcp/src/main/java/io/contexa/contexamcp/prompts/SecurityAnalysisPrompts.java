@@ -4,7 +4,6 @@ import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -17,7 +16,6 @@ import java.util.Map;
  * 보안 분석을 위한 MCP 프롬프트 템플릿
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class SecurityAnalysisPrompts {
     

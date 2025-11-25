@@ -1,9 +1,9 @@
 package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
-import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
 import io.contexa.contexaiam.security.core.AIReactiveSecurityContextRepository;
 import io.contexa.contexaiam.security.core.AIReactiveUserDetailsService;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
@@ -13,6 +13,7 @@ import io.contexa.contexaiam.security.core.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -51,7 +52,7 @@ public class IamSecurityCoreAutoConfiguration {
     public AIReactiveUserDetailsService aiReactiveUserDetailsService(
             UserRepository userRepository,
             RedisTemplate<String, Object> redisTemplate,
-            UnifiedNotificationService notificationService,
+            @Autowired(required = false) NotificationService notificationService,
             AuditLogRepository auditLogRepository) {
         return new AIReactiveUserDetailsService(userRepository, redisTemplate, notificationService, auditLogRepository);
     }

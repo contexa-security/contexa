@@ -30,6 +30,7 @@ import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -92,6 +93,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Slf4j
 @AutoConfiguration
 @EnableAsync
+@EnableConfigurationProperties(StateMachineProperties.class)
 @ConditionalOnProperty(
     prefix = "contexa.identity.statemachine",
     name = "enabled",

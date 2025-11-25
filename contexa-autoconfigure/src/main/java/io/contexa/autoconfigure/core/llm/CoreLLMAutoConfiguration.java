@@ -4,6 +4,8 @@ import io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration;
 import io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration;
 import io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.config.ModelProviderProperties;
+import io.contexa.contexacore.config.SecurityMappingProperties;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -43,7 +45,11 @@ import org.springframework.context.annotation.Import;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({
+    ContexaProperties.class,
+    ModelProviderProperties.class,
+    SecurityMappingProperties.class
+})
 @Import({
     PipelineConfiguration.class
 })
