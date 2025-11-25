@@ -12,7 +12,7 @@ import org.springframework.ai.tool.ToolCallback;
  *
  * @since 0.1.1
  */
-public interface ChainedToolResolver {
+public interface ToolResolver {
 
     /**
      * 모든 Tool Callback 조회

@@ -2,7 +2,7 @@ package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
-import io.contexa.contexacommon.mcp.tool.ChainedToolResolver;
+import io.contexa.contexacommon.mcp.tool.ToolResolver;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -10,7 +10,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 /**
@@ -26,11 +25,11 @@ import reactor.core.publisher.Mono;
 public class PromptGenerationStep implements PipelineStep {
     
     private final PromptGenerator promptGenerator;
-    private final ChainedToolResolver chainedToolResolver;
+    private final ToolResolver chainedToolResolver;
 
     public PromptGenerationStep(
             PromptGenerator promptGenerator,
-            @Autowired(required = false) ChainedToolResolver chainedToolResolver) {
+            @Autowired(required = false) ToolResolver chainedToolResolver) {
         this.promptGenerator = promptGenerator;
         this.chainedToolResolver = chainedToolResolver;
     }

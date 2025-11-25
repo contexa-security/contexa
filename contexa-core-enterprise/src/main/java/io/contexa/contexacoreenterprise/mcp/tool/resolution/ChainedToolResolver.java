@@ -1,20 +1,16 @@
 package io.contexa.contexacoreenterprise.mcp.tool.resolution;
 
+import io.contexa.contexacommon.mcp.tool.ToolResolver;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.contexa.contexacoreenterprise.mcp.tool.common.EnhancedToolCallback;
 import io.contexa.contexacoreenterprise.dashboard.metrics.mcp.MCPToolMetrics;
-import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProvider;
-import io.contexa.contexacommon.annotation.SoarTool;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.resolution.DelegatingToolCallbackResolver;
 import org.springframework.ai.tool.resolution.ToolCallbackResolver;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Primary;
 
 
@@ -39,7 +35,7 @@ import java.util.stream.Collectors;
 @Primary
 @Slf4j
 @RequiredArgsConstructor
-public class ChainedToolResolver implements ToolCallbackResolver, io.contexa.contexacommon.mcp.tool.ChainedToolResolver {
+public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
     
     private final MCPToolMetrics metricsCollector;
     private final SpringBeanToolCallbackResolver springBeanToolCallbackResolver;

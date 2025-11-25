@@ -15,14 +15,14 @@ import javax.sql.DataSource;
 
 @Configuration
 @RequiredArgsConstructor
-public class MySecurityConfig {
+public class IdentitySecurityConfig {
 
 
-    @Bean
+/*    @Bean
 //    @ConditionalOnBean(PlatformConfig.class)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.build();
-    }
+    }*/
 
     @Bean
     public JdbcTemplate jdbcTemplate(DataSource dataSource) {

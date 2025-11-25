@@ -73,7 +73,7 @@ import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import io.contexa.contexacore.std.pipeline.step.PipelineStep;
 import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacoreenterprise.mcp.tool.resolution.ChainedToolResolver;
+import io.contexa.contexacommon.mcp.tool.ToolResolver;
 import io.opentelemetry.api.trace.Tracer;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -389,8 +389,8 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public PromptGenerationStep promptGenerationStep(
             PromptGenerator promptGenerator,
-            ChainedToolResolver chainedToolResolver) {
-        return new PromptGenerationStep(promptGenerator, chainedToolResolver);
+            @Autowired(required = false) ToolResolver toolResolver) {
+        return new PromptGenerationStep(promptGenerator, toolResolver);
     }
 
     @Bean

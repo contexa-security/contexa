@@ -1,51 +1,28 @@
-package io.contexa.contexaiam.config;
+package io.contexa.springbootstartercontexa;
 
+import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationFailureEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
 import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFilter;
-import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
-import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
-import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
-import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
-//import io.contexa.contexaiam.asep.configurer.AsepConfigurer;
 import io.contexa.contexaiam.domain.dto.UserDto;
-import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.security.core.AIReactiveSecurityContextRepository;
 import io.contexa.contexaiam.security.core.AIReactiveUserDetailsService;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandler;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomPermissionEvaluator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
-import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
-import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
-import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
-import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 
@@ -54,7 +31,7 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 @RequiredArgsConstructor
 @EnableMethodSecurity
 //@EnableRedisHttpSession
-public class MySecurityConfig {
+public class IAMSecurityConfig {
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
     private final CustomAuthenticationProvider customAuthenticationProvider;
     private final AIReactiveUserDetailsService aiReactiveUserDetailsService;
@@ -63,7 +40,6 @@ public class MySecurityConfig {
     private final SecurityEventPublishingFilter securityEventPublishingFilter;
     private final ApplicationEventPublisher eventPublisher;
     private final UserIdentificationService userIdentificationService;
-    private final EventPublishingMetrics metricsCollector;
 
     private final HCADAnalysisService hcadAnalysisService;
 
@@ -105,9 +81,6 @@ public class MySecurityConfig {
                     eventPublisher.publishEvent(event);
                     long duration = System.nanoTime() - startTime;
 
-                    metricsCollector.recordLogin(duration);
-                    metricsCollector.recordAuthSuccess();
-
                     request.setAttribute("security.event.published", true);
                     response.sendRedirect("/admin");
 
@@ -145,9 +118,6 @@ public class MySecurityConfig {
                     eventPublisher.publishEvent(event);
                     long duration = System.nanoTime() - startTime;
 
-                    metricsCollector.recordLogin(duration);
-                    metricsCollector.recordAuthFailure();
-
                     // 이벤트 발행 플래그 설정 (SecurityEventPublishingFilter에서 중복 방지)
                     request.setAttribute("security.event.published", true);
                 })
@@ -184,42 +154,6 @@ public class MySecurityConfig {
         }
 
         return request.getRemoteAddr();
-    }
-
-    @Bean
-    public MethodSecurityExpressionHandler methodSecurityExpressionHandler(
-            CustomPermissionEvaluator customPermissionEvaluator,
-            RoleHierarchy roleHierarchy,
-            PolicyRetrievalPoint policyRetrievalPoint,
-            ContextHandler contextHandler,
-            AttributeInformationPoint attributePIP,
-            AuditLogService auditLogService,
-            AINativeProcessor aINativeProcessor,
-            AuditLogRepository auditLogRepository,
-            ApplicationContext applicationContext,
-            UserRepository userRepository,
-            GroupRepository groupRepository,
-            DocumentRepository documentRepository,
-            @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
-            UnifiedNotificationService notificationService) {
-        return new CustomMethodSecurityExpressionHandler(
-                customPermissionEvaluator, roleHierarchy, policyRetrievalPoint,
-                contextHandler, attributePIP, auditLogService,
-                aINativeProcessor, auditLogRepository, applicationContext,
-                userRepository, groupRepository, documentRepository, redisTemplate,
-                notificationService
-        );
-    }
-
-    @Bean
-    public WebSecurityCustomizer webSecurityCustomizer(){
-        return (web) -> web.ignoring()
-                .requestMatchers(PathRequest.toStaticResources().atCommonLocations());
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
     @Bean

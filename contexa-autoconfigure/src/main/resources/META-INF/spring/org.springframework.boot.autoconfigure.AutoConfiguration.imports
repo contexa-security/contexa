@@ -12,7 +12,11 @@ io.contexa.autoconfigure.core.CoreJpaAutoConfiguration
 io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
 
 # Core LLM
+io.contexa.autoconfigure.core.llm.CoreLLMTieredAutoConfiguration
 io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
+
+# Core Advisor
+io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration
 
 # Enterprise Tool
 io.contexa.autoconfigure.enterprise.tool.EnterpriseToolAutoConfiguration

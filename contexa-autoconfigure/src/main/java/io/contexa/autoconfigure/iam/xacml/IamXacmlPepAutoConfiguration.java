@@ -13,6 +13,7 @@ import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
@@ -44,7 +45,7 @@ public class IamXacmlPepAutoConfiguration {
             ObjectMapper objectMapper,
             ContextHandler contextHandler,
             AuthorizationEventPublisher authorizationEventPublisher,
-            EventPublishingMetrics metricsCollector) {
+            @Autowired(required = false) EventPublishingMetrics metricsCollector) {
         return new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, auditLogService,
                 objectMapper, contextHandler, authorizationEventPublisher, metricsCollector);
