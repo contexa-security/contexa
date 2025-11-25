@@ -7,7 +7,9 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:bootRun --stacktrace)",
       "Bash(Start-Sleep -Seconds 10)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" clean build -x test)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" --stop)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" --stop)",
+      "Bash(Test-Path \"d:\\projects\\contexa\\contexa-autoconfigure\\src\\main\\java\\io\\contexa\\autoconfigure\\identity\")",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-identity:compileJava :contexa-autoconfigure:compileJava -x test)"
     ],
     "deny": [],
     "ask": []

@@ -41,7 +41,7 @@ public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticatio
         String loginProcessingUrl = opts.getLoginProcessingUrl();
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         ApplicationContext appContext = platformContext.applicationContext();
-        UserDetailsService userDetailsService = appContext.getBean(IdentityUserDetailsService.class);
+        UserDetailsService userDetailsService = appContext.getBean(UserDetailsService.class);
         OneTimeTokenService oneTimeTokenService = appContext.getBean(OneTimeTokenService.class);
 
         http.oneTimeTokenLogin(ott -> {
