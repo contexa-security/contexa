@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.authorization.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
 import io.contexa.contexacore.autonomous.event.decision.UnifiedEventPublishingDecisionEngine;
 import io.contexa.contexacore.autonomous.event.filter.AIFeedbackBlockingFilter;
+import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFilter;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.RedisSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
@@ -202,6 +203,14 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public EventNormalizer eventNormalizer() {
         return new EventNormalizer();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityEventPublishingFilter securityEventPublishingFilter(
+            ApplicationEventPublisher applicationEventPublisher,
+            UnifiedEventPublishingDecisionEngine unifiedEventPublishingDecisionEngine) {
+        return new SecurityEventPublishingFilter(applicationEventPublisher, unifiedEventPublishingDecisionEngine);
     }
 
     // ========== Orchestrator Handlers ==========

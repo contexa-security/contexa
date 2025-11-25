@@ -12,6 +12,7 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomPermissi
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -77,7 +78,7 @@ public class IamSecurityAutoConfiguration {
             GroupRepository groupRepository,
             DocumentRepository documentRepository,
             @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
-            UnifiedNotificationService notificationService) {
+            @Autowired(required = false) UnifiedNotificationService notificationService) {
 
         return new CustomMethodSecurityExpressionHandler(
                 customPermissionEvaluator,
