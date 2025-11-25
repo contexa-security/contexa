@@ -20,6 +20,9 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.validator.*;
+import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
+import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
+import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
 import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
@@ -31,6 +34,7 @@ import io.contexa.contexaidentity.security.token.management.TokenChainManager;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.writer.JsonAuthResponseWriter;
+import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -44,6 +48,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationFilter;
+import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
 import org.springframework.security.web.webauthn.management.JdbcPublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.JdbcUserCredentialRepository;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
@@ -51,6 +58,7 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Identity Security Core AutoConfiguration
@@ -291,8 +299,18 @@ public class IdentitySecurityCoreAutoConfiguration {
             ConfiguredFactorFilterProvider factorFilterProvider,
             AdapterRegistry adapterRegistry) {
         log.info("Creating SecurityFilterChainRegistrar with 8 step filter mappings");
+        Map<String, Class<? extends Filter>> stepFilterClasses = Map.ofEntries(
+                Map.entry("form", UsernamePasswordAuthenticationFilter.class),
+                Map.entry("rest", RestAuthenticationFilter.class),
+                Map.entry("mfa_rest", MfaRestAuthenticationFilter.class),
+                Map.entry("mfa_form", MfaFormAuthenticationFilter.class),
+                Map.entry("ott", OneTimeTokenAuthenticationFilter.class),
+                Map.entry("mfa_ott", OneTimeTokenAuthenticationFilter.class),
+                Map.entry("passkey", WebAuthnAuthenticationFilter.class),
+                Map.entry("mfa_passkey", WebAuthnAuthenticationFilter.class)
+        );
         return new SecurityFilterChainRegistrar(factorFilterProvider,
-                java.util.Map.of(), // stepFilterClasses는 DSL에서 동적으로 결정되므로 빈 Map 사용
+                stepFilterClasses, // stepFilterClasses는 DSL에서 동적으로 결정되므로 빈 Map 사용
                 adapterRegistry);
     }
 
