@@ -3,7 +3,7 @@ package io.contexa.contexaiam.admin.web.workflow.wizard.service;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaiam.admin.web.studio.dto.EffectivePermissionDto;
 import io.contexa.contexaiam.admin.web.studio.dto.SimulationResultDto;
 import io.contexa.contexaiam.admin.web.studio.dto.WizardInitiationDto;
@@ -12,7 +12,7 @@ import io.contexa.contexaiam.admin.web.workflow.wizard.dto.AssignmentChangeDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.InitiateManagementRequestDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.VirtualSubject;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.WizardContext;
-import io.contexa.contexaiam.security.core.CustomUserDetails;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.GroupRepository;
@@ -191,8 +191,8 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
         }
 
         Object principal = authentication.getPrincipal();
+        if (principal instanceof UnifiedCustomUserDetails userDetails) return userDetails.getAccount().getId();
         if (principal instanceof UserDto userDto) return userDto.getId();
-        if (principal instanceof CustomUserDetails userDetails) return userDetails.getUsers().getId();
         if (principal instanceof Users user) return user.getId();
         throw new IllegalStateException("Cannot determine admin user ID from principal of type: " + principal.getClass().getName());
     }

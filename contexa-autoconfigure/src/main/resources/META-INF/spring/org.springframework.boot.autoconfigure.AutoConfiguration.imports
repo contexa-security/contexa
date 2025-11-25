@@ -1,6 +1,9 @@
 # Contexa AutoConfiguration
 # Spring Boot 3.x AutoConfiguration 등록
 
+# Common Security (우선순위 높음 - 맨 앞)
+io.contexa.autoconfigure.common.CommonSecurityAutoConfiguration
+
 # Core Infrastructure
 io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration
 io.contexa.autoconfigure.core.infra.CoreInfrastructureExtendedAutoConfiguration

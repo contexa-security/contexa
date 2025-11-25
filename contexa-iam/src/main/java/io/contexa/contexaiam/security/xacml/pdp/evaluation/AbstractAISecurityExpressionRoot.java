@@ -12,7 +12,7 @@ import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
 import io.contexa.contexacommon.enums.AuditRequirement;
 import io.contexa.contexacommon.enums.SecurityLevel;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.entity.AuditLog;

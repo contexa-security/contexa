@@ -6,7 +6,7 @@ import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexaidentity.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexacommon.enums.StateType;

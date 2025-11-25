@@ -1,12 +1,12 @@
 package io.contexa.contexaiam.security.xacml.pip.resolver;
 
-import io.contexa.contexaiam.security.core.CustomUserDetails;
-import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 @RequiredArgsConstructor
 public class UserAuthorityResolver implements SubjectAuthorityResolver {
@@ -21,6 +21,31 @@ public class UserAuthorityResolver implements SubjectAuthorityResolver {
     public Set<GrantedAuthority> resolveAuthorities(Long subjectId) {
         Users user = userRepository.findByIdWithGroupsRolesAndPermissions(subjectId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + subjectId));
-        return new HashSet<>(new CustomUserDetails(user).getAuthorities());
+
+        Set<GrantedAuthority> authorities = new HashSet<>();
+
+        Optional.ofNullable(user.getUserGroups())
+                .orElse(Collections.emptySet())
+                .stream()
+                .map(UserGroup::getGroup)
+                .filter(Objects::nonNull)
+                .flatMap(group -> Optional.ofNullable(group.getGroupRoles())
+                        .orElse(Collections.emptySet()).stream())
+                .map(GroupRole::getRole)
+                .filter(Objects::nonNull)
+                .forEach(role -> {
+                    authorities.add(new RoleAuthority(role));
+
+                    Optional.ofNullable(role.getRolePermissions())
+                            .orElse(Collections.emptySet())
+                            .stream()
+                            .map(RolePermission::getPermission)
+                            .filter(Objects::nonNull)
+                            .forEach(permission -> {
+                                authorities.add(new PermissionAuthority(permission));
+                            });
+                });
+
+        return authorities;
     }
 }

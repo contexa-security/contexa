@@ -7,9 +7,8 @@ import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFil
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaiam.security.core.AIReactiveSecurityContextRepository;
-import io.contexa.contexaiam.security.core.AIReactiveUserDetailsService;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,7 +33,6 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 public class IAMSecurityConfig {
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
     private final CustomAuthenticationProvider customAuthenticationProvider;
-    private final AIReactiveUserDetailsService aiReactiveUserDetailsService;
     private final AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository;
     private final HCADFilter hcadFilter;
     private final SecurityEventPublishingFilter securityEventPublishingFilter;

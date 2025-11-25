@@ -1,7 +1,7 @@
 /*
 package io.contexa.contexaidentity.controller;
 
-import io.contexa.contexaidentity.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

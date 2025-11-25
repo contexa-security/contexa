@@ -196,7 +196,7 @@ public class UnifiedRedisConfiguration {
      * 주요 사용 사례:
      * <ul>
      *   <li>WebAuthn PublicKeyCredentialCreationOptions 세션 저장</li>
-     *   <li>Spring Security Authentication 객체 (CustomUserDetails 등)</li>
+     *   <li>Spring Security Authentication 객체 (UnifiedCustomUserDetails 등)</li>
      *   <li>CsrfToken 등 Spring Security 내부 객체</li>
      * </ul>
      * <p>

@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pip.context;
 
-import io.contexa.contexaiam.security.core.CustomUserDetails;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -90,10 +90,22 @@ public class DefaultContextHandler implements ContextHandler {
      * Authentication 객체로부터 Users 엔티티를 안전하게 조회합니다.
      */
     private Users getSubjectEntity(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
+        if (authentication == null) {
             return null;
         }
-        return userDetails.getUsers();
+
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof Users user) {
+            return user;
+        }
+
+        if (principal instanceof UnifiedCustomUserDetails userDetails) {
+            Long userId = userDetails.getAccount().getId();
+            return userRepository.findByIdWithGroupsRolesAndPermissions(userId).orElse(null);
+        }
+
+        return null;
     }
 
     /**

@@ -2,8 +2,8 @@ package io.contexa.contexaiam.admin.web.workflow.wizard.service;
 
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
-import io.contexa.contexaiam.domain.dto.UserDto;
-import io.contexa.contexaiam.security.core.CustomUserDetails;
+import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaiam.admin.web.studio.dto.InitiateGrantRequestDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.SavePermissionsRequest;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.SaveSubjectsRequest;
@@ -161,8 +161,8 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
 
         Object principal = authentication.getPrincipal();
 
-        if (principal instanceof CustomUserDetails userDetails) {
-            return userDetails.getUsers().getId();
+        if (principal instanceof UnifiedCustomUserDetails userDetails) {
+            return userDetails.getAccount().getId();  // UserDto의 getId()
         } else if (principal instanceof Users user) {
             return user.getId();
         } else if (principal instanceof UserDto userDto) {

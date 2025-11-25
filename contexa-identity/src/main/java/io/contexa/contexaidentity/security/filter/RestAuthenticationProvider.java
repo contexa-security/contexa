@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.filter;
 
-import io.contexa.contexaidentity.security.service.CustomUserDetails;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -21,7 +21,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
 
         String loginId = authentication.getName();
         String password = (String) authentication.getCredentials();
-        CustomUserDetails userDetails = (CustomUserDetails) userDetailsService.loadUserByUsername(loginId);
+        UnifiedCustomUserDetails userDetails = (UnifiedCustomUserDetails) userDetailsService.loadUserByUsername(loginId);
 
         if(!passwordEncoder.matches(password, userDetails.getPassword())){
             throw new BadCredentialsException("Invalid password");

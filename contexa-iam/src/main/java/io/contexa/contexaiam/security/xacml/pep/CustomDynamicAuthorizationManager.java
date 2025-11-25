@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;

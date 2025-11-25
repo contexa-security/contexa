@@ -1,12 +1,9 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
-import io.contexa.contexaidentity.domain.dto.UserDto;
 import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
-import io.contexa.contexaidentity.security.service.CustomUserDetails;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -249,8 +246,7 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
     /**
      * 실제 DB 권한으로 인증된 사용자 Authentication 생성
      *
-     * <p>CustomUserDetails를 통해 DB에 저장된 실제 권한(roles)을 조회하고,
-     * OAuth2 스코프를 SCOPE_ 권한으로 추가합니다.
+     * <p>DB에 저장된 실제 권한(roles)을 조회하고, OAuth2 스코프를 SCOPE_ 권한으로 추가합니다.
      *
      * @param user 사용자 엔티티
      * @param scopes OAuth2 스코프
@@ -258,16 +254,13 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
      */
     private Authentication createAuthenticatedUser(Users user, Set<String> scopes) {
 
-        UserDto userDto = new ModelMapper().map(user, UserDto.class);
-        List<MfaGrantedAuthority> authorities = user.getRoleNames().stream().map(MfaGrantedAuthority::new)
-                .toList();
-        userDto.setAuthorities(authorities);
-
-        CustomUserDetails userDetails = new CustomUserDetails(userDto);
-        Collection<? extends GrantedAuthority> dbAuthorities = userDetails.getAuthorities();
+        // DB에서 역할 이름들을 가져와서 MfaGrantedAuthority 생성
+        List<GrantedAuthority> allAuthorities = new ArrayList<>();
+        user.getRoleNames().stream()
+                .map(MfaGrantedAuthority::new)
+                .forEach(allAuthorities::add);
 
         // OAuth2 스코프를 SCOPE_ 권한으로 추가
-        List<GrantedAuthority> allAuthorities = new ArrayList<>(dbAuthorities);
         if (scopes != null && !scopes.isEmpty()) {
             scopes.forEach(scope ->
                     allAuthorities.add(new MfaGrantedAuthority("SCOPE_" + scope)));
@@ -275,13 +268,13 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
 
         if (log.isTraceEnabled()) {
             log.trace("Created authentication with DB authorities: {} and scopes: {}",
-                    dbAuthorities, scopes);
+                    user.getRoleNames(), scopes);
         }
 
         // UsernamePasswordAuthenticationToken 생성
         return new UsernamePasswordAuthenticationToken(
                 user.getUsername(),
-                userDetails.getPassword(),
+                user.getPassword(),
                 allAuthorities);
     }
 }

@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacore.std.operations.AINativeProcessor;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;

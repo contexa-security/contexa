@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pip.attribute;
 
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.entity.business.BusinessResource;

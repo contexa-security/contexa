@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.security.core;
 
-import io.contexa.contexaiam.security.core.auth.PermissionAuthority;
-import io.contexa.contexaiam.security.core.auth.RoleAuthority;
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.entity.UserGroup;

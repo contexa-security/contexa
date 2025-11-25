@@ -5,7 +5,6 @@ import io.contexa.contexaidentity.security.filter.RestAuthenticationProvider;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexaidentity.security.service.IdentityUserDetailsService;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;

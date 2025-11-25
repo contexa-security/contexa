@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexaidentity.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;

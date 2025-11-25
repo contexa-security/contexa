@@ -6,7 +6,7 @@ import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
-import io.contexa.contexaidentity.security.service.CustomUserDetails;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexacommon.entity.Users;
@@ -74,7 +74,7 @@ public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSer
             log.error("Failed to register unmodifiable collection types for Kryo", e);
         }
         kryo.register(SimpleGrantedAuthority.class);
-        kryo.register(CustomUserDetails.class);
+        kryo.register(UnifiedCustomUserDetails.class);
         kryo.register(Users.class);
         kryo.addDefaultSerializer(DefaultStateMachineContext.class, new StateMachineContextSerializer<MfaState, MfaEvent>());
     }

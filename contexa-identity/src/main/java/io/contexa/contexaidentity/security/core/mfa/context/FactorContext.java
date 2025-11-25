@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.mfa.context;
 
-import io.contexa.contexaidentity.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;

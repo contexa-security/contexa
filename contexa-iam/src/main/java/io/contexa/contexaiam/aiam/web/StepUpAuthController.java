@@ -1,6 +1,5 @@
 package io.contexa.contexaiam.aiam.web;
 
-import io.contexa.contexaiam.security.core.AIReactiveUserDetailsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +39,7 @@ public class StepUpAuthController {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final PasswordEncoder passwordEncoder;
-    private final AIReactiveUserDetailsService aiReactiveUserDetailsService;
+    private final UserDetailsService userDetailsService;
 
     @Autowired(required = false)
     private AuthenticationManager authenticationManager;
@@ -133,7 +132,7 @@ public class StepUpAuthController {
             }
 
             // 비밀번호 검증
-            UserDetails userDetails = aiReactiveUserDetailsService.loadUserByUsername(username);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
             boolean passwordValid = passwordEncoder.matches(password, userDetails.getPassword());
 
             if (!passwordValid) {

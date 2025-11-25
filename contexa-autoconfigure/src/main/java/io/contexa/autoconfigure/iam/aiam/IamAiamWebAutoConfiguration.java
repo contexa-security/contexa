@@ -11,8 +11,8 @@ import io.contexa.contexaiam.aiam.service.SecurityCopilotMessageProvider;
 import io.contexa.contexaiam.aiam.service.SecurityCopilotValidationService;
 import io.contexa.contexaiam.aiam.service.SoarActionService;
 import io.contexa.contexaiam.aiam.web.*;
-import io.contexa.contexaiam.security.core.AIReactiveUserDetailsService;
 import io.contexa.contexaiam.properties.SecurityStepUpProperties;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import io.contexa.contexaiam.service.PolicyService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -66,8 +66,8 @@ public class IamAiamWebAutoConfiguration {
     public StepUpAuthController stepUpAuthController(
             RedisTemplate<String, Object> redisTemplate,
             PasswordEncoder passwordEncoder,
-            AIReactiveUserDetailsService aiReactiveUserDetailsService) {
-        return new StepUpAuthController(redisTemplate, passwordEncoder, aiReactiveUserDetailsService);
+            UserDetailsService userDetailsService) {
+        return new StepUpAuthController(redisTemplate, passwordEncoder, userDetailsService);
     }
 
     @Bean

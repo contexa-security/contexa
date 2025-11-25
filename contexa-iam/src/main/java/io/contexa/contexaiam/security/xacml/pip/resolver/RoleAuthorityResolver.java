@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pip.resolver;
 
-import io.contexa.contexaiam.security.core.auth.PermissionAuthority;
-import io.contexa.contexaiam.security.core.auth.RoleAuthority;
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;

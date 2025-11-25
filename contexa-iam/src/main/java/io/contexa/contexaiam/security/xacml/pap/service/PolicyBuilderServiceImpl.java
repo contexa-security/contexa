@@ -10,10 +10,10 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.PolicyTemplateRepository;
-import io.contexa.contexaiam.security.core.CustomUserDetails;
 import io.contexa.contexaiam.security.xacml.pap.dto.*;
-import io.contexa.contexacommon.entity.Permission;
-import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.entity.*;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +24,7 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
@@ -121,8 +122,8 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
         List<Users> targetUsers = userRepository.findAllById(context.userIds());
 
         for (Users user : targetUsers) {
-            CustomUserDetails userDetails = new CustomUserDetails(user);
-            Authentication authentication = new UsernamePasswordAuthenticationToken(user.getUsername(), null, userDetails.getAuthorities());
+            Set<GrantedAuthority> authorities = initializeAuthorities(user);
+            Authentication authentication = new UsernamePasswordAuthenticationToken(user.getUsername(), null, authorities);
 
             Set<String> beforePermissions = getEffectivePermissions(authentication, null);
             Set<String> afterPermissions = getEffectivePermissions(authentication, policyToSimulate);
@@ -258,5 +259,33 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
             log.error("Error evaluating SpEL for simulation: {}", e.getMessage());
             return false;
         }
+    }
+
+    private Set<GrantedAuthority> initializeAuthorities(Users user) {
+        Set<GrantedAuthority> authorities = new HashSet<>();
+
+        Optional.ofNullable(user.getUserGroups())
+                .orElse(Collections.emptySet())
+                .stream()
+                .map(UserGroup::getGroup)
+                .filter(Objects::nonNull)
+                .flatMap(group -> Optional.ofNullable(group.getGroupRoles())
+                        .orElse(Collections.emptySet()).stream())
+                .map(GroupRole::getRole)
+                .filter(Objects::nonNull)
+                .forEach(role -> {
+                    authorities.add(new RoleAuthority(role));
+
+                    Optional.ofNullable(role.getRolePermissions())
+                            .orElse(Collections.emptySet())
+                            .stream()
+                            .map(RolePermission::getPermission)
+                            .filter(Objects::nonNull)
+                            .forEach(permission -> {
+                                authorities.add(new PermissionAuthority(permission));
+                            });
+                });
+
+        return authorities;
     }
 }

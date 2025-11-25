@@ -7,6 +7,9 @@ jar {
 }
 
 dependencies {
+    // Spring Security (UserDto, Authority, UnifiedCustomUserDetails용)
+    api 'org.springframework.boot:spring-boot-starter-security'
+
     implementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'

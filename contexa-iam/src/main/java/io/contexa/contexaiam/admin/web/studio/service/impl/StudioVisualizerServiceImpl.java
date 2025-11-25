@@ -10,7 +10,7 @@ import io.contexa.contexaiam.admin.support.visualization.dto.GraphDataDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.VirtualSubject;
 import io.contexa.contexaiam.domain.dto.GroupDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexacommon.entity.*;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;

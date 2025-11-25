@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.service;
 
-import io.contexa.contexaidentity.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
 import io.contexa.contexacommon.entity.Users;
 import lombok.AllArgsConstructor;

@@ -2,7 +2,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import com.webauthn4j.data.PublicKeyCredentialUserEntity;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexaidentity.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
@@ -10,7 +10,7 @@ import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
-import io.contexa.contexaidentity.security.service.CustomUserDetails;
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -21,6 +21,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.IOException;
@@ -357,7 +358,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
      */
     private String getPrincipalUsername(Authentication authentication) {
         Object principal = authentication.getPrincipal();
-        if (principal instanceof CustomUserDetails customUserDetails) {
+        if (principal instanceof UnifiedCustomUserDetails customUserDetails) {
             return customUserDetails.getAccount().getUsername();
         } else if (principal instanceof UserDto userDto) {
             return userDto.getUsername();
@@ -386,15 +387,16 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         Object principal = authentication.getPrincipal();
         if (principal instanceof PublicKeyCredentialUserEntity entity) {
             try {
-                UserDto userDto = new UserDto();
-                userDto.setUsername(entity.getName());
-                userDto.setAuthorities(authentication.getAuthorities());
+                UserDto userDto = UserDto.builder()
+                        .username(entity.getName())
+                        .build();
 
-                return RestAuthenticationToken.authenticated(new CustomUserDetails(userDto), authentication.getAuthorities());
+                java.util.Set<GrantedAuthority> authorities = new java.util.HashSet<>((java.util.Collection<? extends GrantedAuthority>) authentication.getAuthorities());
+                return RestAuthenticationToken.authenticated(new UnifiedCustomUserDetails(userDto, authorities), authentication.getAuthorities());
 
             } catch (Exception e) {
                 log.error("Failed to replace Authentication with serializable version. " +
-                         "CustomUserDetails will remain in SecurityContext (may cause Redis serialization error)", e);
+                         "UnifiedCustomUserDetails will remain in SecurityContext (may cause Redis serialization error)", e);
                 return null;
             }
         }

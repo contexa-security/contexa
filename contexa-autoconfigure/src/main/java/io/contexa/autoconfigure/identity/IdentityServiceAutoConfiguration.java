@@ -2,7 +2,6 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
-import io.contexa.contexaidentity.security.service.IdentityUserDetailsService;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.InMemoryCodeStore;
@@ -30,7 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <h3>등록되는 빈:</h3>
  * <ul>
- *   <li>Core Services (2개): CustomUserDetailsService, AuthUrlProvider</li>
+ *   <li>Core Services (1개): AuthUrlProvider</li>
  *   <li>OTT Services (4개): EmailService, EmailOneTimeTokenService, MagicLinkHandler, InMemoryCodeStore</li>
  * </ul>
  *
@@ -57,21 +56,10 @@ public class IdentityServiceAutoConfiguration {
         // Service 관련 빈 등록
     }
 
-    // ========== Level 1: Core Services (2개) ==========
+    // ========== Level 1: Core Services (1개) ==========
 
     /**
-     * 1-1. CustomUserDetailsService - 사용자 세부 정보 서비스
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public IdentityUserDetailsService identityUserDetailsService(
-            UserRepository userRepository,
-            ModelMapper modelMapper) {
-        return new IdentityUserDetailsService(userRepository, modelMapper);
-    }
-
-    /**
-     * 1-2. AuthUrlProvider - 인증 URL 제공 서비스
+     * 1-1. AuthUrlProvider - 인증 URL 제공 서비스
      */
     @Bean
     @ConditionalOnMissingBean

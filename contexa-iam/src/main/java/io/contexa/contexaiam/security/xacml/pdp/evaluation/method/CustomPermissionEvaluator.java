@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;

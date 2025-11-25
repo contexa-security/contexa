@@ -17,7 +17,7 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExp
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;

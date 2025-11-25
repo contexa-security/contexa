@@ -14,7 +14,7 @@ import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
-import io.contexa.contexaiam.domain.dto.UserDto;
+import io.contexa.contexacommon.dto.UserDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;

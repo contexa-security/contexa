@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.domain.dto;
 
+import io.contexa.contexacommon.dto.UserDto;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
