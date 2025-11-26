@@ -1,10 +1,11 @@
 package io.contexa.contexacoreenterprise.autonomous;
 
+import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance.GovernanceDecision;
-import io.contexa.contexacore.autonomous.repository.PolicyEvolutionProposalRepository;
+import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +19,16 @@ import java.util.concurrent.CompletableFuture;
 /**
  * 정책 제안 관리 서비스
  * 정책 제안의 생성, 평가, 승인, 활성화를 관리
- * 
+ *
+ * IPolicyProposalManagementService 인터페이스 구현체
+ * NotificationService 패턴 적용: contexa-core에 인터페이스, contexa-core-enterprise에 구현체
+ *
  * @author contexa
  * @since 1.0.0
  */
 @Slf4j
 @RequiredArgsConstructor
-public class PolicyProposalManagementService {
+public class PolicyProposalManagementService implements IPolicyProposalManagementService {
     
     private final PolicyEvolutionProposalRepository proposalRepository;
     private final PolicyEvolutionGovernance governance;
@@ -279,9 +283,9 @@ public class PolicyProposalManagementService {
         if (proposal.getStatus() == ProposalStatus.APPROVED && proposal.getPolicyId() != null) {
             throw new IllegalStateException("Cannot delete approved and activated proposal");
         }
-        
-        proposalRepository.delete(proposalId);
-        
+
+        proposalRepository.deleteById(proposalId);
+
         log.info("Deleted proposal: {}", proposalId);
     }
     

@@ -18,7 +18,13 @@
       "Bash(mkdir:*)",
       "Bash(git mv:*)",
       "Bash(nul)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core-enterprise:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" clean)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:build -x test)",
+      "Bash(dir:*)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:bootRun)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

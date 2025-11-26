@@ -123,7 +123,7 @@ public class IdentityMfaAutoConfiguration {
             UserRepository userRepository,
             ApplicationContext applicationContext,
             AuthContextProperties properties,
-            MfaPolicyEvaluator policyEvaluator,
+            CompositeMfaPolicyEvaluator policyEvaluator,
             PlatformConfig platformConfig) {
         return new DefaultMfaPolicyProvider(
             userRepository,

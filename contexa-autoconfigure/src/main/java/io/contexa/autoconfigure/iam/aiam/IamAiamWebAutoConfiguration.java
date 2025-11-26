@@ -1,26 +1,22 @@
 package io.contexa.autoconfigure.iam.aiam;
 
-import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
-import io.contexa.contexacore.repository.AttackResultRepository;
-import io.contexa.contexacore.simulation.analyzer.SimulationResultAnalyzer;
-import io.contexa.contexacore.simulation.tracker.DataBreachTracker;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.aiam.protocol.context.SecurityCopilotContext;
-import io.contexa.contexaiam.aiam.service.ProtectableDataService;
 import io.contexa.contexaiam.aiam.service.SecurityCopilotMessageProvider;
 import io.contexa.contexaiam.aiam.service.SecurityCopilotValidationService;
 import io.contexa.contexaiam.aiam.service.SoarActionService;
 import io.contexa.contexaiam.aiam.web.*;
 import io.contexa.contexaiam.properties.SecurityStepUpProperties;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import io.contexa.contexaiam.service.PolicyService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -45,14 +41,6 @@ public class IamAiamWebAutoConfiguration {
         return new SecurityPlaneController();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public AttackEventHelper attackEventHelper(
-            KafkaSecurityEventPublisher eventPublisher,
-            ProtectableDataService protectableDataService,
-            DataBreachTracker dataBreachTracker) {
-        return new AttackEventHelper(eventPublisher, protectableDataService, dataBreachTracker);
-    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -72,22 +60,9 @@ public class IamAiamWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SoarActionService.class)
     public SoarActionController soarActionController(SoarActionService soarActionService) {
         return new SoarActionController(soarActionService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SimulationResultController simulationResultController(
-            SimulationResultAnalyzer resultAnalyzer,
-            AttackResultRepository attackResultRepository) {
-        return new SimulationResultController(resultAnalyzer, attackResultRepository);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DualModeSimulationViewController dualModeSimulationViewController() {
-        return new DualModeSimulationViewController();
     }
 
     @Bean

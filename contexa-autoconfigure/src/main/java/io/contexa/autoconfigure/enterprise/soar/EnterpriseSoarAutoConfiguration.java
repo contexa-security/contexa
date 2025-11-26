@@ -535,16 +535,17 @@ public class EnterpriseSoarAutoConfiguration {
 
     /**
      * 20. UnifiedApprovalService - 통합 승인 서비스
+     * ApprovalService 인터페이스 타입으로 빈 등록
      */
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(ApprovalService.class)
     @ConditionalOnProperty(
         prefix = "contexa.soar",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true
     )
-    public UnifiedApprovalService unifiedApprovalService(
+    public ApprovalService unifiedApprovalService(
             SoarApprovalRequestRepository repository,
             ApprovalRequestFactory approvalRequestFactory,
             ToolExecutionContextRepository executionContextRepository,

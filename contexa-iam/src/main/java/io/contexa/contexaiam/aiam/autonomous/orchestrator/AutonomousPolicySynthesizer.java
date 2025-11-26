@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.aiam.autonomous.orchestrator;
 
-import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
+import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.event.DynamicThreatResponseEvent;
 import io.contexa.contexacore.autonomous.event.LearnableEvent;
@@ -44,8 +44,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @RequiredArgsConstructor
 public class AutonomousPolicySynthesizer {
-    
-    private final PolicyProposalManagementService proposalManagementService;
+
+    private final IPolicyProposalManagementService proposalManagementService;
     private final PolicyEvolutionLabIntegration labIntegration;
     private final DynamicThreatResponseSynthesisLab dynamicThreatLab;
     private final StaticAccessOptimizationService staticAccessService;

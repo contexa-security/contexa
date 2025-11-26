@@ -1,7 +1,7 @@
 package io.contexa.autoconfigure.iam.aiam;
 
+import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyEvolutionLabIntegration;
 import io.contexa.contexaiam.aiam.autonomous.orchestrator.AutonomousPolicySynthesizer;
 import io.contexa.contexaiam.aiam.labs.synthesis.DynamicThreatResponseSynthesisLab;
@@ -9,7 +9,9 @@ import io.contexa.contexaiam.aiam.listener.StompEventListener;
 import io.contexa.contexaiam.aiam.operations.IAMSecurityValidator;
 import io.contexa.contexaiam.aiam.pipeline.processor.RiskAssessmentPostProcessor;
 import io.contexa.contexaiam.aiam.service.StaticAccessOptimizationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -23,9 +25,10 @@ public class IamAiamInfrastructureAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({IPolicyProposalManagementService.class, PolicyEvolutionLabIntegration.class})
     public AutonomousPolicySynthesizer autonomousPolicySynthesizer(
-            PolicyProposalManagementService proposalManagementService,
-            PolicyEvolutionLabIntegration labIntegration,
+            @Autowired(required = false) IPolicyProposalManagementService proposalManagementService,
+            @Autowired(required = false) PolicyEvolutionLabIntegration labIntegration,
             DynamicThreatResponseSynthesisLab dynamicThreatLab,
             StaticAccessOptimizationService staticAccessService,
             ApplicationEventPublisher eventPublisher,

@@ -17,7 +17,7 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import io.contexa.contexacore.autonomous.state.DistributedStateManager;
-import io.contexa.contexacore.autonomous.repository.PolicyEvolutionProposalRepository;
+import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
 import io.contexa.contexacoreenterprise.autonomous.evolution.AccessGovernanceLabConnector;
 import io.contexa.contexacoreenterprise.autonomous.evolution.BehavioralAnalysisLabConnector;
@@ -40,6 +40,7 @@ import io.contexa.contexacoreenterprise.autonomous.service.impl.SoarNotifierImpl
 import io.contexa.contexacoreenterprise.autonomous.service.AsyncResultDeliveryService;
 import io.contexa.contexacoreenterprise.autonomous.orchestrator.strategy.AwaitApprovalStrategy;
 import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
+import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.scheduler.VectorLearningScheduler;
 import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
@@ -307,7 +308,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         matchIfMissing = true
     )
     public PolicyEvolutionLabIntegration policyEvolutionLabIntegration(
-            PolicyProposalManagementService proposalManagementService,
+            IPolicyProposalManagementService proposalManagementService,
             ApplicationEventPublisher eventPublisher) {
         return new PolicyEvolutionLabIntegration(proposalManagementService, eventPublisher);
     }
@@ -541,16 +542,17 @@ public class EnterpriseAutonomousAutoConfiguration {
 
     /**
      * 8-2. PolicyProposalManagementService - 정책 제안 관리 서비스
+     * IPolicyProposalManagementService 인터페이스로 빈 등록
      */
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(IPolicyProposalManagementService.class)
     @ConditionalOnProperty(
         prefix = "contexa.autonomous.policy-evolution",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true
     )
-    public PolicyProposalManagementService policyProposalManagementService(
+    public IPolicyProposalManagementService policyProposalManagementService(
             PolicyEvolutionProposalRepository proposalRepository,
             PolicyEvolutionGovernance governance,
             PolicyAuditLogger auditLogger,
@@ -650,7 +652,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         matchIfMissing = true
     )
     public PolicyEvolutionScheduler policyEvolutionScheduler(
-            PolicyProposalManagementService proposalManagementService,
+            IPolicyProposalManagementService proposalManagementService,
             PolicyEvolutionProposalRepository proposalRepository,
             PolicyEffectivenessMonitor effectivenessMonitor,
             PolicyProposalAnalytics proposalAnalytics) {
@@ -672,7 +674,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         matchIfMissing = true
     )
     public StaticAnalysisScheduler staticAnalysisScheduler(
-            PolicyProposalManagementService proposalManagementService,
+            IPolicyProposalManagementService proposalManagementService,
             PolicyEvolutionProposalRepository proposalRepository,
             SynthesisPolicyRepository synthesisPolicyRepository,
             PolicyEffectivenessMonitor effectivenessMonitor,

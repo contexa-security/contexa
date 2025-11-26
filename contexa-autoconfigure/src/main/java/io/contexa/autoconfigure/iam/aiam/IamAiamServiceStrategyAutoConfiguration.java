@@ -19,7 +19,9 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -34,7 +36,9 @@ public class IamAiamServiceStrategyAutoConfiguration {
     // Services
     @Bean
     @ConditionalOnMissingBean
-    public SoarActionService soarActionService(ApprovalService approvalService) {
+    @ConditionalOnBean(ApprovalService.class)
+    public SoarActionService soarActionService(
+            @Autowired(required = false) ApprovalService approvalService) {
         return new SoarActionService(approvalService);
     }
 
@@ -96,8 +100,9 @@ public class IamAiamServiceStrategyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SoarToolCallingService.class)
     public SoarSimulationService soarSimulationService(
-            SoarToolCallingService soarToolCallingService,
+            @Autowired(required = false) SoarToolCallingService soarToolCallingService,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
         return new SoarSimulationService(soarToolCallingService, brokerTemplate);
     }

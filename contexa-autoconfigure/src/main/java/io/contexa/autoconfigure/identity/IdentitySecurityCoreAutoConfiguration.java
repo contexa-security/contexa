@@ -37,8 +37,10 @@ import io.contexa.contexaidentity.security.utils.writer.JsonAuthResponseWriter;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -406,15 +408,19 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     /**
      * 6-2. UnifiedAuthenticationFailureHandler - 통합 인증 실패 핸들러
+     * <p>
+     * UserIdentificationService는 Enterprise 전용이므로 선택적 의존성으로 처리합니다.
+     * </p>
      */
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(UserIdentificationService.class)
     public UnifiedAuthenticationFailureHandler unifiedAuthenticationFailureHandler(
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             MfaPolicyProvider mfaPolicyProvider,
             AuthResponseWriter authResponseWriter,
             MfaSessionRepository mfaSessionRepository,
-            UserIdentificationService userIdentificationService,
+            @Autowired(required = false) UserIdentificationService userIdentificationService,
             AuthUrlProvider authUrlProvider) {
         log.info("Creating UnifiedAuthenticationFailureHandler");
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator, mfaPolicyProvider,

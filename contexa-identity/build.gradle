@@ -10,9 +10,9 @@ jar {
 }
 
 dependencies {
+    implementation project(':contexa-common')
     implementation project(':contexa-core')
     implementation project(':contexa-core-enterprise')
-    implementation project(':contexa-common')
     // contexa-autoconfigure는 Starter에서 포함 (순환 의존성 방지)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'

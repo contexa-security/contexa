@@ -182,14 +182,15 @@ public class CoreAdvisorAutoConfiguration {
      * 디버깅 및 모니터링 목적
      */
     @EventListener(ContextRefreshedEvent.class)
-    public void onApplicationReady(AdvisorRegistry advisorRegistry) {
+    public void onApplicationReady(ContextRefreshedEvent event) {
+        AdvisorRegistry advisorRegistry = event.getApplicationContext().getBean(AdvisorRegistry.class);
         log.info("Advisor System Ready - Registry Status:");
         log.info("  - Total Advisors: {}", advisorRegistry.getStats().totalAdvisors);
         log.info("  - Active Advisors: {}", advisorRegistry.getEnabled().size());
         log.info("  - Domains: {}", advisorRegistry.getDomains());
 
         advisorRegistry.getEnabled().forEach(advisor ->
-            log.debug("  ✓ {} (domain: {}, order: {})",
+            log.debug("  [OK] {} (domain: {}, order: {})",
                 advisor.getName(), advisor.getDomain(), advisor.getOrder())
         );
     }

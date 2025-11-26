@@ -1,6 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.evolution;
 
-import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
+import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalType;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.RiskLevel;
@@ -23,8 +23,8 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionLabIntegration {
-    
-    private final PolicyProposalManagementService proposalManagementService;
+
+    private final IPolicyProposalManagementService proposalManagementService;
     private final ApplicationEventPublisher eventPublisher;
     
     /**

@@ -35,9 +35,6 @@ io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousEventAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousStrategyAutoConfiguration
 
-# Core Simulation
-io.contexa.autoconfigure.core.simulation.CoreSimulationAutoConfiguration
-
 # Enterprise JPA (Repository & Entity)
 io.contexa.autoconfigure.enterprise.EnterpriseJpaAutoConfiguration
 
@@ -91,9 +88,6 @@ io.contexa.autoconfigure.iam.IamSecurityAutoConfiguration
 
 # IAM WebSocket
 io.contexa.autoconfigure.iam.IamWebSocketAutoConfiguration
-
-# IAM Simulation
-io.contexa.autoconfigure.iam.IamSimulationAutoConfiguration
 
 # IAM XACML (Policy-based Access Control)
 io.contexa.autoconfigure.iam.xacml.IamXacmlPrpAutoConfiguration

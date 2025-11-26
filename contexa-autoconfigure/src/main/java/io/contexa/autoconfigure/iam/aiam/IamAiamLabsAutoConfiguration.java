@@ -34,6 +34,7 @@ import io.contexa.contexaiam.aiam.labs.synthesis.DynamicThreatResponseSynthesisL
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.Tracer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -51,7 +52,7 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public PolicyGenerationVectorService policyGenerationVectorService(
             StandardVectorStoreService standardVectorStoreService,
-            VectorStoreMetrics vectorStoreMetrics) {
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new PolicyGenerationVectorService(standardVectorStoreService, vectorStoreMetrics);
     }
 
@@ -59,7 +60,7 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public AccessVectorService accessVectorService(
             StandardVectorStoreService standardVectorStoreService,
-            VectorStoreMetrics vectorStoreMetrics) {
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new AccessVectorService(standardVectorStoreService, vectorStoreMetrics);
     }
 
@@ -67,7 +68,7 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public StudioQueryVectorService studioQueryVectorService(
             StandardVectorStoreService standardVectorStoreService,
-            VectorStoreMetrics vectorStoreMetrics) {
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new StudioQueryVectorService(standardVectorStoreService, vectorStoreMetrics);
     }
 
@@ -75,7 +76,7 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public ResourceNamingVectorService resourceNamingVectorService(
             StandardVectorStoreService standardVectorStoreService,
-            VectorStoreMetrics vectorStoreMetrics) {
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new ResourceNamingVectorService(standardVectorStoreService, vectorStoreMetrics);
     }
 
@@ -83,7 +84,7 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public ConditionTemplateVectorService conditionTemplateVectorService(
             StandardVectorStoreService standardVectorStoreService,
-            VectorStoreMetrics vectorStoreMetrics) {
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new ConditionTemplateVectorService(standardVectorStoreService, vectorStoreMetrics);
     }
 
@@ -91,7 +92,7 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityCopilotVectorService securityCopilotVectorService(
             StandardVectorStoreService standardVectorStoreService,
-            VectorStoreMetrics vectorStoreMetrics) {
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new SecurityCopilotVectorService(standardVectorStoreService, vectorStoreMetrics);
     }
 

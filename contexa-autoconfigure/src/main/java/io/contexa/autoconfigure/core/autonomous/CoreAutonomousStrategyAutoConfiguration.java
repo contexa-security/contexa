@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.monitor.PolicyEffectivenessMonitor;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
-import io.contexa.contexacore.autonomous.repository.PolicyEvolutionProposalRepository;
+import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacore.autonomous.safety.EmergencyKillSwitch;
 import io.contexa.contexacore.autonomous.safety.PolicyConflictDetector;
 import io.contexa.contexacore.autonomous.safety.PolicyVersionManager;

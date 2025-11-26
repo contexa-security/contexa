@@ -1,13 +1,13 @@
 package io.contexa.contexacoreenterprise.autonomous.scheduler;
 
-import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
+import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalType;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.RiskLevel;
 import io.contexa.contexacore.autonomous.monitor.PolicyEffectivenessMonitor;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
 import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
-import io.contexa.contexacore.autonomous.repository.PolicyEvolutionProposalRepository;
+import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository.Policy;
 import lombok.RequiredArgsConstructor;
@@ -29,8 +29,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class StaticAnalysisScheduler {
-    
-    private final PolicyProposalManagementService proposalManagementService;
+
+    private final IPolicyProposalManagementService proposalManagementService;
     private final PolicyEvolutionProposalRepository proposalRepository;
     private final SynthesisPolicyRepository synthesisPolicyRepository;
     private final PolicyEffectivenessMonitor effectivenessMonitor;
