@@ -4,11 +4,6 @@
 bootJar.enabled = false
 jar.enabled = true
 
-// 라이브러리 JAR에서 application.yml 제외
-jar {
-    exclude '**/application.yml'
-}
-
 dependencies {
     implementation project(':contexa-core')
     implementation project(':contexa-core-enterprise')

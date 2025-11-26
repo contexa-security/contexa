@@ -24,7 +24,11 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:build -x test)",
       "Bash(dir:*)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:bootRun)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" tasks --group publishing)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:publishToMavenLocal -x test)",
+      "Bash(powershell -Command \"Get-ChildItem -Path \"\"$env:USERPROFILE\\.m2\\repository\\io\\contexa\\contexa\\spring-boot-starter-contexa\"\" -Recurse | Select-Object FullName\")",
+      "Bash(powershell -Command:*)"
     ],
     "deny": [],
     "ask": []

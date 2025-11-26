@@ -4,20 +4,14 @@
 bootJar.enabled = false
 jar.enabled = true
 
-// 라이브러리 JAR에서 application.yml 제외
-jar {
-    exclude '**/application.yml'
-}
-
 dependencies {
     implementation project(':contexa-common')
     implementation project(':contexa-core')
     implementation project(':contexa-core-enterprise')
-    // contexa-autoconfigure는 Starter에서 포함 (순환 의존성 방지)
+
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
 
-    // OAuth2 Resource Server & Authorization Server
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation "org.springframework.boot:spring-boot-starter-oauth2-client"
     implementation 'org.springframework.security:spring-security-oauth2-authorization-server:1.2.3'
@@ -28,7 +22,7 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
     implementation 'com.esotericsoftware:kryo:5.5.0'
-    // StateMachine은 AutoConfiguration에서 처리
+
     implementation 'org.springframework.statemachine:spring-statemachine-kryo:4.0.0'
     implementation("org.springframework.statemachine:spring-statemachine-data-redis:4.0.0")
     implementation('org.springframework.statemachine:spring-statemachine-starter')

@@ -42,6 +42,7 @@ subprojects {
     apply plugin: 'java-library'
     apply plugin: 'org.springframework.boot'
     apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'maven-publish'
 
     repositories {
         mavenCentral()
@@ -132,6 +133,39 @@ subprojects {
                 mavenBom "io.github.resilience4j:resilience4j-bom:2.1.0"
                 mavenBom "org.springframework.statemachine:spring-statemachine-bom:4.0.0"
             }
+        }
+    }
+
+    // Maven 저장소 배포 설정 (Maven repository publishing configuration)
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+
+                pom {
+                    name = project.name
+                    description = 'Contexa - AI-Native IAM & Autonomous Security Platform'
+                    url = 'https://github.com/contexa/contexa'
+
+                    licenses {
+                        license {
+                            name = 'The Apache License, Version 2.0'
+                            url = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+
+                    developers {
+                        developer {
+                            id = 'contexa'
+                            name = 'Contexa Team'
+                        }
+                    }
+                }
+            }
+        }
+
+        repositories {
+            mavenLocal()
         }
     }
 
