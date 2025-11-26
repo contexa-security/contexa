@@ -28,7 +28,13 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" tasks --group publishing)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:publishToMavenLocal -x test)",
       "Bash(powershell -Command \"Get-ChildItem -Path \"\"$env:USERPROFILE\\.m2\\repository\\io\\contexa\\contexa\\spring-boot-starter-contexa\"\" -Recurse | Select-Object FullName\")",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(./gradlew.bat:*)",
+      "Bash(del \"d:\\projects\\contexa\\examples\\security-only\\src\\main\\java\\io\\contexa\\securityonly\\PlatformSecurityConfig.java\")",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :examples:security-only:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :examples:security-only:build -x test)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :examples:security-only:bootRun)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :examples:security-only:compileJava --refresh-dependencies)"
     ],
     "deny": [],
     "ask": []

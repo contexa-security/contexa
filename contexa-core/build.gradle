@@ -6,7 +6,8 @@ tasks.named('resolveMainClassName') {
 }
 
 dependencies {
-    implementation project(':contexa-common')
+    // common 타입이 core의 공개 API에 노출되므로 api로 선언
+    api project(':contexa-common')
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'

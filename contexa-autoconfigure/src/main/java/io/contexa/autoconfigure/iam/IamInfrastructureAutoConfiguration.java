@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
 
@@ -101,6 +102,12 @@ public class IamInfrastructureAutoConfiguration {
             new AnnotationMatchingPointcut(null, Protectable.class, true),
             new AnnotationMatchingPointcut(Protectable.class, true)
         );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RoleHierarchyImpl roleHierarchy() {
+        return new RoleHierarchyImpl();
     }
 
     /**

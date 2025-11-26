@@ -1,3 +1,4 @@
+/*
 package io.contexa.springbootstartercontexa;
 
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
@@ -42,7 +43,9 @@ public class IAMSecurityConfig {
     private final HCADAnalysisService hcadAnalysisService;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http/*, AsepConfigurer asepConfigurer*/) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http*/
+/*, AsepConfigurer asepConfigurer*//*
+) throws Exception {
         http.authorizeHttpRequests(auth -> auth
                 .anyRequest().access(customDynamicAuthorizationManager));
         http.formLogin(form -> form.loginPage("/login")
@@ -154,9 +157,5 @@ public class IAMSecurityConfig {
         return request.getRemoteAddr();
     }
 
-    @Bean
-    public RoleHierarchyImpl roleHierarchy() {
-        return new RoleHierarchyImpl();
-    }
-
 }
+*/
