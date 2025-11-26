@@ -46,7 +46,7 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
     private final AuditLogRepository auditLogRepository;
 
     public ZeroTrustPolicyEvaluator(
-            @Qualifier("zeroTrustRedisTemplate") RedisTemplate<String, Double> redisTemplate,
+            @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
             @Autowired(required = false) NotificationService notificationService,
             AuditLogRepository auditLogRepository) {
         this.redisTemplate = redisTemplate;

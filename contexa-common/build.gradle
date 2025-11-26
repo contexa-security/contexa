@@ -10,6 +10,13 @@ dependencies {
     // Spring Security (UserDto, Authority, UnifiedCustomUserDetails용)
     api 'org.springframework.boot:spring-boot-starter-security'
 
+    // Redis (공통 Redis 설정 제공)
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Jackson 모듈 (Redis 직렬화용)
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
     implementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'

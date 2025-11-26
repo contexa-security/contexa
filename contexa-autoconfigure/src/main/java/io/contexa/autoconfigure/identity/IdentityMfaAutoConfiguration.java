@@ -89,13 +89,13 @@ public class IdentityMfaAutoConfiguration {
 
     /**
      * 1-3. ZeroTrustPolicyEvaluator - Zero Trust 기반 정책 평가자
-     * zeroTrustRedisTemplate이 있을 때만 활성화
+     * trustScoreRedisTemplate이 있을 때만 활성화
      */
     @Bean
-    @ConditionalOnBean(name = "zeroTrustRedisTemplate")
+    @ConditionalOnBean(name = "trustScoreRedisTemplate")
     @ConditionalOnMissingBean
     public ZeroTrustPolicyEvaluator zeroTrustPolicyEvaluator(
-            @Qualifier("zeroTrustRedisTemplate") RedisTemplate<String, Double> redisTemplate,
+            @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
             @Autowired(required = false) NotificationService notificationService,
             AuditLogRepository auditLogRepository) {
         return new ZeroTrustPolicyEvaluator(redisTemplate, notificationService, auditLogRepository);

@@ -4,7 +4,21 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:build -x test)",
       "Bash(timeout:*)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:build :contexa-autoconfigure:build -x test)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:build -x test)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:build -x test)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:clean :contexa-common:build)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-mcp:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-identity:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-autoconfigure:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" build -x test)",
+      "Bash(./gradlew:*)",
+      "Bash(mkdir:*)",
+      "Bash(git mv:*)",
+      "Bash(nul)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

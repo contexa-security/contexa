@@ -300,7 +300,7 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AdaptiveTierRouter adaptiveTierRouter(
-            @Qualifier("redisTemplate") RedisTemplate<String, ?> redisTemplate,
+            RedisTemplate<String, ?> redisTemplate,
             @Qualifier("stringRedisTemplate") RedisTemplate<String, String> stringRedisTemplate,
             VectorStoreCacheLayer vectorStoreCacheLayer,
             MaliciousPatternDetector maliciousPatternDetector) {

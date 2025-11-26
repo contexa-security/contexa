@@ -14,7 +14,6 @@ import org.springframework.data.redis.connection.lettuce.LettuceClientConfigurat
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.GenericToStringSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
@@ -117,46 +116,28 @@ public class ZeroTrustRedisConfig {
     }
     
     /**
-     * Zero Trust 전용 최적화된 RedisTemplate
-     * 
+     * StateMachine 전용 RedisTemplate
+     *
+     * 용도:
+     * - MFA StateMachine 이벤트 발행
+     * - StateMachine 상태 변경 알림
+     *
      * 특징:
-     * - Double 타입 특화 (threat_score 저장용)
-     * - 최소한의 직렬화 오버헤드
-     * - Pipeline 지원 활성화
+     * - 이벤트 발행 전용 (타입 정보 제외)
+     * - MfaAsyncEventListener에서 사용
      */
-    @Bean(name = "zeroTrustRedisTemplate")
-    public RedisTemplate<String, Double> zeroTrustRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
-        RedisTemplate<String, Double> template = new RedisTemplate<>();
-        template.setConnectionFactory(redisConnectionFactory);
-        
-        // 키 직렬화 - String
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setHashKeySerializer(new StringRedisSerializer());
-        
-        // 값 직렬화 - Double (최소 오버헤드)
-        GenericToStringSerializer<Double> doubleSerializer = new GenericToStringSerializer<>(Double.class);
-        template.setValueSerializer(doubleSerializer);
-        template.setHashValueSerializer(doubleSerializer);
-        
-        // Pipeline 지원 활성화
-        template.setEnableTransactionSupport(false);  // 트랜잭션 비활성화 (성능 향상)
-        
-        template.afterPropertiesSet();
-        return template;
-    }
-    
-    /**
-     * 일반 용도 RedisTemplate (기존 호환성 유지)
-     */
-    @Bean
-    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+    @Bean(name = "stateMachineRedisTemplate")
+    public RedisTemplate<String, Object> stateMachineRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(redisConnectionFactory);
-        
-        // 기본 직렬화 설정
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setHashKeySerializer(new StringRedisSerializer());
-        
+
+        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+        template.setKeySerializer(stringSerializer);
+        template.setHashKeySerializer(stringSerializer);
+        template.setValueSerializer(stringSerializer);
+        template.setHashValueSerializer(stringSerializer);
+        template.setEnableTransactionSupport(false);
+
         template.afterPropertiesSet();
         return template;
     }

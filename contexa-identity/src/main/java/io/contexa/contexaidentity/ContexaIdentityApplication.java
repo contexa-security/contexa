@@ -7,10 +7,10 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-@EnableJpaRepositories(basePackages = {"io.contexa.contexacoreenterprise.repository","io.contexa.contexacore.repository","io.contexa.contexacommon.repository"})
-@EntityScan(basePackages = {"io.contexa.contexacoreenterprise.domain.entity","io.contexa.contexacore.domain.entity","io.contexa.contexaidentity.domain.entity", "io.contexa.contexacommon.entity"})
+//@EnableJpaRepositories(basePackages = {"io.contexa.contexacoreenterprise.repository","io.contexa.contexacore.repository","io.contexa.contexacommon.repository"})
+//@EntityScan(basePackages = {"io.contexa.contexacoreenterprise.domain.entity","io.contexa.contexacore.domain.entity","io.contexa.contexaidentity.domain.entity", "io.contexa.contexacommon.entity"})
 //@ComponentScan(basePackages = {"io.contexa.contexacoreenterprise","io.contexa.contexacore","io.contexa.contexaidentity","io.contexa.contexacommon"})
-@EnableJpaAuditing
+//@EnableJpaAuditing
 @SpringBootApplication
 public class ContexaIdentityApplication {
 

@@ -227,7 +227,7 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public SessionInvalidationHandler sessionInvalidationHandler(
             RedisTemplate<String, Object> redisTemplate,
-            NotificationService notificationService,
+            @Autowired(required = false) NotificationService notificationService,
             AuditLogRepository auditLogRepository) {
         return new SessionInvalidationHandler(redisTemplate, notificationService, auditLogRepository);
     }
