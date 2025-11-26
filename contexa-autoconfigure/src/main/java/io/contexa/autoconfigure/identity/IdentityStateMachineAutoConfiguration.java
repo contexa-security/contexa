@@ -103,7 +103,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Import({
     MfaStateMachineConfiguration.class
 })
-public class IdentityStateMachineAutoConfiguration implements AsyncConfigurer {
+public class IdentityStateMachineAutoConfiguration{
 
     public IdentityStateMachineAutoConfiguration() {
         log.info("IdentityStateMachineAutoConfiguration initialized - 22 beans registered");
@@ -417,69 +417,5 @@ public class IdentityStateMachineAutoConfiguration implements AsyncConfigurer {
                 executor.getQueueCapacity());
 
         return executor;
-    }
-
-    // ========== AsyncConfigurer 구현 (2개 메서드) ==========
-
-    /**
-     * 기본 비동기 Executor 제공
-     * <p>
-     * @Async 어노테이션에서 executor를 지정하지 않은 경우 사용됩니다.
-     * </p>
-     */
-    @Override
-    public Executor getAsyncExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(20);
-        executor.setQueueCapacity(500);
-        executor.setThreadNamePrefix("async-default-");
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setAwaitTerminationSeconds(30);
-        executor.initialize();
-
-        log.info("Default Async Executor initialized - Core: {}, Max: {}, Queue: {}",
-                executor.getCorePoolSize(),
-                executor.getMaxPoolSize(),
-                executor.getQueueCapacity());
-
-        return executor;
-    }
-
-    /**
-     * 비동기 예외 핸들러 제공
-     * <p>
-     * @Async 메서드에서 발생한 예외를 처리합니다.
-     * </p>
-     */
-    @Override
-    public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
-        return (throwable, method, objects) -> {
-            log.error("Async execution error in method: {} with params: {}",
-                    method.getName(), objects, throwable);
-
-            // 에러 타입별 처리
-            handleAsyncError(throwable, method.getName());
-        };
-    }
-
-    /**
-     * 비동기 에러 처리 헬퍼 메서드
-     */
-    private void handleAsyncError(Throwable throwable, String methodName) {
-        if (throwable instanceof SecurityException) {
-            log.error("Security error in async method {}: {}",
-                    methodName, throwable.getMessage());
-            // 보안 알림 전송 가능
-        } else if (throwable instanceof IllegalStateException) {
-            log.error("State error in async method {}: {}",
-                    methodName, throwable.getMessage());
-            // 상태 불일치 알림 가능
-        } else {
-            log.error("Unexpected error in async method {}: {}",
-                    methodName, throwable.getMessage());
-        }
     }
 }

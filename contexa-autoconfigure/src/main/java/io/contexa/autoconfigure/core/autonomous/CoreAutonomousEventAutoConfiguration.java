@@ -205,8 +205,8 @@ public class CoreAutonomousEventAutoConfiguration {
         return new EventNormalizer();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
+//    @Bean
+//    @ConditionalOnMissingBean
     public SecurityEventPublishingFilter securityEventPublishingFilter(
             ApplicationEventPublisher applicationEventPublisher,
             UnifiedEventPublishingDecisionEngine unifiedEventPublishingDecisionEngine) {

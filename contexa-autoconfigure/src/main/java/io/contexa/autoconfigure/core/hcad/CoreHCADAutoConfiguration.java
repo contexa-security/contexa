@@ -316,8 +316,8 @@ public class CoreHCADAutoConfiguration {
     /**
      * 7-1. HCADFilter - HCAD 필터 (조건부 등록, @Component 주석처리됨)
      */
-    @Bean
-    @ConditionalOnMissingBean
+//    @Bean
+//    @ConditionalOnMissingBean
     public HCADFilter hcadFilter(
             HCADAnalysisService hcadAnalysisService,
             @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,

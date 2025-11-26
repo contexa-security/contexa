@@ -44,6 +44,11 @@ subprojects {
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'maven-publish'
 
+    java {
+        withSourcesJar()
+        withJavadocJar()
+    }
+
     repositories {
         mavenCentral()
         maven { url = 'https://repo.spring.io/milestone' }
@@ -62,6 +67,13 @@ subprojects {
 
     tasks.withType(JavaCompile) {
         options.encoding = 'UTF-8'
+    }
+
+    // Javadoc 오류 무시 설정
+    tasks.withType(Javadoc) {
+        options.encoding = 'UTF-8'
+        options.addStringOption('Xdoclint:none', '-quiet')
+        failOnError = false
     }
 
     // 관리하는 모듈에 공통 dependencies

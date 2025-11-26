@@ -48,3 +48,8 @@ clean {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// sourcesJar가 compileJava 이후에 실행되도록 의존성 추가
+tasks.named('sourcesJar') {
+    dependsOn 'compileJava'
+}
