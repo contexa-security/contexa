@@ -122,6 +122,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
      * @return 증가된 버전 번호
      */
     public int incrementVersion() {
+        // P2-1 수정: readOnly 체크 추가
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot increment version."
+            );
+        }
         int newVersion = this.version.incrementAndGet();
         log.debug("FactorContext (ID: {}) version incremented to {} for user '{}'",
                 mfaSessionId, newVersion, this.username);
@@ -142,6 +148,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
      * @param newVersion 설정할 버전 번호
      */
     public void setVersion(int newVersion) {
+        // P2-1 수정: readOnly 체크 추가
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot set version."
+            );
+        }
         if (newVersion < 0) {
             throw new IllegalArgumentException("Version cannot be negative");
         }
@@ -234,6 +246,13 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public int incrementAttemptCount(@Nullable AuthType factorType) {
+        // P2-1 수정: readOnly 체크 추가
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot increment attempt count."
+            );
+        }
+
         if (factorType == null) {
             log.warn("FactorContext (ID: {}): Attempted to increment attempt count for a null factorType for user {}.",
                     mfaSessionId, this.username);
@@ -255,6 +274,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public void recordAttempt(@Nullable AuthType factorType, boolean success, String detail) {
+        // P2-1 수정: readOnly 체크 추가
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot record attempt."
+            );
+        }
         this.mfaAttemptHistory.add(new MfaAttemptDetail(factorType, success, detail));
         updateLastActivityTimestamp();
         // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
@@ -263,6 +288,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public int incrementFailedAttempts(String factorTypeOrStepId) {
+        // P2-1 수정: readOnly 체크 추가
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot increment failed attempts."
+            );
+        }
         Assert.hasText(factorTypeOrStepId, "factorTypeOrStepId cannot be empty");
 
         int attempts = this.failedAttempts.compute(factorTypeOrStepId,
@@ -280,6 +311,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public void resetFailedAttempts(String factorTypeOrStepId) {
+        // P2-1 수정: readOnly 체크 추가
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot reset failed attempts."
+            );
+        }
         this.failedAttempts.remove(factorTypeOrStepId);
         log.debug("FactorContext (ID: {}): Failed attempts for factor/step '{}' reset. User: {}",
                 mfaSessionId, factorTypeOrStepId, this.username);
@@ -288,6 +325,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public void resetAllFailedAttempts() {
+        // P2-1 수정: readOnly 체크 추가
+        if (readOnly) {
+            throw new IllegalStateException(
+                "FactorContext is read-only. Cannot reset all failed attempts."
+            );
+        }
         this.failedAttempts.clear();
         log.debug("FactorContext (ID: {}): All failed attempts reset. User: {}", mfaSessionId, this.username);
         updateLastActivityTimestamp();

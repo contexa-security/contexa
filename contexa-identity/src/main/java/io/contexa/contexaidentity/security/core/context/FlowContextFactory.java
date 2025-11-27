@@ -65,8 +65,18 @@ public class FlowContextFactory {
         boolean isMfaFlow = "mfa".equalsIgnoreCase(flowConfig.getTypeName());
         if (isMfaFlow) {
             log.debug("MFA flow detected for '{}', setting up MFA shared objects.", flowConfig.getTypeName());
-            setSharedObjectIfAbsent(http, MfaPolicyProvider.class, () -> appContext.getBean(MfaPolicyProvider.class));
-            /*flowConfig*/
+            // P1-2 버그 수정: DSL에서 설정한 MfaPolicyProvider 우선 사용
+            setSharedObjectIfAbsent(http, MfaPolicyProvider.class, () -> {
+                // 1. DSL 설정에서 가져오기 (flowConfig.getMfaPolicyProvider())
+                MfaPolicyProvider dslProvider = flowConfig.getMfaPolicyProvider();
+                if (dslProvider != null) {
+                    log.debug("Using MfaPolicyProvider from DSL configuration for flow '{}'", flowConfig.getTypeName());
+                    return dslProvider;
+                }
+                // 2. Fallback: ApplicationContext Bean
+                log.debug("Using MfaPolicyProvider from ApplicationContext for flow '{}'", flowConfig.getTypeName());
+                return appContext.getBean(MfaPolicyProvider.class);
+            });
             setSharedObjectIfAbsent(http, ObjectMapper.class, ObjectMapper::new);
         }
     }

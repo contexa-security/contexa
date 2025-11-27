@@ -146,18 +146,21 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
 
     /**
      * 예상치 못한 에러 처리
-     * Phase 2 개선: 직접 상태 변경 대신 이벤트 추천
+     * P2-2 수정: 직접 상태 변경 대신 이벤트 추천 (Single Source of Truth 패턴 준수)
      */
     protected void handleUnexpectedError(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext,
                                          Exception e) {
         if (factorContext != null) {
             factorContext.setLastError("Unexpected error: " + e.getMessage());
-            factorContext.changeState(MfaState.MFA_SYSTEM_ERROR);
+            // P2-2 수정: 직접 changeState() 호출 대신 이벤트 추천 설정
+            // Handler가 이 추천을 읽어서 SYSTEM_ERROR 이벤트를 State Machine에 전송
+            factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
+                                     MfaEvent.SYSTEM_ERROR);
         }
 
         // TODO: Dead Letter Queue 구현 시 unexpectedError 이벤트 발행 추가
-        // 현재는 FactorContext.lastError에 저장되어 있음
+        // 현재는 FactorContext.lastError 및 ERROR_EVENT_RECOMMENDATION에 저장되어 있음
     }
 
     /**
