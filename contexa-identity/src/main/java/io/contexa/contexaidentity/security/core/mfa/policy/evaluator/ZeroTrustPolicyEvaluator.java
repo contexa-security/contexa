@@ -333,8 +333,7 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
     @Override
     public boolean supports(FactorContext context) {
         // Zero Trust는 Redis가 사용 가능하고 Zero Trust 모드가 활성화된 경우에만 지원
-//        return isAvailable() && context != null && context.getAttribute("forceAI") == null;
-        return false;
+        return isAvailable() && context != null && context.getAttribute("forceAI") == null;
     }
     
     @Override

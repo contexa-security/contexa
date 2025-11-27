@@ -1,8 +1,11 @@
 package io.contexa.contexaidentity.security.core.mfa.model;
 
 import io.contexa.contexaidentity.security.enums.AuthType;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.springframework.lang.Nullable;
 
@@ -14,16 +17,20 @@ import java.util.Objects;
 
 /**
  * MFA 정책 평가 결과를 나타내는 DTO (Data Transfer Object)
- * 
- * 이 클래스는 MFA 정책 평가 로직의 결과를 캡슐화하여 
+ *
+ * 이 클래스는 MFA 정책 평가 로직의 결과를 캡슐화하여
  * 정책 제공자(MfaPolicyProvider) 내부에서 데이터를 전달하는 용도로 사용됩니다.
- * 
+ *
+ * P2-3 수정: Redis/Kryo 직렬화를 위한 no-arg constructor 추가
+ *
  * @author contexa
  * @since 1.0
  */
 @Getter
 @Builder(toBuilder = true)
 @ToString
+@NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)  // 직렬화용 no-arg constructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)                 // Builder용 all-args constructor
 public class MfaDecision implements Serializable {
     
     private static final long serialVersionUID = 1L;

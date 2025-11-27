@@ -21,7 +21,15 @@
       "Bash(Select-String -Pattern \"deprecated|warning\" -Context 2,1)",
       "Bash(cmd /c \"cd /d D:\\projects\\contexa && gradlew.bat clean build --warning-mode all\")",
       "Bash(D:projectscontexagradlew.bat clean build --warning-mode all)",
-      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat clean build --warning-mode all\")"
+      "Bash(cmd.exe /c \"cd /d D:\\projects\\contexa && gradlew.bat clean build --warning-mode all\")",
+      "Bash(tree:*)",
+      "Bash(dir /s d:projectscontexa*.java)",
+      "Bash(dir:*)",
+      "Bash(cmd.exe /c \"cd /d d:\\projects\\contexa && gradlew.bat :contexa-identity:compileJava --no-daemon\")",
+      "Bash(cmd.exe /c:*)",
+      "Bash(cmd /c \"cd /d d:\\projects\\contexa && call gradlew.bat :contexa-identity:compileJava --no-daemon\")",
+      "Bash(d:projectscontexagradlew.bat :contexa-identity:compileJava --no-daemon -p d:projectscontexa)",
+      "Bash(powershell.exe -Command \"cd d:\\projects\\contexa; .\\gradlew.bat :contexa-identity:compileJava --no-daemon\")"
     ],
     "deny": [],
     "ask": []
