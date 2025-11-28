@@ -210,6 +210,30 @@ public class HCADBaselineCacheService {
     }
 
     /**
+     * 특정 사용자의 캐시 무효화 (v3.1)
+     *
+     * Redis에 기준선이 업데이트된 후 로컬 캐시를 무효화하여
+     * 캐시 일관성을 보장합니다.
+     *
+     * @param userId 사용자 ID
+     */
+    public void invalidateCache(String userId) {
+        if (userId == null) {
+            return;
+        }
+
+        // Caffeine 로컬 캐시 무효화
+        localCache.invalidate(userId);
+
+        // 레거시 메모리 캐시 무효화
+        baselineCache.remove(userId);
+
+        if (log.isDebugEnabled()) {
+            log.debug("[HCAD-Cache] Cache invalidated for userId: {}", userId);
+        }
+    }
+
+    /**
      * 캐시 통계 로깅 (정기 모니터링용)
      */
     public void logCacheStatistics() {

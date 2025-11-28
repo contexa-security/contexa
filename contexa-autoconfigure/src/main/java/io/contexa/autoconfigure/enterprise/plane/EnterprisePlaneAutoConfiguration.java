@@ -9,6 +9,7 @@ import io.contexa.contexacoreenterprise.plane.service.AttackModeHysteresisManage
 import io.contexa.contexacoreenterprise.plane.service.AntiEvasionSamplingEngine;
 import io.contexa.contexacoreenterprise.plane.service.AdaptiveThresholdSystem;
 import io.contexa.contexacoreenterprise.plane.service.AccumulatedRiskCalculator;
+import io.contexa.contexacore.plane.ZeroTrustHotPathOrchestrator;
 import io.contexa.contexacoreenterprise.plane.ZeroTrustHotPathOrchestratorImpl;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -182,17 +183,20 @@ public class EnterprisePlaneAutoConfiguration {
     // ========== Orchestrator (1개) ==========
 
     /**
-     * 9. ZeroTrustHotPathOrchestratorImpl - Zero Trust HOT Path 오케스트레이터
+     * 9. ZeroTrustHotPathOrchestrator - Zero Trust HOT Path 오케스트레이터
+     *
+     * Core 모듈의 ZeroTrustHotPathOrchestrator 인터페이스 타입으로 등록하여
+     * 의존성 주입 시 인터페이스 타입으로 주입받을 수 있도록 함
      */
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(ZeroTrustHotPathOrchestrator.class)
     @ConditionalOnProperty(
         prefix = "contexa.plane",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true
     )
-    public ZeroTrustHotPathOrchestratorImpl zeroTrustHotPathOrchestratorImpl() {
+    public ZeroTrustHotPathOrchestrator zeroTrustHotPathOrchestrator() {
         return new ZeroTrustHotPathOrchestratorImpl();
     }
 }

@@ -3,14 +3,12 @@ package io.contexa.contexacore.autonomous.security.processor;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -18,8 +16,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Hot Path 이벤트 처리기
@@ -59,6 +57,12 @@ public class HotPathEventProcessor implements IPathProcessor {
 
     @Value("${security.hotpath.vector.storage:true}")
     private boolean enableVectorStorage;
+
+    @Value("${security.hotpath.zerotrust.enabled:true}")
+    private boolean enableZeroTrustVerification;
+
+    @Value("${security.hotpath.zerotrust.threshold:0.70}")
+    private double zeroTrustThreshold;
 
     @Autowired
     public HotPathEventProcessor(RedisTemplate<String, Object> redisTemplate,

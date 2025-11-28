@@ -14,7 +14,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     cache:
  *       ttl-minutes: 5
  *     defaults:
- *       trust-score: 0.5
+ *       trust-score: 0.3  # Zero Trust: 신규 사용자 낮은 신뢰도 시작
  *     thresholds:
  *       tier1: 0.8
  *       tier2: 0.6
@@ -64,9 +64,9 @@ public class SecurityTrustTierProperties {
     public static class DefaultProperties {
         /**
          * 초기 Trust Score
-         * 기본값: 0.5 (중립)
+         * Zero Trust 원칙: 0.3 (낮은 신뢰도에서 시작, Never Trust Always Verify)
          */
-        private double trustScore = 0.5;
+        private double trustScore = 0.3;
     }
 
     @Data

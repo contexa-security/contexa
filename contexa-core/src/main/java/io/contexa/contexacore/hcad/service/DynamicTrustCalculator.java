@@ -1,10 +1,16 @@
 package io.contexa.contexacore.hcad.service;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -41,8 +47,30 @@ public class DynamicTrustCalculator {
     private static final double ANOMALY_LAYER_PRIORITY = 0.2;   // 이상도 분석이 세번째
     private static final double CORRELATION_LAYER_PRIORITY = 0.1; // 상관관계가 마지막
 
-    // 사용자별 정확도 이력 캐시 (메모리 캐시)
-    private final Map<String, LayerAccuracyHistory> accuracyCache = new ConcurrentHashMap<>();
+    // 정확도 캐시 설정
+    @Value("${hcad.trust.accuracy.cache.max-size:10000}")
+    private int accuracyCacheMaxSize;
+
+    @Value("${hcad.trust.accuracy.cache.ttl-hours:24}")
+    private int accuracyCacheTtlHours;
+
+    // 사용자별 정확도 이력 캐시 (Caffeine 캐시 - TTL 기반 자동 만료로 메모리 누수 방지)
+    private Cache<String, LayerAccuracyHistory> accuracyCache;
+
+    /**
+     * 정확도 캐시 초기화
+     * Caffeine 캐시를 사용하여 TTL 기반 자동 만료로 메모리 누수를 방지한다.
+     */
+    @PostConstruct
+    public void initializeAccuracyCache() {
+        this.accuracyCache = Caffeine.newBuilder()
+            .maximumSize(accuracyCacheMaxSize)
+            .expireAfterWrite(Duration.ofHours(accuracyCacheTtlHours))
+            .recordStats()
+            .build();
+        log.info("[DynamicTrustCalculator] Accuracy cache initialized - maxSize: {}, ttlHours: {}",
+            accuracyCacheMaxSize, accuracyCacheTtlHours);
+    }
 
     /**
      * 위협 검색 Layer 신뢰도 계산
@@ -281,8 +309,8 @@ public class DynamicTrustCalculator {
      */
     private double getHistoricalAccuracy(String userId, String layerName) {
         try {
-            // 1. 메모리 캐시 조회
-            LayerAccuracyHistory history = accuracyCache.get(userId);
+            // 1. 메모리 캐시 조회 (Caffeine getIfPresent - 없으면 null 반환)
+            LayerAccuracyHistory history = accuracyCache.getIfPresent(userId);
             if (history != null) {
                 Double accuracy = history.getAccuracy(layerName);
                 if (accuracy != null) {
@@ -343,8 +371,8 @@ public class DynamicTrustCalculator {
             String key = HCADRedisKeys.modelConfidence(userId);
             redisTemplate.opsForHash().put(key, layerName + "_accuracy", newAccuracy);
 
-            // 5. 메모리 캐시 업데이트
-            LayerAccuracyHistory history = accuracyCache.computeIfAbsent(userId, k -> new LayerAccuracyHistory());
+            // 5. 메모리 캐시 업데이트 (Caffeine get with loader - 없으면 생성)
+            LayerAccuracyHistory history = accuracyCache.get(userId, k -> new LayerAccuracyHistory());
             history.setAccuracy(layerName, newAccuracy);
 
             log.debug("Accuracy updated - User: {}, Layer: {}, IsCorrect: {}, New: {:.3f}",

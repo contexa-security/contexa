@@ -138,15 +138,16 @@ public class SignalInconsistencyDetector {
             log.error("[SignalInconsistency] Failed to detect inconsistency for user {}: {}",
                     userId, e.getMessage());
 
-            // 예외 발생 시 안전한 기본값 반환
+            // Fail-Close: 예외 발생 시 불일치로 판정 (Zero Trust 원칙)
+            // 보안을 우선시하여 탐지 실패 시 의심스러운 상태로 처리
             return InconsistencyResult.builder()
-                    .inconsistent(false)
-                    .stdDev(0.0)
+                    .inconsistent(true)  // Fail-Close: 예외 시 불일치로 판정
+                    .stdDev(1.0)  // 최대 불일치 표시
                     .stdDevThreshold(0.15)
-                    .mahalanobisDistance(0.0)
+                    .mahalanobisDistance(Double.MAX_VALUE)  // 최대 거리 표시
                     .outlierThreshold(0.25)
                     .chiSquareThreshold(chiSquareThreshold)
-                    .inconsistentReasons(List.of("Error during detection"))
+                    .inconsistentReasons(List.of("Fail-Close: Error during detection - treated as inconsistent"))
                     .signalVector(signals.toArray())
                     .timestamp(LocalDateTime.now())
                     .build();

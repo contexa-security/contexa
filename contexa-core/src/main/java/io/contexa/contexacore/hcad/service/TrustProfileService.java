@@ -58,11 +58,12 @@ public class TrustProfileService {
     }
 
     private UserTrustProfile createDefaultTrustProfile(String userId) {
+        // Zero Trust 원칙: 신규 사용자는 낮은 신뢰도에서 시작 (Never Trust, Always Verify)
         return UserTrustProfile.builder()
             .userId(userId)
-            .currentTrustScore(0.5)
-            .baselineTrustScore(0.5)
-            .riskLevel(RiskLevel.MEDIUM)
+            .currentTrustScore(0.3)  // Zero Trust: 신규 사용자 기본값 0.5→0.3
+            .baselineTrustScore(0.3)  // Zero Trust: 신규 사용자 기본값 0.5→0.3
+            .riskLevel(RiskLevel.HIGH)  // 낮은 신뢰도에 맞는 위험 수준
             .profileCreatedAt(Instant.now())
             .lastUpdatedAt(Instant.now())
             .analysisCount(0L)

@@ -44,7 +44,7 @@ public class FewShotAnomalyDetector {
     public double detectAnomaly(HCADContext context) {
         if (vectorService == null) {
             log.debug("[FewShot] VectorService not available, falling back to rule-based");
-            return 0.5; // 중립
+            return 0.7;  // Zero Trust: 서비스 없음 = 알 수 없음 = 위험
         }
 
         try {
@@ -91,9 +91,9 @@ public class FewShotAnomalyDetector {
             return weightedAnomalyScore;
 
         } catch (Exception e) {
-            log.warn("[FewShot] Anomaly detection failed for userId: {}, falling back to neutral",
+            log.warn("[FewShot] Anomaly detection failed for userId: {}, falling back to high-risk",
                 context.getUserId(), e);
-            return 0.5;
+            return 0.7;  // Zero Trust: 예외 = 알 수 없음 = 위험
         }
     }
 
@@ -204,7 +204,7 @@ public class FewShotAnomalyDetector {
      */
     public double detectNormality(HCADContext context) {
         if (vectorService == null) {
-            return 0.5;
+            return 0.3;  // Zero Trust: 서비스 없음 = 낮은 정상성
         }
 
         try {
@@ -233,7 +233,7 @@ public class FewShotAnomalyDetector {
                 if (log.isDebugEnabled()) {
                     log.debug("[FewShot] No similar normal behaviors found for userId: {}", context.getUserId());
                 }
-                return 0.5;
+                return 0.3;  // Zero Trust: 정상 사례 없음 = 낮은 정상성
             }
 
             // 유사한 정상 사례가 많을수록 높은 정상성 점수
@@ -251,7 +251,7 @@ public class FewShotAnomalyDetector {
 
         } catch (Exception e) {
             log.warn("[FewShot] Normality detection failed for userId: {}", context.getUserId(), e);
-            return 0.5;
+            return 0.3;  // Zero Trust: 예외 = 낮은 정상성
         }
     }
 

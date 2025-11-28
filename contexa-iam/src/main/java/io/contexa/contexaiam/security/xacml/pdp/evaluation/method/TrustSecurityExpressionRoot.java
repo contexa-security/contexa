@@ -20,6 +20,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.dto.UserDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.Authentication;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -45,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoot {
 
     private final RedisTemplate<String, Double> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;  // 세션-사용자 매핑 조회용
     private final UnifiedNotificationService notificationService;
     
     // Caffeine 로컬 캐시 (1초 TTL)
@@ -73,9 +75,11 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
                                        AuthorizationContext authorizationContext,
                                        AuditLogRepository auditLogRepository,
                                        RedisTemplate<String, Double> redisTemplate,
+                                       StringRedisTemplate stringRedisTemplate,
                                        UnifiedNotificationService notificationService) {
         super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
         this.redisTemplate = redisTemplate;
+        this.stringRedisTemplate = stringRedisTemplate;
         this.notificationService = notificationService;
         log.debug("TrustSecurityExpressionRoot 초기화 완료 - Hot Path 모드");
     }
@@ -280,15 +284,13 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         try {
             // 세션 정보 검증을 통해 실제 세션 소유자 확인
             String sessionId = extractSessionId();
-            if (sessionId != null) {
-                // Redis에서 세션-사용자 매핑 확인
-                // RedisTemplate<String, Double> 타입으로 인해 String을 조회할 수 없음 - 컴파일 오류 해결을 위해 주석 처리
-                // String sessionOwner = (String) redisTemplate.opsForValue().get(
-                //     ZeroTrustRedisKeys.sessionToUser(sessionId)
-                // );
-                String sessionOwner = null; // 임시로 null 설정
+            if (sessionId != null && stringRedisTemplate != null) {
+                // StringRedisTemplate을 사용하여 세션-사용자 매핑 조회
+                String sessionOwner = stringRedisTemplate.opsForValue().get(
+                    ZeroTrustRedisKeys.sessionToUser(sessionId)
+                );
 
-                if (anomalyUserId.equals(sessionOwner)) {
+                if (sessionOwner != null && anomalyUserId.equals(sessionOwner)) {
                     // 실제 세션 소유자에게 이상탐지 알림을 보내야 함
                     log.error("[SESSION_HIJACKING] Session hijacking suspected - session owner: {}, current user: {}, sessionId: {}",
                         sessionOwner, currentUserId, sessionId);
@@ -310,6 +312,8 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
                 currentUserId, anomalyUserId);
             sendAnomalyAlert(currentUserId, anomalyInfo);
 
+        } catch (AnomalyDetectedException e) {
+            throw e;  // AnomalyDetectedException은 재발생
         } catch (Exception e) {
             log.error("[TrustSecurityExpressionRoot] Failed to handle session hijacking suspicion", e);
             // 에러 발생 시 안전을 위해 차단

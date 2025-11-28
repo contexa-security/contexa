@@ -1,9 +1,12 @@
 package io.contexa.contexacore.hcad.feedback;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.threshold.UnifiedThresholdManager;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,7 +19,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -67,8 +69,22 @@ public class FeedbackLoopSystem {
     @Value("${hcad.feedback.window.size:1000}")
     private int feedbackWindowSize;
 
-    // 피드백 저장소
-    private final Map<String, FeedbackRecord> feedbackStore = new ConcurrentHashMap<>();
+    // 피드백 캐시 설정
+    @Value("${hcad.feedback.cache.max-size:50000}")
+    private int feedbackCacheMaxSize;
+
+    @Value("${hcad.feedback.cache.ttl-days:30}")
+    private int feedbackCacheTtlDays;
+
+    // 베이스라인 트래커 캐시 설정
+    @Value("${hcad.feedback.tracker.cache.max-size:10000}")
+    private int trackerCacheMaxSize;
+
+    @Value("${hcad.feedback.tracker.cache.ttl-hours:24}")
+    private int trackerCacheTtlHours;
+
+    // 피드백 저장소 (Caffeine 캐시 - TTL 기반 자동 만료로 메모리 누수 방지)
+    private Cache<String, FeedbackRecord> feedbackStore;
 
     // 성능 메트릭
     private final PerformanceMetrics metrics = new PerformanceMetrics();
@@ -76,8 +92,32 @@ public class FeedbackLoopSystem {
     // 학습 큐
     private final Queue<LearningTask> learningQueue = new LinkedList<>();
 
-    // 베이스라인 업데이트 추적
-    private final Map<String, BaselineUpdateTracker> baselineTrackers = new ConcurrentHashMap<>();
+    // 베이스라인 업데이트 추적 (Caffeine 캐시 - TTL 기반 자동 만료로 메모리 누수 방지)
+    private Cache<String, BaselineUpdateTracker> baselineTrackers;
+
+    /**
+     * 캐시 초기화
+     * Caffeine 캐시를 사용하여 TTL 기반 자동 만료로 메모리 누수를 방지한다.
+     */
+    @PostConstruct
+    public void initializeCaches() {
+        // 피드백 저장소 캐시 초기화
+        this.feedbackStore = Caffeine.newBuilder()
+            .maximumSize(feedbackCacheMaxSize)
+            .expireAfterWrite(Duration.ofDays(feedbackCacheTtlDays))
+            .recordStats()
+            .build();
+
+        // 베이스라인 트래커 캐시 초기화
+        this.baselineTrackers = Caffeine.newBuilder()
+            .maximumSize(trackerCacheMaxSize)
+            .expireAfterWrite(Duration.ofHours(trackerCacheTtlHours))
+            .recordStats()
+            .build();
+
+        log.info("[FeedbackLoopSystem] Caches initialized - feedbackStore: maxSize={}, ttlDays={}, trackerCache: maxSize={}, ttlHours={}",
+            feedbackCacheMaxSize, feedbackCacheTtlDays, trackerCacheMaxSize, trackerCacheTtlHours);
+    }
 
     /**
      * 피드백 제출
@@ -321,7 +361,7 @@ public class FeedbackLoopSystem {
      * 베이스라인에 패턴 추가
      */
     private void addToBaseline(String userId, HCADContext context, double weight) {
-        BaselineUpdateTracker tracker = baselineTrackers.computeIfAbsent(userId,
+        BaselineUpdateTracker tracker = baselineTrackers.get(userId,
             k -> new BaselineUpdateTracker());
 
         tracker.addPattern(context, weight);
@@ -449,7 +489,7 @@ public class FeedbackLoopSystem {
 //    @Scheduled(fixedDelay = 3600000) // 1시간마다
     public void generatePerformanceReport() {
         log.info("=== Feedback Loop Performance Report ===");
-        log.info("Total feedbacks: {}", feedbackStore.size());
+        log.info("Total feedbacks: {}", feedbackStore.estimatedSize());
         log.info("Precision: {}", metrics.calculatePrecision());
         log.info("Recall: {}", metrics.calculateRecall());
         log.info("F1 Score: {}", metrics.calculateF1Score());
@@ -457,34 +497,25 @@ public class FeedbackLoopSystem {
         log.info("False Negative Rate: {}", metrics.getFalseNegativeRate());
 
         // 사용자별 통계
-        Map<String, Long> userStats = feedbackStore.values().stream()
+        Map<String, Long> userStats = feedbackStore.asMap().values().stream()
             .collect(Collectors.groupingBy(FeedbackRecord::getUserId, Collectors.counting()));
 
         log.info("User statistics: {}", userStats);
 
-        // 오래된 피드백 정리
-        cleanupOldFeedback();
+        // Caffeine 캐시가 TTL 기반으로 자동 만료하므로 수동 정리 불필요
+        log.info("[FeedbackLoopSystem] Cache cleanup handled by Caffeine TTL expiration");
     }
 
     /**
-     * 오래된 피드백 정리
+     * 오래된 피드백 정리 - Caffeine 캐시의 TTL 기반 자동 만료로 대체됨
+     * 명시적 호출이 필요한 경우를 위해 유지하되, 캐시 무효화 메서드 사용
      */
     private void cleanupOldFeedback() {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(30);
-
-        int removed = 0;
-        Iterator<Map.Entry<String, FeedbackRecord>> iterator = feedbackStore.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, FeedbackRecord> entry = iterator.next();
-            if (entry.getValue().getTimestamp().isBefore(cutoff)) {
-                iterator.remove();
-                removed++;
-            }
-        }
-
-        if (removed > 0) {
-            log.info("Cleaned up {} old feedback records", removed);
-        }
+        // Caffeine 캐시는 TTL 기반으로 자동 만료되므로 수동 정리 불필요
+        // 강제 정리가 필요한 경우 cleanUp() 호출로 만료된 항목 즉시 제거
+        feedbackStore.cleanUp();
+        log.info("[FeedbackLoopSystem] Cache cleanup triggered, estimated remaining: {}",
+            feedbackStore.estimatedSize());
     }
 
     // ===== Helper Methods =====
@@ -496,7 +527,7 @@ public class FeedbackLoopSystem {
 
     private void considerBaselineUpdate(String userId, HCADContext context, FeedbackType type) {
         if (type == FeedbackType.TRUE_NEGATIVE || type == FeedbackType.FALSE_POSITIVE) {
-            BaselineUpdateTracker tracker = baselineTrackers.computeIfAbsent(userId,
+            BaselineUpdateTracker tracker = baselineTrackers.get(userId,
                 k -> new BaselineUpdateTracker());
 
             double weight = type == FeedbackType.TRUE_NEGATIVE ? 1.0 : 0.7;

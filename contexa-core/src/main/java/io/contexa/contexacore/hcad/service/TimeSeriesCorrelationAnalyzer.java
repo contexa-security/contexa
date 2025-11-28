@@ -62,7 +62,7 @@ public class TimeSeriesCorrelationAnalyzer {
                     log.debug("[TimeSeries] Insufficient data for userId: {}, count: {}",
                         userId, recentRequests.size());
                 }
-                return 0.5;  // 중립
+                return 0.7;  // Zero Trust: 데이터 부족 = 알 수 없음 = 위험
             }
 
             // 4. 시계열 분석 수행
@@ -84,7 +84,7 @@ public class TimeSeriesCorrelationAnalyzer {
 
         } catch (Exception e) {
             log.warn("[TimeSeries] Temporal analysis failed for userId: {}", userId, e);
-            return 0.5;
+            return 0.7;  // Zero Trust: 예외 = 알 수 없음 = 위험
         }
     }
 
@@ -100,7 +100,7 @@ public class TimeSeriesCorrelationAnalyzer {
      */
     private double analyzeIntervalPattern(List<HCADContext> requests) {
         if (requests.size() < 5) {
-            return 0.5;
+            return 0.7;  // Zero Trust: 데이터 부족 = 위험
         }
 
         // 1. 요청 간격 추출 (밀리초)
@@ -117,7 +117,7 @@ public class TimeSeriesCorrelationAnalyzer {
         }
 
         if (intervals.size() < 3) {
-            return 0.5;
+            return 0.7;  // Zero Trust: 간격 데이터 부족 = 위험
         }
 
         // 2. Autocorrelation 계산 (lag=1)
@@ -164,7 +164,7 @@ public class TimeSeriesCorrelationAnalyzer {
      */
     private double analyzePathPattern(List<HCADContext> requests) {
         if (requests.size() < 5) {
-            return 0.5;
+            return 0.7;  // Zero Trust: 데이터 부족 = 위험
         }
 
         // 1. 경로 다양성 분석
@@ -238,7 +238,7 @@ public class TimeSeriesCorrelationAnalyzer {
      */
     private double analyzeBurstPattern(List<HCADContext> requests) {
         if (requests.size() < 10) {
-            return 0.5;
+            return 0.7;  // Zero Trust: 데이터 부족 = 위험
         }
 
         // 1. 최근 5개와 이전 5개 요청의 평균 간격 비교
@@ -246,7 +246,7 @@ public class TimeSeriesCorrelationAnalyzer {
         List<Long> previousIntervals = extractIntervals(requests.subList(requests.size() - 10, requests.size() - 5));
 
         if (recentIntervals.isEmpty() || previousIntervals.isEmpty()) {
-            return 0.5;
+            return 0.7;  // Zero Trust: 간격 데이터 없음 = 위험
         }
 
         double recentAvg = recentIntervals.stream().mapToLong(Long::longValue).average().orElse(1000.0);

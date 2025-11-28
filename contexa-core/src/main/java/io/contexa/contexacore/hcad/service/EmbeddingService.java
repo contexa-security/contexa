@@ -189,7 +189,7 @@ public class EmbeddingService {
     public double calculateCosineSimilarity(float[] a, float[] b) {
         if (a.length != b.length) {
             log.warn("[EmbeddingService] Vector dimension mismatch: {} vs {}", a.length, b.length);
-            return 0.5; // 중립값
+            return 0.3;  // Zero Trust: 벡터 불일치 = 낮은 유사도
         }
 
         // VectorSimilarityUtil 통합 사용

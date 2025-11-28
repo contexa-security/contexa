@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
@@ -61,6 +62,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     
     // === Zero Trust 의존성 ===
     private final RedisTemplate<String, Double> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;  // 세션-사용자 매핑 조회용
     private final UnifiedNotificationService notificationService;
     
     // Zero Trust 모드 설정
@@ -81,9 +83,10 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             GroupRepository groupRepository,
             DocumentRepository documentRepository,
             RedisTemplate<String, Double> redisTemplate,
+            StringRedisTemplate stringRedisTemplate,
             UnifiedNotificationService notificationService) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
-        
+
         this.policyRetrievalPoint = policyRetrievalPoint;
         this.contextHandler = contextHandler;
         this.attributePIP = attributePIP;
@@ -95,10 +98,11 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.documentRepository = documentRepository;
         this.groupRepository = groupRepository;
         this.redisTemplate = redisTemplate;
+        this.stringRedisTemplate = stringRedisTemplate;
         this.notificationService = notificationService;
         super.setPermissionEvaluator(customPermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
-        
+
         log.info("CustomMethodSecurityExpressionHandler 초기화 완료 - Zero Trust 모드: {}", zeroTrustMode);
     }
 
@@ -121,7 +125,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 // Hot Path - Redis 조회만 수행
                 root = new TrustSecurityExpressionRoot(
                     auth, attributePIP, aINativeProcessor, authorizationContext,
-                    auditLogRepository, redisTemplate, notificationService);
+                    auditLogRepository, redisTemplate, stringRedisTemplate, notificationService);
                 log.debug("Zero Trust TRUST 모드 - TrustSecurityExpressionRoot 사용 (Redis 조회)");
                 break;
                 

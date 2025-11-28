@@ -2,6 +2,7 @@ package io.contexa.contexacoreenterprise.plane;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.decision.EventTier;
+import io.contexa.contexacore.plane.ZeroTrustHotPathOrchestrator;
 import io.contexa.contexacoreenterprise.dashboard.metrics.plane.OrthogonalSignalCollector;
 import io.contexa.contexacore.hcad.service.HCADSimilarityCalculator.TrustedSimilarityResult;
 import io.contexa.contexacoreenterprise.plane.service.*;
@@ -44,7 +45,7 @@ import java.util.Map;
  * @since 3.0
  */
 @Slf4j
-public class ZeroTrustHotPathOrchestratorImpl {
+public class ZeroTrustHotPathOrchestratorImpl implements ZeroTrustHotPathOrchestrator {
 
     @Autowired
     private AntiEvasionSamplingEngine samplingEngine;
@@ -202,6 +203,170 @@ public class ZeroTrustHotPathOrchestratorImpl {
                     .processingTimeMs(System.currentTimeMillis() - startTime)
                     .build();
         }
+    }
+
+    /**
+     * ZeroTrustHotPathOrchestrator 인터페이스 구현
+     *
+     * HOT Path 이벤트에 대한 Zero Trust 평가 후 TrustedSimilarityResult 조정
+     * Phase 1.3 확장: 7차원 신호 및 Zero Trust 검증 정보 포함
+     *
+     * @param event SecurityEvent
+     * @param originalResult HCAD 분석 원본 결과
+     * @return 조정된 TrustedSimilarityResult (Zero Trust 평가 결과 반영)
+     */
+    @Override
+    public TrustedSimilarityResult evaluateAndAdjustResult(
+            SecurityEvent event,
+            TrustedSimilarityResult originalResult) {
+
+        // 기존 evaluateHotPathEvent() 호출하여 Zero Trust 평가 수행
+        ZeroTrustDecision decision = evaluateHotPathEvent(event, originalResult);
+
+        // 7차원 신호 값 추출 (null-safe)
+        OrthogonalSignals signals = decision.getSignals();
+        double networkSignal = signals != null ? signals.getNetworkSignal() : 0.5;
+        double cryptoSignal = signals != null ? signals.getCryptoSignal() : 0.5;
+        double timingSignal = signals != null ? signals.getTimingSignal() : 0.5;
+
+        // 위험 요소 목록 생성
+        java.util.List<TrustedSimilarityResult.RiskFactor> riskFactors = buildRiskFactors(decision);
+
+        // decision 결과에 따라 TrustedSimilarityResult 조정
+        if (decision.getDecision() == Decision.ROUTE_TO_COLD_PATH) {
+            // Zero Trust 평가 실패 -> trustScore 하향 조정 (0.3 감소)
+            double adjustedTrust = Math.max(0.0, originalResult.getTrustScore() - 0.3);
+
+            log.info("[ZeroTrustHotPath] Adjusting TrustedSimilarityResult for Cold Path routing: " +
+                    "eventId={}, reason={}, originalTrust={}, adjustedTrust={}",
+                    event.getEventId(), decision.getReason(), originalResult.getTrustScore(), adjustedTrust);
+
+            return TrustedSimilarityResult.builder()
+                    .finalSimilarity(originalResult.getFinalSimilarity())
+                    .trustScore(adjustedTrust)
+                    .crossValidationPassed(false)
+                    .threatEvidence(decision.getReason())
+                    .threatType(originalResult.getThreatType())
+                    .layer1ThreatSearchScore(originalResult.getLayer1ThreatSearchScore())
+                    .layer2BaselineSimilarity(originalResult.getLayer2BaselineSimilarity())
+                    .layer3AnomalyScore(originalResult.getLayer3AnomalyScore())
+                    .layer4CorrelationScore(originalResult.getLayer4CorrelationScore())
+                    // Zero Trust 확장 필드
+                    .adjustedSimilarity(Math.max(0.0, originalResult.getFinalSimilarity() - 0.3))
+                    .zeroTrustVerified(true)
+                    .verificationLevel(TrustedSimilarityResult.VerificationLevel.FULL)
+                    .riskFactors(riskFactors)
+                    // 7차원 신호
+                    .networkSignal(networkSignal)
+                    .cryptoSignal(cryptoSignal)
+                    .timingSignal(timingSignal)
+                    .build();
+        }
+
+        if (decision.getDecision() == Decision.ALLOW_HOT_PATH_DEGRADED) {
+            // Graceful Degradation -> trustScore 소폭 하향 조정 (0.1 감소)
+            double adjustedTrust = Math.max(0.0, originalResult.getTrustScore() - 0.1);
+
+            log.debug("[ZeroTrustHotPath] Degraded HOT Path: eventId={}, reason={}",
+                    event.getEventId(), decision.getReason());
+
+            return TrustedSimilarityResult.builder()
+                    .finalSimilarity(originalResult.getFinalSimilarity())
+                    .trustScore(adjustedTrust)
+                    .crossValidationPassed(originalResult.isCrossValidationPassed())
+                    .threatEvidence(originalResult.getThreatEvidence() + "_DEGRADED")
+                    .threatType(originalResult.getThreatType())
+                    .layer1ThreatSearchScore(originalResult.getLayer1ThreatSearchScore())
+                    .layer2BaselineSimilarity(originalResult.getLayer2BaselineSimilarity())
+                    .layer3AnomalyScore(originalResult.getLayer3AnomalyScore())
+                    .layer4CorrelationScore(originalResult.getLayer4CorrelationScore())
+                    // Zero Trust 확장 필드
+                    .adjustedSimilarity(Math.max(0.0, originalResult.getFinalSimilarity() - 0.1))
+                    .zeroTrustVerified(true)
+                    .verificationLevel(TrustedSimilarityResult.VerificationLevel.BASIC)
+                    .riskFactors(riskFactors)
+                    // 7차원 신호
+                    .networkSignal(networkSignal)
+                    .cryptoSignal(cryptoSignal)
+                    .timingSignal(timingSignal)
+                    .build();
+        }
+
+        // ALLOW_HOT_PATH -> Zero Trust 검증 통과, 확장 필드 추가하여 반환
+        return TrustedSimilarityResult.builder()
+                .finalSimilarity(originalResult.getFinalSimilarity())
+                .trustScore(originalResult.getTrustScore())
+                .crossValidationPassed(originalResult.isCrossValidationPassed())
+                .threatEvidence(originalResult.getThreatEvidence())
+                .threatType(originalResult.getThreatType())
+                .layer1ThreatSearchScore(originalResult.getLayer1ThreatSearchScore())
+                .layer2BaselineSimilarity(originalResult.getLayer2BaselineSimilarity())
+                .layer3AnomalyScore(originalResult.getLayer3AnomalyScore())
+                .layer4CorrelationScore(originalResult.getLayer4CorrelationScore())
+                // Zero Trust 확장 필드
+                .adjustedSimilarity(originalResult.getFinalSimilarity())
+                .zeroTrustVerified(true)
+                .verificationLevel(decision.isShouldSample() ?
+                        TrustedSimilarityResult.VerificationLevel.FULL :
+                        TrustedSimilarityResult.VerificationLevel.BASIC)
+                .riskFactors(java.util.Collections.emptyList())
+                // 7차원 신호
+                .networkSignal(networkSignal)
+                .cryptoSignal(cryptoSignal)
+                .timingSignal(timingSignal)
+                .build();
+    }
+
+    /**
+     * ZeroTrustDecision에서 RiskFactor 목록 생성
+     */
+    private java.util.List<TrustedSimilarityResult.RiskFactor> buildRiskFactors(ZeroTrustDecision decision) {
+        java.util.List<TrustedSimilarityResult.RiskFactor> factors = new java.util.ArrayList<>();
+
+        // 공격 모드 상태 기반 위험 요소
+        if (decision.getAttackMode() != null &&
+            decision.getAttackMode().getMode() != AttackModeHysteresisManager.AttackMode.NORMAL) {
+            factors.add(TrustedSimilarityResult.RiskFactor.builder()
+                    .type("ATTACK_MODE")
+                    .score(decision.getAttackMode().getMode() == AttackModeHysteresisManager.AttackMode.CONFIRMED ? 1.0 : 0.7)
+                    .description("Attack mode: " + decision.getAttackMode().getMode())
+                    .source("HYSTERESIS")
+                    .build());
+        }
+
+        // Honeypot 패턴 기반 위험 요소
+        if (decision.getHoneypotResult() != null && decision.getHoneypotResult().isSuspicious()) {
+            factors.add(TrustedSimilarityResult.RiskFactor.builder()
+                    .type("HONEYPOT_ACCESS")
+                    .score(decision.getHoneypotResult().getSuspicionScore())
+                    .description("Suspicious honeypot access pattern detected")
+                    .source("HONEYPOT")
+                    .build());
+        }
+
+        // 신호 불일치 기반 위험 요소
+        if (decision.getInconsistency() != null && decision.getInconsistency().isInconsistent()) {
+            factors.add(TrustedSimilarityResult.RiskFactor.builder()
+                    .type("SIGNAL_INCONSISTENCY")
+                    .score(Math.min(1.0, decision.getInconsistency().getMahalanobisDistance() / 10.0))
+                    .description("Signal inconsistency detected (Mahalanobis: " +
+                            String.format("%.2f", decision.getInconsistency().getMahalanobisDistance()) + ")")
+                    .source("MAHALANOBIS")
+                    .build());
+        }
+
+        // 누적 위험 기반 위험 요소
+        if (decision.getRiskResult() != null &&
+            decision.getRiskResult().getRiskLevel() != AccumulatedRiskCalculator.RiskLevel.LOW) {
+            factors.add(TrustedSimilarityResult.RiskFactor.builder()
+                    .type("ACCUMULATED_RISK")
+                    .score(decision.getRiskResult().getAccumulatedRisk())
+                    .description("Accumulated risk level: " + decision.getRiskResult().getRiskLevel())
+                    .source("RISK_CALCULATOR")
+                    .build());
+        }
+
+        return factors;
     }
 
     // ===== Private Methods =====

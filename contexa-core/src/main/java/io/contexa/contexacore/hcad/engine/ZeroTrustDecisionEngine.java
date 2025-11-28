@@ -1,5 +1,7 @@
 package io.contexa.contexacore.hcad.engine;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -7,6 +9,7 @@ import io.contexa.contexacore.hcad.domain.*;
 import io.contexa.contexacore.hcad.service.ZeroTrustThresholdManager;
 import io.contexa.contexacore.hcad.service.ThreatCorrelationService;
 import io.contexa.contexacore.hcad.service.TrustProfileService;
+import jakarta.annotation.PostConstruct;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,7 +18,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Zero Trust Decision Engine (v2.0)
@@ -50,11 +52,33 @@ public class ZeroTrustDecisionEngine {
     private final ThreatCorrelationService threatCorrelationService;
     private final ZeroTrustThresholdManager zeroTrustThresholdManager;
 
-    // 활성 위협 세션 관리
-    private final Map<String, ActiveThreatSession> activeThreatSessions = new ConcurrentHashMap<>();
+    // 활성 위협 세션 캐시 설정
+    @Value("${zerotrust.engine.session.cache.max-size:10000}")
+    private int sessionCacheMaxSize;
+
+    @Value("${zerotrust.engine.session.cache.ttl-minutes:30}")
+    private int sessionCacheTtlMinutes;
+
+    // 활성 위협 세션 관리 (Caffeine 캐시 - TTL 기반 자동 만료로 메모리 누수 방지)
+    private Cache<String, ActiveThreatSession> activeThreatSessions;
 
     @Value("${zerotrust.engine.enabled:true}")
     private boolean engineEnabled;
+
+    /**
+     * 세션 캐시 초기화
+     * Caffeine 캐시를 사용하여 TTL 기반 자동 만료로 메모리 누수를 방지한다.
+     */
+    @PostConstruct
+    public void initializeSessionCache() {
+        this.activeThreatSessions = Caffeine.newBuilder()
+            .maximumSize(sessionCacheMaxSize)
+            .expireAfterWrite(Duration.ofMinutes(sessionCacheTtlMinutes))
+            .recordStats()
+            .build();
+        log.info("[ZeroTrustDecisionEngine] Session cache initialized - maxSize: {}, ttlMinutes: {}",
+            sessionCacheMaxSize, sessionCacheTtlMinutes);
+    }
 
     /**
      * AI 진단 결과 기반 Zero Trust 결정 생성

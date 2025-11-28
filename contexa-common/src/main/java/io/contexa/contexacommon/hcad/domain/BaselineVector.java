@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +41,10 @@ import java.util.stream.Collectors;
 public class BaselineVector implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    // Thread-Safety: ReentrantReadWriteLock (v3.1)
+    // transient - Redis 직렬화에서 제외
+    private transient final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private String userId;
     private double[] vector; // 정상 행동 벡터 (384차원)
@@ -114,6 +121,78 @@ public class BaselineVector implements Serializable {
     private Double averageBandwidth; // 평균 대역폭 사용량
     private String[] trustedProxyChains; // 신뢰할 수 있는 프록시 체인
 
+    // ========== NaN/Infinity 검증 유틸리티 (v3.2) ==========
+
+    /**
+     * double 배열에 NaN 또는 Infinity 값이 있는지 검증
+     *
+     * @param vector 검증할 벡터
+     * @return true면 NaN/Infinity 포함, false면 정상
+     */
+    private static boolean containsInvalidValue(double[] vector) {
+        if (vector == null) return true;
+        for (double v : vector) {
+            if (Double.isNaN(v) || Double.isInfinite(v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * float 배열에 NaN 또는 Infinity 값이 있는지 검증
+     *
+     * @param vector 검증할 벡터
+     * @return true면 NaN/Infinity 포함, false면 정상
+     */
+    private static boolean containsInvalidValue(float[] vector) {
+        if (vector == null) return true;
+        for (float v : vector) {
+            if (Float.isNaN(v) || Float.isInfinite(v)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 단일 double 값이 유효한지 검증
+     *
+     * @param value 검증할 값
+     * @return true면 유효, false면 NaN/Infinity
+     */
+    private static boolean isValidValue(double value) {
+        return !Double.isNaN(value) && !Double.isInfinite(value);
+    }
+
+    /**
+     * double 배열의 NaN/Infinity를 기본값으로 대체
+     *
+     * @param vector 정제할 벡터
+     * @param defaultValue 대체할 기본값
+     * @return 정제된 벡터 (원본 수정)
+     */
+    private static double[] sanitizeVector(double[] vector, double defaultValue) {
+        if (vector == null) return null;
+        for (int i = 0; i < vector.length; i++) {
+            if (Double.isNaN(vector[i]) || Double.isInfinite(vector[i])) {
+                vector[i] = defaultValue;
+            }
+        }
+        return vector;
+    }
+
+    /**
+     * double 값이 NaN/Infinity면 기본값 반환
+     *
+     * @param value 검증할 값
+     * @param defaultValue 기본값
+     * @return 유효한 값 또는 기본값
+     */
+    private static double sanitizeValue(double value, double defaultValue) {
+        return isValidValue(value) ? value : defaultValue;
+    }
+
     /**
      * 새로운 컨텍스트로 기준선 업데이트 (v3.0 - ND4J SIMD 최적화)
      *
@@ -130,51 +209,83 @@ public class BaselineVector implements Serializable {
      *
      * Fallback: ND4J 사용 불가 시 순수 자바 구현
      *
+     * Thread-Safety: ReentrantReadWriteLock으로 동시성 문제 해결 (v3.1)
+     * - writeLock: 배타적 쓰기 (다른 읽기/쓰기 차단)
+     * - synchronized 대비 읽기 작업 병렬 처리로 성능 향상
+     *
      * @param context HCAD 컨텍스트
      * @param alpha 학습률 (0.0 ~ 1.0)
      */
     public void updateWithContext(HCADContext context, double alpha) {
         double[] newVector = context.toVector();
 
-        // 384차원 검증
+        // 384차원 검증 (Lock 밖에서 수행 - 검증 실패 시 Lock 획득 불필요)
         if (newVector == null || newVector.length != 384) {
             log.warn("Invalid vector dimension for update: {}",
                 newVector != null ? newVector.length : "null");
             return;
         }
 
-        if (vector == null || vector.length != 384) {
-            // 첫 번째 업데이트인 경우 또는 차원 불일치 시
-            vector = new double[384];
-            System.arraycopy(newVector, 0, vector, 0, 384);
-            updateCount = 1L;
-            confidence = 0.1; // 초기 신뢰도는 낮게
-
-            // 통계 정보 초기화
-            initializeStatistics(context, newVector);
-        } else {
-            try {
-                // ND4J SIMD 최적화 버전 (10-20배 빠름)
-                updateVectorWithND4J(newVector, alpha);
-            } catch (Throwable e) {
-                // Fallback: 순수 자바 구현
-                log.debug("[HCAD] ND4J not available, using pure Java: {}", e.getMessage());
-                updateVectorPureJava(newVector, alpha);
-            }
-
-            updateCount++;
-
-            // 신뢰도 증가 (최대 1.0)
-            confidence = Math.min(1.0, confidence + 0.01);
-
-            // 통계 정보 업데이트
-            updateStatistics(context, newVector);
+        // NaN/Infinity 검증 (v3.2 - 벡터 무결성 보장)
+        if (containsInvalidValue(newVector)) {
+            log.warn("[BaselineVector] NaN/Infinity detected in input vector, sanitizing for userId: {}",
+                context.getUserId());
+            sanitizeVector(newVector, 0.0);
         }
 
-        // 벡터 노름 계산 및 저장
-        lastVectorNorm = calculateVectorNorm(vector);
+        // alpha 검증 (0.0 ~ 1.0 범위)
+        alpha = sanitizeValue(alpha, 0.1);
+        if (alpha < 0.0 || alpha > 1.0) {
+            log.warn("[BaselineVector] Invalid alpha value: {}, using default 0.1", alpha);
+            alpha = 0.1;
+        }
 
-        lastUpdated = Instant.now();
+        // Write Lock 획득
+        ReentrantReadWriteLock lock = getLock();
+        lock.writeLock().lock();
+        try {
+            if (vector == null || vector.length != 384) {
+                // 첫 번째 업데이트인 경우 또는 차원 불일치 시
+                vector = new double[384];
+                System.arraycopy(newVector, 0, vector, 0, 384);
+                updateCount = 1L;
+                confidence = 0.1; // 초기 신뢰도는 낮게
+
+                // 통계 정보 초기화
+                initializeStatistics(context, newVector);
+            } else {
+                try {
+                    // ND4J SIMD 최적화 버전 (10-20배 빠름)
+                    updateVectorWithND4J(newVector, alpha);
+                } catch (Throwable e) {
+                    // Fallback: 순수 자바 구현
+                    log.debug("[HCAD] ND4J not available, using pure Java: {}", e.getMessage());
+                    updateVectorPureJava(newVector, alpha);
+                }
+
+                updateCount++;
+
+                // 신뢰도 증가 (최대 1.0)
+                confidence = Math.min(1.0, confidence + 0.01);
+
+                // 통계 정보 업데이트
+                updateStatistics(context, newVector);
+            }
+
+            // 벡터 노름 계산 및 저장
+            lastVectorNorm = calculateVectorNorm(vector);
+
+            lastUpdated = Instant.now();
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Lock 인스턴스 조회 (역직렬화 후 null 방지)
+     */
+    private ReentrantReadWriteLock getLock() {
+        return rwLock != null ? rwLock : new ReentrantReadWriteLock();
     }
 
     /**
@@ -293,10 +404,26 @@ public class BaselineVector implements Serializable {
      * @return Z-score 값
      */
     public double calculateZScore(double anomalyScore) {
+        // NaN/Infinity 검증 (v3.2)
+        if (!isValidValue(anomalyScore)) {
+            log.warn("[BaselineVector] Invalid anomalyScore for Z-score calculation, returning 0.0");
+            return 0.0;
+        }
+
         if (anomalyScoreMean == null || anomalyScoreStdDev == null || anomalyScoreStdDev < 0.01) {
             return 0.0; // 통계 정보 부족
         }
-        return Math.abs((anomalyScore - anomalyScoreMean) / anomalyScoreStdDev);
+
+        // NaN/Infinity 검증 (v3.2)
+        if (!isValidValue(anomalyScoreMean) || !isValidValue(anomalyScoreStdDev)) {
+            log.warn("[BaselineVector] Invalid statistics for Z-score calculation, returning 0.0");
+            return 0.0;
+        }
+
+        double zScore = Math.abs((anomalyScore - anomalyScoreMean) / anomalyScoreStdDev);
+
+        // 결과 검증 (v3.2)
+        return sanitizeValue(zScore, 0.0);
     }
 
     /**
@@ -546,8 +673,21 @@ public class BaselineVector implements Serializable {
             return 0.5; // 차원 불일치시 중립값
         }
 
+        // NaN/Infinity 검증 (v3.2)
+        if (containsInvalidValue(contextVector)) {
+            log.warn("[BaselineVector] NaN/Infinity in context vector, returning neutral value");
+            return 0.5;
+        }
+        if (containsInvalidValue(vector)) {
+            log.warn("[BaselineVector] NaN/Infinity in baseline vector, sanitizing");
+            sanitizeVector(vector, 0.0);
+        }
+
         // VectorSimilarityUtil 통합 사용
-        return VectorSimilarityUtil.cosineSimilarity(vector, contextVector);
+        double similarity = VectorSimilarityUtil.cosineSimilarity(vector, contextVector);
+
+        // 결과 검증 (v3.2)
+        return sanitizeValue(similarity, 0.5);
     }
 
     /**

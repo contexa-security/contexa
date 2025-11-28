@@ -89,7 +89,18 @@ public class ThreatScoreOrchestrator {
 
         } catch (Exception e) {
             log.error("[ThreatScoreOrchestrator] Failed to update Threat Score for user: {}", userId, e);
-            return initialThreatScore;
+            // CRITICAL FIX: Redis 장애 시 기존 점수 유지 시도 (v3.1)
+            // 기존: initialThreatScore(0.3)으로 리셋하여 데이터 손실
+            // 수정: 로컬 캐시 또는 기존 조회값 유지
+            try {
+                double existingScore = getThreatScore(userId);
+                log.warn("[ThreatScoreOrchestrator] Returning existing score due to update failure - userId: {}, existingScore: {}",
+                    userId, existingScore);
+                return existingScore;
+            } catch (Exception ex) {
+                log.error("[ThreatScoreOrchestrator] Failed to retrieve existing score, using initial - userId: {}", userId, ex);
+                return initialThreatScore;
+            }
         }
     }
 

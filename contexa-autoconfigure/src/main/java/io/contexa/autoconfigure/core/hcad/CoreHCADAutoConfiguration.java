@@ -119,8 +119,9 @@ public class CoreHCADAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public HCADBaselineLearningService hcadBaselineLearningService(
-            RedisTemplate<String, Object> redisTemplate) {
-        return new HCADBaselineLearningService(redisTemplate);
+            RedisTemplate<String, Object> redisTemplate,
+            HCADBaselineCacheService cacheService) {
+        return new HCADBaselineLearningService(redisTemplate, cacheService);
     }
 
     /**

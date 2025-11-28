@@ -1,5 +1,7 @@
 package io.contexa.contexacore.hcad.orchestrator;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
@@ -8,6 +10,7 @@ import io.contexa.contexacore.hcad.feedback.FeedbackLoopSystem;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager;
 import io.contexa.contexacommon.hcad.util.VectorSimilarityUtil;
+import jakarta.annotation.PostConstruct;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +27,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -72,9 +74,47 @@ public class HCADFeedbackOrchestrator {
     @Value("${hcad.orchestrator.performance-tracking:true}")
     private boolean performanceTrackingEnabled;
 
-    // 내부 상태 관리
-    private final Map<String, OrchestrationSession> activeSessions = new ConcurrentHashMap<>();
-    private final Map<String, PerformanceMetrics> componentMetrics = new ConcurrentHashMap<>();
+    // 세션 캐시 설정
+    @Value("${hcad.orchestrator.session.cache.max-size:5000}")
+    private int sessionCacheMaxSize;
+
+    @Value("${hcad.orchestrator.session.cache.ttl-minutes:30}")
+    private int sessionCacheTtlMinutes;
+
+    // 메트릭 캐시 설정
+    @Value("${hcad.orchestrator.metrics.cache.max-size:1000}")
+    private int metricsCacheMaxSize;
+
+    @Value("${hcad.orchestrator.metrics.cache.ttl-hours:1}")
+    private int metricsCacheTtlHours;
+
+    // 내부 상태 관리 (Caffeine 캐시 - TTL 기반 자동 만료로 메모리 누수 방지)
+    private Cache<String, OrchestrationSession> activeSessions;
+    private Cache<String, PerformanceMetrics> componentMetrics;
+
+    /**
+     * 캐시 초기화
+     * Caffeine 캐시를 사용하여 TTL 기반 자동 만료로 메모리 누수를 방지한다.
+     */
+    @PostConstruct
+    public void initializeCaches() {
+        // 활성 세션 캐시 초기화
+        this.activeSessions = Caffeine.newBuilder()
+            .maximumSize(sessionCacheMaxSize)
+            .expireAfterWrite(Duration.ofMinutes(sessionCacheTtlMinutes))
+            .recordStats()
+            .build();
+
+        // 컴포넌트 메트릭 캐시 초기화
+        this.componentMetrics = Caffeine.newBuilder()
+            .maximumSize(metricsCacheMaxSize)
+            .expireAfterWrite(Duration.ofHours(metricsCacheTtlHours))
+            .recordStats()
+            .build();
+
+        log.info("[HCADFeedbackOrchestrator] Caches initialized - sessions: maxSize={}, ttlMinutes={}, metrics: maxSize={}, ttlHours={}",
+            sessionCacheMaxSize, sessionCacheTtlMinutes, metricsCacheMaxSize, metricsCacheTtlHours);
+    }
 
     /**
      * 통합 HCAD 분석 수행
@@ -100,19 +140,19 @@ public class HCADFeedbackOrchestrator {
                 .thenCompose(this::performFeedbackIntegration)
                 .thenApply(result -> {
                     updatePerformanceMetrics(session, result);
-                    activeSessions.remove(sessionId);
+                    activeSessions.invalidate(sessionId);
                     return result;
                 })
                 .whenComplete((result, throwable) -> {
                     if (throwable != null) {
                         log.error("[HCADFeedbackOrchestrator] Analysis failed for session {}", sessionId, throwable);
-                        activeSessions.remove(sessionId);
+                        activeSessions.invalidate(sessionId);
                     }
                 });
 
         } catch (Exception e) {
             log.error("[HCADFeedbackOrchestrator] Error in integrated analysis for session {}", sessionId, e);
-            activeSessions.remove(sessionId);
+            activeSessions.invalidate(sessionId);
             return CompletableFuture.completedFuture(createErrorResult(event, e));
         }
     }
@@ -317,7 +357,7 @@ public class HCADFeedbackOrchestrator {
 
         } catch (Exception e) {
             log.error("[HCADFeedbackOrchestrator] Risk score calculation failed", e);
-            return 0.5; // 중간값 반환
+            return 0.7;  // Zero Trust: 예외 = 알 수 없음 = 위험
         }
     }
 
@@ -342,7 +382,7 @@ public class HCADFeedbackOrchestrator {
 
         } catch (Exception e) {
             log.error("[HCADFeedbackOrchestrator] Trust score calculation failed", e);
-            return 0.5;
+            return 0.3;  // Zero Trust: 예외 = 낮은 신뢰
         }
     }
 
@@ -452,7 +492,7 @@ public class HCADFeedbackOrchestrator {
     private double calculateCosineSimilarity(HCADContext context, BaselineVector baseline) {
         try {
             if (baseline == null || baseline.getEmbedding() == null) {
-                return 0.5;
+                return 0.3;  // Zero Trust: baseline 없음 = 낮은 유사도
             }
 
             double[] contextVector = context.toVector();
@@ -460,7 +500,7 @@ public class HCADFeedbackOrchestrator {
 
             if (contextVector == null || baselineVector == null ||
                 contextVector.length != baselineVector.length) {
-                return 0.5;
+                return 0.3;  // Zero Trust: 벡터 불일치 = 낮은 유사도
             }
 
             // VectorSimilarityUtil 통합 사용
@@ -471,7 +511,7 @@ public class HCADFeedbackOrchestrator {
 
         } catch (Exception e) {
             log.error("Failed to calculate cosine similarity", e);
-            return 0.5;
+            return 0.3;  // Zero Trust: 예외 = 낮은 유사도
         }
     }
 
@@ -499,7 +539,7 @@ public class HCADFeedbackOrchestrator {
 
         } catch (Exception e) {
             log.error("Failed to calculate temporal anomaly score", e);
-            return 0.5;
+            return 0.7;  // Zero Trust: 예외 = 높은 이상 점수
         }
     }
 
@@ -525,7 +565,7 @@ public class HCADFeedbackOrchestrator {
 
         } catch (Exception e) {
             log.error("Failed to calculate geographic anomaly score", e);
-            return 0.5;
+            return 0.7;  // Zero Trust: 예외 = 높은 이상 점수
         }
     }
 
@@ -564,7 +604,7 @@ public class HCADFeedbackOrchestrator {
 
         } catch (Exception e) {
             log.error("Failed to calculate behavior anomaly score", e);
-            return 0.5;  // Zero Trust: error = unknown = neutral risk
+            return 0.7;  // Zero Trust: 예외 = 알 수 없음 = 위험
         }
     }
 
@@ -869,7 +909,7 @@ public class HCADFeedbackOrchestrator {
 
         try {
             String metricsKey = "orchestrator_" + session.getLayerName();
-            PerformanceMetrics metrics = componentMetrics.computeIfAbsent(metricsKey,
+            PerformanceMetrics metrics = componentMetrics.get(metricsKey,
                 k -> PerformanceMetrics.builder()
                     .componentName(k)
                     .build());

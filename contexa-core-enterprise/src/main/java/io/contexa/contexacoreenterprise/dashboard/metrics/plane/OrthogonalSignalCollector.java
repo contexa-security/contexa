@@ -109,15 +109,16 @@ public class OrthogonalSignalCollector implements DomainMetrics, EventRecorder {
             log.error("[OrthogonalSignal] Failed to collect signals for event {}: {}",
                     event.getEventId(), e.getMessage());
 
-            // 예외 발생 시 기본값 반환
+            // Fail-Close: 예외 발생 시 높은 의심 점수 반환 (Zero Trust 원칙)
+            // 보안을 우선시하여 신호 수집 실패 시 의심스러운 상태로 처리
             return OrthogonalSignals.builder()
-                    .layer1Signal(0.5)
-                    .layer2Signal(0.5)
-                    .layer3Signal(0.5)
-                    .layer4Signal(0.5)
-                    .networkSignal(0.5)
-                    .cryptoSignal(0.5)
-                    .timingSignal(0.5)
+                    .layer1Signal(0.9)  // 높은 의심 점수
+                    .layer2Signal(0.9)
+                    .layer3Signal(0.9)
+                    .layer4Signal(0.9)
+                    .networkSignal(0.9)
+                    .cryptoSignal(0.9)
+                    .timingSignal(0.9)
                     .timestamp(LocalDateTime.now())
                     .build();
         }

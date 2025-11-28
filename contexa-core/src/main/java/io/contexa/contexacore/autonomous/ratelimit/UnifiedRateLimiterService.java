@@ -141,9 +141,10 @@ public class UnifiedRateLimiterService {
 
         } catch (Exception e) {
             log.error("Failed to check rate limit: key={}", key, e);
-            // Fail-open: ?�러 ???�용 (가?�성 ?�선)
-            allowedRequests.increment();
-            return true;
+            // Fail-Close: 오류 시 차단 (보안 우선 - Zero Trust 원칙)
+            // 가용성보다 보안을 우선시하여 Rate Limit 검사 실패 시 요청 차단
+            rejectedRequests.increment();
+            return false;
         }
     }
 

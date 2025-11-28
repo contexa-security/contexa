@@ -19,6 +19,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 
@@ -78,6 +79,7 @@ public class IamSecurityAutoConfiguration {
             GroupRepository groupRepository,
             DocumentRepository documentRepository,
             @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
+            StringRedisTemplate stringRedisTemplate,
             @Autowired(required = false) UnifiedNotificationService notificationService) {
 
         return new CustomMethodSecurityExpressionHandler(
@@ -94,6 +96,7 @@ public class IamSecurityAutoConfiguration {
                 groupRepository,
                 documentRepository,
                 redisTemplate,
+                stringRedisTemplate,
                 notificationService
         );
     }

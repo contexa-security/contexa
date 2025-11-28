@@ -1077,7 +1077,7 @@ public class AdaptiveThresholdManager {
 
         } catch (Exception e) {
             log.warn("Failed to calculate dynamic threshold for user: {}", userId, e);
-            return 0.5; // 기본값
+            return 0.3;  // Zero Trust: 예외 = 엄격한 임계값 적용
         }
     }
 

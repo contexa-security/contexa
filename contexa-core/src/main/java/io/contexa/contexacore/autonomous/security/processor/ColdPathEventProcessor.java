@@ -527,8 +527,11 @@ public class ColdPathEventProcessor implements IPathProcessor {
         // 최종 조정값 계산 (편차 기반)
         double adjustment = deviation * confidenceWeight * magnitude;
 
-        // 안전 범위 제한 (확대: -0.5 ~ +0.5 → -0.8 ~ +0.8)
-        adjustment = Math.max(-0.8, Math.min(0.8, adjustment));
+        // CRITICAL FIX: 단일 이벤트 최대 변동량 제한 (v3.1)
+        // 기존 -0.8 ~ +0.8 범위는 너무 넓어 233% 점프 가능
+        // 안정적인 점진적 변화를 위해 -0.15 ~ +0.15로 제한
+        double maxDelta = 0.15;
+        adjustment = Math.max(-maxDelta, Math.min(maxDelta, adjustment));
 
         // 상세 로깅
         log.info("[ColdPathEventProcessor] Threat Score 조정값: level={}, finalScore={}, deviation={}, magnitude={} → adjustment={}",

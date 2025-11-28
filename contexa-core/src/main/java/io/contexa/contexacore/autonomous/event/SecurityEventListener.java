@@ -1,7 +1,8 @@
 package io.contexa.contexacore.autonomous.event;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -11,7 +12,10 @@ import java.util.List;
  * 보안 이벤트 리스너 인터페이스로 다양한 보안 이벤트를 처리합니다.
  */
 public interface SecurityEventListener {
-    
+
+    // 인터페이스 정적 Logger
+    Logger log = LoggerFactory.getLogger(SecurityEventListener.class);
+
     /**
      * 리스너 이름 가져오기
      */
@@ -28,7 +32,7 @@ public interface SecurityEventListener {
      * 배치 이벤트 처리
      */
     default void onBatchEvents(List<SecurityEvent> events) {
-        System.out.println("[SecurityEventListener] Processing onSecurityEvent");
+        log.debug("[SecurityEventListener] Processing batch events: count={}", events.size());
         for (SecurityEvent event : events) {
             onSecurityEvent(event);
         }
@@ -93,7 +97,7 @@ public interface SecurityEventListener {
      */
     default void onError(SecurityEvent event, Exception e) {
         // 기본 에러 처리 - 로깅
-        System.err.println("Error processing event " + event.getEventId() + ": " + e.getMessage());
+        log.error("[SecurityEventListener] Error processing event {}: {}", event.getEventId(), e.getMessage(), e);
     }
     
     /**

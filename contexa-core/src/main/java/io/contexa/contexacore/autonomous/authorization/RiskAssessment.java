@@ -126,9 +126,11 @@ public class RiskAssessment {
                 return convertSoarRiskLevel(annotation.riskLevel());
             }
         } catch (Exception e) {
-            log.trace("어노테이션 위험도 추출 실패: {}", e.getMessage());
+            log.warn("어노테이션 위험도 추출 실패 (Fail-Close 적용): {}", e.getMessage());
+            // Fail-Close: 예외 발생 시 높은 위험도 반환 (Zero Trust 원칙)
+            return io.contexa.contexacommon.enums.RiskLevel.HIGH;
         }
-        
+
         return io.contexa.contexacommon.enums.RiskLevel.LOW;
     }
     

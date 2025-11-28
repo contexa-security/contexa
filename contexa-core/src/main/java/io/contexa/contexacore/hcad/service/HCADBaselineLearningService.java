@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 public class HCADBaselineLearningService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final HCADBaselineCacheService cacheService;  // 캐시 무효화용 (v3.1)
 
     @Value("${hcad.threshold.warn:0.7}")
     private double warnThreshold;
@@ -229,8 +230,14 @@ public class HCADBaselineLearningService {
             String key = HCADRedisKeys.baselineVector(baseline.getUserId());
             redisTemplate.opsForValue().set(key, baseline, Duration.ofDays(baselineTtlDays));
 
+            // CRITICAL FIX: Redis 저장 후 로컬 캐시 무효화 (v3.1)
+            // 캐시 일관성 보장 - 구버전 기준선 사용 방지
+            if (cacheService != null) {
+                cacheService.invalidateCache(baseline.getUserId());
+            }
+
             if (log.isDebugEnabled()) {
-                log.debug("[HCAD] Baseline saved to Redis (async): userId={}, updateCount={}, confidence={}, ttl={}days",
+                log.debug("[HCAD] Baseline saved to Redis (async): userId={}, updateCount={}, confidence={}, ttl={}days, cacheInvalidated=true",
                     baseline.getUserId(),
                     baseline.getUpdateCount(),
                     String.format("%.3f", baseline.getConfidence()),
