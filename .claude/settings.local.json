@@ -5,7 +5,8 @@
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-iam:compileJava :contexa-autoconfigure:compileJava)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-iam:compileJava --rerun-tasks)",
       "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:compileJava :contexa-core-enterprise:compileJava)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
