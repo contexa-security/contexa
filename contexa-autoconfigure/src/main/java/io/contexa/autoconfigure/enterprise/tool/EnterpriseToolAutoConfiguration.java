@@ -6,8 +6,6 @@ import io.contexa.contexacore.autonomous.ThreatEvaluator;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.domain.SoarRequest;
-import io.contexa.contexacore.hcad.service.HCADSimilarityCalculator;
-import io.contexa.contexacore.plane.ZeroTrustHotPathOrchestrator;
 import io.contexa.contexacore.soar.SoarLab;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacoreenterprise.autonomous.evolution.IntegratedThreatEvaluator;
@@ -19,7 +17,6 @@ import io.contexa.contexacoreenterprise.mcp.integration.*;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProvider;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProviderImpl;
 import io.contexa.contexacoreenterprise.mcp.tool.resolution.*;
-import io.contexa.contexacoreenterprise.plane.ZeroTrustHotPathOrchestratorImpl;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
 import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
@@ -69,14 +66,13 @@ import java.util.*;
  * Enterprise Tool AutoConfiguration
  *
  * Contexa Enterprise 모듈의 Tool Calling 자동 구성을 제공합니다.
- * Spring Boot AutoConfiguration 패턴으로 33개 빈을 직접 등록합니다.
+ * Spring Boot AutoConfiguration 패턴으로 32개 빈을 직접 등록합니다.
  *
- * 포함된 빈 (33개, 7개 레벨):
+ * 포함된 빈 (32개, 7개 레벨):
  *
- * Level 1: Enterprise Core (3개)
+ * Level 1: Enterprise Core (2개)
  * - SoarLab - SOAR 실험실 인터페이스
  * - ThreatEvaluator - 위협 평가 엔진
- * - ZeroTrustHotPathOrchestrator - 제로 트러스트 Hot Path 오케스트레이터
  *
  * Level 2: Tool Calling (11개)
  * - defaultToolCallingManager - Spring AI 표준 ToolCallingManager
@@ -141,11 +137,8 @@ import java.util.*;
 @EnableConfigurationProperties(ContexaProperties.class)
 public class EnterpriseToolAutoConfiguration {
 
-    @Value("${hcad.similarity.hot-path-threshold:0.7}")
-    private double hotPathThreshold;
-
     // ========================================
-    // Level 1: Enterprise Core (3개)
+    // Level 1: Enterprise Core (2개)
     // ========================================
 
     @Bean
@@ -164,49 +157,6 @@ public class EnterpriseToolAutoConfiguration {
         if (evaluator != null) {
             log.info("ThreatEvaluator export 완료");
             return evaluator::evaluateIntegrated;
-        }
-        return null;
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ZeroTrustHotPathOrchestrator zeroTrustHotPathOrchestrator(@Autowired(required = false) ZeroTrustHotPathOrchestratorImpl impl) {
-        if (impl != null) {
-            log.info("ZeroTrustHotPathOrchestrator export 완료");
-            return (event, originalResult) -> {
-                var decision = impl.evaluateHotPathEvent(event, originalResult);
-
-                // Cold Path 라우팅 결정 시 유사도 조정 (HOT Path 우회)
-                if (decision.getDecision() == ZeroTrustHotPathOrchestratorImpl.Decision.ROUTE_TO_COLD_PATH) {
-                    // 유사도를 HOT Path 임계값 아래로 강제 조정
-                    double adjustedSimilarity = hotPathThreshold - 0.01;
-
-                    log.warn("[ZeroTrust-HCAD] HOT Path 우회: reason={}, originalSim={}, adjustedSim={}",
-                            decision.getReason(),
-                            String.format("%.3f", originalResult.getFinalSimilarity()),
-                            String.format("%.3f", adjustedSimilarity));
-
-                    return HCADSimilarityCalculator.TrustedSimilarityResult.builder()
-                            .finalSimilarity(adjustedSimilarity)
-                            .trustScore(originalResult.getTrustScore() * 0.5)  // 신뢰도 절반 감소
-                            .crossValidationPassed(false)  // Cross-Validation 실패 마킹
-                            .threatEvidence("ZeroTrust-RouteToColdPath: " + decision.getReason())
-                            .threatType("ZERO_TRUST_VIOLATION")
-                            .layer1ThreatSearchScore(originalResult.getLayer1ThreatSearchScore())
-                            .layer2BaselineSimilarity(originalResult.getLayer2BaselineSimilarity())
-                            .layer3AnomalyScore(originalResult.getLayer3AnomalyScore())
-                            .layer4CorrelationScore(originalResult.getLayer4CorrelationScore())
-                            .build();
-                }
-
-                // Graceful Degradation 상태 로깅
-                if (decision.getDecision() == ZeroTrustHotPathOrchestratorImpl.Decision.ALLOW_HOT_PATH_DEGRADED) {
-                    log.info("[ZeroTrust-HCAD] HOT Path 허용 (Degraded): reason={}", decision.getReason());
-                }
-
-                // HOT Path 허용 시 원본 결과 반환
-                return originalResult;
-            };
         }
         return null;
     }
@@ -763,13 +713,13 @@ public class EnterpriseToolAutoConfiguration {
 
     /**
      * Constructor
-     * 33개 빈이 자동으로 등록되었음을 로그에 기록
+     * 32개 빈이 자동으로 등록되었음을 로그에 기록
      */
     public EnterpriseToolAutoConfiguration() {
         log.info("=".repeat(80));
         log.info("Enterprise Tool AutoConfiguration 초기화");
-        log.info("33개 빈 등록 시작 (7개 레벨)");
-        log.info("  - Level 1: Enterprise Core (3개)");
+        log.info("32개 빈 등록 시작 (7개 레벨)");
+        log.info("  - Level 1: Enterprise Core (2개)");
         log.info("  - Level 2: Tool Calling (11개)");
         log.info("  - Level 3: MCP Integration (7개)");
         log.info("  - Level 4: MCP Clients (3개)");

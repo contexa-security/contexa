@@ -119,14 +119,9 @@ public class AdaptiveTierRouter {
             log.debug("Routing to AI Analysis (score: {}, confidence: {})", riskScore, confidence);
             enhanceWithContextualAnalysis(context, riskScore, confidence);
         } 
-        // 5. 통과 또는 분석 (저위험)
-        else if (riskScore < passThroughThreshold) {
-            if (isKnownAttackPattern(context)) {
-                mode = ProcessingMode.AI_ANALYSIS;
-            } else {
-                mode = ProcessingMode.PASS_THROUGH;
-            }
-        } else {
+        // 5. AI 분석 (저위험 포함 모든 트래픽)
+        // AI Native: PASS_THROUGH 제거, 모든 요청은 AI 분석을 통과
+        else {
             mode = ProcessingMode.AI_ANALYSIS;
         }
 
@@ -731,9 +726,10 @@ public class AdaptiveTierRouter {
     }
     
     private void updateMetrics(ProcessingMode mode) {
+        // AI Native: PASS_THROUGH 제거, REALTIME_BLOCK과 AI_ANALYSIS만 처리
         if (adaptiveEnabled && mode == ProcessingMode.REALTIME_BLOCK) {
             layer1Threshold = Math.max(3.0, layer1Threshold - learningRate);
-        } else if (adaptiveEnabled && mode == ProcessingMode.PASS_THROUGH) {
+        } else if (adaptiveEnabled && mode == ProcessingMode.AI_ANALYSIS) {
             layer1Threshold = Math.min(5.0, layer1Threshold + learningRate * 0.1);
         }
     }

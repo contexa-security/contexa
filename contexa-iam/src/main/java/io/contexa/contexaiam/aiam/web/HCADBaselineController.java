@@ -1,9 +1,7 @@
 package io.contexa.contexaiam.aiam.web;
 
-import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.hcad.service.HCADBaselineCacheService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -33,9 +31,12 @@ import java.util.Set;
 @Slf4j
 public class HCADBaselineController {
 
-    private final HCADBaselineCacheService baselineCacheService;
+    // AI Native: HCADBaselineCacheService 제거 (삭제된 Hot Path 서비스)
     private final RedisTemplate<String, Object> redisTemplate;
     private final HCADContextExtractor hcadContextExtractor;
+
+    // Redis 키 직접 정의 (HCADRedisKeys 제거)
+    private static final String BASELINE_VECTOR_KEY_PREFIX = "security:baseline:vector:";
 
     /**
      * 현재 요청의 실제 사용자 ID 반환
@@ -85,7 +86,8 @@ public class HCADBaselineController {
     @GetMapping("/baseline/{userId}")
     public ResponseEntity<Map<String, Object>> getBaseline(@PathVariable String userId) {
         try {
-            String key = HCADRedisKeys.baselineVector(userId);
+            // AI Native: HCADRedisKeys 대신 직접 키 생성
+            String key = BASELINE_VECTOR_KEY_PREFIX + userId;
             Object value = redisTemplate.opsForValue().get(key);
 
             if (value instanceof BaselineVector) {

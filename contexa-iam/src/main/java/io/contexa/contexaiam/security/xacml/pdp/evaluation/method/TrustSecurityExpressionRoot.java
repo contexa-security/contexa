@@ -55,6 +55,7 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
             .expireAfterWrite(1, TimeUnit.SECONDS)
             .build();
     
+
     // Redis 키 프리픽스
     private static final String THREAT_SCORE_PREFIX = "threat_score:";
     private static final String THREAT_DETAIL_PREFIX = "threat_detail:";

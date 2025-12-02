@@ -18,10 +18,7 @@ import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.hcad.domain.ZeroTrustDecision;
-import io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
-import io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
@@ -62,8 +59,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     private final HCADVectorIntegrationService localHcadVectorService;
     private final BehaviorVectorService behaviorVectorService;
     private final FeedbackIntegrationProperties localFeedbackProperties;
-    private final AdaptiveThresholdManager adaptiveThresholdManager;
-    private final HCADFeedbackOrchestrator hcadFeedbackOrchestrator;
     private final UnifiedVectorService unifiedVectorService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -91,8 +86,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                                 @Autowired(required = false) HCADVectorIntegrationService hcadVectorService,
                                 @Autowired(required = false) BehaviorVectorService behaviorVectorService,
                                 @Autowired FeedbackIntegrationProperties feedbackProperties,
-                                @Autowired(required = false) AdaptiveThresholdManager adaptiveThresholdManager,
-                                @Autowired(required = false) HCADFeedbackOrchestrator hcadFeedbackOrchestrator,
                                 @Autowired(required = false) UnifiedVectorService unifiedVectorService) {
         this.llmOrchestrator = llmOrchestrator;
         this.approvalService = approvalService;
@@ -102,8 +95,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         this.localHcadVectorService = hcadVectorService;
         this.behaviorVectorService = behaviorVectorService;
         this.localFeedbackProperties = feedbackProperties;
-        this.adaptiveThresholdManager = adaptiveThresholdManager;
-        this.hcadFeedbackOrchestrator = hcadFeedbackOrchestrator;
         this.unifiedVectorService = unifiedVectorService;
 
         // AbstractTieredStrategy의 protected 필드 설정
@@ -164,14 +155,10 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
 
         try {
-            log.warn("🔴 Layer 3 Expert Analysis initiated for critical event {}",
+            log.warn("[Layer3] Expert Analysis initiated for critical event {}",
                     event.getEventId() != null ? event.getEventId() : "unknown");
 
-            // 1. 적응형 임계값 계산 (Layer2 결정 반영)
-            double adaptiveThreshold = calculateAdaptiveThreshold(event, layer2Decision);
-            log.debug("Layer3 adaptive threshold for user {}: {}", event.getUserId(), adaptiveThreshold);
-
-            // 2. 위협 인텔리전스 수집
+            // 1. 위협 인텔리전스 수집
             ThreatIntelligence threatIntel = gatherThreatIntelligence(event);
 
             // 2. 과거 인시던트 분석
@@ -248,29 +235,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             // 6. 응답을 SecurityDecision 으로 변환
             SecurityDecision expertDecision = convertToSecurityDecision(response, event, layer2Decision);
 
-            // 7. HCADFeedbackOrchestrator 통합 분석 (완전 동기, Layer3는 1-5초이므로 500ms 허용)
-            if (hcadFeedbackOrchestrator != null) {
-                try {
-                    Map<String, Object> layer3Context = buildLayer3Context(event, expertDecision, response);
-                    HCADFeedbackOrchestrator.IntegratedAnalysisResult result =
-                        hcadFeedbackOrchestrator.performIntegratedAnalysis(event, "Layer3", layer3Context)
-                            .get(500, java.util.concurrent.TimeUnit.MILLISECONDS); // 최대 500ms
-
-                    if (result != null && result.isSuccessful()) {
-                        log.info("[Layer3] HCAD integrated analysis completed: sessionId={}, components={}",
-                            result.getSessionId(), result.getSuccessfulComponentCount());
-
-                        // 통합 결과로 위험도 조정 및 베이스라인 업데이트
-                        mergeWithHCADAnalysis(expertDecision, result, event.getUserId());
-                    }
-                } catch (java.util.concurrent.TimeoutException e) {
-                    log.debug("[Layer3] HCAD timeout (non-critical)");
-                } catch (Exception e) {
-                    log.warn("[Layer3] HCAD integration failed", e);
-                }
-            }
-
-            // 8. SOAR 통합 및 실행
+            // 7. SOAR 통합 및 실행
             if (enableSoar && expertDecision.getRiskScore() >= autoExecuteThreshold) {
 //                executeSoarPlaybook(expertDecision, event);
             }
@@ -312,11 +277,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
             // 12. Layer3 → Layer1 피드백 루프 (Cross-Layer Learning)
             feedbackToLayer1(event, expertDecision);
-
-            // 13. AdaptiveThresholdManager 피드백 (분석 결과 학습)
-            if (adaptiveThresholdManager != null && event != null && event.getUserId() != null) {
-                updateThresholdFromDecision(event, expertDecision);
-            }
 
             // 13. 메트릭 업데이트
             expertDecision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
@@ -1618,175 +1578,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             default:
                 return "EXPERT_REVIEW_REQUIRED";
         }
-    }
-
-    /**
-     * 적응형 임계값 계산 (Layer2 결정 + 현재 컨텍스트 반영)
-     * Layer3는 가장 엄격한 임계값 사용
-     */
-    private double calculateAdaptiveThreshold(SecurityEvent event, SecurityDecision layer2Decision) {
-        if (adaptiveThresholdManager == null) {
-            return 0.9; // 기본 Layer3 임계값 (매우 엄격)
-        }
-
-        String userId = event != null && event.getUserId() != null ? event.getUserId() : "anonymous";
-
-        AdaptiveThresholdManager.ThresholdContext context = new AdaptiveThresholdManager.ThresholdContext();
-        context.setUserId(userId);
-        context.setRiskLevel(AdaptiveThresholdManager.RiskLevel.CRITICAL); // Layer3는 기본적으로 Critical
-        context.setThreatScore(layer2Decision != null ? layer2Decision.getRiskScore() : 0.8);
-
-        // additionalContext에 추가 정보 저장
-        Map<String, Object> additionalContext = new HashMap<>();
-        if (event != null) {
-            additionalContext.put("currentTime", LocalDateTime.now());
-            additionalContext.put("resourceType", classifyResourceType(
-                eventEnricher != null ? eventEnricher.getTargetResource(event).orElse("/unknown") : "/unknown"
-            ));
-            additionalContext.put("accessPattern", event.getEventType() != null ? event.getEventType().toString() : "unknown");
-            additionalContext.put("sessionId", event.getSessionId());
-        }
-        if (layer2Decision != null) {
-            additionalContext.put("layer2Risk", layer2Decision.getRiskScore());
-            additionalContext.put("layer2Confidence", layer2Decision.getConfidence());
-        }
-        context.setAdditionalContext(additionalContext);
-
-        // Layer2에서 위험도가 매우 높다고 판단했다면 임계값을 더욱 강화
-        if (layer2Decision != null && layer2Decision.getRiskScore() >= 0.8) {
-            context.setRiskLevel(AdaptiveThresholdManager.RiskLevel.CRITICAL);
-        }
-
-        AdaptiveThresholdManager.ThresholdConfiguration config =
-            adaptiveThresholdManager.getThreshold(userId, context);
-
-        double threshold = config.getAdjustedThreshold();
-
-        // Layer3는 최소 0.85 이상의 엄격한 임계값 유지
-        threshold = Math.max(threshold, 0.85);
-
-        log.debug("Layer3 adaptive threshold: {} (Layer2 risk: {}, confidence: {})",
-                  threshold,
-                  layer2Decision != null ? layer2Decision.getRiskScore() : "N/A",
-                  layer2Decision != null ? layer2Decision.getConfidence() : "N/A");
-
-        return threshold;
-    }
-
-    /**
-     * Layer3 컨텍스트 빌드 (HCADFeedbackOrchestrator용)
-     */
-    private Map<String, Object> buildLayer3Context(SecurityEvent event, SecurityDecision decision,
-                                                   Layer3SecurityResponse response) {
-        Map<String, Object> context = new HashMap<>();
-        context.put("layer", "Layer3");
-        context.put("eventId", event.getEventId());
-        context.put("userId", event.getUserId());
-        context.put("sourceIp", event.getSourceIp());
-        context.put("sessionId", event.getSessionId());
-        context.put("eventType", event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN");
-
-        // SecurityDecision 정보
-        context.put("riskScore", decision.getRiskScore());
-        context.put("confidence", decision.getConfidence());
-        context.put("action", decision.getAction().toString());
-        context.put("processingTimeMs", decision.getProcessingTimeMs());
-        context.put("threatCategory", decision.getThreatCategory());
-        context.put("attackScenario", decision.getAttackScenario());
-        context.put("businessImpact", decision.getBusinessImpact());
-        context.put("iocIndicators", decision.getIocIndicators());
-        context.put("expertRecommendation", decision.getExpertRecommendation());
-        context.put("requiresApproval", decision.isRequiresApproval());
-
-        // Layer3SecurityResponse 정보
-        if (response != null) {
-            context.put("mitreTactics", response.getTactics());
-            context.put("mitreMapping", response.getMitreMapping());
-            context.put("businessImpact", response.getBusinessImpact());
-            context.put("scenario", response.getScenario());
-            context.put("expertRecommendation", response.getExpertRecommendation());
-        }
-
-        context.put("timestamp", System.currentTimeMillis());
-        return context;
-    }
-
-    /**
-     * HCAD 분석 결과를 전문가 결정에 통합
-     */
-    private void mergeWithHCADAnalysis(SecurityDecision decision,
-                                      HCADFeedbackOrchestrator.IntegratedAnalysisResult result,
-                                      String userId) {
-        try {
-            // 1. 통합 위험 점수 조정
-            Double integratedRisk = result.getIntegratedRiskScore();
-            if (integratedRisk != null) {
-                // Layer3 전문가 분석 70% + HCAD 통합 분석 30%
-                double adjustedRisk = (decision.getRiskScore() * 0.7) + (integratedRisk * 0.3);
-                log.debug("[Layer3] Merging riskScore: expert={}, HCAD={}, adjusted={}",
-                    decision.getRiskScore(), integratedRisk, adjustedRisk);
-                decision.setRiskScore(adjustedRisk);
-            }
-
-            // 2. 베이스라인 벡터 업데이트 (Cold Path)
-            if (localHcadVectorService != null && result.getComponentResults() != null) {
-                HCADFeedbackOrchestrator.ComponentResult vectorResult =
-                    result.getComponentResults().get("VectorIntegration");
-                if (vectorResult != null && vectorResult.isSuccess()) {
-                    Map<String, Object> vectorData = vectorResult.getResult();
-                    if (vectorData != null && vectorData.get("baseline") != null) {
-                        // HCADVectorIntegrationService를 통한 베이스라인 업데이트
-                        localHcadVectorService.applyLayer3FeedbackToBaseline(
-                            (io.contexa.contexacommon.hcad.domain.BaselineVector) vectorData.get("baseline"),
-                            userId
-                        );
-                        log.debug("[Layer3] Updated baseline vector for user: {}", userId);
-                    }
-                }
-            }
-
-            // 3. 학습 결과 기록 (이미 AdaptiveThresholdManager에 전파됨)
-            log.info("[Layer3] HCAD analysis merged: adjustedRisk={}, components={}",
-                decision.getRiskScore(), result.getSuccessfulComponentCount());
-
-        } catch (Exception e) {
-            log.warn("[Layer3] Failed to merge HCAD analysis results", e);
-        }
-    }
-
-    /**
-     * AdaptiveThresholdManager로 분석 결과 피드백 (학습)
-     * Layer3 결정은 전문가 수준 피드백으로 저장
-     */
-    private void updateThresholdFromDecision(SecurityEvent event, SecurityDecision decision) {
-        if (adaptiveThresholdManager == null || event == null || event.getUserId() == null) {
-            return;
-        }
-
-        String userId = event.getUserId();
-
-        // Layer3는 전문가 분석이므로 Zero Trust 원칙을 모두 적용
-        List<String> appliedPrinciples = new ArrayList<>();
-        appliedPrinciples.add("CONTINUOUS_VERIFICATION");
-        appliedPrinciples.add("BEHAVIORAL_ANALYSIS");
-        appliedPrinciples.add("LEAST_PRIVILEGE");
-        appliedPrinciples.add("MICRO_SEGMENTATION");
-        appliedPrinciples.add("ASSUME_BREACH");
-
-        ZeroTrustDecision ztDecision = ZeroTrustDecision.builder()
-                .finalAction(decision.getAction())
-                .confidence(decision.getConfidence())
-                .currentTrustScore(1.0 - decision.getRiskScore())
-                .zeroTrustPrinciples(appliedPrinciples)
-                .build();
-
-        adaptiveThresholdManager.updateThresholdsFromDecision(userId, ztDecision);
-
-        log.debug("Updated adaptive thresholds for user {} based on Layer3 expert decision (risk: {}, confidence: {}, MITRE: {})",
-                  userId,
-                  decision.getRiskScore(),
-                  decision.getConfidence(),
-                  decision.getMitreMapping() != null ? decision.getMitreMapping().keySet() : "[]");
     }
 
     /**

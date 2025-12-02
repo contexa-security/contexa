@@ -44,9 +44,6 @@ io.contexa.autoconfigure.enterprise.autonomous.EnterpriseAutonomousAutoConfigura
 # Enterprise Dashboard
 io.contexa.autoconfigure.enterprise.dashboard.EnterpriseDashboardAutoConfiguration
 
-# Enterprise Plane
-io.contexa.autoconfigure.enterprise.plane.EnterprisePlaneAutoConfiguration
-
 # Enterprise SOAR
 io.contexa.autoconfigure.enterprise.soar.EnterpriseSoarAutoConfiguration
 

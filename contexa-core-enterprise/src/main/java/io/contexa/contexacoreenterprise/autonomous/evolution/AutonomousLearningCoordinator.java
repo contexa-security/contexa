@@ -946,7 +946,8 @@ public class AutonomousLearningCoordinator {
 
             if (event.getResult() != null) {
                 metadata.addContext("riskLevel", event.getResult().getCurrentRiskLevel());
-                metadata.addContext("threatScoreAdjustment", event.getResult().getThreatScoreAdjustment());
+                // AI Native: threatScoreAdjustment 대신 riskScore 사용
+                metadata.addContext("riskScore", event.getResult().getRiskScore());
                 metadata.addContext("aiAnalysisPerformed", event.getResult().isAiAnalysisPerformed());
 
                 if (event.getResult().getThreatIndicators() != null) {

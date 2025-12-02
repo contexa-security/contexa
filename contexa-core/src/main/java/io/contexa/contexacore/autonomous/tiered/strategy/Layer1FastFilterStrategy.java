@@ -10,13 +10,9 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.response.Layer1SecurityResponse;
 import io.contexa.contexacore.autonomous.tiered.template.Layer1PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
-import io.contexa.contexacore.hcad.domain.ZeroTrustDecision;
-import io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
-import io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -57,8 +53,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     private final SecurityEventEnricher eventEnricher;
     private final Layer1PromptTemplate promptTemplate;
     private final FeedbackIntegrationProperties localFeedbackProperties;
-    private final AdaptiveThresholdManager adaptiveThresholdManager;
-    private final HCADFeedbackOrchestrator hcadFeedbackOrchestrator;
     private final UnifiedVectorService unifiedVectorService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -90,9 +84,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) SecurityEventEnricher eventEnricher,
                                     @Autowired Layer1PromptTemplate promptTemplate,
                                     @Autowired FeedbackIntegrationProperties feedbackProperties,
-                                    @Autowired(required = false) HCADVectorIntegrationService hcadVectorService,
-                                    @Autowired(required = false) AdaptiveThresholdManager adaptiveThresholdManager,
-                                    @Autowired(required = false) HCADFeedbackOrchestrator hcadFeedbackOrchestrator) {
+                                    @Autowired(required = false) HCADVectorIntegrationService hcadVectorService) {
         this.llmOrchestrator = llmOrchestrator;
         this.embeddingModel = embeddingModel;
         this.unifiedVectorService = unifiedVectorService;
@@ -100,8 +92,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate;
         this.localFeedbackProperties = feedbackProperties;
-        this.adaptiveThresholdManager = adaptiveThresholdManager;
-        this.hcadFeedbackOrchestrator = hcadFeedbackOrchestrator;
         // AbstractTieredStrategy의 protected 필드 설정
         this.feedbackProperties = feedbackProperties;
         this.hcadVectorService = hcadVectorService;
@@ -153,16 +143,12 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                 return cachedDecision;
             }
 
-            // 2. 적응형 임계값 계산 (AdaptiveThresholdManager 통합)
-            double adaptiveThreshold = calculateAdaptiveThreshold(event);
-            log.debug("Layer1 adaptive threshold for user {}: {}", event.getUserId(), adaptiveThreshold);
-
-            // 3. 임베딩 기반 유사도 검사 (적응형 임계값 사용)
+            // 2. 임베딩 기반 유사도 검사 (AI Native: 고정 임계값 사용)
             if (embeddingModel != null) {
                 SecurityDecision similarDecision = checkSimilarEvents(event);
-                if (similarDecision != null && similarDecision.getEmbeddingSimilarity() > adaptiveThreshold) {
+                if (similarDecision != null && similarDecision.getEmbeddingSimilarity() > embeddingSimilarityThreshold) {
                     log.debug("Similar event found with similarity {} (threshold: {})",
-                        similarDecision.getEmbeddingSimilarity(), adaptiveThreshold);
+                        similarDecision.getEmbeddingSimilarity(), embeddingSimilarityThreshold);
                     return similarDecision;
                 }
             }
@@ -200,29 +186,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
             decision.setProcessingLayer(1);
             decision.setLlmModel(modelName);
 
-            // 4-1. HCADFeedbackOrchestrator 통합 분석 (비동기, 메인 경로 블로킹 없음)
-            if (decision.getRiskScore() >= 0.3 && hcadFeedbackOrchestrator != null) {
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        Map<String, Object> layer1Context = buildLayer1Context(event, decision);
-                        hcadFeedbackOrchestrator.performIntegratedAnalysis(event, "Layer1", layer1Context)
-                            .thenAccept(result -> {
-                                if (result != null && result.isSuccessful()) {
-                                    log.info("[Layer1] HCAD integrated analysis completed: sessionId={}, components={}",
-                                        result.getSessionId(), result.getSuccessfulComponentCount());
-                                    // 학습 결과는 자동으로 AdaptiveThresholdManager에 전파됨
-                                }
-                            })
-                            .exceptionally(ex -> {
-                                log.warn("[Layer1] HCAD integration failed (non-blocking): {}", ex.getMessage());
-                                return null;
-                            });
-                    } catch (Exception e) {
-                        log.warn("[Layer1] Failed to trigger HCAD integration", e);
-                    }
-                });
-            }
-
             // 5. 캐시 저장
             cacheDecision(cacheKey, decision);
 
@@ -231,11 +194,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
             // 5-2. Cold→Hot 동기화 (riskScore >= 0.7)
             feedbackToHotPath(event, decision);
-
-            // 5-3. AdaptiveThresholdManager 피드백 (분석 결과 학습)
-            if (adaptiveThresholdManager != null && event.getUserId() != null) {
-                updateThresholdFromDecision(event, decision);
-            }
 
             // 6. 처리 시간 검증
             if (decision.getProcessingTimeMs() > timeoutMs) {
@@ -838,96 +796,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         }
 
         return "UNKNOWN_THREAT";
-    }
-
-    /**
-     * 적응형 임계값 계산 (AdaptiveThresholdManager 통합)
-     */
-    private double calculateAdaptiveThreshold(SecurityEvent event) {
-        if (adaptiveThresholdManager == null) {
-            log.debug("AdaptiveThresholdManager not available, using default threshold");
-            return embeddingSimilarityThreshold;
-        }
-
-        try {
-            String userId = event.getUserId() != null ? event.getUserId() : "anonymous";
-
-            // ThresholdContext 생성
-            AdaptiveThresholdManager.ThresholdContext context = new AdaptiveThresholdManager.ThresholdContext();
-            context.setUserId(userId);
-            context.setRiskLevel(estimateRiskLevel(event));
-            context.setThreatScore(0.5); // 초기값
-            context.setRecentAnomalyCount(0);
-            context.setHighRiskPeriod(false);
-
-            // 적응형 임계값 계산
-            AdaptiveThresholdManager.ThresholdConfiguration config =
-                adaptiveThresholdManager.getThreshold(userId, context);
-
-            return config.getAdjustedThreshold();
-
-        } catch (Exception e) {
-            log.warn("Failed to calculate adaptive threshold, using default", e);
-            return embeddingSimilarityThreshold;
-        }
-    }
-
-    /**
-     * 위험 수준 추정 (이벤트 기반)
-     */
-    private AdaptiveThresholdManager.RiskLevel estimateRiskLevel(SecurityEvent event) {
-        if (event.getSourceIp() != null && event.getSourceIp().startsWith("192.168.")) {
-            return AdaptiveThresholdManager.RiskLevel.LOW;
-        }
-        if (event.getEventType() != null && event.getEventType().toString().contains("ADMIN")) {
-            return AdaptiveThresholdManager.RiskLevel.HIGH;
-        }
-        return AdaptiveThresholdManager.RiskLevel.MEDIUM;
-    }
-
-    /**
-     * Layer1 컨텍스트 빌드 (HCADFeedbackOrchestrator용)
-     */
-    private Map<String, Object> buildLayer1Context(SecurityEvent event, SecurityDecision decision) {
-        Map<String, Object> context = new HashMap<>();
-        context.put("layer", "Layer1");
-        context.put("eventId", event.getEventId());
-        context.put("userId", event.getUserId());
-        context.put("sourceIp", event.getSourceIp());
-        context.put("sessionId", event.getSessionId());
-        context.put("eventType", event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN");
-        context.put("riskScore", decision.getRiskScore());
-        context.put("confidence", decision.getConfidence());
-        context.put("action", decision.getAction().toString());
-        context.put("processingTimeMs", decision.getProcessingTimeMs());
-        context.put("matchedPattern", decision.getMatchedPattern());
-        context.put("knownThreat", decision.isKnownThreat());
-        context.put("threatCategory", decision.getThreatCategory());
-        context.put("embeddingSimilarity", decision.getEmbeddingSimilarity());
-        context.put("timestamp", System.currentTimeMillis());
-        return context;
-    }
-
-    /**
-     * 분석 결과를 AdaptiveThresholdManager에 피드백
-     */
-    private void updateThresholdFromDecision(SecurityEvent event, SecurityDecision decision) {
-        try {
-            String userId = event.getUserId();
-
-            ZeroTrustDecision ztDecision = ZeroTrustDecision.builder()
-                    .finalAction(decision.getAction())
-                    .confidence(decision.getConfidence())
-                    .currentTrustScore(1.0 - decision.getRiskScore()) // riskScore의 역
-                    .build();
-
-            adaptiveThresholdManager.updateThresholdsFromDecision(userId, ztDecision);
-
-            log.debug("Updated adaptive thresholds for user {} based on Layer1 decision", userId);
-
-        } catch (Exception e) {
-            log.warn("Failed to update threshold from decision", e);
-        }
     }
 
     /**

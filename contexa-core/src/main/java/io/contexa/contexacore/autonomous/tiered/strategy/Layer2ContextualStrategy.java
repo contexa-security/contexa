@@ -14,10 +14,7 @@ import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.hcad.domain.ZeroTrustDecision;
-import io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
-import io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
@@ -55,8 +52,6 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     private final Layer2PromptTemplate promptTemplate;
     private final HCADVectorIntegrationService localHcadVectorService;
     private final BehaviorVectorService behaviorVectorService;
-    private final AdaptiveThresholdManager adaptiveThresholdManager;
-    private final HCADFeedbackOrchestrator hcadFeedbackOrchestrator;
     private final UnifiedVectorService unifiedVectorService;
     private final Map<String, SessionContext> sessionContextCache = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -82,9 +77,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) Layer2PromptTemplate promptTemplate,
                                     @Autowired(required = false) HCADVectorIntegrationService hcadVectorService,
                                     @Autowired(required = false) BehaviorVectorService behaviorVectorService,
-                                    @Autowired FeedbackIntegrationProperties feedbackProperties,
-                                    @Autowired(required = false) AdaptiveThresholdManager adaptiveThresholdManager,
-                                    @Autowired(required = false) HCADFeedbackOrchestrator hcadFeedbackOrchestrator) {
+                                    @Autowired FeedbackIntegrationProperties feedbackProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.unifiedVectorService = unifiedVectorService;
         this.redisTemplate = redisTemplate;
@@ -92,8 +85,6 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer2PromptTemplate(eventEnricher);
         this.localHcadVectorService = hcadVectorService;
         this.behaviorVectorService = behaviorVectorService;
-        this.adaptiveThresholdManager = adaptiveThresholdManager;
-        this.hcadFeedbackOrchestrator = hcadFeedbackOrchestrator;
         this.hcadVectorService = hcadVectorService;
         this.feedbackProperties = feedbackProperties;
 
@@ -141,11 +132,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
 
         try {
-            // 1. 적응형 임계값 계산 (Layer1 결정 반영)
-            double adaptiveThreshold = calculateAdaptiveThreshold(event, layer1Decision);
-            log.debug("Layer2 adaptive threshold for user {}: {}", event.getUserId(), adaptiveThreshold);
-
-            // 2. 세션 컨텍스트 수집
+            // 1. 세션 컨텍스트 수집
             SessionContext sessionContext = buildSessionContext(event);
 
             // 3. 행동 패턴 분석
@@ -196,46 +183,13 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(2);
 
-            // 8. HCADFeedbackOrchestrator 통합 분석 (동기, Layer2는 100-300ms이므로 50ms 추가 허용)
-            if (decision.getRiskScore() >= 0.5 && hcadFeedbackOrchestrator != null) {
-                try {
-                    Map<String, Object> layer2Context = buildLayer2Context(event, decision, sessionContext, behaviorAnalysis);
-                    HCADFeedbackOrchestrator.IntegratedAnalysisResult result =
-                        hcadFeedbackOrchestrator.performIntegratedAnalysis(event, "Layer2", layer2Context)
-                            .get(50, java.util.concurrent.TimeUnit.MILLISECONDS); // 최대 50ms 대기
-
-                    if (result != null && result.isSuccessful()) {
-                        log.info("[Layer2] HCAD integrated analysis completed: sessionId={}, components={}",
-                            result.getSessionId(), result.getSuccessfulComponentCount());
-
-                        // 통합 결과로 위험도 조정 (선택적)
-                        Double integratedRisk = result.getIntegratedRiskScore();
-                        if (integratedRisk != null && Math.abs(integratedRisk - decision.getRiskScore()) > 0.1) {
-                            double adjustedRisk = (decision.getRiskScore() * 0.7) + (integratedRisk * 0.3);
-                            log.debug("[Layer2] Adjusting riskScore from {} to {} (HCAD weighted)",
-                                decision.getRiskScore(), adjustedRisk);
-                            decision.setRiskScore(adjustedRisk);
-                        }
-                    }
-                } catch (java.util.concurrent.TimeoutException e) {
-                    log.debug("[Layer2] HCAD timeout (non-critical, continuing)");
-                } catch (Exception e) {
-                    log.warn("[Layer2] HCAD integration failed", e);
-                }
-            }
-
-            // 9. 세션 컨텍스트 업데이트
+            // 8. 세션 컨텍스트 업데이트
             updateSessionContext(event, decision);
 
-            // 10. 벡터 스토어에 저장 (학습용)
+            // 9. 벡터 스토어에 저장 (학습용)
             storeInVectorDatabase(event, decision);
 
-            // 11. AdaptiveThresholdManager 피드백 (분석 결과 학습)
-            if (adaptiveThresholdManager != null && event.getUserId() != null) {
-                updateThresholdFromDecision(event, decision);
-            }
-
-            // 12. Cold→Hot 동기화 (riskScore >= 0.7)
+            // 10. Cold→Hot 동기화 (riskScore >= 0.7)
             feedbackToHotPath(event, decision);
 
             // 13. 익명 사용자의 고위험 이벤트 시 IP 위협 점수 저장
@@ -1300,135 +1254,6 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         }
 
         return response;
-    }
-
-    /**
-     * 적응형 임계값 계산 (Layer1 결정 + 현재 컨텍스트 반영)
-     */
-    private double calculateAdaptiveThreshold(SecurityEvent event, SecurityDecision layer1Decision) {
-        if (adaptiveThresholdManager == null) {
-            return 0.7; // 기본 Layer2 임계값
-        }
-
-        String userId = event.getUserId() != null ? event.getUserId() : "anonymous";
-
-        AdaptiveThresholdManager.ThresholdContext context = new AdaptiveThresholdManager.ThresholdContext();
-        context.setUserId(userId);
-        context.setRiskLevel(estimateRiskLevelFromLayer1(layer1Decision));
-        context.setThreatScore(layer1Decision.getRiskScore());
-
-        // additionalContext에 추가 정보 저장
-        Map<String, Object> additionalContext = new HashMap<>();
-        additionalContext.put("currentTime", LocalDateTime.now());
-        additionalContext.put("resourceType", classifyResourceType(eventEnricher.getTargetResource(event).orElse("/unknown")));
-        additionalContext.put("accessPattern", event.getEventType() != null ? event.getEventType().toString() : "unknown");
-        additionalContext.put("sessionId", event.getSessionId());
-        additionalContext.put("layer1Risk", layer1Decision.getRiskScore());
-        additionalContext.put("layer1Confidence", layer1Decision.getConfidence());
-        context.setAdditionalContext(additionalContext);
-
-        // Layer1에서 위험도가 높다고 판단했다면 더 엄격한 임계값 사용
-        if (layer1Decision.getRiskScore() > 0.7) {
-            context.setRiskLevel(AdaptiveThresholdManager.RiskLevel.HIGH);
-        } else if (layer1Decision.getRiskScore() > 0.4) {
-            context.setRiskLevel(AdaptiveThresholdManager.RiskLevel.MEDIUM);
-        }
-
-        AdaptiveThresholdManager.ThresholdConfiguration config =
-            adaptiveThresholdManager.getThreshold(userId, context);
-
-        double threshold = config.getAdjustedThreshold();
-
-        // Layer1의 신뢰도가 높을수록 Layer2 임계값을 더 조정
-        if (layer1Decision.getConfidence() > 0.8) {
-            threshold *= 0.9; // 더 엄격하게
-        }
-
-        log.debug("Layer2 adaptive threshold: {} (Layer1 risk: {}, confidence: {})",
-                  threshold, layer1Decision.getRiskScore(), layer1Decision.getConfidence());
-
-        return threshold;
-    }
-
-    /**
-     * Layer1 결정으로부터 위험 수준 추정
-     */
-    private AdaptiveThresholdManager.RiskLevel estimateRiskLevelFromLayer1(SecurityDecision layer1Decision) {
-        double riskScore = layer1Decision.getRiskScore();
-
-        if (riskScore >= 0.8) {
-            return AdaptiveThresholdManager.RiskLevel.CRITICAL;
-        } else if (riskScore >= 0.6) {
-            return AdaptiveThresholdManager.RiskLevel.HIGH;
-        } else if (riskScore >= 0.4) {
-            return AdaptiveThresholdManager.RiskLevel.MEDIUM;
-        } else {
-            return AdaptiveThresholdManager.RiskLevel.LOW;
-        }
-    }
-
-    /**
-     * Layer2 컨텍스트 빌드 (HCADFeedbackOrchestrator용)
-     */
-    private Map<String, Object> buildLayer2Context(SecurityEvent event, SecurityDecision decision,
-                                                   SessionContext sessionContext, BehaviorAnalysis behaviorAnalysis) {
-        Map<String, Object> context = new HashMap<>();
-        context.put("layer", "Layer2");
-        context.put("eventId", event.getEventId());
-        context.put("userId", event.getUserId());
-        context.put("sourceIp", event.getSourceIp());
-        context.put("sessionId", event.getSessionId());
-        context.put("eventType", event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN");
-
-        // SecurityDecision 정보
-        context.put("riskScore", decision.getRiskScore());
-        context.put("confidence", decision.getConfidence());
-        context.put("action", decision.getAction().toString());
-        context.put("processingTimeMs", decision.getProcessingTimeMs());
-        context.put("threatCategory", decision.getThreatCategory());
-        context.put("behaviorPatterns", decision.getBehaviorPatterns());
-
-        // SessionContext 정보
-        if (sessionContext != null) {
-            context.put("sessionDurationMinutes", sessionContext.getSessionDuration());
-            context.put("recentActionsCount", sessionContext.recentActions != null ? sessionContext.recentActions.size() : 0);
-            context.put("authMethod", sessionContext.getAuthMethod());
-            context.put("accessPattern", sessionContext.getAccessPattern());
-        }
-
-        // BehaviorAnalysis 정보
-        if (behaviorAnalysis != null) {
-            context.put("normalBehaviorScore", behaviorAnalysis.getNormalBehaviorScore());
-            context.put("anomalyIndicatorsCount", behaviorAnalysis.getAnomalyIndicators() != null ? behaviorAnalysis.getAnomalyIndicators().size() : 0);
-            context.put("temporalPattern", behaviorAnalysis.getTemporalPattern());
-            context.put("similarEventsCount", behaviorAnalysis.getSimilarEvents() != null ? behaviorAnalysis.getSimilarEvents().size() : 0);
-        }
-
-        context.put("timestamp", System.currentTimeMillis());
-        return context;
-    }
-
-    /**
-     * AdaptiveThresholdManager로 분석 결과 피드백 (학습)
-     */
-    private void updateThresholdFromDecision(SecurityEvent event, SecurityDecision decision) {
-        if (adaptiveThresholdManager == null || event.getUserId() == null) {
-            return;
-        }
-
-        String userId = event.getUserId();
-
-        ZeroTrustDecision ztDecision = ZeroTrustDecision.builder()
-                .finalAction(decision.getAction())
-                .confidence(decision.getConfidence())
-                .currentTrustScore(1.0 - decision.getRiskScore())
-                .zeroTrustPrinciples(List.of("CONTINUOUS_VERIFICATION", "BEHAVIORAL_ANALYSIS"))
-                .build();
-
-        adaptiveThresholdManager.updateThresholdsFromDecision(userId, ztDecision);
-
-        log.debug("Updated adaptive thresholds for user {} based on Layer2 decision (risk: {}, confidence: {})",
-                  userId, decision.getRiskScore(), decision.getConfidence());
     }
 
     /**

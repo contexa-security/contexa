@@ -14,9 +14,11 @@ import java.util.Map;
 /**
  * Path Processor 처리 결과
  *
- * Hot/Cold Path에서 분석 결과를 SecurityPlaneAgent로 반환하기 위한 DTO.
+ * Cold Path(AI Analysis)에서 분석 결과를 SecurityPlaneAgent로 반환하기 위한 DTO.
  * 프로젝트 센티넬 아키텍처에 따라 Path Processor는 분석만 수행하고,
  * Trust Score 업데이트는 SecurityPlaneAgent가 중앙에서 관리합니다.
+ *
+ * AI Native 아키텍처: LLM riskScore를 직접 사용
  *
  * @author contexa Platform
  * @since 1.0
@@ -32,12 +34,18 @@ public class ProcessingResult {
      */
     private boolean success;
 
+
     /**
-     * 제안된 위협 점수 조정값
-     * -1.0 ~ 1.0 범위 (음수는 감소, 양수는 증가)
+     * LLM 분석 결과 위험 점수 (AI Native)
+     * 0.0 ~ 1.0 범위 (LLM이 직접 계산한 값, 가공 없이 사용)
+     *
+     * 용도:
+     * - Redis threat_score에 직접 저장
+     * - 시간 감쇠, magnitude 곱셈 없이 그대로 사용
+     * - LLM의 판단을 100% 신뢰
      */
-    private double threatScoreAdjustment;
-    
+    private double riskScore;
+
     /**
      * 현재 계산된 위험 수준
      * 0.0 ~ 1.0 범위
@@ -45,7 +53,7 @@ public class ProcessingResult {
     private double currentRiskLevel;
     
     /**
-     * 처리 경로 (HOT_PATH, COLD_PATH)
+     * 처리 경로 (COLD_PATH, BYPASS)
      */
     private ProcessingPath processingPath;
     
@@ -133,18 +141,18 @@ public class ProcessingResult {
     
     /**
      * 처리 경로 열거형
+     * AI Native 아키텍처: Cold Path(LLM 분석)가 기본
      */
     public enum ProcessingPath {
-        HOT_PATH("Hot Path - Fast Processing"),
         COLD_PATH("Cold Path - AI Analysis"),
         BYPASS("Bypass - No Processing");
-        
+
         private final String description;
-        
+
         ProcessingPath(String description) {
             this.description = description;
         }
-        
+
         public String getDescription() {
             return description;
         }
@@ -200,10 +208,10 @@ public class ProcessingResult {
     /**
      * 빠른 생성을 위한 정적 팩토리 메서드 - 성공
      */
-    public static ProcessingResult success(ProcessingPath path, double adjustment) {
+    public static ProcessingResult success(ProcessingPath path, double riskScore) {
         return ProcessingResult.builder()
                 .processingPath(path)
-                .threatScoreAdjustment(adjustment)
+                .riskScore(riskScore)
                 .success(true)
                 .status(ProcessingStatus.SUCCESS)
                 .processedAt(LocalDateTime.now())

@@ -7,7 +7,6 @@ import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
-import io.contexa.contexacore.hcad.engine.ZeroTrustDecisionEngine;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -24,28 +23,25 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Cold Path 이벤트 처리기 (3-Tier AI 분석)
+ * Cold Path 이벤트 처리기 (2-Tier AI 분석)
  *
- * HCAD 유사도가 낮은(≤ 0.70) 요청을 3단계 AI로 분석합니다.
+ * HCAD 유사도가 낮은(≤ 0.70) 요청을 2단계 AI로 분석합니다.
  *
- * 핵심 설계:
- * - Layer 1 (0.55 < similarity ≤ 0.70): TinyLlama LLM 빠른 분석 (20-50ms, $0.0001/req)
- * - Layer 2 (0.40 < similarity ≤ 0.55): Llama3.1:8b LLM 상세 분석 (100-300ms, $0.001/req)
- * - Layer 3 (similarity ≤ 0.40): Claude Sonnet LLM 전문가 분석 (1-5s, $0.02/req)
+ * 핵심 설계 (2-Tier 구조, 2025-01 리팩토링):
+ * - Layer 1: Llama3.1:8b LLM 상세 분석 (300ms, 무료) - 95% 케이스 처리
+ * - Layer 2: Claude API LLM 전문가 분석 (5s, 유료) - 5% 케이스 처리
  *
- * 최적화 (2025-01):
- * - HOT Path 90% (similarity > 0.70) → HCAD만으로 충분
- * - COLD Path 10% (similarity ≤ 0.70) → AI 실시간 맥락 분석
- * - Layer 1: 6% 요청 (빠른 AI 검증)
- * - Layer 2: 3% 요청 (중급 AI 분석)
- * - Layer 3: 1% 요청 (전문가 AI 분석)
+ * 변경 사유:
+ * - TinyLlama(1.1B)는 보안 분석에 부적합 (복잡한 컨텍스트 이해 불가)
+ * - 대부분 Layer2로 에스컬레이션되어 Layer1 존재 의미 희박
+ * - Llama3.1:8b가 95%+ 케이스 처리 가능
  *
  * 처리 흐름:
- * 1. riskScore → similarityScore 역변환 (VectorSimilarityHandler에서 이미 1회 변환됨)
- * 2. 유사도 기반 Layer 결정 (determineStartLayer)
- * 3. Tier별 AI 전략 실행 (Layer1/2/3Strategy)
- * 4. Zero Trust 대응 결정 및 실행
- * 5. SOAR 인시던트 생성 (필요시)
+ * 1. Layer1(Llama3.1:8b) 분석 실행
+ * 2. confidence >= 0.8 → 최종 판정
+ * 3. confidence < 0.8 → Layer2(Claude) 에스컬레이션
+ * 4. LLM riskScore 그대로 반환 (AI Native)
+ * 5. Zero Trust 대응 결정 및 실행
  *
  * @author contexa Platform
  * @since 2.0
@@ -58,7 +54,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private final Layer1FastFilterStrategy layer1Strategy;
     private final Layer2ContextualStrategy layer2Strategy;
     private final Layer3ExpertStrategy layer3Strategy;
-    private final ZeroTrustDecisionEngine zeroTrustDecisionEngine;
 
     private static final String THREAT_HISTORY_PREFIX = "threat_history:";
     
@@ -130,38 +125,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
             // 1. AI Layer 진단 실행 (단일 실행)
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore);
 
-            // 2. AI 결과를 ZeroTrustDecisionEngine에 전달하여 최종 결정 (순차 실행)
-            CompletableFuture<Void> zeroTrustFuture = CompletableFuture.completedFuture(null);
-            if (zeroTrustDecisionEngine != null) {
-                zeroTrustFuture = zeroTrustDecisionEngine.makeDecision(event, analysisResult)
-                        .thenAccept(zeroTrustDecision -> {
-                            // ZeroTrustDecision 결과를 ProcessingResult에 통합
-                            result.addAnalysisData("zeroTrustDecision", zeroTrustDecision);
-                            result.addAnalysisData("trustScore", zeroTrustDecision.getTrustScore());
-                            result.addAnalysisData("zeroTrustRiskLevel", zeroTrustDecision.getRiskLevel());
-                            result.addAnalysisData("accessRecommendations", zeroTrustDecision.getRecommendations());
-                            result.addAnalysisData("zeroTrustPrinciples", zeroTrustDecision.getZeroTrustPrinciples());
-
-                            log.info("ZeroTrust 결정 완료 - userId: {}, action: {}, trustScore: {}, riskLevel: {}",
-                                    userId, zeroTrustDecision.getFinalAction(),
-                                    String.format("%.3f", zeroTrustDecision.getTrustScore()),
-                                    zeroTrustDecision.getRiskLevel());
-                        })
-                        .exceptionally(ex -> {
-                            log.error("ZeroTrust 결정 실패 - userId: {}, eventId: {}", userId, event.getEventId(), ex);
-                            return null;
-                        });
-            }
-
-            // ZeroTrust 결정 완료 대기
-            try {
-                zeroTrustFuture.get();
-            } catch (Exception e) {
-                log.error("ZeroTrust 결정 대기 실패 - eventId: {}", event.getEventId(), e);
-            }
-
-            double threatAdjustment = calculateThreatAdjustment(analysisResult);
-            result.setThreatScoreAdjustment(threatAdjustment);
+            // AI Native: LLM riskScore 그대로 사용 (가공 없음)
+            double llmRiskScore = calculateThreatAdjustment(analysisResult);
+            result.setRiskScore(llmRiskScore);
 
             result.addAnalysisData("aiAssessment", analysisResult);
             result.addAnalysisData("threatLevel", analysisResult.getThreatLevel());
@@ -367,33 +333,27 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
     
     /**
-     * HCAD 유사도 기반 시작 Layer 결정 (3-Tier AI 분석)
+     * 2-Tier AI 분석 Layer 결정
+     *
+     * 2025-01 리팩토링: 3-Tier → 2-Tier 구조로 단순화
+     *
+     * 변경 사유:
+     * - TinyLlama(1.1B)는 보안 분석에 부적합 (복잡한 컨텍스트 이해 불가)
+     * - 대부분 Layer2로 에스컬레이션되어 Layer1 존재 의미 희박
+     * - Llama3.1:8b가 95%+ 케이스 처리 가능
+     *
+     * 새로운 2-Tier 구조:
+     * - Layer 1: Llama3.1:8b (기존 Layer2) - 95% 케이스, 300ms
+     * - Layer 2: Claude API (기존 Layer3) - 5% 케이스, 5s
      *
      * 스케일 정의:
      * - riskScore: 0.0~1.0 (VectorSimilarityHandler에서 계산된 위험도)
-     * - similarityScore: 0.0~1.0 (HCAD 벡터 유사도, riskScore의 역)
-     *
-     * 변환 로직:
-     * 1. VectorSimilarityHandler: riskScore = 1.0 - similarityScore (1회 변환)
-     * 2. ColdPathEventProcessor: similarityScore = 1.0 - riskScore (역변환으로 복원)
-     * → 결과: 원래 HCAD 유사도가 복원됨!
-     *
-     * Layer 결정 임계값 (2025-01 최적화):
-     * - similarity > 0.55 (layer1Threshold) → Layer 1 (TinyLlama, 6% 케이스)
-     * - 0.40 < similarity ≤ 0.55 (layer2Threshold) → Layer 2 (Llama3.1, 3% 케이스)
-     * - similarity ≤ 0.40 → Layer 3 (Claude Sonnet, 1% 케이스)
-     *
-     * 참고: similarity > 0.70 (hotThreshold)은 HOT Path로 이미 필터링되어
-     * 이 메서드에 도달하지 않음 (RoutingDecisionHandler에서 처리)
-     *
-     * 예시:
-     * - riskScore=0.35 → similarity=0.65 → Layer 1 (빠른 AI 검증)
-     * - riskScore=0.52 → similarity=0.48 → Layer 2 (중급 AI 분석)
-     * - riskScore=0.75 → similarity=0.25 → Layer 3 (전문가 AI 분석)
+     * - confidence >= 0.8 → Layer1에서 최종 판정
+     * - confidence < 0.8 → Layer2 에스컬레이션
      *
      * @param riskScore 위험도 점수 (0.0~1.0)
      * @param event 보안 이벤트
-     * @return 시작 Layer (1=Layer1, 2=Layer2, 3=Layer3)
+     * @return 시작 Layer (2=Layer2/Llama3.1, 3=Layer3/Claude)
      */
     private int determineStartLayer(double riskScore, SecurityEvent event) {
         // 스케일 검증
@@ -402,30 +362,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
             riskScore = Math.max(0.0, Math.min(1.0, riskScore));
         }
 
-        // 유사도 역변환 (0.0~1.0 스케일)
-        double similarityScore = 1.0 - riskScore;
-
-        // Layer 결정 (새로운 임계값 사용)
-        int layer;
-        if (similarityScore > this.layer1Threshold) {
-            // 높은 유사도 (> 0.55) - Layer 1에서 TinyLlama 빠른 분석
-            layer = 1;
-        } else if (similarityScore > this.layer2Threshold) {
-            // 중간 유사도 (0.40 < sim ≤ 0.55) - Layer 2에서 Llama3.1 상세 분석
-            layer = 2;
-        } else {
-            // 낮은 유사도 (≤ 0.40) - Layer 3에서 Claude 전문가 분석
-            layer = 3;
-        }
+        // 2-Tier: 항상 Layer2(Llama3.1)부터 시작
+        // Layer1(TinyLlama)은 보안 분석에 부적합하여 사용하지 않음
+        int layer = 2;
 
         // 상세 로깅
-        log.info("[ColdPathEventProcessor] Layer 결정: riskScore={} (0-1), similarity={} (0-1), " +
-                "thresholds[L1>{}, L2>{}, L3≤{}] → Layer {} 선택, eventId={}",
+        log.info("[ColdPathEventProcessor][2-Tier] Layer 결정: riskScore={} (0-1) → Layer {} 시작 (Llama3.1), eventId={}",
                 String.format("%.3f", riskScore),
-                String.format("%.3f", similarityScore),
-                String.format("%.2f", this.layer1Threshold),
-                String.format("%.2f", this.layer2Threshold),
-                String.format("%.2f", this.layer2Threshold),
                 layer,
                 event.getEventId());
 
@@ -478,70 +421,44 @@ public class ColdPathEventProcessor implements IPathProcessor {
      * - LOW: 0.15 (경미, 약한 조정)
      * - INFO: 0.3 (정보성, 신뢰 회복 강화)
      *
-     * 예시:
-     * - CRITICAL, finalScore=0.9 → deviation=+0.4 → adjustment=+0.34 (위험 증가)
-     * - MEDIUM, finalScore=0.5 → deviation=0.0 → adjustment=0.0 (변화 없음)
-     * - LOW, finalScore=0.2 → deviation=-0.3 → adjustment=-0.032 (위험 감소)
-     * - INFO, finalScore=0.1 → deviation=-0.4 → adjustment=-0.084 (신뢰 회복)
+     * AI Native 원칙:
+     * - LLM이 반환한 riskScore(0.0~1.0)를 100% 신뢰
+     * - deviation, magnitude, maxDelta 등 규칙 기반 조정 완전 제거
+     * - ±0.15 제한 완전 제거 (LLM 판단 손실 방지)
+     * - 시간 감쇠와 무관하게 독립적으로 동작
+     *
+     * 이전 방식의 문제점:
+     * - LLM이 CRITICAL(0.95) 반환 → ±0.15 제한 → 0.15만 반영 (84% 손실!)
+     * - magnitude 곱셈으로 LLM 판단 왜곡
+     * - deviation 계산으로 LLM 의도 변형
+     *
+     * 새로운 방식:
+     * - LLM이 CRITICAL(0.95) 반환 → 0.95 그대로 Redis 저장
+     * - LLM이 LOW(0.1) 반환 → 0.1 그대로 Redis 저장
      *
      * @param analysisResult AI 분석 결과
-     * @return Threat Score 조정값 (-0.5 ~ +0.5)
+     * @return LLM의 riskScore (0.0 ~ 1.0, 가공 없음)
      */
     private double calculateThreatAdjustment(ThreatAnalysisResult analysisResult) {
         double finalScore = analysisResult.getFinalScore();
         ThreatAssessment.ThreatLevel level = analysisResult.getThreatLevel();
         double confidence = analysisResult.getConfidence();
 
-        // 모든 Layer가 0-1 스케일 통일 사용
-        // 입력 검증만 수행
+        // 범위 검증만 수행 (0.0~1.0)
         if (finalScore < 0.0 || finalScore > 1.0) {
-            finalScore = Math.max(0.0, Math.min(1.0, finalScore));
+            double clamped = Math.max(0.0, Math.min(1.0, finalScore));
             log.warn("[ColdPathEventProcessor] riskScore 범위 초과로 클램핑: {} → {}",
-                    analysisResult.getFinalScore(), finalScore);
-        }
-        if (confidence < 0.0 || confidence > 1.0) {
-            confidence = Math.max(0.0, Math.min(1.0, confidence));
+                    finalScore, clamped);
+            finalScore = clamped;
         }
 
-        // 최소 신뢰도 보장 (너무 낮은 confidence는 0.5로 보정)
-        double confidenceWeight = Math.max(confidence, 0.5);
-
-        // CRITICAL FIX: 기준점(중립) 대비 편차 계산
-        double baseline = 0.5;
-        double deviation = finalScore - baseline;  // -0.5 ~ +0.5 (음수=안전, 양수=위험)
-
-        // 위협 레벨별 조정 강도 (CRITICAL 강화)
-        double magnitude;
-        if (level == null) {
-            magnitude = 0.6;
-        } else {
-            magnitude = switch (level) {
-                case CRITICAL -> 2.0;   // 매우 위험 - 강화된 조정 (1.0 → 2.0)
-                case HIGH -> 1.2;       // 위험 - 강화된 조정 (0.7 → 1.2)
-                case MEDIUM -> 0.6;     // 주의 - 중간 조정 (0.4 → 0.6)
-                case LOW -> 0.2;        // 경미 - 약한 조정 (0.15 → 0.2)
-                case INFO -> 0.1;       // 정보성 - 최소 조정 (0.3 → 0.1)
-            };
-        }
-
-        // 최종 조정값 계산 (편차 기반)
-        double adjustment = deviation * confidenceWeight * magnitude;
-
-        // CRITICAL FIX: 단일 이벤트 최대 변동량 제한 (v3.1)
-        // 기존 -0.8 ~ +0.8 범위는 너무 넓어 233% 점프 가능
-        // 안정적인 점진적 변화를 위해 -0.15 ~ +0.15로 제한
-        double maxDelta = 0.15;
-        adjustment = Math.max(-maxDelta, Math.min(maxDelta, adjustment));
-
-        // 상세 로깅
-        log.info("[ColdPathEventProcessor] Threat Score 조정값: level={}, finalScore={}, deviation={}, magnitude={} → adjustment={}",
+        // AI Native: LLM riskScore 그대로 반환 (가공 없음)
+        log.info("[ColdPathEventProcessor] AI Native riskScore: level={}, riskScore={}, confidence={} → 가공 없이 그대로 사용",
             level,
             String.format("%.3f", finalScore),
-            String.format("%.3f", deviation),
-            String.format("%.2f", magnitude),
-            String.format("%+.3f", adjustment));  // 부호 포함 출력
+            String.format("%.3f", confidence));
 
-        return adjustment;
+        return finalScore;
     }
 
     /**

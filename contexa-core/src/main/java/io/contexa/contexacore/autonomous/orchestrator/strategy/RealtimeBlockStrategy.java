@@ -92,9 +92,10 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
             log.info("[RealtimeBlockStrategy] Critical threat blocked - eventId: {}, actions: {}",
                     event.getEventId(), executedActions);
 
+            // AI Native: HOT_PATH 제거, COLD_PATH 사용
             return ProcessingResult.builder()
                     .success(true)
-                    .processingPath(ProcessingResult.ProcessingPath.HOT_PATH)
+                    .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                     .executedActions(executedActions)
                     .metadata(metadata)
                     .message("Critical threat blocked successfully")
@@ -104,7 +105,7 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
             log.error("[RealtimeBlockStrategy] Error blocking critical threat: {}", event.getEventId(), e);
             return ProcessingResult.builder()
                     .success(false)
-                    .processingPath(ProcessingResult.ProcessingPath.HOT_PATH)
+                    .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                     .executedActions(executedActions)
                     .message("Blocking error: " + e.getMessage())
                     .build();

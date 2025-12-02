@@ -1,8 +1,7 @@
 package io.contexa.contexacore.hcad.filter;
 
-import io.contexa.contexacore.hcad.constants.HCADRedisKeys;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
-import io.contexa.contexacore.hcad.service.*;
+import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -10,18 +9,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * HCAD (Hyper-lightweight Context Anomaly Detector) 필터 (v3.0)
@@ -41,8 +36,6 @@ import java.util.Set;
 public class HCADFilter extends OncePerRequestFilter {
 
     private final HCADAnalysisService hcadAnalysisService;
-    private final @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate;
-    private final HCADAuthenticationService authenticationService;
 
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
@@ -52,33 +45,10 @@ public class HCADFilter extends OncePerRequestFilter {
     @Value("${hcad.threshold.warn:0.7}")
     private double warnThreshold;
 
-    @Value("${hcad.cache.clear-on-startup:false}")
-    private boolean clearCacheOnStartup;
-
-
-
     @PostConstruct
     public void init() {
-        if (clearCacheOnStartup) {
-            clearBaselineCache();
-        }
-        log.info("[HCAD] Filter initialized - enabled: {}, warnThreshold: {}, clearCacheOnStartup: {}",
-            enabled, warnThreshold, clearCacheOnStartup);
-    }
-
-    private void clearBaselineCache() {
-        try {
-            String pattern = HCADRedisKeys.userHcadPattern("*");
-            Set<String> keys = redisTemplate.keys(pattern);
-            if (keys != null && !keys.isEmpty()) {
-                Long deletedCount = redisTemplate.delete(keys);
-                log.warn("[HCAD] Cleared {} baseline cache entries from Redis (package migration)", deletedCount);
-            } else {
-                log.info("[HCAD] No baseline cache entries found to clear");
-            }
-        } catch (Exception e) {
-            log.error("[HCAD] Failed to clear baseline cache", e);
-        }
+        log.info("[HCAD] Filter initialized - enabled: {}, warnThreshold: {}",
+            enabled, warnThreshold);
     }
 
     @Override
@@ -118,15 +88,8 @@ public class HCADFilter extends OncePerRequestFilter {
             // 3. 기준선 업데이트
             hcadAnalysisService.updateBaselineIfNeeded(result);
 
-            // 4. 이상탐지 시 Authentication.details에 저장
+            // 4. 이상탐지 시 로그 기록 (AI Native: Cold Path에서 처리)
             if (result.isAnomaly()) {
-                authenticationService.setAnomalyInfoInAuthentication(
-                    authentication,
-                    result.getContext(),
-                    result.getSimilarityScore(),
-                    result.getAnomalyScore(),
-                    result.getThreshold()
-                );
                 log.warn("[HCADFilter] Anomaly detected - userId: {}, similarity: {}, threshold: {}",
                     result.getUserId(), String.format("%.3f", result.getSimilarityScore()), result.getThreshold());
             }

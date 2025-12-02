@@ -152,11 +152,11 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         context.addMetadata("processingPath", result.getProcessingPath());
         context.addMetadata("processingExecutionTime", executionTime);
 
-        // threatScoreAdjustment 명시적 추가 (ThreatScoreHandler에서 사용)
-        double threatScoreAdjustment = result.getThreatScoreAdjustment();
-        context.addMetadata("threatScoreAdjustment", threatScoreAdjustment);
-        log.debug("[ProcessingExecutionHandler] ThreatScoreAdjustment added to context: {}",
-            String.format("%.3f", threatScoreAdjustment));
+        // AI Native: riskScore 명시적 추가 (ThreatScoreHandler에서 사용)
+        double riskScore = result.getRiskScore();
+        context.addMetadata("riskScore", riskScore);
+        log.debug("[ProcessingExecutionHandler] riskScore added to context: {}",
+            String.format("%.3f", riskScore));
 
         // 실행된 액션 기록
         if (result.getExecutedActions() != null && !result.getExecutedActions().isEmpty()) {
@@ -315,8 +315,8 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
                 int aiLevel = result.getAiAnalysisLevel();
                 layer = ProcessingCompletedEvent.ProcessingLayer.fromLevel(aiLevel);
             } else {
-                // Hot Path는 기본적으로 Layer1 수준
-                if (mode == ProcessingMode.REALTIME_BLOCK || mode == ProcessingMode.PASS_THROUGH) {
+                // REALTIME_BLOCK은 기본적으로 Layer1 수준
+                if (mode == ProcessingMode.REALTIME_BLOCK) {
                     layer = ProcessingCompletedEvent.ProcessingLayer.LAYER1;
                 }
             }

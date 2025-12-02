@@ -54,18 +54,19 @@ public class ColdPathStrategy implements ProcessingStrategy {
             ProcessingResult result = coldPathProcessor.processEvent(event, riskScore);
 
             // Context에 분석 완료 메타데이터 추가
+            // AI Native: threatScoreAdjustment 제거, riskScore 사용
             context.addMetadata("aiAnalysisComplete", true);
             context.addMetadata("coldPathResult", result.isSuccess());
-            context.addMetadata("threatScoreAdjustment", result.getThreatScoreAdjustment());
+            context.addMetadata("riskScore", result.getRiskScore());
 
-            log.info("[ColdPathStrategy] AI analysis completed for event {} - success: {}, threatAdjustment: {}",
-                event.getEventId(), result.isSuccess(), result.getThreatScoreAdjustment());
+            log.info("[ColdPathStrategy] AI analysis completed for event {} - success: {}, riskScore: {}",
+                event.getEventId(), result.isSuccess(), result.getRiskScore());
 
-            // CRITICAL FIX: threatScoreAdjustment를 포함한 완전한 결과 반환
+            // AI Native: riskScore를 포함한 완전한 결과 반환
             return ProcessingResult.builder()
                 .success(result.isSuccess())
                 .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
-                .threatScoreAdjustment(result.getThreatScoreAdjustment())  // 추가됨
+                .riskScore(result.getRiskScore())  // AI Native: threatScoreAdjustment 대신 riskScore 사용
                 .currentRiskLevel(result.getCurrentRiskLevel())
                 .executedActions(result.getExecutedActions())
                 .metadata(result.getMetadata())
@@ -89,7 +90,7 @@ public class ColdPathStrategy implements ProcessingStrategy {
                 .success(false)
                 .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .message("Processing error: " + e.getMessage())
-                .threatScoreAdjustment(0.0)  // 실패 시 조정 없음
+                .riskScore(0.0)  // AI Native: 실패 시 기본값
                 .build();
         }
     }

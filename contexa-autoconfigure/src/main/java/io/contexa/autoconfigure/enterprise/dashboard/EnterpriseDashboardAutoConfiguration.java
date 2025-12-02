@@ -10,7 +10,6 @@ import io.contexa.contexacoreenterprise.dashboard.metrics.vectorstore.VectorStor
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.UnifiedSecurityMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
-import io.contexa.contexacoreenterprise.dashboard.metrics.plane.OrthogonalSignalCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -199,23 +198,6 @@ public class EnterpriseDashboardAutoConfiguration {
     )
     public ToolExecutionMetrics toolExecutionMetrics(MeterRegistry registry) {
         return new ToolExecutionMetrics(registry);
-    }
-
-    // ========== Plane Metrics (1개) ==========
-
-    /**
-     * 9. OrthogonalSignalCollector - 직교 신호 수집기
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.dashboard.metrics",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
-    public OrthogonalSignalCollector orthogonalSignalCollector() {
-        return new OrthogonalSignalCollector();
     }
 
     // ========== Evolution Metrics (1개) ==========

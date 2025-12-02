@@ -276,21 +276,21 @@ public class HCADVectorIntegrationService {
                 return;
             }
 
-            // threatScoreAdjustment 추출 및 저장
-            Object threatAdjustmentObj = analysis.get("threatScoreAdjustment");
-            if (threatAdjustmentObj != null) {
-                double threatAdjustment = Double.parseDouble(threatAdjustmentObj.toString());
+            // AI Native: riskScore 추출 및 저장 (threatScoreAdjustment 대체)
+            Object riskScoreObj = analysis.get("riskScore");
+            if (riskScoreObj != null) {
+                double riskScore = Double.parseDouble(riskScoreObj.toString());
 
-                // Hot Path에서 사용할 Redis 키에 저장
-                String threatKey = io.contexa.contexacore.hcad.constants.HCADRedisKeys.threatAdjustment(userId);
+                // Hot Path에서 사용할 Redis 키에 저장 (ZeroTrustRedisKeys 사용)
+                String riskScoreKey = "threat_score:" + userId;
                 redisTemplate.opsForValue().set(
-                    threatKey,
-                    threatAdjustment,
+                    riskScoreKey,
+                    riskScore,
                     Duration.ofHours(1) // 1시간 TTL
                 );
 
-                log.info("Phase 2 완료: userId={}, threatAdjustment={}",
-                    userId, String.format("%.3f", threatAdjustment));
+                log.info("Phase 2 완료: userId={}, riskScore={}",
+                    userId, String.format("%.3f", riskScore));
             }
 
         } catch (Exception e) {

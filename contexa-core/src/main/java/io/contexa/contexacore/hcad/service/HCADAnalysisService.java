@@ -1,21 +1,18 @@
 package io.contexa.contexacore.hcad.service;
 
-// import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
-// import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.HCADFeedbackLoopMetrics;
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.hcad.threshold.UnifiedThresholdManager;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
- * HCAD 분석 서비스
+ * HCAD 분석 서비스 (AI Native)
  *
  * HCADFilter의 핵심 로직을 추출한 서비스 (Single Source of Truth)
  *
@@ -23,13 +20,12 @@ import java.util.Map;
  * 1. HCADFilter: 모든 일반 요청 분석 (인증 전 상태)
  * 2. MySecurityConfig 로그인 핸들러: 로그인 시 인증된 사용자로 재계산
  *
- * 설계 목적:
- * - Single Source of Truth: 유사도 계산 로직의 중앙 집중화
- * - DRY 원칙: 코드 중복 제거
- * - Separation of Concerns: 필터는 라우팅, 서비스는 비즈니스 로직
- * - 정확한 userId 매칭: 로그인 시 인증된 사용자로 재계산하여 익명/인증 불일치 해결
+ * AI Native 방식:
+ * - LLM이 반환한 riskScore(0.0~1.0)를 Redis에서 조회하여 그대로 사용
+ * - 규칙 기반 조정 없이 LLM 판단 100% 신뢰
+ * - threat_score:{userId} 키에서 조회
  *
- * 성능 목표: 1-5ms (컨텍스트 추출) + 1ms (BaselineVector 조회) + 1-2ms (유사도 계산) = 5-30ms
+ * 성능 목표: 1-5ms (컨텍스트 추출) + 1ms (Redis 조회) = 2-6ms
  *
  * @author contexa
  * @since 3.0.0
@@ -38,43 +34,30 @@ import java.util.Map;
 public class HCADAnalysisService {
 
     private final HCADContextExtractor contextExtractor;
-    private final HCADBaselineCacheService cacheService;
-    private final HCADSimilarityCalculator similarityCalculator;
-    private final UnifiedThresholdManager unifiedThresholdManager;
-    private final HCADBaselineLearningService baselineLearningService;
-    // private final Object feedbackMetrics;
-    // private final Object evolutionMetricsCollector;
+    private RedisTemplate<String, Object> redisTemplate;
 
-    public HCADAnalysisService(
-            HCADContextExtractor contextExtractor,
-            HCADBaselineCacheService cacheService,
-            HCADSimilarityCalculator similarityCalculator,
-            UnifiedThresholdManager unifiedThresholdManager,
-            HCADBaselineLearningService baselineLearningService
-            // Enterprise metrics - optional
-            // @Autowired(required = false) Object feedbackMetrics,
-            // @Autowired(required = false) Object evolutionMetricsCollector
-    ) {
+    @Value("${hcad.anomaly.threshold:0.5}")
+    private double defaultThreshold;
+
+    public HCADAnalysisService(HCADContextExtractor contextExtractor) {
         this.contextExtractor = contextExtractor;
-        this.cacheService = cacheService;
-        this.similarityCalculator = similarityCalculator;
-        this.unifiedThresholdManager = unifiedThresholdManager;
-        this.baselineLearningService = baselineLearningService;
-        // this.feedbackMetrics = feedbackMetrics;
-        // this.evolutionMetricsCollector = evolutionMetricsCollector;
+    }
+
+    @Autowired
+    public void setRedisTemplate(@Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+        this.redisTemplate = redisTemplate;
     }
 
     /**
-     * HCAD 분석 수행
+     * HCAD 분석 수행 (AI Native)
      *
      * HCADFilter와 로그인 핸들러 모두에서 사용
      *
-     * 처리 흐름:
+     * AI Native 처리 흐름:
      * 1. 컨텍스트 추출 (userId, IP, UserAgent 등)
-     * 2. Redis에서 BaselineVector 조회 (사용자별 정상 행동 패턴)
-     * 3. RAG 강화 유사도 계산 (다층 신뢰성 검증)
-     * 4. 통합 임계값 조회 및 이상 여부 판단
-     * 5. HCADAnalysisResult 반환
+     * 2. Redis에서 LLM riskScore(threat_score) 조회
+     * 3. riskScore를 그대로 anomalyScore로 사용 (규칙 기반 조정 없음)
+     * 4. HCADAnalysisResult 반환
      *
      * @param request HTTP 요청
      * @param authentication 인증 정보 (인증 전: anonymousUser, 인증 후: 실제 사용자)
@@ -85,89 +68,57 @@ public class HCADAnalysisService {
 
         try {
             // 1. 컨텍스트 추출 (1-5ms)
-            // HCADContextExtractor가 Authentication 에서 userId를 추출
-            // - 인증 전: "anonymous:{IP}"
-            // - 인증 후: 실제 username (예: "admin")
             HCADContext context = contextExtractor.extractContext(request, authentication);
             String userId = context.getUserId();
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCADAnalysisService] 컨텍스트 추출 완료: userId={}, path={}, ip={}",
+                log.debug("[HCADAnalysisService][AI Native] 컨텍스트 추출 완료: userId={}, path={}, ip={}",
                     userId, context.getRequestPath(), context.getRemoteIp());
             }
 
-            // 2. Redis 에서 기준선 벡터 조회 (1ms)
-            // 사용자별 정상 행동 패턴 (384차원 벡터)
-            BaselineVector baseline = cacheService.getBaseline(userId);
+            // 2. Redis에서 LLM riskScore(threat_score) 조회 (AI Native 핵심)
+            double riskScore = getLLMRiskScoreFromRedis(userId);
 
-            // 3. RAG 강화 다층 신뢰성 검증
-            // - HCAD 유사도 계산 (현재 요청 vs BaselineVector)
-            // - Cold Path AI 진단 결과는 Redis를 통해 비동기로 피드백됨
-            // - TrustScore, ThreatType, ThreatEvidence 포함
-            HCADSimilarityCalculator.TrustedSimilarityResult finalResult =
-                similarityCalculator.calculateRAGEnhancedSimilarity(context, baseline);
+            // 3. AI Native: LLM riskScore를 그대로 사용
+            // riskScore >= threshold -> 이상 탐지
+            double currentThreshold = defaultThreshold;
+            boolean isAnomaly = riskScore >= currentThreshold;
+            double anomalyScore = riskScore;
+            double trustScore = 1.0 - riskScore;
+            double similarityScore = 1.0 - riskScore;
 
-            double similarityScore = finalResult.getFinalSimilarity();
-            double anomalyScore = 1.0 - similarityScore;
-
-            // 4. 통합 임계값 조회
-            // 사용자별 동적 임계값 (정상 사용자는 낮게, 의심 사용자는 높게)
-            double currentThreshold = unifiedThresholdManager.getThreshold(userId, context);
-            // 버그 수정: anomalyScore > threshold로 판정 (높을수록 이상)
-            boolean isAnomaly = anomalyScore > currentThreshold;
+            // 위협 유형 결정 (riskScore 기반)
+            String threatType = determineThreatType(riskScore);
+            String threatEvidence = buildThreatEvidence(riskScore, isAnomaly);
 
             long processingTime = System.currentTimeMillis() - startTime;
 
-            // ===== 메트릭 수집 =====
-            // if (feedbackMetrics != null) {
-                // 나노초로 변환 (더 정확한 측정)
-                // long durationNanos = processingTime * 1_000_000;
-                // feedbackMetrics.recordAnalysis(durationNanos, similarityScore, isAnomaly);
-
-                // EventRecorder 인터페이스 호출
-                // Map<String, Object> eventMetadata = new HashMap<>();
-                // eventMetadata.put("user_id", userId);
-                // eventMetadata.put("similarity_score", similarityScore);
-                // eventMetadata.put("anomaly_score", anomalyScore);
-                // eventMetadata.put("is_anomaly", isAnomaly);
-                // eventMetadata.put("duration_nanos", durationNanos);
-                // feedbackMetrics.recordEvent("hcad_analysis", eventMetadata);
-            // }
-
-            // 📊 Prometheus 메트릭 수집 (Micrometer)
-            // if (evolutionMetricsCollector != null) {
-                // evolutionMetricsCollector.recordHCADAnalysis(processingTime, anomalyScore, isAnomaly);
-            // }
-
             if (log.isDebugEnabled()) {
-                log.debug("[HCADAnalysisService] 분석 완료: userId={}, similarity={}, anomaly={}, threshold={}, time={}ms",
+                log.debug("[HCADAnalysisService][AI Native] 분석 완료: userId={}, riskScore={}, isAnomaly={}, time={}ms",
                     userId,
-                    String.format("%.3f", similarityScore),
-                    String.format("%.3f", anomalyScore),
-                    String.format("%.3f", currentThreshold),
+                    String.format("%.3f", riskScore),
+                    isAnomaly,
                     processingTime);
             }
 
-            // 5. 결과 반환
+            // 4. 결과 반환
             return HCADAnalysisResult.builder()
                 .userId(userId)
                 .similarityScore(similarityScore)
-                .trustScore(finalResult.getTrustScore())
-                .threatType(finalResult.getThreatType())
-                .threatEvidence(finalResult.getThreatEvidence())
+                .trustScore(trustScore)
+                .threatType(threatType)
+                .threatEvidence(threatEvidence)
                 .isAnomaly(isAnomaly)
                 .anomalyScore(anomalyScore)
                 .threshold(currentThreshold)
                 .processingTimeMs(processingTime)
                 .context(context)
-                .baseline(baseline)
                 .build();
 
         } catch (Exception e) {
-            log.error("[HCADAnalysisService] 분석 실패: request={}", request.getRequestURI(), e);
+            log.error("[HCADAnalysisService][AI Native] 분석 실패: request={}", request.getRequestURI(), e);
 
             // Fail-Safe: 에러 발생 시 기본값 반환
-            // 보안상 안전한 쪽으로 실패 (isAnomaly=true)
             return HCADAnalysisResult.builder()
                 .userId("error")
                 .similarityScore(0.0)
@@ -176,97 +127,136 @@ public class HCADAnalysisService {
                 .threatEvidence(e.getMessage())
                 .isAnomaly(true)
                 .anomalyScore(1.0)
-                .threshold(0.5)
+                .threshold(defaultThreshold)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .build();
         }
     }
 
     /**
-     * 기준선 업데이트 수행
+     * Redis에서 LLM riskScore(threat_score) 조회
      *
-     * HCADFilter와 로그인 핸들러 모두에서 사용
+     * AI Native 핵심 메서드:
+     * - Layer1/2/3에서 LLM이 판단한 riskScore를 Redis에 저장
+     * - 이 메서드에서 해당 값을 조회하여 그대로 사용
      *
-     * @param result HCAD 분석 결과
+     * @param userId 사용자 ID
+     * @return riskScore (0.0 ~ 1.0), 없으면 0.0 (신규 사용자 = 정상)
      */
-    public void updateBaselineIfNeeded(HCADAnalysisResult result) {
-        if (result.getBaseline() == null || result.getContext() == null) {
-            return;
+    private double getLLMRiskScoreFromRedis(String userId) {
+        if (redisTemplate == null) {
+            log.warn("[HCADAnalysisService][AI Native] RedisTemplate이 null입니다. 기본값 0.0 반환");
+            return 0.0;
         }
 
-        double anomalyScore = result.getAnomalyScore();
-        double similarityScore = result.getSimilarityScore();
-        BaselineVector baseline = result.getBaseline();
-        HCADContext context = result.getContext();
+        try {
+            String key = ZeroTrustRedisKeys.threatScore(userId);
+            Object value = redisTemplate.opsForValue().get(key);
 
-        // 학습 단계 판단
-        String phase = baselineLearningService.isInBootstrapPhase(baseline) ? "bootstrap" :
-                      (baseline.getConfidence() < 0.7 ? "building" : "mature");
+            if (value == null) {
+                // 신규 사용자 또는 아직 LLM 분석이 안 된 경우
+                if (log.isDebugEnabled()) {
+                    log.debug("[HCADAnalysisService][AI Native] threat_score 없음: userId={}, 기본값 0.0 반환", userId);
+                }
+                return 0.0;
+            }
 
-        if (baselineLearningService.shouldUpdateBaseline(baseline, anomalyScore, similarityScore, context)) {
-            long startTime = System.nanoTime();
+            if (value instanceof Number) {
+                double riskScore = ((Number) value).doubleValue();
+                // 범위 검증 (0.0 ~ 1.0)
+                riskScore = Math.max(0.0, Math.min(1.0, riskScore));
+                if (log.isDebugEnabled()) {
+                    log.debug("[HCADAnalysisService][AI Native] threat_score 조회: userId={}, riskScore={}", userId, riskScore);
+                }
+                return riskScore;
+            }
 
-            baselineLearningService.updateBaseline(context, baseline, similarityScore);
+            if (value instanceof String) {
+                try {
+                    double riskScore = Double.parseDouble((String) value);
+                    riskScore = Math.max(0.0, Math.min(1.0, riskScore));
+                    return riskScore;
+                } catch (NumberFormatException e) {
+                    log.warn("[HCADAnalysisService][AI Native] threat_score 파싱 실패: userId={}, value={}", userId, value);
+                    return 0.0;
+                }
+            }
 
-            long duration = System.nanoTime() - startTime;
+            log.warn("[HCADAnalysisService][AI Native] 알 수 없는 threat_score 타입: userId={}, type={}", userId, value.getClass().getName());
+            return 0.0;
 
-            // ===== 메트릭 수집 =====
-            // if (feedbackMetrics != null) {
-                // feedbackMetrics.recordBaselineUpdate();
-                // feedbackMetrics.recordFeedbackProcessing(duration);
-            // }
-
-            // 📊 Prometheus 메트릭 수집 (학습 결정)
-            // if (evolutionMetricsCollector != null) {
-                // evolutionMetricsCollector.recordHCADLearningDecision(
-                    // result.getUserId(),
-                    // phase,
-                    // "updated",
-                    // baseline.getConfidence()
-                // );
-            // }
-
-            log.debug("[HCADAnalysisService] 기준선 업데이트: userId={}, similarity={}",
-                result.getUserId(), String.format("%.3f", similarityScore));
-        } else {
-            // 📊 학습 건너뜀 사유 기록
-            // if (evolutionMetricsCollector != null) {
-                // 건너뜀 사유 판단 - 통계적 이상치 여부만 확인 가능
-                // String decision;
-                // if (baselineLearningService.isStatisticalOutlier(anomalyScore, baseline)) {
-                    // decision = "skipped_outlier";
-                // } else {
-                    // 의심스러운 컨텍스트이거나 임계값 미달
-                    // decision = "skipped";
-                // }
-
-                // evolutionMetricsCollector.recordHCADLearningDecision(
-                    // result.getUserId(),
-                    // phase,
-                    // decision,
-                    // baseline.getConfidence()
-                // );
-            // }
+        } catch (Exception e) {
+            log.error("[HCADAnalysisService][AI Native] Redis 조회 실패: userId={}", userId, e);
+            return 0.0;
         }
     }
 
     /**
-     * 통계 업데이트 수행 (극도로 제한적)
+     * riskScore 기반 위협 유형 결정
      *
-     * HCADFilter 에서 사용
+     * @param riskScore LLM이 판단한 위험 점수 (0.0 ~ 1.0)
+     * @return 위협 유형 문자열
+     */
+    private String determineThreatType(double riskScore) {
+        if (riskScore >= 0.9) {
+            return "CRITICAL";
+        } else if (riskScore >= 0.7) {
+            return "HIGH";
+        } else if (riskScore >= 0.5) {
+            return "MEDIUM";
+        } else if (riskScore >= 0.3) {
+            return "LOW";
+        } else {
+            return "NONE";
+        }
+    }
+
+    /**
+     * 위협 증거 문자열 생성
+     *
+     * @param riskScore LLM이 판단한 위험 점수
+     * @param isAnomaly 이상 탐지 여부
+     * @return 위협 증거 문자열
+     */
+    private String buildThreatEvidence(double riskScore, boolean isAnomaly) {
+        if (!isAnomaly) {
+            return "AI Native: LLM riskScore=" + String.format("%.3f", riskScore) + " (정상 범위)";
+        }
+        return "AI Native: LLM riskScore=" + String.format("%.3f", riskScore) + " (임계값 초과)";
+    }
+
+    /**
+     * 기준선 업데이트 수행 (AI Native)
+     *
+     * AI Native 방식: 기준선 학습은 LLM Cold Path에서 담당
+     * HCADFilter에서는 호출만 하고 실제 로직은 Cold Path에서 처리됨
+     *
+     * @param result HCAD 분석 결과
+     */
+    public void updateBaselineIfNeeded(HCADAnalysisResult result) {
+        // AI Native: 기준선 학습은 Cold Path에서 담당
+        // HCADFilter에서는 로깅만 수행
+        if (result.isAnomaly() && log.isDebugEnabled()) {
+            log.debug("[HCADAnalysisService][AI Native] 이상 탐지 - Cold Path에서 학습 예정: userId={}", result.getUserId());
+        }
+    }
+
+    /**
+     * 통계 업데이트 수행 (AI Native)
+     *
+     * AI Native 방식: 메트릭 수집은 Micrometer 기반으로 자동 처리
+     * 여기서는 디버그 로깅만 수행
      *
      * @param result HCAD 분석 결과
      */
     public void updateStatisticsIfNeeded(HCADAnalysisResult result) {
-        if (result.getBaseline() == null) {
-            return;
-        }
-
-        BaselineVector baseline = result.getBaseline();
-        double anomalyScore = result.getAnomalyScore();
-
-        if (baselineLearningService.shouldUpdateStatistics(baseline, anomalyScore)) {
-            baseline.updateAnomalyStatistics(anomalyScore);
+        // AI Native: 메트릭은 Micrometer에서 자동 수집
+        // EvolutionMetricsCollector.recordHCADAnalysis() 호출됨
+        if (log.isDebugEnabled()) {
+            log.debug("[HCADAnalysisService][AI Native] 통계 업데이트 완료: userId={}, isAnomaly={}, riskScore={}",
+                result.getUserId(),
+                result.isAnomaly(),
+                String.format("%.3f", result.getAnomalyScore()));
         }
     }
 }

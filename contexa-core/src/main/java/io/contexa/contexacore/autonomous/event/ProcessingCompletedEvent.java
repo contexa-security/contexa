@@ -96,11 +96,12 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
 
     /**
      * Hot Path 처리 결과인지 확인
+     * AI Native: REALTIME_BLOCK만 Hot Path로 간주
      *
      * @return Hot Path이면 true
      */
     public boolean isHotPath() {
-        return mode == ProcessingMode.REALTIME_BLOCK || mode == ProcessingMode.PASS_THROUGH;
+        return mode == ProcessingMode.REALTIME_BLOCK;
     }
 
     /**

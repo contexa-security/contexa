@@ -21,7 +21,7 @@ import java.util.Map;
  * SecurityPlaneAgent의 라우팅 결정 로직을 분리
  * - AdaptiveTierRouter를 통한 처리 모드 결정
  * - 리스크 기반 라우팅
- * - 처리 경로 선택
+ * - AI Native: 모든 요청은 Cold Path(AI 분석)로 라우팅
  *
  * @author contexa
  * @since 1.0
@@ -101,17 +101,12 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
             // ===== 메트릭 수집: 라우팅 결정 기록 =====
             long duration = System.nanoTime() - startTime;
             if (routingMetrics != null) {
-                // Hot/Cold Path 구분 (0.70 기준)
-                boolean isHotPath = similarityScore > similarityThreshold;
-                if (isHotPath) {
-                    routingMetrics.recordHotPath(duration, similarityScore, mode.toString());
-                } else {
-                    routingMetrics.recordColdPath(duration, similarityScore, mode.toString());
-                }
+                // AI Native: 모든 요청은 Cold Path
+                routingMetrics.recordColdPath(duration, similarityScore, mode.toString());
 
                 // EventRecorder 인터페이스를 통한 이벤트 기록
                 Map<String, Object> metadata = new HashMap<>();
-                metadata.put("path_type", isHotPath ? "hot" : "cold");
+                metadata.put("path_type", "cold");
                 metadata.put("mode", mode.toString());
                 metadata.put("similarity_score", similarityScore);
                 metadata.put("risk_score", riskScore);
@@ -119,8 +114,7 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
                 metadata.put("duration", duration);
                 metadata.put("event_id", event.getEventId());
 
-                String eventType = isHotPath ? "routing_hot" : "routing_cold";
-                routingMetrics.recordEvent(eventType, metadata);
+                routingMetrics.recordEvent("routing_cold", metadata);
             }
 
             return true; // 다음 핸들러로 진행
@@ -143,29 +137,24 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
     }
 
     private ProcessingMode determineModeFromSimilarity(double similarityScore) {
-        if (similarityScore > similarityThreshold) {
-            return ProcessingMode.PASS_THROUGH;
-        } else {
-            return ProcessingMode.AI_ANALYSIS;
-        }
+        // AI Native: 모든 요청은 AI 분석을 통과 (Zero Trust)
+        return ProcessingMode.AI_ANALYSIS;
     }
 
     private String getRoutingReasonBySimilarity(ProcessingMode mode, double similarityScore) {
         return switch (mode) {
-            case PASS_THROUGH -> String.format("High similarity (%.2f) to baseline - fast processing", similarityScore);
-            case AI_ANALYSIS -> String.format("Low similarity (%.2f) - AI-based detailed analysis required", similarityScore);
+            case AI_ANALYSIS -> String.format("AI Native analysis - similarity (%.2f)", similarityScore);
             case REALTIME_BLOCK -> String.format("High risk (%.2f) - realtime block", similarityScore);
             case SOAR_ORCHESTRATION -> String.format("Critical risk (%.2f) - SOAR orchestration required", similarityScore);
             case AWAIT_APPROVAL -> String.format("High-risk operation (%.2f) - awaiting approval", similarityScore);
-            default -> String.format("Similarity (%.2f) - mode: %s", similarityScore, mode);
         };
     }
 
     /**
-     * 처리 모드별 추가 메타데이터 설정 (유사도 기반)
+     * 처리 모드별 추가 메타데이터 설정
      *
-     * 중요: isAnomaly는 이 시점에서 설정하지 않음
-     * Cold Path 처리 후 통계적 분석 결과에 따라 결정됨
+     * AI Native: 모든 요청은 Cold Path로 라우팅
+     * isAnomaly는 이 시점에서 설정하지 않음 (AI 분석 후 결정)
      */
     private void addModeSpecificMetadata(SecurityEventContext context, ProcessingMode mode,
                                         double similarityScore, double confidence) {
@@ -175,22 +164,11 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
         context.addMetadata("needsMonitoring", mode.needsMonitoring());
         context.addMetadata("needsHumanIntervention", mode.needsHumanIntervention());
 
-        // Cold/Hot Path 라우팅 정보만 설정 (이상 여부는 나중에 판단)
-        if (similarityScore <= similarityThreshold) {
-            // Cold Path 진입 표시 (이상 여부는 AI 분석 후 결정)
-            context.addMetadata("requiresColdPath", true);
-            context.addMetadata("lowSimilarityScore", similarityScore);
-            context.addMetadata("similarityBelowThreshold", true);
-            log.info("[RoutingDecisionHandler] Low similarity {}, routing to Cold Path for analysis",
-                String.format("%.3f", similarityScore));
-        } else {
-            // Hot Path 진입 표시 (정상 행동 가능성 높음)
-            context.addMetadata("isNormalBehavior", true);
-            context.addMetadata("requiresHotPath", true);
-            context.addMetadata("highSimilarityScore", similarityScore);
-            log.debug("[RoutingDecisionHandler] High similarity {}, routing to Hot Path",
-                String.format("%.3f", similarityScore));
-        }
+        // AI Native: 모든 요청은 Cold Path (AI 분석)
+        context.addMetadata("requiresColdPath", true);
+        context.addMetadata("similarityScore", similarityScore);
+        log.info("[RoutingDecisionHandler] AI Native routing - similarity {}, routing to Cold Path",
+            String.format("%.3f", similarityScore));
 
         // 즉시 처리 필요 표시
         if (mode.isRealtime() || mode.isBlocking()) {

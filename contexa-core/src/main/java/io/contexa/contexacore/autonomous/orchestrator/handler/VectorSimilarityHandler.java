@@ -21,13 +21,13 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * - SecurityEvent metadata에서 유사도 점수 추출 (인증 이벤트의 경우)
  * - 유사도 점수를 컨텍스트에 저장
  * - 신뢰도와 위험도 계산
- * - HOT/COLD Path 라우팅 권장사항 생성 (Layer 1/2/3)
+ * - Cold Path Layer 1/2/3 라우팅 권장사항 생성
  *
- * 라우팅 정책 (2025-01 최적화):
- * - HOT Path (similarity > 0.70): HCAD 벡터 분석만으로 충분 (90% 요청)
- * - Layer 1 (0.55 < similarity ≤ 0.70): TinyLlama 빠른 분석 (6% 요청)
- * - Layer 2 (0.40 < similarity ≤ 0.55): Llama3.1 상세 분석 (3% 요청)
- * - Layer 3 (similarity ≤ 0.40): Claude 전문가 분석 (1% 요청)
+ * AI Native 라우팅 정책:
+ * - 모든 요청은 Cold Path(AI 분석)로 라우팅
+ * - Layer 1 (similarity > 0.55): TinyLlama 빠른 분석
+ * - Layer 2 (0.40 < similarity ≤ 0.55): Llama3.1 상세 분석
+ * - Layer 3 (similarity ≤ 0.40): Claude 전문가 분석
  *
  * @author contexa
  * @since 1.0
@@ -213,34 +213,28 @@ public class VectorSimilarityHandler implements SecurityEventHandler {
 
     /**
      * 처리 권장사항 설정
+     * AI Native: 모든 요청은 Cold Path Layer 분석
      */
     private void setRecommendations(SecurityEventContext context, double similarityScore, double riskScore) {
-        if (similarityScore > highSimilarityThreshold) {
-            // 높은 유사도 (>0.70): HOT Path - HCAD 분석으로 충분
-            context.addMetadata("recommendedPath", "HOT_PATH");
-            context.addMetadata("recommendedAction", "PASS_THROUGH");
-            context.addResponseAction("ALLOW", "High similarity (>0.70) - HCAD analysis sufficient");
-        } else if (similarityScore > layer1Threshold) {
-            // 중간 유사도 (0.55~0.70): COLD Path Layer 1 - TinyLlama 분석
+        if (similarityScore > layer1Threshold) {
+            // Layer 1 (>0.55): TinyLlama 빠른 분석
             context.addMetadata("recommendedPath", "COLD_PATH_L1");
             context.addMetadata("recommendedAction", "LAYER1_ANALYSIS");
-            context.addResponseAction("MONITOR", "Moderate similarity - Layer 1 TinyLlama analysis required");
+            context.addResponseAction("MONITOR", "Layer 1 TinyLlama analysis");
         } else if (similarityScore > layer2Threshold) {
-            // 낮은 유사도 (0.40~0.55): COLD Path Layer 2 - Llama3.1 분석
+            // Layer 2 (0.40~0.55): Llama3.1 상세 분석
             context.addMetadata("recommendedPath", "COLD_PATH_L2");
             context.addMetadata("recommendedAction", "LAYER2_ANALYSIS");
-            context.addResponseAction("INVESTIGATE", "Low similarity - Layer 2 Llama3.1 analysis required");
+            context.addResponseAction("INVESTIGATE", "Layer 2 Llama3.1 analysis required");
         } else {
-            // 매우 낮은 유사도 (≤0.40): COLD Path Layer 3 - Claude 전문가 분석
+            // Layer 3 (≤0.40): Claude 전문가 분석
             context.addMetadata("recommendedPath", "COLD_PATH_L3");
             context.addMetadata("recommendedAction", "LAYER3_ANALYSIS");
-            context.addResponseAction("BLOCK", "Very low similarity (≤0.40) - Layer 3 expert analysis required");
+            context.addResponseAction("BLOCK", "Layer 3 expert analysis required");
         }
 
-        // Zero Trust 원칙: HOT Path 외 모든 경우 AI 분석 필요
-        if (similarityScore <= highSimilarityThreshold) {
-            context.addMetadata("requiresAIAnalysis", true);
-        }
+        // AI Native: 모든 요청은 AI 분석 필요
+        context.addMetadata("requiresAIAnalysis", true);
     }
 
     /**

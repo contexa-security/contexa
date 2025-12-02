@@ -105,6 +105,71 @@ public class ThreatScoreOrchestrator {
     }
 
     /**
+     * AI Native: Threat Score 직접 설정 (시간 감쇠 없음)
+     *
+     * LLM이 반환한 riskScore를 그대로 Redis에 저장합니다.
+     * 기존 누적 방식(updateThreatScore)과 달리, 직접 설정 방식으로 동작합니다.
+     *
+     * AI Native 원칙:
+     * - LLM 판단을 100% 신뢰
+     * - 시간 감쇠(decay) 없음
+     * - ±0.15 제한 없음
+     * - 누적이 아닌 덮어쓰기
+     *
+     * 용도:
+     * - Cold Path에서 LLM 분석 완료 후 호출
+     * - ALLOW/BLOCK/STEP_UP 판정의 근거가 되는 riskScore 저장
+     *
+     * @param userId 사용자 ID
+     * @param riskScore LLM이 반환한 위험 점수 (0.0 ~ 1.0, 가공 없이 그대로 사용)
+     * @param reason 설정 이유 (감사 로그용)
+     * @param metadata 추가 메타데이터
+     * @return 저장된 Threat Score
+     */
+    public double setThreatScore(String userId, double riskScore, String reason, Map<String, Object> metadata) {
+        if (userId == null || userId.isEmpty()) {
+            log.warn("[ThreatScoreOrchestrator] Invalid userId provided for setThreatScore");
+            return riskScore;
+        }
+
+        try {
+            // 현재 Threat Score 조회 (로깅용)
+            double currentThreatScore = getThreatScore(userId);
+
+            // 컨텍스트 준비
+            UserSecurityContext userContext = getUserContext(userId);
+            if (userContext == null) {
+                userContext = createInitialContext(userId);
+            }
+
+            // 컨텍스트 업데이트
+            userContext.setUpdatedAt(LocalDateTime.now());
+            userContext.addThreatIndicator("lastUpdateReason", reason);
+            userContext.addThreatIndicator("aiNative", "true");
+            userContext.addThreatIndicator("llmRiskScore", String.valueOf(riskScore));
+            userContext.setCurrentThreatScore(riskScore);
+
+            String contextJson = objectMapper.writeValueAsString(userContext);
+
+            // AI Native: Redis 직접 설정 (시간 감쇠 없음)
+            double savedScore = redisAtomicOperations.setThreatScoreDirectly(
+                userId, riskScore, contextJson, (int) cacheTtlHours
+            );
+
+            log.info("[ThreatScoreOrchestrator][AI Native] Threat Score directly set - User: {}, {} → {} (LLM riskScore: {}), Reason: {}",
+                userId, String.format("%.3f", currentThreatScore), String.format("%.3f", savedScore),
+                String.format("%.3f", riskScore), reason);
+
+            return savedScore;
+
+        } catch (Exception e) {
+            log.error("[ThreatScoreOrchestrator] Failed to set Threat Score directly for user: {}", userId, e);
+            // 예외 시에도 riskScore 반환 (LLM 판단 유지)
+            return riskScore;
+        }
+    }
+
+    /**
      * Threat Score 조회
      *
      * @param userId 사용자 ID

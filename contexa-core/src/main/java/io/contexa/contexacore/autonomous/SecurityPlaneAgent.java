@@ -849,19 +849,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             }
             
             // 4. 처리 성공 로그
-            log.info("Processed event {} via {} - threatAdjustment: {}, processingTime: {}ms",
-                    event.getEventId(), 
+            log.info("Processed event {} via {} - riskScore: {}, processingTime: {}ms",
+                    event.getEventId(),
                     result.getProcessingPath(),
-                    result.getThreatScoreAdjustment(),
+                    result.getRiskScore(),
                     result.getProcessingTimeMs());
-            
-            // 5. 성능 경고 (필요시)
-            if (result.getProcessingPath() == ProcessingResult.ProcessingPath.HOT_PATH
-                && result.getProcessingTimeMs() > 50) {
-                log.warn("Hot Path processing exceeded 50ms target: {}ms for event {}",
-                        result.getProcessingTimeMs(), event.getEventId());
-            }
-
 
         } catch (Exception e) {
             log.error("Failed to handle processing result for event: {}", event.getEventId(), e);

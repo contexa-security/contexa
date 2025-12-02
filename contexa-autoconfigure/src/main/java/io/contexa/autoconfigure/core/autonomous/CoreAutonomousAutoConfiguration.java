@@ -329,6 +329,10 @@ public class CoreAutonomousAutoConfiguration {
 
     /**
      * 5-1. Layer1FastFilterStrategy - Layer 1 초고속 필터링 전략
+     *
+     * AI Native 전환:
+     * - AdaptiveThresholdManager, HCADFeedbackOrchestrator 제거
+     * - LLM riskScore 기반 판단으로 전환
      */
     @Bean
     @ConditionalOnMissingBean
@@ -340,18 +344,20 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
             Layer1PromptTemplate layer1PromptTemplate,
             io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
-            @Autowired(required = false) io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager adaptiveThresholdManager,
-            @Autowired(required = false) io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator hcadFeedbackOrchestrator) {
+            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService) {
         return new io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy(
             llmOrchestrator, embeddingModel, unifiedVectorService, redisTemplate,
             securityEventEnricher, layer1PromptTemplate, feedbackProperties,
-            hcadVectorService, adaptiveThresholdManager, hcadFeedbackOrchestrator
+            hcadVectorService
         );
     }
 
     /**
      * 5-2. Layer2ContextualStrategy - Layer 2 컨텍스트 기반 분석 전략
+     *
+     * AI Native 전환:
+     * - AdaptiveThresholdManager, HCADFeedbackOrchestrator 제거
+     * - LLM riskScore 기반 판단으로 전환
      */
     @Bean
     @ConditionalOnMissingBean
@@ -363,18 +369,19 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) Layer2PromptTemplate layer2PromptTemplate,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
             @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
-            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
-            @Autowired(required = false) io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager adaptiveThresholdManager,
-            @Autowired(required = false) io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator hcadFeedbackOrchestrator) {
+            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties) {
         return new io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy(
             llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
-            layer2PromptTemplate, hcadVectorService, behaviorVectorService, feedbackProperties,
-            adaptiveThresholdManager, hcadFeedbackOrchestrator
+            layer2PromptTemplate, hcadVectorService, behaviorVectorService, feedbackProperties
         );
     }
 
     /**
      * 5-3. Layer3ExpertStrategy - Layer 3 전문가 시스템 전략
+     *
+     * AI Native 전환:
+     * - AdaptiveThresholdManager, HCADFeedbackOrchestrator 제거
+     * - LLM riskScore 기반 판단으로 전환
      */
     @Bean
     @ConditionalOnMissingBean
@@ -388,13 +395,11 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
             @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
             io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
-            @Autowired(required = false) io.contexa.contexacore.hcad.threshold.AdaptiveThresholdManager adaptiveThresholdManager,
-            @Autowired(required = false) io.contexa.contexacore.hcad.orchestrator.HCADFeedbackOrchestrator hcadFeedbackOrchestrator,
             @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService) {
         return new io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy(
             llmOrchestrator, labFactory, approvalService, redisTemplate, securityEventEnricher,
             layer3PromptTemplate, hcadVectorService, behaviorVectorService, feedbackProperties,
-            adaptiveThresholdManager, hcadFeedbackOrchestrator, unifiedVectorService
+            unifiedVectorService
         );
     }
 

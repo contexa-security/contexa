@@ -23,21 +23,18 @@ import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutio
 import io.contexa.contexacore.autonomous.orchestrator.handler.SessionInvalidationHandler;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityPlaneEventListener;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ColdPathStrategy;
-import io.contexa.contexacore.autonomous.orchestrator.strategy.HotPathStrategy;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.RealtimeBlockStrategy;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.SoarOrchestrationStrategy;
 import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
 import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
-import io.contexa.contexacore.autonomous.security.processor.HotPathEventProcessor;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.autonomous.tiered.TieredEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.hcad.engine.ZeroTrustDecisionEngine;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -246,11 +243,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ColdPathStrategy();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public HotPathStrategy hotPathStrategy() {
-        return new HotPathStrategy();
-    }
+    // AI Native: HotPathStrategy 제거 (삭제된 Hot Path 전략)
 
     @Bean
     @ConditionalOnMissingBean
@@ -266,23 +259,21 @@ public class CoreAutonomousEventAutoConfiguration {
 
     // ========== Security Processors ==========
 
+    /**
+     * ColdPathEventProcessor - Cold Path 이벤트 처리기 (AI Native)
+     *
+     * AI Native 전환:
+     * - ZeroTrustDecisionEngine 제거
+     * - HotPathEventProcessor 제거 (모든 요청은 Cold Path)
+     */
     @Bean
     @ConditionalOnMissingBean
     public ColdPathEventProcessor coldPathEventProcessor(
             RedisTemplate<String, Object> redisTemplate,
             Layer1FastFilterStrategy layer1FastFilterStrategy,
             Layer2ContextualStrategy layer2ContextualStrategy,
-            Layer3ExpertStrategy layer3ExpertStrategy,
-            ZeroTrustDecisionEngine zeroTrustDecisionEngine) {
-        return new ColdPathEventProcessor(redisTemplate, layer1FastFilterStrategy, layer2ContextualStrategy, layer3ExpertStrategy, zeroTrustDecisionEngine);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public HotPathEventProcessor hotPathEventProcessor(
-            RedisTemplate<String, Object> redisTemplate,
-            VectorStore vectorStore) {
-        return new HotPathEventProcessor(redisTemplate, vectorStore);
+            Layer3ExpertStrategy layer3ExpertStrategy) {
+        return new ColdPathEventProcessor(redisTemplate, layer1FastFilterStrategy, layer2ContextualStrategy, layer3ExpertStrategy);
     }
 
     // ========== Audit & Authorization ==========

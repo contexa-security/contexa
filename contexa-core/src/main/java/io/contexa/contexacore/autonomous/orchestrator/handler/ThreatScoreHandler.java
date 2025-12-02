@@ -26,9 +26,9 @@ import java.util.Map;
  * Threat Score 업데이트 핸들러
  *
  * ThreatScoreOrchestrator를 통한 중앙집중식 Threat Score 관리
- * - 위험도에 따른 Threat Score 조정
+ * - AI Native: LLM riskScore를 직접 설정
  * - ThreatScoreOrchestrator를 통한 원자적 업데이트
- * - Threat Score로 통일된 처리
+ * - 모든 요청은 setThreatScore() 사용 (AI Native)
  *
  * @author contexa
  * @since 1.0
@@ -65,42 +65,44 @@ public class ThreatScoreHandler implements SecurityEventHandler {
             return true;
         }
 
-        // 2. adjustment 추출 및 검증
-        Double adjustment = processingResult.getThreatScoreAdjustment();
-        if (Math.abs(adjustment) < 0.001) {
-            log.debug("[ThreatScoreHandler] No adjustment needed - userId: {}, adjustment: {}",
-                event.getUserId(), adjustment);
+        // 2. AI Native: riskScore 추출 (LLM 분석 결과)
+        double riskScore = processingResult.getRiskScore();
+
+        // riskScore가 0이고 AI 분석이 수행되지 않은 경우 스킵
+        if (riskScore == 0.0 && !processingResult.isAiAnalysisPerformed()) {
+            log.debug("[ThreatScoreHandler] No riskScore available - userId: {}", event.getUserId());
             context.addMetadata("threatScoreUpdated", false);
             return true;
         }
 
-        // 3. Threat Score 업데이트 (핵심 기능)
+        // 3. AI Native: LLM riskScore 직접 설정
         try {
             String reason = determineUpdateReason(processingResult);
             Map<String, Object> metadata = prepareMetadata(context, processingResult);
 
-            // ThreatScoreOrchestrator를 통한 업데이트
-            double newThreatScore = threatScoreOrchestrator.updateThreatScore(
+            // AI Native: ThreatScoreOrchestrator.setThreatScore() 사용 (직접 설정)
+            double newThreatScore = threatScoreOrchestrator.setThreatScore(
                 event.getUserId(),
-                adjustment,
+                riskScore,
                 reason,
                 metadata
             );
 
-            log.info("[ThreatScoreHandler] Threat Score updated - userId: {}, adjustment: {}, newScore: {}, path: {}",
+            log.info("[ThreatScoreHandler][AI Native] Threat Score set - userId: {}, riskScore: {}, savedScore: {}, path: {}",
                 event.getUserId(),
-                String.format("%.3f", adjustment),
+                String.format("%.3f", riskScore),
                 String.format("%.3f", newThreatScore),
                 processingResult.getProcessingPath());
 
             // 4. 컨텍스트에 결과 저장
             context.addMetadata("threatScoreUpdated", true);
             context.addMetadata("newThreatScore", newThreatScore);
-            context.addMetadata("threatScoreAdjustment", adjustment);
+            context.addMetadata("riskScore", riskScore);
+            context.addMetadata("aiNative", true);
             context.addMetadata("threatScoreReason", reason);
 
         } catch (Exception e) {
-            log.error("[ThreatScoreHandler] Failed to update Threat Score for event: {}", event.getEventId(), e);
+            log.error("[ThreatScoreHandler] Failed to set Threat Score for event: {}", event.getEventId(), e);
             context.addMetadata("threatScoreUpdateError", e.getMessage());
         }
 
@@ -110,23 +112,13 @@ public class ThreatScoreHandler implements SecurityEventHandler {
 
     /**
      * Threat Score 업데이트 이유 결정
-     * ProcessingResult 기반으로 경로와 위험도를 반영
+     * AI Native: 모든 요청은 Cold Path
      */
     private String determineUpdateReason(ProcessingResult result) {
         double riskLevel = result.getCurrentRiskLevel();
-        Object pathObj = result.getProcessingPath();
 
-        // ProcessingPath 미자열 추출
-        String pathPrefix;
-        if (pathObj instanceof ProcessingResult.ProcessingPath) {
-            ProcessingResult.ProcessingPath path = (ProcessingResult.ProcessingPath) pathObj;
-            pathPrefix = path == ProcessingResult.ProcessingPath.HOT_PATH ? "[HOT]" : "[COLD]";
-        } else if (pathObj != null) {
-            String pathStr = pathObj.toString().toUpperCase();
-            pathPrefix = pathStr.contains("HOT") ? "[HOT]" : "[COLD]";
-        } else {
-            pathPrefix = "[UNKNOWN]";
-        }
+        // AI Native: 모든 요청은 Cold Path
+        String pathPrefix = "[AI]";
 
         if (riskLevel >= 0.9) {
             return pathPrefix + "CRITICAL_THREAT_DETECTED";

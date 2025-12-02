@@ -16,23 +16,13 @@ public enum ProcessingMode {
      * - 계층: 주로 Layer 1
      */
     REALTIME_BLOCK,
-    
-    /**
-     * 통과
-     * - 위험 점수: < 0.4
-     * - 처리: 즉시 허용
-     * - 대상: 정상 트래픽
-     * - 계층: 주로 Layer 1
-     */
-    PASS_THROUGH,
 
     /**
-     * AI 기반 상세 분석
-     * - 위험 점수: 0.6 - 0.8 (중간-높은 위험)
-     * - 조건: 낮은 유사도 이벤트 (< 0.85) 또는 중간 위험 (riskScore >= 0.6)
+     * AI 기반 상세 분석 (기본 처리 모드)
+     * - AI Native 아키텍처: 모든 요청은 AI 분석을 통과
      * - 처리: AI 기반 상세 분석 (Layer 1/2/3 분석, MITRE ATT&CK 매핑)
-     * - 대상: 새로운 패턴, 복잡한 행동, 이상 징후, 중간-높은 위험 활동
-     * - 통합: 기존 REALTIME_MITIGATE, ASYNC_WITH_MONITORING, ASYNC_ESCALATE, INVESTIGATE, COLD_PATH_ANALYSIS
+     * - 대상: 모든 트래픽 (Zero Trust 원칙)
+     * - 통합: 기존 REALTIME_MITIGATE, ASYNC_WITH_MONITORING, ASYNC_ESCALATE, INVESTIGATE
      */
     AI_ANALYSIS,
     
@@ -91,6 +81,7 @@ public enum ProcessingMode {
     
     /**
      * 위험 점수 기반 기본 모드 결정
+     * AI Native 아키텍처: 모든 요청은 AI_ANALYSIS 또는 REALTIME_BLOCK
      *
      * @param riskScore 위험 점수 (0.0 - 1.0)
      * @param confidence 신뢰도 (0.0 - 1.0)
@@ -102,17 +93,7 @@ public enum ProcessingMode {
             return REALTIME_BLOCK;
         }
 
-        // 중간-높은 위험 = AI 분석 (기존 REALTIME_MITIGATE 통합)
-        if (riskScore >= 0.6) {
-            return AI_ANALYSIS;
-        }
-
-        // 낮은 신뢰도 또는 중간 위험 = AI 분석
-        if (confidence < 0.6 || riskScore >= 0.4) {
-            return AI_ANALYSIS;
-        }
-
-        // 낮은 위험 = 통과
-        return PASS_THROUGH;
+        // AI Native: 모든 요청은 AI 분석을 통과 (Zero Trust)
+        return AI_ANALYSIS;
     }
 }
