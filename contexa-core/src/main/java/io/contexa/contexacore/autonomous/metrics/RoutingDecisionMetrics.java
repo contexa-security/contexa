@@ -16,19 +16,17 @@ public interface RoutingDecisionMetrics {
      * Hot Path 라우팅 기록
      *
      * @param durationNanos 라우팅 결정 소요 시간 (나노초)
-     * @param similarityScore 벡터 유사도 점수 (0.0 ~ 1.0)
      * @param processingMode 처리 모드 (PASS_THROUGH, AI_ANALYSIS 등)
      */
-    void recordHotPath(long durationNanos, double similarityScore, String processingMode);
+    void recordHotPath(long durationNanos, String processingMode);
 
     /**
      * Cold Path 라우팅 기록
      *
      * @param durationNanos 라우팅 결정 소요 시간 (나노초)
-     * @param similarityScore 벡터 유사도 점수 (0.0 ~ 1.0)
      * @param processingMode 처리 모드 (PASS_THROUGH, AI_ANALYSIS 등)
      */
-    void recordColdPath(long durationNanos, double similarityScore, String processingMode);
+    void recordColdPath(long durationNanos, String processingMode);
 
     /**
      * 일반 이벤트 기록

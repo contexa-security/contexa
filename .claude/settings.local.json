@@ -52,7 +52,21 @@
       "Bash(cmd /c \"dir d:\\projects\\contexa\\contexa-core\\src\\main\\java\\io\\contexa\\contexacore\\hcad\\service\\HCADBaselineCacheService.java 2>nul && echo EXISTS || echo NOT_FOUND\")",
       "Bash(D:projectscontexagradlew.bat :contexa-core:compileJava --rerun-tasks)",
       "Bash(cmd /c:*)",
-      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-core-enterprise:compileJava :contexa-iam:compileJava :contexa-autoconfigure:compileJava --rerun-tasks)"
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-core-enterprise:compileJava :contexa-iam:compileJava :contexa-autoconfigure:compileJava --rerun-tasks)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-autoconfigure:compileJava --rerun-tasks)",
+      "Bash(cd:*)",
+      "Bash(findstr:*)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-iam:compileJava :contexa-autoconfigure:compileJava)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" build -x test --rerun-tasks)",
+      "Bash(cat:*)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-core-enterprise:compileJava :contexa-identity:compileJava :spring-boot-starter-contexa:compileJava --rerun-tasks)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava --rerun-tasks)",
+      "Bash(xargs:*)",
+      "Bash(del /f \"d:\\projects\\contexa\\contexa-core\\src\\main\\java\\io\\contexa\\contexacore\\autonomous\\tiered\\routing\\AdaptiveTierRouter.java\")",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-core:compileJava :contexa-iam:compileJava --rerun-tasks)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-iam:compileJava --rerun-tasks)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :contexa-common:compileJava :contexa-core:compileJava :contexa-core-enterprise:compileJava :contexa-iam:compileJava :contexa-identity:compileJava :spring-boot-starter-contexa:compileJava --rerun-tasks)",
+      "Bash(\"D:\\projects\\contexa\\gradlew.bat\" :spring-boot-starter-contexa:compileJava --rerun-tasks)"
     ],
     "deny": [],
     "ask": []

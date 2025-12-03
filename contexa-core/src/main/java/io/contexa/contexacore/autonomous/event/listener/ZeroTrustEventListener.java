@@ -176,13 +176,6 @@ public class ZeroTrustEventListener {
                           SecurityEvent.Severity.HIGH :
                           SecurityEvent.Severity.MEDIUM);
 
-        // HCAD 유사도 설정 (SecurityEvent 필드에만 저장, 메타데이터 중복 제거)
-        if (authEvent.getHcadSimilarityScore() != null) {
-            event.setHcadSimilarityScore(authEvent.getHcadSimilarityScore());
-            log.debug("[ZeroTrust] HCAD similarity transferred from AuthenticationFailureEvent: user={}, score={}",
-                     authEvent.getUsername(), String.format("%.3f", authEvent.getHcadSimilarityScore()));
-        }
-
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("failureCount", authEvent.getFailureCount());
         metadata.put("failureReason", authEvent.getFailureReason());
@@ -210,13 +203,6 @@ public class ZeroTrustEventListener {
         event.setSeverity(authEvent.isGranted() ?
                           SecurityEvent.Severity.INFO :
                           SecurityEvent.Severity.MEDIUM);
-
-        // HCAD 유사도 설정 (SecurityEvent 필드에만 저장, 메타데이터 중복 제거)
-        if (authEvent.getHcadSimilarityScore() != null) {
-            event.setHcadSimilarityScore(authEvent.getHcadSimilarityScore());
-            log.debug("[ZeroTrust] HCAD similarity transferred from AuthorizationDecisionEvent: user={}, score={}",
-                     authEvent.getUserId(), String.format("%.3f", authEvent.getHcadSimilarityScore()));
-        }
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("resource", authEvent.getResource());
@@ -260,13 +246,6 @@ public class ZeroTrustEventListener {
         if (authEvent.isAnomalyDetected()) {
             event.setThreatType("ANOMALY_DETECTED");
             event.setBlocked(false); // 성공했지만 의심스러운 경우
-        }
-
-        // HCAD 유사도 설정 (SecurityEvent 필드에만 저장, 메타데이터 중복 제거)
-        if (authEvent.getHcadSimilarityScore() != null) {
-            event.setHcadSimilarityScore(authEvent.getHcadSimilarityScore());
-            log.debug("[ZeroTrust] HCAD similarity transferred to SecurityEvent: userId={}, score={}",
-                     authEvent.getUserId(), String.format("%.3f", authEvent.getHcadSimilarityScore()));
         }
 
         // 메타데이터
@@ -527,12 +506,6 @@ public class ZeroTrustEventListener {
         metadata.put("eventTier", event.getEventTier().name());
         metadata.put("reason", reason);
 
-        // HCAD 분석 결과 포함
-        if (event.getHcadSimilarityScore() != null) {
-            metadata.put("hcadSimilarity", event.getHcadSimilarityScore());
-            metadata.put("anomalyScore", 1.0 - event.getHcadSimilarityScore());
-        }
-
         if (event.getRiskScore() != null) {
             metadata.put("riskScore", event.getRiskScore());
         }
@@ -584,23 +557,13 @@ public class ZeroTrustEventListener {
             }
         }
 
-        // HCAD 유사도 점수 (AI 계산 결과)
-        if (event.getHcadSimilarityScore() != null) {
-            secEvent.setHcadSimilarityScore(event.getHcadSimilarityScore());
-        }
-
         // 메타데이터
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("requestUri", event.getRequestUri());
         metadata.put("httpMethod", event.getHttpMethod());
         metadata.put("statusCode", event.getStatusCode());
 
-        // AI 분석 결과 포함
-        if (event.getHcadSimilarityScore() != null) {
-            metadata.put("hcadSimilarityScore", event.getHcadSimilarityScore());
-        }
-
-        // 통합 AI 분석 결과 (NEW)
+        // 통합 AI 분석 결과
         if (event.getEventTier() != null) {
             metadata.put("eventTier", event.getEventTier().name());
             metadata.put("tierSamplingRate", event.getEventTier().getBaseSamplingRate());
@@ -628,6 +591,20 @@ public class ZeroTrustEventListener {
                 log.debug("[ZeroTrustEventListener] Trust score from AI: {:.3f}",
                          event.getTrustScore());
             }
+        }
+
+        // Phase 9: 세션/사용자 컨텍스트 정보 추가 (Layer1 프롬프트 강화용)
+        if (event.getIsNewSession() != null) {
+            metadata.put("isNewSession", event.getIsNewSession());
+        }
+        if (event.getIsNewUser() != null) {
+            metadata.put("isNewUser", event.getIsNewUser());
+        }
+        if (event.getIsNewDevice() != null) {
+            metadata.put("isNewDevice", event.getIsNewDevice());
+        }
+        if (event.getRecentRequestCount() != null) {
+            metadata.put("recentRequestCount", event.getRecentRequestCount());
         }
 
         secEvent.setMetadata(metadata);

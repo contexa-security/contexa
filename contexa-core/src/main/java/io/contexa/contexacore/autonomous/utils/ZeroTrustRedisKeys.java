@@ -158,6 +158,30 @@ public class ZeroTrustRedisKeys {
         return String.format("anomaly_detected:%s", userId);
     }
 
+    /**
+     * 사용자별 LLM action 저장
+     * AI Native: LLM이 결정한 action을 저장
+     * Format: zerotrust:user:action:{userId}
+     * Value: ALLOW, MONITOR, CHALLENGE, INVESTIGATE, ESCALATE, BLOCK
+     * TTL: Action별 상이 (BLOCK: 영구, INVESTIGATE: 5분, MONITOR: 10분)
+     */
+    public static String userAction(String userId) {
+        validateUserId(userId);
+        return String.format("%s:user:action:%s", NAMESPACE, userId);
+    }
+
+    /**
+     * 사용자 차단 상태
+     * RealtimeBlockStrategy가 CRITICAL 위협 시 설정
+     * Format: security:blocked:users:{userId}
+     * Value: true/false
+     * TTL: 없음 (관리자 해제 필요)
+     */
+    public static String userBlocked(String userId) {
+        validateUserId(userId);
+        return String.format("security:blocked:users:%s", userId);
+    }
+
     // ============================================
     // THREAT INTELLIGENCE KEYS
     // ============================================
@@ -413,50 +437,6 @@ public class ZeroTrustRedisKeys {
      */
     public static String legacySessionPattern() {
         return String.format("%s:session:context:*", NAMESPACE);
-    }
-
-    // ===== 익명 사용자 Zero Trust 키 (Phase 3) =====
-
-    /**
-     * 익명 사용자 IP 기반 위협 점수
-     *
-     * 키 형식: zerotrust:anonymous:ip:threat:{ip}
-     * 값: double (위협 점수 0.0-1.0)
-     * TTL: 24시간
-     */
-    public static String anonymousIpThreat(String ip) {
-        if (ip == null || ip.isBlank()) {
-            throw new IllegalArgumentException("IP address cannot be null or empty");
-        }
-        return String.format("%s:anonymous:ip:threat:%s", NAMESPACE, ip);
-    }
-
-    /**
-     * 익명 사용자 IP별 요청 횟수 (Rate Limiting)
-     *
-     * 키 형식: zerotrust:anonymous:ip:requests:{ip}
-     * 값: long (요청 횟수)
-     * TTL: 5분
-     */
-    public static String anonymousIpRequestCount(String ip) {
-        if (ip == null || ip.isBlank()) {
-            throw new IllegalArgumentException("IP address cannot be null or empty");
-        }
-        return String.format("%s:anonymous:ip:requests:%s", NAMESPACE, ip);
-    }
-
-    /**
-     * 익명 사용자 IP별 마지막 접근 시간
-     *
-     * 키 형식: zerotrust:anonymous:ip:last-access:{ip}
-     * 값: timestamp (마지막 접근 시간)
-     * TTL: 24시간
-     */
-    public static String anonymousIpLastAccess(String ip) {
-        if (ip == null || ip.isBlank()) {
-            throw new IllegalArgumentException("IP address cannot be null or empty");
-        }
-        return String.format("%s:anonymous:ip:last-access:%s", NAMESPACE, ip);
     }
 
     // ============================================

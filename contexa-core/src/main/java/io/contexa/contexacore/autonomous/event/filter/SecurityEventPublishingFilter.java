@@ -11,19 +11,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -72,12 +67,16 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
     // }
 
     /**
-     * HCADFilter가 설정한 request attribute 키 (v2.0 - 피드백 루프 완전 통합)
+     * HCADFilter가 설정한 request attribute 키 (v3.0 - AI Native)
+     *
+     * AI Native 아키텍처:
+     * - LLM이 action, isAnomaly, riskScore를 직접 결정
+     * - 규칙 기반 threshold 없음 (LLM이 모든 판단 수행)
+     * - action이 핵심 판단 기준 (ALLOW/BLOCK/ESCALATE/MONITOR/INVESTIGATE)
      */
-    private static final String HCAD_SIMILARITY_SCORE = "hcad.similarity_score";
     private static final String HCAD_IS_ANOMALY = "hcad.is_anomaly";
-    private static final String HCAD_ANOMALY_SCORE = "hcad.anomaly_score";
-    private static final String HCAD_THRESHOLD = "hcad.threshold";
+    private static final String HCAD_RISK_SCORE = "hcad.risk_score";
+    private static final String HCAD_ACTION = "hcad.action";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -94,18 +93,30 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
-            // 요청 완료 후 이벤트 발행 (응답에 영향 없음)
-            if (eventPublishingEnabled) {
-                publishEventIfNeeded(request, response);
+
+            Boolean hcadAuthCheck = (Boolean) request.getAttribute("hcad.is_authenticated");
+            boolean isAuthenticated;
+            Authentication auth = null;
+            if (hcadAuthCheck != null) {
+                isAuthenticated = hcadAuthCheck;
+                log.trace("[SecurityEventPublishingFilter] Reusing auth check from HCADFilter: isAuthenticated={}", isAuthenticated);
+            } else {
+                auth = SecurityContextHolder.getContext().getAuthentication();
+                isAuthenticated = auth != null && trustResolver.isAuthenticated(auth);
+                log.trace("[SecurityEventPublishingFilter] Direct auth check (HCADFilter bypassed): isAuthenticated={}", isAuthenticated);
             }
+
+            if (eventPublishingEnabled || isAuthenticated) {
+                publishEventIfNeeded(request, response, auth);;
+            }
+
         }
     }
 
     /**
      * HttpRequestEvent 발행
      */
-    private void publishEventIfNeeded(HttpServletRequest request,
-                                      HttpServletResponse response) {
+    private void publishEventIfNeeded(HttpServletRequest request, HttpServletResponse response, Authentication auth) {
         try {
             // 1. URI 제외 목록 체크
             if (shouldExcludeUri(request.getRequestURI())) {
@@ -113,7 +124,17 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // 2. 이벤트 발행 플래그 체크 (중복 이벤트 방지)
+            // 2. 캐시 히트 체크 (LLM 호출 방지 - AI Native 최적화)
+            // HCADFilter에서 동일 컨텍스트의 분석 결과가 캐시에서 조회된 경우
+            // 이벤트 발행을 차단하여 불필요한 Cold Path LLM 호출 방지
+            Boolean fromCache = (Boolean) request.getAttribute("hcad.from_cache");
+            if (Boolean.TRUE.equals(fromCache)) {
+                log.debug("[SecurityEventPublishingFilter] Event skipped (cache hit - no LLM needed): uri={}",
+                         request.getRequestURI());
+                return;
+            }
+
+            // 3. 이벤트 발행 플래그 체크 (중복 이벤트 방지)
             Boolean eventPublished = (Boolean) request.getAttribute("security.event.published");
             if (Boolean.TRUE.equals(eventPublished)) {
                 log.debug("[SecurityEventPublishingFilter] Event already published by specific handler, skipping general event: uri={}",
@@ -121,40 +142,18 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 return;
             }
 
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
-            // HCAD 피드백 루프 완전 통합 (v2.0) - 모든 HCAD 결과 읽기
-            Double hcadSimilarity = (Double) request.getAttribute(HCAD_SIMILARITY_SCORE);
+            // AI Native: LLM이 action, isAnomaly, riskScore를 직접 결정
             Boolean hcadIsAnomaly = (Boolean) request.getAttribute(HCAD_IS_ANOMALY);
-            Double hcadAnomalyScore = (Double) request.getAttribute(HCAD_ANOMALY_SCORE);
-            Double hcadThreshold = (Double) request.getAttribute(HCAD_THRESHOLD);
+            Double hcadRiskScore = (Double) request.getAttribute(HCAD_RISK_SCORE);
+            String hcadAction = (String) request.getAttribute(HCAD_ACTION);
 
-            // HCADFilter가 실행되지 않은 경우(비인증 요청)에는 직접 체크
-            Boolean hcadAuthCheck = (Boolean) request.getAttribute("hcad.is_authenticated");
-            boolean isAuthenticated;
-
-            if (hcadAuthCheck != null) {
-                // HCADFilter가 이미 인증 체크함 → 재사용 (성능 최적화)
-                isAuthenticated = hcadAuthCheck;
-                log.trace("[SecurityEventPublishingFilter] Reusing auth check from HCADFilter: isAuthenticated={}", isAuthenticated);
-            } else {
-                // HCADFilter 미실행 (비인증 요청) → 직접 체크
-                isAuthenticated = auth != null && trustResolver.isAuthenticated(auth);
-                log.trace("[SecurityEventPublishingFilter] Direct auth check (HCADFilter bypassed): isAuthenticated={}", isAuthenticated);
-            }
-
-            // 2. 인증 사용자 vs 익명 사용자 구분
-            String userId;
-            UnifiedEventPublishingDecisionEngine.PublishingDecision decision;
-
-            if (isAuthenticated) {
-                // 인증된 사용자 - Trust Score 기반 AI 샘플링 (v2.0 - 피드백 루프 완전 통합)
+            // 인증 사용자 이벤트 발행 결정
+            String userId = "";
+            UnifiedEventPublishingDecisionEngine.PublishingDecision decision = null;
                 userId = UserIdentificationStrategy.getUserId(auth);
-
-                // AI 기반 발행 결정 (HCAD + Trust Score + 피드백 학습 결과)
-                decision = unifiedDecisionEngine.decideAuthenticated(request, auth, userId, hcadSimilarity,
-                                                                      hcadIsAnomaly, hcadAnomalyScore);
-
+                // AI Native: action 기반 발행 결정 (LLM이 action 직접 결정)
+                decision = unifiedDecisionEngine.decideAuthenticated(request, auth, userId,
+                                                                      hcadAction, hcadIsAnomaly, hcadRiskScore);
                 if (!decision.isShouldPublish()) {
                     log.debug("[SecurityEventPublishingFilter] Authenticated event skipped by AI: userId={}, {}",
                              userId, decision);
@@ -163,29 +162,13 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
 
                 log.debug("[SecurityEventPublishingFilter] Authenticated event approved by AI: userId={}, {}",
                          userId, decision);
-            } else {
-                // 익명 사용자 - IP 위협 기반 AI 샘플링 (v2.0 - 피드백 루프 완전 통합)
-                userId = "anonymous:" + extractClientIp(request);
 
-                if (!anonymousEventPublishingEnabled) {
-                    log.trace("[SecurityEventPublishingFilter] Anonymous event publishing disabled");
-                    return;
-                }
+            // Phase 9: 세션/사용자 컨텍스트 정보 조회 (HCADFilter에서 설정)
+            Boolean isNewSession = (Boolean) request.getAttribute("hcad.is_new_session");
+            Boolean isNewUser = (Boolean) request.getAttribute("hcad.is_new_user");
+            Boolean isNewDevice = (Boolean) request.getAttribute("hcad.is_new_device");
+            Integer recentRequestCount = (Integer) request.getAttribute("hcad.recent_request_count");
 
-                // AI 기반 발행 결정 (HCAD + IP 위협 + 시스템 상태 + 피드백 학습 결과)
-                decision = unifiedDecisionEngine.decideAnonymous(request, hcadSimilarity,
-                                                                 hcadIsAnomaly, hcadAnomalyScore);
-
-                if (!decision.isShouldPublish()) {
-                    log.debug("[SecurityEventPublishingFilter] Anonymous event skipped by AI: {}",
-                             decision);
-                    return;
-                }
-
-                log.debug("[SecurityEventPublishingFilter] Anonymous event approved by AI: {}", decision);
-            }
-
-            // 3. HttpRequestEvent 발행 (Spring Event Pattern) - v2.0 피드백 루프 완전 통합
             HttpRequestEvent.HttpRequestEventBuilder eventBuilder = HttpRequestEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .eventTimestamp(LocalDateTime.now())
@@ -194,22 +177,19 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 .requestUri(request.getRequestURI())
                 .httpMethod(request.getMethod())
                 .statusCode(response.getStatus())
-                .hcadSimilarityScore(hcadSimilarity)
-                .hcadIsAnomaly(hcadIsAnomaly)              // 학습된 임계값 기반 이상 탐지 판정
-                .hcadAnomalyScore(hcadAnomalyScore)        // 이상 점수
-                .hcadThreshold(hcadThreshold)              // 사용된 학습 임계값
+                .hcadIsAnomaly(hcadIsAnomaly)              // AI Native: LLM이 직접 결정
+                .hcadAnomalyScore(hcadRiskScore)           // AI Native: LLM이 결정한 위험도 점수
+                .hcadAction(hcadAction)                    // AI Native: LLM이 결정한 action
                 .authentication(auth)
-                .isAnonymous(!isAuthenticated)
+                .isAnonymous(false)
                 .eventTier(decision.getTier())
-                .riskScore(decision.getRiskScore());
-
-            // 인증 사용자면 Trust Score 추가
-            if (isAuthenticated) {
-                eventBuilder.trustScore(decision.getTrustScore());
-            } else {
-                // 익명 사용자면 IP 위협 점수 추가
-                eventBuilder.ipThreatScore(decision.getIpThreatScore());
-            }
+                .riskScore(decision.getRiskScore())
+                .trustScore(decision.getTrustScore())
+                // Phase 9: 세션/사용자 컨텍스트 정보 추가
+                .isNewSession(isNewSession)
+                .isNewUser(isNewUser)
+                .isNewDevice(isNewDevice)
+                .recentRequestCount(recentRequestCount);
 
             HttpRequestEvent event = eventBuilder.build();
 
@@ -239,17 +219,10 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
             //     metricsCollector.recordEvent("http_filter", metadata);
             // }
 
-            if (isAuthenticated) {
-                log.debug("[SecurityEventPublishingFilter] Published HttpRequestEvent (Authenticated): userId={}, uri={}, HCAD={:.3f}, Trust={:.3f}, Risk={:.3f}, Tier={}",
-                         userId, request.getRequestURI(),
-                         hcadSimilarity != null ? hcadSimilarity : 0.0,
-                         decision.getTrustScore(), decision.getRiskScore(), decision.getTier());
-            } else {
-                log.debug("[SecurityEventPublishingFilter] Published HttpRequestEvent (Anonymous): userId={}, uri={}, HCAD={:.3f}, IP Threat={:.3f}, Risk={:.3f}, Tier={}",
-                         userId, request.getRequestURI(),
-                         hcadSimilarity != null ? hcadSimilarity : 0.0,
-                         decision.getIpThreatScore(), decision.getRiskScore(), decision.getTier());
-            }
+        log.debug("[SecurityEventPublishingFilter] Published HttpRequestEvent (AI Native): userId={}, uri={}, action={}, isAnomaly={}, Risk={:.3f}, Tier={}",
+                 userId, request.getRequestURI(),
+                 hcadAction, hcadIsAnomaly,
+                 decision.getRiskScore(), decision.getTier());
 
         } catch (Exception e) {
             // 이벤트 발행 실패가 요청 처리를 중단시키지 않도록

@@ -121,6 +121,10 @@ public class BaselineVector implements Serializable {
     private Double averageBandwidth; // 평균 대역폭 사용량
     private String[] trustedProxyChains; // 신뢰할 수 있는 프록시 체인
 
+    // AI Native: 피드백 메타데이터 (LLM 컨텍스트 전달용)
+    // Layer1/2/3 피드백 데이터를 원시 형태로 저장하여 LLM이 컨텍스트로 판단
+    private Map<String, Object> feedbackMetadata;
+
     // ========== NaN/Infinity 검증 유틸리티 (v3.2) ==========
 
     /**

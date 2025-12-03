@@ -65,17 +65,6 @@ public class SecurityEvent {
     private String attackVector;
     private Double confidenceScore;
 
-    /**
-     * HCAD 유사도 점수 (0.0 ~ 1.0)
-     *
-     * 인증 이벤트나 HTTP 요청에서 계산된 HCAD 유사도를 저장합니다.
-     * - 인증 성공/실패: MySecurityConfig에서 계산
-     * - HTTP 요청: HCADFilter에서 계산
-     *
-     * VectorSimilarityHandler에서 이 값을 사용하여 라우팅 결정을 합니다.
-     */
-    private Double hcadSimilarityScore;
-    
     // 메타데이터
     @Builder.Default
     private Map<String, Object> metadata = new HashMap<>();

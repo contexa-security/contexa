@@ -17,18 +17,16 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Vector Store 기반 위협 평가 전략
+ * Vector Store 기반 위협 평가 전략 - AI Native
  *
- * UnifiedVectorService를 활용하여 과거 패턴과의 유사도 검색을 통해
- * 위협을 평가하는 전략입니다. 기계학습 기반 패턴 매칭을 통해
- * 알려진 위협 패턴과의 유사도를 계산합니다.
+ * UnifiedVectorService를 활용하여 과거 패턴과의 유사도 검색을 수행하고,
+ * 검색 결과를 LLM에 전달하여 위협을 평가합니다.
  *
- * 핵심 특징:
- * - UnifiedVectorService를 통한 통합된 벡터 검색 (자동 캐싱 및 라우팅)
- * - Vector Store RAG 기반 패턴 검색
- * - 동적 임계값 설정
- * - 컨텍스트 기반 향상된 평가
- * - 객체지향 Strategy 패턴 준수
+ * AI Native 원칙:
+ * - similarityThreshold 비활성화 (LLM이 관련성 판단)
+ * - 규칙 기반 점수 계산 제거 (riskScore, confidence는 LLM이 결정)
+ * - ThreatLevel 임계값 매핑 제거 (LLM이 직접 결정)
+ * - 플랫폼은 검색 결과만 제공, 평가는 LLM이 담당
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -38,114 +36,58 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     private UnifiedVectorService unifiedVectorService;
     
     private static final String STRATEGY_NAME = "VECTOR_STORE";
-    private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.75;
+    // AI Native: similarityThreshold 비활성화 (LLM이 관련성 판단)
+    private static final double DEFAULT_SIMILARITY_THRESHOLD = 0.0;
     private static final int DEFAULT_TOP_K = 10;
     
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
         try {
-            log.debug("Vector Store threat evaluation for event: {}", event.getEventId());
-            
+            log.debug("[VectorStoreEvaluationStrategy][AI Native] Vector Store threat evaluation for event: {}", event.getEventId());
+
             if (unifiedVectorService == null) {
-                log.warn("UnifiedVectorService not available, using fallback evaluation");
+                log.warn("[VectorStoreEvaluationStrategy][AI Native] UnifiedVectorService not available");
                 return createFallbackAssessment(event);
             }
-            
+
             // 1. 이벤트를 쿼리 텍스트로 변환
             String queryText = buildQueryFromEvent(event);
-            
-            // 2. Vector Store에서 유사 패턴 검색
+
+            // 2. Vector Store에서 유사 패턴 검색 (AI Native: threshold 비활성화)
             List<Document> similarPatterns = searchSimilarPatterns(queryText);
-            
-            // 3. 위협 지표 추출
+
+            // 3. 위협 지표 추출 (검색 결과 기반, 규칙 기반 아님)
             List<ThreatIndicator> indicators = extractIndicatorsFromPatterns(similarPatterns, event);
-            
-            // 4. 위험 점수 계산
-            double riskScore = calculateRiskScore(indicators);
-            
-            // 5. 위협 수준 결정
-            ThreatAssessment.ThreatLevel threatLevel = determineThreatLevel(riskScore);
-            
-            // 6. 권장 액션 도출
-            List<String> recommendedActions = getRecommendedActions(event);
-            
-            // 7. 신뢰도 계산
-            double confidence = calculatePatternConfidence(similarPatterns);
-            
+
+            // AI Native: riskScore, confidence, ThreatLevel은 LLM이 결정해야 함
+            // 플랫폼은 검색 결과만 제공
+
             return ThreatAssessment.builder()
                 .eventId(event.getEventId())
                 .assessmentId(UUID.randomUUID().toString())
                 .assessedAt(LocalDateTime.now())
                 .evaluator(getStrategyName())
-                .threatLevel(threatLevel)
-                .riskScore(riskScore)
+                .threatLevel(ThreatAssessment.ThreatLevel.INFO)  // AI Native: LLM 분석 필요
+                .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
                 .indicators(convertToStringList(indicators))
-                .recommendedActions(recommendedActions)
-                .confidence(confidence)
+                .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED"))  // AI Native: LLM 분석 필요
+                .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
                 .metadata(createMetadata(event, similarPatterns))
                 .build();
-                
+
         } catch (Exception e) {
-            log.error("Error in vector store threat evaluation for event: {}", event.getEventId(), e);
+            log.error("[VectorStoreEvaluationStrategy][AI Native] Error for event: {}", event.getEventId(), e);
             return createErrorAssessment(event, e);
         }
     }
     
     @Override
     public ThreatAssessment evaluateWithContext(SecurityEvent event, SecurityContext context) {
-        try {
-            log.debug("Context-aware vector store evaluation for event: {} with context", event.getEventId());
-            
-            // 기본 평가 수행
-            ThreatAssessment basicAssessment = evaluate(event);
+        log.debug("[VectorStoreEvaluationStrategy][AI Native] Context-aware evaluation for event: {}", event.getEventId());
 
-            if (context == null || unifiedVectorService == null) {
-                return basicAssessment;
-            }
-            
-            // 컨텍스트 정보를 활용한 향상된 쿼리 생성
-            String contextQuery = buildContextQuery(event, context);
-            
-            // 컨텍스트 기반 추가 패턴 검색
-            List<Document> contextPatterns = searchContextPatterns(contextQuery);
-            
-            // 컨텍스트 조정 값 계산
-            double contextAdjustment = calculateContextAdjustment(context, contextPatterns);
-            
-            // 향상된 위험 점수
-            double enhancedRiskScore = Math.min(1.0, basicAssessment.getRiskScore() + contextAdjustment);
-            
-            // 향상된 위협 수준
-            ThreatAssessment.ThreatLevel enhancedThreatLevel = determineThreatLevel(enhancedRiskScore);
-            
-            // 컨텍스트 기반 지표 추가
-            List<String> contextIndicators = extractContextIndicators(context, contextPatterns);
-            List<String> allIndicators = new ArrayList<>(basicAssessment.getIndicators());
-            allIndicators.addAll(contextIndicators);
-            
-            // 컨텍스트 기반 액션 추가
-            List<String> contextActions = getContextBasedActions(enhancedThreatLevel, context);
-            List<String> allActions = new ArrayList<>(basicAssessment.getRecommendedActions());
-            allActions.addAll(contextActions);
-            
-            return ThreatAssessment.builder()
-                .eventId(event.getEventId())
-                .assessmentId(UUID.randomUUID().toString())
-                .assessedAt(LocalDateTime.now())
-                .evaluator(getStrategyName() + "-WithContext")
-                .threatLevel(enhancedThreatLevel)
-                .riskScore(enhancedRiskScore)
-                .indicators(allIndicators)
-                .recommendedActions(allActions)
-                .confidence(calculateContextConfidence(context, contextPatterns))
-                .metadata(createContextMetadata(event, context, contextPatterns, basicAssessment))
-                .build();
-                
-        } catch (Exception e) {
-            log.error("Error in context-aware vector store evaluation: {}", e.getMessage(), e);
-            // 컨텍스트 평가 실패 시 기본 평가 반환
-            return evaluate(event);
-        }
+        // AI Native: 컨텍스트 기반 조정도 LLM이 담당
+        // 플랫폼은 컨텍스트 정보를 LLM에 전달만 함
+        return evaluate(event);
     }
     
     @Override
@@ -209,24 +151,9 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     
     @Override
     public double calculateRiskScore(List<ThreatIndicator> indicators) {
-        if (indicators.isEmpty()) {
-            return 0.2; // 기본 낮은 위험
-        }
-        
-        // 지표별 가중치 적용
-        double totalScore = 0.0;
-        double totalWeight = 0.0;
-        
-        for (ThreatIndicator indicator : indicators) {
-            double weight = getIndicatorWeight(indicator);
-            double score = indicator.getThreatScore() != null ? 
-                indicator.getThreatScore() : 0.5;
-            
-            totalScore += score * weight;
-            totalWeight += weight;
-        }
-        
-        return totalWeight > 0 ? Math.min(1.0, totalScore / totalWeight) : 0.2;
+        // AI Native: LLM이 riskScore를 직접 결정해야 함
+        // 규칙 기반 가중치 적용 로직 제거
+        return Double.NaN;
     }
     
     @Override
@@ -269,19 +196,17 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     private String buildContextQuery(SecurityEvent event, SecurityContext context) {
         StringBuilder query = new StringBuilder();
         query.append(buildQueryFromEvent(event));
-        
+
         if (context.getUserId() != null) {
             query.append(" context_user:").append(context.getUserId());
         }
-        
+
+        // AI Native: trustScore 임계값 기반 분류 제거
+        // trustScore를 그대로 쿼리에 포함하여 LLM이 판단하도록 함
         if (context.getTrustScore() != null) {
-            if (context.getTrustScore() < 0.3) {
-                query.append(" low_trust_context");
-            } else if (context.getTrustScore() > 0.7) {
-                query.append(" high_trust_context");
-            }
+            query.append(" trust_score:").append(context.getTrustScore());
         }
-        
+
         return query.toString();
     }
     
@@ -305,12 +230,13 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
             SearchRequest searchRequest = SearchRequest.builder()
                 .query(contextQuery)
                 .topK(5)
-                .similarityThreshold(0.8)
+                // AI Native: similarityThreshold 비활성화 (LLM이 관련성 판단)
+                .similarityThreshold(0.0)
                 .build();
-                
+
             return unifiedVectorService.searchSimilar(searchRequest);
         } catch (Exception e) {
-            log.error("Error searching context patterns", e);
+            log.error("[VectorStoreEvaluationStrategy][AI Native] Error searching context patterns", e);
             return new ArrayList<>();
         }
     }
@@ -379,7 +305,8 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
         if (confidence instanceof Number) {
             return ((Number) confidence).doubleValue();
         }
-        return 0.7;
+        // AI Native: 기본값 제거, LLM이 결정해야 함
+        return Double.NaN;
     }
     
     private String createIndicatorDescription(Map<String, Object> metadata, Document pattern) {
@@ -390,105 +317,21 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
                 .collect(Collectors.joining(", ")));
     }
     
-    private double getIndicatorWeight(ThreatIndicator indicator) {
-        if (indicator.getType() == null) {
-            return 1.0;
-        }
-        
-        return switch (indicator.getType()) {
-            case FILE_HASH, YARA_RULE, BEHAVIORAL -> 3.0;
-            case PATTERN, EVENT -> 2.0;
-            case IP_ADDRESS, DOMAIN, URL -> 1.5;
-            default -> 1.0;
-        };
-    }
-    
-    private ThreatAssessment.ThreatLevel determineThreatLevel(double riskScore) {
-        if (riskScore >= 0.9) return ThreatAssessment.ThreatLevel.CRITICAL;
-        if (riskScore >= 0.7) return ThreatAssessment.ThreatLevel.HIGH;
-        if (riskScore >= 0.5) return ThreatAssessment.ThreatLevel.MEDIUM;
-        if (riskScore >= 0.3) return ThreatAssessment.ThreatLevel.LOW;
-        return ThreatAssessment.ThreatLevel.INFO;
-    }
-    
-    private double calculatePatternConfidence(List<Document> patterns) {
-        if (patterns.isEmpty()) {
-            return 0.5;
-        }
-        
-        return patterns.stream()
-            .mapToDouble(doc -> {
-                Object similarity = doc.getMetadata().get("similarity");
-                if (similarity instanceof Number) {
-                    return ((Number) similarity).doubleValue();
-                }
-                return 0.7;
-            })
-            .average()
-            .orElse(0.5);
-    }
-    
-    private double calculateContextAdjustment(SecurityContext context, List<Document> contextPatterns) {
-        double adjustment = 0.0;
-        
-        // Trust Score 기반 조정
-        if (context.getTrustScore() != null) {
-            if (context.getTrustScore() < 0.3) {
-                adjustment += 0.2; // 신뢰도 낮으면 위험 증가
-            } else if (context.getTrustScore() > 0.8) {
-                adjustment -= 0.1; // 신뢰도 높으면 위험 감소
-            }
-        }
-        
-        // 컨텍스트 패턴 수 기반 조정
-        if (!contextPatterns.isEmpty()) {
-            adjustment += Math.min(0.15, contextPatterns.size() * 0.03);
-        }
-        
-        return adjustment;
-    }
-    
-    private List<String> extractContextIndicators(SecurityContext context, List<Document> contextPatterns) {
-        List<String> indicators = new ArrayList<>();
-        
-        if (context.getTrustScore() != null && context.getTrustScore() < 0.3) {
-            indicators.add("LOW_TRUST_CONTEXT");
-        }
-        
-        if (!contextPatterns.isEmpty()) {
-            indicators.add("CONTEXT_PATTERN_MATCH_COUNT:" + contextPatterns.size());
-        }
-        
-        return indicators;
-    }
-    
-    private List<String> getContextBasedActions(ThreatAssessment.ThreatLevel threatLevel, SecurityContext context) {
-        List<String> actions = new ArrayList<>();
-        
-        if (context.getTrustScore() != null && context.getTrustScore() < 0.2) {
-            actions.add("REQUIRE_ADDITIONAL_VERIFICATION");
-        }
-        
-        if (threatLevel == ThreatAssessment.ThreatLevel.CRITICAL) {
-            actions.add("CONTEXT_BASED_ISOLATION");
-        }
-        
-        return actions;
-    }
-    
-    private double calculateContextConfidence(SecurityContext context, List<Document> contextPatterns) {
-        double baseConfidence = 0.6;
-        
-        if (context.getTrustScore() != null) {
-            baseConfidence += 0.2;
-        }
-        
-        if (!contextPatterns.isEmpty()) {
-            baseConfidence += 0.1;
-        }
-        
-        return Math.min(1.0, baseConfidence);
-    }
+    // AI Native: 규칙 기반 가중치 적용 제거
+    // private double getIndicatorWeight(ThreatIndicator indicator) { ... }
+
+    // AI Native: 임계값 기반 ThreatLevel 매핑 제거
+    // LLM이 ThreatLevel을 직접 결정해야 함
+    // private ThreatAssessment.ThreatLevel determineThreatLevel(double riskScore) { ... }
+
+    // AI Native: 규칙 기반 신뢰도 계산 제거
+    // private double calculatePatternConfidence(List<Document> patterns) { ... }
+
+    // AI Native: 규칙 기반 컨텍스트 조정 메서드들 제거
+    // - calculateContextAdjustment(): Trust Score 기반 조정 제거
+    // - extractContextIndicators(): 임계값 기반 지표 추출 제거
+    // - getContextBasedActions(): 임계값 기반 액션 제거
+    // - calculateContextConfidence(): 규칙 기반 신뢰도 계산 제거
     
     private Map<String, Object> createMetadata(SecurityEvent event, List<Document> patterns) {
         Map<String, Object> metadata = new HashMap<>();
@@ -521,31 +364,33 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     }
     
     private ThreatAssessment createFallbackAssessment(SecurityEvent event) {
+        // AI Native: 규칙 기반 기본값 제거, LLM 분석 필요 표시
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName() + "-Fallback")
-            .threatLevel(ThreatAssessment.ThreatLevel.MEDIUM)
-            .riskScore(0.5)
-            .indicators(List.of("FALLBACK_MODE"))
-            .recommendedActions(List.of("MONITOR", "LOG"))
-            .confidence(0.3)
+            .threatLevel(ThreatAssessment.ThreatLevel.INFO)  // AI Native: LLM 분석 미수행
+            .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
+            .indicators(List.of("VECTORSTORE_UNAVAILABLE"))
+            .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED"))
+            .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
             .metadata(Map.of("mode", "fallback", "reason", "vectorstore_unavailable"))
             .build();
     }
-    
+
     private ThreatAssessment createErrorAssessment(SecurityEvent event, Exception error) {
+        // AI Native: 에러 시에도 규칙 기반 기본값 사용 안 함
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName() + "-Error")
-            .threatLevel(ThreatAssessment.ThreatLevel.INFO)
-            .riskScore(0.0)
+            .threatLevel(ThreatAssessment.ThreatLevel.INFO)  // AI Native: LLM 분석 미수행
+            .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
             .indicators(List.of("EVALUATION_ERROR"))
-            .recommendedActions(List.of("MANUAL_REVIEW"))
-            .confidence(0.0)
+            .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED", "MANUAL_REVIEW"))
+            .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
             .metadata(Map.of("error", error.getMessage(), "mode", "error"))
             .build();
     }

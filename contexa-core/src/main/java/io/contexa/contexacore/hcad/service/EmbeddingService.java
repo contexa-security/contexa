@@ -125,71 +125,72 @@ public class EmbeddingService {
     }
 
     /**
-     * 가중 평균 임베딩 계산 (최신 문서일수록 높은 가중치)
+     * 평균 임베딩 계산 (AI Native)
+     *
+     * AI Native 전환:
+     * - 24시간 감쇠 규칙 제거 (시간 기반 가중치 폐지)
+     * - 모든 문서에 동일한 가중치 적용 (순수 평균)
+     * - 시간 정보는 LLM 컨텍스트에 별도로 전달됨
      *
      * @param documents 임베딩을 포함한 문서 리스트
-     * @return 가중 평균 임베딩 벡터
+     * @return 평균 임베딩 벡터
      */
     public float[] calculateWeightedEmbedding(List<Document> documents) {
         if (documents.isEmpty()) {
             return new float[embeddingDimension];
         }
 
-        float[] weighted = new float[embeddingDimension];
-        float totalWeight = 0;
+        float[] averaged = new float[embeddingDimension];
+        int count = 0;
 
         for (Document doc : documents) {
-            // 최신 문서일수록 높은 가중치 (지수 감쇠)
-            Object timestampObj = doc.getMetadata().get("timestamp");
-            float weight = 1.0f;
-            if (timestampObj != null) {
-                try {
-                    LocalDateTime timestamp = LocalDateTime.parse(timestampObj.toString());
-                    long hoursAgo = Duration.between(timestamp, LocalDateTime.now()).toHours();
-                    weight = (float) Math.exp(-hoursAgo / 24.0); // 24시간마다 1/e로 감쇠
-                } catch (Exception e) {
-                    // 타임스탬프 파싱 실패 시 기본 가중치 사용
-                    log.debug("[EmbeddingService] Failed to parse timestamp, using default weight");
-                }
-            }
-
+            // AI Native: 시간 기반 가중치 규칙 제거
+            // 모든 문서를 동등하게 취급 (가중치 = 1.0)
             Object embeddingObj = doc.getMetadata().get("embedding");
             if (embeddingObj instanceof float[]) {
                 float[] embedding = (float[]) embeddingObj;
                 if (embedding.length == embeddingDimension) {
                     for (int i = 0; i < embeddingDimension; i++) {
-                        weighted[i] += embedding[i] * weight;
+                        averaged[i] += embedding[i];
                     }
-                    totalWeight += weight;
+                    count++;
                 }
             }
         }
 
-        if (totalWeight > 0) {
+        if (count > 0) {
             for (int i = 0; i < embeddingDimension; i++) {
-                weighted[i] /= totalWeight;
+                averaged[i] /= count;
             }
-            log.debug("[EmbeddingService] Calculated weighted embedding with total weight={}", totalWeight);
+            log.debug("[EmbeddingService][AI Native] Calculated average embedding from {} documents", count);
         }
 
-        return weighted;
+        return averaged;
     }
 
     /**
      * 코사인 유사도 계산 (v3.0 - VectorSimilarityUtil 통합)
+     *
      * 성능 향상:
      * - 순수 자바 대비 3-5배 속도 향상
      * - 384차원 float[]: ~0.03ms (순수 자바: ~0.15ms)
      * - 호출 빈도: 임베딩 비교마다 (초당 수천 회)
      *
+     * AI Native 전환:
+     * - 0.3 기본값 규칙 제거
+     * - 벡터 불일치 시 NaN 반환 (분석 불가 상태 명시)
+     * - LLM이 NaN을 컨텍스트로 받아 적절히 처리
+     *
      * @param a 첫 번째 벡터
      * @param b 두 번째 벡터
-     * @return 코사인 유사도 (0.0 ~ 1.0)
+     * @return 코사인 유사도 (0.0 ~ 1.0), 벡터 불일치 시 NaN
      */
     public double calculateCosineSimilarity(float[] a, float[] b) {
         if (a.length != b.length) {
-            log.warn("[EmbeddingService] Vector dimension mismatch: {} vs {}", a.length, b.length);
-            return 0.3;  // Zero Trust: 벡터 불일치 = 낮은 유사도
+            // AI Native: 0.3 기본값 규칙 제거
+            // 벡터 불일치는 분석 불가 상태 - NaN으로 명시
+            log.warn("[EmbeddingService][AI Native] Vector dimension mismatch: {} vs {} - returning NaN", a.length, b.length);
+            return Double.NaN;
         }
 
         // VectorSimilarityUtil 통합 사용
@@ -249,6 +250,11 @@ public class EmbeddingService {
 
     /**
      * 저차원 벡터를 고차원으로 확장 (폴백용)
+     *
+     * AI Native 전환:
+     * - 10% 감쇠 규칙 제거
+     * - 순환 패딩 시 원본 값 그대로 사용
+     * - 감쇠 적용 여부는 LLM이 컨텍스트로 판단
      */
     private float[] expandToHighDimensional(double[] vector) {
         float[] expanded = new float[embeddingDimension];
@@ -256,8 +262,8 @@ public class EmbeddingService {
             if (i < vector.length) {
                 expanded[i] = (float) vector[i];
             } else {
-                // 순환 패딩 (10% 감쇠)
-                expanded[i] = (float) vector[i % vector.length] * 0.1f;
+                // AI Native: 10% 감쇠 규칙 제거 - 순환 패딩 시 원본 값 유지
+                expanded[i] = (float) vector[i % vector.length];
             }
         }
         return expanded;

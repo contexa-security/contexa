@@ -39,13 +39,12 @@ public class HttpRequestEvent {
     private String requestUri;
     private String httpMethod;
     private int statusCode;
-    private Double hcadSimilarityScore;
     private Authentication authentication;
 
-    // HCAD 피드백 루프 완전 통합 (v2.0)
-    private Boolean hcadIsAnomaly;         // 학습된 임계값 기반 이상 탐지 판정
-    private Double hcadAnomalyScore;       // 이상 점수 (1.0 - similarity)
-    private Double hcadThreshold;          // 사용된 학습 임계값
+    // HCAD AI Native (v3.0)
+    private Boolean hcadIsAnomaly;         // AI Native: LLM이 직접 결정한 이상 여부
+    private Double hcadAnomalyScore;       // AI Native: LLM이 결정한 위험도 점수 (riskScore)
+    private String hcadAction;             // AI Native: LLM이 결정한 action (ALLOW/BLOCK/ESCALATE/MONITOR/INVESTIGATE)
 
     // 통합 AI 분석 결과
     private boolean isAnonymous;
@@ -53,4 +52,10 @@ public class HttpRequestEvent {
     private Double riskScore;              // 통합 위험도 점수
     private Double trustScore;             // 인증 사용자 신뢰 점수
     private Double ipThreatScore;          // 익명 사용자 IP 위협 점수
+
+    // Phase 9: 세션/사용자 컨텍스트 정보 (Layer1 프롬프트 강화용)
+    private Boolean isNewSession;          // 신규 세션 여부
+    private Boolean isNewUser;             // 신규 사용자 여부 (이전 HCAD 분석 기록 없음)
+    private Boolean isNewDevice;           // 신규 디바이스 여부
+    private Integer recentRequestCount;    // 최근 5분간 요청 수
 }

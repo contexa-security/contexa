@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * Hot/Cold Path 라우팅 결정 및 Processing Mode별 통계 수집
  *
  * Hot/Cold Path 기준:
- * - Hot Path: 유사도 > 0.70 (빠른 처리, PASS_THROUGH)
- * - Cold Path: 유사도 <= 0.70 (AI 분석, AI_ANALYSIS)
+ * - Hot Path: AI Native 빠른 처리 (PASS_THROUGH)
+ * - Cold Path: AI Native 심층 분석 (AI_ANALYSIS)
  *
  * @author contexa
  * @since 3.1.0
@@ -37,13 +37,6 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
     private Counter realtimeBlockCounter;
     private Counter soarOrchestrationCounter;
     private Counter awaitApprovalCounter;
-
-    // 유사도 분포 카운터
-    private Counter similarityVeryHigh;
-    private Counter similarityHigh;
-    private Counter similarityMedium;
-    private Counter similarityLow;
-    private Counter similarityVeryLow;
 
     // 라우팅 결정 시간
     private Timer routingDecisionTimer;
@@ -87,37 +80,6 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
         awaitApprovalCounter = counterBuilder("routing.mode", "AWAIT_APPROVAL 모드")
                 .tag("mode", "await_approval")
                 .register(meterRegistry);
-
-        // 유사도 분포 카운터
-        similarityVeryHigh = counterBuilder("routing.similarity.distribution", "유사도 매우 높음 (0.9-1.0)")
-                .tag("range", "very_high")
-                .tag("min", "0.9")
-                .tag("max", "1.0")
-                .register(meterRegistry);
-
-        similarityHigh = counterBuilder("routing.similarity.distribution", "유사도 높음 (0.7-0.9)")
-                .tag("range", "high")
-                .tag("min", "0.7")
-                .tag("max", "0.9")
-                .register(meterRegistry);
-
-        similarityMedium = counterBuilder("routing.similarity.distribution", "유사도 중간 (0.5-0.7)")
-                .tag("range", "medium")
-                .tag("min", "0.5")
-                .tag("max", "0.7")
-                .register(meterRegistry);
-
-        similarityLow = counterBuilder("routing.similarity.distribution", "유사도 낮음 (0.3-0.5)")
-                .tag("range", "low")
-                .tag("min", "0.3")
-                .tag("max", "0.5")
-                .register(meterRegistry);
-
-        similarityVeryLow = counterBuilder("routing.similarity.distribution", "유사도 매우 낮음 (0.0-0.3)")
-                .tag("range", "very_low")
-                .tag("min", "0.0")
-                .tag("max", "0.3")
-                .register(meterRegistry);
     }
 
     @Override
@@ -138,13 +100,12 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
      * Hot Path 라우팅 기록
      */
     @Override
-    public void recordHotPath(long durationNanos, double similarityScore, String processingMode) {
+    public void recordHotPath(long durationNanos, String processingMode) {
         hotPathCounter.increment();
         hotPathCount.incrementAndGet();
         totalRoutingCount.incrementAndGet();
 
         routingDecisionTimer.record(durationNanos, TimeUnit.NANOSECONDS);
-        recordSimilarityDistribution(similarityScore);
         recordProcessingMode(processingMode);
     }
 
@@ -152,27 +113,12 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
      * Cold Path 라우팅 기록
      */
     @Override
-    public void recordColdPath(long durationNanos, double similarityScore, String processingMode) {
+    public void recordColdPath(long durationNanos, String processingMode) {
         coldPathCounter.increment();
         totalRoutingCount.incrementAndGet();
 
         routingDecisionTimer.record(durationNanos, TimeUnit.NANOSECONDS);
-        recordSimilarityDistribution(similarityScore);
         recordProcessingMode(processingMode);
-    }
-
-    private void recordSimilarityDistribution(double similarityScore) {
-        if (similarityScore >= 0.9) {
-            similarityVeryHigh.increment();
-        } else if (similarityScore >= 0.7) {
-            similarityHigh.increment();
-        } else if (similarityScore >= 0.5) {
-            similarityMedium.increment();
-        } else if (similarityScore >= 0.3) {
-            similarityLow.increment();
-        } else {
-            similarityVeryLow.increment();
-        }
     }
 
     private void recordProcessingMode(String processingMode) {

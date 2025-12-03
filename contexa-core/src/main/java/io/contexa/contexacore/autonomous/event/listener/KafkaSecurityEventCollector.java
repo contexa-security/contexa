@@ -595,7 +595,6 @@ public class KafkaSecurityEventCollector {
         event.addMetadata("auth.type", authEvent.getAuthenticationType());
         event.addMetadata("auth.mfa_completed", String.valueOf(authEvent.isMfaCompleted()));
         event.addMetadata("auth.anomaly_detected", String.valueOf(authEvent.isAnomalyDetected()));
-        event.addMetadata("hcad.similarity_score", String.valueOf(authEvent.getHcadSimilarityScore()));
 
         return event;
     }
@@ -625,7 +624,6 @@ public class KafkaSecurityEventCollector {
         event.addMetadata("auth.failure_count", String.valueOf(authEvent.getFailureCount()));
         event.addMetadata("auth.brute_force_detected", String.valueOf(authEvent.isBruteForceDetected()));
         event.addMetadata("auth.credential_stuffing_detected", String.valueOf(authEvent.isCredentialStuffingDetected()));
-        event.addMetadata("hcad.similarity_score", String.valueOf(authEvent.getHcadSimilarityScore()));
 
         return event;
     }

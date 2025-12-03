@@ -55,6 +55,7 @@ public class HCADContext {
     private Long lastRequestInterval; // 이전 요청과의 시간 간격 (ms)
     private Boolean isNewSession; // 새로운 세션 여부
     private Boolean isNewDevice; // 새로운 기기 여부
+    private Boolean isNewUser; // 신규 사용자 여부 (이전 HCAD 분석 기록 없음)
 
     // 보안 관련
     private String authenticationMethod; // 인증 방법 (password, oauth, mfa 등)
@@ -132,7 +133,7 @@ public class HCADContext {
      */
     public String toCompactString() {
         return String.format(
-            "User:%s|IP:%s|Path:%s|Method:%s|UA:%s|Time:%s|Trust:%.2f|NewSession:%s|NewDevice:%s|RecentReqs:%d",
+            "User:%s|IP:%s|Path:%s|Method:%s|UA:%s|Time:%s|Trust:%.2f|NewSession:%s|NewDevice:%s|NewUser:%s|RecentReqs:%d",
             userId != null ? userId : "anonymous",
             remoteIp,
             requestPath,
@@ -142,6 +143,7 @@ public class HCADContext {
             currentTrustScore != null ? currentTrustScore : 0.5,
             isNewSession,
             isNewDevice,
+            isNewUser,
             recentRequestCount != null ? recentRequestCount : 0
         );
     }
@@ -629,6 +631,10 @@ public class HCADContext {
 
     public void setNewDevice(boolean newDevice) {
         this.isNewDevice = newDevice;
+    }
+
+    public void setNewUser(boolean newUser) {
+        this.isNewUser = newUser;
     }
 
     public void setSensitiveResource(boolean sensitiveResource) {

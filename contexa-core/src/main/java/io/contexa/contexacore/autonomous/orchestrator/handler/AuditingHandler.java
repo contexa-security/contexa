@@ -15,13 +15,17 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 감사 로깅 핸들러
+ * 감사 로깅 핸들러 - AI Native
  *
  * SecurityPlaneAgent의 감사 로깅 로직을 분리
  * - 보안 이벤트 감사
  * - 위협 평가 감사
  * - 처리 결정 감사
  * - 성능 메트릭 감사
+ *
+ * AI Native 원칙:
+ * - LLM이 결정한 ThreatLevel을 그대로 기록
+ * - 임계값 기반 ThreatLevel 매핑 제거
  *
  * @author contexa
  * @since 1.0
@@ -93,7 +97,7 @@ public class AuditingHandler implements SecurityEventHandler {
     }
 
     /**
-     * 위협 평가 감사 기록
+     * 위협 평가 감사 기록 - AI Native
      */
     private void auditThreatAssessment(SecurityEventContext context) {
         try {
@@ -104,6 +108,11 @@ public class AuditingHandler implements SecurityEventHandler {
 
             SecurityEvent event = context.getSecurityEvent();
 
+            // AI Native: threatLevel은 LLM이 결정해야 함
+            // 현재 AIAnalysisResult에는 ThreatLevel 필드가 없으므로 INFO 사용
+            // 향후 AIAnalysisResult에 LLM이 직접 결정한 ThreatLevel 필드 추가 필요
+            ThreatAssessment.ThreatLevel threatLevel = ThreatAssessment.ThreatLevel.INFO;
+
             // ThreatAssessment 재구성
             ThreatAssessment assessment = ThreatAssessment.builder()
                 .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
@@ -111,7 +120,7 @@ public class AuditingHandler implements SecurityEventHandler {
                 .confidence(aiResult.getConfidenceScore())
                 .reason(aiResult.getSummary())
                 .evaluator(aiResult.getAiModel())
-                .threatLevel(mapThreatLevel(aiResult.getThreatLevel()))
+                .threatLevel(threatLevel)  // AI Native: LLM이 결정해야 함 (현재 기본값)
                 .assessedAt(LocalDateTime.now())
                 .build();
 
@@ -130,7 +139,7 @@ public class AuditingHandler implements SecurityEventHandler {
             auditLogger.auditThreatAssessment(event, assessment, evaluator, strategy, processingTime);
 
         } catch (Exception e) {
-            log.error("[AuditingHandler] Failed to audit threat assessment", e);
+            log.error("[AuditingHandler][AI Native] Failed to audit threat assessment", e);
         }
     }
 
@@ -145,7 +154,7 @@ public class AuditingHandler implements SecurityEventHandler {
             }
 
             SecurityEvent event = context.getSecurityEvent();
-            String router = "AdaptiveTierRouter";
+            String router = "RoutingDecisionHandler";
             String reason = (String) context.getMetadata().get("routingReason");
 
             Map<String, Object> decisionContext = Map.of(
@@ -164,22 +173,9 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    /**
-     * 위협 레벨 매핑
-     */
-    private ThreatAssessment.ThreatLevel mapThreatLevel(double riskScore) {
-        if (riskScore >= 0.9) {
-            return ThreatAssessment.ThreatLevel.CRITICAL;
-        } else if (riskScore >= 0.7) {
-            return ThreatAssessment.ThreatLevel.HIGH;
-        } else if (riskScore >= 0.5) {
-            return ThreatAssessment.ThreatLevel.MEDIUM;
-        } else if (riskScore >= 0.3) {
-            return ThreatAssessment.ThreatLevel.LOW;
-        } else {
-            return ThreatAssessment.ThreatLevel.INFO;
-        }
-    }
+    // AI Native: 임계값 기반 ThreatLevel 매핑 제거
+    // LLM이 ThreatLevel을 직접 결정해야 함
+    // private ThreatAssessment.ThreatLevel mapThreatLevel(double riskScore) { ... }
 
     @Override
     public String getName() {

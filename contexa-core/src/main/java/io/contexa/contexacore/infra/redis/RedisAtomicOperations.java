@@ -195,8 +195,8 @@ public class RedisAtomicOperations {
         "local riskScore = tonumber(ARGV[1]) " +
         "local ttlSeconds = tonumber(ARGV[2]) " +
         "local contextJson = ARGV[3] " +
-        // riskScore 범위 검증 (0.0 ~ 1.0)
-        "local validatedScore = math.max(0.0, math.min(1.0, riskScore)) " +
+        // AI Native: clamp 연산 완전 제거, LLM 응답 그대로 저장
+        "local validatedScore = riskScore " +
         // Redis 직접 설정 (시간 감쇠 없음, 누적 없음)
         "redis.call('setex', threatKey, ttlSeconds, tostring(validatedScore)) " +
         // 권한 캐시 무효화 (보안 정책 재평가 강제)

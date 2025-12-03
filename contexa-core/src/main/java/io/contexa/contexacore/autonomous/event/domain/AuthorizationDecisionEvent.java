@@ -79,9 +79,6 @@ public class AuthorizationDecisionEvent {
     @JsonProperty("trust_score")
     private Double trustScore;
 
-    @JsonProperty("hcad_similarity_score")
-    private Double hcadSimilarityScore;
-
     @JsonProperty("metadata")
     private Map<String, Object> metadata;
     

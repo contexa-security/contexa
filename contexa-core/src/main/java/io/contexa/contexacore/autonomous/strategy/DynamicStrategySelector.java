@@ -52,15 +52,9 @@ public class DynamicStrategySelector {
     
     @Autowired(required = false)
     private CompositeEvaluationStrategy compositeStrategy;
-    
-    @Autowired(required = false)
-    private MitreAttackEvaluationStrategy mitreStrategy;
-    
-    @Autowired(required = false)
-    private NistCsfEvaluationStrategy nistStrategy;
-    
-    @Autowired(required = false)
-    private CisControlsEvaluationStrategy cisStrategy;
+
+    // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
+    // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
     
     // 설정값
     @Value("${security.strategy.cache.ttl-seconds:300}")
@@ -491,26 +485,8 @@ public class DynamicStrategySelector {
         // 세션 위협 평가 전략 - SecurityEventProcessingOrchestrator로 이관됨
         // SESSION_THREAT 전략은 더 이상 직접 등록하지 않음
 
-        // MITRE ATT&CK 전략
-        if (mitreStrategy != null) {
-            strategies.put("MITRE_ATTACK", mitreStrategy);
-            performanceMetrics.put("MITRE_ATTACK", new StrategyPerformanceMetrics());
-            log.info("MITRE ATT&CK 전략 등록: MITRE_ATTACK");
-        }
-
-        // NIST CSF 전략
-        if (nistStrategy != null) {
-            strategies.put("NIST_CSF", nistStrategy);
-            performanceMetrics.put("NIST_CSF", new StrategyPerformanceMetrics());
-            log.info("NIST CSF 전략 등록: NIST_CSF");
-        }
-
-        // CIS Controls 전략
-        if (cisStrategy != null) {
-            strategies.put("CIS_CONTROLS", cisStrategy);
-            performanceMetrics.put("CIS_CONTROLS", new StrategyPerformanceMetrics());
-            log.info("CIS Controls 전략 등록: CIS_CONTROLS");
-        }
+        // AI Native: MITRE, NIST, CIS 규칙 기반 전략 제거
+        // LLM이 직접 위협 평가를 수행하므로 하드코딩된 규칙 전략 불필요
 
         // 복합 평가 전략 (마지막에 등록 - 다른 전략들을 사용)
         if (compositeStrategy != null) {

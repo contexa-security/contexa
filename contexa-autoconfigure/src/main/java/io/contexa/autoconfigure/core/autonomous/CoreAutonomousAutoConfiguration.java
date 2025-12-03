@@ -16,7 +16,6 @@ import io.contexa.contexacore.autonomous.tiered.TieredEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.detection.MaliciousPatternDetector;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
-import io.contexa.contexacore.autonomous.tiered.routing.AdaptiveTierRouter;
 import io.contexa.contexacore.autonomous.tiered.template.Layer1PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.template.Layer2PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.template.Layer3PromptTemplate;
@@ -191,17 +190,13 @@ public class CoreAutonomousAutoConfiguration {
         return new io.contexa.contexacore.autonomous.orchestrator.handler.ValidationHandler();
     }
 
-    /**
-     * 3-3. VectorSimilarityHandler - 벡터 유사도 기반 평가 핸들러
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.handler.VectorSimilarityHandler vectorSimilarityHandler() {
-        return new io.contexa.contexacore.autonomous.orchestrator.handler.VectorSimilarityHandler();
-    }
+    // AI Native: VectorSimilarityHandler 제거
+    // - 유사도 기반 규칙으로 신뢰도/위험도 계산하는 것은 AI Native 명제 위반
+    // - HCAD 유사도는 HCADFilter에서 계산하여 SecurityEvent에 전달
+    // - 신뢰도/위험도는 LLM이 직접 분석하여 결정
 
     /**
-     * 3-4. AuditingHandler - 감사 로깅 핸들러
+     * 3-3. AuditingHandler - 감사 로깅 핸들러
      */
     @Bean
     @ConditionalOnMissingBean
@@ -291,24 +286,6 @@ public class CoreAutonomousAutoConfiguration {
             evaluationStrategies, eventNormalizer, eventDeduplicator, eventEnricher,
             queueSize, workerThreads, correlationWindowMinutes, threatThreshold,
             autoIncidentCreation, dedupWindowMinutes
-        );
-    }
-
-    /**
-     * 4-2. AdaptiveTierRouter - 적응형 계층 라우터
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public AdaptiveTierRouter adaptiveTierRouter(
-            RedisTemplate<String, ?> redisTemplate,
-            @Qualifier("stringRedisTemplate") RedisTemplate<String, String> stringRedisTemplate,
-            VectorStoreCacheLayer vectorStoreCacheLayer,
-            MaliciousPatternDetector maliciousPatternDetector) {
-        return new AdaptiveTierRouter(
-            (RedisTemplate) redisTemplate,
-            stringRedisTemplate,
-            vectorStoreCacheLayer,
-            maliciousPatternDetector
         );
     }
 

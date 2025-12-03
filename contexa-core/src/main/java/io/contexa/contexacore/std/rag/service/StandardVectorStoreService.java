@@ -202,10 +202,11 @@ public class StandardVectorStoreService implements VectorOperations {
         FilterExpressionBuilder builder = new FilterExpressionBuilder();
         Filter.Expression filter = buildFilterExpression(builder, filterCriteria);
         
+        // AI Native: similarityThreshold 제거 (LLM이 관련성 판단)
         SearchRequest searchRequest = SearchRequest.builder()
             .query(query)
             .topK(10)
-            .similarityThreshold(0.7)
+            .similarityThreshold(0.0)  // AI Native: 임계값 필터링 비활성화
             .filterExpression(filter)
             .build();
         
@@ -240,10 +241,11 @@ public class StandardVectorStoreService implements VectorOperations {
             ).build();
         }
         
+        // AI Native: similarityThreshold 제거 (LLM이 관련성 판단)
         SearchRequest searchRequest = SearchRequest.builder()
             .query(query)
             .topK(50)
-            .similarityThreshold(0.65)
+            .similarityThreshold(0.0)  // AI Native: 임계값 필터링 비활성화
             .filterExpression(timeFilter)
             .build();
         

@@ -64,12 +64,6 @@ public class ZeroTrustSecurityService {
     @Value("${zerotrust.session.tracking.enabled:true}")
     private boolean sessionTrackingEnabled;
 
-    @Value("${zerotrust.anonymous.enabled:true}")
-    private boolean anonymousZeroTrustEnabled;
-
-    @Value("${zerotrust.anonymous.rate-limit:100}")
-    private long anonymousRateLimit;
-
     /**
      * SecurityContext에 Zero Trust 기능 적용 (인증된 사용자)
      *
@@ -83,10 +77,11 @@ public class ZeroTrustSecurityService {
         }
 
         try {
-            // 1. Threat Score 조회
-            double threatScore = threatScoreOrchestrator.getThreatScore(userId);
+            // AI Native: LLM이 결정한 action 조회
+            String action = getLatestAction(userId);
 
-            // 2. Trust Score 계산 (Trust = 1 - Threat)
+            // 2. Threat Score 조회 (감사 로그/대시보드용)
+            double threatScore = threatScoreOrchestrator.getThreatScore(userId);
             double trustScore = 1.0 - threatScore;
 
             // 3. User Context 조회 또는 생성
@@ -100,204 +95,17 @@ public class ZeroTrustSecurityService {
                 trackUserSession(userId, sessionId);
             }
 
-            // 5. 동적 권한 조정
-            adjustAuthoritiesByTrustScore(context, trustScore, threatScore);
+            // 5. AI Native: action 기반 동적 권한 조정
+            adjustAuthoritiesByAction(context, action, userId);
 
             // 6. 컨텍스트 메타데이터 설정
-            setZeroTrustMetadata(context, trustScore, threatScore, userContext);
+            setZeroTrustMetadata(context, trustScore, threatScore, userContext, action);
 
-            log.debug("[ZeroTrust] Applied Zero Trust to context - User: {}, TrustScore: {:.3f}, ThreatScore: {:.3f}",
-                userId, trustScore, threatScore);
+            log.debug("[ZeroTrust][AI Native] Applied Zero Trust - User: {}, Action: {}, TrustScore: {:.3f}",
+                userId, action, trustScore);
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to apply Zero Trust to context for user: {}", userId, e);
-        }
-    }
-
-    /**
-     * SecurityContext에 Zero Trust 기능 적용 (익명 사용자)
-     *
-     * IP 기반으로 익명 사용자의 위협 수준을 평가하고 권한을 동적으로 조정합니다.
-     *
-     * @param context SecurityContext
-     * @param clientIp 클라이언트 IP 주소
-     * @param request HTTP 요청 (추가 컨텍스트 정보)
-     */
-    public void applyZeroTrustToAnonymousContext(SecurityContext context, String clientIp, HttpServletRequest request) {
-        if (!zeroTrustEnabled || !anonymousZeroTrustEnabled || context == null || clientIp == null) {
-            return;
-        }
-
-        try {
-            // 1. IP 기반 위협 점수 조회
-            double ipThreatScore = getAnonymousIpThreat(clientIp);
-
-            // 2. Trust Score 계산
-            double trustScore = 1.0 - ipThreatScore;
-
-            // 3. Rate Limiting 체크 및 업데이트
-            long requestCount = incrementAnonymousRequestCount(clientIp);
-            if (requestCount > anonymousRateLimit) {
-                // Rate limit 초과 시 위협 점수 증가
-                ipThreatScore = Math.min(1.0, ipThreatScore + 0.2);
-                updateAnonymousIpThreat(clientIp, ipThreatScore);
-                log.warn("[ZeroTrust] Anonymous IP rate limit exceeded - IP: {}, Count: {}",
-                    clientIp, requestCount);
-            }
-
-            // 4. 마지막 접근 시간 업데이트
-            updateAnonymousLastAccess(clientIp);
-
-            // 5. 익명 사용자 권한 조정
-            adjustAnonymousAuthoritiesByThreatScore(context, trustScore, ipThreatScore);
-
-            // 6. 컨텍스트 메타데이터 설정
-            setAnonymousZeroTrustMetadata(context, trustScore, ipThreatScore, clientIp);
-
-            log.debug("[ZeroTrust] Applied Zero Trust to anonymous context - IP: {}, TrustScore: {:.3f}, ThreatScore: {:.3f}",
-                clientIp, trustScore, ipThreatScore);
-
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to apply Zero Trust to anonymous context for IP: {}", clientIp, e);
-        }
-    }
-
-    /**
-     * 익명 사용자 IP 위협 점수 조회
-     */
-    private double getAnonymousIpThreat(String ip) {
-        try {
-            String threatKey = ZeroTrustRedisKeys.anonymousIpThreat(ip);
-            Object storedThreat = redisTemplate.opsForValue().get(threatKey);
-
-            if (storedThreat instanceof Number) {
-                return ((Number) storedThreat).doubleValue();
-            }
-
-            // 기본값: 중간 위협 수준
-            return initialThreatScore;
-
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to get anonymous IP threat for: {}", ip, e);
-            return initialThreatScore;
-        }
-    }
-
-    /**
-     * 익명 사용자 IP 위협 점수 업데이트
-     */
-    private void updateAnonymousIpThreat(String ip, double threatScore) {
-        try {
-            String threatKey = ZeroTrustRedisKeys.anonymousIpThreat(ip);
-            redisTemplate.opsForValue().set(threatKey, threatScore, Duration.ofHours(24));
-
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to update anonymous IP threat for: {}", ip, e);
-        }
-    }
-
-    /**
-     * 익명 사용자 요청 횟수 증가 (Rate Limiting)
-     */
-    private long incrementAnonymousRequestCount(String ip) {
-        try {
-            String countKey = ZeroTrustRedisKeys.anonymousIpRequestCount(ip);
-            Long count = redisTemplate.opsForValue().increment(countKey);
-
-            if (count != null && count == 1) {
-                // 첫 요청이면 TTL 설정 (5분)
-                redisTemplate.expire(countKey, 5, TimeUnit.MINUTES);
-            }
-
-            return count != null ? count : 0;
-
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to increment anonymous request count for: {}", ip, e);
-            return 0;
-        }
-    }
-
-    /**
-     * 익명 사용자 마지막 접근 시간 업데이트
-     */
-    private void updateAnonymousLastAccess(String ip) {
-        try {
-            String lastAccessKey = ZeroTrustRedisKeys.anonymousIpLastAccess(ip);
-            redisTemplate.opsForValue().set(lastAccessKey, System.currentTimeMillis(),
-                Duration.ofHours(24));
-
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to update anonymous last access for: {}", ip, e);
-        }
-    }
-
-    /**
-     * 익명 사용자 권한 동적 조정
-     */
-    private void adjustAnonymousAuthoritiesByThreatScore(SecurityContext context, double trustScore, double threatScore) {
-        Authentication auth = context.getAuthentication();
-        if (auth == null) {
-            return;
-        }
-
-        Collection<? extends GrantedAuthority> currentAuthorities = auth.getAuthorities();
-        Set<GrantedAuthority> adjustedAuthorities = new HashSet<>(currentAuthorities);
-
-        // 익명 사용자 기본 권한: ROLE_ANONYMOUS
-        adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_ANONYMOUS"));
-
-        // 높은 위협 수준에서 추가 제한
-        if (threatScore >= criticalThreatThreshold) {
-            // 위험: 익명 사용자는 완전 차단 (빈 권한)
-            adjustedAuthorities.clear();
-            adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
-            log.warn("[ZeroTrust] Critical threat level - Anonymous access blocked");
-
-        } else if (threatScore >= highThreatThreshold) {
-            // 경고: 매우 제한적인 읽기 권한만
-            adjustedAuthorities.clear();
-            adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_ANONYMOUS"));
-            adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_RESTRICTED"));
-            log.info("[ZeroTrust] High threat level - Anonymous access restricted");
-
-        } else if (threatScore >= 0.5) {
-            // 보통: 제한적 읽기 권한
-            adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));
-        }
-
-        // 권한 업데이트
-        if (!adjustedAuthorities.equals(new HashSet<>(currentAuthorities))) {
-            Authentication adjustedAuth = new ZeroTrustAuthenticationToken(
-                auth.getPrincipal(),
-                auth.getCredentials(),
-                adjustedAuthorities,
-                trustScore,
-                threatScore
-            );
-            context.setAuthentication(adjustedAuth);
-        }
-    }
-
-    /**
-     * 익명 사용자 SecurityContext에 Zero Trust 메타데이터 설정
-     */
-    private void setAnonymousZeroTrustMetadata(SecurityContext context, double trustScore,
-                                               double threatScore, String clientIp) {
-        if (context.getAuthentication() instanceof ZeroTrustAuthenticationToken) {
-            ZeroTrustAuthenticationToken zeroTrustAuth =
-                (ZeroTrustAuthenticationToken) context.getAuthentication();
-
-            zeroTrustAuth.setTrustScore(trustScore);
-            zeroTrustAuth.setThreatScore(threatScore);
-            zeroTrustAuth.setLastEvaluated(LocalDateTime.now());
-
-            // 익명 사용자는 IP를 principal로 설정
-            Map<String, Object> details = new HashMap<>();
-            details.put("clientIp", clientIp);
-            details.put("anonymous", true);
-            details.put("threatScore", threatScore);
-            details.put("trustScore", trustScore);
-            zeroTrustAuth.setDetails(details);
         }
     }
 
@@ -400,9 +208,46 @@ public class ZeroTrustSecurityService {
     }
 
     /**
-     * Trust Score 기반 권한 동적 조정
+     * AI Native: Redis에서 LLM이 결정한 최신 action 조회
+     *
+     * 조회 우선순위:
+     * 1. 차단 상태 확인 (RealtimeBlockStrategy가 저장)
+     * 2. LLM action 조회 (ColdPathEventProcessor가 저장)
+     * 3. 키 없음 → ALLOW (기본값)
+     *
+     * @param userId 사용자 ID
+     * @return action 문자열 (ALLOW, MONITOR, INVESTIGATE, CHALLENGE, BLOCK)
      */
-    private void adjustAuthoritiesByTrustScore(SecurityContext context, double trustScore, double threatScore) {
+    private String getLatestAction(String userId) {
+        try {
+            // 1. 차단 상태 확인 (RealtimeBlockStrategy가 저장)
+            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+            Boolean isBlocked = (Boolean) redisTemplate.opsForValue().get(blockKey);
+            if (Boolean.TRUE.equals(isBlocked)) {
+                return "BLOCK";
+            }
+
+            // 2. LLM action 조회 (ColdPathEventProcessor가 저장)
+            String actionKey = ZeroTrustRedisKeys.userAction(userId);
+            Object action = redisTemplate.opsForValue().get(actionKey);
+            return action != null ? action.toString() : "ALLOW";
+
+        } catch (Exception e) {
+            log.error("[ZeroTrust] Failed to get action for user: {}", userId, e);
+            return "ALLOW";  // Fail-safe: 기본값 반환
+        }
+    }
+
+    /**
+     * AI Native: action 기반 권한 동적 조정
+     *
+     * 임계값 기반 판단 완전 제거 - LLM이 결정한 action을 직접 사용
+     *
+     * @param context SecurityContext
+     * @param action LLM이 결정한 action
+     * @param userId 사용자 ID
+     */
+    private void adjustAuthoritiesByAction(SecurityContext context, String action, String userId) {
         Authentication auth = context.getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             return;
@@ -411,32 +256,38 @@ public class ZeroTrustSecurityService {
         Collection<? extends GrantedAuthority> currentAuthorities = auth.getAuthorities();
         Set<GrantedAuthority> adjustedAuthorities = new HashSet<>(currentAuthorities);
 
-        // 높은 위협 수준에서 권한 제한
-        if (threatScore >= criticalThreatThreshold) {
-            // 위험: 읽기 권한만 유지
-            adjustedAuthorities = adjustedAuthorities.stream()
-                .filter(auth0 -> auth0.getAuthority().contains("READ") ||
-                               auth0.getAuthority().contains("VIEW"))
-                .collect(Collectors.toSet());
-
-            adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_RESTRICTED"));
-            log.warn("[ZeroTrust] Critical threat level - Authorities restricted for user: {}",
-                auth.getName());
-
-        } else if (threatScore >= highThreatThreshold) {
-            // 경고: 쓰기 권한 제한
-            adjustedAuthorities = adjustedAuthorities.stream()
-                .filter(auth0 -> !auth0.getAuthority().contains("DELETE") &&
-                               !auth0.getAuthority().contains("ADMIN"))
-                .collect(Collectors.toSet());
-
-            adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));
-            log.info("[ZeroTrust] High threat level - Write authorities limited for user: {}",
-                auth.getName());
+        switch (action) {
+            case "ALLOW" -> {
+                // 정상 - 권한 유지
+            }
+            case "BLOCK" -> {
+                adjustedAuthorities.clear();
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
+                log.warn("[ZeroTrust][AI Native] User BLOCKED: {}", userId);
+            }
+            case "CHALLENGE" -> {
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
+                log.info("[ZeroTrust][AI Native] MFA CHALLENGE required: {}", userId);
+            }
+            case "INVESTIGATE", "ESCALATE" -> {
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));
+                log.warn("[ZeroTrust][AI Native] Security REVIEW required: {}", userId);
+            }
+            case "MONITOR" -> {
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MONITORED"));
+                // Silent monitoring - 사용자 모름
+            }
+            default -> {
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));
+                log.warn("[ZeroTrust][AI Native] Unknown action '{}': {}", action, userId);
+            }
         }
 
         // 권한이 변경된 경우 업데이트
         if (!adjustedAuthorities.equals(new HashSet<>(currentAuthorities))) {
+            double trustScore = 1.0 - threatScoreOrchestrator.getThreatScore(userId);
+            double threatScore = threatScoreOrchestrator.getThreatScore(userId);
+
             Authentication adjustedAuth = new ZeroTrustAuthenticationToken(
                 auth.getPrincipal(),
                 auth.getCredentials(),
@@ -452,7 +303,7 @@ public class ZeroTrustSecurityService {
      * SecurityContext에 Zero Trust 메타데이터 설정
      */
     private void setZeroTrustMetadata(SecurityContext context, double trustScore,
-                                      double threatScore, UserSecurityContext userContext) {
+                                      double threatScore, UserSecurityContext userContext, String action) {
         if (context.getAuthentication() instanceof ZeroTrustAuthenticationToken) {
             ZeroTrustAuthenticationToken zeroTrustAuth =
                 (ZeroTrustAuthenticationToken) context.getAuthentication();
@@ -461,6 +312,13 @@ public class ZeroTrustSecurityService {
             zeroTrustAuth.setThreatScore(threatScore);
             zeroTrustAuth.setUserContext(userContext);
             zeroTrustAuth.setLastEvaluated(LocalDateTime.now());
+
+            // AI Native: action 정보 추가
+            Map<String, Object> details = new HashMap<>();
+            details.put("action", action);
+            details.put("trustScore", trustScore);
+            details.put("threatScore", threatScore);
+            zeroTrustAuth.setDetails(details);
         }
     }
 

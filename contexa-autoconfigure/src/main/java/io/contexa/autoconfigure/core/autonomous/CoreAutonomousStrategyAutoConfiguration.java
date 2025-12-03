@@ -11,11 +11,8 @@ import io.contexa.contexacore.autonomous.safety.PolicyVersionManager;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.autonomous.state.DistributedStateManager;
-import io.contexa.contexacore.autonomous.strategy.CisControlsEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.CompositeEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.DefaultThreatEvaluationStrategy;
-import io.contexa.contexacore.autonomous.strategy.MitreAttackEvaluationStrategy;
-import io.contexa.contexacore.autonomous.strategy.NistCsfEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.SessionThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.VectorStoreEvaluationStrategy;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
@@ -51,12 +48,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 public class CoreAutonomousStrategyAutoConfiguration {
 
     // ========== Threat Evaluation Strategies ==========
-
-    @Bean
-    @ConditionalOnMissingBean
-    public CisControlsEvaluationStrategy cisControlsEvaluationStrategy() {
-        return new CisControlsEvaluationStrategy();
-    }
+    // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
+    // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
 
     @Bean
     @ConditionalOnMissingBean
@@ -68,18 +61,6 @@ public class CoreAutonomousStrategyAutoConfiguration {
     @ConditionalOnMissingBean
     public DefaultThreatEvaluationStrategy defaultThreatEvaluationStrategy() {
         return new DefaultThreatEvaluationStrategy();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public MitreAttackEvaluationStrategy mitreAttackEvaluationStrategy() {
-        return new MitreAttackEvaluationStrategy();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public NistCsfEvaluationStrategy nistCsfEvaluationStrategy() {
-        return new NistCsfEvaluationStrategy();
     }
 
     @Bean

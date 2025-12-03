@@ -98,19 +98,22 @@ public class ColdPathStrategy implements ProcessingStrategy {
     /**
      * Context에서 위험도 점수 추출 (0.0-1.0 스케일)
      *
+     * AI Native: LLM이 결정한 riskScore 사용, 없으면 NaN (기본값 제거)
+     *
      * @param context 보안 이벤트 컨텍스트
-     * @return 위험도 점수 (기본값: 0.7)
+     * @return 위험도 점수 (LLM이 결정, 없으면 NaN)
      */
     private double extractRiskScore(SecurityEventContext context) {
         if (context.getAiAnalysisResult() == null) {
-            log.debug("[ColdPathStrategy] No AI analysis result, using default riskScore: 0.5");
-            return 0.5;  // Zero Trust 중립값
+            // AI Native: 분석 미수행 상태는 NaN (규칙 기반 기본값 제거)
+            log.debug("[ColdPathStrategy][AI Native] No AI analysis result, riskScore=NaN");
+            return Double.NaN;
         }
 
         // threatLevel 필드를 riskScore로 사용 (0.0-1.0 범위)
         // 0.0(완전 안전)도 유효한 값이므로 > 0 조건 제거
         double threatLevel = context.getAiAnalysisResult().getThreatLevel();
-        log.debug("[ColdPathStrategy] Extracted riskScore from threatLevel: {}", threatLevel);
+        log.debug("[ColdPathStrategy][AI Native] Extracted riskScore from threatLevel: {}", threatLevel);
         return threatLevel;
     }
 

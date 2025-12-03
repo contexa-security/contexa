@@ -50,14 +50,12 @@ public class HCADVectorIntegrationService {
     @Value("${hcad.vector.cache-ttl-hours:24}")
     private long cacheTtlHours;
 
-    @Value("${hcad.vector.similarity-threshold:0.85}")
-    private double similarityThreshold;
-
     @Value("${hcad.vector.max-cached-embeddings:1000}")
     private int maxCachedEmbeddings;
 
-    @Value("${hcad.vector.scenario-detection-enabled:true}")
-    private boolean scenarioDetectionEnabled;
+    // AI Native 전환: similarityThreshold, scenarioDetectionEnabled 제거
+    // - 모든 판단은 LLM에게 위임
+    // - 시나리오 분류도 LLM이 직접 결정
 
     /**
      * HCADContext를 고차원 임베딩으로 변환
@@ -95,10 +93,9 @@ public class HCADVectorIntegrationService {
                 baseline.setEmbeddingVersion("BehaviorVectorService-v2.0");
                 baseline.setEmbeddingUpdatedAt(Instant.now());
 
-                // 시나리오 패턴 업데이트
-                if (scenarioDetectionEnabled) {
-                    updateScenarioPatterns(baseline, similarBehaviors);
-                }
+                // AI Native 전환: 시나리오 패턴 업데이트 제거
+                // - 시나리오 분류는 LLM이 직접 수행
+                // - 패턴 데이터는 LLM 컨텍스트로 전달됨
 
                 log.debug("사용자 {} 패턴 통합 완료: {} 개 행동 패턴 적용", userId, similarBehaviors.size());
             }
@@ -139,68 +136,65 @@ public class HCADVectorIntegrationService {
                 // 코사인 유사도 계산 (EmbeddingService 위임)
                 double similarity = embeddingService.calculateCosineSimilarity(contextEmbedding, normalEmbedding);
 
-                // 이상 점수 = 1 - 유사도
-                double anomalyScore = 1.0 - similarity;
-
-                // 임계값 기반 조정
-                if (similarity < similarityThreshold) {
-                    // 유사도가 임계값보다 낮으면 이상 점수 증가
-                    anomalyScore = Math.min(1.0, anomalyScore * 1.2);
-                }
-
-                return anomalyScore;
+                // AI Native: 유사도를 그대로 반환 (LLM 컨텍스트로 전달될 정보)
+                // 임계값 기반 조정 로직 제거 - 모든 판단은 LLM에게 위임
+                return similarity;
             }
 
         } catch (Exception e) {
             log.error("실시간 이상 점수 계산 실패: {}", e.getMessage());
         }
 
-        return 0.5; // 중립값 반환
+        // AI Native: 계산 실패 시 null 반환하여 LLM이 컨텍스트 부재 상황을 인지하도록 함
+        // 기존 0.5 기본값 제거 - 플랫폼이 임의로 값을 생성하지 않음
+        return Double.NaN;
     }
 
     /**
-     * 시나리오 자동 감지 및 분류
+     * 시나리오 컨텍스트 정보 추출
+     *
+     * AI Native 전환: 규칙 기반 시나리오 분류 제거
+     * - 시나리오 결정은 LLM이 직접 수행
+     * - 이 메서드는 원시 컨텍스트 정보만 JSON 형태로 반환
+     * - LLM에게 전달될 컨텍스트에 포함됨
      *
      * @param context HCAD 컨텍스트
-     * @return 감지된 시나리오 이름
+     * @return 원시 컨텍스트 정보 (JSON 형식)
+     * @deprecated 시나리오 분류는 LLM이 직접 수행합니다. 이 메서드는 컨텍스트 정보 추출용으로만 사용하세요.
      */
+    @Deprecated
     public String detectScenario(HCADContext context) {
-        // 시간대 기반 시나리오
-        int hour = context.getTimestamp().atZone(java.time.ZoneId.systemDefault()).getHour();
-        boolean isWeekend = context.getTimestamp().atZone(java.time.ZoneId.systemDefault())
-            .getDayOfWeek().getValue() >= 6;
+        // AI Native: 규칙 기반 시나리오 분류 제거
+        // 원시 컨텍스트 정보만 JSON 형태로 반환하여 LLM 컨텍스트에 포함
+        StringBuilder contextInfo = new StringBuilder();
+        contextInfo.append("{");
 
-        // IP 기반 위치 추정
-        boolean isInternalNetwork = isInternalIp(context.getRemoteIp());
-
-        // 디바이스 타입 추정
-        boolean isMobileDevice = context.getUserAgent() != null &&
-            (context.getUserAgent().contains("Mobile") || context.getUserAgent().contains("Android"));
-
-        // 시나리오 결정 로직
-        if (isWeekend) {
-            if (isInternalNetwork) {
-                return "weekend_home";
-            } else {
-                return "weekend_external";
-            }
-        } else { // 평일
-            if (hour >= 9 && hour < 18) {
-                if (isInternalNetwork) {
-                    return "weekday_office";
-                } else if (isMobileDevice) {
-                    return "weekday_mobile";
-                } else {
-                    return "weekday_remote";
-                }
-            } else if (hour >= 18 && hour < 22) {
-                return "evening_activity";
-            } else if (hour >= 22 || hour < 6) {
-                return "night_activity";
-            } else {
-                return "early_morning";
-            }
+        // 시간 정보 (LLM이 판단할 수 있도록 원시 데이터 제공)
+        if (context.getTimestamp() != null) {
+            int hour = context.getTimestamp().atZone(java.time.ZoneId.systemDefault()).getHour();
+            int dayOfWeek = context.getTimestamp().atZone(java.time.ZoneId.systemDefault()).getDayOfWeek().getValue();
+            contextInfo.append("\"hour\":").append(hour).append(",");
+            contextInfo.append("\"dayOfWeek\":").append(dayOfWeek).append(",");
         }
+
+        // IP 정보 (LLM이 판단할 수 있도록 원시 데이터 제공)
+        if (context.getRemoteIp() != null) {
+            contextInfo.append("\"remoteIp\":\"").append(context.getRemoteIp()).append("\",");
+        }
+
+        // User-Agent 정보 (LLM이 판단할 수 있도록 원시 데이터 제공)
+        if (context.getUserAgent() != null) {
+            contextInfo.append("\"userAgent\":\"").append(context.getUserAgent().replace("\"", "\\\"")).append("\",");
+        }
+
+        // 마지막 쉼표 제거 및 닫기
+        String result = contextInfo.toString();
+        if (result.endsWith(",")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        result += "}";
+
+        return result;
     }
 
     /**
@@ -341,10 +335,12 @@ public class HCADVectorIntegrationService {
     private float[] fetchNormalEmbeddingFromPGVector(String userId) {
         try {
             // PGVector에서 사용자 정상 패턴 검색
+            // AI Native 전환: similarityThreshold 제거
+            // - 모든 유사 패턴을 검색하여 LLM 컨텍스트에 포함
+            // - 임계값 기반 필터링은 LLM이 직접 판단
             SearchRequest searchRequest = SearchRequest.builder()
                 .query(String.format("userId:%s AND type:normal_pattern", userId))
                 .topK(5)
-                .similarityThreshold(0.9)
                 .build();
 
             List<Document> normalPatterns = unifiedVectorService.searchSimilar(searchRequest);
@@ -395,7 +391,7 @@ public class HCADVectorIntegrationService {
      */
     private Map<String, float[]> extractScenarioEmbeddings(List<Document> patterns) {
         Map<String, List<Document>> scenarioGroups = patterns.stream()
-            .collect(Collectors.groupingBy(this::detectScenarioFromDocument));
+            .collect(Collectors.groupingBy((Document doc) -> detectScenarioFromDocument(doc)));
 
         Map<String, float[]> scenarioEmbeddings = new HashMap<>();
 
@@ -410,30 +406,26 @@ public class HCADVectorIntegrationService {
         return scenarioEmbeddings;
     }
 
+    /**
+     * Document에서 시나리오 메타데이터 추출
+     *
+     * AI Native 전환: 규칙 기반 시나리오 결정 제거
+     * - Document 메타데이터에 이미 존재하는 scenario 필드를 직접 반환
+     * - 시나리오가 없으면 "unknown" 반환 (LLM이 컨텍스트로 판단)
+     */
     private String detectScenarioFromDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
 
-        // 메타데이터에서 시나리오 힌트 추출
-        Object hourObj = metadata.get("hour");
-        Object isWeekendObj = metadata.get("isWeekend");
-        Object ipTypeObj = metadata.get("ipType");
-
-        int hour = hourObj != null ? Integer.parseInt(hourObj.toString()) : 12;
-        boolean isWeekend = Boolean.parseBoolean(String.valueOf(isWeekendObj));
-        String ipType = ipTypeObj != null ? ipTypeObj.toString() : "EXTERNAL";
-
-        // 시나리오 결정
-        if (isWeekend) {
-            return "weekend_" + ipType.toLowerCase();
-        } else {
-            if (hour >= 9 && hour < 18) {
-                return "weekday_office";
-            } else if (hour >= 18 && hour < 22) {
-                return "evening_activity";
-            } else {
-                return "night_activity";
-            }
+        // AI Native: 메타데이터에서 scenario 필드 직접 추출
+        // 시나리오 결정 규칙 제거 - LLM이 직접 판단
+        Object scenarioObj = metadata.get("scenario");
+        if (scenarioObj != null) {
+            return scenarioObj.toString();
         }
+
+        // scenario 필드가 없으면 "unknown" 반환
+        // LLM이 다른 컨텍스트 정보로 판단
+        return "unknown";
     }
 
     private HCADContext createAverageContext(List<Document> documents) {
@@ -473,17 +465,16 @@ public class HCADVectorIntegrationService {
         return builder.build();
     }
 
-    private boolean isInternalIp(String ip) {
-        return ip != null && (
-            ip.startsWith("10.") ||
-            ip.startsWith("192.168.") ||
-            ip.startsWith("172.16.") ||
-            ip.startsWith("127.")
-        );
-    }
+    // AI Native 전환: isInternalIp() 제거
+    // - IP 기반 내부/외부 판단은 LLM이 컨텍스트로 직접 수행
+    // - IP 주소 원시 데이터를 LLM에게 전달
 
     /**
-     * Phase 6.1: Layer3 피드백을 BaselineVector에 적용
+     * Phase 6.1: Layer3 피드백을 BaselineVector에 저장
+     *
+     * AI Native 전환: 신뢰도 보정/벡터 조정 규칙 제거
+     * - 피드백 데이터는 저장만 하고, 판단은 LLM이 컨텍스트로 수행
+     * - 모든 피드백 정보는 LLM 프롬프트의 컨텍스트로 전달됨
      *
      * @param baseline 기준선 벡터
      * @param userId 사용자 ID
@@ -497,39 +488,34 @@ public class HCADVectorIntegrationService {
                 return;
             }
 
+            // AI Native: 피드백 데이터를 baseline에 저장 (판단은 LLM이 수행)
+            // 신뢰도 보정(1.1)/벡터 조정(0.95) 규칙 제거
             double avgRiskScore = (double) feedback.get("averageRiskScore");
-            boolean hasHighRisk = (boolean) feedback.getOrDefault("hasHighRiskHistory", false);
+            List<String> threatCategories = (List<String>) feedback.getOrDefault("threatCategories", List.of());
 
-            if (hasHighRisk) {
-                double oldConfidence = baseline.getConfidence();
-                double confidenceBoost = 1.1;
-                baseline.setConfidence(Math.min(1.0, oldConfidence * confidenceBoost));
+            // 피드백 메타데이터로 저장 (LLM 컨텍스트에 포함됨)
+            baseline.setFeedbackMetadata(Map.of(
+                "layer3FeedbackCount", feedbackCount,
+                "layer3AvgRiskScore", avgRiskScore,
+                "layer3ThreatCategories", threatCategories
+            ));
 
-                List<String> threatCategories = (List<String>) feedback.get("threatCategories");
-                if (threatCategories != null && !threatCategories.isEmpty()) {
-                    double[] currentVector = baseline.getVector();
-                    if (currentVector != null && currentVector.length > 0) {
-                        for (int i = 0; i < currentVector.length; i++) {
-                            currentVector[i] *= 0.95;
-                        }
-                        baseline.setVector(currentVector);
-                    }
-                }
-
-                log.info("Layer3 고위험 피드백 적용: userId={}, 신뢰도 증가: {} → {}, 벡터 조정 완료, 위협 카테고리: {}",
-                    userId, oldConfidence, baseline.getConfidence(),
-                    threatCategories != null ? String.join(", ", threatCategories) : "none");
-            }
-
+            log.info("Layer3 피드백 저장: userId={}, feedbackCount={}, avgRiskScore={}, 위협 카테고리: {}",
+                userId, feedbackCount, String.format("%.2f", avgRiskScore),
+                threatCategories.isEmpty() ? "none" : String.join(", ", threatCategories));
 
         } catch (Exception e) {
-            log.error("Layer3 피드백 적용 실패: userId={}", userId, e);
+            log.error("Layer3 피드백 저장 실패: userId={}", userId, e);
         }
     }
 
     /**
-     * 모든 Layer의 피드백을 통합하여 BaselineVector에 적용
-     * 가중치: Layer3 (70%) + Layer2 (20%) + Layer1 (10%)
+     * 모든 Layer의 피드백을 통합하여 BaselineVector에 저장
+     *
+     * AI Native 전환: 가중 평균/신뢰도 보정/벡터 조정 규칙 완전 제거
+     * - 모든 Layer의 피드백 데이터를 저장만 함
+     * - 판단은 LLM이 컨텍스트로 직접 수행
+     * - 모든 피드백 정보는 LLM 프롬프트에 포함되어 전달됨
      *
      * @param baseline 기준선 벡터
      * @param userId 사용자 ID
@@ -548,51 +534,39 @@ public class HCADVectorIntegrationService {
                 return;
             }
 
-            // 가중 평균 계산 (Layer3: 70%, Layer2: 20%, Layer1: 10%)
+            // AI Native: 모든 피드백 데이터를 원시 형태로 저장
+            // 가중 평균/신뢰도 보정/벡터 조정 규칙 완전 제거
+            // LLM이 모든 피드백 컨텍스트를 받아서 직접 판단
             double layer1Avg = (double) layer1Feedback.get("averageRiskScore");
             double layer2Avg = (double) layer2Feedback.get("averageRiskScore");
             double layer3Avg = (double) layer3Feedback.get("averageRiskScore");
 
-            double weightedRiskScore = (layer1Avg * 0.1) + (layer2Avg * 0.2) + (layer3Avg * 0.7);
-            double highRiskThreshold = feedbackProperties.getRiskScore().getHighRiskThreshold();
-            boolean hasHighRisk = weightedRiskScore >= highRiskThreshold;
+            // 모든 Layer의 위협 카테고리 통합 (LLM 컨텍스트용)
+            Set<String> allThreatCategories = new HashSet<>();
+            allThreatCategories.addAll((List<String>) layer1Feedback.getOrDefault("threatCategories", List.of()));
+            allThreatCategories.addAll((List<String>) layer2Feedback.getOrDefault("threatCategories", List.of()));
+            allThreatCategories.addAll((List<String>) layer3Feedback.getOrDefault("threatCategories", List.of()));
 
-            if (hasHighRisk) {
-                double oldConfidence = baseline.getConfidence();
+            // 피드백 메타데이터로 저장 (LLM 컨텍스트에 포함됨)
+            Map<String, Object> feedbackMetadata = new HashMap<>();
+            feedbackMetadata.put("layer1FeedbackCount", layer1Count);
+            feedbackMetadata.put("layer1AvgRiskScore", layer1Avg);
+            feedbackMetadata.put("layer2FeedbackCount", layer2Count);
+            feedbackMetadata.put("layer2AvgRiskScore", layer2Avg);
+            feedbackMetadata.put("layer3FeedbackCount", layer3Count);
+            feedbackMetadata.put("layer3AvgRiskScore", layer3Avg);
+            feedbackMetadata.put("allThreatCategories", new ArrayList<>(allThreatCategories));
+            baseline.setFeedbackMetadata(feedbackMetadata);
 
-                // 신뢰도 조정: 가중 위험도에 비례하여 증가
-                double confidenceBoost = 1.0 + (weightedRiskScore * 0.1);
-                baseline.setConfidence(Math.min(1.0, oldConfidence * confidenceBoost));
-
-                // 모든 Layer의 위협 카테고리 통합
-                Set<String> allThreatCategories = new HashSet<>();
-                allThreatCategories.addAll((List<String>) layer1Feedback.getOrDefault("threatCategories", List.of()));
-                allThreatCategories.addAll((List<String>) layer2Feedback.getOrDefault("threatCategories", List.of()));
-                allThreatCategories.addAll((List<String>) layer3Feedback.getOrDefault("threatCategories", List.of()));
-
-                // 벡터 조정: 가중 위험도에 비례하여 조정
-                if (!allThreatCategories.isEmpty()) {
-                    double[] currentVector = baseline.getVector();
-                    if (currentVector != null && currentVector.length > 0) {
-                        double vectorAdjustment = 1.0 - (weightedRiskScore * 0.05);
-                        for (int i = 0; i < currentVector.length; i++) {
-                            currentVector[i] *= vectorAdjustment;
-                        }
-                        baseline.setVector(currentVector);
-                    }
-                }
-
-                log.info("통합 피드백 적용 완료: userId={}, Layer1Count={}, Layer2Count={}, Layer3Count={}, " +
-                    "가중 위험도={}, 신뢰도 증가: {} → {}, 위협 카테고리: {}",
-                    userId, layer1Count, layer2Count, layer3Count, String.format("%.2f", weightedRiskScore),
-                    oldConfidence, baseline.getConfidence(), String.join(", ", allThreatCategories));
-            } else {
-                log.debug("통합 피드백: userId={}, 가중 위험도={} < 임계값={}, baseline 조정 안 함",
-                    userId, String.format("%.2f", weightedRiskScore), highRiskThreshold);
-            }
+            log.info("통합 피드백 저장 완료: userId={}, Layer1(count={}, avg={}), Layer2(count={}, avg={}), Layer3(count={}, avg={}), 위협 카테고리: {}",
+                userId,
+                layer1Count, String.format("%.2f", layer1Avg),
+                layer2Count, String.format("%.2f", layer2Avg),
+                layer3Count, String.format("%.2f", layer3Avg),
+                allThreatCategories.isEmpty() ? "none" : String.join(", ", allThreatCategories));
 
         } catch (Exception e) {
-            log.error("통합 피드백 적용 실패: userId={}", userId, e);
+            log.error("통합 피드백 저장 실패: userId={}", userId, e);
         }
     }
 }

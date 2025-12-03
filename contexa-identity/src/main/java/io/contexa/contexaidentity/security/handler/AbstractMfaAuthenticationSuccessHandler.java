@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
@@ -126,6 +127,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             request.setAttribute("mfaSessionReleased", true);
             log.debug("Set mfaSessionReleased flag for session: {}", factorContext.getMfaSessionId());
         }
+
+        // 4. AI Native: MFA 성공 시 action 초기화 (CHALLENGE 해제)
+        String userId = finalAuthentication.getName();
+        resetActionOnMfaSuccess(userId);
 
         // 4. 응답 데이터 구성
         Map<String, Object> responseData = buildResponseData(
@@ -366,10 +371,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
             builder.metadata(metadata);
 
-            // HCAD 유사도 계산 (인증 시점에 이상 탐지 수행)
-            Double hcadSimilarity = calculateHCADSimilarity(request, authentication);
-            builder.hcadSimilarityScore(hcadSimilarity);
-            
             // 이벤트 발행
             AuthenticationSuccessEvent event = builder.build();
             eventPublisher.publishEvent(event);
@@ -480,77 +481,30 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     /**
-     * HCAD 유사도 계산
+     * AI Native: MFA 성공 시 action 초기화
      *
-     * HCADFilter는 인증 전 요청을 통과시키므로 (인증되지 않은 상태),
-     * 인증 성공 시점에 직접 HCAD 분석을 수행하여 Zero Trust 원칙을 구현합니다.
+     * CHALLENGE action으로 MFA가 요구되었던 사용자가 MFA를 성공적으로 완료하면
+     * Redis에서 action을 삭제하여 정상 접근을 허용합니다.
      *
-     * @return HCAD 유사도 점수 (0.0 ~ 1.0, 높을수록 정상) 또는 null (계산 실패 시)
+     * @param userId 사용자 ID
      */
-    private Double calculateHCADSimilarity(HttpServletRequest request, Authentication authentication) {
+    private void resetActionOnMfaSuccess(String userId) {
+        if (userId == null || userId.isBlank() || redisTemplate == null) {
+            return;
+        }
+
         try {
-            // HCAD 의존성이 주입되지 않았으면 null 반환
-            if (hcadContextExtractor == null || redisTemplate == null) {
-                log.debug("[HCAD] Dependencies not available, skipping HCAD calculation");
-                return null;
+            String actionKey = ZeroTrustRedisKeys.userAction(userId);
+            Boolean deleted = redisTemplate.delete(actionKey);
+
+            if (Boolean.TRUE.equals(deleted)) {
+                log.info("[MFA][AI Native] Action reset for user: {} (CHALLENGE cleared)", userId);
+            } else {
+                log.debug("[MFA][AI Native] No action to reset for user: {}", userId);
             }
-
-            // 1. HCADContext 생성
-            HCADContext context = hcadContextExtractor.extractContext(request, authentication);
-
-            // 2. Redis에서 BaselineVector 조회
-            String redisKey = redisKeyPrefix + context.getUserId();
-            BaselineVector baseline = (BaselineVector) redisTemplate.opsForValue().get(redisKey);
-
-            if (baseline == null) {
-                // 기준선이 없으면 초기 기준선 생성
-                baseline = BaselineVector.builder()
-                    .userId(context.getUserId())
-                    .confidence(0.0)
-                    .updateCount(0L)
-                    .lastUpdated(Instant.now())
-                    .build();
-            }
-
-            // 3. 하이브리드 유사도 계산 (HCADFilter 로직과 동일)
-            double baselineSimilarity = baseline.calculateSimilarity(context);
-            double vectorSimilarity = baselineSimilarity;
-
-            if (hcadVectorService != null) {
-                try {
-                    // 벡터 임베딩 생성 및 이상 점수 계산
-                    float[] embedding = hcadVectorService.generateContextEmbedding(context);
-                    double vectorAnomalyScore = hcadVectorService.calculateRealTimeAnomalyScore(
-                        embedding,
-                        context.getUserId()
-                    );
-                    vectorSimilarity = 1.0 - vectorAnomalyScore;
-
-                    // 하이브리드: Baseline 60% + Vector 40%
-                    double hybridSimilarity = (baselineSimilarity * 0.6) + (vectorSimilarity * 0.4);
-
-                    log.info("[HCAD] Authentication HCAD calculated: userId={}, baseline={}, vector={}, hybrid={}",
-                        context.getUserId(),
-                        String.format("%.3f", baselineSimilarity),
-                        String.format("%.3f", vectorSimilarity),
-                        String.format("%.3f", hybridSimilarity));
-
-                    return hybridSimilarity;
-
-                } catch (Exception e) {
-                    log.debug("[HCAD] Vector scoring failed, using baseline only", e);
-                }
-            }
-
-            log.info("[HCAD] Authentication HCAD calculated (baseline only): userId={}, similarity={}",
-                context.getUserId(), String.format("%.3f", baselineSimilarity));
-
-            return baselineSimilarity;
 
         } catch (Exception e) {
-            log.error("[HCAD] Failed to calculate HCAD similarity during authentication", e);
-            // Zero Trust: 계산 실패 시 null 반환하여 후속 분석으로 위임
-            return null;
+            log.error("[MFA] Failed to reset action for user: {}", userId, e);
         }
     }
 }

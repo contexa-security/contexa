@@ -145,13 +145,17 @@ public class UnifiedVectorService implements VectorOperations {
 
     /**
      * 유사도 검색 (캐시 우선)
+     *
+     * AI Native: similarityThreshold 제거 (LLM이 관련성 판단)
+     * - 플랫폼은 모든 결과를 수집하여 LLM에 전달
+     * - LLM이 컨텍스트 기반으로 관련성 최종 판단
      */
     @Override
     public List<Document> searchSimilar(String query) {
         return searchSimilar(SearchRequest.builder()
             .query(query)
             .topK(10)
-            .similarityThreshold(0.7)
+            .similarityThreshold(0.0)  // AI Native: 임계값 필터링 비활성화
             .build());
     }
 

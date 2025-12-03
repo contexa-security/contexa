@@ -8,11 +8,12 @@ spring:
   ai:
     chat:
       model:
+        # vLLM 사용 시: vllm,ollama,openai (vLLM 서버 실행 필요)
         priority: ollama,openai  # Anthropic 제거 (enabled: false)
 
       embedding:
         model:
-          priority: ollama,openai
+          priority: vllm,ollama,openai
 
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:sk-ant-dummy-key-for-disabled}
@@ -42,6 +43,12 @@ spring:
         enabled: false
         options:
           model: text-embedding-3-small
+
+    # vLLM 설정 (OpenAI 호환 API - spring.ai.vllm)
+    # vLLM 사용 시 아래 설정을 활성화하고 vLLM 서버 실행 필요
+    # vllm:
+    #   base-url: http://localhost:8000
+    #   enabled: true
 
     vectorstore:
       pgvector:

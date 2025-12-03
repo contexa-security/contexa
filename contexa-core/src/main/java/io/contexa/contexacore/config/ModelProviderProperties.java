@@ -40,6 +40,15 @@ public class ModelProviderProperties {
     private OpenAIConfig openai = new OpenAIConfig();
 
     /**
+     * vLLM 프로바이더 설정
+     *
+     * vLLM은 OpenAI 호환 API를 제공하는 고처리량 로컬 LLM 추론 엔진입니다.
+     * PagedAttention 기술로 Ollama 대비 약 10배의 처리량을 제공합니다.
+     */
+    @NestedConfigurationProperty
+    private VLLMConfig vllm = new VLLMConfig();
+
+    /**
      * 프로바이더 매핑 테이블
      * 모델명 패턴 -> 프로바이더 매핑
      */
@@ -108,6 +117,33 @@ public class ModelProviderProperties {
         private String baseUrl = "https://api.openai.com";
         private boolean enabled = true;
         private Map<String, ModelSpec> models = new HashMap<>();
+    }
+
+    /**
+     * vLLM 설정
+     *
+     * vLLM은 OpenAI 호환 API를 제공하는 고처리량 로컬 LLM 추론 엔진입니다.
+     * 특징:
+     * - PagedAttention: KV 캐시 메모리 낭비 60-80% -> 4% 미만으로 감소
+     * - Continuous Batching: 동적 배치로 GPU 활용률 극대화
+     * - Ollama 대비 약 10배의 처리량
+     * - OpenAI 호환 API로 기존 OpenAI 클라이언트 재사용 가능
+     */
+    @Data
+    public static class VLLMConfig {
+        private String baseUrl = "http://localhost:8000";
+        private boolean enabled = false;  // 기본 비활성화
+        private Map<String, ModelSpec> models = new HashMap<>();
+        private PerformanceDefaults performance = new PerformanceDefaults();
+
+        @Data
+        public static class PerformanceDefaults {
+            private Integer latencyMs = 50;  // vLLM은 저지연
+            private Integer timeoutMs = 5000;
+            private Double performanceScore = 95.0;  // vLLM은 고성능
+            private Integer concurrency = 200;  // vLLM은 고처리량
+            private Integer throughputMultiplier = 10;  // Ollama 대비 10배
+        }
     }
 
     /**
@@ -226,6 +262,11 @@ public class ModelProviderProperties {
             return "openai";
         }
 
+        // vLLM 모델 확인
+        if (vllm.getModels().containsKey(modelName)) {
+            return "vllm";
+        }
+
         log.debug("프로바이더를 찾을 수 없음: {}", modelName);
         return "unknown";
     }
@@ -241,6 +282,8 @@ public class ModelProviderProperties {
                 return anthropic.getModels().get(modelName);
             case "openai":
                 return openai.getModels().get(modelName);
+            case "vllm":
+                return vllm.getModels().get(modelName);
             default:
                 return null;
         }
@@ -284,6 +327,16 @@ public class ModelProviderProperties {
                     openai.getBaseUrl(), openai.getModels().size());
             for (String modelId : openai.getModels().keySet()) {
                 log.debug("  - OpenAI 모델: {}", modelId);
+            }
+        }
+
+        // vLLM 설정 검증
+        if (vllm.isEnabled()) {
+            log.info("vLLM 설정: baseUrl={}, 모델 수={}, 처리량 배수={}x",
+                    vllm.getBaseUrl(), vllm.getModels().size(),
+                    vllm.getPerformance().getThroughputMultiplier());
+            for (String modelId : vllm.getModels().keySet()) {
+                log.debug("  - vLLM 모델: {}", modelId);
             }
         }
 

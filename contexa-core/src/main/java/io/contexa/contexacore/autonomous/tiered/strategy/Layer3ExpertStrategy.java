@@ -73,7 +73,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     @Value("${ai.security.tiered.layer3.enable-soar:true}")
     private boolean enableSoar;
 
-    @Value("${ai.security.tiered.layer3.auto-execute-threshold:9.5}")
+    @Value("${ai.security.tiered.layer3.auto-execute-threshold:0.95}")
     private double autoExecuteThreshold;
 
     @Autowired
@@ -110,6 +110,10 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     /**
      * ThreatEvaluationStrategy 인터페이스 구현
      * ColdPathEventProcessorRefactored 에서 전략으로 사용됨
+     *
+     * AI Native 전환:
+     * - Layer3는 최종 계층이므로 shouldEscalate = false
+     * - LLM이 threatLevel을 직접 결정 (규칙 기반 매핑 제거)
      */
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
@@ -121,15 +125,18 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         // 전문가 분석 실행
         SecurityDecision expertDecision = performDeepAnalysis(event, layer2Decision);
 
+        // AI Native: Layer3는 최종 계층이므로 shouldEscalate = false
         // SecurityDecision을 ThreatAssessment로 변환
         return ThreatAssessment.builder()
                 .riskScore(expertDecision.getRiskScore())
                 .confidence(expertDecision.getConfidence())
-                .threatLevel(mapRiskScoreToThreatLevel(expertDecision.getRiskScore()))
+                // AI Native: LLM이 threatLevel을 직접 결정
+                .threatLevel(null)
                 .indicators(expertDecision.getIocIndicators())
                 .recommendedActions(List.of(mapActionToRecommendation(expertDecision.getAction())))
                 .strategyName("Layer3-Expert")
                 .assessedAt(LocalDateTime.now())
+                .shouldEscalate(false)  // Layer3는 최종 계층
                 .build();
     }
 
@@ -218,11 +225,13 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                         .requestId(event.getEventId())
                         .build();
 
+                // AI Native: onErrorResume에서 규칙 기반 기본값 제거
+                // riskScore/confidence를 null로 반환하여 NaN 처리
                 String jsonResponse = llmOrchestrator.execute(context)
                         .timeout(Duration.ofMillis(timeoutMs))
                         .onErrorResume(Exception.class, e -> {
-                            log.warn("Layer 3 LLM execution failed for event: {}", event.getEventId(), e);
-                            return Mono.just("{\"riskScore\":0.8,\"confidence\":0.5,\"action\":\"ESCALATE\",\"classification\":\"UNKNOWN\",\"scenario\":\"LLM execution failed\"}");
+                            log.warn("[Layer3][AI Native] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
+                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"classification\":\"UNKNOWN\",\"scenario\":\"[AI Native] LLM execution failed - failsafe blocking applied\"}");
                         })
                         .block();
 
@@ -258,10 +267,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                     // 공격 카운트 증가 및 IP 평판 하향
                     incrementAttackCount(sourceIp);
 
-                    // 익명 사용자의 경우 IP 위협 점수 업데이트
-                    if (event.getUserId() == null) {
-                        updateAnonymousIpThreat(sourceIp, expertDecision.getRiskScore());
-                    }
                 }
 
                 // 자산 중요도 동적 업데이트
@@ -401,16 +406,14 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * 리소스 타입 분류
+     * AI Native: 패턴 매칭 규칙 완전 제거
+     * - contains("/admin"), "/api" 등 규칙 제거
+     * - 경로를 그대로 반환하여 LLM이 리소스 유형 분류
+     * - LLM이 경로 컨텍스트를 분석하여 직접 판단
      */
     private String classifyResourceType(String path) {
-        if (path.contains("/admin")) return "admin";
-        if (path.contains("/api")) return "api";
-        if (path.contains("/secure")) return "secure";
-        if (path.contains("/public")) return "public";
-        if (path.contains("/database")) return "database";
-        if (path.contains("/auth")) return "auth";
-        return "general";
+        // AI Native: 패턴 매칭 제거, raw 경로 그대로 반환
+        return path;
     }
 
     /**
@@ -530,25 +533,14 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * Fallback: 알려진 위협 액터 찾기 (Rule-based)
+     * AI Native: 패턴 매칭 규칙 완전 제거
+     * - contains("APT"), "Lazarus", "Emotet" 규칙 제거
+     * - Vector 서비스 실패 시 빈 리스트 반환 (LLM이 직접 판단)
+     * - LLM이 페이로드 컨텍스트를 분석하여 위협 액터 식별
      */
     private List<String> findKnownThreatActorsFallback(SecurityEvent event) {
-        List<String> actors = new ArrayList<>();
-
-        // Null safety: event가 null이거나 eventEnricher가 null인 경우 빈 리스트 반환
-        if (event == null || eventEnricher == null) {
-            return actors;
-        }
-
-        Optional<Object> payload = eventEnricher.getRequestPayload(event);
-        if (payload.isPresent()) {
-            String payloadStr = payload.get().toString();
-            if (payloadStr.contains("APT")) actors.add("APT Group");
-            if (payloadStr.contains("Lazarus")) actors.add("Lazarus Group");
-            if (payloadStr.contains("Emotet")) actors.add("Emotet Operators");
-        }
-
-        return actors;
+        log.warn("[Layer3][AI Native] Vector service unavailable, threat actor detection delegated to LLM");
+        return new ArrayList<>();
     }
 
     /**
@@ -942,35 +934,25 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * Fallback: 자산 중요도 결정 (Rule-based)
+     * AI Native: 패턴 매칭 규칙 완전 제거
+     * - contains("database"), "auth", "api", "admin" 등 규칙 제거
+     * - Vector 서비스 실패 시 UNKNOWN 반환 (LLM이 직접 판단)
+     * - LLM이 타겟 리소스 컨텍스트를 분석하여 자산 중요도 결정
      */
     private String determineAssetCriticalityFallback(String target) {
-        if (target == null) return "UNKNOWN";
-
-        if (target.contains("database") || target.contains("auth")) {
-            return "CRITICAL";
-        } else if (target.contains("api") || target.contains("admin")) {
-            return "HIGH";
-        } else if (target.contains("public") || target.contains("static")) {
-            return "LOW";
-        }
-
-        return "MEDIUM";
+        log.warn("[Layer3][AI Native] Vector service unavailable, asset criticality delegated to LLM");
+        return "UNKNOWN";
     }
 
     /**
-     * 데이터 민감도 결정
+     * AI Native: 패턴 매칭 규칙 완전 제거
+     * - contains("personal"), "pii", "payment", "internal" 규칙 제거
+     * - UNKNOWN 반환 (LLM이 직접 판단)
+     * - LLM이 타겟 컨텍스트를 분석하여 데이터 민감도 결정
      */
     private String determineDataSensitivity(String target) {
-        if (target == null) return "UNKNOWN";
-
-        if (target.contains("personal") || target.contains("pii") || target.contains("payment")) {
-            return "HIGHLY_SENSITIVE";
-        } else if (target.contains("internal") || target.contains("confidential")) {
-            return "SENSITIVE";
-        }
-
-        return "PUBLIC";
+        log.warn("[Layer3][AI Native] Data sensitivity determination delegated to LLM");
+        return "UNKNOWN";
     }
 
 
@@ -984,24 +966,26 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * AI 응답 검증 및 수정
+     *
+     * AI Native: LLM 응답을 가공 없이 그대로 사용
+     * - confidence/riskScore가 null이면 Double.NaN 사용 (규칙 기반 기본값 금지)
+     * - LLM이 응답하지 않은 것은 "분석 불가" 상태로 명시
      */
     private Layer3SecurityResponse validateAndFixResponse(Layer3SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
         }
 
-        // confidence 검증
-        if (response.getConfidence() == null || response.getConfidence() < 0.1) {
-            log.warn("Layer3 AI returned invalid confidence {}, adjusting to 0.1", response.getConfidence());
-            response.setConfidence(0.1);
-            if (response.getReasoning() != null && !response.getReasoning().contains("[DATA_MISSING]")) {
-                response.setReasoning(response.getReasoning() + " [DATA_MISSING: insufficient threat intelligence or historical data]");
-            }
+        // AI Native: confidence가 null이면 NaN 사용 (강제 상향 금지)
+        if (response.getConfidence() == null) {
+            log.warn("[Layer3][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)");
+            response.setConfidence(Double.NaN);
         }
 
-        // riskScore 검증
+        // AI Native: riskScore가 null이면 NaN 사용 (기본값 금지)
         if (response.getRiskScore() == null) {
-            response.setRiskScore(0.7);  // Layer3는 기본 더 높게
+            log.warn("[Layer3][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)");
+            response.setRiskScore(Double.NaN);
         }
 
         // classification 검증
@@ -1029,24 +1013,30 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * 기본 Layer1 결정 생성
+     *
+     * AI Native: 기본값은 Double.NaN (LLM 분석 미수행 상태)
+     * - Layer3에서 직접 호출 시 LLM 분석 결과가 없으므로 NaN
      */
     private SecurityDecision createDefaultLayer1Decision() {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.ESCALATE)
-                .riskScore(0.8)
-                .confidence(0.8)
+                .riskScore(Double.NaN)
+                .confidence(Double.NaN)
                 .processingTimeMs(50L)
                 .build();
     }
 
     /**
      * 기본 Layer2 결정 생성
+     *
+     * AI Native: 기본값은 Double.NaN (LLM 분석 미수행 상태)
+     * - Layer3에서 직접 호출 시 LLM 분석 결과가 없으므로 NaN
      */
     private SecurityDecision createDefaultLayer2Decision() {
         return SecurityDecision.builder()
-                .action(SecurityDecision.Action.INVESTIGATE)
-                .riskScore(0.6)
-                .confidence(0.6)
+                .action(SecurityDecision.Action.ESCALATE)
+                .riskScore(Double.NaN)
+                .confidence(Double.NaN)
                 .processingTimeMs(100L)
                 .processingLayer(2)
                 .build();
@@ -1054,6 +1044,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * Layer3SecurityResponse를 SecurityDecision으로 변환
+     *
+     * AI Native: LLM 응답을 가공 없이 그대로 변환
+     * - null인 경우 Double.NaN 사용 (규칙 기반 기본값 금지)
      */
     private SecurityDecision convertToSecurityDecision(Layer3SecurityResponse response,
                                                        SecurityEvent event,
@@ -1065,10 +1058,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
         SecurityDecision.Action action = mapStringToAction(response.getAction());
 
+        // AI Native: LLM 응답 그대로 사용, null이면 NaN
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
-                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : 0.9)
-                .confidence(response.getConfidence() != null ? response.getConfidence() : 0.9)
+                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
+                .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
                 .attackScenario(response.getScenario())
                 .businessImpact(response.getBusinessImpact())
                 .reasoning(response.getReasoning())
@@ -1099,15 +1093,18 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * JSON 응답 파싱 (수동 파싱으로 BeanOutputConverter 제거)
+     *
+     * AI Native: LLM JSON 응답을 가공 없이 파싱
+     * - 필드 미존재 시 Double.NaN 사용 (규칙 기반 기본값 금지)
      */
     private Layer3SecurityResponse parseJsonResponse(String jsonResponse) {
         try {
             String cleanedJson = extractJsonObject(jsonResponse);
             JsonNode jsonNode = objectMapper.readTree(cleanedJson);
 
-            // 필수 필드 추출
-            Double riskScore = jsonNode.has("riskScore") ? jsonNode.get("riskScore").asDouble() : 0.8;
-            Double confidence = jsonNode.has("confidence") ? jsonNode.get("confidence").asDouble() : 0.5;
+            // AI Native: 필드 미존재 시 NaN (기본값 금지)
+            Double riskScore = jsonNode.has("riskScore") ? jsonNode.get("riskScore").asDouble() : Double.NaN;
+            Double confidence = jsonNode.has("confidence") ? jsonNode.get("confidence").asDouble() : Double.NaN;
             String action = jsonNode.has("action") ? jsonNode.get("action").asText() : "ESCALATE";
             String classification = jsonNode.has("classification") ? jsonNode.get("classification").asText() : "UNKNOWN";
             String scenario = jsonNode.has("scenario") ? jsonNode.get("scenario").asText() : "No scenario";
@@ -1180,11 +1177,15 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * 기본 Layer3SecurityResponse 생성
+     *
+     * AI Native: LLM 분석 불가 시 기본 응답
+     * - riskScore/confidence는 Double.NaN (규칙 기반 기본값 금지)
+     * - LLM이 분석하지 않은 상태를 명시
      */
     private Layer3SecurityResponse createDefaultResponse() {
         return Layer3SecurityResponse.builder()
-                .riskScore(0.8)
-                .confidence(0.5)
+                .riskScore(Double.NaN)  // AI Native: LLM 분석 미수행
+                .confidence(Double.NaN)  // AI Native: LLM 분석 미수행
                 .action("ESCALATE")
                 .classification("UNKNOWN")
                 .scenario("Analysis unavailable")
@@ -1196,8 +1197,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .businessImpact("Unknown impact")
                 .playbookId("default-incident-response")
                 .requiresApproval(true)
-                .reasoning("Layer 3 analysis unavailable, using default")
-                .expertRecommendation("Manual investigation required")
+                .reasoning("[AI Native] Layer 3 LLM analysis unavailable")
+                .expertRecommendation("Manual investigation required - LLM analysis not performed")
                 .mitreMapping(new HashMap<>())
                 .build();
     }
@@ -1359,21 +1360,25 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * 안전 장치 결정 생성
+     *
+     * AI Native: LLM 분석 실패 시 안전 결정
+     * - riskScore/confidence는 Double.NaN (규칙 기반 기본값 금지)
+     * - 분석 실패 상태를 명시, BLOCK 액션은 안전 정책
      */
     private SecurityDecision createFailsafeDecision(SecurityEvent event,
                                                     SecurityDecision layer2Decision,
                                                     long startTime) {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.BLOCK)  // 안전을 위해 차단
-                .riskScore(0.95)  // 높은 위험으로 설정
-                .confidence(0.7)
+                .riskScore(Double.NaN)  // AI Native: LLM 분석 미수행
+                .confidence(Double.NaN)  // AI Native: LLM 분석 미수행
                 .analysisTime(startTime)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .processingLayer(3)
-                .eventId(event.getEventId())
-                .reasoning("Layer 3 analysis failed - applying failsafe blocking")
+                .eventId(event != null ? event.getEventId() : "unknown")
+                .reasoning("[AI Native] Layer 3 LLM analysis failed - applying failsafe blocking")
                 .requiresApproval(true)
-                .expertRecommendation("Manual review required due to analysis failure")
+                .expertRecommendation("Manual review required - LLM analysis failed")
                 .build();
     }
 
@@ -1551,19 +1556,20 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         return actions;
     }
 
+    /**
+     * AI Native: 규칙 기반 위험 점수 계산 제거
+     * - LLM이 indicators를 분석하여 직접 riskScore를 반환해야 함
+     * - 이 메서드는 LLM 분석 미수행 상태를 반환
+     */
     @Override
     public double calculateRiskScore(List<ThreatIndicator> indicators) {
-        if (indicators.isEmpty()) return 0.8;
-        return Math.min(0.5 + indicators.size() * 0.1, 1.0);
+        // AI Native: LLM이 직접 분석해야 함, 규칙 기반 계산 금지
+        log.warn("[Layer3][AI Native] calculateRiskScore called without LLM - returning NaN");
+        return Double.NaN;
     }
 
-    private ThreatAssessment.ThreatLevel mapRiskScoreToThreatLevel(double riskScore) {
-        if (riskScore >= 0.9) return ThreatAssessment.ThreatLevel.CRITICAL;
-        if (riskScore >= 0.7) return ThreatAssessment.ThreatLevel.HIGH;
-        if (riskScore >= 0.5) return ThreatAssessment.ThreatLevel.MEDIUM;
-        if (riskScore >= 0.3) return ThreatAssessment.ThreatLevel.LOW;
-        return ThreatAssessment.ThreatLevel.INFO;
-    }
+    // AI Native: mapRiskScoreToThreatLevel() 규칙 기반 매핑 완전 제거
+    // LLM이 threatLevel을 직접 결정해야 함
 
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         switch (action) {
@@ -1750,69 +1756,19 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * Layer3SecurityResponse 기반 위협 유형 분류 (전문가 분석)
+     *
+     * AI Native: LLM이 반환한 classification을 그대로 사용
+     * - 패턴 매칭 규칙 완전 제거
+     * - LLM이 분류한 값을 신뢰
      */
     private String determineThreatType(Layer3SecurityResponse response) {
-        // 1. 전문가 분류 우선
+        // AI Native: LLM이 반환한 classification 그대로 사용
         if (response.getClassification() != null && !response.getClassification().isEmpty()) {
-            String classification = response.getClassification().toUpperCase();
-            if (classification.contains("APT")) {
-                return "APT_ATTACK";
-            }
-            if (classification.contains("RANSOMWARE")) {
-                return "RANSOMWARE";
-            }
-            if (classification.contains("DATA BREACH") || classification.contains("EXFILTRATION")) {
-                return "DATA_EXFILTRATION";
-            }
-            if (classification.contains("INSIDER")) {
-                return "INSIDER_THREAT";
-            }
-            if (classification.contains("CREDENTIAL")) {
-                return "CREDENTIAL_ATTACK";
-            }
-            if (classification.contains("LATERAL")) {
-                return "LATERAL_MOVEMENT";
-            }
-            if (classification.contains("INJECTION")) {
-                return "INJECTION_ATTACK";
-            }
-            if (classification.contains("XSS")) {
-                return "XSS_ATTACK";
-            }
+            return response.getClassification();
         }
 
-        // 2. MITRE 전술 기반
-        if (response.getTactics() != null && !response.getTactics().isEmpty()) {
-            String tactics = String.join(" ", response.getTactics()).toUpperCase();
-            if (tactics.contains("INITIAL ACCESS") || tactics.contains("TA0001")) {
-                return "INITIAL_ACCESS_ATTACK";
-            }
-            if (tactics.contains("PRIVILEGE ESCALATION") || tactics.contains("TA0004")) {
-                return "PRIVILEGE_ESCALATION";
-            }
-            if (tactics.contains("CREDENTIAL ACCESS") || tactics.contains("TA0006")) {
-                return "CREDENTIAL_ATTACK";
-            }
-            if (tactics.contains("EXFILTRATION") || tactics.contains("TA0010")) {
-                return "DATA_EXFILTRATION";
-            }
-            if (tactics.contains("PERSISTENCE") || tactics.contains("TA0003")) {
-                return "PERSISTENCE_ATTACK";
-            }
-        }
-
-        // 3. IOC 지표 기반
-        if (response.getIocIndicators() != null && !response.getIocIndicators().isEmpty()) {
-            String iocs = String.join(" ", response.getIocIndicators()).toLowerCase();
-            if (iocs.contains("malware") || iocs.contains("trojan")) {
-                return "MALWARE_ATTACK";
-            }
-            if (iocs.contains("phishing") || iocs.contains("social engineering")) {
-                return "PHISHING_ATTACK";
-            }
-        }
-
-        return "EXPERT_CONFIRMED_THREAT";
+        // AI Native: LLM이 classification을 반환하지 않은 경우만 null
+        return null;
     }
 
     /**
@@ -1836,6 +1792,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     /**
      * 공격 카운트 증가
      * 고위험 이벤트 탐지 시 호출
+     *
+     * AI Native: 카운트만 증가, 규칙 기반 평판 계산 제거
+     * - IP 평판은 LLM이 컨텍스트로 받아서 직접 판단
      */
     private void incrementAttackCount(String sourceIp) {
         if (redisTemplate == null || sourceIp == null || sourceIp.isEmpty()) {
@@ -1848,11 +1807,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             redisTemplate.expire(attackCountKey, Duration.ofDays(7));
             log.debug("Incremented attack count: ip={}, count={}", sourceIp, count);
 
-            // 공격 횟수에 따라 IP 평판 하향 조정
-            if (count != null && count >= 3) {
-                double newReputation = Math.max(0.0, 0.5 - (count * 0.05));
-                updateIpReputation(sourceIp, newReputation);
-            }
+            // AI Native: 규칙 기반 평판 계산 제거
+            // LLM이 attackCount를 컨텍스트로 받아서 직접 판단
         } catch (Exception e) {
             log.debug("Failed to increment attack count: ip={}", sourceIp, e);
         }
@@ -1882,65 +1838,14 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * 리소스 타입 판별
+     * AI Native: 패턴 매칭 규칙 완전 제거
+     * - contains("admin"), "api", "database", "payment" 등 규칙 제거
+     * - 리소스를 그대로 반환하여 LLM이 리소스 유형 판별
+     * - LLM이 리소스 컨텍스트를 분석하여 직접 판단
      */
     private String determineResourceType(String resource) {
-        if (resource == null) return "UNKNOWN";
-
-        String lowerResource = resource.toLowerCase();
-        if (lowerResource.contains("admin") || lowerResource.contains("dashboard")) {
-            return "ADMIN_PANEL";
-        } else if (lowerResource.contains("api") || lowerResource.contains("/v1/") || lowerResource.contains("/v2/")) {
-            return "API_ENDPOINT";
-        } else if (lowerResource.contains("database") || lowerResource.contains("db")) {
-            return "DATABASE";
-        } else if (lowerResource.contains("payment") || lowerResource.contains("billing")) {
-            return "FINANCIAL";
-        } else if (lowerResource.contains("user") || lowerResource.contains("profile")) {
-            return "USER_DATA";
-        } else {
-            return "GENERAL";
-        }
+        // AI Native: 패턴 매칭 제거, raw 리소스 그대로 반환
+        return resource != null ? resource : "UNKNOWN";
     }
 
-    /**
-     * 익명 사용자 IP 위협 점수 업데이트
-     * Layer3 전문가 분석 결과를 Redis에 저장하여 피드백 루프 완성
-     *
-     * @param sourceIp 소스 IP
-     * @param riskScore 위험 점수 (0.8 이상)
-     */
-    private void updateAnonymousIpThreat(String sourceIp, double riskScore) {
-        if (redisTemplate == null || sourceIp == null || sourceIp.isEmpty()) {
-            return;
-        }
-
-        try {
-            String key = ZeroTrustRedisKeys.anonymousIpThreat(sourceIp);
-
-            // 기존 위협 점수와 새 점수의 가중 평균
-            // Layer3는 전문가 분석이므로 더 높은 가중치 (기존 60%, 새로운 40%)
-            Double existingScore = (Double) redisTemplate.opsForValue().get(key);
-            double newScore;
-
-            if (existingScore != null) {
-                // 가중 평균: Layer3 결과에 더 높은 신뢰도 부여
-                newScore = existingScore * 0.6 + riskScore * 0.4;
-            } else {
-                // 첫 탐지: 현재 점수 사용
-                newScore = riskScore;
-            }
-
-            // Redis에 저장 (7일간 유지)
-            redisTemplate.opsForValue().set(key, newScore, Duration.ofDays(7));
-
-            log.warn("[Layer3] CRITICAL - Anonymous IP threat updated: ip={}, prevScore={}, newScore={:.3f}, expertAnalysis=true",
-                    sourceIp,
-                    existingScore != null ? String.format("%.3f", existingScore) : "N/A",
-                    newScore);
-
-        } catch (Exception e) {
-            log.error("[Layer3] Failed to update anonymous IP threat score: ip={}", sourceIp, e);
-        }
-    }
 }

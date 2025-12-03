@@ -72,7 +72,6 @@ public class IAMSecurityConfig {
                                     .eventTimestamp(java.time.LocalDateTime.now())
                                     .sourceIp(extractClientIp(request))
                                     .userAgent(request.getHeader("User-Agent"))
-                                    .hcadSimilarityScore(result.getSimilarityScore())  // 재계산된 값 사용
                                     .trustScore(result.getTrustScore());
 
                     AuthenticationSuccessEvent event = builder.build();
@@ -93,9 +92,9 @@ public class IAMSecurityConfig {
                     Authentication currentAuth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
                     HCADAnalysisResult result = hcadAnalysisService.analyze(request, currentAuth);
 
-                    log.warn("[MySecurityConfig] 로그인 실패: username={}, similarity={}, reason={}",
+                    log.warn("[MySecurityConfig] 로그인 실패: username={}, riskScore={}, reason={}",
                         username,
-                        String.format("%.3f", result.getSimilarityScore()),
+                        String.format("%.3f", result.getAnomalyScore()),
                         exception.getMessage());
 
                     AuthenticationFailureEvent.AuthenticationFailureEventBuilder builder =
@@ -110,7 +109,7 @@ public class IAMSecurityConfig {
                                     .failureReason(exception.getMessage())
                                     .exceptionClass(exception.getClass().getName())
                                     .exceptionMessage(exception.getMessage())
-                                    .hcadSimilarityScore(result.getSimilarityScore());
+                                    .riskScore(result.getAnomalyScore());
 
                     AuthenticationFailureEvent event = builder.build();
 

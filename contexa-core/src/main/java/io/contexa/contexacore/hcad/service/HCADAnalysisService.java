@@ -4,6 +4,9 @@ import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
+
+import java.util.HashMap;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -36,8 +39,9 @@ public class HCADAnalysisService {
     private final HCADContextExtractor contextExtractor;
     private RedisTemplate<String, Object> redisTemplate;
 
-    @Value("${hcad.anomaly.threshold:0.5}")
-    private double defaultThreshold;
+    // AI Native 전환: defaultThreshold 제거
+    // - LLM이 isAnomaly를 직접 판단하여 Redis에 저장
+    // - 임계값 기반 판단 로직 제거
 
     public HCADAnalysisService(HCADContextExtractor contextExtractor) {
         this.contextExtractor = contextExtractor;
@@ -76,41 +80,49 @@ public class HCADAnalysisService {
                     userId, context.getRequestPath(), context.getRemoteIp());
             }
 
-            // 2. Redis에서 LLM riskScore(threat_score) 조회 (AI Native 핵심)
-            double riskScore = getLLMRiskScoreFromRedis(userId);
+            // 2. Redis에서 LLM 분석 결과 조회 (AI Native 핵심)
+            // LLM이 판단한 모든 값을 그대로 조회 - 규칙 기반 계산 제거
+            Map<String, Object> llmAnalysis = getLLMAnalysisFromRedis(userId);
 
-            // 3. AI Native: LLM riskScore를 그대로 사용
-            // riskScore >= threshold -> 이상 탐지
-            double currentThreshold = defaultThreshold;
-            boolean isAnomaly = riskScore >= currentThreshold;
+            // 3. AI Native: LLM 분석 결과를 그대로 사용 (규칙 기반 판단 제거)
+            double riskScore = (double) llmAnalysis.getOrDefault("riskScore", 0.0);
+            boolean isAnomaly = (boolean) llmAnalysis.getOrDefault("isAnomaly", false);
             double anomalyScore = riskScore;
-            double trustScore = 1.0 - riskScore;
-            double similarityScore = 1.0 - riskScore;
+            // AI Native: trustScore도 LLM이 직접 반환 (자동 계산 제거)
+            double trustScore = (double) llmAnalysis.getOrDefault("trustScore", 1.0);
 
-            // 위협 유형 결정 (riskScore 기반)
-            String threatType = determineThreatType(riskScore);
-            String threatEvidence = buildThreatEvidence(riskScore, isAnomaly);
+            // AI Native: 위협 유형도 LLM이 직접 반환 (규칙 기반 분류 제거)
+            String threatType = (String) llmAnalysis.getOrDefault("threatType", "NONE");
+            String threatEvidence = (String) llmAnalysis.getOrDefault("threatEvidence", "");
+
+            // AI Native: action과 confidence (핵심 필드) - LLM이 직접 반환
+            // Phase 17: LLM 미분석 시 action=null 반환 → EventTier.CRITICAL → 100% 발행
+            String action = (String) llmAnalysis.get("action");  // null 허용 (캐시 미스 구분)
+            double confidence = (double) llmAnalysis.getOrDefault("confidence", Double.NaN);
 
             long processingTime = System.currentTimeMillis() - startTime;
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCADAnalysisService][AI Native] 분석 완료: userId={}, riskScore={}, isAnomaly={}, time={}ms",
+                log.debug("[HCADAnalysisService][AI Native] 분석 완료: userId={}, action={}, riskScore={}, isAnomaly={}, confidence={}, time={}ms",
                     userId,
+                    action,
                     String.format("%.3f", riskScore),
                     isAnomaly,
+                    String.format("%.3f", confidence),
                     processingTime);
             }
 
-            // 4. 결과 반환
+            // 4. 결과 반환 (AI Native: action 기반 판단 - LLM이 action 직접 결정)
             return HCADAnalysisResult.builder()
                 .userId(userId)
-                .similarityScore(similarityScore)
                 .trustScore(trustScore)
                 .threatType(threatType)
                 .threatEvidence(threatEvidence)
                 .isAnomaly(isAnomaly)
                 .anomalyScore(anomalyScore)
-                .threshold(currentThreshold)
+                .action(action)  // AI Native: LLM이 결정한 action
+                .confidence(confidence)  // AI Native: LLM이 결정한 confidence
+                .threshold(0.0) // AI Native: 더 이상 사용되지 않음 (LLM이 action 직접 결정)
                 .processingTimeMs(processingTime)
                 .context(context)
                 .build();
@@ -118,112 +130,151 @@ public class HCADAnalysisService {
         } catch (Exception e) {
             log.error("[HCADAnalysisService][AI Native] 분석 실패: request={}", request.getRequestURI(), e);
 
-            // Fail-Safe: 에러 발생 시 기본값 반환
+            // AI Native: 에러 발생 시에도 규칙 기반 기본값 사용 안 함
+            // 단순히 분석 실패 상태만 표시
+            // Phase 17: 에러 시에도 action=null → EventTier.CRITICAL → 100% 발행
             return HCADAnalysisResult.builder()
                 .userId("error")
-                .similarityScore(0.0)
-                .trustScore(0.0)
+                .trustScore(Double.NaN)
                 .threatType("ANALYSIS_ERROR")
-                .threatEvidence(e.getMessage())
-                .isAnomaly(true)
-                .anomalyScore(1.0)
-                .threshold(defaultThreshold)
+                .threatEvidence("LLM 분석 조회 실패: " + e.getMessage())
+                .isAnomaly(false) // AI Native: 분석 실패 시 이상으로 간주하지 않음 (LLM이 판단해야 함)
+                .anomalyScore(Double.NaN)
+                .action(null)  // Phase 17: 분석 실패 시 null → CRITICAL → 100% 발행
+                .confidence(Double.NaN)
+                .threshold(0.0)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .build();
         }
     }
 
     /**
-     * Redis에서 LLM riskScore(threat_score) 조회
+     * Redis에서 LLM 분석 결과 조회 (AI Native)
      *
      * AI Native 핵심 메서드:
-     * - Layer1/2/3에서 LLM이 판단한 riskScore를 Redis에 저장
-     * - 이 메서드에서 해당 값을 조회하여 그대로 사용
+     * - Layer1/2/3에서 LLM이 판단한 모든 결과를 Redis에 저장
+     * - 이 메서드에서 해당 값들을 조회하여 그대로 반환 (가공 없음)
+     *
+     * LLM 저장 스키마:
+     * - riskScore: 위험도 점수 (0.0 ~ 1.0)
+     * - isAnomaly: 이상 여부 (true/false)
+     * - trustScore: 신뢰도 점수 (0.0 ~ 1.0)
+     * - threatType: 위협 유형 (CRITICAL/HIGH/MEDIUM/LOW/NONE)
+     * - threatEvidence: 위협 증거 (자유 형식)
      *
      * @param userId 사용자 ID
-     * @return riskScore (0.0 ~ 1.0), 없으면 0.0 (신규 사용자 = 정상)
+     * @return LLM 분석 결과 Map (값이 없으면 기본값 포함)
      */
-    private double getLLMRiskScoreFromRedis(String userId) {
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getLLMAnalysisFromRedis(String userId) {
+        Map<String, Object> result = new HashMap<>();
+
+        // AI Native: 기본값은 "분석 미수행" 상태 (규칙 기반 기본값 제거)
+        // LLM 분석 결과가 없는 신규 사용자는 NaN으로 명시
+        result.put("riskScore", Double.NaN);
+        result.put("isAnomaly", false);  // 분석 안됨 = 이상 아님 (차단하지 않음)
+        result.put("trustScore", Double.NaN);  // AI Native: 신뢰도 미측정
+        result.put("threatType", "NOT_ANALYZED");
+        result.put("threatEvidence", "LLM analysis not yet performed for this user");
+        // Phase 17: action 기본값 설정 안함 (null) → EventTier.CRITICAL → 100% 발행
+        // result.put("action", null);  // 명시적으로 null 설정하지 않음 (HashMap.get()이 null 반환)
+        result.put("confidence", Double.NaN);  // AI Native: 신뢰도 미측정
+
         if (redisTemplate == null) {
-            log.warn("[HCADAnalysisService][AI Native] RedisTemplate이 null입니다. 기본값 0.0 반환");
-            return 0.0;
+            log.warn("[HCADAnalysisService][AI Native] RedisTemplate이 null입니다. 기본값 반환");
+            return result;
         }
 
         try {
-            String key = ZeroTrustRedisKeys.threatScore(userId);
-            Object value = redisTemplate.opsForValue().get(key);
+            // LLM 분석 결과 조회 (Hash 구조)
+            String analysisKey = "security:hcad:analysis:" + userId;
+            Map<Object, Object> analysis = redisTemplate.opsForHash().entries(analysisKey);
 
-            if (value == null) {
-                // 신규 사용자 또는 아직 LLM 분석이 안 된 경우
+            if (analysis != null && !analysis.isEmpty()) {
+                // AI Native: LLM이 저장한 값을 그대로 사용 (clamp 연산 제거)
+                if (analysis.containsKey("riskScore")) {
+                    result.put("riskScore", parseDouble(analysis.get("riskScore")));
+                }
+                if (analysis.containsKey("isAnomaly")) {
+                    result.put("isAnomaly", parseBoolean(analysis.get("isAnomaly")));
+                }
+                if (analysis.containsKey("trustScore")) {
+                    result.put("trustScore", parseDouble(analysis.get("trustScore")));
+                }
+                if (analysis.containsKey("threatType")) {
+                    result.put("threatType", analysis.get("threatType").toString());
+                }
+                if (analysis.containsKey("threatEvidence")) {
+                    result.put("threatEvidence", analysis.get("threatEvidence").toString());
+                }
+                // AI Native: action과 confidence 조회 (핵심 필드)
+                if (analysis.containsKey("action")) {
+                    result.put("action", analysis.get("action").toString());
+                }
+                if (analysis.containsKey("confidence")) {
+                    result.put("confidence", parseDouble(analysis.get("confidence")));
+                }
+
                 if (log.isDebugEnabled()) {
-                    log.debug("[HCADAnalysisService][AI Native] threat_score 없음: userId={}, 기본값 0.0 반환", userId);
+                    log.debug("[HCADAnalysisService][AI Native] LLM 분석 결과 조회: userId={}, action={}, riskScore={}, isAnomaly={}, confidence={}",
+                        userId, result.get("action"), result.get("riskScore"), result.get("isAnomaly"), result.get("confidence"));
                 }
-                return 0.0;
-            }
-
-            if (value instanceof Number) {
-                double riskScore = ((Number) value).doubleValue();
-                // 범위 검증 (0.0 ~ 1.0)
-                riskScore = Math.max(0.0, Math.min(1.0, riskScore));
-                if (log.isDebugEnabled()) {
-                    log.debug("[HCADAnalysisService][AI Native] threat_score 조회: userId={}, riskScore={}", userId, riskScore);
-                }
-                return riskScore;
-            }
-
-            if (value instanceof String) {
-                try {
-                    double riskScore = Double.parseDouble((String) value);
-                    riskScore = Math.max(0.0, Math.min(1.0, riskScore));
-                    return riskScore;
-                } catch (NumberFormatException e) {
-                    log.warn("[HCADAnalysisService][AI Native] threat_score 파싱 실패: userId={}, value={}", userId, value);
-                    return 0.0;
+            } else {
+                // 기존 threat_score 키에서 riskScore만 조회 (하위 호환성)
+                String legacyKey = ZeroTrustRedisKeys.threatScore(userId);
+                Object legacyValue = redisTemplate.opsForValue().get(legacyKey);
+                if (legacyValue != null) {
+                    double riskScore = parseDouble(legacyValue);
+                    result.put("riskScore", riskScore);
+                    // AI Native: 하위 호환 모드에서도 규칙 기반 판단 없음
+                    // isAnomaly 등은 기본값 유지 (LLM이 판단하지 않았으므로)
+                    if (log.isDebugEnabled()) {
+                        log.debug("[HCADAnalysisService][AI Native] 레거시 threat_score 조회: userId={}, riskScore={}",
+                            userId, riskScore);
+                    }
                 }
             }
-
-            log.warn("[HCADAnalysisService][AI Native] 알 수 없는 threat_score 타입: userId={}, type={}", userId, value.getClass().getName());
-            return 0.0;
 
         } catch (Exception e) {
             log.error("[HCADAnalysisService][AI Native] Redis 조회 실패: userId={}", userId, e);
-            return 0.0;
         }
+
+        return result;
     }
 
     /**
-     * riskScore 기반 위협 유형 결정
-     *
-     * @param riskScore LLM이 판단한 위험 점수 (0.0 ~ 1.0)
-     * @return 위협 유형 문자열
+     * Object를 double로 파싱 (AI Native: clamp 연산 제거)
      */
-    private String determineThreatType(double riskScore) {
-        if (riskScore >= 0.9) {
-            return "CRITICAL";
-        } else if (riskScore >= 0.7) {
-            return "HIGH";
-        } else if (riskScore >= 0.5) {
-            return "MEDIUM";
-        } else if (riskScore >= 0.3) {
-            return "LOW";
-        } else {
-            return "NONE";
+    private double parseDouble(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
         }
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                return 0.0;
+            }
+        }
+        return 0.0;
     }
 
     /**
-     * 위협 증거 문자열 생성
-     *
-     * @param riskScore LLM이 판단한 위험 점수
-     * @param isAnomaly 이상 탐지 여부
-     * @return 위협 증거 문자열
+     * Object를 boolean으로 파싱
      */
-    private String buildThreatEvidence(double riskScore, boolean isAnomaly) {
-        if (!isAnomaly) {
-            return "AI Native: LLM riskScore=" + String.format("%.3f", riskScore) + " (정상 범위)";
+    private boolean parseBoolean(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value;
         }
-        return "AI Native: LLM riskScore=" + String.format("%.3f", riskScore) + " (임계값 초과)";
+        if (value instanceof String) {
+            return Boolean.parseBoolean((String) value);
+        }
+        return false;
     }
+
+    // AI Native 전환: determineThreatType(), buildThreatEvidence() 메서드 제거
+    // - 위협 유형과 증거는 LLM이 직접 판단하여 Redis에 저장
+    // - 규칙 기반 분류 로직 완전 제거
 
     /**
      * 기준선 업데이트 수행 (AI Native)

@@ -107,6 +107,10 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     /**
      * ThreatEvaluationStrategy 인터페이스 구현
      * ColdPathEventProcessor에서 전략으로 사용됨
+     *
+     * AI Native 전환:
+     * - LLM이 ESCALATE 반환 시 shouldEscalate = true
+     * - LLM이 threatLevel을 직접 결정 (규칙 기반 매핑 제거)
      */
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
@@ -114,14 +118,20 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
         SecurityDecision decision = analyzeEvent(event);
 
+        // AI Native: LLM이 ESCALATE 액션을 반환하면 shouldEscalate = true
+        boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
+
         return ThreatAssessment.builder()
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
-                .threatLevel(mapRiskScoreToThreatLevel(decision.getRiskScore()))
+                // AI Native: LLM이 threatLevel을 직접 결정하도록 수정 필요
+                // 현재는 임시로 null 설정 (Layer1PromptTemplate에서 threatLevel 반환하도록 수정 필요)
+                .threatLevel(null)
                 .indicators(new ArrayList<>())
                 .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer1-FastFilter")
                 .assessedAt(LocalDateTime.now())
+                .shouldEscalate(shouldEscalate)
                 .build();
     }
 
@@ -169,11 +179,13 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                     .requestId(event.getEventId())
                     .build();
 
+            // AI Native: onErrorResume에서 규칙 기반 기본값 제거
+            // riskScore/confidence를 null로 반환하여 NaN 처리
             String jsonResponse = llmOrchestrator.execute(context)
                     .timeout(Duration.ofMillis(timeoutMs))
                     .onErrorResume(Exception.class, e -> {
-                        log.warn("Layer 1 LLM execution failed for event: {}", event.getEventId(), e);
-                        return reactor.core.publisher.Mono.just("{\"riskScore\":0.5,\"confidence\":0.3,\"action\":\"ESCALATE\",\"reasoning\":\"LLM execution failed\"}");
+                        log.warn("[Layer1][AI Native] LLM execution failed, escalating to Layer 2: {}", event.getEventId(), e);
+                        return reactor.core.publisher.Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\"}");
                     })
                     .block();
 
@@ -273,8 +285,8 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                         Map<String, Object> feedback = (Map<String, Object>) pattern;
 
                         Double riskScore = (Double) feedback.get("riskScore");
-                        double indexingThreshold = localFeedbackProperties.getRiskScore().getIndexingThreshold();
-                        if (riskScore != null && riskScore >= indexingThreshold) {
+                        // AI Native: 모든 패턴을 LLM에 전달 (임계값 필터링 제거)
+                        if (riskScore != null) {
                             String threatCategory = (String) feedback.get("threatCategory");
                             if (threatCategory != null && !threatCategory.isBlank()) {
                                 if (!patterns.isEmpty()) {
@@ -354,15 +366,20 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
     /**
      * Layer1SecurityResponse를 SecurityDecision으로 변환
+     *
+     * AI Native 전환:
+     * - 기본값 할당 규칙 제거
+     * - LLM 응답을 그대로 사용
      */
     private SecurityDecision convertToSecurityDecision(Layer1SecurityResponse response, SecurityEvent event) {
         try {
             SecurityDecision.Action decisionAction = mapToAction(response.getAction());
 
+            // AI Native: 기본값 할당 제거 - LLM 응답 그대로 사용
             return SecurityDecision.builder()
                     .action(decisionAction)
-                    .riskScore(response.getRiskScore() != null ? response.getRiskScore() : 0.5)
-                    .confidence(response.getConfidence() != null ? response.getConfidence() : 0.5)
+                    .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
+                    .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
                     .matchedPattern(response.getMatchedPattern())
                     .knownThreat(response.getKnownThreat() != null && response.getKnownThreat())
                     .embeddingSimilarity(response.getEmbeddingSimilarity())
@@ -377,25 +394,34 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI 응답 검증 및 수정
+     * AI 응답 검증
+     *
+     * AI Native 전환:
+     * - LLM 응답 가공 완전 제거
+     * - confidence 강제 상향 제거
+     * - riskScore 기본값 할당 제거
+     * - LLM이 반환한 값을 그대로 사용
      */
     private Layer1SecurityResponse validateAndFixResponse(Layer1SecurityResponse response) {
         if (response == null) {
-            return createDefaultResponse();
+            log.warn("[Layer1][AI Native] LLM 응답 null - 에스컬레이션 필요");
+            return Layer1SecurityResponse.builder()
+                    .riskScore(Double.NaN)
+                    .confidence(Double.NaN)
+                    .action("ESCALATE")
+                    .reasoning("LLM response was null")
+                    .build();
         }
 
-        // confidence 검증
-        if (response.getConfidence() == null || response.getConfidence() < 0.1) {
-            log.warn("Layer1 AI returned invalid confidence {}, adjusting to 0.1", response.getConfidence());
-            response.setConfidence(0.1);
-            if (response.getReasoning() != null && !response.getReasoning().contains("[DATA_MISSING]")) {
-                response.setReasoning(response.getReasoning() + " [DATA_MISSING: low confidence]");
-            }
+        // AI Native: LLM 응답 검증만 수행 (가공 없음)
+        if (response.getConfidence() == null) {
+            log.warn("[Layer1][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)");
+            response.setConfidence(Double.NaN);
         }
 
-        // riskScore 검증
         if (response.getRiskScore() == null) {
-            response.setRiskScore(0.5);
+            log.warn("[Layer1][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)");
+            response.setRiskScore(Double.NaN);
         }
 
         return response;
@@ -414,9 +440,12 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
             JsonNode jsonNode = objectMapper.readTree(cleanedJson);
 
-            // 필수 필드 추출
-            Double riskScore = jsonNode.has("riskScore") ? jsonNode.get("riskScore").asDouble() : 0.5;
-            Double confidence = jsonNode.has("confidence") ? jsonNode.get("confidence").asDouble() : 0.3;
+            // AI Native: 필수 필드 추출 (기본값 할당 제거)
+            // LLM이 반환하지 않은 필드는 null로 설정, validateAndFixResponse()에서 NaN 처리
+            Double riskScore = jsonNode.has("riskScore") && !jsonNode.get("riskScore").isNull()
+                ? jsonNode.get("riskScore").asDouble() : null;
+            Double confidence = jsonNode.has("confidence") && !jsonNode.get("confidence").isNull()
+                ? jsonNode.get("confidence").asDouble() : null;
             String action = jsonNode.has("action") ? jsonNode.get("action").asText() : "ESCALATE";
             String reasoning = jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning provided";
 
@@ -459,12 +488,16 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
     /**
      * 기본 응답 생성 (오류 시)
+     *
+     * AI Native 전환:
+     * - 규칙 기반 기본값 제거
+     * - LLM 분석 실패 시 NaN으로 설정하여 명시
      */
     private Layer1SecurityResponse createDefaultResponse() {
         return Layer1SecurityResponse.builder()
-                .riskScore(0.5)
-                .confidence(0.3)
-                .category("SUSPICIOUS")
+                .riskScore(Double.NaN)
+                .confidence(Double.NaN)
+                .category(null)
                 .action("ESCALATE")
                 .reasoning("Layer 1 analysis failed, escalating to Layer 2")
                 .knownThreat(false)
@@ -765,47 +798,37 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * 위협 유형 결정 (Layer1 기준)
+     * 위협 유형 결정
+     *
+     * AI Native 전환:
+     * - 패턴 매칭 기반 분류 규칙 완전 제거
+     * - LLM이 threatType을 직접 결정하도록 위임
+     * - 여기서는 LLM 응답에서 threatCategory를 그대로 반환
      */
     private String determineThreatType(SecurityDecision decision) {
-        if (decision.getMatchedPattern() != null) {
-            String pattern = decision.getMatchedPattern().toLowerCase();
-            if (pattern.contains("brute") || pattern.contains("login")) {
-                return "BRUTE_FORCE";
-            }
-            if (pattern.contains("session") || pattern.contains("token")) {
-                return "SESSION_HIJACKING";
-            }
-            if (pattern.contains("sql") || pattern.contains("injection")) {
-                return "INJECTION_ATTACK";
-            }
-            if (pattern.contains("xss") || pattern.contains("script")) {
-                return "XSS_ATTACK";
-            }
+        // AI Native: 패턴 매칭 규칙 완전 제거
+        // LLM이 threatCategory를 직접 결정하므로 그대로 반환
+        if (decision.getThreatCategory() != null && !decision.getThreatCategory().isBlank()) {
+            return decision.getThreatCategory();
         }
 
-        // 위협 카테고리 기반
-        if (decision.getThreatCategory() != null) {
-            String category = decision.getThreatCategory().toUpperCase();
-            if (category.contains("CREDENTIAL")) {
-                return "CREDENTIAL_ATTACK";
-            }
-            if (category.contains("ESCALATION")) {
-                return "PRIVILEGE_ESCALATION";
-            }
-        }
-
-        return "UNKNOWN_THREAT";
+        // AI Native: LLM이 threatCategory를 반환하지 않은 경우 null 반환
+        // 규칙 기반 기본값 할당 제거
+        return null;
     }
 
     /**
      * 에스컬레이션 결정 생성
+     *
+     * AI Native 전환:
+     * - 규칙 기반 기본값 제거
+     * - LLM 분석 실패 시 NaN으로 설정하여 명시
      */
     private SecurityDecision createEscalationDecision(SecurityEvent event, long startTime) {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.ESCALATE)
-                .riskScore(0.5)
-                .confidence(0.3)
+                .riskScore(Double.NaN)
+                .confidence(Double.NaN)
                 .analysisTime(startTime)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .processingLayer(1)
@@ -867,19 +890,19 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         return actions;
     }
 
+    /**
+     * AI Native: 규칙 기반 위험 점수 계산 제거
+     * LLM이 riskScore를 직접 결정하므로 이 메서드는 NaN 반환
+     */
     @Override
     public double calculateRiskScore(List<ThreatIndicator> indicators) {
-        if (indicators.isEmpty()) return 0.3;
-        return Math.min(indicators.size() * 0.1, 1.0);
+        // AI Native: 규칙 기반 계산 제거 - LLM이 riskScore 직접 결정
+        return Double.NaN;
     }
 
-    private ThreatAssessment.ThreatLevel mapRiskScoreToThreatLevel(double riskScore) {
-        if (riskScore >= 0.8) return ThreatAssessment.ThreatLevel.CRITICAL;
-        if (riskScore >= 0.6) return ThreatAssessment.ThreatLevel.HIGH;
-        if (riskScore >= 0.4) return ThreatAssessment.ThreatLevel.MEDIUM;
-        if (riskScore >= 0.2) return ThreatAssessment.ThreatLevel.LOW;
-        return ThreatAssessment.ThreatLevel.INFO;
-    }
+    // AI Native 전환: mapRiskScoreToThreatLevel() 규칙 기반 매핑 제거
+    // LLM이 threatLevel을 직접 결정하므로 이 메서드는 더 이상 사용하지 않음
+    // 기존 참조는 null 반환으로 대체 (evaluate 메서드에서 직접 null 설정)
 
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         switch (action) {

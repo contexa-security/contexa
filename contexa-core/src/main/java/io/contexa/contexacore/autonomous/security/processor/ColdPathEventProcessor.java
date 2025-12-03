@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -61,18 +62,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
     private volatile long lastProcessedTimestamp = 0;
 
-    @Value("${security.plane.agent.similarity-threshold:0.70}")
-    private double hotThreshold;  // HOT Path 임계값
-    @Value("${security.plane.agent.layer1-threshold:0.55}")
-    private double layer1Threshold;  // Layer 1 임계값
-    @Value("${security.plane.agent.layer2-threshold:0.40}")
-    private double layer2Threshold;  // Layer 2 임계값
-    @Value("${security.coldpath.confidence.layer1-base:0.5}")
-    private double layer1BaseConfidence;
-    @Value("${security.coldpath.confidence.layer2-base:0.6}")
-    private double layer2BaseConfidence;
-    @Value("${security.coldpath.confidence.layer3-base:0.7}")
-    private double layer3BaseConfidence;
+    // AI Native 전환: 고정 임계값 제거
+    // - 모든 임계값 판단은 LLM이 수행
+    // - Layer 에스컬레이션 결정도 LLM이 수행
+    // - 조기 종료 로직 제거 (LLM confidence 100% 신뢰)
 
     /**
      * Cold Path 이벤트 처리: 계층적 AI 분석을 통한 상세 위험도 평가
@@ -143,6 +136,8 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
             CompletableFuture.runAsync(() -> {
                 recordThreatHistory(finalUserId, finalEvent.getEventType().toString(), finalAnalysisResult.getFinalScore());
+                // AI Native: LLM 분석 결과를 Redis에 action으로 저장 (다음 요청에서 Authentication 권한 조정에 사용)
+                saveActionToRedis(finalUserId, finalAnalysisResult.getThreatLevel());
             }).exceptionally(ex -> {
                 log.error("Failed to record threat history for user: {}, eventId: {}",
                     userId, event.getEventId(), ex);
@@ -225,21 +220,18 @@ public class ColdPathEventProcessor implements IPathProcessor {
             log.info("계층적 분석 시작 - riskScore: {}, startLayer: {}, eventId: {}",
                     riskScore, startLayer, event.getEventId());
 
-            // Layer 1: 초고속 필터링 (20-50ms) - HOT Path (similarity > 0.85)
+            // Layer 1: 초고속 필터링 (20-50ms) - HOT Path
             if (startLayer <= 1 && layer1Strategy != null) {
                 log.debug("Layer 1 초고속 필터링 시작 - eventId: {}", event.getEventId());
 
                 ThreatAssessment layer1Assessment = layer1Strategy.evaluate(event);
-                log.info("Layer 1 평가: riskScore={}, confidence={}, threatLevel={}",
+                log.info("Layer 1 평가: riskScore={}, confidence={}, threatLevel={}, shouldEscalate={}",
                         layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
-                        layer1Assessment.getThreatLevel());
+                        layer1Assessment.getThreatLevel(), layer1Assessment.isShouldEscalate());
 
-                // Layer1의 새로운 riskScore 기반 동적 조기 종료 임계값
-                // Layer1이 재평가한 위험도를 신뢰하여, 더 정확한 임계값 계산
-                double requiredConfidence = calculateRequiredConfidence(layer1Assessment.getRiskScore(), 1);
-
-                // Layer1에서 확실한 결정이 나오면 여기서 종료
-                if (layer1Assessment.getConfidence() > requiredConfidence) {
+                // AI Native: LLM이 에스컬레이션 필요 여부를 직접 결정
+                // 규칙 기반 confidence 비교 완전 제거
+                if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.getRiskScore());
                     result.setThreatLevel(layer1Assessment.getThreatLevel());
                     result.setConfidence(layer1Assessment.getConfidence());
@@ -247,29 +239,25 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.addRecommendedActions(layer1Assessment.getRecommendedActions());
                     result.setAnalysisDepth(1); // Layer1에서 종료
 
-                    log.info("Layer 1에서 처리 완료 (98% 케이스) - confidence: {}/{}, 시간: {}ms",
-                            layer1Assessment.getConfidence(), requiredConfidence,
+                    log.info("Layer 1에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, 시간: {}ms",
                             System.currentTimeMillis() - startTime);
 
                     return result;
                 }
             }
 
-            // Layer 2: 컨텍스트 분석 (100-300ms) - riskScore < 0.9일 때만
+            // Layer 2: 컨텍스트 분석 (100-300ms)
             if (startLayer <= 2 && layer2Strategy != null) {
                 log.debug("Layer 2 컨텍스트 분석 시작 - eventId: {}", event.getEventId());
 
                 ThreatAssessment layer2Assessment = layer2Strategy.evaluate(event);
-                log.info("Layer 2 평가: riskScore={}, confidence={}, threatLevel={}",
+                log.info("Layer 2 평가: riskScore={}, confidence={}, threatLevel={}, shouldEscalate={}",
                         layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
-                        layer2Assessment.getThreatLevel());
+                        layer2Assessment.getThreatLevel(), layer2Assessment.isShouldEscalate());
 
-                // Layer2의 새로운 riskScore 기반 동적 조기 종료 임계값
-                // Layer2가 재평가한 위험도를 신뢰하여, 더 정확한 임계값 계산
-                double requiredConfidenceL2 = calculateRequiredConfidence(layer2Assessment.getRiskScore(), 2);
-
-                // Layer2에서 확신도가 높으면 여기서 종료
-                if (layer2Assessment.getConfidence() > requiredConfidenceL2) {
+                // AI Native: LLM이 에스컬레이션 필요 여부를 직접 결정
+                // 규칙 기반 confidence 비교 완전 제거
+                if (!layer2Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer2Assessment.getRiskScore());
                     result.setThreatLevel(layer2Assessment.getThreatLevel());
                     result.setConfidence(layer2Assessment.getConfidence());
@@ -277,8 +265,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.addRecommendedActions(layer2Assessment.getRecommendedActions());
                     result.setAnalysisDepth(2); // Layer2에서 종료
 
-                    log.info("Layer 2에서 처리 완료 (1.8% 케이스) - confidence: {}/{}, 시간: {}ms",
-                            layer2Assessment.getConfidence(), requiredConfidenceL2,
+                    log.info("Layer 2에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, 시간: {}ms",
                             System.currentTimeMillis() - startTime);
 
                     return result;
@@ -310,22 +297,16 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
         } catch (Exception e) {
             log.error("계층적 AI 분석 실패 - eventId: {}, riskScore를 fallback으로 사용", event.getEventId(), e);
-            // CRITICAL FIX: 기존 riskScore (VectorSimilarity 기반) 재사용
-            // 하드코딩 대신 사용자의 실제 위험도를 fallback으로 사용
-            result.setFinalScore(riskScore);  // 이미 계산된 riskScore 사용
+            // AI Native: LLM 분석 실패 시에도 규칙 기반 판단 사용하지 않음
+            // riskScore는 그대로 사용하되, ThreatLevel은 null로 설정하여 LLM 분석 실패 명시
+            result.setFinalScore(riskScore);
 
-            // riskScore 기반 ThreatLevel 동적 결정
-            if (riskScore >= 0.8) {
-                result.setThreatLevel(ThreatAssessment.ThreatLevel.CRITICAL);
-            } else if (riskScore >= 0.6) {
-                result.setThreatLevel(ThreatAssessment.ThreatLevel.HIGH);
-            } else if (riskScore >= 0.4) {
-                result.setThreatLevel(ThreatAssessment.ThreatLevel.MEDIUM);
-            } else {
-                result.setThreatLevel(ThreatAssessment.ThreatLevel.LOW);
-            }
+            // AI Native: 규칙 기반 ThreatLevel 결정 완전 제거
+            // LLM 분석 실패 시 null로 설정 (상위 레이어에서 재분석 필요)
+            result.setThreatLevel(null);
 
-            result.setConfidence(0.3);  // AI 실패 시 낮은 신뢰도
+            // AI Native: confidence도 NaN으로 설정 (LLM 분석 불가 명시)
+            result.setConfidence(Double.NaN);
             result.setAnalysisDepth(0);  // AI 분석 실패 표시
             return result;
         }
@@ -356,18 +337,17 @@ public class ColdPathEventProcessor implements IPathProcessor {
      * @return 시작 Layer (2=Layer2/Llama3.1, 3=Layer3/Claude)
      */
     private int determineStartLayer(double riskScore, SecurityEvent event) {
-        // 스케일 검증
+        // AI Native: clamp 연산 제거 - 범위 초과 값도 그대로 로깅하고 사용
+        // LLM이 반환한 riskScore를 신뢰
         if (riskScore < 0.0 || riskScore > 1.0) {
-            log.warn("[ColdPathEventProcessor] Invalid riskScore: {}, clamping to [0.0, 1.0]", riskScore);
-            riskScore = Math.max(0.0, Math.min(1.0, riskScore));
+            log.warn("[ColdPathEventProcessor][AI Native] 범위 초과 riskScore: {} (가공 없이 사용)", riskScore);
         }
 
-        // 2-Tier: 항상 Layer2(Llama3.1)부터 시작
-        // Layer1(TinyLlama)은 보안 분석에 부적합하여 사용하지 않음
-        int layer = 2;
+        // AI Native: 시작 Layer 결정도 LLM에 위임 가능
+        // 현재는 Layer1부터 시작하여 LLM이 shouldEscalate로 결정
+        int layer = 1;
 
-        // 상세 로깅
-        log.info("[ColdPathEventProcessor][2-Tier] Layer 결정: riskScore={} (0-1) → Layer {} 시작 (Llama3.1), eventId={}",
+        log.info("[ColdPathEventProcessor][AI Native] Layer 결정: riskScore={} → Layer {} 시작, eventId={}",
                 String.format("%.3f", riskScore),
                 layer,
                 event.getEventId());
@@ -383,7 +363,73 @@ public class ColdPathEventProcessor implements IPathProcessor {
         totalProcessingTime.addAndGet(processingTime);
         lastProcessedTimestamp = System.currentTimeMillis();
     }
-    
+
+    /**
+     * AI Native: LLM 분석 결과를 Redis에 action으로 저장
+     *
+     * 다음 요청에서 ZeroTrustSecurityService가 이 action을 조회하여
+     * Authentication 권한을 동적으로 조정합니다.
+     *
+     * Action별 TTL:
+     * - BLOCK: TTL 없음 (관리자 해제 필요)
+     * - INVESTIGATE: 5분 (자동 복구)
+     * - MONITOR: 10분 (자동 복구)
+     * - CHALLENGE: 30분 (MFA 성공 시 즉시 해제)
+     * - ALLOW: 1시간 (캐시)
+     *
+     * @param userId 사용자 ID
+     * @param threatLevel LLM이 결정한 위협 수준
+     */
+    private void saveActionToRedis(String userId, ThreatAssessment.ThreatLevel threatLevel) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+
+        try {
+            String action = deriveAction(threatLevel);
+            String actionKey = ZeroTrustRedisKeys.userAction(userId);
+
+            // Action별 TTL 설정
+            Duration ttl = switch (action) {
+                case "BLOCK" -> null;  // TTL 없음 - 관리자 해제 필요
+                case "INVESTIGATE" -> Duration.ofMinutes(5);
+                case "MONITOR" -> Duration.ofMinutes(10);
+                case "CHALLENGE" -> Duration.ofMinutes(30);
+                default -> Duration.ofHours(1);  // ALLOW 등
+            };
+
+            if (ttl != null) {
+                redisTemplate.opsForValue().set(actionKey, action, ttl);
+            } else {
+                redisTemplate.opsForValue().set(actionKey, action);
+            }
+
+            log.info("[ColdPath][AI Native] Action saved to Redis: userId={}, action={}, ttl={}",
+                    userId, action, ttl != null ? ttl.toMinutes() + "m" : "permanent");
+
+        } catch (Exception e) {
+            log.error("[ColdPath] Failed to save action to Redis: userId={}", userId, e);
+        }
+    }
+
+    /**
+     * AI Native: ThreatLevel을 action 문자열로 변환
+     *
+     * @param level LLM이 결정한 위협 수준
+     * @return action 문자열 (ALLOW, MONITOR, INVESTIGATE, BLOCK)
+     */
+    private String deriveAction(ThreatAssessment.ThreatLevel level) {
+        if (level == null) {
+            return "MONITOR";  // LLM 분석 실패/미수행 시 기본값
+        }
+        return switch (level) {
+            case CRITICAL -> "BLOCK";
+            case HIGH -> "INVESTIGATE";
+            case MEDIUM -> "MONITOR";
+            case LOW, INFO -> "ALLOW";
+        };
+    }
+
     @Override
     public ProcessingMode getProcessingMode() {
         return ProcessingMode.AI_ANALYSIS;
@@ -444,16 +490,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
         ThreatAssessment.ThreatLevel level = analysisResult.getThreatLevel();
         double confidence = analysisResult.getConfidence();
 
-        // 범위 검증만 수행 (0.0~1.0)
+        // AI Native: clamp 연산 완전 제거
+        // LLM이 반환한 riskScore를 그대로 사용 (범위 초과도 그대로)
         if (finalScore < 0.0 || finalScore > 1.0) {
-            double clamped = Math.max(0.0, Math.min(1.0, finalScore));
-            log.warn("[ColdPathEventProcessor] riskScore 범위 초과로 클램핑: {} → {}",
-                    finalScore, clamped);
-            finalScore = clamped;
+            log.warn("[ColdPathEventProcessor][AI Native] 범위 초과 riskScore: {} (가공 없이 그대로 사용)", finalScore);
         }
 
-        // AI Native: LLM riskScore 그대로 반환 (가공 없음)
-        log.info("[ColdPathEventProcessor] AI Native riskScore: level={}, riskScore={}, confidence={} → 가공 없이 그대로 사용",
+        log.info("[ColdPathEventProcessor][AI Native] riskScore: level={}, riskScore={}, confidence={} → 가공 없이 그대로 사용",
             level,
             String.format("%.3f", finalScore),
             String.format("%.3f", confidence));
@@ -461,65 +504,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
         return finalScore;
     }
 
-    /**
-     * CRITICAL FIX: 유사도 기반 동적 신뢰도 임계값 계산 (재조정됨)
-     *
-     * 수학적 원리:
-     * - 낮은 유사도(높은 위험도) → 높은 신뢰도 요구 → 더 깊은 분석 필요
-     * - 높은 유사도(낮은 위험도) → 낮은 신뢰도 허용 → 조기 종료 가능
-     *
-     * 스케일 명확화:
-     * - riskScore: 0.0~1.0 (HCADFilter에서 계산된 실제 위험도)
-     * - confidence: 0.0~1.0 (AI 모델의 예측 신뢰도)
-     *
-     * Layer별 기본 임계값 (실제 AI confidence 0.6~0.8을 고려하여 조정):
-     * - Layer 1 (HOT Path): 0.50 (98% 케이스, 빠른 처리)
-     * - Layer 2 (WARM Path): 0.60 (1.8% 케이스, 중간 처리)
-     * - Layer 3 (COLD Path): 0.70 (0.2% 케이스, 전문가 분석)
-     *
-     * 동적 조정 범위:
-     * - riskScore가 0.0 → adjustment = 0.0 (안전한 이벤트)
-     * - riskScore가 1.0 → adjustment = +0.15 (매우 위험한 이벤트)
-     *
-     * 최종 임계값 범위:
-     * - Layer 1: 0.50~0.65 (riskScore에 따라 15% 변동)
-     * - Layer 2: 0.60~0.75 (riskScore에 따라 15% 변동)
-     * - Layer 3: 0.70~0.85 (riskScore에 따라 15% 변동)
-     *
-     * @param riskScore 위험도 점수 (0.0~1.0 스케일, HCADFilter 계산)
-     * @param layer 처리 레이어 (1=HOT, 2=WARM, 3=COLD)
-     * @return 해당 레이어에서 요구되는 최소 신뢰도 (0.0~1.0)
-     */
-    private double calculateRequiredConfidence(double riskScore, int layer) {
-        // 스케일 정규화: riskScore가 0.0~1.0 범위인지 확인
-        if (riskScore < 0.0 || riskScore > 1.0) {
-            riskScore = Math.max(0.0, Math.min(1.0, riskScore));
-        }
-
-        // Layer별 기본 신뢰도 임계값 (설정 가능, 유의미한 차이)
-        double baseConfidence;
-        switch (layer) {
-            case 1 -> baseConfidence = layer1BaseConfidence; // 기본 0.70 (HOT Path)
-            case 2 -> baseConfidence = layer2BaseConfidence; // 기본 0.80 (WARM Path)
-            case 3 -> baseConfidence = layer3BaseConfidence; // 기본 0.90 (COLD Path)
-            default -> {
-                baseConfidence = 0.80;
-            }
-        }
-
-        // 위험도에 따른 동적 조정 (0.0~1.0 스케일)
-        // - riskScore가 높을수록 더 높은 신뢰도 요구
-        // - 최대 +0.15까지 증가 (Layer별 15% 변동 범위 확보)
-        double riskAdjustment = riskScore * 0.15;
-
-        // 최종 신뢰도 임계값 계산
-        double requiredConfidence = baseConfidence + riskAdjustment;
-
-        // 최대값 제한 (0.95 이상은 AI 모델의 실질적 한계)
-        requiredConfidence = Math.min(requiredConfidence, 0.95);
-
-        return requiredConfidence;
-    }
+    // AI Native 전환: calculateRequiredConfidence() 메서드 완전 제거
+    // - 규칙 기반 confidence 임계값 계산 로직 제거
+    // - LLM이 shouldEscalate로 에스컬레이션 필요 여부를 직접 결정
+    // - Layer별 baseConfidence, riskAdjustment 규칙 모두 제거
 
     @Override
     public ProcessorStatistics getStatistics() {
@@ -604,23 +592,32 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
 
         public SecurityDecision getFinalDecision() {
-            // ThreatLevel을 SecurityDecision.Action으로 변환
+            // AI Native: threatLevel null 처리 (LLM 분석 미수행/실패 상태)
             SecurityDecision.Action action;
-            switch (threatLevel) {
-                case LOW:
-                    action = SecurityDecision.Action.ALLOW;
-                    break;
-                case MEDIUM:
-                    action = SecurityDecision.Action.MONITOR;
-                    break;
-                case HIGH:
-                    action = SecurityDecision.Action.INVESTIGATE;
-                    break;
-                case CRITICAL:
-                    action = SecurityDecision.Action.BLOCK;
-                    break;
-                default:
-                    action = SecurityDecision.Action.MONITOR;
+            String reasoningPrefix;
+
+            if (threatLevel == null) {
+                // 분석 미수행 상태 - 조사 필요로 설정
+                action = SecurityDecision.Action.INVESTIGATE;
+                reasoningPrefix = "AI Analysis Incomplete: ";
+            } else {
+                reasoningPrefix = "AI Layer Analysis: ";
+                switch (threatLevel) {
+                    case LOW:
+                        action = SecurityDecision.Action.ALLOW;
+                        break;
+                    case MEDIUM:
+                        action = SecurityDecision.Action.MONITOR;
+                        break;
+                    case HIGH:
+                        action = SecurityDecision.Action.INVESTIGATE;
+                        break;
+                    case CRITICAL:
+                        action = SecurityDecision.Action.BLOCK;
+                        break;
+                    default:
+                        action = SecurityDecision.Action.MONITOR;
+                }
             }
 
             return SecurityDecision.builder()
@@ -629,7 +626,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 .confidence(confidence)
                 .iocIndicators(new ArrayList<>(indicators))
                 .mitigationActions(new ArrayList<>(recommendedActions))
-                .reasoning("AI Layer Analysis: " + getLayerExecuted())
+                .reasoning(reasoningPrefix + getLayerExecuted())
                 .layer(getLayerExecuted())
                 .build();
         }

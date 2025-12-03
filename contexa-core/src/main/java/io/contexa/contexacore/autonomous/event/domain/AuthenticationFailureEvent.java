@@ -51,9 +51,6 @@ public class AuthenticationFailureEvent {
     private boolean bruteForceDetected;
     private boolean credentialStuffingDetected;
 
-    // HCAD 유사도 (인증 시점 이상 탐지)
-    private Double hcadSimilarityScore;
-
     // 추가 메타데이터
     private Map<String, Object> metadata;
     

@@ -261,87 +261,103 @@ public class HCADContextExtractor {
     }
 
     /**
-     * 보안 관련 정보 추가
+     * 보안 관련 정보 추가 (AI Native)
+     *
+     * AI Native 전환:
+     * - 0.5 기본값 규칙 제거
+     * - Redis에 값이 없으면 null로 표시 (LLM이 컨텍스트로 판단)
+     * - isNewUser: 이전 HCAD 분석 기록이 없는 신규 사용자 판별
      */
     private void enrichWithSecurityInfo(HCADContext context,
                                        String userId, Authentication authentication) {
         try {
-            // 신뢰 점수 조회
+            // AI Native: 신규 사용자 판별 (이전 HCAD 분석 기록 확인)
+            // LLM 분석 결과가 Redis에 저장되어 있으면 기존 사용자
+            // security:hcad:analysis:{userId} 키에 LLM 분석 결과가 저장됨
+            String analysisKey = "security:hcad:analysis:" + userId;
+            Boolean hasAnalysis = redisTemplate.hasKey(analysisKey);
+            context.setNewUser(!Boolean.TRUE.equals(hasAnalysis));
+
+            // 신규 사용자는 Cold Path에서 LLM 분석 후 자동으로 기록됨
+            if (Boolean.TRUE.equals(hasAnalysis)) {
+                log.debug("[HCAD][AI Native] Known user (has analysis): {}", userId);
+            } else {
+                log.debug("[HCAD][AI Native] New user (no analysis yet): {}", userId);
+            }
+
+            // AI Native: 신뢰 점수를 그대로 조회 (기본값 규칙 제거)
             String trustScoreKey = "trust:score:" + userId;
             Double trustScore = (Double) redisTemplate.opsForValue().get(trustScoreKey);
-            context.setCurrentTrustScore(trustScore != null ? trustScore : 0.5);
+            // AI Native: null이면 NaN으로 설정 (LLM이 "신뢰 정보 없음" 컨텍스트로 처리)
+            context.setCurrentTrustScore(trustScore != null ? trustScore : Double.NaN);
 
-            // Baseline 신뢰도 초기화 (처음에는 중립값 0.5로 시작)
-            context.setBaselineConfidence(0.5);
+            // AI Native: Baseline 신뢰도도 NaN으로 초기화 (LLM이 판단)
+            context.setBaselineConfidence(Double.NaN);
 
-            // 실패한 로그인 시도 조회
+            // 실패한 로그인 시도 조회 (원시 데이터)
             String failedLoginKey = "security:failed:login:" + userId;
             String failedCount = (String) redisTemplate.opsForValue().get(failedLoginKey);
             context.setFailedLoginAttempts(failedCount != null ? Integer.parseInt(failedCount) : 0);
 
-            // 인증 방법 확인
+            // 인증 방법 확인 (원시 데이터 - 규칙 아님)
             String authMethod = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().contains("MFA")) ? "mfa" : "password";
             context.setAuthenticationMethod(authMethod);
 
-            // MFA 상태 확인
+            // MFA 상태 확인 (원시 데이터)
             String mfaKey = "security:mfa:verified:" + userId;
             Boolean hasMfa = redisTemplate.hasKey(mfaKey);
             context.setHasValidMFA(hasMfa);
 
         } catch (Exception e) {
-            log.debug("[HCAD] 보안 정보 추출 실패", e);
-            context.setCurrentTrustScore(0.5);
-            context.setBaselineConfidence(0.5);  // 예외 발생 시에도 기본값 설정
+            log.debug("[HCAD][AI Native] 보안 정보 추출 실패", e);
+            // AI Native: 예외 발생 시 NaN으로 설정 (분석 불가 상태 명시)
+            context.setCurrentTrustScore(Double.NaN);
+            context.setBaselineConfidence(Double.NaN);
             context.setFailedLoginAttempts(0);
             context.setHasValidMFA(false);
+            context.setNewUser(true); // 오류 시 신규 사용자로 취급 (보수적 접근)
         }
     }
 
     /**
-     * 리소스 정보 분석
+     * 리소스 정보 분석 (AI Native)
+     *
+     * AI Native 전환:
+     * - 리소스 타입 분류 규칙 제거 (startsWith 규칙)
+     * - 민감 리소스 판단 규칙 제거 (contains 규칙)
+     * - 원시 경로 정보만 저장하여 LLM이 컨텍스트로 판단
      */
     private void enrichWithResourceInfo(HCADContext context,
                                        HttpServletRequest request) {
         try {
             String path = request.getRequestURI();
 
-            // 리소스 타입 결정
-            String resourceType;
-            if (path.startsWith("/admin")) {
-                resourceType = "admin";
-            } else if (path.startsWith("/api")) {
-                resourceType = "api";
-            } else if (path.startsWith("/secure")) {
-                resourceType = "secure";
-            } else if (path.startsWith("/public")) {
-                resourceType = "public";
-            } else {
-                resourceType = "general";
-            }
-            context.setResourceType(resourceType);
+            // AI Native: 리소스 타입 분류 규칙 제거
+            // 경로를 그대로 저장하여 LLM이 판단
+            // resourceType 필드에는 경로의 첫 번째 세그먼트를 원시 데이터로 저장
+            String[] segments = path.split("/");
+            String firstSegment = segments.length > 1 ? segments[1] : "";
+            context.setResourceType(firstSegment); // 원시 경로 세그먼트 (분류하지 않음)
 
-            // 민감한 리소스 여부
-            boolean isSensitive = path.contains("/admin") ||
-                                 path.contains("/secure") ||
-                                 path.contains("/config") ||
-                                 path.contains("/system") ||
-                                 path.contains("/user") ||
-                                 path.contains("/account");
-            context.setIsSensitiveResource(isSensitive);
+            // AI Native: 민감 리소스 판단 규칙 제거
+            // LLM이 경로 컨텍스트를 분석하여 민감도 판단
+            // isSensitiveResource 필드는 null로 설정 (LLM이 판단)
+            context.setIsSensitiveResource(null);
 
-            // 추가 속성
+            // 추가 속성 (원시 데이터 수집)
             Map<String, Object> additionalAttrs = new HashMap<>();
             additionalAttrs.put("contentType", request.getContentType());
             additionalAttrs.put("queryString", request.getQueryString());
             additionalAttrs.put("protocol", request.getProtocol());
             additionalAttrs.put("secure", request.isSecure());
+            additionalAttrs.put("fullPath", path); // AI Native: 전체 경로를 LLM 컨텍스트로 전달
             context.setAdditionalAttributes(additionalAttrs);
 
         } catch (Exception e) {
-            log.debug("[HCAD] 리소스 정보 추출 실패", e);
-            context.setResourceType("unknown");
-            context.setIsSensitiveResource(false);
+            log.debug("[HCAD][AI Native] 리소스 정보 추출 실패", e);
+            context.setResourceType(null);
+            context.setIsSensitiveResource(null);
         }
     }
 }

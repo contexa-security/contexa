@@ -160,11 +160,8 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
                     // 인증된 사용자 - userId 기반 Zero Trust
                     String userId = auth.getName();
                     zeroTrustSecurityService.applyZeroTrustToContext(context, userId, sessionId);
-                } else if (auth != null) {
-                    // 익명 사용자 - IP 기반 Zero Trust (NEW)
-                    String clientIp = extractClientIp(request);
-                    zeroTrustSecurityService.applyZeroTrustToAnonymousContext(context, clientIp, request);
                 }
+                // AI Native: 익명 사용자 Zero Trust 제거 - 인증된 사용자만 처리
 
                 cachedContext = context;
                 loaded = true;

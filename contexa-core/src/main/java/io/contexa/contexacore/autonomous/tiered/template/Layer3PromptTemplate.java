@@ -6,8 +6,6 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -24,36 +22,6 @@ import java.util.Optional;
 public class Layer3PromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;
-
-    private static final Map<String, String> MITRE_TACTICS = Map.ofEntries(
-        Map.entry("TA0001", "Initial Access"),
-        Map.entry("TA0002", "Execution"),
-        Map.entry("TA0003", "Persistence"),
-        Map.entry("TA0004", "Privilege Escalation"),
-        Map.entry("TA0005", "Defense Evasion"),
-        Map.entry("TA0006", "Credential Access"),
-        Map.entry("TA0007", "Discovery"),
-        Map.entry("TA0008", "Lateral Movement"),
-        Map.entry("TA0009", "Collection"),
-        Map.entry("TA0010", "Exfiltration"),
-        Map.entry("TA0011", "Command and Control"),
-        Map.entry("TA0040", "Impact")
-    );
-
-    private static final Map<String, String> MITRE_TECHNIQUES = Map.ofEntries(
-        Map.entry("T1190", "Exploit Public-Facing Application"),
-        Map.entry("T1566", "Phishing"),
-        Map.entry("T1078", "Valid Accounts"),
-        Map.entry("T1055", "Process Injection"),
-        Map.entry("T1071", "Application Layer Protocol"),
-        Map.entry("T1059", "Command and Scripting Interpreter"),
-        Map.entry("T1003", "OS Credential Dumping"),
-        Map.entry("T1083", "File and Directory Discovery"),
-        Map.entry("T1021", "Remote Services"),
-        Map.entry("T1041", "Exfiltration Over C2 Channel"),
-        Map.entry("T1486", "Data Encrypted for Impact"),
-        Map.entry("T1110", "Brute Force")
-    );
 
     @Autowired
     public Layer3PromptTemplate(@Autowired(required = false) SecurityEventEnricher eventEnricher) {
@@ -103,15 +71,11 @@ public class Layer3PromptTemplate {
             systemContext.getAssetCriticality(),
             systemContext.getDataSensitivity());
 
-        // HCAD 유사도 분석 결과 추가
+        // HCAD 위험도 분석 결과 추가
         String hcadSection = buildHCADSection(event);
 
-        // MITRE 참조 간소화 (주요 항목만)
-        String mitreTactics = "TA0001(Initial Access), TA0002(Execution), TA0003(Persistence), TA0005(Defense Evasion), TA0006(Credential Access), TA0010(Exfiltration)";
-        String mitreTechniques = "T1190(Exploit App), T1566(Phishing), T1078(Valid Accounts), T1059(Scripting), T1003(Credential Dump), T1041(Exfil C2)";
-
         return String.format("""
-            Expert forensic security analysis. Deep threat analysis with MITRE ATT&CK.
+            Expert forensic security analysis. Deep threat analysis.
 
             Event: %s | IP: %s | Target: %s | Method: %s
             Payload: %s
@@ -121,85 +85,65 @@ public class Layer3PromptTemplate {
             System: %s
             %s
 
-            MITRE Reference:
-            Tactics: %s
-            Techniques: %s
+            SCORING GUIDELINES (Expert-level):
+            1. ZERO TRUST: Unknown != Safe. Insufficient intelligence requires conservative assessment.
+            2. HCAD Risk Score: Provided as raw value. Integrate with other intelligence.
+            3. Threat Intelligence:
+               - Reputation score: Higher values indicate more trust
+               - IOC matches: Consider matches as elevated risk signals
+               - Known actors: Attribution context for threat assessment
+            4. Historical Context:
+               - Previous attacks: Prior incident history informs current risk
+               - Similar incidents: Pattern matching for threat correlation
+            5. System Context:
+               - Asset criticality: Higher criticality warrants elevated concern
+               - Data sensitivity: Sensitive data requires conservative assessment
+            6. Risk Classification Principles:
+               - BENIGN: Verified trusted with strong evidence
+               - LOW_RISK: Multiple trust signals present
+               - UNKNOWN: Insufficient intelligence for confident assessment
+               - SUSPICIOUS: Partial threat indicators detected
+               - MALICIOUS: Attack confirmed with evidence
+               - CRITICAL_THREAT: APT/Ransomware indicators present
 
-            SCORING GUIDELINES (Expert-level analysis):
-            1. ZERO TRUST PRINCIPLE: Unknown ≠ Safe. Insufficient threat intelligence → 0.5 (neutral risk), NOT 0.0.
-            2. HCAD Similarity Interpretation (CRITICAL SIGNAL):
-               - Similarity < 0.40 → ANOMALY CONFIRMED → Base riskScore ≥ 0.8
-               - Similarity 0.40-0.54 → SIGNIFICANT_DEVIATION → Base riskScore 0.6-0.8
-               - Even if Layer3, respect HCAD baseline analysis (RAG-enhanced multi-layer verification)
-            3. Threat Intelligence Interpretation:
-               - "Reputation: 0.5" = neutral/unknown, NOT trusted (>0.8 is trusted)
-               - "IOC: none" + "Actors: none" → riskScore = 0.5 (no intelligence = unknown state)
-               - "Previous: none" + "Similar: none" → riskScore = 0.5 (no historical data)
-               - Known malicious IOC/Actor → riskScore ≥ 0.8 regardless of other signals
-            3. Historical Context Evaluation:
-               - "Previous: none" → no attack history, NOT safe indicator
-               - "Similar: none" → no pattern data, treat as unknown (0.5)
-               - Previous attacks + Similar pattern → riskScore ≥ 0.7
-            4. System Context Impact:
-               - "Asset: HIGH" + "Data: HIGH" → escalate riskScore by +0.1~0.2
-               - "Asset: LOW" + "Data: LOW" → can reduce riskScore by -0.1
-            5. Use 6-tier expert scale:
-               - BENIGN (0.0-0.2): Verified trusted, strong positive intelligence
-               - LOW_RISK (0.2-0.4): Some trust signals, no threat indicators
-               - UNKNOWN (0.4-0.6): Insufficient intelligence, no historical data
-               - SUSPICIOUS (0.6-0.75): Anomalous pattern, partial threat indicators
-               - MALICIOUS (0.75-0.9): Attack pattern confirmed, known techniques
-               - CRITICAL_THREAT (0.9-1.0): APT/Ransomware, critical asset targeted
-
-            Respond: riskScore(0.0-1.0 scale ONLY), confidence(0.0-1.0), action(ALLOW/BLOCK/INVESTIGATE),
-            classification(BENIGN/MALICIOUS/CRITICAL_THREAT), scenario(detailed),
-            tactics(list of TA codes), techniques(list of T codes),
-            iocIndicators(list), threatActor, reasoning, expertRecommendation.
+            Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
 
             IMPORTANT:
-            - riskScore MUST be between 0.0 and 1.0 (NOT 0-10 scale)
-            - confidence MUST be between 0.1 and 1.0 (NOT 0.0)
-            - If threat intelligence/historical data insufficient, use riskScore=0.5, confidence=0.1-0.3
+            - riskScore: 0.0 (completely safe) to 1.0 (critical threat)
+            - confidence: Express your certainty level in the assessment
+            - Insufficient intelligence should be reflected in both riskScore and confidence
             - Add reasoning: "[DATA_MISSING: describe what]" when applicable
 
             JSON format:
-            {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "classification": "BENIGN", "scenario": "...", "tactics": ["TA0001"], "techniques": ["T1190"], "iocIndicators": ["..."], "threatActor": "...", "reasoning": "...", "expertRecommendation": "..."}
+            {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
             eventType, sourceIp, target, method,
             fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload,
-            previousAnalysis, threatSummary, historySummary, systemSummary, hcadSection,
-            mitreTactics, mitreTechniques);
+            previousAnalysis, threatSummary, historySummary, systemSummary, hcadSection);
     }
 
     /**
-     * HCAD 유사도 분석 결과 섹션 구성
+     * HCAD 위험도 분석 결과 섹션 구성 (AI Native)
+     *
+     * AI Native 원칙:
+     * - 플랫폼은 raw 데이터만 제공
+     * - 임계값 기반 판단(assessment) 제거
+     * - LLM이 riskScore를 해석하고 action을 직접 결정
      */
     private String buildHCADSection(SecurityEvent event) {
-        Double similarityScore = event.getHcadSimilarityScore();
+        Double riskScore = event.getRiskScore();
 
-        if (similarityScore == null) {
-            return "HCAD Analysis: Not available (no baseline yet)";
+        if (riskScore == null || Double.isNaN(riskScore)) {
+            return "HCAD Analysis: Not available (requires LLM expert analysis)";
         }
 
-        String assessment;
-        if (similarityScore > 0.70) {
-            assessment = "NORMAL_PATTERN (Should not reach Layer3 - routing error?)";
-        } else if (similarityScore > 0.55) {
-            assessment = "MODERATE_DEVIATION (Should not reach Layer3 - routing error?)";
-        } else if (similarityScore > 0.40) {
-            assessment = "SIGNIFICANT_DEVIATION (Expected Layer3 case)";
-        } else {
-            assessment = "ANOMALY_DETECTED (Critical Layer3 case)";
-        }
-
+        // AI Native: raw 데이터만 제공, 임계값 기반 assessment 제거
+        // LLM이 riskScore를 해석하여 action(ALLOW/BLOCK/INVESTIGATE)을 결정
         return String.format("""
-            HCAD Similarity Analysis:
-            - Similarity Score: %.3f (%.1f%% match with user's baseline pattern)
-            - Assessment: %s
-            - Note: Layer3 handles similarity < 0.40 (anomaly cases)""",
-            similarityScore,
-            similarityScore * 100,
-            assessment
+            HCAD Risk Analysis:
+            - Risk Score: %.3f
+            - Layer3 Expert: Determine action based on this score and threat intelligence""",
+            riskScore
         );
     }
 

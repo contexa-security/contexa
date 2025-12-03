@@ -1,22 +1,20 @@
 package io.contexa.contexacore.autonomous.event.decision;
 
 /**
- * Event Tier (통합)
+ * Event Tier (AI Native)
  *
- * 익명 사용자 + 인증 사용자 통합 위험도 등급
+ * AI Native 아키텍처에서 LLM action 기반 이벤트 등급 분류
  *
- * 핵심 설계 원칙:
- * 1. Risk Score 기반 (HCAD 직접 사용 X)
- * 2. 익명 사용자: (1.0 - HCAD) * 0.7 + ipThreat * 0.3
- * 3. 인증 사용자: (1.0 - HCAD) * 0.5 + (1.0 - trustScore) * 0.5
- * 4. Hot Path도 10% 샘플링 (정상 패턴 학습용)
+ * 핵심 설계 원칙 (AI Native):
+ * 1. LLM action 기반 분류 (fromAction) - Primary
+ * 2. riskScore 기반 분류 (fromRiskScore) - Deprecated, 감사 로그용
  *
- * Tier 분류:
- * - CRITICAL: Risk > 0.8 (매우 위험)
- * - HIGH: Risk 0.6~0.8 (위험)
- * - MEDIUM: Risk 0.4~0.6 (보통)
- * - LOW: Risk 0.2~0.4 (낮음)
- * - BENIGN: Risk < 0.2 (정상)
+ * Action 기반 Tier 매핑:
+ * - BLOCK → CRITICAL (즉시 차단)
+ * - ESCALATE → HIGH (상세 분석 필요)
+ * - MONITOR → MEDIUM (모니터링)
+ * - ALLOW + isAnomaly → LOW (정상이지만 이상 신호)
+ * - ALLOW → BENIGN (정상)
  *
  * @author AI Security Framework
  * @since 3.0.0
@@ -73,21 +71,59 @@ public enum EventTier {
     }
 
     /**
-     * Risk Score 기반 Tier 분류
+     * AI Native: Action 기반 Tier 분류 (Primary)
+     *
+     * LLM이 결정한 action을 직접 사용하여 Tier 분류
+     * riskScore 임계값 기반 판단 제거
+     *
+     * Action 매핑:
+     * - BLOCK → CRITICAL (즉시 차단)
+     * - ESCALATE/INVESTIGATE → HIGH (상세 분석 필요)
+     * - MONITOR → MEDIUM (모니터링)
+     * - ALLOW + isAnomaly → LOW (정상이지만 이상 신호)
+     * - ALLOW → BENIGN (정상)
+     *
+     * @param action LLM이 결정한 action (ALLOW/BLOCK/ESCALATE/MONITOR/INVESTIGATE)
+     * @param isAnomaly LLM이 판단한 이상 여부
+     * @return 분류된 Tier
+     */
+    public static EventTier fromAction(String action, Boolean isAnomaly) {
+        // AI Native: action이 없으면 CRITICAL (Fail-Safe)
+        if (action == null || action.isEmpty()) {
+            return CRITICAL;
+        }
+
+        // AI Native: LLM action 기반 Tier 결정
+        return switch (action.toUpperCase()) {
+            case "BLOCK" -> CRITICAL;
+            case "ESCALATE", "INVESTIGATE" -> HIGH;
+            case "MONITOR" -> MEDIUM;
+            case "ALLOW" -> Boolean.TRUE.equals(isAnomaly) ? LOW : BENIGN;
+            default -> MEDIUM; // 알 수 없는 action은 MEDIUM으로 안전하게 처리
+        };
+    }
+
+    /**
+     * Risk Score 기반 Tier 분류 (Deprecated - 감사 로그용)
+     *
+     * AI Native 전환으로 fromAction() 사용 권장
+     * 이 메서드는 감사 로그, 대시보드 시각화용으로만 유지
      *
      * @param riskScore 위험도 점수 (0.0 ~ 1.0)
      * @return 분류된 Tier
+     * @deprecated fromAction(String action, Boolean isAnomaly) 사용 권장
      */
+    @Deprecated
     public static EventTier fromRiskScore(Double riskScore) {
         // Risk Score가 없으면 CRITICAL (안전한 쪽으로 Fail-Safe)
-        if (riskScore == null) {
+        if (riskScore == null || Double.isNaN(riskScore)) {
             return CRITICAL;
         }
 
         // Risk Score 범위 보정
         double risk = Math.max(0.0, Math.min(1.0, riskScore));
 
-        // Tier 분류 (Risk Score 기준)
+        // Tier 분류 (Risk Score 기준) - 감사 로그/대시보드용
         if (risk > 0.8) {
             return CRITICAL;
         } else if (risk > 0.6) {

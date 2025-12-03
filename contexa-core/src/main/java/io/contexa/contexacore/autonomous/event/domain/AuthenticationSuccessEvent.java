@@ -46,9 +46,6 @@ public class AuthenticationSuccessEvent {
     private Map<String, Object> riskIndicators;
     private boolean anomalyDetected;
 
-    // HCAD (HTTP Context Anomaly Detection) 유사도
-    private Double hcadSimilarityScore;  // 0.0 ~ 1.0 (높을수록 정상)
-
     // 세션 컨텍스트
     private Map<String, Object> sessionContext;
     private String previousSessionId;

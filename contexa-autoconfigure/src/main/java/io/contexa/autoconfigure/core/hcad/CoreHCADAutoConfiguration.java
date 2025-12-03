@@ -5,7 +5,10 @@ import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
 import io.contexa.contexacore.hcad.filter.HCADFilter;
-import io.contexa.contexacore.hcad.service.*;
+import io.contexa.contexacore.hcad.service.EmbeddingService;
+import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.hcad.service.HCADContextExtractor;
+import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,16 +77,7 @@ public class CoreHCADAutoConfiguration {
     }
 
     // ========== Level 2: Level 1 의존 ==========
-
-    /**
-     * FewShotAnomalyDetector - Few-Shot 이상 탐지 서비스
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public FewShotAnomalyDetector fewShotAnomalyDetector(
-            UnifiedVectorService unifiedVectorService) {
-        return new FewShotAnomalyDetector(unifiedVectorService);
-    }
+    // AI Native 전환: FewShotAnomalyDetector 삭제 (완전 규칙 기반 로직 - LLM 무관)
 
     // ========== Level 3: Level 2 의존 ==========
 
@@ -133,7 +127,8 @@ public class CoreHCADAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public HCADFilter hcadFilter(
-            HCADAnalysisService hcadAnalysisService) {
-        return new HCADFilter(hcadAnalysisService);
+            HCADAnalysisService hcadAnalysisService,
+            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+        return new HCADFilter(hcadAnalysisService, redisTemplate);
     }
 }

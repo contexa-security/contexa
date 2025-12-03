@@ -1,9 +1,8 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacore.autonomous.strategy.MitreAttackEvaluationStrategy;
-import io.contexa.contexacore.autonomous.strategy.NistCsfEvaluationStrategy;
-import io.contexa.contexacore.autonomous.strategy.CisControlsEvaluationStrategy;
+// AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
+// LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
@@ -46,16 +45,11 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 @Slf4j
 public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressionRoot {
-    
-    @Autowired(required = false)
-    private MitreAttackEvaluationStrategy mitreStrategy;
-    
-    @Autowired(required = false)
-    private NistCsfEvaluationStrategy nistStrategy;
-    
-    @Autowired(required = false)
-    private CisControlsEvaluationStrategy cisStrategy;
-    
+
+    // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
+    // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
+    // 이상 탐지, 권한 상승 평가 등은 AICoreOperations를 통한 LLM 호출로 처리
+
     // AI 호출 타임아웃 설정
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration CRITICAL_AI_TIMEOUT = Duration.ofSeconds(60);
@@ -151,8 +145,11 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
     }
     
     /**
-     * 이상 행동 탐지 (실시간)
-     * 
+     * 이상 행동 탐지 (실시간) - AI Native
+     *
+     * AI Native 방식: LLM이 직접 이상 행동을 판단
+     * 규칙 기반 Strategy 제거됨
+     *
      * @param operation 작업 정보
      * @return 정상 행동이면 true
      */
@@ -162,68 +159,52 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             log.warn("detectAnomaly: 필수 정보 누락");
             return false;
         }
-        
+
         try {
-            log.info("이상 행동 탐지 시작 - userId: {}, operation: {}", userId, operation);
-            
-            // 3개 전략을 모두 사용하여 종합 평가
-            List<CompletableFuture<ThreatAssessment>> futures = new ArrayList<>();
-            
-            // SecurityEvent 생성
+            log.info("이상 행동 탐지 시작 (AI Native) - userId: {}, operation: {}", userId, operation);
+
+            // AI Native: AICoreOperations를 통한 LLM 호출
+            // 규칙 기반 Strategy(MITRE, NIST, CIS) 제거됨
             SecurityEvent event = createSecurityEvent(userId, operation);
-            
-            // MITRE 전략 비동기 실행
-            if (mitreStrategy != null) {
-                futures.add(CompletableFuture.supplyAsync(() -> 
-                    mitreStrategy.evaluate(event)
-                ));
+
+            // RiskAssessmentContext로 AI 분석 요청
+            RiskAssessmentContext riskContext = new RiskAssessmentContext();
+            riskContext.setUserId(userId);
+            riskContext.setActionType(operation);
+            riskContext.setRemoteIp(getRemoteIp());
+
+            Map<String, Object> eventMetadata = new HashMap<>();
+            eventMetadata.put("eventType", event.getEventType());
+            eventMetadata.put("timestamp", event.getTimestamp());
+            riskContext.setEnvironmentAttributes(eventMetadata);
+
+            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "anomalyDetection");
+
+            Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
+            RiskAssessmentResponse response = responseMono
+                    .timeout(AI_TIMEOUT)
+                    .doOnError(error -> log.error("이상 탐지 AI 분석 오류", error))
+                    .block();
+
+            double riskScore = 0.0;
+            boolean isNormal = true;
+
+            if (response != null) {
+                riskScore = response.riskScore();
+                isNormal = riskScore < ANOMALY_THRESHOLD;
             }
-            
-            // NIST 전략 비동기 실행
-            if (nistStrategy != null) {
-                futures.add(CompletableFuture.supplyAsync(() -> 
-                    nistStrategy.evaluate(event)
-                ));
-            }
-            
-            // CIS 전략 비동기 실행
-            if (cisStrategy != null) {
-                futures.add(CompletableFuture.supplyAsync(() -> 
-                    cisStrategy.evaluate(event)
-                ));
-            }
-            
-            // 모든 전략 완료 대기 (최대 30초)
-            CompletableFuture<Void> allFutures = CompletableFuture.allOf(
-                futures.toArray(new CompletableFuture[0])
-            );
-            allFutures.get(30, TimeUnit.SECONDS);
-            
-            // 결과 수집 및 최대값 계산
-            double maxRiskScore = 0.0;
-            String highestRiskStrategy = "";
-            
-            for (CompletableFuture<ThreatAssessment> future : futures) {
-                ThreatAssessment assessment = future.get();
-                if (assessment != null && assessment.getRiskScore() > maxRiskScore) {
-                    maxRiskScore = assessment.getRiskScore();
-                    highestRiskStrategy = assessment.getEvaluator();
-                }
-            }
-            
-            boolean isNormal = maxRiskScore < ANOMALY_THRESHOLD;
-            
-            log.info("이상 행동 탐지 완료 - userId: {}, maxRisk: {}, strategy: {}, normal: {}",
-                    userId, maxRiskScore, highestRiskStrategy, isNormal);
-            
+
+            log.info("이상 행동 탐지 완료 (AI Native) - userId: {}, riskScore: {}, normal: {}",
+                    userId, riskScore, isNormal);
+
             // 감사 로그 기록
             Map<String, Object> operationData = new HashMap<>();
             operationData.put("operation", operation);
-            operationData.put("strategy", highestRiskStrategy);
-            recordAuditLog("ANOMALY_DETECTION", userId, operationData, maxRiskScore, isNormal);
-            
+            operationData.put("analysisType", "AI_NATIVE");
+            recordAuditLog("ANOMALY_DETECTION", userId, operationData, riskScore, isNormal);
+
             return isNormal;
-            
+
         } catch (Exception e) {
             log.error("이상 행동 탐지 실패 - userId: {}, operation: {}", userId, operation, e);
             return false;
@@ -300,8 +281,11 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
     }
     
     /**
-     * 데이터 유출 위험 평가
-     * 
+     * 데이터 유출 위험 평가 - AI Native
+     *
+     * AI Native 방식: LLM이 직접 데이터 유출 위험을 판단
+     * 규칙 기반 Strategy 제거됨
+     *
      * @param dataAccess 데이터 접근 정보
      * @return 안전한 접근이면 true
      */
@@ -310,39 +294,37 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         if (userId == null || dataAccess == null) {
             return false;
         }
-        
+
         try {
-            log.info("데이터 유출 위험 평가 - userId: {}, volume: {}", 
+            log.info("데이터 유출 위험 평가 (AI Native) - userId: {}, volume: {}",
                     userId, dataAccess.get("dataVolume"));
-            
-            // 데이터 접근 패턴 분석
-            Double dataVolume = Double.valueOf(String.valueOf(dataAccess.get("dataVolume")));
-            String dataType = String.valueOf(dataAccess.get("dataType"));
-            String destination = String.valueOf(dataAccess.get("destination"));
-            
-            // 간단한 휴리스틱 + AI 분석
-            boolean suspiciousVolume = dataVolume > 1000000; // 1MB 이상
-            boolean sensitiveData = "PII".equals(dataType) || "FINANCIAL".equals(dataType);
-            boolean externalDestination = destination != null && destination.contains("external");
-            
-            if (suspiciousVolume || sensitiveData || externalDestination) {
-                // AI 심층 분석 필요
-                SecurityEvent event = createSecurityEvent(userId, "DATA_ACCESS");
-                event.getMetadata().putAll(dataAccess);
-                
-                if (mitreStrategy != null) {
-                    ThreatAssessment assessment = mitreStrategy.evaluate(event);
-                    boolean isSafe = assessment.getRiskScore() < 0.5;
-                    
-                    log.info("데이터 유출 평가 완료 - userId: {}, risk: {}, safe: {}",
-                            userId, assessment.getRiskScore(), isSafe);
-                    
-                    return isSafe;
-                }
+
+            // AI Native: 모든 데이터 접근에 대해 LLM 분석 수행
+            RiskAssessmentContext riskContext = new RiskAssessmentContext();
+            riskContext.setUserId(userId);
+            riskContext.setActionType("DATA_EXFILTRATION_CHECK");
+            riskContext.setRemoteIp(getRemoteIp());
+            riskContext.setEnvironmentAttributes(dataAccess);
+
+            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "dataExfiltration");
+
+            Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
+            RiskAssessmentResponse response = responseMono
+                    .timeout(AI_TIMEOUT)
+                    .doOnError(error -> log.error("데이터 유출 AI 분석 오류", error))
+                    .block();
+
+            if (response != null) {
+                boolean isSafe = response.riskScore() < 0.5;
+
+                log.info("데이터 유출 평가 완료 (AI Native) - userId: {}, risk: {}, safe: {}",
+                        userId, response.riskScore(), isSafe);
+
+                return isSafe;
             }
-            
-            return true; // 일반적인 경우 허용
-            
+
+            return true; // AI 분석 실패 시 기본 허용 (fail-open)
+
         } catch (Exception e) {
             log.error("데이터 유출 평가 실패", e);
             return false;
@@ -350,8 +332,11 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
     }
     
     /**
-     * 권한 상승 요청 평가
-     * 
+     * 권한 상승 요청 평가 - AI Native
+     *
+     * AI Native 방식: LLM이 직접 권한 상승 위험을 판단
+     * 규칙 기반 Strategy 제거됨
+     *
      * @param requestedRole 요청된 권한
      * @return 권한 부여가 안전하면 true
      */
@@ -360,49 +345,42 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         if (userId == null || requestedRole == null) {
             return false;
         }
-        
+
         try {
-            log.info("권한 상승 평가 - userId: {}, requestedRole: {}", userId, requestedRole);
-            
-            // 고위험 권한 체크
-            boolean isHighRisk = requestedRole.contains("ADMIN") || 
-                                 requestedRole.contains("ROOT") || 
-                                 requestedRole.contains("SYSTEM");
-            
-            if (isHighRisk) {
-                // 3개 전략 모두 사용
-                SecurityEvent event = createSecurityEvent(userId, "PRIVILEGE_ESCALATION");
-                event.getMetadata().put("requestedRole", requestedRole);
-                
-                double totalRisk = 0.0;
-                int strategyCount = 0;
-                
-                if (mitreStrategy != null) {
-                    totalRisk += mitreStrategy.evaluate(event).getRiskScore();
-                    strategyCount++;
-                }
-                
-                if (nistStrategy != null) {
-                    totalRisk += nistStrategy.evaluate(event).getRiskScore();
-                    strategyCount++;
-                }
-                
-                if (cisStrategy != null) {
-                    totalRisk += cisStrategy.evaluate(event).getRiskScore();
-                    strategyCount++;
-                }
-                
-                double avgRisk = strategyCount > 0 ? totalRisk / strategyCount : 1.0;
-                boolean isSafe = avgRisk < 0.6;
-                
-                log.warn("권한 상승 평가 완료 - userId: {}, avgRisk: {}, safe: {}",
-                        userId, avgRisk, isSafe);
-                
+            log.info("권한 상승 평가 (AI Native) - userId: {}, requestedRole: {}", userId, requestedRole);
+
+            // AI Native: 모든 권한 상승 요청에 대해 LLM 분석 수행
+            RiskAssessmentContext riskContext = new RiskAssessmentContext();
+            riskContext.setUserId(userId);
+            riskContext.setActionType("PRIVILEGE_ESCALATION");
+            riskContext.setRemoteIp(getRemoteIp());
+
+            Map<String, Object> escalationContext = new HashMap<>();
+            escalationContext.put("requestedRole", requestedRole);
+            escalationContext.put("isHighRisk", requestedRole.contains("ADMIN") ||
+                                               requestedRole.contains("ROOT") ||
+                                               requestedRole.contains("SYSTEM"));
+            riskContext.setEnvironmentAttributes(escalationContext);
+
+            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "privilegeEscalation");
+
+            Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
+            RiskAssessmentResponse response = responseMono
+                    .timeout(CRITICAL_AI_TIMEOUT) // 권한 상승은 중요 작업
+                    .doOnError(error -> log.error("권한 상승 AI 분석 오류", error))
+                    .block();
+
+            if (response != null) {
+                boolean isSafe = response.riskScore() < 0.6;
+
+                log.warn("권한 상승 평가 완료 (AI Native) - userId: {}, riskScore: {}, safe: {}",
+                        userId, response.riskScore(), isSafe);
+
                 return isSafe;
             }
-            
-            return true; // 일반 권한은 허용
-            
+
+            return false; // AI 분석 실패 시 거부 (fail-closed for privilege escalation)
+
         } catch (Exception e) {
             log.error("권한 상승 평가 실패", e);
             return false;

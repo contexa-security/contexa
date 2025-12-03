@@ -112,23 +112,39 @@ public class ThreatScoreHandler implements SecurityEventHandler {
 
     /**
      * Threat Score 업데이트 이유 결정
-     * AI Native: 모든 요청은 Cold Path
+     *
+     * AI Native 원칙:
+     * - LLM 분석 결과(analysisData)에서 reason/threatLevel 직접 사용
+     * - 임계값 기반 분류 제거
+     * - LLM의 판단을 그대로 반영
      */
     private String determineUpdateReason(ProcessingResult result) {
-        double riskLevel = result.getCurrentRiskLevel();
-
-        // AI Native: 모든 요청은 Cold Path
         String pathPrefix = "[AI]";
 
-        if (riskLevel >= 0.9) {
-            return pathPrefix + "CRITICAL_THREAT_DETECTED";
-        } else if (riskLevel >= 0.7) {
-            return pathPrefix + "HIGH_RISK_ACTIVITY";
-        } else if (riskLevel < 0.3) {
-            return pathPrefix + "NORMAL_ACTIVITY";
-        } else {
-            return pathPrefix + "MODERATE_RISK";
+        // AI Native: analysisData에서 LLM의 분석 결과 직접 사용
+        if (result.getAnalysisData() != null) {
+            Object reason = result.getAnalysisData().get("reason");
+            Object threatLevel = result.getAnalysisData().get("threatLevel");
+            Object action = result.getAnalysisData().get("action");
+
+            if (reason != null && !reason.toString().isEmpty()) {
+                return pathPrefix + reason.toString().toUpperCase().replace(" ", "_");
+            }
+            if (threatLevel != null) {
+                return pathPrefix + threatLevel.toString() + "_THREAT";
+            }
+            if (action != null) {
+                return pathPrefix + action.toString() + "_ACTION";
+            }
         }
+
+        // Fallback: incidentSeverity 기반 (LLM이 설정한 경우)
+        if (result.getIncidentSeverity() != null) {
+            return pathPrefix + result.getIncidentSeverity() + "_INCIDENT";
+        }
+
+        // 기본값: AI 분석 완료
+        return pathPrefix + "AI_ANALYSIS_COMPLETE";
     }
 
     /**

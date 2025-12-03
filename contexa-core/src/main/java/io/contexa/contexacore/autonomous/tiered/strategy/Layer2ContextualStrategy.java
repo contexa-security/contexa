@@ -98,6 +98,10 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     /**
      * ThreatEvaluationStrategy 인터페이스 구현
      * ColdPathEventProcessorRefactored에서 전략으로 사용됨
+     *
+     * AI Native 전환:
+     * - LLM이 ESCALATE 반환 시 shouldEscalate = true
+     * - LLM이 threatLevel을 직접 결정 (규칙 기반 매핑 제거)
      */
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
@@ -109,15 +113,20 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         // 컨텍스트 분석 실행
         SecurityDecision decision = analyzeWithContext(event, layer1Decision);
 
+        // AI Native: LLM이 ESCALATE 액션을 반환하면 shouldEscalate = true
+        boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
+
         // SecurityDecision을 ThreatAssessment로 변환
         return ThreatAssessment.builder()
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
-                .threatLevel(mapRiskScoreToThreatLevel(decision.getRiskScore()))
+                // AI Native: LLM이 threatLevel을 직접 결정하도록 수정 필요
+                .threatLevel(null)
                 .indicators(new ArrayList<>())
                 .recommendedActions(Arrays.asList(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer2-Contextual")
                 .assessedAt(LocalDateTime.now())
+                .shouldEscalate(shouldEscalate)
                 .build();
     }
 
@@ -161,11 +170,13 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                         .requestId(event.getEventId())
                         .build();
 
+                // AI Native: onErrorResume에서 규칙 기반 기본값 제거
+                // riskScore/confidence를 null로 반환하여 NaN 처리
                 String jsonResponse = llmOrchestrator.execute(context)
                         .timeout(Duration.ofMillis(timeoutMs))
                         .onErrorResume(Exception.class, e -> {
-                            log.warn("Layer 2 LLM execution failed for event: {}", event.getEventId(), e);
-                            return Mono.just("{\"riskScore\":0.5,\"confidence\":0.5,\"action\":\"ALLOW\",\"reasoning\":\"LLM execution failed\",\"threatCategory\":\"UNKNOWN\"}");
+                            log.warn("[Layer2][AI Native] LLM execution failed, escalating to Layer 3: {}", event.getEventId(), e);
+                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 3\",\"threatCategory\":\"UNKNOWN\"}");
                         })
                         .block();
 
@@ -191,11 +202,6 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
             // 10. Cold→Hot 동기화 (riskScore >= 0.7)
             feedbackToHotPath(event, decision);
-
-            // 13. 익명 사용자의 고위험 이벤트 시 IP 위협 점수 저장
-            if (event.getUserId() == null && decision.getRiskScore() >= 0.7) {
-                updateAnonymousIpThreat(event.getSourceIp(), decision.getRiskScore());
-            }
 
             log.info("Layer 2 analysis completed in {}ms - Risk: {}, Action: {}",
                     decision.getProcessingTimeMs(), decision.getRiskScore(), decision.getAction());
@@ -328,22 +334,15 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
+    /**
+     * AI Native: 규칙 기반 Fallback 완전 제거
+     * - 세션 시간, 접근 빈도, IP 일치, 시간대 규칙 모두 제거
+     * - Vector 서비스 실패 시 LLM 분석 필요 상태를 NaN으로 표시
+     * - LLM이 컨텍스트를 분석하여 점수를 직접 판단해야 함
+     */
     private double calculateNormalBehaviorScoreFallback(SecurityEvent event, SessionContext context) {
-        double score = 0.5;
-        if (context.getSessionDuration() > 5 && context.getSessionDuration() < 120) {
-            score += 0.1;
-        }
-        if (context.getAccessFrequency() < 100) {
-            score += 0.1;
-        }
-        if (event.getSourceIp().equals(context.getIpAddress())) {
-            score += 0.2;
-        }
-        int hour = LocalDateTime.now().getHour();
-        if (hour >= 9 && hour <= 18) {
-            score += 0.1;
-        }
-        return Math.min(score, 1.0);
+        log.warn("[Layer2][AI Native] Vector service unavailable, returning NaN for LLM to analyze");
+        return Double.NaN;
     }
 
     /**
@@ -392,23 +391,15 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         return anomalies;
     }
 
+    /**
+     * AI Native: 규칙 기반 Fallback 완전 제거
+     * - 접근 빈도, IP 변경, 시간대, 권한 상승 규칙 모두 제거
+     * - Vector 서비스 실패 시 빈 리스트 반환 (LLM이 직접 판단)
+     * - LLM이 이상 징후를 컨텍스트 분석으로 직접 탐지해야 함
+     */
     private List<String> detectAnomaliesFallback(SecurityEvent event, SessionContext context) {
-        List<String> anomalies = new ArrayList<>();
-        if (context.getAccessFrequency() > 200) {
-            anomalies.add("Abnormal access frequency");
-        }
-        if (!event.getSourceIp().equals(context.getIpAddress())) {
-            anomalies.add("IP address change detected");
-        }
-        int hour = LocalDateTime.now().getHour();
-        if (hour < 6 || hour > 22) {
-            anomalies.add("Unusual time access");
-        }
-        String httpMethod = eventEnricher.getHttpMethod(event).orElse("");
-        if (httpMethod.contains("ADMIN")) {
-            anomalies.add("Privilege escalation attempt");
-        }
-        return anomalies;
+        log.warn("[Layer2][AI Native] Vector service unavailable, anomaly detection delegated to LLM");
+        return new ArrayList<>();
     }
 
     /**
@@ -442,15 +433,15 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
+    /**
+     * AI Native: 규칙 기반 Fallback 완전 제거
+     * - 9-18시, 22-6시 등 시간대 분류 규칙 제거
+     * - Scenario Detection 실패 시 LLM 분석 필요 상태 표시
+     * - LLM이 시간 컨텍스트를 직접 분석하여 패턴 판단
+     */
     private String analyzeTemporalPatternFallback(SecurityEvent event) {
-        int hour = LocalDateTime.now().getHour();
-        if (hour >= 9 && hour <= 18) {
-            return "Business hours - normal activity expected";
-        } else if (hour >= 22 || hour <= 6) {
-            return "Off-hours - suspicious activity possible";
-        } else {
-            return "Transitional hours - mixed activity";
-        }
+        log.warn("[Layer2][AI Native] Scenario detection unavailable, temporal pattern analysis delegated to LLM");
+        return "[LLM_ANALYSIS_REQUIRED: temporal pattern detection unavailable]";
     }
 
     /**
@@ -538,10 +529,12 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
             String query = queryBuilder.toString().trim();
 
+            // AI Native: 임계값 최소화 - LLM이 문서 관련성을 직접 판단
+            // 플랫폼은 가능한 모든 컨텍스트를 제공하고, LLM이 가치를 평가함
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
-                    .topK(Math.min(15, vectorSearchLimit * 2))  // 더 많은 문서 검색 (최대 15개)
-                    .similarityThreshold(0.65)  // 더 넓은 범위 검색
+                    .topK(Math.min(15, vectorSearchLimit * 2))
+                    .similarityThreshold(0.0)
                     .build();
 
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
@@ -594,7 +587,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
                 .riskScore(response.getRiskScore() != null ? response.getRiskScore() : layer1Decision.getRiskScore())
-                .confidence(response.getConfidence() != null ? response.getConfidence() : 0.7)
+                .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
                 .threatCategory(response.getThreatCategory())
                 .mitigationActions(response.getMitigationActions())
                 .reasoning(response.getReasoning())
@@ -624,9 +617,12 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             String cleanedJson = extractJsonObject(jsonResponse);
             JsonNode jsonNode = objectMapper.readTree(cleanedJson);
 
-            // 필수 필드 추출
-            Double riskScore = jsonNode.has("riskScore") ? jsonNode.get("riskScore").asDouble() : 0.5;
-            Double confidence = jsonNode.has("confidence") ? jsonNode.get("confidence").asDouble() : 0.5;
+            // AI Native: LLM 응답에서 필수 필드 추출 (기본값 규칙 제거)
+            // 필드가 없으면 null 반환 → validateAndFixResponse()에서 NaN 처리
+            Double riskScore = jsonNode.has("riskScore") && !jsonNode.get("riskScore").isNull()
+                    ? jsonNode.get("riskScore").asDouble() : null;
+            Double confidence = jsonNode.has("confidence") && !jsonNode.get("confidence").isNull()
+                    ? jsonNode.get("confidence").asDouble() : null;
             String action = jsonNode.has("action") ? jsonNode.get("action").asText() : "ALLOW";
             String reasoning = jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning provided";
             String threatCategory = jsonNode.has("threatCategory") ? jsonNode.get("threatCategory").asText() : "UNKNOWN";
@@ -681,19 +677,24 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
     /**
      * 기본 Layer2SecurityResponse 생성
+     *
+     * AI Native: 규칙 기반 기본값 제거
+     * - riskScore/confidence는 NaN 사용 (0.5 규칙 제거)
+     * - LLM 분석 불가 상태를 명시적으로 표시
+     * - 플랫폼은 분석 불가 상태를 후속 처리에 전달
      */
     private Layer2SecurityResponse createDefaultResponse() {
         return Layer2SecurityResponse.builder()
-                .riskScore(0.5)
-                .confidence(0.5)
-                .action("ALLOW")
-                .reasoning("Layer 2 analysis unavailable, using default")
+                .riskScore(Double.NaN)
+                .confidence(Double.NaN)
+                .action("ESCALATE")  // AI Native: 분석 불가 시 상위 Layer로 에스컬레이션
+                .reasoning("[AI Native] Layer 2 LLM analysis unavailable - escalating to Layer 3")
                 .threatCategory("UNKNOWN")
                 .behaviorPatterns(new ArrayList<>())
                 .mitigationActions(new ArrayList<>())
                 .sessionAnalysis(new HashMap<>())
                 .relatedEvents(new ArrayList<>())
-                .recommendation("MONITOR")
+                .recommendation("ESCALATE")
                 .build();
     }
 
@@ -795,6 +796,14 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
      */
     private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision) {
         if (unifiedVectorService == null) return;
+
+        // AI Native: confidence가 유효하지 않으면 저장하지 않음
+        // LLM이 확신하지 않는 분석 결과는 학습 데이터 품질을 저하시킬 수 있음
+        Double confidence = decision.getConfidence();
+        if (confidence == null || Double.isNaN(confidence)) {
+            log.debug("Skipping vector storage: confidence not available for event {}", event.getEventId());
+            return;
+        }
 
         try {
             // 학습용 문서 생성
@@ -937,88 +946,35 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
     /**
      * SecurityDecision 기반 위협 유형 분류
+     *
+     * AI Native 전환:
+     * - 패턴 매칭 규칙 완전 제거
+     * - LLM이 threatCategory를 직접 결정
      */
     private String determineThreatType(SecurityDecision decision) {
-        // 1. 위협 카테고리 기반
-        if (decision.getThreatCategory() != null) {
-            String category = decision.getThreatCategory().toUpperCase();
-            if (category.contains("CREDENTIAL")) {
-                return "CREDENTIAL_ATTACK";
-            }
-            if (category.contains("ESCALATION")) {
-                return "PRIVILEGE_ESCALATION";
-            }
-            if (category.contains("INJECTION")) {
-                return "INJECTION_ATTACK";
-            }
-            if (category.contains("XSS")) {
-                return "XSS_ATTACK";
-            }
-            if (category.contains("SESSION")) {
-                return "SESSION_HIJACKING";
-            }
+        // AI Native: 패턴 매칭 규칙 완전 제거
+        // LLM이 threatCategory를 직접 결정하므로 그대로 반환
+        if (decision.getThreatCategory() != null && !decision.getThreatCategory().isBlank()) {
+            return decision.getThreatCategory();
         }
 
-        // 2. 행동 패턴 기반
-        if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
-            String patterns = String.join(" ", decision.getBehaviorPatterns()).toLowerCase();
-            if (patterns.contains("brute") || patterns.contains("login")) {
-                return "BRUTE_FORCE";
-            }
-            if (patterns.contains("session") || patterns.contains("token")) {
-                return "SESSION_HIJACKING";
-            }
-            if (patterns.contains("privilege") || patterns.contains("escalation")) {
-                return "PRIVILEGE_ESCALATION";
-            }
-            if (patterns.contains("anomaly") || patterns.contains("unusual")) {
-                return "BEHAVIORAL_ANOMALY";
-            }
-        }
-
-        // 3. 위험도 기반
-        if (decision.getRiskScore() >= 0.9) {
-            return "CRITICAL_THREAT";
-        }
-
-        return "UNKNOWN_THREAT";
+        // AI Native: LLM이 threatCategory를 반환하지 않은 경우 null 반환
+        return null;
     }
 
     /**
-     * MITRE ATT&CK 전술 매핑 (Layer2 컨텍스트 기반)
+     * MITRE ATT&CK 전술 매핑
+     *
+     * AI Native 전환:
+     * - 규칙 기반 매핑 완전 제거
+     * - LLM이 mitreTactic을 직접 결정하도록 위임
+     * - SecurityDecision에 mitreTactic 필드 추가 필요
      */
     private String determineMitreTactic(SecurityDecision decision) {
-        if (decision.getThreatCategory() != null) {
-            String category = decision.getThreatCategory().toUpperCase();
-            if (category.contains("CREDENTIAL") || category.contains("LOGIN")) {
-                return "TA0006:CredentialAccess";
-            }
-            if (category.contains("ESCALATION")) {
-                return "TA0004:PrivilegeEscalation";
-            }
-            if (category.contains("INJECTION")) {
-                return "TA0001:InitialAccess";
-            }
-            if (category.contains("SESSION")) {
-                return "TA0006:CredentialAccess";
-            }
-        }
-
-        if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
-            String patterns = String.join(" ", decision.getBehaviorPatterns()).toLowerCase();
-            if (patterns.contains("reconnaissance") || patterns.contains("scanning")) {
-                return "TA0043:Reconnaissance";
-            }
-            if (patterns.contains("persistence")) {
-                return "TA0003:Persistence";
-            }
-            if (patterns.contains("exfiltration") || patterns.contains("download")) {
-                return "TA0010:Exfiltration";
-            }
-        }
-
-        // 기본: 정찰
-        return "TA0043:Reconnaissance";
+        // AI Native: 규칙 기반 매핑 완전 제거
+        // LLM이 mitreTactic을 직접 결정해야 함
+        // 현재는 null 반환 (PromptTemplate에서 mitreTactic 반환하도록 수정 필요)
+        return null;
     }
 
 
@@ -1030,12 +986,16 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
     /**
      * 기본 보안 결정 생성
+     *
+     * AI Native 전환:
+     * - 규칙 기반 기본값 제거
+     * - LLM 분석 필요 상태를 NaN으로 표시
      */
     private SecurityDecision createDefaultDecision() {
         return SecurityDecision.builder()
-                .action(SecurityDecision.Action.ALLOW)
-                .riskScore(0.3)
-                .confidence(0.5)
+                .action(SecurityDecision.Action.ESCALATE)
+                .riskScore(Double.NaN)
+                .confidence(Double.NaN)
                 .analysisTime(System.currentTimeMillis())
                 .processingLayer(1)
                 .build();
@@ -1070,19 +1030,20 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         return actions;
     }
 
+    /**
+     * AI Native: 규칙 기반 위험 점수 계산 제거
+     * - indicators.size() * 0.15 공식 제거
+     * - LLM이 riskScore를 직접 반환해야 함
+     * - 이 메서드가 호출되면 LLM 분석 결과 없음을 의미
+     */
     @Override
     public double calculateRiskScore(List<ThreatIndicator> indicators) {
-        if (indicators.isEmpty()) return 0.5;
-        return Math.min(indicators.size() * 0.15, 1.0);
+        log.warn("[Layer2][AI Native] calculateRiskScore called without LLM analysis - returning NaN");
+        return Double.NaN;
     }
 
-    private ThreatAssessment.ThreatLevel mapRiskScoreToThreatLevel(double riskScore) {
-        if (riskScore >= 0.8) return ThreatAssessment.ThreatLevel.CRITICAL;
-        if (riskScore >= 0.6) return ThreatAssessment.ThreatLevel.HIGH;
-        if (riskScore >= 0.4) return ThreatAssessment.ThreatLevel.MEDIUM;
-        if (riskScore >= 0.2) return ThreatAssessment.ThreatLevel.LOW;
-        return ThreatAssessment.ThreatLevel.INFO;
-    }
+    // AI Native 전환: mapRiskScoreToThreatLevel() 규칙 기반 매핑 제거
+    // LLM이 threatLevel을 직접 결정하므로 이 메서드는 더 이상 사용하지 않음
 
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         switch (action) {
@@ -1120,12 +1081,15 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
+    /**
+     * AI Native: 패턴 매칭 규칙 완전 제거
+     * - contains("/admin"), "/api", "/secure", "/public" 규칙 제거
+     * - 경로를 그대로 반환하여 LLM이 리소스 유형 분류
+     * - LLM이 경로 컨텍스트를 분석하여 직접 판단
+     */
     private String classifyResourceType(String path) {
-        if (path.contains("/admin")) return "admin";
-        if (path.contains("/api")) return "api";
-        if (path.contains("/secure")) return "secure";
-        if (path.contains("/public")) return "public";
-        return "general";
+        // AI Native: 패턴 매칭 제거, raw 경로 그대로 반환
+        return path;
     }
 
     private BaselineVector getOrCreateBaseline(String userId) {
@@ -1223,27 +1187,29 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
      */
     /**
      * AI 응답 검증 및 수정
+     *
+     * AI Native: LLM 응답을 가공 없이 그대로 사용
+     * - confidence/riskScore가 null이면 Double.NaN 사용 (규칙 기반 기본값 금지)
+     * - LLM이 응답하지 않은 것은 "분석 불가" 상태로 명시
      */
     private Layer2SecurityResponse validateAndFixResponse(Layer2SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
         }
 
-        // confidence 검증
-        if (response.getConfidence() == null || response.getConfidence() < 0.1) {
-            log.warn("Layer2 AI returned invalid confidence {}, adjusting to 0.1", response.getConfidence());
-            response.setConfidence(0.1);
-            if (response.getReasoning() != null && !response.getReasoning().contains("[DATA_MISSING]")) {
-                response.setReasoning(response.getReasoning() + " [DATA_MISSING: low confidence]");
-            }
+        // AI Native: confidence가 null이면 NaN 사용 (강제 상향 금지)
+        if (response.getConfidence() == null) {
+            log.warn("[Layer2][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)");
+            response.setConfidence(Double.NaN);
         }
 
-        // riskScore 검증
+        // AI Native: riskScore가 null이면 NaN 사용 (기본값 금지)
         if (response.getRiskScore() == null) {
-            response.setRiskScore(0.5);
+            log.warn("[Layer2][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)");
+            response.setRiskScore(Double.NaN);
         }
 
-        // threatCategory 검증
+        // threatCategory 검증 (null인 경우만)
         if (response.getThreatCategory() == null || response.getThreatCategory().equals("none")) {
             response.setThreatCategory("UNKNOWN");
         }
@@ -1254,46 +1220,6 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         }
 
         return response;
-    }
-
-    /**
-     * 익명 사용자 IP 위협 점수 업데이트
-     * Layer2 AI 분석 결과를 Redis에 저장하여 피드백 루프 완성
-     *
-     * @param sourceIp 소스 IP
-     * @param riskScore 위험 점수 (0.7 이상)
-     */
-    private void updateAnonymousIpThreat(String sourceIp, double riskScore) {
-        if (redisTemplate == null || sourceIp == null || sourceIp.isEmpty()) {
-            return;
-        }
-
-        try {
-            String key = ZeroTrustRedisKeys.anonymousIpThreat(sourceIp);
-
-            // 기존 위협 점수와 새 점수의 가중 평균 (기존 70%, 새로운 30%)
-            Double existingScore = (Double) redisTemplate.opsForValue().get(key);
-            double newScore;
-
-            if (existingScore != null) {
-                // 가중 평균: 과거 위협이 높았다면 더 높게 유지
-                newScore = existingScore * 0.7 + riskScore * 0.3;
-            } else {
-                // 첫 탐지: 현재 점수 사용
-                newScore = riskScore;
-            }
-
-            // Redis에 저장 (7일간 유지)
-            redisTemplate.opsForValue().set(key, newScore, Duration.ofDays(7));
-
-            log.info("[Layer2] Anonymous IP threat updated: ip={}, prevScore={}, newScore={:.3f}",
-                    sourceIp,
-                    existingScore != null ? String.format("%.3f", existingScore) : "N/A",
-                    newScore);
-
-        } catch (Exception e) {
-            log.debug("[Layer2] Failed to update anonymous IP threat score: ip={}", sourceIp, e);
-        }
     }
 
     private static class BehaviorAnalysis {

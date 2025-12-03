@@ -3,7 +3,10 @@ package io.contexa.contexacoreenterprise.autonomous.evolution;
 import io.contexa.contexacore.autonomous.ThreatEvaluator;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
-import io.contexa.contexacore.autonomous.strategy.*;
+import io.contexa.contexacore.autonomous.strategy.CompositeEvaluationStrategy;
+import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
+// AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
+// LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,14 +36,8 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     // 전략 컴포넌트
     // SessionThreatEvaluationStrategy removed - handled by SecurityEventProcessingOrchestrator
 
-    @Autowired(required = false)
-    private MitreAttackEvaluationStrategy mitreStrategy;
-
-    @Autowired(required = false)
-    private NistCsfEvaluationStrategy nistStrategy;
-
-    @Autowired(required = false)
-    private CisControlsEvaluationStrategy cisStrategy;
+    // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
+    // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
 
     @Autowired(required = false)
     private CompositeEvaluationStrategy compositeStrategy;
@@ -67,15 +64,10 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
 
     // 전략 가중치 설정
     // sessionStrategyWeight removed - SecurityEventProcessingOrchestrator로 이관
+    // AI Native: mitre, nist, cis 가중치 제거 - 규칙 기반 Strategy 미사용
 
     @Value("${security.evaluator.weight.behavioral:0.3}")
     private double behavioralStrategyWeight;
-
-    @Value("${security.evaluator.weight.mitre:0.2}")
-    private double mitreStrategyWeight;
-
-    @Value("${security.evaluator.weight.nist:0.1}")
-    private double nistStrategyWeight;
 
     // 실행자 서비스
     private final ExecutorService executorService = Executors.newFixedThreadPool(10);
@@ -142,23 +134,8 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
                 executeBehavioralAnalysis(event), executorService));
         }*/
 
-        // MITRE ATT&CK
-        if (mitreStrategy != null && mitreStrategy.isEnabled()) {
-            futures.put("MITRE", CompletableFuture.supplyAsync(() ->
-                executeStrategy("MITRE", mitreStrategy, event), executorService));
-        }
-
-        // NIST CSF
-        if (nistStrategy != null && nistStrategy.isEnabled()) {
-            futures.put("NIST", CompletableFuture.supplyAsync(() ->
-                executeStrategy("NIST", nistStrategy, event), executorService));
-        }
-
-        // CIS Controls
-        if (cisStrategy != null && cisStrategy.isEnabled()) {
-            futures.put("CIS", CompletableFuture.supplyAsync(() ->
-                executeStrategy("CIS", cisStrategy, event), executorService));
-        }
+        // AI Native: MITRE, NIST, CIS 규칙 기반 전략 제거
+        // LLM이 직접 위협 평가를 수행하므로 하드코딩된 규칙 전략 불필요
 
         // Composite Strategy
         if (compositeStrategy != null && compositeStrategy.isEnabled()) {
@@ -356,10 +333,8 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
                 return 0.0;
             case "BEHAVIORAL":
                 return behavioralStrategyWeight;
-            case "MITRE":
-                return mitreStrategyWeight;
-            case "NIST":
-                return nistStrategyWeight;
+            // AI Native: MITRE, NIST, CIS 규칙 기반 전략 제거
+            // LLM이 직접 위협 평가를 수행하므로 가중치 불필요
             default:
                 return 0.05; // 기본 가중치
         }

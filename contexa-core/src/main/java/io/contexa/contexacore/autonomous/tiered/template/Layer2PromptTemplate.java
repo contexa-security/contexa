@@ -65,6 +65,7 @@ public class Layer2PromptTemplate {
                     Math.min(50, String.join(", ", behaviorAnalysis.getAnomalyIndicators()).length())));
 
         // Related Documents - 최대 5개까지 사용, 각 300자 제한
+        // Phase 9: RAG 문서 메타데이터 포함 (유사도 점수, 문서 타입)
         StringBuilder relatedContextBuilder = new StringBuilder();
         int maxDocs = Math.min(5, relatedDocuments.size());
         for (int i = 0; i < maxDocs; i++) {
@@ -72,11 +73,17 @@ public class Layer2PromptTemplate {
             String content = doc.getText();
             if (content != null && !content.isBlank()) {
                 if (i > 0) {
-                    relatedContextBuilder.append(" | ");
+                    relatedContextBuilder.append("\n");
                 }
+
+                // 문서 메타데이터 추출
+                String docMeta = buildDocumentMetadata(doc, i + 1);
                 int maxLength = 300;
-                relatedContextBuilder.append(String.format("[Doc%d] ", i + 1))
-                    .append(content.length() > maxLength ? content.substring(0, maxLength) + "..." : content);
+                String truncatedContent = content.length() > maxLength
+                    ? content.substring(0, maxLength) + "..."
+                    : content;
+
+                relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
             }
         }
         String relatedContext = relatedContextBuilder.length() > 0 ?
@@ -95,74 +102,119 @@ public class Layer2PromptTemplate {
             Context: %s
             %s
 
-            SCORING GUIDELINES (Think step-by-step):
-            1. ZERO TRUST PRINCIPLE: Unknown ≠ Safe. Insufficient data → 0.5 (neutral risk), NOT 0.0.
-            2. HCAD Similarity Interpretation (PRIMARY SIGNAL):
-               - Similarity ≥ 0.70 → User's normal pattern → riskScore < 0.3 (unless strong red flags)
-               - Similarity 0.55-0.69 → Moderate deviation → riskScore 0.3-0.6
-               - Similarity 0.40-0.54 → Significant deviation → riskScore 0.6-0.8
-               - Similarity < 0.40 → Anomaly detected → riskScore ≥ 0.8
-            3. Session Indicator Interpretation:
-               - "User: unknown" → riskScore ≥ 0.4 (anonymous = unverified)
-               - "Duration: 0m" → riskScore ≥ 0.4 (new session = no trust history)
-               - "Pattern: Low activity" → neutral signal, NOT safe indicator
-               - "[NO_BASELINE: insufficient data]" → riskScore = 0.5 (unknown state)
-            3. Behavior Pattern Evaluation:
-               - "Normal Score: 0.5" = neutral, NOT normal (0.8+ is normal)
-               - "Anomalies: [NO_BASELINE]" → riskScore = 0.5 (insufficient data)
-               - "Anomalies: none" + Score > 0.8 → riskScore < 0.3 (truly normal)
-            4. Use 5-tier scale:
-               - SAFE (0.0-0.3): Verified normal pattern, high trust score, known user
-               - LOW_RISK (0.3-0.5): Some normal signals, partial trust
-               - UNKNOWN (0.5-0.6): Insufficient data, new session, no baseline
-               - SUSPICIOUS (0.6-0.8): Anomalies detected, low trust score
-               - CRITICAL (0.8-1.0): Attack pattern, account takeover, injection
+            SCORING GUIDELINES:
+            1. ZERO TRUST: Unknown != Safe. Insufficient data requires conservative assessment.
+            2. HCAD Risk Score: Provided as raw value. Integrate with session/behavior signals.
+            3. Session Context Interpretation:
+               - User ID, duration, access pattern provided
+               - Unknown user or new session requires careful analysis
+            4. Behavior Analysis:
+               - normalBehaviorScore: Higher values indicate more normal behavior
+               - anomalyIndicators: List of detected anomalies to consider
+            5. RAG Context: Related security documents provided for reference.
+            6. Action Decision Principles:
+               - ALLOW: Consistent evidence of normal behavior patterns
+               - ESCALATE: Mixed signals, anomalies present, or expert analysis needed
+               - BLOCK: Clear attack pattern with corroborating evidence
 
-            Respond: riskScore(0.0-1.0 scale ONLY), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE/INVESTIGATE),
-            reasoning, threatCategory, mitigationActions(list).
-            ESCALATE if complex attack detected or needs expert analysis.
+            Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
+            ESCALATE for complex attacks or when expert analysis needed.
 
             IMPORTANT:
-            - riskScore MUST be between 0.0 and 1.0 (NOT 0-10 scale)
-            - confidence MUST be between 0.1 and 1.0 (NOT 0.0)
-            - If session/behavior data insufficient, use riskScore=0.5, confidence=0.1-0.3
+            - riskScore: 0.0 (completely safe) to 1.0 (confirmed attack)
+            - confidence: Express your certainty level in the assessment
+            - Insufficient session/behavior data should be reflected in both riskScore and confidence
             - Add reasoning: "[DATA_MISSING: describe what]" when applicable
 
             JSON format:
-            {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "...", "threatCategory": "...", "mitigationActions": ["..."]}
+            {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
             eventType, sourceIp, target, method, payloadSummary,
             layer1Summary, sessionSummary, behaviorSummary, relatedContext, hcadSection);
     }
 
     /**
-     * HCAD 유사도 분석 결과 섹션 구성
+     * RAG 문서 메타데이터 추출 (Phase 9)
+     *
+     * 문서 메타데이터를 [Doc1|sim=0.92|type=threat] 형식으로 반환
+     * - sim: 유사도 점수 (벡터 검색 결과)
+     * - type: 문서 타입 (threat, incident, behavior, policy 등)
+     *
+     * @param doc RAG 검색 결과 문서
+     * @param docIndex 문서 순번
+     * @return 메타데이터 포맷 문자열
+     */
+    private String buildDocumentMetadata(Document doc, int docIndex) {
+        StringBuilder meta = new StringBuilder();
+        meta.append("[Doc").append(docIndex);
+
+        // 유사도 점수 추출
+        if (doc.getMetadata() != null) {
+            // Spring AI Document의 score 필드 또는 메타데이터에서 유사도 추출
+            Object scoreObj = doc.getMetadata().get("score");
+            if (scoreObj == null) {
+                scoreObj = doc.getMetadata().get("similarity_score");
+            }
+            if (scoreObj == null) {
+                scoreObj = doc.getMetadata().get("distance");
+            }
+
+            if (scoreObj instanceof Number) {
+                double score = ((Number) scoreObj).doubleValue();
+                meta.append("|sim=").append(String.format("%.2f", score));
+            }
+
+            // 문서 타입 추출
+            Object typeObj = doc.getMetadata().get("type");
+            if (typeObj == null) {
+                typeObj = doc.getMetadata().get("document_type");
+            }
+            if (typeObj == null) {
+                typeObj = doc.getMetadata().get("category");
+            }
+
+            if (typeObj != null) {
+                meta.append("|type=").append(typeObj.toString());
+            }
+
+            // 소스 정보 (있는 경우)
+            Object sourceObj = doc.getMetadata().get("source");
+            if (sourceObj != null) {
+                String source = sourceObj.toString();
+                // 소스가 너무 길면 축약
+                if (source.length() > 20) {
+                    source = source.substring(0, 17) + "...";
+                }
+                meta.append("|src=").append(source);
+            }
+        }
+
+        meta.append("]");
+        return meta.toString();
+    }
+
+    /**
+     * HCAD 위험도 분석 결과 섹션 구성 (AI Native)
+     *
+     * AI Native 원칙:
+     * - 플랫폼은 raw 데이터만 제공
+     * - 임계값 기반 판단(assessment) 제거
+     * - LLM이 riskScore를 해석하고 action을 직접 결정
      */
     private String buildHCADSection(SecurityEvent event) {
-        Double similarityScore = event.getHcadSimilarityScore();
+        Double riskScore = event.getRiskScore();
 
-        if (similarityScore == null) {
-            return "HCAD Analysis: Not available (no baseline yet)";
+        if (riskScore == null || Double.isNaN(riskScore)) {
+            return "HCAD Analysis: Not available (requires LLM analysis)";
         }
 
-        String assessment;
-        if (similarityScore > 0.70) {
-            assessment = "NORMAL_PATTERN (High similarity - typical user behavior)";
-        } else if (similarityScore > 0.55) {
-            assessment = "MODERATE_DEVIATION (Some deviation from baseline)";
-        } else if (similarityScore > 0.40) {
-            assessment = "SIGNIFICANT_DEVIATION (Notable behavior change)";
-        } else {
-            assessment = "ANOMALY_DETECTED (Unusual behavior pattern)";
-        }
-
+        // AI Native: raw 데이터만 제공, 임계값 기반 assessment 제거
+        // LLM이 riskScore를 해석하여 action(ALLOW/BLOCK/ESCALATE/INVESTIGATE)을 결정
         return String.format("""
-            HCAD Similarity Analysis:
-            - Similarity Score: %.3f (%.1f%% match with user's baseline pattern)
-            - Assessment: %s""",
-            similarityScore,
-            similarityScore * 100,
-            assessment
+            HCAD Risk Analysis:
+            - Risk Score: %.3f
+            - Determine action based on this score and session/behavior context""",
+            riskScore
         );
     }
 

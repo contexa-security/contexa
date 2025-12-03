@@ -49,6 +49,12 @@ public class ThreatAssessment {
     // 평가 신뢰도
     private double confidence;
     private String confidenceReason;
+
+    // AI Native: LLM이 에스컬레이션 필요 여부를 직접 결정
+    // LLM이 현재 Layer에서 충분히 분석했다고 판단하면 false
+    // LLM이 더 상위 Layer 분석이 필요하다고 판단하면 true
+    @Builder.Default
+    private boolean shouldEscalate = false;
     
     // 추가 필드들
     @Builder.Default

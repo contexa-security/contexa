@@ -150,25 +150,26 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         }
     }
     
+    /**
+     * AI Native: riskThreshold 기반 판정 제거
+     * - LLM이 riskScore를 직접 결정, 플랫폼은 저장/로깅만 수행
+     * - requiresManualReview, alertTriggered 등은 LLM이 결정해야 함
+     */
     @Override
     protected void postProcessDocument(Document document, OperationType operationType) {
         try {
             Map<String, Object> metadata = document.getMetadata();
-            
-            // 고위험 행동 감지 시 알림
+
+            // AI Native: riskThreshold 기반 판정 제거 (LLM이 결정한 값 기록만)
             if (operationType == OperationType.STORE) {
                 Double riskScore = (Double) metadata.get("riskScore");
-                if (riskScore != null && riskScore >= riskThreshold) {
-                    log.warn("[BehaviorVectorService] 고위험 행동 감지: 사용자={}, 위험도={}, 활동={}", 
-                            metadata.get("userId"), riskScore, metadata.get("activityType"));
-                    
-                    // 추가 모니터링 메타데이터 설정
-                    metadata.put("requiresManualReview", true);
-                    metadata.put("alertTriggered", true);
-                    metadata.put("alertTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
+                if (riskScore != null) {
+                    log.info("[BehaviorVectorService][AI Native] 행동 저장: 사용자={}, riskScore={} (LLM 결정)",
+                            metadata.get("userId"), riskScore);
+                    // AI Native: alert/review 여부는 LLM이 결정해야 함, 규칙 기반 자동 설정 제거
                 }
             }
-            
+
         } catch (Exception e) {
             log.error("[BehaviorVectorService] 후처리 실패", e);
         }
@@ -544,7 +545,10 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             }
 
             metadata.put("documentType", "behavior_analysis");
-            metadata.put("isAnomaly", response.getBehavioralRiskScore() > riskThreshold);
+            // AI Native: isAnomaly는 LLM이 결정 (riskThreshold 규칙 제거)
+            // LLM이 반환한 anomalies 리스트를 기반으로 판단
+            boolean isAnomaly = response.getAnomalies() != null && !response.getAnomalies().isEmpty();
+            metadata.put("isAnomaly", isAnomaly);
 
             // 이상 징후 정보 추가
             if (response.getAnomalies() != null && !response.getAnomalies().isEmpty()) {
