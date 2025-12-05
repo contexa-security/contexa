@@ -15,6 +15,7 @@ import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
@@ -53,6 +54,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     private final HCADVectorIntegrationService localHcadVectorService;
     private final BehaviorVectorService behaviorVectorService;
     private final UnifiedVectorService unifiedVectorService;
+    private final BaselineLearningService baselineLearningService;
     private final Map<String, SessionContext> sessionContextCache = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -77,7 +79,8 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) Layer2PromptTemplate promptTemplate,
                                     @Autowired(required = false) HCADVectorIntegrationService hcadVectorService,
                                     @Autowired(required = false) BehaviorVectorService behaviorVectorService,
-                                    @Autowired FeedbackIntegrationProperties feedbackProperties) {
+                                    @Autowired FeedbackIntegrationProperties feedbackProperties,
+                                    @Autowired(required = false) BaselineLearningService baselineLearningService) {
         this.llmOrchestrator = llmOrchestrator;
         this.unifiedVectorService = unifiedVectorService;
         this.redisTemplate = redisTemplate;
@@ -85,6 +88,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer2PromptTemplate(eventEnricher);
         this.localHcadVectorService = hcadVectorService;
         this.behaviorVectorService = behaviorVectorService;
+        this.baselineLearningService = baselineLearningService;
         this.hcadVectorService = hcadVectorService;
         this.feedbackProperties = feedbackProperties;
 
@@ -93,6 +97,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         log.info("  - Timeout: {}ms", timeoutMs);
         log.info("  - Context Window: {} minutes", contextWindowMinutes);
         log.info("  - UnifiedVectorService available: {}", unifiedVectorService != null);
+        log.info("  - BaselineLearningService available: {}", baselineLearningService != null);
     }
 
     /**
@@ -282,10 +287,11 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * 행동 패턴 분석 - 빈 데이터 방지
+     * 행동 패턴 분석 - AI Native: Baseline 컨텍스트 포함 (v3.0)
      */
     private BehaviorAnalysis analyzeBehaviorPatterns(SecurityEvent event, SessionContext sessionContext) {
         BehaviorAnalysis analysis = new BehaviorAnalysis();
+        String userId = event.getUserId();
 
         // 정상 행동 점수 계산
         double normalScore = calculateNormalBehaviorScore(event, sessionContext);
@@ -308,6 +314,21 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             similarEvents.add("[FIRST_EVENT: no previous similar events found]");
         }
         analysis.setSimilarEvents(similarEvents);
+
+        // AI Native: Baseline 컨텍스트 및 편차 분석 (v3.0)
+        if (baselineLearningService != null && userId != null) {
+            analysis.setBaselineContext(baselineLearningService.buildBaselinePromptContext(userId, event));
+            analysis.setDeviationAnalysis(baselineLearningService.analyzeDeviations(userId, event));
+            analysis.setDeviationScore(baselineLearningService.calculateDeviationScore(userId, event));
+            analysis.setBaselineEstablished(baselineLearningService.getBaseline(userId) != null);
+            log.debug("[Layer2] Baseline context generated for user {}: deviationScore={}",
+                userId, analysis.getDeviationScore());
+        } else {
+            analysis.setBaselineContext(null);
+            analysis.setDeviationAnalysis(null);
+            analysis.setDeviationScore(Double.NaN);
+            analysis.setBaselineEstablished(false);
+        }
 
         return analysis;
     }
@@ -565,7 +586,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * BehaviorAnalysis 변환
+     * BehaviorAnalysis 변환 - AI Native: Baseline 필드 포함 (v3.0)
      */
     private Layer2PromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(BehaviorAnalysis behaviorAnalysis) {
         Layer2PromptTemplate.BehaviorAnalysis ctx = new Layer2PromptTemplate.BehaviorAnalysis();
@@ -573,6 +594,13 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         ctx.setAnomalyIndicators(behaviorAnalysis.getAnomalyIndicators());
         ctx.setTemporalPattern(behaviorAnalysis.getTemporalPattern());
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
+
+        // AI Native: Baseline 필드 변환 (v3.0)
+        ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
+        ctx.setDeviationAnalysis(behaviorAnalysis.getDeviationAnalysis());
+        ctx.setDeviationScore(behaviorAnalysis.getDeviationScore());
+        ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
+
         return ctx;
     }
 
@@ -1228,6 +1256,12 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         private String temporalPattern;
         private List<String> similarEvents = new ArrayList<>();
 
+        // AI Native: Baseline 상세 정보 필드 (v3.0)
+        private String baselineContext;
+        private String deviationAnalysis;
+        private double deviationScore;
+        private boolean baselineEstablished;
+
         // Getters and setters
         public double getNormalBehaviorScore() { return normalBehaviorScore; }
         public void setNormalBehaviorScore(double score) { this.normalBehaviorScore = score; }
@@ -1240,5 +1274,18 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
         public List<String> getSimilarEvents() { return similarEvents; }
         public void setSimilarEvents(List<String> events) { this.similarEvents = events; }
+
+        // AI Native: Baseline 필드 Getter/Setter
+        public String getBaselineContext() { return baselineContext; }
+        public void setBaselineContext(String baselineContext) { this.baselineContext = baselineContext; }
+
+        public String getDeviationAnalysis() { return deviationAnalysis; }
+        public void setDeviationAnalysis(String deviationAnalysis) { this.deviationAnalysis = deviationAnalysis; }
+
+        public double getDeviationScore() { return deviationScore; }
+        public void setDeviationScore(double deviationScore) { this.deviationScore = deviationScore; }
+
+        public boolean isBaselineEstablished() { return baselineEstablished; }
+        public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
     }
 }

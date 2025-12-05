@@ -12,6 +12,14 @@ dependencies {
     api 'org.springframework.security:spring-security-oauth2-authorization-server:1.2.3'
     api 'org.springframework.statemachine:spring-statemachine-starter:4.0.0'
 
+    // Web & Thymeleaf (테스트 UI용)
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    api 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+
+    // Redis (Action 상태 저장용)
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+
 }
 
 bootJar.enabled = false

@@ -97,6 +97,7 @@ public enum EventTier {
         return switch (action.toUpperCase()) {
             case "BLOCK" -> CRITICAL;
             case "ESCALATE", "INVESTIGATE" -> HIGH;
+            case "PENDING_ANALYSIS" -> MEDIUM;  // 분석 미완료: 50% 샘플링으로 재분석 트리거
             case "MONITOR" -> MEDIUM;
             case "ALLOW" -> Boolean.TRUE.equals(isAnomaly) ? LOW : BENIGN;
             default -> MEDIUM; // 알 수 없는 action은 MEDIUM으로 안전하게 처리

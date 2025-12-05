@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@Protectable 보안 플로우 테스트</title>
+    <link rel="stylesheet" th:href="@{/css/security-test.css}">
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 영역 -->
+        <header class="header">
+            <h1>@Protectable 보안 플로우 테스트</h1>
+            <p class="subtitle">
+                실제 보안 플로우를 테스트합니다.
+                LLM Action을 설정하고 각 AnalysisRequirement 레벨별로 접근 제어가 올바르게 작동하는지 확인합니다.
+            </p>
+        </header>
+
+        <!-- 사용자 정보 영역 -->
+        <section class="section user-info">
+            <h2>현재 사용자</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="label">사용자 ID</span>
+                    <span class="value" id="current-username" th:text="${username}">anonymous</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">권한</span>
+                    <span class="value" id="current-authorities" th:text="${authorities}">[ROLE_USER]</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Action 상태 영역 -->
+        <section class="section action-status">
+            <h2>현재 LLM Action 상태</h2>
+            <div class="status-display">
+                <div class="status-item">
+                    <span class="label">Action</span>
+                    <span class="value action-badge action-PENDING_ANALYSIS" id="current-action">PENDING_ANALYSIS</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Risk Score</span>
+                    <span class="value" id="risk-score">0.00</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Confidence</span>
+                    <span class="value" id="confidence">0.00</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Threat Level</span>
+                    <span class="value threat-badge threat-UNKNOWN" id="threat-level">UNKNOWN</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">이상 탐지</span>
+                    <span class="value" id="is-anomaly">No</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">분석 상태</span>
+                    <span class="value" id="analysis-status">Not Analyzed</span>
+                </div>
+            </div>
+            <button class="btn btn-secondary" id="btn-refresh-status">상태 새로고침</button>
+        </section>
+
+        <!-- Action 설정 영역 -->
+        <section class="section action-control">
+            <h2>LLM Action 설정 (테스트용)</h2>
+            <p class="description">
+                실제 LLM 분석 결과를 시뮬레이션합니다.
+                설정된 Action은 Redis에 저장되어 SpEL 표현식 평가에 사용됩니다.
+            </p>
+
+            <div class="control-grid">
+                <div class="control-item">
+                    <label for="action-select">Action 선택</label>
+                    <select id="action-select">
+                        <option value="ALLOW">ALLOW (허용)</option>
+                        <option value="MONITOR">MONITOR (모니터링)</option>
+                        <option value="CHALLENGE">CHALLENGE (MFA 요구)</option>
+                        <option value="INVESTIGATE">INVESTIGATE (조사 필요)</option>
+                        <option value="ESCALATE">ESCALATE (에스컬레이션)</option>
+                        <option value="BLOCK">BLOCK (차단)</option>
+                    </select>
+                </div>
+
+                <div class="control-item">
+                    <label for="risk-score-input">Risk Score: <span id="risk-score-value">0.30</span></label>
+                    <input type="range" id="risk-score-input" min="0" max="1" step="0.1" value="0.3">
+                </div>
+
+                <div class="control-item">
+                    <label for="confidence-input">Confidence: <span id="confidence-value">0.90</span></label>
+                    <input type="range" id="confidence-input" min="0" max="1" step="0.1" value="0.9">
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" id="btn-set-action">Action 설정</button>
+                <button class="btn btn-danger" id="btn-reset-action">초기화 (PENDING_ANALYSIS)</button>
+            </div>
+
+            <div class="action-description" id="action-description">
+                <strong>ALLOW:</strong> 정상 사용자로 판단되어 접근을 허용합니다.
+            </div>
+        </section>
+
+        <!-- 테스트 실행 영역 -->
+        <section class="section test-execution">
+            <h2>보안 테스트 실행</h2>
+            <p class="description">
+                각 버튼을 클릭하여 @Protectable 메서드를 호출합니다.
+                현재 설정된 Action과 정책 조건에 따라 허용 또는 차단됩니다.
+            </p>
+
+            <div class="test-cards">
+                <!-- NOT_REQUIRED 테스트 -->
+                <div class="test-card" id="card-public" data-requirement="NOT_REQUIRED">
+                    <div class="card-header">
+                        <h3>공개 데이터 조회</h3>
+                        <span class="badge badge-success">NOT_REQUIRED</span>
+                    </div>
+                    <div class="card-body">
+                        <p>인증된 사용자만 허용 (Action 무관)</p>
+                        <code>isAuthenticated()</code>
+                    </div>
+                    <div class="card-footer">
+                        <input type="text" class="resource-input" id="input-public" value="resource-001" placeholder="Resource ID">
+                        <button class="btn btn-test" id="btn-test-public">테스트 실행</button>
+                    </div>
+                </div>
+
+                <!-- PREFERRED 테스트 -->
+                <div class="test-card" id="card-normal" data-requirement="PREFERRED">
+                    <div class="card-header">
+                        <h3>일반 데이터 조회</h3>
+                        <span class="badge badge-info">PREFERRED</span>
+                    </div>
+                    <div class="card-body">
+                        <p>ALLOW 또는 MONITOR Action 필요</p>
+                        <code>#trust.hasActionIn('ALLOW', 'MONITOR')</code>
+                    </div>
+                    <div class="card-footer">
+                        <input type="text" class="resource-input" id="input-normal" value="resource-002" placeholder="Resource ID">
+                        <button class="btn btn-test" id="btn-test-normal">테스트 실행</button>
+                    </div>
+                </div>
+
+                <!-- REQUIRED 테스트 -->
+                <div class="test-card" id="card-sensitive" data-requirement="REQUIRED">
+                    <div class="card-header">
+                        <h3>민감 데이터 조회</h3>
+                        <span class="badge badge-warning">REQUIRED</span>
+                    </div>
+                    <div class="card-body">
+                        <p>분석 완료 + ALLOW/MONITOR 필수</p>
+                        <code>#trust.requiresAnalysisWithAction('ALLOW', 'MONITOR')</code>
+                    </div>
+                    <div class="card-footer">
+                        <input type="text" class="resource-input" id="input-sensitive" value="resource-003" placeholder="Resource ID">
+                        <button class="btn btn-test" id="btn-test-sensitive">테스트 실행</button>
+                    </div>
+                </div>
+
+                <!-- STRICT 테스트 -->
+                <div class="test-card" id="card-critical" data-requirement="STRICT">
+                    <div class="card-header">
+                        <h3>중요 데이터 조회</h3>
+                        <span class="badge badge-danger">STRICT</span>
+                    </div>
+                    <div class="card-body">
+                        <p>ADMIN 권한 + ALLOW만 허용</p>
+                        <code>hasRole('ADMIN') and #trust.requiresAnalysisWithAction('ALLOW')</code>
+                    </div>
+                    <div class="card-footer">
+                        <input type="text" class="resource-input" id="input-critical" value="resource-004" placeholder="Resource ID">
+                        <button class="btn btn-test" id="btn-test-critical">테스트 실행</button>
+                    </div>
+                </div>
+
+                <!-- Runtime Interception 테스트 -->
+                <div class="test-card" id="card-bulk" data-requirement="RUNTIME">
+                    <div class="card-header">
+                        <h3>대량 데이터 조회</h3>
+                        <span class="badge badge-purple">Runtime Interception</span>
+                    </div>
+                    <div class="card-body">
+                        <p>BLOCK 아니면 허용 (기본 MONITOR)</p>
+                        <code>#trust.hasActionOrDefault('MONITOR', 'ALLOW', 'MONITOR')</code>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-test" id="btn-test-bulk">테스트 실행</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 실행 결과 로그 영역 -->
+        <section class="section result-log">
+            <h2>실행 결과 로그</h2>
+            <div class="log-controls">
+                <button class="btn btn-secondary" id="btn-clear-log">로그 지우기</button>
+                <label>
+                    <input type="checkbox" id="auto-scroll" checked>
+                    자동 스크롤
+                </label>
+            </div>
+            <div class="log-container" id="log-container">
+                <div class="log-entry log-info">
+                    <span class="log-time">--:--:--</span>
+                    <span class="log-message">테스트를 시작하려면 Action을 설정하고 테스트 버튼을 클릭하세요.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 테스트 시나리오 안내 -->
+        <section class="section scenarios">
+            <h2>테스트 시나리오 가이드</h2>
+            <div class="scenario-list">
+                <div class="scenario">
+                    <h4>시나리오 1: NOT_REQUIRED 테스트</h4>
+                    <p>어떤 Action이든 공개 데이터는 접근 가능합니다.</p>
+                </div>
+                <div class="scenario">
+                    <h4>시나리오 2: PREFERRED + ALLOW</h4>
+                    <p>Action을 ALLOW로 설정하고 일반 데이터 조회 시 성공합니다.</p>
+                </div>
+                <div class="scenario">
+                    <h4>시나리오 3: PREFERRED + BLOCK</h4>
+                    <p>Action을 BLOCK으로 설정하고 일반 데이터 조회 시 차단됩니다.</p>
+                </div>
+                <div class="scenario">
+                    <h4>시나리오 4: REQUIRED + PENDING_ANALYSIS</h4>
+                    <p>초기화 버튼 클릭 후 민감 데이터 조회 시 분석 대기 후 타임아웃으로 차단됩니다.</p>
+                </div>
+                <div class="scenario">
+                    <h4>시나리오 5: STRICT + ALLOW (ADMIN)</h4>
+                    <p>ADMIN 계정으로 로그인, Action을 ALLOW로 설정하면 중요 데이터 접근 가능합니다.</p>
+                </div>
+                <div class="scenario">
+                    <h4>시나리오 6: STRICT + MONITOR</h4>
+                    <p>ADMIN 계정이어도 MONITOR Action은 중요 데이터 접근이 차단됩니다.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 푸터 -->
+        <footer class="footer">
+            <p>Contexa Zero Trust Security Platform - @Protectable Flow Test</p>
+        </footer>
+    </div>
+
+    <script th:src="@{/js/security-test.js}"></script>
+</body>
+</html>

@@ -208,15 +208,20 @@ public class ZeroTrustSecurityService {
     }
 
     /**
-     * AI Native: Redis에서 LLM이 결정한 최신 action 조회
+     * AI Native: Redis에서 LLM이 결정한 최신 action 조회 (Dual-Read)
      *
      * 조회 우선순위:
      * 1. 차단 상태 확인 (RealtimeBlockStrategy가 저장)
-     * 2. LLM action 조회 (ColdPathEventProcessor가 저장)
-     * 3. 키 없음 → ALLOW (기본값)
+     * 2. Primary: security:hcad:analysis:{userId} Hash에서 action 필드 조회
+     * 3. Fallback: security:user:action:{userId} String 조회 (레거시 호환)
+     * 4. 키 없음 → PENDING_ANALYSIS (Zero Trust 기본값)
+     *
+     * Zero Trust 원칙:
+     * - LLM 분석 전/실패/Redis 오류 시 기본값 "PENDING_ANALYSIS"
+     * - "ALLOW" 기본값은 Zero Trust 원칙 위반 (신뢰하지 않고 항상 검증)
      *
      * @param userId 사용자 ID
-     * @return action 문자열 (ALLOW, MONITOR, INVESTIGATE, CHALLENGE, BLOCK)
+     * @return action 문자열 (ALLOW, MONITOR, INVESTIGATE, CHALLENGE, BLOCK, PENDING_ANALYSIS)
      */
     private String getLatestAction(String userId) {
         try {
@@ -227,14 +232,32 @@ public class ZeroTrustSecurityService {
                 return "BLOCK";
             }
 
-            // 2. LLM action 조회 (ColdPathEventProcessor가 저장)
-            String actionKey = ZeroTrustRedisKeys.userAction(userId);
-            Object action = redisTemplate.opsForValue().get(actionKey);
-            return action != null ? action.toString() : "ALLOW";
+            // 2. Primary: security:hcad:analysis:{userId} Hash에서 action 필드 조회
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Object action = redisTemplate.opsForHash().get(analysisKey, "action");
+            if (action != null) {
+                log.debug("[ZeroTrust][Dual-Read] Action from primary key: userId={}, action={}",
+                        userId, action);
+                return action.toString();
+            }
+
+            // 3. Fallback: security:user:action:{userId} String 조회 (레거시 호환)
+            String legacyKey = ZeroTrustRedisKeys.userAction(userId);
+            Object legacyAction = redisTemplate.opsForValue().get(legacyKey);
+            if (legacyAction != null) {
+                log.debug("[ZeroTrust][Dual-Read] Action from legacy key: userId={}, action={}",
+                        userId, legacyAction);
+                return legacyAction.toString();
+            }
+
+            // 4. Zero Trust 기본값: PENDING_ANALYSIS (LLM 분석 전 상태)
+            log.debug("[ZeroTrust][Dual-Read] No action found, returning PENDING_ANALYSIS: userId={}", userId);
+            return "PENDING_ANALYSIS";
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to get action for user: {}", userId, e);
-            return "ALLOW";  // Fail-safe: 기본값 반환
+            // Zero Trust 원칙: 오류 시에도 PENDING_ANALYSIS (안전한 쪽으로)
+            return "PENDING_ANALYSIS";
         }
     }
 
@@ -276,6 +299,12 @@ public class ZeroTrustSecurityService {
             case "MONITOR" -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MONITORED"));
                 // Silent monitoring - 사용자 모름
+            }
+            case "PENDING_ANALYSIS" -> {
+                // Zero Trust: 분석 미완료 상태 - 제한된 권한 부여
+                // LLM 분석 전/실패/TTL 만료 시 적용
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
+                log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited access: {}", userId);
             }
             default -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));

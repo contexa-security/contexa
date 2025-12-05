@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.tiered.template.Layer1PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
@@ -54,6 +55,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     private final Layer1PromptTemplate promptTemplate;
     private final FeedbackIntegrationProperties localFeedbackProperties;
     private final UnifiedVectorService unifiedVectorService;
+    private final BaselineLearningService baselineLearningService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 프롬프트 템플릿
@@ -84,7 +86,8 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) SecurityEventEnricher eventEnricher,
                                     @Autowired Layer1PromptTemplate promptTemplate,
                                     @Autowired FeedbackIntegrationProperties feedbackProperties,
-                                    @Autowired(required = false) HCADVectorIntegrationService hcadVectorService) {
+                                    @Autowired(required = false) HCADVectorIntegrationService hcadVectorService,
+                                    @Autowired(required = false) BaselineLearningService baselineLearningService) {
         this.llmOrchestrator = llmOrchestrator;
         this.embeddingModel = embeddingModel;
         this.unifiedVectorService = unifiedVectorService;
@@ -92,6 +95,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate;
         this.localFeedbackProperties = feedbackProperties;
+        this.baselineLearningService = baselineLearningService;
         // AbstractTieredStrategy의 protected 필드 설정
         this.feedbackProperties = feedbackProperties;
         this.hcadVectorService = hcadVectorService;
@@ -102,6 +106,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         log.info("  - Cache TTL: {}s", cacheTtlSeconds);
         log.info("  - Embedding Similarity Threshold: {}", embeddingSimilarityThreshold);
         log.info("  - UnifiedVectorService available: {}", unifiedVectorService != null);
+        log.info("  - BaselineLearningService available: {}", baselineLearningService != null);
     }
 
     /**
@@ -163,9 +168,21 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                 }
             }
 
-            // 3. LLM 분석 - Layer1PromptTemplate 사용
+            // 3. LLM 분석 - Layer1PromptTemplate 사용 (AI Native: Baseline 컨텍스트 포함)
             String knownPatterns = getKnownPatterns(event);
-            String promptText = promptTemplate.buildPrompt(event, knownPatterns);
+            String userId = event.getUserId();
+
+            // AI Native: 사용자 baseline 컨텍스트 및 편차 분석
+            String baselineContext = null;
+            String deviationAnalysis = null;
+            if (baselineLearningService != null && userId != null) {
+                baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
+                deviationAnalysis = baselineLearningService.analyzeDeviations(userId, event);
+                log.debug("[Layer1] Baseline context generated for user {}: deviation={}",
+                    userId, baselineLearningService.calculateDeviationScore(userId, event));
+            }
+
+            String promptText = promptTemplate.buildPrompt(event, knownPatterns, baselineContext, deviationAnalysis);
 
             // UnifiedLLMOrchestrator를 사용한 빠른 분석 - execute() + 수동 JSON 파싱
             // BeanOutputConverter 제거로 1800+ 토큰 → 300 토큰 (85% 감소!)

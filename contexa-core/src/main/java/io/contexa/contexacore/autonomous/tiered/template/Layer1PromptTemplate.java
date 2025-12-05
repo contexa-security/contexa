@@ -32,7 +32,27 @@ public class Layer1PromptTemplate {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
     }
 
+    /**
+     * Layer1 프롬프트 생성 (기본 버전 - 하위 호환)
+     */
     public String buildPrompt(SecurityEvent event, String knownPatterns) {
+        return buildPrompt(event, knownPatterns, null, null);
+    }
+
+    /**
+     * Layer1 프롬프트 생성 (AI Native - Baseline 포함)
+     *
+     * LLM이 사용자의 정상 행동 패턴과 현재 요청을 비교하여
+     * 이상 여부를 판단할 수 있도록 baseline 컨텍스트 제공
+     *
+     * @param event 보안 이벤트
+     * @param knownPatterns 알려진 위협 패턴
+     * @param baselineContext 사용자 baseline 컨텍스트 (BaselineLearningService.buildBaselinePromptContext())
+     * @param deviationAnalysis 편차 분석 결과 (BaselineLearningService.analyzeDeviations())
+     * @return LLM 프롬프트 문자열
+     */
+    public String buildPrompt(SecurityEvent event, String knownPatterns,
+                               String baselineContext, String deviationAnalysis) {
         Optional<String> targetResource = eventEnricher.getTargetResource(event);
         Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
         Optional<Object> payload = eventEnricher.getRequestPayload(event);
@@ -55,6 +75,16 @@ public class Layer1PromptTemplate {
         // 세션/시간 컨텍스트 추가 (Phase 9 개선)
         String contextSection = buildSessionTimeContext(event);
 
+        // AI Native: Baseline 컨텍스트 섹션 (v3.0)
+        String baselineSection = (baselineContext != null && !baselineContext.isEmpty())
+            ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
+            : "=== USER BEHAVIOR BASELINE ===\nBaseline: Not available";
+
+        // AI Native: 편차 분석 섹션 (v3.0)
+        String deviationSection = (deviationAnalysis != null && !deviationAnalysis.isEmpty())
+            ? "=== DEVIATION ANALYSIS ===\n" + deviationAnalysis
+            : "=== DEVIATION ANALYSIS ===\nDeviation: Not analyzed";
+
         return String.format("""
             Fast security filter. Analyze event and respond in JSON.
 
@@ -63,20 +93,28 @@ public class Layer1PromptTemplate {
             %s
             %s
 
+            %s
+
+            %s
+
             SCORING GUIDELINES:
             1. ZERO TRUST: Unknown != Safe. Insufficient data requires conservative assessment.
-            2. HCAD Risk Score: Provided as raw value. Integrate with event context.
-            3. Action Decision Principles:
-               - ALLOW: Strong evidence of safety, verified benign patterns
-               - ESCALATE: Insufficient evidence, conflicting signals, or suspicious patterns
-               - BLOCK: Clear attack signature with high confidence
-            4. Confidence: Based on strength and consistency of available evidence.
+            2. BASELINE COMPARISON: Compare current request against user's established behavior patterns.
+            3. DEVIATION IMPORTANCE: Higher deviation score indicates higher risk potential.
+               - Deviation Score > 0.5 -> Strong indicator for ESCALATE
+               - Deviation Score > 0.7 -> Consider BLOCK if other risk factors present
+            4. NEW USER: If baseline not established, treat with extra caution.
+            5. HCAD Risk Score: Integrate with baseline deviation for final assessment.
+            6. Action Decision Principles:
+               - ALLOW: Request matches established baseline patterns with low deviation
+               - ESCALATE: Significant deviations detected (score > 0.3) or insufficient baseline
+               - BLOCK: Clear attack signature with high confidence AND baseline deviation
 
             ESCALATION CRITERIA (MUST escalate if ANY apply):
             1. confidence < 0.70 -> ESCALATE (insufficient certainty for Layer1 decision)
-            2. New user + sensitive resource access -> ESCALATE (needs deeper analysis)
-            3. Unusual time + elevated risk indicators -> ESCALATE (context analysis required)
-            4. Multiple anomaly signals (3+) -> ESCALATE (compound risk assessment needed)
+            2. Deviation Score > 0.5 -> ESCALATE (significant behavioral anomaly)
+            3. New user (no baseline) + sensitive resource -> ESCALATE (needs deeper analysis)
+            4. Multiple deviation indicators (3+) -> ESCALATE (compound risk assessment needed)
             5. Attack pattern partial match -> ESCALATE (requires expert verification)
 
             Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
@@ -84,14 +122,15 @@ public class Layer1PromptTemplate {
             IMPORTANT:
             - riskScore: 0.0 (completely safe) to 1.0 (confirmed attack)
             - confidence: Express your certainty level in the assessment
-            - Insufficient data should be reflected in both riskScore and confidence
-            - Add reasoning: "[DATA_MISSING: describe what]" when applicable
+            - Baseline deviation should be reflected in riskScore calculation
+            - Add reasoning: "[DEVIATION: describe what]" when behavioral anomaly detected
 
             JSON format:
             {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
             eventType, sourceIp, userId, target, method, payloadSummary,
-            patternsSection, hcadSection, contextSection);
+            patternsSection, hcadSection, contextSection,
+            baselineSection, deviationSection);
     }
 
     /**

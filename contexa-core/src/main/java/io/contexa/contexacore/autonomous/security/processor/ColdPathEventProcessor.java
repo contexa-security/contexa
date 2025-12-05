@@ -136,8 +136,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
             CompletableFuture.runAsync(() -> {
                 recordThreatHistory(finalUserId, finalEvent.getEventType().toString(), finalAnalysisResult.getFinalScore());
-                // AI Native: LLM 분석 결과를 Redis에 action으로 저장 (다음 요청에서 Authentication 권한 조정에 사용)
-                saveActionToRedis(finalUserId, finalAnalysisResult.getThreatLevel());
+                // AI Native: LLM 분석 결과를 Redis에 저장 (Dual-Write: security:hcad:analysis + security:user:action)
+                // 다음 요청에서 HCADAnalysisService와 ZeroTrustSecurityService가 조회
+                saveAnalysisToRedis(finalUserId, finalAnalysisResult);
             }).exceptionally(ex -> {
                 log.error("Failed to record threat history for user: {}, eventId: {}",
                     userId, event.getEventId(), ex);
@@ -365,10 +366,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
     }
 
     /**
-     * AI Native: LLM 분석 결과를 Redis에 action으로 저장
+     * AI Native: LLM 분석 결과를 Redis에 저장
      *
-     * 다음 요청에서 ZeroTrustSecurityService가 이 action을 조회하여
-     * Authentication 권한을 동적으로 조정합니다.
+     * 저장 대상 (2개 키 - Dual-Write for Migration):
+     * 1. security:hcad:analysis:{userId} (Hash) - 전체 필드 저장 (Primary)
+     * 2. security:user:action:{userId} (String) - action만 저장 (Legacy, 하위 호환성)
+     *
+     * 다음 요청에서:
+     * - HCADAnalysisService: security:hcad:analysis에서 전체 분석 결과 조회
+     * - ZeroTrustSecurityService: security:hcad:analysis에서 action 필드 조회 (Dual-Read)
      *
      * Action별 TTL:
      * - BLOCK: TTL 없음 (관리자 해제 필요)
@@ -378,16 +384,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
      * - ALLOW: 1시간 (캐시)
      *
      * @param userId 사용자 ID
-     * @param threatLevel LLM이 결정한 위협 수준
+     * @param analysisResult LLM 분석 결과 (전체 필드)
      */
-    private void saveActionToRedis(String userId, ThreatAssessment.ThreatLevel threatLevel) {
+    private void saveAnalysisToRedis(String userId, ThreatAnalysisResult analysisResult) {
         if (userId == null || userId.isBlank()) {
             return;
         }
 
         try {
-            String action = deriveAction(threatLevel);
-            String actionKey = ZeroTrustRedisKeys.userAction(userId);
+            String action = deriveAction(analysisResult.getThreatLevel());
 
             // Action별 TTL 설정
             Duration ttl = switch (action) {
@@ -398,18 +403,85 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 default -> Duration.ofHours(1);  // ALLOW 등
             };
 
+            // 1. Primary: security:hcad:analysis:{userId} (Hash - 전체 필드)
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Map<String, Object> fields = new HashMap<>();
+            fields.put("action", action);
+            fields.put("riskScore", analysisResult.getFinalScore());
+            fields.put("confidence", analysisResult.getConfidence());
+            fields.put("threatLevel", analysisResult.getThreatLevel() != null
+                    ? analysisResult.getThreatLevel().name() : "UNKNOWN");
+            fields.put("isAnomaly", analysisResult.getFinalScore() > 0.5);
+            fields.put("threatType", determineThreatType(analysisResult));
+            fields.put("threatEvidence", String.join(", ", analysisResult.getIndicators()));
+            fields.put("analysisDepth", analysisResult.getAnalysisDepth());
+            fields.put("updatedAt", java.time.Instant.now().toString());
+
+            redisTemplate.opsForHash().putAll(analysisKey, fields);
             if (ttl != null) {
-                redisTemplate.opsForValue().set(actionKey, action, ttl);
-            } else {
-                redisTemplate.opsForValue().set(actionKey, action);
+                redisTemplate.expire(analysisKey, ttl);
             }
 
-            log.info("[ColdPath][AI Native] Action saved to Redis: userId={}, action={}, ttl={}",
-                    userId, action, ttl != null ? ttl.toMinutes() + "m" : "permanent");
+            // 2. Legacy: security:user:action:{userId} (String - action만)
+            // Phase A: Rolling Update 및 Rollback 대비 하위 호환성 유지
+            String legacyKey = ZeroTrustRedisKeys.userAction(userId);
+            if (ttl != null) {
+                redisTemplate.opsForValue().set(legacyKey, action, ttl);
+            } else {
+                redisTemplate.opsForValue().set(legacyKey, action);
+            }
+
+            log.info("[ColdPath][AI Native] Analysis saved to Redis (Dual-Write): userId={}, action={}, riskScore={}, confidence={}, ttl={}",
+                    userId, action,
+                    String.format("%.3f", analysisResult.getFinalScore()),
+                    String.format("%.3f", analysisResult.getConfidence()),
+                    ttl != null ? ttl.toMinutes() + "m" : "permanent");
 
         } catch (Exception e) {
-            log.error("[ColdPath] Failed to save action to Redis: userId={}", userId, e);
+            log.error("[ColdPath] Failed to save analysis to Redis: userId={}", userId, e);
         }
+    }
+
+    /**
+     * 위협 유형 결정 (분석 결과 기반)
+     */
+    private String determineThreatType(ThreatAnalysisResult result) {
+        if (result.getThreatLevel() == null) {
+            return "ANALYSIS_INCOMPLETE";
+        }
+        List<String> indicators = result.getIndicators();
+        if (indicators.isEmpty()) {
+            return result.getThreatLevel().name() + "_THREAT";
+        }
+        // 첫 번째 indicator를 위협 유형으로 사용
+        return indicators.get(0).toUpperCase().replace(" ", "_");
+    }
+
+    /**
+     * AI Native: LLM 분석 결과를 Redis에 action으로 저장 (Legacy wrapper)
+     *
+     * @deprecated saveAnalysisToRedis(String, ThreatAnalysisResult) 사용 권장
+     */
+    @Deprecated
+    private void saveActionToRedis(String userId, ThreatAssessment.ThreatLevel threatLevel) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+
+        // Legacy 호환: ThreatAnalysisResult 생성하여 새 메서드 호출
+        ThreatAnalysisResult result = new ThreatAnalysisResult();
+        result.setThreatLevel(threatLevel);
+        result.setFinalScore(threatLevel != null ? switch (threatLevel) {
+            case CRITICAL -> 0.9;
+            case HIGH -> 0.7;
+            case MEDIUM -> 0.5;
+            case LOW -> 0.3;
+            case INFO -> 0.1;
+        } : 0.5);
+        result.setConfidence(0.8);
+        result.setAnalysisDepth(1);
+
+        saveAnalysisToRedis(userId, result);
     }
 
     /**

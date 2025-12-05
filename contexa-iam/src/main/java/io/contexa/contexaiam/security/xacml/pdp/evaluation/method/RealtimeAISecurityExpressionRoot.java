@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
 // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
@@ -16,6 +17,7 @@ import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
 import io.contexa.contexacommon.dto.UserDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.Authentication;
 import reactor.core.publisher.Mono;
 import java.time.Duration;
@@ -53,19 +55,39 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
     // AI 호출 타임아웃 설정
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration CRITICAL_AI_TIMEOUT = Duration.ofSeconds(60);
-    
+
     // 위험 임계값
     private static final double FRAUD_THRESHOLD = 0.7;
     private static final double ANOMALY_THRESHOLD = 0.6;
     private static final double CRITICAL_THRESHOLD = 0.8;
-    
+
+    // Redis 접근용 (LLM action 조회)
+    private final StringRedisTemplate stringRedisTemplate;
+
+    public RealtimeAISecurityExpressionRoot(Authentication authentication,
+                                            AttributeInformationPoint attributePIP,
+                                            AICoreOperations aINativeProcessor,
+                                            AuthorizationContext authorizationContext,
+                                            AuditLogRepository auditLogRepository,
+                                            StringRedisTemplate stringRedisTemplate) {
+        super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
+        this.stringRedisTemplate = stringRedisTemplate;
+        log.info("RealtimeAISecurityExpressionRoot 초기화 - 실시간 AI 분석 모드");
+    }
+
+    /**
+     * 하위 호환성을 위한 생성자
+     * StringRedisTemplate 없이 생성 시 getCurrentAction()에서 실시간 분석 수행
+     */
+    @Deprecated
     public RealtimeAISecurityExpressionRoot(Authentication authentication,
                                             AttributeInformationPoint attributePIP,
                                             AICoreOperations aINativeProcessor,
                                             AuthorizationContext authorizationContext,
                                             AuditLogRepository auditLogRepository) {
         super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
-        log.info("RealtimeAISecurityExpressionRoot 초기화 - 실시간 AI 분석 모드");
+        this.stringRedisTemplate = null;
+        log.info("RealtimeAISecurityExpressionRoot 초기화 - 실시간 AI 분석 모드 (Redis 없음)");
     }
     
     /**
@@ -518,7 +540,57 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         sb.append(System.currentTimeMillis());
         return Integer.toHexString(sb.toString().hashCode());
     }
-    
+
+    // ========================================================================
+    // LLM Action 기반 메서드 구현 (Zero Trust 보안 아키텍처)
+    // ========================================================================
+
+    /**
+     * Redis에서 현재 사용자의 LLM action 조회 (Cold Path)
+     *
+     * HCAD 분석 결과에서 action 필드를 조회한다.
+     * Redis Hash: security:hcad:analysis:{userId}
+     * Field: action
+     *
+     * StringRedisTemplate이 없는 경우 PENDING_ANALYSIS 반환
+     * (하위 호환성 - 실시간 분석은 개별 메서드에서 수행)
+     *
+     * @return LLM action 문자열
+     */
+    @Override
+    protected String getCurrentAction() {
+        String userId = extractUserId();
+        if (userId == null) {
+            log.warn("getCurrentAction: 사용자 ID를 추출할 수 없음 - PENDING_ANALYSIS 반환");
+            return "PENDING_ANALYSIS";
+        }
+
+        // StringRedisTemplate이 없으면 PENDING_ANALYSIS 반환
+        if (stringRedisTemplate == null) {
+            log.debug("getCurrentAction: StringRedisTemplate 없음 - PENDING_ANALYSIS 반환");
+            return "PENDING_ANALYSIS";
+        }
+
+        // Redis Hash에서 action 필드 조회
+        try {
+            String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Object actionValue = stringRedisTemplate.opsForHash().get(redisKey, "action");
+
+            if (actionValue != null) {
+                String action = actionValue.toString();
+                log.debug("getCurrentAction: Redis 조회 성공 - userId: {}, action: {}", userId, action);
+                return action;
+            } else {
+                // action이 없으면 분석 미완료
+                log.debug("getCurrentAction: Redis에 action 없음 - userId: {}, PENDING_ANALYSIS 반환", userId);
+                return "PENDING_ANALYSIS";
+            }
+        } catch (Exception e) {
+            log.error("getCurrentAction: Redis 조회 실패 - userId: {}, PENDING_ANALYSIS 반환", userId, e);
+            return "PENDING_ANALYSIS";
+        }
+    }
+
     // Inner classes for missing domain objects
     private static class FraudAnalysisContext extends io.contexa.contexacommon.domain.context.DomainContext {
         private String transactionId;

@@ -187,7 +187,7 @@ public class HCADAnalysisService {
 
         try {
             // LLM 분석 결과 조회 (Hash 구조)
-            String analysisKey = "security:hcad:analysis:" + userId;
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Map<Object, Object> analysis = redisTemplate.opsForHash().entries(analysisKey);
 
             if (analysis != null && !analysis.isEmpty()) {

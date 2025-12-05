@@ -26,6 +26,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -521,6 +522,198 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         log.warn("보수적 정책 적용 - IP: {}, Resource: {}, 원인: {}", 
                    remoteIp, resourceIdentifier, error.getMessage());
         return isInternalIP(remoteIp) ? 0.6 : 0.3;
+    }
+
+    // ========================================================================
+    // LLM Action 기반 메서드 (Zero Trust 보안 아키텍처)
+    // ========================================================================
+
+    /**
+     * LLM이 결정한 현재 action 조회 (추상 메서드)
+     *
+     * 하위 클래스에서 Redis 또는 실시간 분석 결과를 반환해야 한다.
+     * 가능한 action 값: ALLOW, BLOCK, CHALLENGE, INVESTIGATE, ESCALATE, MONITOR, PENDING_ANALYSIS
+     *
+     * @return LLM action 문자열, null이면 PENDING_ANALYSIS로 처리
+     */
+    protected abstract String getCurrentAction();
+
+    /**
+     * LLM action이 ALLOW인지 확인
+     *
+     * @return LLM이 ALLOW를 결정했으면 true
+     */
+    public boolean isAllowed() {
+        return hasAction("ALLOW");
+    }
+
+    /**
+     * LLM action이 BLOCK인지 확인
+     *
+     * @return LLM이 BLOCK을 결정했으면 true
+     */
+    public boolean isBlocked() {
+        return hasAction("BLOCK");
+    }
+
+    /**
+     * LLM action이 CHALLENGE인지 확인 (MFA 요구)
+     *
+     * @return LLM이 CHALLENGE를 결정했으면 true
+     */
+    public boolean needsChallenge() {
+        return hasAction("CHALLENGE");
+    }
+
+    /**
+     * LLM action이 INVESTIGATE 또는 ESCALATE인지 확인
+     *
+     * @return LLM이 추가 조사/에스컬레이션을 결정했으면 true
+     */
+    public boolean needsInvestigation() {
+        return hasActionIn("INVESTIGATE", "ESCALATE");
+    }
+
+    /**
+     * LLM action이 MONITOR인지 확인
+     *
+     * @return LLM이 모니터링 모드를 결정했으면 true
+     */
+    public boolean isMonitored() {
+        return hasAction("MONITOR");
+    }
+
+    /**
+     * LLM action이 PENDING_ANALYSIS인지 확인 (분석 미완료)
+     *
+     * @return 분석이 아직 완료되지 않았으면 true
+     */
+    public boolean isPendingAnalysis() {
+        String action = getCurrentAction();
+        return action == null || action.isEmpty() || "PENDING_ANALYSIS".equalsIgnoreCase(action);
+    }
+
+    /**
+     * LLM action이 특정 값인지 확인
+     *
+     * @param expectedAction 예상 action (ALLOW, BLOCK, CHALLENGE, INVESTIGATE, ESCALATE, MONITOR)
+     * @return action이 일치하면 true
+     */
+    public boolean hasAction(String expectedAction) {
+        String action = getCurrentAction();
+        if (action == null || action.isEmpty()) {
+            return false;
+        }
+        return expectedAction.equalsIgnoreCase(action);
+    }
+
+    /**
+     * LLM action이 허용 가능한 목록에 포함되는지 확인
+     *
+     * @param allowedActions 허용할 action 목록
+     * @return action이 목록에 포함되면 true
+     */
+    public boolean hasActionIn(String... allowedActions) {
+        String action = getCurrentAction();
+        if (action == null || action.isEmpty()) {
+            return false;
+        }
+        return Arrays.stream(allowedActions)
+            .anyMatch(a -> a.equalsIgnoreCase(action));
+    }
+
+    /**
+     * 안전한 행동 점수 + LLM action 통합 검증
+     *
+     * AI Native: 행동 점수가 임계값 이상이고 LLM이 차단하지 않음
+     *
+     * @param threshold 안전 임계값
+     * @return 행동 점수가 임계값 이상이고 차단되지 않았으면 true
+     */
+    public boolean hasSafeBehaviorWithAction(double threshold) {
+        return hasSafeBehavior(threshold) && !isBlocked();
+    }
+
+    /**
+     * 컨텍스트 평가 + LLM action 통합 검증
+     *
+     * @return 컨텍스트 평가 통과 및 ALLOW/MONITOR action이면 true
+     */
+    public boolean assessContextWithAction() {
+        TrustAssessment assessment = assessContext();
+        if (assessment == null || assessment.score() < 0.5) {
+            return false;
+        }
+        return hasActionIn("ALLOW", "MONITOR");
+    }
+
+    // ========================================================================
+    // 분석 상태 확인 메서드 (Phase 5 - PENDING_ANALYSIS 정책 강화)
+    // ========================================================================
+
+    /**
+     * LLM 분석이 완료되었는지 확인
+     *
+     * @return 분석이 완료되어 유효한 action이 있으면 true
+     */
+    public boolean isAnalysisComplete() {
+        String action = getCurrentAction();
+        return action != null
+            && !action.isEmpty()
+            && !"PENDING_ANALYSIS".equalsIgnoreCase(action);
+    }
+
+    /**
+     * 분석 필수 리소스용 검증
+     *
+     * 분석이 완료되지 않으면 false 반환 -> AccessDeniedException 발생
+     *
+     * @return 분석이 완료되었으면 true
+     */
+    public boolean requiresAnalysis() {
+        boolean complete = isAnalysisComplete();
+        if (!complete) {
+            log.warn("분석 필수 리소스 접근 시도 - 분석 미완료 상태");
+        }
+        return complete;
+    }
+
+    /**
+     * 분석 완료 + 특정 action 필수 검증
+     *
+     * @param allowedActions 허용할 action 목록
+     * @return 분석 완료되고 허용된 action이면 true
+     */
+    public boolean requiresAnalysisWithAction(String... allowedActions) {
+        if (!isAnalysisComplete()) {
+            log.warn("분석 필수 리소스 접근 시도 - 분석 미완료 상태");
+            return false;
+        }
+        boolean hasAllowedAction = hasActionIn(allowedActions);
+        if (!hasAllowedAction) {
+            log.warn("분석 완료 but 허용되지 않은 action - current: {}, allowed: {}",
+                getCurrentAction(), Arrays.toString(allowedActions));
+        }
+        return hasAllowedAction;
+    }
+
+    /**
+     * 분석 미완료 시 기본 action 사용
+     *
+     * @param defaultAction 기본 action (MONITOR, ALLOW 등)
+     * @param allowedActions 허용할 action 목록
+     * @return 현재 action 또는 기본 action이 허용 목록에 포함되면 true
+     */
+    public boolean hasActionOrDefault(String defaultAction, String... allowedActions) {
+        String action = getCurrentAction();
+        if (action == null || action.isEmpty() || "PENDING_ANALYSIS".equalsIgnoreCase(action)) {
+            // 분석 미완료 시 기본 action 사용
+            action = defaultAction;
+            log.debug("분석 미완료 - 기본 action 사용: {}", defaultAction);
+        }
+        final String finalAction = action;
+        return Arrays.stream(allowedActions)
+            .anyMatch(a -> a.equalsIgnoreCase(finalAction));
     }
 
     /**

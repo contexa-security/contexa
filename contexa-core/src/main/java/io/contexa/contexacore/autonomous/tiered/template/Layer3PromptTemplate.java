@@ -28,12 +28,43 @@ public class Layer3PromptTemplate {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
     }
 
+    /**
+     * Layer3 프롬프트 생성 (기본 버전 - 하위 호환)
+     */
     public String buildPrompt(SecurityEvent event,
                                SecurityDecision layer1Decision,
                                SecurityDecision layer2Decision,
                                ThreatIntelligence threatIntel,
                                HistoricalContext historicalContext,
                                SystemContext systemContext) {
+        return buildPrompt(event, layer1Decision, layer2Decision, threatIntel,
+                           historicalContext, systemContext, null, null);
+    }
+
+    /**
+     * Layer3 프롬프트 생성 (AI Native - Baseline 포함)
+     *
+     * 전문가 수준 분석을 위해 사용자 baseline 패턴과 편차 분석 결과를
+     * 위협 인텔리전스, 과거 이력과 함께 종합적으로 제공
+     *
+     * @param event 보안 이벤트
+     * @param layer1Decision Layer1 결정
+     * @param layer2Decision Layer2 결정
+     * @param threatIntel 위협 인텔리전스
+     * @param historicalContext 과거 이력 컨텍스트
+     * @param systemContext 시스템 컨텍스트
+     * @param baselineContext 사용자 baseline 컨텍스트
+     * @param deviationAnalysis 편차 분석 결과
+     * @return LLM 프롬프트 문자열
+     */
+    public String buildPrompt(SecurityEvent event,
+                               SecurityDecision layer1Decision,
+                               SecurityDecision layer2Decision,
+                               ThreatIntelligence threatIntel,
+                               HistoricalContext historicalContext,
+                               SystemContext systemContext,
+                               String baselineContext,
+                               String deviationAnalysis) {
         Optional<String> targetResource = eventEnricher.getTargetResource(event);
         Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
         Optional<Object> payload = eventEnricher.getRequestPayload(event);
@@ -74,8 +105,18 @@ public class Layer3PromptTemplate {
         // HCAD 위험도 분석 결과 추가
         String hcadSection = buildHCADSection(event);
 
+        // AI Native: Baseline 컨텍스트 섹션 (v3.0)
+        String baselineSection = (baselineContext != null && !baselineContext.isEmpty())
+            ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
+            : "=== USER BEHAVIOR BASELINE ===\nBaseline: Not available for expert analysis";
+
+        // AI Native: 편차 분석 섹션 (v3.0)
+        String deviationSection = (deviationAnalysis != null && !deviationAnalysis.isEmpty())
+            ? "=== DEVIATION ANALYSIS ===\n" + deviationAnalysis
+            : "=== DEVIATION ANALYSIS ===\nDeviation: Not analyzed";
+
         return String.format("""
-            Expert forensic security analysis. Deep threat analysis.
+            Expert forensic security analysis. Deep threat analysis with behavioral baseline comparison.
 
             Event: %s | IP: %s | Target: %s | Method: %s
             Payload: %s
@@ -85,41 +126,56 @@ public class Layer3PromptTemplate {
             System: %s
             %s
 
+            %s
+
+            %s
+
             SCORING GUIDELINES (Expert-level):
             1. ZERO TRUST: Unknown != Safe. Insufficient intelligence requires conservative assessment.
-            2. HCAD Risk Score: Provided as raw value. Integrate with other intelligence.
-            3. Threat Intelligence:
+            2. BEHAVIORAL BASELINE ANALYSIS (CRITICAL):
+               - Compare current request against user's established behavior patterns
+               - Baseline shows: normal IP ranges, access hours, frequent paths, trusted devices
+               - Deviation score indicates how far current request deviates from normal patterns
+               - High deviation + threat intelligence correlation = strong attack indicator
+            3. DEVIATION + THREAT CORRELATION:
+               - Low deviation + no threat indicators = likely legitimate
+               - Low deviation + threat indicators = possible insider threat or compromised account
+               - High deviation + no threat indicators = possible account takeover
+               - High deviation + threat indicators = likely confirmed attack
+            4. HCAD Risk Score: Integrate with baseline deviation and threat intelligence.
+            5. Threat Intelligence:
                - Reputation score: Higher values indicate more trust
                - IOC matches: Consider matches as elevated risk signals
                - Known actors: Attribution context for threat assessment
-            4. Historical Context:
+            6. Historical Context:
                - Previous attacks: Prior incident history informs current risk
                - Similar incidents: Pattern matching for threat correlation
-            5. System Context:
+            7. System Context:
                - Asset criticality: Higher criticality warrants elevated concern
                - Data sensitivity: Sensitive data requires conservative assessment
-            6. Risk Classification Principles:
-               - BENIGN: Verified trusted with strong evidence
-               - LOW_RISK: Multiple trust signals present
-               - UNKNOWN: Insufficient intelligence for confident assessment
-               - SUSPICIOUS: Partial threat indicators detected
-               - MALICIOUS: Attack confirmed with evidence
-               - CRITICAL_THREAT: APT/Ransomware indicators present
+            8. Risk Classification with Baseline:
+               - BENIGN: Low deviation + trusted baseline + no threat indicators
+               - LOW_RISK: Low deviation + multiple trust signals
+               - UNKNOWN: Insufficient baseline or intelligence
+               - SUSPICIOUS: High deviation OR partial threat indicators
+               - MALICIOUS: High deviation + confirmed attack patterns
+               - CRITICAL_THREAT: APT/Ransomware indicators + behavioral anomaly
 
             Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
 
             IMPORTANT:
             - riskScore: 0.0 (completely safe) to 1.0 (critical threat)
             - confidence: Express your certainty level in the assessment
-            - Insufficient intelligence should be reflected in both riskScore and confidence
-            - Add reasoning: "[DATA_MISSING: describe what]" when applicable
+            - Baseline deviation MUST be factored into final risk assessment
+            - Add reasoning: "[DEVIATION: describe what]" when behavioral anomaly detected
 
             JSON format:
             {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
             eventType, sourceIp, target, method,
             fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload,
-            previousAnalysis, threatSummary, historySummary, systemSummary, hcadSection);
+            previousAnalysis, threatSummary, historySummary, systemSummary, hcadSection,
+            baselineSection, deviationSection);
     }
 
     /**

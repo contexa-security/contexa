@@ -58,11 +58,22 @@ public class Layer2PromptTemplate {
             sessionContext.getAccessPattern());
 
         // Behavior 핵심만
-        String behaviorSummary = String.format("Normal Score: %.2f | Anomalies: %s",
+        String behaviorSummary = String.format("Normal Score: %.2f | Deviation Score: %.2f | Anomalies: %s",
             behaviorAnalysis.getNormalBehaviorScore(),
+            behaviorAnalysis.getDeviationScore(),
             behaviorAnalysis.getAnomalyIndicators().isEmpty() ? "none" :
                 String.join(", ", behaviorAnalysis.getAnomalyIndicators()).substring(0,
                     Math.min(50, String.join(", ", behaviorAnalysis.getAnomalyIndicators()).length())));
+
+        // AI Native: Baseline 컨텍스트 섹션 (v3.0)
+        String baselineSection = (behaviorAnalysis.getBaselineContext() != null && !behaviorAnalysis.getBaselineContext().isEmpty())
+            ? "=== USER BEHAVIOR BASELINE ===\n" + behaviorAnalysis.getBaselineContext()
+            : "=== USER BEHAVIOR BASELINE ===\nBaseline: " + (behaviorAnalysis.isBaselineEstablished() ? "Available but not loaded" : "Not established (new user)");
+
+        // AI Native: 편차 분석 섹션 (v3.0)
+        String deviationSection = (behaviorAnalysis.getDeviationAnalysis() != null && !behaviorAnalysis.getDeviationAnalysis().isEmpty())
+            ? "=== DEVIATION ANALYSIS ===\n" + behaviorAnalysis.getDeviationAnalysis()
+            : "=== DEVIATION ANALYSIS ===\nDeviation: Not analyzed";
 
         // Related Documents - 최대 5개까지 사용, 각 300자 제한
         // Phase 9: RAG 문서 메타데이터 포함 (유사도 점수, 문서 타입)
@@ -93,7 +104,7 @@ public class Layer2PromptTemplate {
         String hcadSection = buildHCADSection(event);
 
         return String.format("""
-            Contextual security analysis. Analyze with session/behavior patterns.
+            Contextual security analysis. Analyze with session/behavior patterns and user baseline.
 
             Event: %s | IP: %s | Target: %s | Method: %s | Payload: %s
             Layer1: %s
@@ -102,20 +113,29 @@ public class Layer2PromptTemplate {
             Context: %s
             %s
 
+            %s
+
+            %s
+
             SCORING GUIDELINES:
             1. ZERO TRUST: Unknown != Safe. Insufficient data requires conservative assessment.
-            2. HCAD Risk Score: Provided as raw value. Integrate with session/behavior signals.
-            3. Session Context Interpretation:
-               - User ID, duration, access pattern provided
-               - Unknown user or new session requires careful analysis
-            4. Behavior Analysis:
-               - normalBehaviorScore: Higher values indicate more normal behavior
-               - anomalyIndicators: List of detected anomalies to consider
-            5. RAG Context: Related security documents provided for reference.
-            6. Action Decision Principles:
-               - ALLOW: Consistent evidence of normal behavior patterns
-               - ESCALATE: Mixed signals, anomalies present, or expert analysis needed
-               - BLOCK: Clear attack pattern with corroborating evidence
+            2. BASELINE COMPARISON (CRITICAL): Compare current request against user's established behavior patterns.
+               - User baseline shows normal IP ranges, access hours, frequent paths, trusted devices
+               - Compare current request attributes against these patterns
+               - Higher deviation = higher risk potential
+            3. DEVIATION SCORE INTERPRETATION:
+               - 0.0-0.2: Request matches established patterns well
+               - 0.2-0.5: Minor deviations, may warrant attention
+               - 0.5-0.7: Significant deviations, likely ESCALATE
+               - 0.7-1.0: Major deviations, consider BLOCK
+            4. HCAD Risk Score: Integrate with baseline deviation for final assessment.
+            5. Session Context: User ID, duration, access pattern context.
+            6. Behavior Analysis: normalBehaviorScore, detected anomalies.
+            7. RAG Context: Related security documents for reference.
+            8. Action Decision Principles:
+               - ALLOW: Request matches established baseline with low deviation
+               - ESCALATE: Significant deviations OR mixed signals OR expert analysis needed
+               - BLOCK: Clear attack pattern with high deviation AND corroborating evidence
 
             Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
             ESCALATE for complex attacks or when expert analysis needed.
@@ -123,14 +143,15 @@ public class Layer2PromptTemplate {
             IMPORTANT:
             - riskScore: 0.0 (completely safe) to 1.0 (confirmed attack)
             - confidence: Express your certainty level in the assessment
-            - Insufficient session/behavior data should be reflected in both riskScore and confidence
-            - Add reasoning: "[DATA_MISSING: describe what]" when applicable
+            - Baseline deviation MUST be factored into riskScore
+            - Add reasoning: "[DEVIATION: describe what]" when behavioral anomaly detected
 
             JSON format:
             {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
             eventType, sourceIp, target, method, payloadSummary,
-            layer1Summary, sessionSummary, behaviorSummary, relatedContext, hcadSection);
+            layer1Summary, sessionSummary, behaviorSummary, relatedContext, hcadSection,
+            baselineSection, deviationSection);
     }
 
     /**
@@ -261,6 +282,16 @@ public class Layer2PromptTemplate {
         private String temporalPattern;
         private List<String> similarEvents;
 
+        // ========== AI Native: Baseline 상세 정보 필드 (v3.0) ==========
+        // BaselineLearningService.buildBaselinePromptContext() 결과
+        private String baselineContext;
+        // BaselineLearningService.analyzeDeviations() 결과
+        private String deviationAnalysis;
+        // 편차 점수 (0.0 ~ 1.0) - BaselineLearningService.calculateDeviationScore() 결과
+        private double deviationScore;
+        // baseline 존재 여부
+        private boolean baselineEstablished;
+
         public double getNormalBehaviorScore() { return normalBehaviorScore; }
         public void setNormalBehaviorScore(double score) { this.normalBehaviorScore = score; }
 
@@ -272,5 +303,19 @@ public class Layer2PromptTemplate {
 
         public List<String> getSimilarEvents() { return similarEvents != null ? similarEvents : List.of(); }
         public void setSimilarEvents(List<String> events) { this.similarEvents = events; }
+
+        // ========== AI Native: Baseline 필드 Getter/Setter ==========
+
+        public String getBaselineContext() { return baselineContext; }
+        public void setBaselineContext(String baselineContext) { this.baselineContext = baselineContext; }
+
+        public String getDeviationAnalysis() { return deviationAnalysis; }
+        public void setDeviationAnalysis(String deviationAnalysis) { this.deviationAnalysis = deviationAnalysis; }
+
+        public double getDeviationScore() { return deviationScore; }
+        public void setDeviationScore(double deviationScore) { this.deviationScore = deviationScore; }
+
+        public boolean isBaselineEstablished() { return baselineEstablished; }
+        public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
     }
 }

@@ -758,4 +758,71 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         sb.append(System.currentTimeMillis());
         return Integer.toHexString(sb.toString().hashCode());
     }
+
+    // ========================================================================
+    // LLM Action 기반 메서드 구현 (Zero Trust 보안 아키텍처)
+    // ========================================================================
+
+    /**
+     * Redis에서 현재 사용자의 LLM action 조회 (Hot Path)
+     *
+     * HCAD 분석 결과에서 action 필드를 조회한다.
+     * Redis Hash: security:hcad:analysis:{userId}
+     * Field: action
+     *
+     * 가능한 action 값: ALLOW, BLOCK, CHALLENGE, INVESTIGATE, ESCALATE, MONITOR
+     * 값이 없으면 PENDING_ANALYSIS 반환
+     *
+     * @return LLM action 문자열
+     */
+    @Override
+    protected String getCurrentAction() {
+        String userId = extractUserId();
+        if (userId == null) {
+            log.warn("getCurrentAction: 사용자 ID를 추출할 수 없음 - PENDING_ANALYSIS 반환");
+            return "PENDING_ANALYSIS";
+        }
+
+        // 로컬 캐시 확인 (action 전용)
+        String actionCacheKey = "action:" + userId;
+        String cachedAction = getActionFromLocalCache(actionCacheKey);
+        if (cachedAction != null) {
+            log.trace("getCurrentAction: 로컬 캐시 히트 - userId: {}, action: {}", userId, cachedAction);
+            return cachedAction;
+        }
+
+        // Redis Hash에서 action 필드 조회
+        try {
+            String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Object actionValue = stringRedisTemplate.opsForHash().get(redisKey, "action");
+
+            if (actionValue != null) {
+                String action = actionValue.toString();
+                putActionToLocalCache(actionCacheKey, action);
+                log.debug("getCurrentAction: Redis 조회 성공 - userId: {}, action: {}", userId, action);
+                return action;
+            } else {
+                // action이 없으면 분석 미완료
+                log.debug("getCurrentAction: Redis에 action 없음 - userId: {}, PENDING_ANALYSIS 반환", userId);
+                return "PENDING_ANALYSIS";
+            }
+        } catch (Exception e) {
+            log.error("getCurrentAction: Redis 조회 실패 - userId: {}, PENDING_ANALYSIS 반환", userId, e);
+            return "PENDING_ANALYSIS";
+        }
+    }
+
+    // Action 전용 로컬 캐시 (1초 TTL)
+    private static final Cache<String, String> actionLocalCache = Caffeine.newBuilder()
+            .maximumSize(10000)
+            .expireAfterWrite(1, TimeUnit.SECONDS)
+            .build();
+
+    private String getActionFromLocalCache(String key) {
+        return actionLocalCache.getIfPresent(key);
+    }
+
+    private void putActionToLocalCache(String key, String action) {
+        actionLocalCache.put(key, action);
+    }
 }

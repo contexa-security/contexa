@@ -18,6 +18,7 @@ import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -60,6 +61,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     private final BehaviorVectorService behaviorVectorService;
     private final FeedbackIntegrationProperties localFeedbackProperties;
     private final UnifiedVectorService unifiedVectorService;
+    private final BaselineLearningService baselineLearningService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
 
@@ -86,7 +88,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                                 @Autowired(required = false) HCADVectorIntegrationService hcadVectorService,
                                 @Autowired(required = false) BehaviorVectorService behaviorVectorService,
                                 @Autowired FeedbackIntegrationProperties feedbackProperties,
-                                @Autowired(required = false) UnifiedVectorService unifiedVectorService) {
+                                @Autowired(required = false) UnifiedVectorService unifiedVectorService,
+                                @Autowired(required = false) BaselineLearningService baselineLearningService) {
         this.llmOrchestrator = llmOrchestrator;
         this.approvalService = approvalService;
         this.redisTemplate = redisTemplate;
@@ -96,6 +99,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         this.behaviorVectorService = behaviorVectorService;
         this.localFeedbackProperties = feedbackProperties;
         this.unifiedVectorService = unifiedVectorService;
+        this.baselineLearningService = baselineLearningService;
 
         // AbstractTieredStrategy의 protected 필드 설정
         this.hcadVectorService = hcadVectorService;
@@ -105,6 +109,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         log.info("  - Model: {}", modelName);
         log.info("  - Timeout: {}ms", timeoutMs);
         log.info("  - SOAR Integration: {}", enableSoar);
+        log.info("  - BaselineLearningService available: {}", baselineLearningService != null);
     }
 
     /**
@@ -206,9 +211,21 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             systemCtx.setSecurityPosture(systemContext != null && systemContext.getSecurityPosture() != null ?
                     systemContext.getSecurityPosture() : "STANDARD");
 
+            // AI Native: 사용자 baseline 컨텍스트 및 편차 분석 (v3.0)
+            String userId = event.getUserId();
+            String baselineContext = null;
+            String deviationAnalysis = null;
+            if (baselineLearningService != null && userId != null) {
+                baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
+                deviationAnalysis = baselineLearningService.analyzeDeviations(userId, event);
+                log.debug("[Layer3] Baseline context generated for user {}: deviation={}",
+                    userId, baselineLearningService.calculateDeviationScore(userId, event));
+            }
+
             String promptText = promptTemplate.buildPrompt(
                     event, layer1Decision, layer2Decision,
-                    threatIntelCtx, historicalCtx, systemCtx
+                    threatIntelCtx, historicalCtx, systemCtx,
+                    baselineContext, deviationAnalysis
             );
 
             // UnifiedLLMOrchestrator를 사용한 execute + 수동 JSON 파싱

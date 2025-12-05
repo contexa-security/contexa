@@ -1,5 +1,7 @@
 package io.contexa.contexacore.hcad.filter;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import jakarta.annotation.PostConstruct;
@@ -7,12 +9,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
@@ -23,8 +21,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.util.HexFormat;
+import java.util.concurrent.TimeUnit;
 
 /**
  * HCAD (Hyper-lightweight Context Anomaly Detector) 필터 (v3.0) - AI Native
@@ -48,30 +46,53 @@ import java.util.HexFormat;
  * @since 3.0.0
  */
 @Slf4j
-@RequiredArgsConstructor
 public class HCADFilter extends OncePerRequestFilter {
 
     private final HCADAnalysisService hcadAnalysisService;
 
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
-    private final RedisTemplate<String, Object> redisTemplate;
-
     @Value("${hcad.enabled:true}")
     private boolean enabled;
 
-    @Value("${hcad.cache.ttl-seconds:300}")
+    @Value("${hcad.cache.ttl-seconds:60}")
     private long cacheTtlSeconds;
+
+    @Value("${hcad.cache.max-size:10000}")
+    private long cacheMaxSize;
 
     @Value("${hcad.cache.enabled:true}")
     private boolean cacheEnabled;
 
-    private static final String CACHE_KEY_PREFIX = "hcad:request:cache:";
+    /**
+     * Phase 3: Caffeine 로컬 캐시 (Redis 대체)
+     *
+     * 설계 근거:
+     * - Redis 메모리 폭발 해결 (수억 키 -> 인스턴스당 최대 10,000개)
+     * - 계정 탈취 탐지를 위해 전체 컨텍스트(IP + UA + Path + Method) 포함
+     * - 분산 환경 일관성 문제는 있지만, "중복 분석 방지" 목적으로 충분
+     *
+     * 캐시 키: contextHash = SHA-256(IP + UA + Path + Method)
+     * 캐시 용도: HCAD 분석 중복 방지 (성능 최적화) - 이벤트 발행과 무관
+     */
+    private Cache<String, HCADAnalysisResult> localCache;
+
+    public HCADFilter(HCADAnalysisService hcadAnalysisService) {
+        this.hcadAnalysisService = hcadAnalysisService;
+    }
 
     @PostConstruct
     public void init() {
-        log.info("[HCAD][AI Native] Filter initialized - enabled: {}, cacheEnabled: {}, cacheTtlSeconds: {}",
-            enabled, cacheEnabled, cacheTtlSeconds);
+        // Caffeine 캐시 초기화 (JVM 시작 후 설정값으로)
+        this.localCache = Caffeine.newBuilder()
+                .maximumSize(cacheMaxSize)
+                .expireAfterWrite(cacheTtlSeconds, TimeUnit.SECONDS)
+                .recordStats()  // 캐시 통계 기록 (모니터링용)
+                .build();
+
+        log.info("[HCAD][AI Native][Phase 3] Filter initialized with Caffeine local cache - " +
+                "enabled: {}, cacheEnabled: {}, cacheTtlSeconds: {}, cacheMaxSize: {}",
+            enabled, cacheEnabled, cacheTtlSeconds, cacheMaxSize);
     }
 
     @Override
@@ -209,50 +230,59 @@ public class HCADFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 캐시된 분석 결과 조회
+     * 캐시된 분석 결과 조회 (Phase 3: Caffeine 로컬 캐시)
+     *
+     * 캐시 용도: HCAD 분석 중복 방지 (성능 최적화)
+     * 캐시 키: contextHash = SHA-256(IP + UA + Path + Method)
+     *
+     * CRITICAL: 캐시 히트/미스는 이벤트 발행과 무관
+     * - 이벤트 발행은 SecurityEventPublishingFilter에서 별도 정책으로 결정
      *
      * @param contextHash 요청 컨텍스트 해시
      * @return 캐시된 HCADAnalysisResult (없으면 null)
      */
-    @SuppressWarnings("unchecked")
     private HCADAnalysisResult getCachedResult(String contextHash) {
-        if (!cacheEnabled || redisTemplate == null) {
+        if (!cacheEnabled || localCache == null) {
             return null;
         }
 
         try {
-            String cacheKey = CACHE_KEY_PREFIX + contextHash;
-            Object cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached instanceof HCADAnalysisResult) {
-                return (HCADAnalysisResult) cached;
+            HCADAnalysisResult cached = localCache.getIfPresent(contextHash);
+            if (cached != null && log.isDebugEnabled()) {
+                log.debug("[HCADFilter][Caffeine] Cache HIT: contextHash={}", contextHash.substring(0, 8));
             }
+            return cached;
         } catch (Exception e) {
-            log.debug("[HCADFilter] 캐시 조회 실패: contextHash={}", contextHash.substring(0, 8), e);
+            log.debug("[HCADFilter][Caffeine] Cache lookup failed: contextHash={}", contextHash.substring(0, 8), e);
         }
         return null;
     }
 
     /**
-     * 분석 결과 캐싱
+     * 분석 결과 캐싱 (Phase 3: Caffeine 로컬 캐시)
+     *
+     * 설계 근거:
+     * - Redis 메모리 폭발 해결 (인스턴스당 최대 10,000개 키)
+     * - LRU 자동 삭제로 메모리 한도 내 관리
+     * - 동일 요청 반복 시 HCAD 분석 스킵 (성능 최적화)
      *
      * @param contextHash 요청 컨텍스트 해시
      * @param result HCAD 분석 결과
      */
     private void cacheResult(String contextHash, HCADAnalysisResult result) {
-        if (!cacheEnabled || redisTemplate == null) {
+        if (!cacheEnabled || localCache == null) {
             return;
         }
 
         try {
-            String cacheKey = CACHE_KEY_PREFIX + contextHash;
-            redisTemplate.opsForValue().set(cacheKey, result, Duration.ofSeconds(cacheTtlSeconds));
+            localCache.put(contextHash, result);
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCADFilter] 결과 캐싱 완료: contextHash={}, ttl={}s",
-                    contextHash.substring(0, 8), cacheTtlSeconds);
+                log.debug("[HCADFilter][Caffeine] Cache PUT: contextHash={}, estimatedSize={}",
+                    contextHash.substring(0, 8), localCache.estimatedSize());
             }
         } catch (Exception e) {
-            log.debug("[HCADFilter] 캐싱 실패: contextHash={}", contextHash.substring(0, 8), e);
+            log.debug("[HCADFilter][Caffeine] Cache put failed: contextHash={}", contextHash.substring(0, 8), e);
         }
     }
 }

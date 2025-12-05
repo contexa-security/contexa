@@ -159,15 +159,47 @@ public class ZeroTrustRedisKeys {
     }
 
     /**
-     * 사용자별 LLM action 저장
+     * 사용자별 LLM action 저장 (Legacy - Dual-Write용)
      * AI Native: LLM이 결정한 action을 저장
-     * Format: zerotrust:user:action:{userId}
+     * Format: security:user:action:{userId}
      * Value: ALLOW, MONITOR, CHALLENGE, INVESTIGATE, ESCALATE, BLOCK
      * TTL: Action별 상이 (BLOCK: 영구, INVESTIGATE: 5분, MONITOR: 10분)
+     *
+     * @deprecated Phase 5 마이그레이션 후 hcadAnalysis(userId) 사용 권장
      */
+    @Deprecated
     public static String userAction(String userId) {
         validateUserId(userId);
         return String.format("%s:user:action:%s", NAMESPACE, userId);
+    }
+
+    /**
+     * HCAD 분석 결과 (Primary - Single Source of Truth)
+     *
+     * AI Native: LLM이 분석한 전체 결과를 Hash로 저장
+     * Format: security:hcad:analysis:{userId}
+     * Type: Hash
+     * Fields:
+     *   - action: ALLOW, MONITOR, CHALLENGE, INVESTIGATE, ESCALATE, BLOCK
+     *   - riskScore: 0.0 ~ 1.0
+     *   - confidence: 0.0 ~ 1.0
+     *   - threatLevel: CRITICAL, HIGH, MEDIUM, LOW, INFO
+     *   - isAnomaly: true/false
+     *   - threatType: 위협 유형 문자열
+     *   - threatEvidence: 위협 증거 문자열
+     *   - updatedAt: ISO-8601 타임스탬프
+     *
+     * TTL: Action별 상이 (BLOCK: 영구, INVESTIGATE: 5분, MONITOR: 10분, ALLOW: 1시간)
+     *
+     * 사용처:
+     * - ColdPathEventProcessor: 저장 (Dual-Write)
+     * - HCADAnalysisService: 조회 (전체 필드)
+     * - ZeroTrustSecurityService: 조회 (action 필드만, Dual-Read)
+     * - AbstractMfaAuthenticationSuccessHandler: 삭제 (action 필드, Dual-Delete)
+     */
+    public static String hcadAnalysis(String userId) {
+        validateUserId(userId);
+        return String.format("%s:hcad:analysis:%s", NAMESPACE, userId);
     }
 
     /**

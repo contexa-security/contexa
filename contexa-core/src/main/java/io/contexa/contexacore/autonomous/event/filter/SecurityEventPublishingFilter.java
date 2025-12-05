@@ -115,6 +115,18 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
 
     /**
      * HttpRequestEvent 발행
+     *
+     * Phase 4: Zero Trust 핵심 원칙 적용
+     *
+     * "인증자에 한해서는 무조건 이벤트를 발행해야 한다. 언제 공격자가 공격할지 아무도 모른다."
+     *
+     * 인증된 사용자:
+     * - 캐싱 여부와 무관하게 **무조건 이벤트 발행**
+     * - 공격자가 언제 어떤 행동을 하든 LLM 분석 수행
+     *
+     * 캐시와 이벤트 발행의 분리:
+     * - 캐시 (HCADFilter): HCAD 분석 중복 방지 (성능 최적화)
+     * - 이벤트 발행 (여기): Cold Path LLM 분석 트리거 (보안)
      */
     private void publishEventIfNeeded(HttpServletRequest request, HttpServletResponse response, Authentication auth) {
         try {
@@ -124,22 +136,32 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // 2. 캐시 히트 체크 (LLM 호출 방지 - AI Native 최적화)
-            // HCADFilter에서 동일 컨텍스트의 분석 결과가 캐시에서 조회된 경우
-            // 이벤트 발행을 차단하여 불필요한 Cold Path LLM 호출 방지
-            Boolean fromCache = (Boolean) request.getAttribute("hcad.from_cache");
-            if (Boolean.TRUE.equals(fromCache)) {
-                log.debug("[SecurityEventPublishingFilter] Event skipped (cache hit - no LLM needed): uri={}",
-                         request.getRequestURI());
-                return;
-            }
-
-            // 3. 이벤트 발행 플래그 체크 (중복 이벤트 방지)
+            // 2. 이벤트 발행 플래그 체크 (중복 이벤트 방지)
             Boolean eventPublished = (Boolean) request.getAttribute("security.event.published");
             if (Boolean.TRUE.equals(eventPublished)) {
                 log.debug("[SecurityEventPublishingFilter] Event already published by specific handler, skipping general event: uri={}",
                          request.getRequestURI());
                 return;
+            }
+
+            // 3. 인증 상태 확인
+            boolean isAuthenticated = auth != null && trustResolver.isAuthenticated(auth);
+
+            // Phase 4: Zero Trust 핵심 - 인증된 사용자는 캐시 히트와 무관하게 무조건 이벤트 발행
+            // CRITICAL: 캐시 히트 체크를 인증된 사용자에게 적용하지 않음
+            // 기존 설계 결함: 캐시 히트 시 인증 사용자도 이벤트 중단 → 공격 탐지 불가
+            Boolean fromCache = (Boolean) request.getAttribute("hcad.from_cache");
+            if (Boolean.TRUE.equals(fromCache) && !isAuthenticated) {
+                // 익명 사용자만 캐시 히트 시 이벤트 스킵 (성능 최적화)
+                log.debug("[SecurityEventPublishingFilter] Anonymous event skipped (cache hit): uri={}",
+                         request.getRequestURI());
+                return;
+            }
+
+            if (Boolean.TRUE.equals(fromCache) && isAuthenticated) {
+                // 인증된 사용자: 캐시 히트여도 무조건 이벤트 발행 (Zero Trust)
+                log.debug("[SecurityEventPublishingFilter][ZeroTrust] Authenticated user - publishing event despite cache hit: uri={}",
+                         request.getRequestURI());
             }
 
             // AI Native: LLM이 action, isAnomaly, riskScore를 직접 결정
@@ -150,18 +172,18 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
             // 인증 사용자 이벤트 발행 결정
             String userId = "";
             UnifiedEventPublishingDecisionEngine.PublishingDecision decision = null;
-                userId = UserIdentificationStrategy.getUserId(auth);
-                // AI Native: action 기반 발행 결정 (LLM이 action 직접 결정)
-                decision = unifiedDecisionEngine.decideAuthenticated(request, auth, userId,
-                                                                      hcadAction, hcadIsAnomaly, hcadRiskScore);
-                if (!decision.isShouldPublish()) {
-                    log.debug("[SecurityEventPublishingFilter] Authenticated event skipped by AI: userId={}, {}",
-                             userId, decision);
-                    return;
-                }
-
-                log.debug("[SecurityEventPublishingFilter] Authenticated event approved by AI: userId={}, {}",
+            userId = UserIdentificationStrategy.getUserId(auth);
+            // AI Native: action 기반 발행 결정 (LLM이 action 직접 결정)
+            decision = unifiedDecisionEngine.decideAuthenticated(request, auth, userId,
+                                                                  hcadAction, hcadIsAnomaly, hcadRiskScore);
+            if (!decision.isShouldPublish()) {
+                log.debug("[SecurityEventPublishingFilter] Authenticated event skipped by AI: userId={}, {}",
                          userId, decision);
+                return;
+            }
+
+            log.debug("[SecurityEventPublishingFilter] Authenticated event approved by AI: userId={}, {}",
+                     userId, decision);
 
             // Phase 9: 세션/사용자 컨텍스트 정보 조회 (HCADFilter에서 설정)
             Boolean isNewSession = (Boolean) request.getAttribute("hcad.is_new_session");

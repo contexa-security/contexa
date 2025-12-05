@@ -486,6 +486,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
      * CHALLENGE action으로 MFA가 요구되었던 사용자가 MFA를 성공적으로 완료하면
      * Redis에서 action을 삭제하여 정상 접근을 허용합니다.
      *
+     * Phase 5 마이그레이션: Dual-Delete 전략
+     * - Primary: security:hcad:analysis:{userId} Hash의 action 필드 삭제
+     * - Legacy: security:user:action:{userId} String 삭제 (하위 호환성)
+     *
      * @param userId 사용자 ID
      */
     private void resetActionOnMfaSuccess(String userId) {
@@ -494,11 +498,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            String actionKey = ZeroTrustRedisKeys.userAction(userId);
-            Boolean deleted = redisTemplate.delete(actionKey);
+            // 1. Primary: security:hcad:analysis:{userId} Hash의 action 필드 삭제
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Long deletedFields = redisTemplate.opsForHash().delete(analysisKey, "action");
 
-            if (Boolean.TRUE.equals(deleted)) {
-                log.info("[MFA][AI Native] Action reset for user: {} (CHALLENGE cleared)", userId);
+            // 2. Legacy: security:user:action:{userId} String 삭제 (Phase 5 마이그레이션)
+            String legacyKey = ZeroTrustRedisKeys.userAction(userId);
+            Boolean legacyDeleted = redisTemplate.delete(legacyKey);
+
+            if (deletedFields > 0 || Boolean.TRUE.equals(legacyDeleted)) {
+                log.info("[MFA][AI Native][Dual-Delete] Action reset for user: {} (CHALLENGE cleared, analysisKey={}, legacyKey={})",
+                        userId, deletedFields > 0, legacyDeleted);
             } else {
                 log.debug("[MFA][AI Native] No action to reset for user: {}", userId);
             }
