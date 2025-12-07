@@ -71,6 +71,7 @@ public class Layer3PromptTemplate {
 
         String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
         String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "unknown";
+        String userAgent = event.getUserAgent() != null ? event.getUserAgent() : "unknown";
         String target = targetResource.orElse("unknown");
         String method = httpMethod.orElse("unknown");
         String fullPayload = payload.map(Object::toString).orElse("empty");
@@ -118,7 +119,7 @@ public class Layer3PromptTemplate {
         return String.format("""
             Expert forensic security analysis. Deep threat analysis with behavioral baseline comparison.
 
-            Event: %s | IP: %s | Target: %s | Method: %s
+            Event: %s | IP: %s | UA: %s | Target: %s | Method: %s
             Payload: %s
             Previous: %s
             Threat: %s
@@ -129,6 +130,13 @@ public class Layer3PromptTemplate {
             %s
 
             %s
+
+            USER-AGENT ANALYSIS (Expert-level):
+            - Browser (Chrome/Firefox/Safari/Edge with version): Normal user traffic
+            - curl/wget: Command-line automation - check for reconnaissance patterns
+            - python-requests/httpx/aiohttp: Scripting tools - analyze request patterns for bot behavior
+            - Headless browsers (HeadlessChrome, PhantomJS): Potential scraping or automation
+            - Empty/Unknown/Malformed: Strong attack indicator, correlate with other threat signals
 
             SCORING GUIDELINES (Expert-level):
             1. ZERO TRUST: Unknown != Safe. Insufficient intelligence requires conservative assessment.
@@ -172,7 +180,7 @@ public class Layer3PromptTemplate {
             JSON format:
             {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
-            eventType, sourceIp, target, method,
+            eventType, sourceIp, userAgent, target, method,
             fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload,
             previousAnalysis, threatSummary, historySummary, systemSummary, hcadSection,
             baselineSection, deviationSection);

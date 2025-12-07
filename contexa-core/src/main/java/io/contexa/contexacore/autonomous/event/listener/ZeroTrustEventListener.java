@@ -545,6 +545,7 @@ public class ZeroTrustEventListener {
         // 사용자 정보
         secEvent.setUserId(event.getUserId());
         secEvent.setSourceIp(event.getSourceIp());
+        secEvent.setUserAgent(event.getUserAgent());  // User-Agent 전달 (봇/정상 사용자 구별용)
 
         // 이벤트 타입 결정 (익명 vs 인증)
         secEvent.setEventType(SecurityEvent.EventType.SUSPICIOUS_ACTIVITY);

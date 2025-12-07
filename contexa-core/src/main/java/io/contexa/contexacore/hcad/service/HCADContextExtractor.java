@@ -57,7 +57,12 @@ public class HCADContextExtractor {
             context.setRequestPath(request.getRequestURI());
             context.setHttpMethod(request.getMethod());
             context.setRemoteIp(clientIp);
-            context.setUserAgent(request.getHeader("User-Agent"));
+            // 테스트용 X-Simulated-User-Agent 헤더 우선 읽기 (브라우저 보안 정책으로 User-Agent 직접 수정 불가)
+            String userAgent = request.getHeader("X-Simulated-User-Agent");
+            if (userAgent == null || userAgent.isEmpty()) {
+                userAgent = request.getHeader("User-Agent");
+            }
+            context.setUserAgent(userAgent);
             context.setReferer(request.getHeader("Referer"));
             context.setTimestamp(Instant.now());
 

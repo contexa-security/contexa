@@ -60,6 +60,7 @@ public class Layer1PromptTemplate {
         String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
         String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "unknown";
         String userId = event.getUserId() != null ? event.getUserId() : "unknown";
+        String userAgent = event.getUserAgent() != null ? event.getUserAgent() : "unknown";
         String target = targetResource.orElse("unknown");
         String method = httpMethod.orElse("unknown");
         String payloadSummary = summarizePayload(payload.map(Object::toString).orElse(null));
@@ -88,7 +89,7 @@ public class Layer1PromptTemplate {
         return String.format("""
             Fast security filter. Analyze event and respond in JSON.
 
-            Event: %s | IP: %s | User: %s | Target: %s | Method: %s | Payload: %s
+            Event: %s | IP: %s | User: %s | UA: %s | Target: %s | Method: %s | Payload: %s
             %s
             %s
             %s
@@ -96,6 +97,12 @@ public class Layer1PromptTemplate {
             %s
 
             %s
+
+            USER-AGENT ANALYSIS:
+            - Browser (Chrome/Firefox/Safari/Edge): Normal user, low risk
+            - curl/wget: Automation tool, requires careful analysis
+            - python-requests/httpx: Scripting tool, potential bot or attacker
+            - Empty/Unknown: Highly suspicious, elevated risk
 
             SCORING GUIDELINES:
             1. ZERO TRUST: Unknown != Safe. Insufficient data requires conservative assessment.
@@ -128,7 +135,7 @@ public class Layer1PromptTemplate {
             JSON format:
             {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
-            eventType, sourceIp, userId, target, method, payloadSummary,
+            eventType, sourceIp, userId, userAgent, target, method, payloadSummary,
             patternsSection, hcadSection, contextSection,
             baselineSection, deviationSection);
     }

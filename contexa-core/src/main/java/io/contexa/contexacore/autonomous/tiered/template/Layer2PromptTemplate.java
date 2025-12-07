@@ -42,6 +42,7 @@ public class Layer2PromptTemplate {
 
         String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
         String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "unknown";
+        String userAgent = event.getUserAgent() != null ? event.getUserAgent() : "unknown";
         String target = targetResource.orElse("unknown");
         String method = httpMethod.orElse("unknown");
         String payloadSummary = summarizePayload(payload.map(Object::toString).orElse(null));
@@ -106,7 +107,7 @@ public class Layer2PromptTemplate {
         return String.format("""
             Contextual security analysis. Analyze with session/behavior patterns and user baseline.
 
-            Event: %s | IP: %s | Target: %s | Method: %s | Payload: %s
+            Event: %s | IP: %s | UA: %s | Target: %s | Method: %s | Payload: %s
             Layer1: %s
             Session: %s
             Behavior: %s
@@ -116,6 +117,12 @@ public class Layer2PromptTemplate {
             %s
 
             %s
+
+            USER-AGENT ANALYSIS:
+            - Browser (Chrome/Firefox/Safari/Edge): Normal user, low risk
+            - curl/wget: Automation tool, requires careful analysis
+            - python-requests/httpx: Scripting tool, potential bot or attacker
+            - Empty/Unknown: Highly suspicious, elevated risk
 
             SCORING GUIDELINES:
             1. ZERO TRUST: Unknown != Safe. Insufficient data requires conservative assessment.
@@ -149,7 +156,7 @@ public class Layer2PromptTemplate {
             JSON format:
             {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
             """,
-            eventType, sourceIp, target, method, payloadSummary,
+            eventType, sourceIp, userAgent, target, method, payloadSummary,
             layer1Summary, sessionSummary, behaviorSummary, relatedContext, hcadSection,
             baselineSection, deviationSection);
     }

@@ -1,31 +1,24 @@
 /**
  * ============================================================================
- * @Protectable 보안 플로우 테스트 페이지 JavaScript
+ * @Protectable 보안 플로우 테스트 페이지 JavaScript (실제 LLM 분석)
  * ============================================================================
  *
- * 이 스크립트는 @Protectable 어노테이션이 적용된 메서드들의 실제 보안 플로우를
- * 테스트하기 위한 UI 기능을 제공한다.
+ * 실제 LLM 분석을 통한 Zero Trust 보안 테스트 UI
  *
- * 주요 기능:
- * 1. Action 상태 조회 및 갱신
- * 2. Action 강제 설정 (테스트용)
- * 3. 보안 API 테스트 실행
- * 4. 실행 결과 로깅
+ * 실제 플로우:
+ * 1. 클라이언트가 시나리오 선택 (IP, User-Agent 설정)
+ * 2. 1차 요청: @Protectable 메서드 호출 -> 이벤트 발행 -> LLM 분석 트리거
+ * 3. 대기: ColdPathEventProcessor의 비동기 분석 완료 대기 (3초)
+ * 4. 2차 요청: Redis에 저장된 분석 결과 기반 허용/차단
  *
  * API 엔드포인트:
- * - GET  /api/test-action/status  : 현재 Action 상태 조회
- * - POST /api/test-action/set     : Action 강제 설정
- * - DELETE /api/test-action/reset : Action 초기화 (PENDING_ANALYSIS로 복귀)
+ * - GET  /api/test-action/status  : 현재 분석 결과 조회
+ * - DELETE /api/test-action/reset : 분석 결과 초기화
  * - GET  /api/security-test/*     : @Protectable 메서드 테스트
  *
- * Redis 구조:
- * - security:hcad:analysis:{userId} (Hash)
- *   - action: ALLOW, BLOCK, CHALLENGE, INVESTIGATE, ESCALATE, MONITOR
- *   - riskScore: 0.0 ~ 1.0
- *   - confidence: 0.0 ~ 1.0
- *   - threatLevel: CRITICAL, HIGH, MEDIUM, LOW, INFO
- *   - isAnomaly: true/false
- *   - updatedAt: ISO-8601 타임스탬프
+ * 컨텍스트 전달:
+ * - X-Forwarded-For: 클라이언트 IP (시나리오별)
+ * - User-Agent: 브라우저/도구 정보 (시나리오별)
  */
 
 'use strict';
@@ -40,13 +33,69 @@
      */
     const API = {
         ACTION_STATUS: '/api/test-action/status',
-        ACTION_SET: '/api/test-action/set',
         ACTION_RESET: '/api/test-action/reset',
         TEST_PUBLIC: '/api/security-test/public/',
         TEST_NORMAL: '/api/security-test/normal/',
         TEST_SENSITIVE: '/api/security-test/sensitive/',
-        TEST_CRITICAL: '/api/security-test/critical/',
-        TEST_BULK: '/api/security-test/bulk'
+        TEST_CRITICAL: '/api/security-test/critical/'
+    };
+
+    /**
+     * 시나리오별 HTTP 헤더 프리셋
+     * 실제 플로우에서 HCADFilter와 SecurityEventPublishingFilter가
+     * X-Forwarded-For 헤더에서 IP를 추출함
+     */
+    const SCENARIO_HEADERS = {
+        'NORMAL_USER': {
+            'X-Forwarded-For': '192.168.1.100',
+            'X-Simulated-User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        'ACCOUNT_TAKEOVER': {
+            'X-Forwarded-For': '203.0.113.50',
+            'X-Simulated-User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+        },
+        'BOT_ATTACK': {
+            'X-Forwarded-For': '45.33.32.156',
+            'X-Simulated-User-Agent': 'curl/7.68.0'
+        },
+        'PRIVILEGE_ESCALATION': {
+            'X-Forwarded-For': '10.0.0.99',
+            'X-Simulated-User-Agent': 'python-requests/2.28.0'
+        }
+    };
+
+    /**
+     * 시나리오 정보
+     */
+    const SCENARIO_INFO = {
+        'NORMAL_USER': {
+            name: '정상 사용자',
+            ip: '192.168.1.100',
+            userAgent: 'Chrome/120.0 (Windows)',
+            expectedAction: 'ALLOW',
+            description: '사내 네트워크에서 일반 브라우저로 접속하는 정상 사용자'
+        },
+        'ACCOUNT_TAKEOVER': {
+            name: '계정 탈취 의심',
+            ip: '203.0.113.50',
+            userAgent: 'Android 10 (Mobile)',
+            expectedAction: 'BLOCK / CHALLENGE',
+            description: '평소와 다른 위치/디바이스에서의 갑작스러운 접속'
+        },
+        'BOT_ATTACK': {
+            name: '봇 공격',
+            ip: '45.33.32.156',
+            userAgent: 'curl/7.68.0',
+            expectedAction: 'BLOCK',
+            description: '자동화 도구를 사용한 악성 봇의 접근 시도'
+        },
+        'PRIVILEGE_ESCALATION': {
+            name: '권한 상승 시도',
+            ip: '10.0.0.99',
+            userAgent: 'Python-requests/2.28',
+            expectedAction: 'ESCALATE / BLOCK',
+            description: '일반 사용자가 관리자 리소스에 접근 시도'
+        }
     };
 
     /**
@@ -103,7 +152,8 @@
         SUCCESS: 'log-success',
         WARNING: 'log-warning',
         ERROR: 'log-error',
-        BLOCKED: 'log-blocked'
+        BLOCKED: 'log-blocked',
+        STEP: 'log-step'
     };
 
     /**
@@ -113,29 +163,29 @@
         'public': {
             name: '공개 데이터',
             analysisRequirement: 'NOT_REQUIRED',
-            description: '인증만 확인, Action 무관'
+            description: '분석 불필요 - 인증만 확인'
         },
         'normal': {
             name: '일반 데이터',
             analysisRequirement: 'PREFERRED',
-            description: 'ALLOW 또는 MONITOR Action 필요'
+            description: '분석 있으면 사용, 없으면 기본값 (MONITOR)'
         },
         'sensitive': {
             name: '민감 데이터',
             analysisRequirement: 'REQUIRED',
-            description: '분석 완료 + ALLOW/MONITOR 필수'
+            description: '분석 완료 필수 (동기 대기 3초)'
         },
         'critical': {
             name: '중요 데이터',
             analysisRequirement: 'STRICT',
-            description: 'ADMIN + 분석 완료 + ALLOW만 허용'
-        },
-        'bulk': {
-            name: '대량 데이터',
-            analysisRequirement: 'PREFERRED + Runtime Interception',
-            description: 'BLOCK 아니면 허용 (기본 MONITOR)'
+            description: 'ADMIN 권한 + 분석 완료 + ALLOW만 허용'
         }
     };
+
+    /**
+     * LLM 분석 대기 시간 (밀리초)
+     */
+    const ANALYSIS_WAIT_TIME = 3500;
 
     // ============================================================================
     // 상태 관리
@@ -145,6 +195,7 @@
      * 애플리케이션 상태
      */
     const state = {
+        selectedScenario: null,
         currentAction: 'PENDING_ANALYSIS',
         riskScore: 0.0,
         confidence: 0.0,
@@ -152,8 +203,7 @@
         isAnomaly: false,
         analysisStatus: 'NOT_ANALYZED',
         isLoading: false,
-        autoRefresh: false,
-        autoRefreshInterval: null,
+        isTestRunning: false,
         logEntries: []
     };
 
@@ -176,17 +226,15 @@
             isAnomaly: document.getElementById('is-anomaly'),
             analysisStatus: document.getElementById('analysis-status'),
 
-            // Action 컨트롤
-            actionSelect: document.getElementById('action-select'),
-            riskScoreInput: document.getElementById('risk-score-input'),
-            riskScoreValue: document.getElementById('risk-score-value'),
-            confidenceInput: document.getElementById('confidence-input'),
-            confidenceValue: document.getElementById('confidence-value'),
-            actionDescription: document.getElementById('action-description'),
+            // 시나리오 카드
+            scenarioNormal: document.getElementById('scenario-normal'),
+            scenarioTakeover: document.getElementById('scenario-takeover'),
+            scenarioBot: document.getElementById('scenario-bot'),
+            scenarioEscalation: document.getElementById('scenario-escalation'),
+            selectedScenarioInfo: document.getElementById('selected-scenario-info'),
 
             // 버튼
             btnRefreshStatus: document.getElementById('btn-refresh-status'),
-            btnSetAction: document.getElementById('btn-set-action'),
             btnResetAction: document.getElementById('btn-reset-action'),
             btnClearLog: document.getElementById('btn-clear-log'),
 
@@ -195,7 +243,6 @@
             btnTestNormal: document.getElementById('btn-test-normal'),
             btnTestSensitive: document.getElementById('btn-test-sensitive'),
             btnTestCritical: document.getElementById('btn-test-critical'),
-            btnTestBulk: document.getElementById('btn-test-bulk'),
 
             // 테스트 입력
             inputPublic: document.getElementById('input-public'),
@@ -208,7 +255,6 @@
             cardNormal: document.getElementById('card-normal'),
             cardSensitive: document.getElementById('card-sensitive'),
             cardCritical: document.getElementById('card-critical'),
-            cardBulk: document.getElementById('card-bulk'),
 
             // 로그
             logContainer: document.getElementById('log-container'),
@@ -221,28 +267,33 @@
     // ============================================================================
 
     /**
-     * HTTP 요청 수행
+     * HTTP 요청 수행 (시나리오 헤더 포함)
      *
      * @param {string} url - 요청 URL
      * @param {Object} options - fetch 옵션
+     * @param {boolean} includeScenarioHeaders - 시나리오 헤더 포함 여부
      * @returns {Promise<Object>} - 응답 JSON
      */
-    async function request(url, options = {}) {
-        const defaultOptions = {
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            credentials: 'same-origin'
+    async function request(url, options = {}, includeScenarioHeaders = false) {
+        const defaultHeaders = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         };
 
+        // 시나리오 헤더 추가
+        let scenarioHeaders = {};
+        if (includeScenarioHeaders && state.selectedScenario) {
+            scenarioHeaders = SCENARIO_HEADERS[state.selectedScenario] || {};
+        }
+
         const mergedOptions = {
-            ...defaultOptions,
             ...options,
             headers: {
-                ...defaultOptions.headers,
+                ...defaultHeaders,
+                ...scenarioHeaders,
                 ...options.headers
-            }
+            },
+            credentials: 'same-origin'
         };
 
         try {
@@ -262,7 +313,6 @@
 
                 return data;
             } else {
-                // JSON이 아닌 응답 (HTML 에러 페이지 등)
                 const text = await response.text();
                 throw new ApiError(
                     extractErrorMessage(text, response.status),
@@ -292,15 +342,9 @@
 
     /**
      * HTML 응답에서 에러 메시지 추출
-     *
-     * @param {string} html - HTML 응답 본문
-     * @param {number} status - HTTP 상태 코드
-     * @returns {string} - 추출된 에러 메시지
      */
     function extractErrorMessage(html, status) {
-        // 403 Forbidden 특별 처리
         if (status === 403) {
-            // ZeroTrustAccessDeniedException 메시지 확인
             if (html.includes('ZeroTrustAccessDeniedException')) {
                 return 'Zero Trust 보안 정책에 의해 접근이 거부되었습니다.';
             }
@@ -310,14 +354,11 @@
             return '접근이 거부되었습니다. (HTTP 403)';
         }
 
-        // 401 Unauthorized
         if (status === 401) {
             return '인증이 필요합니다. 로그인 후 다시 시도하세요.';
         }
 
-        // 500 Internal Server Error
         if (status === 500) {
-            // 스택 트레이스에서 예외 클래스 추출 시도
             const exceptionMatch = html.match(/([A-Za-z]+Exception)/);
             if (exceptionMatch) {
                 return `서버 오류: ${exceptionMatch[1]}`;
@@ -325,8 +366,44 @@
             return '서버 내부 오류가 발생했습니다. (HTTP 500)';
         }
 
-        // 기타 상태 코드
         return `요청 처리 중 오류가 발생했습니다. (HTTP ${status})`;
+    }
+
+    // ============================================================================
+    // 시나리오 선택
+    // ============================================================================
+
+    /**
+     * 시나리오 선택 처리
+     *
+     * @param {string} scenario - 시나리오 키
+     */
+    function selectScenario(scenario) {
+        state.selectedScenario = scenario;
+
+        // 모든 시나리오 카드에서 selected 클래스 제거
+        document.querySelectorAll('.scenario-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+
+        // 선택된 카드에 selected 클래스 추가
+        const selectedCard = document.querySelector(`[data-scenario="${scenario}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+
+        // 선택된 시나리오 정보 표시
+        const info = SCENARIO_INFO[scenario];
+        if (info && elements.selectedScenarioInfo) {
+            elements.selectedScenarioInfo.innerHTML = `
+                <p><strong>선택된 시나리오:</strong> ${escapeHtml(info.name)}</p>
+                <p><strong>IP:</strong> ${escapeHtml(info.ip)} | <strong>User-Agent:</strong> ${escapeHtml(info.userAgent)}</p>
+                <p><strong>예상 LLM 판단:</strong> ${escapeHtml(info.expectedAction)}</p>
+            `;
+            elements.selectedScenarioInfo.classList.add('active');
+        }
+
+        log('INFO', `시나리오 선택: ${info.name} (IP: ${info.ip})`);
     }
 
     // ============================================================================
@@ -340,7 +417,7 @@
         if (state.isLoading) return;
 
         setLoading(true);
-        log('INFO', 'Action 상태 조회 중...');
+        log('INFO', 'LLM 분석 결과 조회 중...');
 
         try {
             const data = await request(API.ACTION_STATUS);
@@ -354,51 +431,10 @@
 
             updateStatusDisplay();
 
-            log('SUCCESS', `Action 상태: ${state.currentAction}, Risk: ${state.riskScore.toFixed(2)}, Confidence: ${state.confidence.toFixed(2)}`);
+            log('SUCCESS', `분석 결과: Action=${state.currentAction}, Risk=${state.riskScore.toFixed(2)}, Confidence=${state.confidence.toFixed(2)}`);
         } catch (error) {
-            log('ERROR', `Action 상태 조회 실패: ${error.message}`);
+            log('ERROR', `분석 결과 조회 실패: ${error.message}`);
             console.error('Action status error:', error);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    /**
-     * Action 강제 설정
-     */
-    async function setAction() {
-        if (state.isLoading) return;
-
-        const action = elements.actionSelect.value;
-        const riskScore = parseFloat(elements.riskScoreInput.value);
-        const confidence = parseFloat(elements.confidenceInput.value);
-
-        setLoading(true);
-        log('INFO', `Action 설정 중: ${action}, Risk: ${riskScore.toFixed(2)}, Confidence: ${confidence.toFixed(2)}`);
-
-        try {
-            const data = await request(API.ACTION_SET, {
-                method: 'POST',
-                body: JSON.stringify({
-                    action: action,
-                    riskScore: riskScore,
-                    confidence: confidence
-                })
-            });
-
-            state.currentAction = data.action;
-            state.riskScore = data.riskScore;
-            state.confidence = confidence;
-            state.threatLevel = data.threatLevel;
-            state.isAnomaly = data.isAnomaly;
-            state.analysisStatus = 'ANALYZED';
-
-            updateStatusDisplay();
-
-            log('SUCCESS', `Action이 '${data.action}'(으)로 설정되었습니다. TTL: ${data.ttlSeconds}초`);
-        } catch (error) {
-            log('ERROR', `Action 설정 실패: ${error.message}`);
-            console.error('Set action error:', error);
         } finally {
             setLoading(false);
         }
@@ -411,12 +447,10 @@
         if (state.isLoading) return;
 
         setLoading(true);
-        log('INFO', 'Action 초기화 중...');
+        log('INFO', '분석 결과 초기화 중...');
 
         try {
-            const data = await request(API.ACTION_RESET, {
-                method: 'DELETE'
-            });
+            await request(API.ACTION_RESET, { method: 'DELETE' });
 
             state.currentAction = 'PENDING_ANALYSIS';
             state.riskScore = 0.0;
@@ -427,9 +461,9 @@
 
             updateStatusDisplay();
 
-            log('SUCCESS', 'Action이 초기화되었습니다. 현재 상태: PENDING_ANALYSIS');
+            log('SUCCESS', '분석 결과가 초기화되었습니다. 새로운 시나리오 테스트를 시작할 수 있습니다.');
         } catch (error) {
-            log('ERROR', `Action 초기화 실패: ${error.message}`);
+            log('ERROR', `초기화 실패: ${error.message}`);
             console.error('Reset action error:', error);
         } finally {
             setLoading(false);
@@ -437,94 +471,172 @@
     }
 
     // ============================================================================
-    // 보안 API 테스트
+    // 보안 API 테스트 (두 번의 요청 패턴)
     // ============================================================================
 
     /**
-     * 보안 API 테스트 실행
+     * 보안 API 테스트 실행 (두 번의 요청)
      *
-     * @param {string} type - 테스트 유형 (public, normal, sensitive, critical, bulk)
-     * @param {string} resourceId - 리소스 ID (bulk 제외)
+     * 실제 플로우:
+     * 1. 1차 요청: 분석 트리거 (defaultAction 사용 또는 타임아웃)
+     * 2. 대기: ColdPathEventProcessor의 비동기 분석 완료 대기
+     * 3. 2차 요청: 분석 결과 기반 허용/차단
+     *
+     * @param {string} type - 테스트 유형 (public, normal, sensitive, critical)
+     * @param {string} resourceId - 리소스 ID
      */
     async function executeTest(type, resourceId) {
-        if (state.isLoading) return;
+        if (state.isTestRunning) {
+            log('WARNING', '테스트가 이미 실행 중입니다.');
+            return;
+        }
+
+        if (!state.selectedScenario) {
+            log('WARNING', '먼저 시나리오를 선택하세요.');
+            return;
+        }
 
         const testInfo = TEST_INFO[type];
+        const scenarioInfo = SCENARIO_INFO[state.selectedScenario];
         const card = getTestCard(type);
 
         // 카드 상태 초기화
         resetCardState(card);
 
+        state.isTestRunning = true;
         setLoading(true);
 
         const logPrefix = `[${testInfo.name}]`;
-        log('INFO', `${logPrefix} 테스트 시작 (${testInfo.analysisRequirement})`);
-        log('INFO', `${logPrefix} 현재 Action: ${state.currentAction}`);
+        log('STEP', `========== 테스트 시작 ==========`);
+        log('INFO', `${logPrefix} 시나리오: ${scenarioInfo.name}`);
+        log('INFO', `${logPrefix} 컨텍스트: IP=${scenarioInfo.ip}, UA=${scenarioInfo.userAgent}`);
+        log('INFO', `${logPrefix} AnalysisRequirement: ${testInfo.analysisRequirement}`);
 
         // URL 구성
-        let url;
-        switch (type) {
-            case 'public':
-                url = API.TEST_PUBLIC + encodeURIComponent(resourceId);
-                break;
-            case 'normal':
-                url = API.TEST_NORMAL + encodeURIComponent(resourceId);
-                break;
-            case 'sensitive':
-                url = API.TEST_SENSITIVE + encodeURIComponent(resourceId);
-                break;
-            case 'critical':
-                url = API.TEST_CRITICAL + encodeURIComponent(resourceId);
-                break;
-            case 'bulk':
-                url = API.TEST_BULK;
-                break;
-            default:
-                log('ERROR', `${logPrefix} 알 수 없는 테스트 유형: ${type}`);
-                setLoading(false);
-                return;
+        const url = getTestUrl(type, resourceId);
+        if (!url) {
+            log('ERROR', `${logPrefix} 알 수 없는 테스트 유형: ${type}`);
+            state.isTestRunning = false;
+            setLoading(false);
+            return;
         }
 
         try {
-            const startTime = performance.now();
-            const data = await request(url);
-            const elapsed = (performance.now() - startTime).toFixed(0);
+            // ===== 1차 요청: 분석 트리거 =====
+            log('STEP', `${logPrefix} [1차 요청] 분석 트리거 중...`);
+            log('INFO', `${logPrefix} X-Forwarded-For: ${scenarioInfo.ip}`);
 
-            // 성공
-            setCardSuccess(card);
+            let firstRequestSuccess = false;
+            let firstRequestMessage = '';
 
-            if (type === 'bulk') {
-                log('SUCCESS', `${logPrefix} 성공 - 데이터 길이: ${data.dataLength} bytes, 처리시간: ${elapsed}ms (서버: ${data.processingTime}ms)`);
-            } else {
-                log('SUCCESS', `${logPrefix} 성공 - 응답: "${data.data}", 처리시간: ${elapsed}ms (서버: ${data.processingTime}ms)`);
+            try {
+                const startTime1 = performance.now();
+                const data1 = await request(url, {}, true);
+                const elapsed1 = (performance.now() - startTime1).toFixed(0);
+
+                firstRequestSuccess = true;
+                firstRequestMessage = `1차 요청 성공 (${elapsed1}ms)`;
+                log('SUCCESS', `${logPrefix} ${firstRequestMessage}`);
+            } catch (error1) {
+                // 1차 요청 실패는 예상됨 (REQUIRED/STRICT의 경우 타임아웃)
+                firstRequestMessage = `1차 요청: ${error1.message}`;
+                if (error1.status === 403) {
+                    log('WARNING', `${logPrefix} 1차 요청 차단됨 (예상된 동작) - ${error1.message}`);
+                } else {
+                    log('WARNING', `${logPrefix} 1차 요청 오류 - ${error1.message}`);
+                }
             }
+
+            // ===== 대기: 비동기 분석 완료 =====
+            log('STEP', `${logPrefix} [대기] LLM 분석 완료 대기 (${ANALYSIS_WAIT_TIME/1000}초)...`);
+            log('INFO', `${logPrefix} ColdPathEventProcessor -> Layer1/2/3 분석 -> Redis 저장`);
+
+            await sleep(ANALYSIS_WAIT_TIME);
+
+            // 분석 결과 조회
+            log('INFO', `${logPrefix} 분석 결과 조회 중...`);
+            try {
+                const statusData = await request(API.ACTION_STATUS);
+                state.currentAction = statusData.action || 'PENDING_ANALYSIS';
+                state.riskScore = statusData.riskScore || 0.0;
+                state.confidence = statusData.confidence || 0.0;
+                state.threatLevel = statusData.threatLevel || 'UNKNOWN';
+                state.isAnomaly = statusData.isAnomaly || false;
+                state.analysisStatus = statusData.analysisStatus || 'NOT_ANALYZED';
+                updateStatusDisplay();
+
+                log('INFO', `${logPrefix} LLM 분석 결과: Action=${state.currentAction}, Risk=${state.riskScore.toFixed(2)}`);
+            } catch (statusError) {
+                log('WARNING', `${logPrefix} 분석 결과 조회 실패: ${statusError.message}`);
+            }
+
+            // ===== 2차 요청: 분석 결과 기반 =====
+            log('STEP', `${logPrefix} [2차 요청] 분석 결과 기반 접근 시도...`);
+
+            const startTime2 = performance.now();
+            const data2 = await request(url, {}, true);
+            const elapsed2 = (performance.now() - startTime2).toFixed(0);
+
+            // 2차 요청 성공
+            setCardSuccess(card);
+            log('SUCCESS', `${logPrefix} 2차 요청 성공 - 접근 허용됨 (${elapsed2}ms)`);
+            log('SUCCESS', `${logPrefix} LLM Action: ${state.currentAction}, 응답: "${data2.data}"`);
+
         } catch (error) {
-            // 실패
+            // 2차 요청 실패
             setCardFailed(card);
 
-            const errorMessage = error.message;
-
-            // 보안 차단 여부 확인
             if (error.status === 403) {
-                log('BLOCKED', `${logPrefix} 차단됨 - ${errorMessage}`);
-                log('WARNING', `${logPrefix} 현재 Action '${state.currentAction}'이(가) 정책 조건을 충족하지 않습니다.`);
+                log('BLOCKED', `${logPrefix} 2차 요청 차단됨 - ${error.message}`);
+                log('INFO', `${logPrefix} LLM이 '${state.currentAction}' Action을 결정하여 접근이 거부되었습니다.`);
             } else if (error.status === 401) {
-                log('ERROR', `${logPrefix} 인증 실패 - ${errorMessage}`);
+                log('ERROR', `${logPrefix} 인증 실패 - ${error.message}`);
             } else {
-                log('ERROR', `${logPrefix} 오류 - ${errorMessage}`);
+                log('ERROR', `${logPrefix} 오류 - ${error.message}`);
             }
 
             console.error(`Test ${type} error:`, error);
         } finally {
+            log('STEP', `========== 테스트 완료 ==========`);
+            state.isTestRunning = false;
             setLoading(false);
         }
     }
 
     /**
-     * 테스트 카드 요소 가져오기
+     * 테스트 URL 구성
      *
      * @param {string} type - 테스트 유형
-     * @returns {HTMLElement} - 카드 요소
+     * @param {string} resourceId - 리소스 ID
+     * @returns {string|null} - URL 또는 null
+     */
+    function getTestUrl(type, resourceId) {
+        switch (type) {
+            case 'public':
+                return API.TEST_PUBLIC + encodeURIComponent(resourceId);
+            case 'normal':
+                return API.TEST_NORMAL + encodeURIComponent(resourceId);
+            case 'sensitive':
+                return API.TEST_SENSITIVE + encodeURIComponent(resourceId);
+            case 'critical':
+                return API.TEST_CRITICAL + encodeURIComponent(resourceId);
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 대기 함수
+     *
+     * @param {number} ms - 대기 시간 (밀리초)
+     * @returns {Promise<void>}
+     */
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * 테스트 카드 요소 가져오기
      */
     function getTestCard(type) {
         switch (type) {
@@ -532,40 +644,33 @@
             case 'normal': return elements.cardNormal;
             case 'sensitive': return elements.cardSensitive;
             case 'critical': return elements.cardCritical;
-            case 'bulk': return elements.cardBulk;
             default: return null;
         }
     }
 
     /**
      * 카드 상태 초기화
-     *
-     * @param {HTMLElement} card - 카드 요소
      */
     function resetCardState(card) {
         if (!card) return;
-        card.classList.remove('success', 'failed');
+        card.classList.remove('success', 'failed', 'testing');
     }
 
     /**
      * 카드 성공 상태 설정
-     *
-     * @param {HTMLElement} card - 카드 요소
      */
     function setCardSuccess(card) {
         if (!card) return;
-        card.classList.remove('failed');
+        card.classList.remove('failed', 'testing');
         card.classList.add('success');
     }
 
     /**
      * 카드 실패 상태 설정
-     *
-     * @param {HTMLElement} card - 카드 요소
      */
     function setCardFailed(card) {
         if (!card) return;
-        card.classList.remove('success');
+        card.classList.remove('success', 'testing');
         card.classList.add('failed');
     }
 
@@ -579,69 +684,54 @@
     function updateStatusDisplay() {
         // Action 배지
         const actionInfo = ACTION_INFO[state.currentAction] || ACTION_INFO['PENDING_ANALYSIS'];
-        elements.currentAction.textContent = state.currentAction;
-        elements.currentAction.className = `value action-badge ${actionInfo.badgeClass}`;
+        if (elements.currentAction) {
+            elements.currentAction.textContent = state.currentAction;
+            elements.currentAction.className = `value action-badge ${actionInfo.badgeClass}`;
+        }
 
         // Risk Score
-        elements.riskScore.textContent = state.riskScore.toFixed(2);
+        if (elements.riskScore) {
+            elements.riskScore.textContent = state.riskScore.toFixed(2);
+        }
 
         // Confidence
-        elements.confidence.textContent = state.confidence.toFixed(2);
+        if (elements.confidence) {
+            elements.confidence.textContent = state.confidence.toFixed(2);
+        }
 
         // Threat Level 배지
         const threatInfo = THREAT_LEVEL_INFO[state.threatLevel] || THREAT_LEVEL_INFO['UNKNOWN'];
-        elements.threatLevel.textContent = state.threatLevel;
-        elements.threatLevel.className = `value threat-badge ${threatInfo.badgeClass}`;
+        if (elements.threatLevel) {
+            elements.threatLevel.textContent = state.threatLevel;
+            elements.threatLevel.className = `value threat-badge ${threatInfo.badgeClass}`;
+        }
 
         // Is Anomaly
-        elements.isAnomaly.textContent = state.isAnomaly ? 'Yes' : 'No';
-        elements.isAnomaly.style.color = state.isAnomaly ? '#c62828' : '#2e7d32';
+        if (elements.isAnomaly) {
+            elements.isAnomaly.textContent = state.isAnomaly ? 'Yes' : 'No';
+            elements.isAnomaly.style.color = state.isAnomaly ? '#c62828' : '#2e7d32';
+        }
 
         // Analysis Status
-        elements.analysisStatus.textContent = state.analysisStatus === 'ANALYZED' ? 'Analyzed' : 'Not Analyzed';
-        elements.analysisStatus.style.color = state.analysisStatus === 'ANALYZED' ? '#2e7d32' : '#666';
-    }
-
-    /**
-     * Action 설명 갱신
-     */
-    function updateActionDescription() {
-        const action = elements.actionSelect.value;
-        const actionInfo = ACTION_INFO[action];
-
-        if (actionInfo) {
-            elements.actionDescription.textContent = actionInfo.description;
-        } else {
-            elements.actionDescription.textContent = '';
+        if (elements.analysisStatus) {
+            elements.analysisStatus.textContent = state.analysisStatus === 'ANALYZED' ? 'Analyzed' : 'Not Analyzed';
+            elements.analysisStatus.style.color = state.analysisStatus === 'ANALYZED' ? '#2e7d32' : '#666';
         }
     }
 
     /**
-     * 슬라이더 값 표시 갱신
-     */
-    function updateSliderValues() {
-        elements.riskScoreValue.textContent = parseFloat(elements.riskScoreInput.value).toFixed(2);
-        elements.confidenceValue.textContent = parseFloat(elements.confidenceInput.value).toFixed(2);
-    }
-
-    /**
      * 로딩 상태 설정
-     *
-     * @param {boolean} loading - 로딩 여부
      */
     function setLoading(loading) {
         state.isLoading = loading;
 
-        // 버튼 로딩 상태
         const buttons = [
             elements.btnRefreshStatus,
-            elements.btnSetAction,
             elements.btnResetAction,
             elements.btnTestPublic,
             elements.btnTestNormal,
             elements.btnTestSensitive,
-            elements.btnTestCritical,
-            elements.btnTestBulk
+            elements.btnTestCritical
         ];
 
         buttons.forEach(btn => {
@@ -662,9 +752,6 @@
 
     /**
      * 로그 메시지 추가
-     *
-     * @param {string} level - 로그 레벨 (INFO, SUCCESS, WARNING, ERROR, BLOCKED)
-     * @param {string} message - 로그 메시지
      */
     function log(level, message) {
         const timestamp = new Date().toLocaleTimeString('ko-KR', {
@@ -690,11 +777,13 @@
             <span class="log-message">${escapeHtml(message)}</span>
         `;
 
-        elements.logContainer.appendChild(logElement);
+        if (elements.logContainer) {
+            elements.logContainer.appendChild(logElement);
 
-        // 자동 스크롤
-        if (elements.autoScrollCheckbox && elements.autoScrollCheckbox.checked) {
-            elements.logContainer.scrollTop = elements.logContainer.scrollHeight;
+            // 자동 스크롤
+            if (elements.autoScrollCheckbox && elements.autoScrollCheckbox.checked) {
+                elements.logContainer.scrollTop = elements.logContainer.scrollHeight;
+            }
         }
     }
 
@@ -703,15 +792,14 @@
      */
     function clearLog() {
         state.logEntries = [];
-        elements.logContainer.innerHTML = '';
+        if (elements.logContainer) {
+            elements.logContainer.innerHTML = '';
+        }
         log('INFO', '로그가 초기화되었습니다.');
     }
 
     /**
      * HTML 특수문자 이스케이프
-     *
-     * @param {string} text - 원본 텍스트
-     * @returns {string} - 이스케이프된 텍스트
      */
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -727,65 +815,52 @@
      * 이벤트 리스너 등록
      */
     function bindEventListeners() {
-        // Action 컨트롤 버튼
+        // 시나리오 카드 클릭
+        document.querySelectorAll('.scenario-card').forEach(card => {
+            card.addEventListener('click', function() {
+                const scenario = this.dataset.scenario;
+                if (scenario) {
+                    selectScenario(scenario);
+                }
+            });
+        });
+
+        // 상태 새로고침 버튼
         if (elements.btnRefreshStatus) {
             elements.btnRefreshStatus.addEventListener('click', refreshActionStatus);
         }
 
-        if (elements.btnSetAction) {
-            elements.btnSetAction.addEventListener('click', setAction);
-        }
-
+        // 초기화 버튼
         if (elements.btnResetAction) {
             elements.btnResetAction.addEventListener('click', resetAction);
-        }
-
-        // Action 선택 변경
-        if (elements.actionSelect) {
-            elements.actionSelect.addEventListener('change', updateActionDescription);
-        }
-
-        // 슬라이더 값 변경
-        if (elements.riskScoreInput) {
-            elements.riskScoreInput.addEventListener('input', updateSliderValues);
-        }
-
-        if (elements.confidenceInput) {
-            elements.confidenceInput.addEventListener('input', updateSliderValues);
         }
 
         // 테스트 버튼
         if (elements.btnTestPublic) {
             elements.btnTestPublic.addEventListener('click', function() {
-                const resourceId = elements.inputPublic ? elements.inputPublic.value : 'test-resource';
-                executeTest('public', resourceId || 'test-resource');
+                const resourceId = elements.inputPublic ? elements.inputPublic.value : 'resource-001';
+                executeTest('public', resourceId || 'resource-001');
             });
         }
 
         if (elements.btnTestNormal) {
             elements.btnTestNormal.addEventListener('click', function() {
-                const resourceId = elements.inputNormal ? elements.inputNormal.value : 'test-resource';
-                executeTest('normal', resourceId || 'test-resource');
+                const resourceId = elements.inputNormal ? elements.inputNormal.value : 'resource-002';
+                executeTest('normal', resourceId || 'resource-002');
             });
         }
 
         if (elements.btnTestSensitive) {
             elements.btnTestSensitive.addEventListener('click', function() {
-                const resourceId = elements.inputSensitive ? elements.inputSensitive.value : 'test-resource';
-                executeTest('sensitive', resourceId || 'test-resource');
+                const resourceId = elements.inputSensitive ? elements.inputSensitive.value : 'resource-003';
+                executeTest('sensitive', resourceId || 'resource-003');
             });
         }
 
         if (elements.btnTestCritical) {
             elements.btnTestCritical.addEventListener('click', function() {
-                const resourceId = elements.inputCritical ? elements.inputCritical.value : 'test-resource';
-                executeTest('critical', resourceId || 'test-resource');
-            });
-        }
-
-        if (elements.btnTestBulk) {
-            elements.btnTestBulk.addEventListener('click', function() {
-                executeTest('bulk', null);
+                const resourceId = elements.inputCritical ? elements.inputCritical.value : 'resource-004';
+                executeTest('critical', resourceId || 'resource-004');
             });
         }
 
@@ -796,17 +871,17 @@
 
         // 키보드 단축키
         document.addEventListener('keydown', function(event) {
-            // Ctrl + R: 상태 새로고침 (기본 새로고침 방지)
+            // Ctrl + R: 상태 새로고침
             if (event.ctrlKey && event.key === 'r') {
                 event.preventDefault();
                 refreshActionStatus();
             }
 
-            // Escape: 로딩 중이면 취소 (시뮬레이션)
-            if (event.key === 'Escape' && state.isLoading) {
-                setLoading(false);
-                log('WARNING', '작업이 사용자에 의해 중단되었습니다.');
-            }
+            // 숫자 키로 시나리오 선택
+            if (event.key === '1') selectScenario('NORMAL_USER');
+            if (event.key === '2') selectScenario('ACCOUNT_TAKEOVER');
+            if (event.key === '3') selectScenario('BOT_ATTACK');
+            if (event.key === '4') selectScenario('PRIVILEGE_ESCALATION');
         });
     }
 
@@ -824,15 +899,12 @@
         // 이벤트 리스너 등록
         bindEventListeners();
 
-        // 초기 슬라이더 값 표시
-        updateSliderValues();
-
-        // Action 설명 초기화
-        updateActionDescription();
-
         // 초기 로그 메시지
         log('INFO', '@Protectable 보안 플로우 테스트 페이지가 로드되었습니다.');
-        log('INFO', '현재 Action 상태를 조회합니다...');
+        log('INFO', '실제 LLM 분석을 통한 Zero Trust 테스트입니다.');
+        log('INFO', '1. 시나리오를 선택하세요 (1-4 키 또는 카드 클릭)');
+        log('INFO', '2. 테스트 버튼을 클릭하면 두 번의 요청이 자동 실행됩니다.');
+        log('INFO', '');
 
         // 초기 상태 조회
         refreshActionStatus();

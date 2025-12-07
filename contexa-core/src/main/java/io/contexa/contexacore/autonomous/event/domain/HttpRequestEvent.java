@@ -39,6 +39,7 @@ public class HttpRequestEvent {
     private String requestUri;
     private String httpMethod;
     private int statusCode;
+    private String userAgent;  // User-Agent 헤더 (봇/정상 사용자 구별용)
     private Authentication authentication;
 
     // HCAD AI Native (v3.0)

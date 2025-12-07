@@ -196,6 +196,7 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 .eventTimestamp(LocalDateTime.now())
                 .userId(userId)
                 .sourceIp(extractClientIp(request))
+                .userAgent(extractUserAgent(request))      // User-Agent 추출 (봇/정상 사용자 구별용)
                 .requestUri(request.getRequestURI())
                 .httpMethod(request.getMethod())
                 .statusCode(response.getStatus())
@@ -287,5 +288,26 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
         }
 
         return request.getRemoteAddr();
+    }
+
+    /**
+     * User-Agent 추출 (테스트용 X-Simulated-User-Agent 헤더 우선)
+     *
+     * 브라우저 보안 정책으로 User-Agent 헤더를 직접 수정할 수 없어서
+     * 테스트 환경에서는 X-Simulated-User-Agent 커스텀 헤더를 사용합니다.
+     *
+     * @param request HTTP 요청
+     * @return User-Agent 문자열 (curl, python-requests 등 봇 구별에 사용)
+     */
+    private String extractUserAgent(HttpServletRequest request) {
+        // 테스트용 X-Simulated-User-Agent 헤더 우선 읽기
+        String userAgent = request.getHeader("X-Simulated-User-Agent");
+        if (userAgent != null && !userAgent.isEmpty()) {
+            return userAgent;
+        }
+
+        // 실제 User-Agent 헤더 읽기
+        userAgent = request.getHeader("User-Agent");
+        return userAgent != null ? userAgent : "unknown";
     }
 }
