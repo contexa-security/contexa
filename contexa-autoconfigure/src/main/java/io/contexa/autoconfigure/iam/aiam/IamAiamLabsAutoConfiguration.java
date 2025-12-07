@@ -37,6 +37,7 @@ import io.opentelemetry.api.trace.Tracer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
 /**
@@ -164,9 +165,10 @@ public class IamAiamLabsAutoConfiguration {
             Tracer tracer,
             PipelineOrchestrator orchestrator,
             AccessGovernanceContextRetriever contextRetriever,
-            AccessVectorService accessVectorService) {
+            AccessVectorService accessVectorService,
+            ApplicationEventPublisher eventPublisher) {
         return new AccessGovernanceLab(
-                tracer, orchestrator, contextRetriever, accessVectorService);
+                tracer, orchestrator, contextRetriever, accessVectorService, eventPublisher);
     }
 
     @Bean

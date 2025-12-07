@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.*;
 import io.contexa.contexacore.autonomous.dto.SecurityIncidentDTO;
+import io.contexa.contexacore.autonomous.event.DynamicThreatResponseEvent;
 import io.contexa.contexacore.autonomous.event.IncidentResolvedEvent;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
@@ -608,7 +609,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     /**
-     * 인시던트 해결 메소드 - IncidentResolvedEvent 발행
+     * 인시던트 해결 메소드 - IncidentResolvedEvent 및 DynamicThreatResponseEvent 발행
+     *
+     * DynamicThreatResponseEvent는 고위험(CRITICAL/HIGH) 위협 대응 성공 시 발행되어
+     * AutonomousPolicySynthesizer가 수신하여 DynamicThreatResponseSynthesisLab으로 라우팅,
+     * 자율 정책 생성으로 이어집니다.
      */
     public void resolveIncident(String incidentId, String resolvedBy, String resolutionMethod, boolean wasSuccessful) {
         IncidentHandler handler = activeIncidentHandlers.get(incidentId);
@@ -638,12 +643,115 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.info("Incident resolved and event published: {} by {} using {} (success: {}, time: {}ms)",
                 incidentId, resolvedBy, resolutionMethod, wasSuccessful, handler.getResolutionTimeMs());
 
+            // DynamicThreatResponseEvent 발행 (조건부: 고위험 위협 대응 성공 시)
+            if (wasSuccessful && shouldCreateDynamicThreatResponse(handler)) {
+                publishDynamicThreatResponseEvent(handler, resolutionMethod);
+            }
+
             // 핸들러 제거
             activeIncidentHandlers.remove(incidentId);
 
         } catch (Exception e) {
             log.error("Failed to resolve incident and publish event: {}", incidentId, e);
         }
+    }
+
+    /**
+     * DynamicThreatResponseEvent 발행 여부 결정
+     *
+     * 조건: 고위험(CRITICAL/HIGH) 위협 대응 성공 시만 정책 생성 대상
+     *
+     * @param handler 인시던트 핸들러
+     * @return 이벤트 발행 여부
+     */
+    private boolean shouldCreateDynamicThreatResponse(IncidentHandler handler) {
+        SoarIncident soarIncident = handler.getSoarIncident();
+        if (soarIncident == null) {
+            return false;
+        }
+
+        String severity = soarIncident.getSeverity();
+        return "CRITICAL".equalsIgnoreCase(severity) || "HIGH".equalsIgnoreCase(severity);
+    }
+
+    /**
+     * DynamicThreatResponseEvent 발행
+     *
+     * AutonomousPolicySynthesizer가 수신하여 DynamicThreatResponseSynthesisLab으로 라우팅,
+     * 위협 대응 패턴을 학습하여 자율 정책 생성으로 이어집니다.
+     *
+     * @param handler 인시던트 핸들러
+     * @param resolutionMethod 해결 방법
+     */
+    private void publishDynamicThreatResponseEvent(IncidentHandler handler, String resolutionMethod) {
+        try {
+            SoarIncident soarIncident = handler.getSoarIncident();
+            SecurityEvent securityEvent = handler.getSecurityEvent();
+
+            DynamicThreatResponseEvent threatEvent = DynamicThreatResponseEvent.builder()
+                .eventSource(this)
+                .severity(soarIncident.getSeverity())
+                .description("위협 대응 완료: " + resolutionMethod)
+                .threatType(soarIncident.getType())
+                .attackVector(securityEvent != null ? securityEvent.getAttackVector() : null)
+                .targetResource(extractTargetResource(soarIncident, securityEvent))
+                .attackerIdentity(securityEvent != null ? securityEvent.getSourceIp() : null)
+                .mitigationAction(resolutionMethod)
+                .responseSuccessful(true)
+                .responseDescription("자동화된 위협 대응 성공")
+                .incidentId(parseIncidentIdToLong(soarIncident.getIncidentId()))
+                .soarWorkflowId(handler.getSoarRequestId())
+                .build();
+
+            eventPublisher.publishEvent(threatEvent);
+
+            log.info("DynamicThreatResponseEvent published: incidentId={}, severity={}, threatType={}",
+                soarIncident.getIncidentId(), soarIncident.getSeverity(), soarIncident.getType());
+
+        } catch (Exception e) {
+            log.error("Failed to publish DynamicThreatResponseEvent for incident: {}",
+                handler.getIncidentId(), e);
+        }
+    }
+
+    /**
+     * 인시던트 ID를 Long으로 파싱
+     * String 형태의 incidentId를 Long으로 변환, 실패 시 null 반환
+     */
+    private Long parseIncidentIdToLong(String incidentId) {
+        if (incidentId == null || incidentId.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(incidentId);
+        } catch (NumberFormatException e) {
+            log.debug("incidentId '{}' cannot be parsed to Long, returning null", incidentId);
+            return null;
+        }
+    }
+
+    /**
+     * 대상 리소스 추출
+     */
+    private String extractTargetResource(SoarIncident soarIncident, SecurityEvent securityEvent) {
+        if (securityEvent != null && securityEvent.getTargetResource() != null) {
+            return securityEvent.getTargetResource();
+        }
+        if (soarIncident != null && soarIncident.getMetadata() != null) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> metadataMap = mapper.readValue(
+                    soarIncident.getMetadata(), java.util.Map.class);
+                Object resource = metadataMap.get("targetResource");
+                if (resource != null) {
+                    return resource.toString();
+                }
+            } catch (Exception e) {
+                log.debug("Failed to parse metadata JSON for targetResource extraction", e);
+            }
+        }
+        return null;
     }
 
     protected void executeRecommendedAction(String action, SecurityEvent event, ThreatAssessment assessment) {
