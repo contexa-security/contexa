@@ -138,47 +138,35 @@ public class PolicyWorkbenchController {
         log.info("Approving proposal {} by {}", id, request.getApproverId());
         
         try {
-            // 1. 승인 처리
-            if (request.getRequestId() != null) {
-                // 특정 승인 요청 처리
-                PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
-                    request.getRequestId(),
-                    request.getApproverId(),
-                    PolicyApprovalService.ApprovalDecision.APPROVE,
-                    request.getComments()
-                );
-                
+            // 1. 승인 요청 ID 검증 (거버넌스 우회 방지)
+            if (request.getRequestId() == null) {
+                log.warn("승인 요청 ID가 필수입니다. 거버넌스 우회 시도 차단: proposalId={}", id);
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
                     .proposalId(id)
-                    .success(true)
-                    .message("Approval processed successfully")
-                    .workflowComplete(result.isWorkflowComplete())
+                    .success(false)
+                    .message("승인 요청 ID(requestId)가 필수입니다. 거버넌스 프로세스를 통해 승인해주세요.")
                     .timestamp(LocalDateTime.now())
                     .build();
-                
-                return ResponseEntity.ok(response);
-                
-            } else {
-                // 직접 승인 (거버넌스 우회)
-                PolicyEvolutionProposal proposal = proposalRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
-
-                proposal.approve(request.getApproverId());
-                proposalRepository.save(proposal);
-
-                // 정책 활성화
-                Object result = activationService.activatePolicy(id, request.getApproverId());
-
-                ApprovalResponseDTO response = ApprovalResponseDTO.builder()
-                    .proposalId(id)
-                    .success(true)
-                    .message("Policy activated")
-                    .activated(true)
-                    .timestamp(LocalDateTime.now())
-                    .build();
-
-                return ResponseEntity.ok(response);
+                return ResponseEntity.badRequest().body(response);
             }
+
+            // 2. 승인 처리
+            PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
+                request.getRequestId(),
+                request.getApproverId(),
+                PolicyApprovalService.ApprovalDecision.APPROVE,
+                request.getComments()
+            );
+
+            ApprovalResponseDTO response = ApprovalResponseDTO.builder()
+                .proposalId(id)
+                .success(true)
+                .message("Approval processed successfully")
+                .workflowComplete(result.isWorkflowComplete())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             log.error("Error approving proposal", e);
@@ -209,42 +197,35 @@ public class PolicyWorkbenchController {
         log.info("Rejecting proposal {} by {}", id, request.getApproverId());
         
         try {
-            if (request.getRequestId() != null) {
-                // 특정 승인 요청 거부
-                PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
-                    request.getRequestId(),
-                    request.getApproverId(),
-                    PolicyApprovalService.ApprovalDecision.REJECT,
-                    request.getComments()
-                );
-                
+            // 1. 승인 요청 ID 검증 (거버넌스 우회 방지)
+            if (request.getRequestId() == null) {
+                log.warn("승인 요청 ID가 필수입니다. 거버넌스 우회 시도 차단: proposalId={}", id);
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
                     .proposalId(id)
-                    .success(true)
-                    .message("Rejection processed successfully")
-                    .workflowComplete(result.isWorkflowComplete())
+                    .success(false)
+                    .message("승인 요청 ID(requestId)가 필수입니다. 거버넌스 프로세스를 통해 거부해주세요.")
                     .timestamp(LocalDateTime.now())
                     .build();
-                
-                return ResponseEntity.ok(response);
-                
-            } else {
-                // 직접 거부
-                PolicyEvolutionProposal proposal = proposalRepository.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
-                
-                proposal.reject("user", request.getComments());
-                proposalRepository.save(proposal);
-                
-                ApprovalResponseDTO response = ApprovalResponseDTO.builder()
-                    .proposalId(id)
-                    .success(true)
-                    .message("Proposal rejected")
-                    .timestamp(LocalDateTime.now())
-                    .build();
-                
-                return ResponseEntity.ok(response);
+                return ResponseEntity.badRequest().body(response);
             }
+
+            // 2. 거부 처리
+            PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
+                request.getRequestId(),
+                request.getApproverId(),
+                PolicyApprovalService.ApprovalDecision.REJECT,
+                request.getComments()
+            );
+
+            ApprovalResponseDTO response = ApprovalResponseDTO.builder()
+                .proposalId(id)
+                .success(true)
+                .message("Rejection processed successfully")
+                .workflowComplete(result.isWorkflowComplete())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             log.error("Error rejecting proposal", e);

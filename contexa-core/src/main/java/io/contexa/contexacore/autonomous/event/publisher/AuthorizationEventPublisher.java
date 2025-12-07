@@ -61,11 +61,11 @@ public class AuthorizationEventPublisher {
                    .resource(request.getRequestURI())
                    .action(request.getMethod())
                    .httpMethod(request.getMethod())
-                   .result(decision.isGranted() ? 
-                       AuthorizationDecisionEvent.AuthorizationResult.ALLOWED : 
+                   .result(decision.isGranted() ?
+                       AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
                        AuthorizationDecisionEvent.AuthorizationResult.DENIED)
                    .clientIp(extractClientIp(request))
-                   .userAgent(request.getHeader("User-Agent"))
+                   .userAgent(extractUserAgent(request))  // X-Simulated-User-Agent 우선 읽기
                    .sessionId(request.getSession(false) != null ? 
                        request.getSession(false).getId() : null)
                    .requestId(extractRequestId(request));
@@ -235,15 +235,33 @@ public class AuthorizationEventPublisher {
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
             return xForwardedFor.split(",")[0].trim();
         }
-        
+
         String xRealIp = request.getHeader("X-Real-IP");
         if (xRealIp != null && !xRealIp.isEmpty()) {
             return xRealIp;
         }
-        
+
         return request.getRemoteAddr();
     }
-    
+
+    /**
+     * User-Agent 추출 (테스트용 X-Simulated-User-Agent 헤더 우선)
+     *
+     * 브라우저 보안 정책으로 User-Agent 헤더를 직접 수정할 수 없어서
+     * 테스트 환경에서는 X-Simulated-User-Agent 커스텀 헤더를 사용합니다.
+     *
+     * @param request HTTP 요청
+     * @return User-Agent 문자열 (curl, python-requests 등 봇 구별에 사용)
+     */
+    private String extractUserAgent(HttpServletRequest request) {
+        String userAgent = request.getHeader("X-Simulated-User-Agent");
+        if (userAgent != null && !userAgent.isEmpty()) {
+            return userAgent;
+        }
+        userAgent = request.getHeader("User-Agent");
+        return userAgent != null ? userAgent : "unknown";
+    }
+
     /**
      * 요청 ID 추출
      */
@@ -273,7 +291,7 @@ public class AuthorizationEventPublisher {
             HttpServletRequest request = attrs.getRequest();
             builder.clientIp(extractClientIp(request))
                    .sessionId(request.getSession(false) != null ? request.getSession().getId() : null)
-                   .userAgent(request.getHeader("User-Agent"))
+                   .userAgent(extractUserAgent(request))  // X-Simulated-User-Agent 우선 읽기
                    .httpMethod(request.getMethod());
         }
     }

@@ -200,4 +200,9 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
     private TrustAssessment createFallbackTrustAssessment() {
         return new TrustAssessment(0.3, List.of("EVALUATION_FAILED", "LOW_TRUST"), "웹 보안 AI 평가 실패 - 보수적 정책 적용");
     }
+
+    @Override
+    protected String getCurrentAction() {
+        return extractCurrentRequestAction();
+    }
 }

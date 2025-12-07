@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
+import io.contexa.contexacore.autonomous.interceptor.ZeroTrustResponseInterceptor;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
@@ -56,8 +58,11 @@ public class IamXacmlPepAutoConfiguration {
     public ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager(
             @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler,
             PolicyRetrievalPoint policyRetrievalPoint,
-            CustomDynamicAuthorizationManager dynamicAuthorizationManager) {
+            CustomDynamicAuthorizationManager dynamicAuthorizationManager,
+            RedisTemplate<String, Object> redisTemplate,
+            @Autowired(required = false) ZeroTrustResponseInterceptor zeroTrustResponseInterceptor) {
         return new ProtectableMethodAuthorizationManager(
-                expressionHandler, policyRetrievalPoint, dynamicAuthorizationManager);
+                expressionHandler, policyRetrievalPoint, dynamicAuthorizationManager,
+                redisTemplate, zeroTrustResponseInterceptor);
     }
 }

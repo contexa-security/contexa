@@ -723,4 +723,47 @@ public class ZeroTrustRedisKeys {
         }
         return String.format("%s:auth:blocked:ip:%s", NAMESPACE, sourceIp);
     }
+
+    // ============================================
+    // GOVERNANCE & APPROVAL KEYS
+    // ============================================
+
+    /**
+     * 정책 승인 워크플로우
+     * AI 정책 제안의 승인 워크플로우 저장
+     * Format: security:governance:approval:workflow:{proposalId}
+     * Type: Hash (직렬화된 ApprovalWorkflow)
+     * TTL: 7 days
+     */
+    public static String approvalWorkflow(Long proposalId) {
+        if (proposalId == null) {
+            throw new IllegalArgumentException("Proposal ID cannot be null");
+        }
+        return String.format("%s:governance:approval:workflow:%d", NAMESPACE, proposalId);
+    }
+
+    /**
+     * 활성 승인 워크플로우 인덱스
+     * 모든 활성 워크플로우의 proposalId 목록
+     * Format: security:governance:approval:index
+     * Type: Set (Long - proposalId)
+     * TTL: No expiry
+     */
+    public static String approvalWorkflowIndex() {
+        return String.format("%s:governance:approval:index", NAMESPACE);
+    }
+
+    /**
+     * 승인 요청 개별 키
+     * 빠른 조회를 위한 requestId → proposalId 매핑
+     * Format: security:governance:approval:request:{requestId}
+     * Value: proposalId
+     * TTL: 7 days
+     */
+    public static String approvalRequest(String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            throw new IllegalArgumentException("Request ID cannot be null or empty");
+        }
+        return String.format("%s:governance:approval:request:%s", NAMESPACE, requestId);
+    }
 }

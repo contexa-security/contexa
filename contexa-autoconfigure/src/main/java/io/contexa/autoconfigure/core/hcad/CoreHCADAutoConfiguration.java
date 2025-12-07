@@ -126,9 +126,7 @@ public class CoreHCADAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public HCADFilter hcadFilter(
-            HCADAnalysisService hcadAnalysisService,
-            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
-        return new HCADFilter(hcadAnalysisService, redisTemplate);
+    public HCADFilter hcadFilter(HCADAnalysisService hcadAnalysisService) {
+        return new HCADFilter(hcadAnalysisService);
     }
 }

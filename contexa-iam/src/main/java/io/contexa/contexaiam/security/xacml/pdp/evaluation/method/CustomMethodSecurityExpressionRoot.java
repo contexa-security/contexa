@@ -271,4 +271,12 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     protected String calculateContextHash() {
         return "static";
     }
+
+    @Override
+    protected String getCurrentAction() {
+        if (this.invocation != null && this.invocation.getMethod() != null) {
+            return this.invocation.getMethod().getName();
+        }
+        return "UNKNOWN";
+    }
 } 

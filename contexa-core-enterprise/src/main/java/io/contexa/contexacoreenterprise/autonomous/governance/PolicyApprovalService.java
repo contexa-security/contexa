@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.governance;
 
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
@@ -8,9 +9,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.Serializable;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,12 +36,19 @@ public class PolicyApprovalService {
     private final PolicyProposalRepository proposalRepository;
     private final ApplicationEventPublisher eventPublisher;
 
+    // Redis 템플릿 (선택적 - Redis 없으면 메모리 폴백)
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
+
     @Autowired(required = false)
     private PolicyActivationService policyActivationService;
-    
-    // 승인 워크플로우 저장소
-    private final Map<Long, ApprovalWorkflow> activeWorkflows = new ConcurrentHashMap<>();
-    
+
+    // 워크플로우 TTL (ZeroTrustRedisKeys 문서에 명시된 7일)
+    private static final Duration WORKFLOW_TTL = Duration.ofDays(7);
+
+    // 메모리 폴백 저장소 (Redis 없을 때 사용)
+    private final Map<Long, ApprovalWorkflow> memoryWorkflows = new ConcurrentHashMap<>();
+
     // 승인자 풀
     private final Map<ApproverLevel, List<Approver>> approverPool = new ConcurrentHashMap<>();
     
@@ -72,8 +83,8 @@ public class PolicyApprovalService {
                 .createdAt(LocalDateTime.now())
                 .build();
             
-            // 4. 워크플로우 저장
-            activeWorkflows.put(proposalId, workflow);
+            // 4. 워크플로우 저장 (Redis 또는 메모리)
+            saveWorkflow(proposalId, workflow);
             
             // 5. 승인 요청 생성
             ApprovalRequest request = createApprovalRequest(proposal, approver, workflow);
@@ -139,8 +150,8 @@ public class PolicyApprovalService {
                 .createdAt(LocalDateTime.now())
                 .build();
             
-            // 5. 워크플로우 저장
-            activeWorkflows.put(proposalId, workflow);
+            // 5. 워크플로우 저장 (Redis 또는 메모리)
+            saveWorkflow(proposalId, workflow);
             
             // 6. 첫 번째 승인자에게 요청 생성
             Approver firstApprover = approvers.get(0);
@@ -255,8 +266,8 @@ public class PolicyApprovalService {
      */
     public ApprovalHistory getApprovalHistory(Long proposalId) {
         log.debug("Retrieving approval history for proposal: {}", proposalId);
-        
-        ApprovalWorkflow workflow = activeWorkflows.get(proposalId);
+
+        ApprovalWorkflow workflow = getWorkflow(proposalId);
         if (workflow == null) {
             return ApprovalHistory.builder()
                 .proposalId(proposalId)
@@ -459,8 +470,8 @@ public class PolicyApprovalService {
             proposalRepository.save(proposal);
         }
         
-        // 워크플로우 제거
-        activeWorkflows.remove(workflow.getProposalId());
+        // 워크플로우 제거 (Redis 또는 메모리에서)
+        removeWorkflow(workflow.getProposalId());
     }
     
     private void initiateNextApproval(ApprovalWorkflow workflow) {
@@ -480,7 +491,22 @@ public class PolicyApprovalService {
     }
     
     private ApprovalWorkflow findWorkflowByRequestId(String requestId) {
-        return activeWorkflows.values().stream()
+        // Redis에서 requestId → proposalId 매핑 조회
+        if (isRedisAvailable()) {
+            try {
+                String requestKey = ZeroTrustRedisKeys.approvalRequest(requestId);
+                Object proposalIdObj = redisTemplate.opsForValue().get(requestKey);
+                if (proposalIdObj != null) {
+                    Long proposalId = Long.valueOf(proposalIdObj.toString());
+                    return getWorkflow(proposalId);
+                }
+            } catch (Exception e) {
+                log.warn("Redis에서 요청 ID 조회 실패, 전체 검색으로 대체: {}", e.getMessage());
+            }
+        }
+
+        // 폴백: 전체 워크플로우에서 검색
+        return getAllWorkflows().stream()
             .filter(w -> w.getRequests().stream()
                 .anyMatch(r -> r.getRequestId().equals(requestId)))
             .findFirst()
@@ -521,15 +547,145 @@ public class PolicyApprovalService {
     private String generateRequestId() {
         return "REQ_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
-    
+
+    // ==================== Redis Persistence Methods ====================
+
+    /**
+     * Redis 사용 가능 여부 확인
+     */
+    private boolean isRedisAvailable() {
+        return redisTemplate != null;
+    }
+
+    /**
+     * 워크플로우 저장 (Redis 또는 메모리)
+     *
+     * @param proposalId 제안 ID
+     * @param workflow 워크플로우
+     */
+    private void saveWorkflow(Long proposalId, ApprovalWorkflow workflow) {
+        if (isRedisAvailable()) {
+            try {
+                // 워크플로우 저장
+                String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
+                redisTemplate.opsForValue().set(key, workflow, WORKFLOW_TTL);
+
+                // 인덱스에 추가
+                String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
+                redisTemplate.opsForSet().add(indexKey, proposalId);
+
+                // 요청 ID → proposalId 매핑 저장 (빠른 조회용)
+                for (ApprovalRequest request : workflow.getRequests()) {
+                    String requestKey = ZeroTrustRedisKeys.approvalRequest(request.getRequestId());
+                    redisTemplate.opsForValue().set(requestKey, proposalId, WORKFLOW_TTL);
+                }
+
+                log.debug("워크플로우 Redis 저장 완료: proposalId={}", proposalId);
+            } catch (Exception e) {
+                log.warn("Redis 저장 실패, 메모리 폴백: {}", e.getMessage());
+                memoryWorkflows.put(proposalId, workflow);
+            }
+        } else {
+            memoryWorkflows.put(proposalId, workflow);
+        }
+    }
+
+    /**
+     * 워크플로우 조회 (Redis 또는 메모리)
+     *
+     * @param proposalId 제안 ID
+     * @return 워크플로우 (없으면 null)
+     */
+    private ApprovalWorkflow getWorkflow(Long proposalId) {
+        if (isRedisAvailable()) {
+            try {
+                String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
+                Object obj = redisTemplate.opsForValue().get(key);
+                if (obj instanceof ApprovalWorkflow) {
+                    return (ApprovalWorkflow) obj;
+                }
+            } catch (Exception e) {
+                log.warn("Redis 조회 실패, 메모리 폴백: {}", e.getMessage());
+            }
+        }
+        return memoryWorkflows.get(proposalId);
+    }
+
+    /**
+     * 워크플로우 삭제 (Redis 또는 메모리)
+     *
+     * @param proposalId 제안 ID
+     */
+    private void removeWorkflow(Long proposalId) {
+        if (isRedisAvailable()) {
+            try {
+                // 워크플로우 조회하여 요청 ID 매핑도 삭제
+                ApprovalWorkflow workflow = getWorkflow(proposalId);
+                if (workflow != null) {
+                    for (ApprovalRequest request : workflow.getRequests()) {
+                        String requestKey = ZeroTrustRedisKeys.approvalRequest(request.getRequestId());
+                        redisTemplate.delete(requestKey);
+                    }
+                }
+
+                // 워크플로우 삭제
+                String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
+                redisTemplate.delete(key);
+
+                // 인덱스에서 제거
+                String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
+                redisTemplate.opsForSet().remove(indexKey, proposalId);
+
+                log.debug("워크플로우 Redis 삭제 완료: proposalId={}", proposalId);
+            } catch (Exception e) {
+                log.warn("Redis 삭제 실패: {}", e.getMessage());
+            }
+        }
+        memoryWorkflows.remove(proposalId);
+    }
+
+    /**
+     * 모든 활성 워크플로우 조회 (Redis 또는 메모리)
+     *
+     * @return 워크플로우 목록
+     */
+    private List<ApprovalWorkflow> getAllWorkflows() {
+        List<ApprovalWorkflow> workflows = new ArrayList<>();
+
+        if (isRedisAvailable()) {
+            try {
+                String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
+                Set<Object> proposalIds = redisTemplate.opsForSet().members(indexKey);
+                if (proposalIds != null) {
+                    for (Object proposalIdObj : proposalIds) {
+                        Long proposalId = Long.valueOf(proposalIdObj.toString());
+                        ApprovalWorkflow workflow = getWorkflow(proposalId);
+                        if (workflow != null) {
+                            workflows.add(workflow);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Redis 전체 조회 실패, 메모리 폴백: {}", e.getMessage());
+                workflows.addAll(memoryWorkflows.values());
+            }
+        } else {
+            workflows.addAll(memoryWorkflows.values());
+        }
+
+        return workflows;
+    }
+
     // ==================== Inner Classes ====================
     
     /**
      * 승인 워크플로우
+     * Redis 직렬화를 위해 Serializable 구현
      */
     @lombok.Builder
     @lombok.Data
-    public static class ApprovalWorkflow {
+    public static class ApprovalWorkflow implements Serializable {
+        private static final long serialVersionUID = 1L;
         private String workflowId;
         private Long proposalId;
         private WorkflowType workflowType;
@@ -557,10 +713,12 @@ public class PolicyApprovalService {
     
     /**
      * 승인 요청
+     * Redis 직렬화를 위해 Serializable 구현
      */
     @lombok.Builder
     @lombok.Data
-    public static class ApprovalRequest {
+    public static class ApprovalRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
         private String requestId;
         private String workflowId;
         private Long proposalId;
@@ -577,10 +735,12 @@ public class PolicyApprovalService {
     
     /**
      * 승인자
+     * Redis 직렬화를 위해 Serializable 구현
      */
     @lombok.Builder
     @lombok.Data
-    public static class Approver {
+    public static class Approver implements Serializable {
+        private static final long serialVersionUID = 1L;
         private String approverId;
         private String name;
         private String email;

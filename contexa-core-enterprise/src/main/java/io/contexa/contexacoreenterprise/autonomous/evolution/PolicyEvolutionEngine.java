@@ -5,6 +5,7 @@ import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacoreenterprise.domain.dto.PolicyDTO;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
+import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,10 @@ public class PolicyEvolutionEngine {
     // Metrics Collector (Optional - 없어도 동작)
     @Autowired(required = false)
     private EvolutionMetricsCollector metricsCollector;
+
+    // SpEL Validation Service (Optional - AI 생성 SpEL 표현식 검증)
+    @Autowired(required = false)
+    private SpelValidationService spelValidationService;
     
     @Value("${policy.evolution.confidence.threshold:0.7}")
     private double confidenceThreshold;
@@ -410,16 +415,48 @@ public class PolicyEvolutionEngine {
                 .forEach(doc -> prompt.append(String.format("- %s\n", doc.getText())));
         }
         
+        // 사용 가능한 SpEL API 목록 (AI가 실제 존재하는 메서드만 사용하도록)
+        prompt.append("\n## 사용 가능한 SpEL API\n");
+        prompt.append("### #trust 변수 (Hot Path - Redis 조회, 응답시간 5ms 이내)\n");
+        prompt.append("- #trust.levelExceeds(threshold) : 위협 점수가 임계값 초과 확인 (0.0~1.0)\n");
+        prompt.append("- #trust.trustLevelAbove(minLevel) : 신뢰 수준이 최소값 이상인지 확인\n");
+        prompt.append("- #trust.isLowRisk() : 저위험 여부 (위협점수 <= 0.4)\n");
+        prompt.append("- #trust.isMediumRisk() : 중위험 여부 (0.4 < 위협점수 <= 0.7)\n");
+        prompt.append("- #trust.isHighRisk() : 고위험 여부 (위협점수 > 0.7)\n");
+        prompt.append("- #trust.isCriticalRisk() : 매우 고위험 여부 (위협점수 > 0.9)\n");
+        prompt.append("- #trust.hasActionIn('ACTION1', 'ACTION2') : HCAD 분석 결과 action 확인\n");
+        prompt.append("- #trust.requiresAnalysisWithAction('ACTION') : 분석 필요 여부\n");
+        prompt.append("- #trust.hasResourceAccess('resourceId', threshold) : 리소스별 접근 권한\n");
+        prompt.append("\n### #ai 변수 (Cold Path - 실시간 AI 분석, 고위험 작업 전용)\n");
+        prompt.append("- #ai.analyzeFraud(#transaction) : 사기 거래 분석\n");
+        prompt.append("- #ai.detectAnomaly('operation') : 이상 행동 탐지\n");
+        prompt.append("- #ai.evaluateCriticalOperation(#context) : 중요 작업 평가\n");
+        prompt.append("- #ai.hasSafeBehavior(threshold) : 행동 안전성 평가\n");
+        prompt.append("- #ai.assessContext().score : AI 컨텍스트 신뢰도 점수\n");
+        prompt.append("\n### Spring Security 기본 메서드\n");
+        prompt.append("- hasRole('ROLE_XXX') : 역할 확인\n");
+        prompt.append("- hasAnyRole('ROLE_A', 'ROLE_B') : 여러 역할 중 하나 확인\n");
+        prompt.append("- hasAuthority('XXX') : 권한 확인\n");
+        prompt.append("- hasAnyAuthority('A', 'B') : 여러 권한 중 하나 확인\n");
+        prompt.append("- isAuthenticated() : 인증 여부\n");
+        prompt.append("- isFullyAuthenticated() : 완전 인증 여부 (Remember-Me 제외)\n");
+
         // 요청사항
         prompt.append("\n## 요청사항\n");
         prompt.append("1. 이 이벤트를 예방하기 위한 정책을 제안해주세요.\n");
-        prompt.append("2. SpEL 표현식으로 실행 가능한 정책을 작성해주세요.\n");
-        prompt.append("3. 정책의 예상 효과를 0.0-1.0 사이로 평가해주세요.\n");
-        prompt.append("4. 정책 적용 시 주의사항을 명시해주세요.\n");
-        
+        prompt.append("2. 위 SpEL API 목록에 있는 메서드만 사용하여 정책을 작성해주세요.\n");
+        prompt.append("3. Hot Path(#trust)를 우선 사용하고, 고위험 작업에만 Cold Path(#ai) 사용\n");
+        prompt.append("4. 정책의 예상 효과를 0.0-1.0 사이로 평가해주세요.\n");
+        prompt.append("5. 정책 적용 시 주의사항을 명시해주세요.\n");
+
+        prompt.append("\n## 응답 형식\n");
+        prompt.append("```spel\n");
+        prompt.append("// SpEL 표현식을 여기에 작성\n");
+        prompt.append("```\n");
+
         return prompt.toString();
     }
-    
+
     /**
      * AI 호출
      */
@@ -579,8 +616,8 @@ public class PolicyEvolutionEngine {
         java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
         if (matcher.find()) {
             String code = matcher.group(1).trim();
-            // SpEL 표현식인지 검증
-            if (isValidSpelExpression(code)) {
+            // SpEL 표현식 검증 (SpelValidationService 우선 사용)
+            if (validateSpelWithService(code)) {
                 return code;
             }
         }
@@ -590,7 +627,7 @@ public class PolicyEvolutionEngine {
         matcher = pattern.matcher(aiResponse);
         while (matcher.find()) {
             String code = matcher.group(1).trim();
-            if (isValidSpelExpression(code)) {
+            if (validateSpelWithService(code)) {
                 return code;
             }
         }
@@ -599,11 +636,33 @@ public class PolicyEvolutionEngine {
     }
 
     /**
+     * SpelValidationService를 사용한 SpEL 표현식 검증
+     * SpelValidationService가 주입되지 않은 경우 기존 검증 로직 사용
+     */
+    private boolean validateSpelWithService(String expression) {
+        if (spelValidationService != null) {
+            SpelValidationService.ValidationResult result = spelValidationService.validate(expression);
+            if (!result.valid()) {
+                log.warn("AI 생성 SpEL 검증 실패: {}, 오류: {}", expression, result.errors());
+                return false;
+            }
+            if (!result.warnings().isEmpty()) {
+                log.info("SpEL 검증 경고: {}", result.warnings());
+            }
+            return true;
+        }
+        // SpelValidationService가 없는 경우 기존 검증 로직 사용
+        return isValidSpelExpression(expression);
+    }
+
+    /**
      * SpEL 함수 패턴 추출
      */
     private String extractSpelFunctionPattern(String aiResponse) {
-        // SpEL 주요 함수 패턴: hasRole, hasAuthority, hasPermission, permitAll, denyAll 등
+        // SpEL 주요 함수 패턴: hasRole, hasAuthority, hasPermission, permitAll, denyAll, #trust.*, #ai.* 등
         String[] spelPatterns = {
+            "#trust\\.\\w+\\([^)]*\\)[^\\n]*",    // #trust 메서드 패턴
+            "#ai\\.\\w+\\([^)]*\\)[^\\n]*",       // #ai 메서드 패턴
             "hasRole\\([^)]+\\)[^\\n]*",
             "hasAuthority\\([^)]+\\)[^\\n]*",
             "hasPermission\\([^)]+\\)[^\\n]*",
@@ -622,7 +681,10 @@ public class PolicyEvolutionEngine {
                 String expression = matcher.group(0).trim();
                 // 문장 종료 표시 제거 (.!?;)
                 expression = expression.replaceAll("[.!?;]$", "");
-                return expression;
+                // SpelValidationService로 검증
+                if (validateSpelWithService(expression)) {
+                    return expression;
+                }
             }
         }
 
@@ -636,7 +698,8 @@ public class PolicyEvolutionEngine {
         try {
             String extractionPrompt = String.format(
                 "다음 텍스트에서 Spring Security SpEL 표현식만 추출해주세요. " +
-                "코드 블록이나 설명 없이 SpEL 표현식만 반환해주세요:\n\n%s",
+                "코드 블록이나 설명 없이 SpEL 표현식만 반환해주세요.\n" +
+                "허용된 API: #trust.levelExceeds(), #trust.isHighRisk(), #ai.hasSafeBehavior(), hasRole(), hasAuthority() 등\n\n%s",
                 originalResponse.substring(0, Math.min(500, originalResponse.length()))
             );
 
@@ -644,8 +707,8 @@ public class PolicyEvolutionEngine {
             ChatResponse response = chatModel.call(prompt);
             String extractedSpel = response.getResult().getOutput().getText().trim();
 
-            // 검증
-            if (isValidSpelExpression(extractedSpel)) {
+            // SpelValidationService로 검증
+            if (validateSpelWithService(extractedSpel)) {
                 return extractedSpel;
             }
 

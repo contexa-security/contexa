@@ -452,11 +452,28 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
     }
     
     private String generateFallbackSpel(DynamicThreatResponseRequest request) {
-        return String.format(
-                "#threatType == '%s' and #targetResource.contains('%s')",
-                request.getContext().getThreatInfo().getThreatType(),
-                extractResourceType(request.getContext().getThreatInfo().getTargetResource())
-        );
+        // 위협 심각도에 따른 SpEL 표현식 생성
+        // 주의: #threatType, #targetResource는 Contexa에 존재하지 않는 변수
+        // 실제 존재하는 #trust, #ai 변수 및 Spring Security 메서드 사용
+        String severity = request.getContext().getThreatInfo().getSeverity();
+        String mitigationAction = request.getContext().getResponseInfo().getMitigationAction();
+
+        // 심각도에 따른 신뢰 기반 정책 생성 (Hot Path 우선)
+        switch (severity) {
+            case "CRITICAL":
+                // 매우 고위험: 즉시 차단 + AI 실시간 분석 필요
+                return "#trust.isCriticalRisk() or (#trust.isHighRisk() and #ai.hasSafeBehavior(10.0) == false)";
+            case "HIGH":
+                // 고위험: 고위험 사용자 차단
+                return "#trust.isHighRisk() and not #trust.hasActionIn('ALLOW')";
+            case "MEDIUM":
+                // 중위험: 중간 이상 위험 사용자 추가 검증
+                return "#trust.isMediumRisk() and not hasRole('ROLE_TRUSTED_USER')";
+            case "LOW":
+            default:
+                // 저위험: 인증 필수 + 저위험 확인
+                return "isAuthenticated() and not #trust.isHighRisk()";
+        }
     }
     
     private String generateProposalTitle(DynamicThreatResponseRequest request) {

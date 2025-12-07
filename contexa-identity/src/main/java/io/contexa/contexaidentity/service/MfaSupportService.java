@@ -12,7 +12,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class MfaSupportService { // 클래스명 변경
 

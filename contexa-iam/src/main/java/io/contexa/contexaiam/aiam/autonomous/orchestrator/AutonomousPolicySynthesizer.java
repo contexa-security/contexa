@@ -226,12 +226,13 @@ public class AutonomousPolicySynthesizer {
             proposal.setDescription(policyProposal.getDescription());
             proposal.setProposalType(mapProposalType(policyProposal.getActionType()));
             proposal.setRiskLevel(mapRiskLevel(policyProposal.getRiskLevel()));
-            proposal.setPolicyContent(response.getSpelExpression());
+            // SpEL 표현식은 spelExpression 필드에 저장 (policyContent가 아닌)
+            proposal.setSpelExpression(response.getSpelExpression());
             proposal.setRationale(policyProposal.getAiRationale());
             proposal.setExpectedImpact(response.getAiConfidenceScore());
             proposal.setCreatedBy("AutonomousPolicySynthesizer");
             proposal.setCreatedAt(LocalDateTime.now());
-            
+
             // 메타데이터 설정
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("proposalId", policyProposal.getProposalId());
@@ -260,12 +261,13 @@ public class AutonomousPolicySynthesizer {
         proposal.setDescription(policyProposal.getDescription());
         proposal.setProposalType(mapProposalType(policyProposal.getActionType()));
         proposal.setRiskLevel(mapRiskLevel(policyProposal.getRiskLevel()));
-        proposal.setPolicyContent(response.getSpelExpression());
+        // SpEL 표현식은 spelExpression 필드에 저장 (policyContent가 아닌)
+        proposal.setSpelExpression(response.getSpelExpression());
         proposal.setRationale(policyProposal.getAiRationale());
         proposal.setExpectedImpact(response.getAiConfidenceScore());
         proposal.setCreatedBy("AutonomousPolicySynthesizer");
         proposal.setCreatedAt(LocalDateTime.now());
-        
+
         // 메타데이터 설정
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("proposalId", policyProposal.getProposalId());

@@ -36,7 +36,7 @@ public class PolicyEvolutionGovernance {
     private final Map<String, GovernanceRule> governanceRules = new ConcurrentHashMap<>();
     
     // 설정값
-    @Value("${governance.auto-approve.enabled:true}")
+    @Value("${governance.auto-approve.enabled:false}")
     private boolean autoApproveEnabled;
     
     @Value("${governance.auto-approve.max-risk:LOW}")
@@ -169,7 +169,8 @@ public class PolicyEvolutionGovernance {
             }
         }
         
-        // 최종 위험도 계산
+        // 최종 위험도 계산 (0.0 ~ 1.0 범위로 정규화)
+        riskScore = Math.max(0.0, Math.min(riskScore, 1.0));
         assessment.setRiskScore(riskScore);
         assessment.setAdjustedRisk(calculateAdjustedRisk(baseRisk, riskScore));
         assessment.setAssessmentTime(LocalDateTime.now());

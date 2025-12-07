@@ -117,9 +117,6 @@ public class AutonomousLearningCoordinator {
 
     // 일일 제안 카운터
     private final Map<String, Integer> dailyProposalCount = new ConcurrentHashMap<>();
-
-    // 학습 히스토리
-    private final Map<String, LearningMetadata> learningHistory = new ConcurrentHashMap<>();
     
     /**
      * 인시던트 해결 이벤트 리스너
@@ -352,60 +349,6 @@ public class AutonomousLearningCoordinator {
         return metadata.isLearnable() &&
                metadata.getConfidenceScore() >= confidenceThreshold &&
                metadata.getStatus() == LearningMetadata.LearningStatus.PENDING;
-    }
-
-    /**
-     * IncidentResolvedEvent 수신 및 처리
-     * Spring ApplicationEvent를 통해 SecurityPlaneAgent로부터 이벤트 수신
-     */
-    @EventListener
-    @Async
-    public void handleIncidentResolvedEvent(IncidentResolvedEvent event) {
-        log.info("[자율 학습] 사건 해결 이벤트 수신: {} (해결자: {}, 방법: {}, 성공: {})",
-            event.getIncidentId(), event.getResolvedBy(), event.getResolutionMethod(), event.wasSuccessful());
-
-        try {
-            // SoarIncident와 SecurityEvent 정보 활용
-            SoarIncident incident = event.getIncident();
-            SecurityEvent securityEvent = event.getSecurityEvent();
-
-            // 학습 메타데이터 생성
-            LearningMetadata metadata = LearningMetadata.builder()
-                .incidentId(event.getIncidentId())
-                .eventType(securityEvent != null ? securityEvent.getEventType().toString() : "UNKNOWN")
-                .confidenceScore(event.wasSuccessful() ? 0.8 : 0.4)
-                .isLearnable(event.wasSuccessful())
-                .createdAt(LocalDateTime.now())
-                .status(LearningMetadata.LearningStatus.PENDING)
-                .build();
-
-            metadata.addPattern("resolution_method", event.getResolutionMethod());
-            metadata.addPattern("resolved_by", event.getResolvedBy());
-            metadata.addPattern("resolution_time_ms", String.valueOf(event.getResolutionTimeMs()));
-            metadata.addOutcome("success", event.wasSuccessful());
-
-            // 메타데이터 저장
-            learningHistory.put(event.getIncidentId(), metadata);
-
-            // 즉시 학습 처리
-            if (canLearn(metadata)) {
-                processLearning(metadata, incident, securityEvent);
-
-                // 성공적인 해결인 경우 정책 진화 요청
-                if (event.wasSuccessful()) {
-                    requestPolicyEvolution(metadata, incident, securityEvent);
-                }
-            }
-
-            // 메트릭 업데이트
-            totalIncidentsProcessed.incrementAndGet();
-            if (event.wasSuccessful()) {
-                successfulLearnings.incrementAndGet();
-            }
-
-        } catch (Exception e) {
-            log.error("[자율 학습] 사건 해결 이벤트 처리 실패: {}", event.getIncidentId(), e);
-        }
     }
 
     /**

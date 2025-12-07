@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit;
  * @since 2024.12
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class RefreshTokenAnomalyDetector {
 

@@ -44,16 +44,21 @@ import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.scheduler.VectorLearningScheduler;
 import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
-import io.contexa.contexacoreenterprise.autonomous.scheduler.PolicyEvolutionScheduler;
 import io.contexa.contexacoreenterprise.autonomous.scheduler.StaticAnalysisScheduler;
 import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
+// ProposalToPolicyConverter는 같은 패키지에 위치 (io.contexa.autoconfigure.enterprise.autonomous)
 import io.contexa.contexacore.autonomous.notification.NotificationService;
+// PolicyActivationEventListener는 같은 패키지에 위치 (io.contexa.autoconfigure.enterprise.autonomous)
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
+import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacoreenterprise.soar.notification.SoarEmailService;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
 import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
+import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.opentelemetry.api.trace.Tracer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.model.ChatModel;
@@ -641,29 +646,7 @@ public class EnterpriseAutonomousAutoConfiguration {
     }
 
     /**
-     * 9-4. PolicyEvolutionScheduler - 정책 진화 스케줄러
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
-    public PolicyEvolutionScheduler policyEvolutionScheduler(
-            IPolicyProposalManagementService proposalManagementService,
-            PolicyEvolutionProposalRepository proposalRepository,
-            PolicyEffectivenessMonitor effectivenessMonitor,
-            PolicyProposalAnalytics proposalAnalytics) {
-        return new PolicyEvolutionScheduler(
-            proposalManagementService, proposalRepository,
-            effectivenessMonitor, proposalAnalytics
-        );
-    }
-
-    /**
-     * 9-5. StaticAnalysisScheduler - 정적 분석 스케줄러
+     * 9-4. StaticAnalysisScheduler - 정적 분석 스케줄러
      */
     @Bean
     @ConditionalOnMissingBean
@@ -710,5 +693,81 @@ public class EnterpriseAutonomousAutoConfiguration {
             proposalRepository, activationService, approvalService,
             governanceService, synthesisPolicyRepository, analyticsService
         );
+    }
+
+    // ========== Level 11: AI Policy - XACML PAP 연동 (2개) ==========
+
+    /**
+     * 11-1. ProposalToPolicyConverter - AI 정책 제안을 XACML Policy로 변환
+     *
+     * PolicyEvolutionProposal을 PolicyDto로 변환하여
+     * XACML PAP(Policy Administration Point)에서 사용할 수 있게 합니다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "contexa.autonomous.policy-evolution",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    public ProposalToPolicyConverter proposalToPolicyConverter() {
+        return new ProposalToPolicyConverter();
+    }
+
+    /**
+     * 11-2. PolicyActivationEventListener - AI 정책 활성화 이벤트 처리
+     *
+     * PolicyActivationServiceImpl.PolicyChangeEvent를 수신하여
+     * 승인된 AI 정책을 실제 XACML Policy로 변환하고 Spring Security에 적용합니다.
+     *
+     * 이 리스너가 AI Policy와 Spring Security 간의 핵심 연결점입니다:
+     * PolicyEvolutionProposal -> PolicyDto -> Policy -> Spring Security
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "contexa.autonomous.policy-evolution",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    @ConditionalOnClass(name = "io.contexa.contexaiam.security.xacml.pap.service.PolicyService")
+    public PolicyActivationEventListener policyActivationEventListener(
+            PolicyProposalRepository proposalRepository,
+            ProposalToPolicyConverter proposalToPolicyConverter,
+            PolicyService policyService,
+            PolicyRetrievalPoint policyRetrievalPoint,
+            CustomDynamicAuthorizationManager authorizationManager) {
+        return new PolicyActivationEventListener(
+            proposalRepository,
+            proposalToPolicyConverter,
+            policyService,
+            policyRetrievalPoint,
+            authorizationManager
+        );
+    }
+
+    /**
+     * 11-3. SpelValidationService - AI 생성 SpEL 표현식 검증 서비스
+     *
+     * PolicyEvolutionEngine이 AI로부터 받은 SpEL 표현식이
+     * 실제 Contexa 보안 시스템에서 실행 가능한지 검증합니다.
+     *
+     * 검증 항목:
+     * 1. SpEL 구문 유효성
+     * 2. 허용된 메서드/변수만 사용하는지 확인 (#trust.*, #ai.*, hasRole 등)
+     * 3. 보안 위험 패턴 탐지 (코드 인젝션 방지)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "contexa.autonomous.policy-evolution",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+    )
+    public SpelValidationService spelValidationService() {
+        return new SpelValidationService();
     }
 }
