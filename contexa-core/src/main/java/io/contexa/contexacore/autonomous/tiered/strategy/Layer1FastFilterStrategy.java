@@ -40,7 +40,6 @@ import java.util.concurrent.TimeUnit;
 /**
  * Layer 1: 초고속 필터링 전략
  *
- * 98%의 보안 이벤트를 20-50ms 내에 처리하는 첫 번째 방어선입니다.
  * TinyLlama와 같은 경량 LLM을 사용하여 빠른 의사결정을 수행합니다.
  * AI-Native 접근법으로 전통적인 규칙 기반 시스템을 대체합니다.
  */

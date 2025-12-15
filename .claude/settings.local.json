@@ -5,7 +5,10 @@
       "Bash(find:*)",
       "Bash(cat:*)",
       "Bash(./gradlew compileJava:*)",
-      "Bash(./gradlew build:*)"
+      "Bash(./gradlew build:*)",
+      "Bash(done)",
+      "Bash(ls:*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []
