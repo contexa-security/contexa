@@ -1,11 +1,16 @@
 package io.contexa.springbootstartercontexa.web;
 
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+
+import java.util.stream.Collectors;
 
 /**
  * 보안 테스트 페이지 컨트롤러
@@ -36,17 +41,30 @@ public class TestPageController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         String username = "anonymous";
-        String authorities = "";
+        String urlAuthorities = "";
+        String methodAuthorities = "";
 
         if (auth != null && auth.isAuthenticated()) {
             username = auth.getName();
-            authorities = auth.getAuthorities().toString();
+
+            // URL 권한 (RoleAuthority) - 행 단위로 표시
+            urlAuthorities = auth.getAuthorities().stream()
+                .filter(a -> a instanceof RoleAuthority)
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.joining("\n"));
+
+            // 서비스/METHOD 권한 (PermissionAuthority) - 행 단위로 표시
+            methodAuthorities = auth.getAuthorities().stream()
+                .filter(a -> a instanceof PermissionAuthority)
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.joining("\n"));
         }
 
         model.addAttribute("username", username);
-        model.addAttribute("authorities", authorities);
+        model.addAttribute("urlAuthorities", urlAuthorities.isEmpty() ? "-" : urlAuthorities);
+        model.addAttribute("methodAuthorities", methodAuthorities.isEmpty() ? "-" : methodAuthorities);
 
-        log.info("[보안 테스트 페이지] 접근 - user: {}, authorities: {}", username, authorities);
+        log.info("[보안 테스트 페이지] 접근 - user: {}, url: {}, method: {}", username, urlAuthorities, methodAuthorities);
 
         return "test/security-test";
     }

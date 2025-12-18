@@ -19,10 +19,8 @@ public class ExpressionAuthorizationManagerResolver {
     public AuthorizationManager<RequestAuthorizationContext> resolve(String expression) {
         for (ExpressionEvaluator evaluator : evaluators) {
             if (evaluator.supports(expression)) {
-                // 'WebSpelExpressionEvaluator' 가 선택되면...
                 if (evaluator instanceof WebSpelExpressionEvaluator) {
                     WebExpressionAuthorizationManager manager = new WebExpressionAuthorizationManager(expression);
-                    // 이 manager는 내부적으로 createSecurityExpressionRoot를 호출하여 #riskScore 변수가 주입된 컨텍스트를 사용하게 된다.
                     manager.setExpressionHandler(customWebSecurityExpressionHandler);
                     return manager;
                 }

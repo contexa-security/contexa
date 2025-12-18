@@ -66,16 +66,16 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
 
 
-    @Value("${ai.security.tiered.layer3.model:llama3.1:8b}")
+    @Value("${spring.ai.security.layer3.model:llama3.1:8b}")
     private String modelName;
 
-    @Value("${ai.security.tiered.layer3.timeout-ms:5000}")
+    @Value("${spring.ai.security.tiered.layer3.timeout-ms:30000}")
     private long timeoutMs;
 
-    @Value("${ai.security.tiered.layer3.enable-soar:true}")
+    @Value("${spring.ai.security.tiered.layer3.enable-soar:false}")
     private boolean enableSoar;
 
-    @Value("${ai.security.tiered.layer3.auto-execute-threshold:0.95}")
+    @Value("${spring.ai.security.tiered.layer3.auto-execute-threshold:0.95}")
     private double autoExecuteThreshold;
 
     @Autowired
@@ -131,6 +131,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         SecurityDecision expertDecision = performDeepAnalysis(event, layer2Decision);
 
         // AI Native: Layer3는 최종 계층이므로 shouldEscalate = false
+        // AI Native: LLM이 결정한 action을 그대로 사용
+        String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "INVESTIGATE";
+
         // SecurityDecision을 ThreatAssessment로 변환
         return ThreatAssessment.builder()
                 .riskScore(expertDecision.getRiskScore())
@@ -142,6 +145,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .strategyName("Layer3-Expert")
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(false)  // Layer3는 최종 계층
+                .action(action)  // AI Native: LLM action 직접 저장
                 .build();
     }
 

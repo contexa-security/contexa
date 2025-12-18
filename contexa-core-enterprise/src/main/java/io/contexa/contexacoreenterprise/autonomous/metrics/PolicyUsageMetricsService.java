@@ -1,15 +1,13 @@
 package io.contexa.contexacoreenterprise.autonomous.metrics;
 
-import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
+import com.fasterxml.jackson.core.type.TypeReference;
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,7 +29,12 @@ import java.util.stream.Collectors;
 @ConditionalOnBean(PolicyProposalRepository.class)
 public class PolicyUsageMetricsService {
 
+    private static final String CACHE_DOMAIN = "policies";
+    private static final String EFFECTIVENESS_CACHE_PREFIX = "policies:effectiveness:";
+    private static final TypeReference<Map<String, Object>> EFFECTIVENESS_TYPE = new TypeReference<>() {};
+
     private final PolicyProposalRepository proposalRepository;
+    private final ContexaCacheService cacheService;
 
     // 정책별 실행 메트릭
     private final Map<String, PolicyMetrics> policyMetricsMap = new ConcurrentHashMap<>();
@@ -129,29 +132,58 @@ public class PolicyUsageMetricsService {
     /**
      * 정책 효과 분석
      *
+     * ContexaCacheService를 통한 2-Level 캐시 사용:
+     * - L1: Caffeine (30초 TTL)
+     * - L2: Redis (5분 TTL)
+     *
      * @param policyId 정책 ID
      * @return 효과 분석 결과
      */
-    @Cacheable(value = "policyEffectiveness", key = "#policyId")
     public Map<String, Object> analyzePolicyEffectiveness(String policyId) {
-        Map<String, Object> analysis = new HashMap<>();
+        String cacheKey = EFFECTIVENESS_CACHE_PREFIX + policyId;
 
-        PolicyMetrics metrics = getPolicyMetrics(policyId);
-        analysis.put("policyId", policyId);
-        analysis.put("executionCount", metrics.getExecutionCount());
-        analysis.put("successRate", 1.0 - metrics.getFailureRate());
-        analysis.put("averageExecutionTime", metrics.getAverageExecutionTime());
-        analysis.put("averageImpact", metrics.getAverageImpact());
+        return cacheService.get(
+            cacheKey,
+            () -> {
+                log.debug("정책 효과 분석 (캐시 미스): {}", policyId);
 
-        // 효과성 점수 계산 (0.0 ~ 1.0)
-        double effectivenessScore = calculateEffectivenessScore(metrics);
-        analysis.put("effectivenessScore", effectivenessScore);
+                Map<String, Object> analysis = new HashMap<>();
 
-        // 권장 사항
-        List<String> recommendations = generateRecommendations(metrics, effectivenessScore);
-        analysis.put("recommendations", recommendations);
+                PolicyMetrics metrics = getPolicyMetrics(policyId);
+                analysis.put("policyId", policyId);
+                analysis.put("executionCount", metrics.getExecutionCount());
+                analysis.put("successRate", 1.0 - metrics.getFailureRate());
+                analysis.put("averageExecutionTime", metrics.getAverageExecutionTime());
+                analysis.put("averageImpact", metrics.getAverageImpact());
 
-        return analysis;
+                // 효과성 점수 계산 (0.0 ~ 1.0)
+                double effectivenessScore = calculateEffectivenessScore(metrics);
+                analysis.put("effectivenessScore", effectivenessScore);
+
+                // 권장 사항
+                List<String> recommendations = generateRecommendations(metrics, effectivenessScore);
+                analysis.put("recommendations", recommendations);
+
+                return analysis;
+            },
+            EFFECTIVENESS_TYPE,
+            CACHE_DOMAIN
+        );
+    }
+
+    /**
+     * 정책 효과 캐시 무효화
+     *
+     * @param policyId 정책 ID (null이면 전체 무효화)
+     */
+    public void invalidateEffectivenessCache(String policyId) {
+        if (policyId == null) {
+            log.info("정책 효과 캐시 전체 무효화");
+            cacheService.invalidate(EFFECTIVENESS_CACHE_PREFIX + "*");
+        } else {
+            log.debug("정책 효과 캐시 무효화: {}", policyId);
+            cacheService.invalidate(EFFECTIVENESS_CACHE_PREFIX + policyId);
+        }
     }
 
     /**

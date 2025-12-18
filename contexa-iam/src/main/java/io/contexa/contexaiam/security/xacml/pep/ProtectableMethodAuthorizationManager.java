@@ -5,7 +5,6 @@ import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.exception.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.interceptor.ZeroTrustResponseInterceptor;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -18,14 +17,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.expression.ExpressionUtils;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.core.Authentication;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -71,12 +67,12 @@ public class ProtectableMethodAuthorizationManager {
      * 1. @Protectable 어노테이션 읽기
      * 2. analysisRequirement에 따른 분석 대기 처리
      * 3. enableRuntimeInterception 활성화
-     * 4. DB에서 SpEL 표현식 조회 및 평가
+     * 4. Handler가 생성한 EvaluationContext의 #dynamicRule 변수로 평가 (DB 이중 조회 방지)
      *
      * @param authentication 인증 정보 공급자
      * @param mi 메서드 호출 정보
      */
-    public void preAuthorize(Supplier<Authentication> authentication, MethodInvocation mi) {
+    public void protectable(Supplier<Authentication> authentication, MethodInvocation mi) {
         // 1. @Protectable 어노테이션 읽기
         Protectable protectable = findProtectableAnnotation(mi);
 
@@ -94,49 +90,27 @@ public class ProtectableMethodAuthorizationManager {
             }
         }
 
-        // 3. DB에서 SpEL 표현식 조회 및 평가 (기존 로직)
-        String finalExpression = getDynamicExpression(mi, "PRE_AUTHORIZE");
-        if (!StringUtils.hasText(finalExpression)) {
-            return;
-        }
+        // 3. Handler가 생성한 EvaluationContext 사용
+        // CustomMethodSecurityExpressionHandler.createEvaluationContext()에서 이미 phase별 정책 조회 및 변수 설정 완료
         EvaluationContext ctx = expressionHandler.createEvaluationContext(authentication, mi);
-        if (!evaluate(finalExpression, ctx)) {
-            throw new AccessDeniedException("Access is denied");
-        }
-    }
 
-    public void postAuthorize(Supplier<Authentication> authentication, MethodInvocation mi, Object returnObject) {
-        String finalExpression = getDynamicExpression(mi, "POST_AUTHORIZE");
-        if (!StringUtils.hasText(finalExpression)) {
-            return;
+        // 4. #preAuthorizeRule 변수로 평가 (Handler가 생성한 PRE_AUTHORIZE phase Expression 활용)
+        Object protectableRuleObj = ctx.lookupVariable("protectableRule");
+        if (protectableRuleObj instanceof Expression protectableRule) {
+            boolean result = ExpressionUtils.evaluateAsBoolean(protectableRule, ctx);
+            if (!result) {
+                log.debug("[ZeroTrust] preAuthorize 거부 - preAuthorizeRule 평가 결과: false, 메서드: {}",
+                    getResourceId(mi));
+                throw new AccessDeniedException("Access is denied");
+            }
+            log.debug("[ZeroTrust] preAuthorize 허용 - preAuthorizeRule 평가 결과: true, 메서드: {}",
+                getResourceId(mi));
+        } else {
+            // #preAuthorizeRule이 없는 경우 - Handler 설정 오류
+            log.warn("[ZeroTrust] preAuthorize - preAuthorizeRule 변수가 없거나 Expression 타입이 아님: {}",
+                    protectableRuleObj != null ? protectableRuleObj.getClass().getSimpleName() : "null");
+            throw new AccessDeniedException("Access is denied - preAuthorizeRule not found");
         }
-        EvaluationContext ctx = expressionHandler.createEvaluationContext(authentication, mi);
-        expressionHandler.setReturnObject(returnObject, ctx);
-        if (!evaluate(finalExpression, ctx)) {
-            throw new AccessDeniedException("Access is denied");
-        }
-    }
-
-    private boolean evaluate(String expressionString, EvaluationContext context) {
-        try {
-            Expression expression = expressionHandler.getExpressionParser().parseExpression(expressionString);
-            return ExpressionUtils.evaluateAsBoolean(expression, context);
-        } catch (Exception e) {
-            log.error("Error evaluating SpEL expression: {}", expressionString, e);
-            return false;
-        }
-    }
-
-    private String getDynamicExpression(MethodInvocation mi, String phase) {
-        Method method = mi.getMethod();
-        String paramTypes = Arrays.stream(method.getParameterTypes()).map(Class::getSimpleName).collect(Collectors.joining(","));
-        String methodIdentifier = method.getDeclaringClass().getName() + "." + method.getName() + "(" + paramTypes + ")";
-
-        List<Policy> policies = policyRetrievalPoint.findMethodPolicies(methodIdentifier, phase);
-        if (CollectionUtils.isEmpty(policies)) {
-            return null;
-        }
-        return dynamicAuthorizationManager.getExpressionFromPolicies(policies);
     }
 
     // ============================================

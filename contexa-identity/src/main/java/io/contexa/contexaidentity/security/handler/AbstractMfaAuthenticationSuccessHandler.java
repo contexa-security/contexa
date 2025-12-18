@@ -32,6 +32,7 @@ import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,14 +50,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final RequestCache requestCache = new HttpSessionRequestCache();
     private ApplicationEventPublisher eventPublisher;
-
-    // HCAD 계산을 위한 의존성 (optional)
-    private HCADContextExtractor hcadContextExtractor;
     private RedisTemplate<String, Object> redisTemplate;
-    private HCADVectorIntegrationService hcadVectorService;
-
-    @Value("${hcad.redis.key-prefix:hcad:baseline:v2:}")
-    private String redisKeyPrefix = "hcad:baseline:v2:";
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
@@ -71,17 +65,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     @Override
     public void setApplicationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         this.eventPublisher = applicationEventPublisher;
-    }
-
-    /**
-     * HCAD 계산 의존성 설정 (optional)
-     */
-    public void setHcadDependencies(HCADContextExtractor extractor,
-                                    RedisTemplate<String, Object> redis,
-                                    HCADVectorIntegrationService vectorService) {
-        this.hcadContextExtractor = extractor;
-        this.redisTemplate = redis;
-        this.hcadVectorService = vectorService;
     }
 
     /**
@@ -123,7 +106,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
             sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
 
-            // ✅ 수정 3: 세션 해제 플래그 설정 (FilterChain에서 saveFactorContext 스킵 신호)
+            // 3: 세션 해제 플래그 설정 (FilterChain에서 saveFactorContext 스킵 신호)
             request.setAttribute("mfaSessionReleased", true);
             log.debug("Set mfaSessionReleased flag for session: {}", factorContext.getMfaSessionId());
         }
@@ -156,8 +139,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             processDefaultResponse(response, finalResult);
         }
         
-        // 8. Zero Trust 이벤트 발행
-//        publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
+        // 8. Zero Trust 이벤트 발행 (Cold Start 해결 - AI 사전 분석)
+        publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
     }
 
     /**
@@ -481,14 +464,18 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     /**
-     * AI Native: MFA 성공 시 action 초기화
+     * AI Native: MFA 성공 시 action을 ALLOW로 설정 (CHALLENGE 해제)
      *
      * CHALLENGE action으로 MFA가 요구되었던 사용자가 MFA를 성공적으로 완료하면
-     * Redis에서 action을 삭제하여 정상 접근을 허용합니다.
+     * Redis에서 action을 "ALLOW"로 설정하여 원래 권한 복원을 허용합니다.
      *
-     * Phase 5 마이그레이션: Dual-Delete 전략
-     * - Primary: security:hcad:analysis:{userId} Hash의 action 필드 삭제
-     * - Legacy: security:user:action:{userId} String 삭제 (하위 호환성)
+     * Phase 8 수정: action 삭제 대신 ALLOW 설정
+     * - 기존 문제: action 삭제 시 PENDING_ANALYSIS 상태가 되어 사용자 영구 제한
+     * - 해결: action을 "ALLOW"로 설정하여 ZeroTrustSecurityService에서 원래 권한 복원
+     *
+     * Dual-Write 전략:
+     * - Primary: security:hcad:analysis:{userId} Hash의 action 필드를 "ALLOW"로 설정
+     * - Legacy: security:user:action:{userId} String을 "ALLOW"로 설정 (하위 호환성)
      *
      * @param userId 사용자 ID
      */
@@ -498,23 +485,19 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            // 1. Primary: security:hcad:analysis:{userId} Hash의 action 필드 삭제
+            // 1. Primary: security:hcad:analysis:{userId} Hash의 action 필드를 "ALLOW"로 설정
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Long deletedFields = redisTemplate.opsForHash().delete(analysisKey, "action");
+            redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
 
-            // 2. Legacy: security:user:action:{userId} String 삭제 (Phase 5 마이그레이션)
+            // 2. Legacy: security:user:action:{userId} String을 "ALLOW"로 설정 (하위 호환성)
             String legacyKey = ZeroTrustRedisKeys.userAction(userId);
-            Boolean legacyDeleted = redisTemplate.delete(legacyKey);
+            redisTemplate.opsForValue().set(legacyKey, "ALLOW", Duration.ofMinutes(30));
 
-            if (deletedFields > 0 || Boolean.TRUE.equals(legacyDeleted)) {
-                log.info("[MFA][AI Native][Dual-Delete] Action reset for user: {} (CHALLENGE cleared, analysisKey={}, legacyKey={})",
-                        userId, deletedFields > 0, legacyDeleted);
-            } else {
-                log.debug("[MFA][AI Native] No action to reset for user: {}", userId);
-            }
+            log.info("[MFA][AI Native][Dual-Write] Action set to ALLOW for user: {} (CHALLENGE cleared, original authorities will be restored)",
+                    userId);
 
         } catch (Exception e) {
-            log.error("[MFA] Failed to reset action for user: {}", userId, e);
+            log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
         }
     }
 }

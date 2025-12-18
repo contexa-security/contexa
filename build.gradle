@@ -69,6 +69,11 @@ subprojects {
         options.encoding = 'UTF-8'
     }
 
+    // bootRun 콘솔 한글 인코딩 설정
+    tasks.withType(org.springframework.boot.gradle.tasks.run.BootRun).configureEach {
+        jvmArgs = ['-Dfile.encoding=UTF-8', '-Dconsole.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
+    }
+
     // Javadoc 오류 무시 설정
     tasks.withType(Javadoc) {
         options.encoding = 'UTF-8'

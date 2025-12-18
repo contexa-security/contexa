@@ -1,4 +1,4 @@
-package io.contexa.contexaiam.security.core.session;
+package io.contexa.contexacore.security.session;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;

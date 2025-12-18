@@ -1,1 +1,2 @@
 io.contexa.contexacommon.config.redis.CommonRedisAutoConfiguration
+io.contexa.contexacommon.cache.ContexaCacheAutoConfiguration

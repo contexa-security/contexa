@@ -30,7 +30,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         // UnifiedCustomUserDetails로 캐스팅하여 UserDto 획득 (ModelMapper 제거)
         UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
         UserDto userDto = customUserDetails.getAccount();
-        return new UsernamePasswordAuthenticationToken(userDto, userDetails.getPassword(), userDetails.getAuthorities());
+        return UsernamePasswordAuthenticationToken.authenticated(customUserDetails, null, customUserDetails.getAuthorities());
     }
 
     @Override

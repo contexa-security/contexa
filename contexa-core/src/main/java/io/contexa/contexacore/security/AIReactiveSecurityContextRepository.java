@@ -1,11 +1,13 @@
-package io.contexa.contexaiam.security.core;
+package io.contexa.contexacore.security;
 
-import io.contexa.contexaiam.security.core.session.SessionIdResolver;
-import io.contexa.contexaiam.security.core.zerotrust.ZeroTrustSecurityService;
-import io.contexa.contexaiam.security.core.zerotrust.ZeroTrustAuthenticationToken;
-import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.security.session.SessionIdResolver;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -13,22 +15,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.DeferredSecurityContext;
-import org.springframework.security.core.context.SecurityContextImpl;
-import org.springframework.security.web.context.HttpRequestResponseHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
 import java.time.Duration;
-import java.util.HashMap;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AI-Native Reactive Security Context Repository
@@ -56,22 +59,28 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     private ZeroTrustSecurityService zeroTrustSecurityService;
 
     @Autowired
-    private ThreatScoreOrchestrator threatScoreOrchestrator;
-
-    @Autowired
     private SessionIdResolver sessionIdResolver;
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
-    // 무효화된 세션 ID를 메모리에 캐싱 (빠른 조회를 위해)
-    private final Set<String> invalidatedSessions = ConcurrentHashMap.newKeySet();
+    // 무효화된 세션 캐시 (TTL 기반 자동 만료로 메모리 누수 방지)
+    private Cache<String, Boolean> invalidatedSessionsCache;
 
-    // 로컬 서버에서 관리하는 사용자별 세션 매핑 (userId -> Set<sessionId>)
-    private final Map<String, Set<String>> localUserSessions = new ConcurrentHashMap<>();
+    // 사용자별 세션 매핑 캐시 (TTL 기반 자동 만료)
+    private Cache<String, Set<String>> userSessionsCache;
 
-    // 세션별 사용자 매핑 (sessionId -> userId)
-    private final Map<String, String> localSessionToUser = new ConcurrentHashMap<>();
+    // 세션별 사용자 매핑 캐시 (TTL 기반 자동 만료)
+    private Cache<String, String> sessionToUserCache;
+
+    // 세션별 마지막 Redis 업데이트 시간 (중복 호출 방지)
+    private Cache<String, Instant> lastRedisUpdateCache;
+
+    // 로그아웃 판단을 위한 이전 인증 상태 캐시
+    private Cache<String, String> previousAuthCache;
+
+    // 캐시 정리용 스케줄러
+    private ScheduledExecutorService cacheCleanupScheduler;
 
     @Value("${zerotrust.enabled:true}")
     private boolean zeroTrustEnabled;
@@ -79,19 +88,15 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     @Value("${zerotrust.session.tracking.enabled:true}")
     private boolean sessionTrackingEnabled;
 
-    @Value("${zerotrust.evaluation.on.every.request:true}")
-    private boolean evaluateOnEveryRequest;
+    @Value("${zerotrust.cache.session.ttl-minutes:30}")
+    private int sessionCacheTtlMinutes;
 
-    @Value("${security.session.create.allowed:true}")
-    private boolean allowSessionCreation;
+    @Value("${zerotrust.cache.invalidated.ttl-minutes:60}")
+    private int invalidatedCacheTtlMinutes;
 
-    @Value("${security.session.hijack.detection.enabled:true}")
-    private boolean hijackDetectionEnabled;
+    @Value("${zerotrust.redis.update-interval-seconds:30}")
+    private int redisUpdateIntervalSeconds;
 
-    @Value("${zerotrust.threat.threshold.suspicious:0.5}")
-    private double suspiciousThreatThreshold;
-
-    // AuthenticationTrustResolver for anonymous user detection
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
     /**
@@ -106,6 +111,86 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         this.setDisableUrlRewriting(false);
         // SecurityContext 속성 이름 설정 (Spring Security 표준)
         this.setSpringSecurityContextKey("SPRING_SECURITY_CONTEXT");
+    }
+
+    /**
+     * 빈 초기화 - Caffeine 캐시 설정
+     * TTL 기반 자동 만료로 메모리 누수 방지
+     */
+    @PostConstruct
+    public void initCaches() {
+        // 무효화된 세션 캐시 (1시간 TTL)
+        invalidatedSessionsCache = Caffeine.newBuilder()
+            .maximumSize(10000)
+            .expireAfterWrite(invalidatedCacheTtlMinutes, TimeUnit.MINUTES)
+            .build();
+
+        // 사용자별 세션 매핑 캐시 (30분 TTL)
+        userSessionsCache = Caffeine.newBuilder()
+            .maximumSize(5000)
+            .expireAfterAccess(sessionCacheTtlMinutes, TimeUnit.MINUTES)
+            .build();
+
+        // 세션별 사용자 매핑 캐시 (30분 TTL)
+        sessionToUserCache = Caffeine.newBuilder()
+            .maximumSize(10000)
+            .expireAfterAccess(sessionCacheTtlMinutes, TimeUnit.MINUTES)
+            .build();
+
+        // 마지막 Redis 업데이트 시간 캐시 (5분 TTL)
+        lastRedisUpdateCache = Caffeine.newBuilder()
+            .maximumSize(10000)
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .build();
+
+        // 이전 인증 상태 캐시 (세션 TTL과 동일)
+        previousAuthCache = Caffeine.newBuilder()
+            .maximumSize(10000)
+            .expireAfterAccess(sessionCacheTtlMinutes, TimeUnit.MINUTES)
+            .build();
+
+        // 주기적 캐시 통계 로깅 (선택적)
+        cacheCleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "ZeroTrust-Cache-Monitor");
+            t.setDaemon(true);
+            return t;
+        });
+
+        cacheCleanupScheduler.scheduleAtFixedRate(this::logCacheStats, 5, 5, TimeUnit.MINUTES);
+
+        log.info("[ZeroTrust] Cache initialized - sessionTtl: {}min, invalidatedTtl: {}min, redisInterval: {}s",
+            sessionCacheTtlMinutes, invalidatedCacheTtlMinutes, redisUpdateIntervalSeconds);
+    }
+
+    /**
+     * 빈 소멸 - 스케줄러 정리
+     */
+    @PreDestroy
+    public void destroyCaches() {
+        if (cacheCleanupScheduler != null && !cacheCleanupScheduler.isShutdown()) {
+            cacheCleanupScheduler.shutdown();
+            try {
+                if (!cacheCleanupScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    cacheCleanupScheduler.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                cacheCleanupScheduler.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
+        log.info("[ZeroTrust] Cache cleanup completed");
+    }
+
+    /**
+     * 캐시 통계 로깅
+     */
+    private void logCacheStats() {
+        if (log.isDebugEnabled()) {
+            log.debug("[ZeroTrust] Cache stats - invalidated: {}, userSessions: {}, sessionToUser: {}",
+                invalidatedSessionsCache.estimatedSize(),
+                userSessionsCache.estimatedSize(),
+                sessionToUserCache.estimatedSize());
+        }
     }
 
     /**
@@ -188,13 +273,22 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
      */
     @Override
     public void saveContext(SecurityContext context, HttpServletRequest request, HttpServletResponse response) {
-        // Zero Trust 검증 - 무효화된 세션 체크
-        if (zeroTrustEnabled) {
-            String sessionId = extractSessionId(request);
-            if (sessionId != null && zeroTrustSecurityService.isSessionInvalidated(sessionId)) {
+        String sessionId = extractSessionId(request);
+
+        // Zero Trust 검증 - 무효화된 세션 체크 (Caffeine 캐시 사용)
+        if (zeroTrustEnabled && sessionId != null) {
+            Boolean isInvalidated = invalidatedSessionsCache.getIfPresent(sessionId);
+            if (isInvalidated != null && isInvalidated) {
                 log.debug("[ZeroTrust] Skipping context save for invalidated session: {}",
                     maskSessionId(sessionId));
-                return; // 무효화된 세션에는 저장하지 않음
+                return;
+            }
+            // 캐시 미스 시 Redis 확인
+            if (isInvalidated == null && zeroTrustSecurityService.isSessionInvalidated(sessionId)) {
+                invalidatedSessionsCache.put(sessionId, true);
+                log.debug("[ZeroTrust] Skipping context save for invalidated session: {}",
+                    maskSessionId(sessionId));
+                return;
             }
         }
 
@@ -202,54 +296,81 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         super.saveContext(context, request, response);
 
         // 2. Zero Trust 추가 기능
-        if (zeroTrustEnabled && context.getAuthentication() != null) {
-            String userId = context.getAuthentication().getName();
-            String sessionId = extractSessionId(request);
-            boolean isAuthenticated = context.getAuthentication().isAuthenticated();
+        if (zeroTrustEnabled && sessionId != null) {
+            Authentication auth = context.getAuthentication();
 
             try {
-                if (isAuthenticated && sessionId != null) {
-                    // 세션 추적 및 사용자 컨텍스트 업데이트
-                    if (sessionTrackingEnabled) {
+                if (auth != null && isActuallyAuthenticated(auth)) {
+                    String userId = auth.getName();
+
+                    // 이전 인증 상태 저장 (로그아웃 판단용)
+                    previousAuthCache.put(sessionId, userId);
+
+                    // 세션 추적 및 사용자 컨텍스트 업데이트 (중복 호출 방지)
+                    if (sessionTrackingEnabled && shouldUpdateRedis(sessionId)) {
                         updateUserSessionMapping(userId, sessionId);
                         updateUserContext(userId, sessionId, request);
+                        lastRedisUpdateCache.put(sessionId, Instant.now());
                     }
 
                     log.trace("[ZeroTrust] Session context saved for user: {} in session: {}",
                         userId, maskSessionId(sessionId));
-                } else if (!isAuthenticated && sessionId != null) {
-                    // 로그아웃 처리
-                    handleLogout(userId, sessionId);
+                } else if (isLogoutDetected(auth, sessionId)) {
+                    // 실제 로그아웃 감지: 이전에 인증된 사용자가 있었고, 현재 인증이 없거나 Anonymous인 경우
+                    String previousUserId = previousAuthCache.getIfPresent(sessionId);
+                    if (previousUserId != null) {
+                        handleLogout(previousUserId, sessionId);
+                        previousAuthCache.invalidate(sessionId);
+                    }
                 }
 
             } catch (Exception e) {
+                String userId = auth != null ? auth.getName() : "unknown";
                 log.error("[ZeroTrust] Error during Zero Trust metrics update for user: {}", userId, e);
                 // 오류가 발생해도 부모의 saveContext는 이미 성공했으므로 계속 진행
             }
         }
     }
 
-
-
     /**
-     * 세션이 처음 생성된 요청인지 확인
+     * 실제 인증된 사용자인지 확인 (AnonymousAuthenticationToken 제외)
      */
-    private boolean isFirstRequestInSession(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-        if (session == null) {
+    private boolean isActuallyAuthenticated(Authentication auth) {
+        if (auth == null) {
             return false;
         }
-
-        long creationTime = session.getCreationTime();
-        long lastAccessedTime = session.getLastAccessedTime();
-
-        // 생성 시간과 마지막 접근 시간의 차이가 1초 이내면 첫 번째 요청으로 간주
-        return (lastAccessedTime - creationTime) < 1000;
+        if (auth instanceof AnonymousAuthenticationToken) {
+            return false;
+        }
+        return auth.isAuthenticated() && trustResolver.isAuthenticated(auth);
     }
 
     /**
-     * 세션 무효화 여부 확인
+     * 로그아웃 여부 감지
+     * - 이전에 인증된 사용자가 있었고
+     * - 현재 Authentication이 null이거나 Anonymous인 경우
      */
+    private boolean isLogoutDetected(Authentication auth, String sessionId) {
+        String previousUserId = previousAuthCache.getIfPresent(sessionId);
+        if (previousUserId == null) {
+            // 이전에 인증된 기록이 없으면 로그아웃이 아님
+            return false;
+        }
+        // 현재 인증이 없거나 Anonymous이면 로그아웃
+        return auth == null || auth instanceof AnonymousAuthenticationToken || !auth.isAuthenticated();
+    }
+
+    /**
+     * Redis 업데이트가 필요한지 확인 (중복 호출 방지)
+     */
+    private boolean shouldUpdateRedis(String sessionId) {
+        Instant lastUpdate = lastRedisUpdateCache.getIfPresent(sessionId);
+        if (lastUpdate == null) {
+            return true;
+        }
+        // 설정된 간격(기본 30초)이 지났으면 업데이트
+        return Instant.now().isAfter(lastUpdate.plusSeconds(redisUpdateIntervalSeconds));
+    }
 
     /**
      * 세션 ID 추출 (Spring Session Redis 호환)
@@ -270,67 +391,15 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     }
 
     /**
-     * 클라이언트 IP 주소 추출
-     *
-     * X-Forwarded-For 헤더를 고려하여 실제 클라이언트 IP를 추출합니다.
-     * 프록시 환경에서도 정확한 IP를 가져오기 위해 여러 헤더를 확인합니다.
-     *
-     * @param request HTTP 요청
-     * @return 클라이언트 IP 주소
-     */
-    private String extractClientIp(HttpServletRequest request) {
-        String ip = null;
-
-        // 1. X-Forwarded-For 헤더 확인 (프록시/로드밸런서 환경)
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty() && !"unknown".equalsIgnoreCase(xForwardedFor)) {
-            // 여러 IP가 있는 경우 첫 번째 IP가 실제 클라이언트 IP
-            ip = xForwardedFor.split(",")[0].trim();
-        }
-
-        // 2. X-Real-IP 헤더 확인 (Nginx 프록시)
-        if (ip == null || ip.isEmpty()) {
-            String xRealIp = request.getHeader("X-Real-IP");
-            if (xRealIp != null && !xRealIp.isEmpty() && !"unknown".equalsIgnoreCase(xRealIp)) {
-                ip = xRealIp;
-            }
-        }
-
-        // 3. Proxy-Client-IP 헤더 확인 (Apache 프록시)
-        if (ip == null || ip.isEmpty()) {
-            String proxyClientIp = request.getHeader("Proxy-Client-IP");
-            if (proxyClientIp != null && !proxyClientIp.isEmpty() && !"unknown".equalsIgnoreCase(proxyClientIp)) {
-                ip = proxyClientIp;
-            }
-        }
-
-        // 4. WL-Proxy-Client-IP 헤더 확인 (WebLogic 프록시)
-        if (ip == null || ip.isEmpty()) {
-            String wlProxyClientIp = request.getHeader("WL-Proxy-Client-IP");
-            if (wlProxyClientIp != null && !wlProxyClientIp.isEmpty() && !"unknown".equalsIgnoreCase(wlProxyClientIp)) {
-                ip = wlProxyClientIp;
-            }
-        }
-
-        // 5. 폴백: request.getRemoteAddr() 사용
-        if (ip == null || ip.isEmpty()) {
-            ip = request.getRemoteAddr();
-        }
-
-        // IPv6 localhost를 IPv4로 변환
-        if ("0:0:0:0:0:0:0:1".equals(ip)) {
-            ip = "127.0.0.1";
-        }
-
-        return ip != null ? ip : "unknown";
-    }
-
-    /**
-     * 로컬 세션 추적
+     * 로컬 세션 추적 (Caffeine 캐시 사용)
      */
     private void trackLocalSession(String userId, String sessionId) {
-        localUserSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
-        localSessionToUser.put(sessionId, userId);
+        // 사용자별 세션 목록 캐시
+        Set<String> sessions = userSessionsCache.get(userId, k -> ConcurrentHashMap.newKeySet());
+        sessions.add(sessionId);
+
+        // 세션별 사용자 매핑 캐시
+        sessionToUserCache.put(sessionId, userId);
     }
 
     /**
@@ -391,22 +460,28 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
 
 
     /**
-     * 로그아웃 처리
+     * 로그아웃 처리 (Caffeine 캐시 사용)
      */
     private void handleLogout(String userId, String sessionId) {
         try {
             log.info("[ZeroTrust] User logout detected - User: {}, Session: {}",
                 userId, maskSessionId(sessionId));
 
-            // 로컬 캐시 정리
-            localSessionToUser.remove(sessionId);
-            Set<String> sessions = localUserSessions.get(userId);
+            // Caffeine 캐시 정리
+            sessionToUserCache.invalidate(sessionId);
+            Set<String> sessions = userSessionsCache.getIfPresent(userId);
             if (sessions != null) {
                 sessions.remove(sessionId);
                 if (sessions.isEmpty()) {
-                    localUserSessions.remove(userId);
+                    userSessionsCache.invalidate(userId);
                 }
             }
+
+            // 무효화된 세션으로 표시
+            invalidatedSessionsCache.put(sessionId, true);
+
+            // 마지막 업데이트 캐시 정리
+            lastRedisUpdateCache.invalidate(sessionId);
 
             // Zero Trust 서비스에 로그아웃 알림
             zeroTrustSecurityService.invalidateSession(sessionId, userId, "User logout");
@@ -432,12 +507,11 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     @Override
     public void setAllowSessionCreation(boolean allowSessionCreation) {
         super.setAllowSessionCreation(allowSessionCreation);
-        this.allowSessionCreation = allowSessionCreation;
     }
 
 
     /**
-     * 사용자의 모든 세션 무효화
+     * 사용자의 모든 세션 무효화 (Caffeine 캐시 사용)
      *
      * 보안 이벤트 발생 시 사용자의 모든 활성 세션을 종료
      */
@@ -449,14 +523,16 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         try {
             log.warn("[ZeroTrust] Invalidating all sessions for user: {} - Reason: {}", userId, reason);
 
-            // 로컬 캐시의 세션 무효화
-            Set<String> userSessions = localUserSessions.get(userId);
+            // Caffeine 캐시의 세션 무효화
+            Set<String> userSessions = userSessionsCache.getIfPresent(userId);
             if (userSessions != null) {
                 for (String sessionId : new HashSet<>(userSessions)) {
-                    invalidatedSessions.add(sessionId);
-                    localSessionToUser.remove(sessionId);
+                    invalidatedSessionsCache.put(sessionId, true);
+                    sessionToUserCache.invalidate(sessionId);
+                    lastRedisUpdateCache.invalidate(sessionId);
+                    previousAuthCache.invalidate(sessionId);
                 }
-                localUserSessions.remove(userId);
+                userSessionsCache.invalidate(userId);
             }
 
             // Zero Trust 서비스를 통해 Redis의 모든 세션 무효화

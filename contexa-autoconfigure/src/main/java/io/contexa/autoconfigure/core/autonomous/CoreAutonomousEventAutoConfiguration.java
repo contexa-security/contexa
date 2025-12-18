@@ -7,7 +7,6 @@ import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.authorization.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
 import io.contexa.contexacore.autonomous.event.decision.UnifiedEventPublishingDecisionEngine;
-import io.contexa.contexacore.autonomous.event.filter.AIFeedbackBlockingFilter;
 import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFilter;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.RedisSecurityEventCollector;
@@ -20,7 +19,6 @@ import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPubli
 import io.contexa.contexacore.autonomous.event.publisher.RedisSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.sampling.AdaptiveSamplingEngine;
 import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutionHandler;
-import io.contexa.contexacore.autonomous.orchestrator.handler.SessionInvalidationHandler;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityPlaneEventListener;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ProcessingStrategy;
@@ -40,7 +38,6 @@ import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.redisson.api.RedissonClient;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -180,12 +177,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AIFeedbackBlockingFilter aiFeedbackBlockingFilter(RedisTemplate<String, Object> redisTemplate) {
-        return new AIFeedbackBlockingFilter(redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public AdaptiveSamplingEngine adaptiveSamplingEngine(RedisTemplate<String, Object> redisTemplate) {
         return new AdaptiveSamplingEngine(redisTemplate);
     }
@@ -220,14 +211,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ProcessingExecutionHandler(processingStrategies, applicationEventPublisher);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public SessionInvalidationHandler sessionInvalidationHandler(
-            RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) NotificationService notificationService,
-            AuditLogRepository auditLogRepository) {
-        return new SessionInvalidationHandler(redisTemplate, notificationService, auditLogRepository);
-    }
+    // AI Native: SessionInvalidationHandler 제거 (ZeroTrustSecurityService의 BLOCK action으로 대체)
 
     @Bean
     @ConditionalOnMissingBean

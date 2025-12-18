@@ -1,4 +1,4 @@
-package io.contexa.contexaiam.security.core.zerotrust;
+package io.contexa.contexacore.security.zerotrust;
 
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;

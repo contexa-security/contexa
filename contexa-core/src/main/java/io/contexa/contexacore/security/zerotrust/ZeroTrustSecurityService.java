@@ -1,11 +1,10 @@
-package io.contexa.contexaiam.security.core.zerotrust;
+package io.contexa.contexacore.security.zerotrust;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +13,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
+
+import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -139,15 +140,8 @@ public class ZeroTrustSecurityService {
                 removeUserSession(userId, sessionId);
             }
 
-            // Threat Score 증가 (보안 이벤트)
-            if (userId != null && reason.contains("security")) {
-                Map<String, Object> metadata = new HashMap<>();
-                metadata.put("sessionId", sessionId);
-                metadata.put("event", "session_invalidation");
-
-                threatScoreOrchestrator.updateThreatScore(userId, 0.1,
-                    "Session invalidated: " + reason, metadata);
-            }
+            // AI Native: 세션 무효화 시 Threat Score 누적 제거
+            // LLM이 다음 요청에서 세션 무효화 이력을 컨텍스트로 받아 직접 판단
 
             log.info("[ZeroTrust] Session invalidated - SessionId: {}, User: {}, Reason: {}",
                 sessionId, userId, reason);
@@ -264,7 +258,13 @@ public class ZeroTrustSecurityService {
     /**
      * AI Native: action 기반 권한 동적 조정
      *
-     * 임계값 기반 판단 완전 제거 - LLM이 결정한 action을 직접 사용
+     * Zero Trust 원칙에 따른 권한 조정 전략:
+     * - ALLOW: 기존 권한 유지 (LLM이 안전하다고 판단)
+     * - BLOCK: 모든 권한 제거, ROLE_BLOCKED만 부여
+     * - CHALLENGE: 기존 권한 제거, ROLE_USER + ROLE_MFA_REQUIRED (MFA 완료 전 제한)
+     * - INVESTIGATE/ESCALATE: 기존 권한 제거, ROLE_USER + ROLE_REVIEW_REQUIRED (검토 완료 전 제한)
+     * - MONITOR: 기존 권한 유지 + ROLE_MONITORED (감시하면서 정상 접근 허용)
+     * - PENDING_ANALYSIS: 기존 권한 제거, ROLE_USER + ROLE_PENDING_ANALYSIS (분석 완료 전 제한)
      *
      * @param context SecurityContext
      * @param action LLM이 결정한 action
@@ -277,38 +277,62 @@ public class ZeroTrustSecurityService {
         }
 
         Collection<? extends GrantedAuthority> currentAuthorities = auth.getAuthorities();
-        Set<GrantedAuthority> adjustedAuthorities = new HashSet<>(currentAuthorities);
+        // Zero Trust 원칙: 기존 권한을 복사하지 않고 새로 구성
+        Set<GrantedAuthority> adjustedAuthorities = new HashSet<>();
 
         switch (action) {
             case "ALLOW" -> {
-                // 정상 - 권한 유지
+                // 정상 - 원래 권한 복원 (LLM이 안전하다고 판단)
+                // MFA 완료 등으로 CHALLENGE → ALLOW 전환 시 originalAuthorities 사용
+                Object principal = auth.getPrincipal();
+                if (principal instanceof UnifiedCustomUserDetails userDetails) {
+                    // UnifiedCustomUserDetails에서 originalAuthorities 복원
+                    adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
+                    log.debug("[ZeroTrust][AI Native] Original authorities restored for user: {}", userId);
+                } else {
+                    // 폴백: 현재 권한 유지
+                    adjustedAuthorities.addAll(currentAuthorities);
+                }
             }
             case "BLOCK" -> {
-                adjustedAuthorities.clear();
+                // 차단 - 모든 권한 제거
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
                 log.warn("[ZeroTrust][AI Native] User BLOCKED: {}", userId);
             }
             case "CHALLENGE" -> {
+                // MFA 필요 - 기본 권한만 유지 (관리자/특권 권한 제거)
+                // MFA 완료 후 원래 권한으로 복원됨 (다음 요청에서 action=ALLOW)
+//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
-                log.info("[ZeroTrust][AI Native] MFA CHALLENGE required: {}", userId);
+                log.info("[ZeroTrust][AI Native] MFA CHALLENGE required, elevated authorities removed: {}", userId);
             }
             case "INVESTIGATE", "ESCALATE" -> {
+                // 검토 필요 - 기본 권한만 유지 (관리자/특권 권한 제거)
+                // 보안 담당자 승인 후 원래 권한으로 복원됨 (action=ALLOW로 변경)
+//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));
-                log.warn("[ZeroTrust][AI Native] Security REVIEW required: {}", userId);
+                log.warn("[ZeroTrust][AI Native] Security REVIEW required, elevated authorities removed: {}", userId);
             }
             case "MONITOR" -> {
+                // 감시 - 기존 권한 유지 + 감시 표시 (의도적 설계)
+                // 사용자는 정상적으로 접근하지만 모든 활동이 기록됨
+                adjustedAuthorities.addAll(currentAuthorities);
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MONITORED"));
                 // Silent monitoring - 사용자 모름
             }
             case "PENDING_ANALYSIS" -> {
-                // Zero Trust: 분석 미완료 상태 - 제한된 권한 부여
+                // Zero Trust 핵심 원칙: 분석 미완료 상태 - 기본 권한만 유지
                 // LLM 분석 전/실패/TTL 만료 시 적용
+                // 분석 완료 후 원래 권한으로 복원됨 (action=ALLOW로 변경)
+//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
-                log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited access: {}", userId);
+                log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited to ROLE_USER: {}", userId);
             }
             default -> {
+                // 알 수 없는 action - 기본 권한만 유지 (안전한 쪽으로)
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));
-                log.warn("[ZeroTrust][AI Native] Unknown action '{}': {}", action, userId);
+                log.warn("[ZeroTrust][AI Native] Unknown action '{}', limited to ROLE_USER: {}", action, userId);
             }
         }
 
@@ -459,22 +483,6 @@ public class ZeroTrustSecurityService {
         }
 
         return new HashSet<>();
-    }
-
-    /**
-     * Threat Score 업데이트
-     *
-     * @param userId 사용자 ID
-     * @param adjustment 조정값 (양수: 위협 증가, 음수: 위협 감소)
-     * @param reason 사유
-     * @return 업데이트된 Threat Score
-     */
-    public double updateThreatScore(String userId, double adjustment, String reason) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("timestamp", System.currentTimeMillis());
-        metadata.put("source", "ZeroTrustSecurityService");
-
-        return threatScoreOrchestrator.updateThreatScore(userId, adjustment, reason, metadata);
     }
 
     /**

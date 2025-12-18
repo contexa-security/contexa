@@ -155,34 +155,31 @@ services:
       - contexa-network
     restart: "no"
 
-  # Ollama - 로컬 LLM 서버 (TinyLlama, Llama3.1)
-  # GPU 지원 필요 - 현재 비활성화
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   container_name: contexa-ollama
-  #   ports:
-  #     - "11434:11434"
-  #   volumes:
-  #     - ollama-data:/root/.ollama
-  #   networks:
-  #     - contexa-network
-  #   environment:
-  #     - OLLAMA_KEEP_ALIVE=24h
-  #     - OLLAMA_NUM_PARALLEL=2
-  #     - OLLAMA_MAX_LOADED_MODELS=3
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #   restart: unless-stopped
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all
-  #             capabilities: [gpu]
+  # Ollama - 로컬 LLM 서버 (AI Native 보안 분석용)
+  # 로컬 GPU 환경에서 실행 시 docker-compose up ollama
+  ollama:
+    image: ollama/ollama:latest
+    container_name: contexa-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - contexa-network
+    environment:
+      # AI Native 최적화 설정 (동시 요청 처리)
+      - OLLAMA_KEEP_ALIVE=10m           # 모델 메모리 유지 시간
+      - OLLAMA_NUM_PARALLEL=8           # 동시 요청 수 (Layer1/2 병렬 처리)
+      - OLLAMA_MAX_QUEUE=1024           # 대기열 크기
+      - OLLAMA_MAX_LOADED_MODELS=3      # 동시 로드 모델 수
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    profiles:
+      - gpu  # GPU 환경에서만 활성화: docker-compose --profile gpu up
 
   # Ollama Model Loader - 모델 자동 다운로드
   # GPU 지원 필요 - 현재 비활성화

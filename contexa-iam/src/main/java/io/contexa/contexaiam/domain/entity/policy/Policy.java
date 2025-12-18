@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.domain.entity.policy;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,10 +31,12 @@ public class Policy implements Serializable {
     private int priority;
 
     @OneToMany(mappedBy = "policy", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonManagedReference("policy-targets")
     @Builder.Default
     private Set<PolicyTarget> targets = new HashSet<>();
 
     @OneToMany(mappedBy = "policy", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonManagedReference("policy-rules")
     @Builder.Default
     private Set<PolicyRule> rules = new HashSet<>();
 

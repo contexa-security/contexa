@@ -69,9 +69,59 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
     /**
      * 요청의 원격 IP 주소를 반환합니다.
+     *
+     * 기본 구현은 AuthorizationContext에서 IP를 추출합니다.
+     * X-Forwarded-For, X-Real-IP 헤더를 우선 확인합니다.
+     *
      * @return Remote IP Address
      */
-    protected abstract String getRemoteIp();
+    protected String getRemoteIp() {
+        if (authorizationContext != null && authorizationContext.environment() != null) {
+            jakarta.servlet.http.HttpServletRequest request = authorizationContext.environment().request();
+            if (request != null) {
+                // X-Forwarded-For 헤더 (프록시/로드밸런서 뒤에 있을 때)
+                String xForwardedFor = request.getHeader("X-Forwarded-For");
+                if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                    return xForwardedFor.split(",")[0].trim();
+                }
+
+                // X-Real-IP 헤더 (Nginx 등)
+                String xRealIp = request.getHeader("X-Real-IP");
+                if (xRealIp != null && !xRealIp.isEmpty()) {
+                    return xRealIp;
+                }
+
+                return request.getRemoteAddr();
+            }
+            return authorizationContext.environment().remoteIp();
+        }
+        return "unknown";
+    }
+
+    /**
+     * 현재 인증된 사용자의 ID를 추출합니다.
+     *
+     * UserDto 또는 String 타입의 principal에서 userId를 추출합니다.
+     * UserDto인 경우 id가 있으면 id, 없으면 username을 반환합니다.
+     *
+     * @return 사용자 ID, 인증되지 않은 경우 null
+     */
+    protected String extractUserId() {
+        Authentication authentication = getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDto) {
+            UserDto userDto = (UserDto) principal;
+            return userDto.getId() != null ? userDto.getId().toString() : userDto.getUsername();
+        } else if (principal instanceof String) {
+            return (String) principal;
+        }
+
+        return null;
+    }
 
     /**
      * 현재 보안 검사가 이루어지는 활동(Activity)에 대한 설명을 반환합니다.
@@ -529,6 +579,44 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     // ========================================================================
 
     /**
+     * Action을 TrustAssessment로 변환하여 AuthorizationContext에 저장합니다.
+     *
+     * Action 기반 메서드(isAllowed, isBlocked 등)에서 호출되어
+     * CustomDynamicAuthorizationManager가 감사 로그 및 이벤트 발행에 사용할 수 있도록 합니다.
+     *
+     * @param action LLM action (ALLOW, BLOCK, CHALLENGE, INVESTIGATE, ESCALATE, MONITOR, PENDING_ANALYSIS)
+     */
+    protected void storeActionAsTrustAssessment(String action) {
+        if (authorizationContext == null) {
+            log.debug("AuthorizationContext가 null - TrustAssessment 저장 생략");
+            return;
+        }
+
+        // 이미 저장된 경우 중복 저장 방지
+        if (authorizationContext.attributes().containsKey("ai_assessment")) {
+            log.trace("TrustAssessment가 이미 저장됨 - 중복 저장 생략");
+            return;
+        }
+
+        double score = switch (action != null ? action.toUpperCase() : "PENDING_ANALYSIS") {
+            case "ALLOW" -> 1.0;
+            case "MONITOR" -> 0.7;
+            case "CHALLENGE" -> 0.5;
+            case "INVESTIGATE", "ESCALATE" -> 0.3;
+            case "BLOCK" -> 0.0;
+            default -> 0.5; // PENDING_ANALYSIS
+        };
+
+        List<String> riskTags = List.of("LLM_ACTION", action != null ? action : "PENDING_ANALYSIS");
+        String summary = "Redis LLM Action: " + (action != null ? action : "PENDING_ANALYSIS");
+
+        TrustAssessment assessment = new TrustAssessment(score, riskTags, summary);
+        authorizationContext.attributes().put("ai_assessment", assessment);
+
+        log.debug("Action 기반 TrustAssessment 저장 완료 - action: {}, score: {}", action, score);
+    }
+
+    /**
      * LLM이 결정한 현재 action 조회 (추상 메서드)
      *
      * 하위 클래스에서 Redis 또는 실시간 분석 결과를 반환해야 한다.
@@ -586,21 +674,35 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     /**
      * LLM action이 PENDING_ANALYSIS인지 확인 (분석 미완료)
      *
+     * CustomDynamicAuthorizationManager의 감사 로그 및 이벤트 발행을 위해
+     * TrustAssessment를 AuthorizationContext에 저장합니다.
+     *
      * @return 분석이 아직 완료되지 않았으면 true
      */
     public boolean isPendingAnalysis() {
         String action = getCurrentAction();
+
+        // TrustAssessment 저장 (감사 로그 및 이벤트 발행용)
+        storeActionAsTrustAssessment(action);
+
         return action == null || action.isEmpty() || "PENDING_ANALYSIS".equalsIgnoreCase(action);
     }
 
     /**
      * LLM action이 특정 값인지 확인
      *
+     * CustomDynamicAuthorizationManager의 감사 로그 및 이벤트 발행을 위해
+     * TrustAssessment를 AuthorizationContext에 저장합니다.
+     *
      * @param expectedAction 예상 action (ALLOW, BLOCK, CHALLENGE, INVESTIGATE, ESCALATE, MONITOR)
      * @return action이 일치하면 true
      */
     public boolean hasAction(String expectedAction) {
         String action = getCurrentAction();
+
+        // TrustAssessment 저장 (감사 로그 및 이벤트 발행용)
+        storeActionAsTrustAssessment(action);
+
         if (action == null || action.isEmpty()) {
             return false;
         }
@@ -610,11 +712,18 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     /**
      * LLM action이 허용 가능한 목록에 포함되는지 확인
      *
+     * CustomDynamicAuthorizationManager의 감사 로그 및 이벤트 발행을 위해
+     * TrustAssessment를 AuthorizationContext에 저장합니다.
+     *
      * @param allowedActions 허용할 action 목록
      * @return action이 목록에 포함되면 true
      */
     public boolean hasActionIn(String... allowedActions) {
         String action = getCurrentAction();
+
+        // TrustAssessment 저장 (감사 로그 및 이벤트 발행용)
+        storeActionAsTrustAssessment(action);
+
         if (action == null || action.isEmpty()) {
             return false;
         }
@@ -700,6 +809,9 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     /**
      * 분석 미완료 시 기본 action 사용
      *
+     * CustomDynamicAuthorizationManager의 감사 로그 및 이벤트 발행을 위해
+     * TrustAssessment를 AuthorizationContext에 저장합니다.
+     *
      * @param defaultAction 기본 action (MONITOR, ALLOW 등)
      * @param allowedActions 허용할 action 목록
      * @return 현재 action 또는 기본 action이 허용 목록에 포함되면 true
@@ -711,6 +823,10 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             action = defaultAction;
             log.debug("분석 미완료 - 기본 action 사용: {}", defaultAction);
         }
+
+        // TrustAssessment 저장 (감사 로그 및 이벤트 발행용) - 실제 적용되는 action으로 저장
+        storeActionAsTrustAssessment(action);
+
         final String finalAction = action;
         return Arrays.stream(allowedActions)
             .anyMatch(a -> a.equalsIgnoreCase(finalAction));
@@ -725,12 +841,105 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         public final String resourceIdentifier;
         public final String actionType;
 
-        public ContextExtractionResult(String remoteIp, String userAgent, 
+        public ContextExtractionResult(String remoteIp, String userAgent,
                                      String resourceIdentifier, String actionType) {
             this.remoteIp = remoteIp;
             this.userAgent = userAgent;
             this.resourceIdentifier = resourceIdentifier;
             this.actionType = actionType;
         }
+    }
+
+    // ========================================================================
+    // 공통 유틸리티 메서드 (Phase 2 - 중복 코드 공통화)
+    // ========================================================================
+
+    /**
+     * Redis Hash에서 현재 사용자의 LLM action을 조회합니다.
+     *
+     * HCAD 분석 결과에서 action 필드를 조회합니다.
+     * Redis Hash 키: security:hcad:analysis:{userId}
+     * 필드: action
+     *
+     * @param userId 사용자 ID
+     * @param redisKey Redis Hash 키
+     * @param stringRedisTemplate Redis 템플릿
+     * @return action 값, 없으면 PENDING_ANALYSIS
+     */
+    protected String getActionFromRedisHash(String userId, String redisKey,
+                                            org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate) {
+        if (userId == null || redisKey == null || stringRedisTemplate == null) {
+            log.debug("getActionFromRedisHash: 필수 파라미터 누락 - PENDING_ANALYSIS 반환");
+            return "PENDING_ANALYSIS";
+        }
+
+        try {
+            Object actionValue = stringRedisTemplate.opsForHash().get(redisKey, "action");
+
+            if (actionValue != null) {
+                String action = actionValue.toString();
+                log.debug("getActionFromRedisHash: Redis 조회 성공 - userId: {}, action: {}", userId, action);
+                return action;
+            } else {
+                log.debug("getActionFromRedisHash: Redis에 action 없음 - userId: {}, PENDING_ANALYSIS 반환", userId);
+                return "PENDING_ANALYSIS";
+            }
+        } catch (Exception e) {
+            log.error("getActionFromRedisHash: Redis 조회 실패 - userId: {}, PENDING_ANALYSIS 반환", userId, e);
+            return "PENDING_ANALYSIS";
+        }
+    }
+
+    /**
+     * AuthorizationContext에서 현재 컨텍스트 정보를 추출합니다.
+     *
+     * 하위 클래스의 extractCurrentContext() 구현을 단순화합니다.
+     * 공통 로직을 제공하며, 하위 클래스에서 오버라이드 시 이 메서드를 호출할 수 있습니다.
+     *
+     * @return ContextExtractionResult
+     */
+    protected ContextExtractionResult extractContextFromAuthorizationContext() {
+        String remoteIp = getRemoteIp();
+        String userAgent = "";
+        String resourceIdentifier = "";
+        String actionType = "";
+
+        if (authorizationContext != null) {
+            if (authorizationContext.environment() != null && authorizationContext.environment().request() != null) {
+                userAgent = authorizationContext.environment().request().getHeader("User-Agent");
+                if (userAgent == null) {
+                    userAgent = "";
+                }
+            }
+            if (authorizationContext.resource() != null) {
+                resourceIdentifier = authorizationContext.resource().identifier();
+            }
+            actionType = authorizationContext.action();
+        }
+
+        return new ContextExtractionResult(remoteIp, userAgent, resourceIdentifier, actionType);
+    }
+
+    /**
+     * AuthorizationContext 기반 컨텍스트 해시를 계산합니다.
+     *
+     * 캐시 무효화를 위한 컨텍스트 변경 감지에 사용됩니다.
+     * 하위 클래스의 calculateContextHash() 구현을 단순화합니다.
+     *
+     * @return 컨텍스트 해시 문자열
+     */
+    protected String calculateContextHashFromAuthorizationContext() {
+        StringBuilder sb = new StringBuilder();
+        if (authorizationContext != null) {
+            if (authorizationContext.resource() != null) {
+                sb.append(authorizationContext.resource().identifier());
+            }
+            sb.append(authorizationContext.action());
+            if (authorizationContext.subjectEntity() != null) {
+                sb.append(authorizationContext.subjectEntity().getId());
+            }
+        }
+        sb.append(System.currentTimeMillis());
+        return Integer.toHexString(sb.toString().hashCode());
     }
 } 

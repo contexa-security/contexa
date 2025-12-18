@@ -118,43 +118,20 @@ public class Layer2PromptTemplate {
 
             %s
 
-            USER-AGENT ANALYSIS:
-            - Browser (Chrome/Firefox/Safari/Edge): Normal user, low risk
-            - curl/wget: Automation tool, requires careful analysis
-            - python-requests/httpx: Scripting tool, potential bot or attacker
-            - Empty/Unknown: Highly suspicious, elevated risk
+            RULES:
+            - ZERO TRUST: Unknown != Safe
+            - Deviation 0.5-0.7 -> likely ESCALATE
+            - Deviation > 0.7 -> consider BLOCK
+            - Mixed signals -> ESCALATE for expert
 
-            SCORING GUIDELINES:
-            1. ZERO TRUST: Unknown != Safe. Insufficient data requires conservative assessment.
-            2. BASELINE COMPARISON (CRITICAL): Compare current request against user's established behavior patterns.
-               - User baseline shows normal IP ranges, access hours, frequent paths, trusted devices
-               - Compare current request attributes against these patterns
-               - Higher deviation = higher risk potential
-            3. DEVIATION SCORE INTERPRETATION:
-               - 0.0-0.2: Request matches established patterns well
-               - 0.2-0.5: Minor deviations, may warrant attention
-               - 0.5-0.7: Significant deviations, likely ESCALATE
-               - 0.7-1.0: Major deviations, consider BLOCK
-            4. HCAD Risk Score: Integrate with baseline deviation for final assessment.
-            5. Session Context: User ID, duration, access pattern context.
-            6. Behavior Analysis: normalBehaviorScore, detected anomalies.
-            7. RAG Context: Related security documents for reference.
-            8. Action Decision Principles:
-               - ALLOW: Request matches established baseline with low deviation
-               - ESCALATE: Significant deviations OR mixed signals OR expert analysis needed
-               - BLOCK: Clear attack pattern with high deviation AND corroborating evidence
+            Response: JSON only, max 20 tokens for "d" field
+            {"r":<0-1>,"c":<0-1>,"a":"A|E|B","d":"<20 tokens max>"}
 
-            Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
-            ESCALATE for complex attacks or when expert analysis needed.
-
-            IMPORTANT:
-            - riskScore: 0.0 (completely safe) to 1.0 (confirmed attack)
-            - confidence: Express your certainty level in the assessment
-            - Baseline deviation MUST be factored into riskScore
-            - Add reasoning: "[DEVIATION: describe what]" when behavioral anomaly detected
-
-            JSON format:
-            {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
+            Fields:
+            r: riskScore (0.0=safe, 1.0=attack), factor in baseline deviation
+            c: confidence (0.0-1.0)
+            a: A=Allow, E=Escalate, B=Block
+            d: Brief reason (max 20 tokens, include [DEVIATION: ...] if anomaly)
             """,
             eventType, sourceIp, userAgent, target, method, payloadSummary,
             layer1Summary, sessionSummary, behaviorSummary, relatedContext, hcadSection,

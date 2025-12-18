@@ -166,6 +166,18 @@ public class DynamicModelRegistry {
             ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
                 modelProviderProperties.getTierDefaults(tier);
 
+            // tierDefaults가 null인 경우 기본값 생성
+            if (tierDefaults == null) {
+                tierDefaults = new ModelProviderProperties.DefaultSpecs.TierDefaults();
+                tierDefaults.setTimeoutMs(tier == 1 ? 3000 : tier == 2 ? 10000 : 30000);
+                tierDefaults.setTemperature(0.3);
+                tierDefaults.setMaxTokens(tier == 1 ? 100 : tier == 2 ? 500 : 2000);
+                tierDefaults.setContextWindow(tier == 1 ? 4096 : tier == 2 ? 8192 : 32768);
+                tierDefaults.setLatencyMs(tier == 1 ? 50 : tier == 2 ? 500 : 2000);
+                tierDefaults.setConcurrency(tier == 1 ? 100 : tier == 2 ? 50 : 10);
+                tierDefaults.setPerformanceScore(tier == 1 ? 95.0 : tier == 2 ? 80.0 : 60.0);
+            }
+
             return ModelDescriptor.builder()
                 .modelId(modelName)
                 .displayName(modelName)

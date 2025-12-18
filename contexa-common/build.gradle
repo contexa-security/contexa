@@ -13,6 +13,9 @@ dependencies {
     // Redis (공통 Redis 설정 제공)
     api 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    // Caffeine (L1 로컬 캐시)
+    api 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
     // Jackson 모듈 (Redis 직렬화용)
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     implementation 'com.fasterxml.jackson.core:jackson-databind'

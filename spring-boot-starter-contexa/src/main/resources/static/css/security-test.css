@@ -70,8 +70,16 @@ body {
 /* === 사용자 정보 === */
 .user-info .info-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: 1fr 1.2fr 2fr;
     gap: 16px;
+}
+
+/* 권한 값 공통 스타일 */
+#url-authorities,
+#method-authorities {
+    font-size: 0.9rem;
+    white-space: pre-line;
+    line-height: 1.6;
 }
 
 .info-item {

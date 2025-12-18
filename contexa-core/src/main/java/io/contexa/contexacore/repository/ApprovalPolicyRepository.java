@@ -37,7 +37,7 @@ public class ApprovalPolicyRepository {
      * @param severity 조회할 위협의 심각도
      * @return 적용할 ApprovalPolicy
      */
-    @Cacheable("soarApprovalPolicies")
+    @Cacheable(value = "soarApprovalPolicies", key = "#actionName + ':' + #severity")
     public ApprovalPolicy findPolicyFor(String actionName, String severity) {
         logger.debug("Finding approval policy for action: '{}', severity: '{}'", actionName, severity);
 

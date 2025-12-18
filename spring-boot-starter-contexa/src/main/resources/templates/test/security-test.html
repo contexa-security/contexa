@@ -47,8 +47,12 @@
                     <span class="value" id="current-username" th:text="${username}">anonymous</span>
                 </div>
                 <div class="info-item">
-                    <span class="label">권한</span>
-                    <span class="value" id="current-authorities" th:text="${authorities}">[ROLE_USER]</span>
+                    <span class="label">URL 권한</span>
+                    <span class="value" id="url-authorities" th:text="${urlAuthorities}">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">서비스 권한</span>
+                    <span class="value" id="method-authorities" th:text="${methodAuthorities}">-</span>
                 </div>
             </div>
         </section>

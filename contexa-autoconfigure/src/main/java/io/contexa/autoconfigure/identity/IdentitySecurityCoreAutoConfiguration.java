@@ -264,7 +264,7 @@ public class IdentitySecurityCoreAutoConfiguration {
      * 4-1. FlowConfigurer - Flow 설정기
      */
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(FlowConfigurer.class)
     public SecurityConfigurer flowConfigurer() {
         return new FlowConfigurer();
     }
@@ -273,7 +273,7 @@ public class IdentitySecurityCoreAutoConfiguration {
      * 4-2. GlobalConfigurer - 전역 설정기
      */
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(GlobalConfigurer.class)
     public SecurityConfigurer globalConfigurer() {
         return new GlobalConfigurer();
     }

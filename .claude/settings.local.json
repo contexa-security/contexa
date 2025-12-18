@@ -8,7 +8,11 @@
       "Bash(./gradlew build:*)",
       "Bash(done)",
       "Bash(ls:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(.gradlew clean:*)",
+      "Bash(./gradlew :contexa-iam:compileJava:*)",
+      "Bash(./gradlew:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

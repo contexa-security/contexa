@@ -239,9 +239,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.addIndicators(layer1Assessment.getIndicators());
                     result.addRecommendedActions(layer1Assessment.getRecommendedActions());
                     result.setAnalysisDepth(1); // Layer1에서 종료
+                    result.setAction(layer1Assessment.getAction()); // AI Native: LLM action 직접 사용
 
-                    log.info("Layer 1에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, 시간: {}ms",
-                            System.currentTimeMillis() - startTime);
+                    log.info("Layer 1에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, action: {}, 시간: {}ms",
+                            layer1Assessment.getAction(), System.currentTimeMillis() - startTime);
 
                     return result;
                 }
@@ -265,9 +266,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.addIndicators(layer2Assessment.getIndicators());
                     result.addRecommendedActions(layer2Assessment.getRecommendedActions());
                     result.setAnalysisDepth(2); // Layer2에서 종료
+                    result.setAction(layer2Assessment.getAction()); // AI Native: LLM action 직접 사용
 
-                    log.info("Layer 2에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, 시간: {}ms",
-                            System.currentTimeMillis() - startTime);
+                    log.info("Layer 2에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, action: {}, 시간: {}ms",
+                            layer2Assessment.getAction(), System.currentTimeMillis() - startTime);
 
                     return result;
                 }
@@ -288,9 +290,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.addIndicators(layer3Assessment.getIndicators());
                 result.addRecommendedActions(layer3Assessment.getRecommendedActions());
                 result.setAnalysisDepth(3); // Layer3에서 종료
+                result.setAction(layer3Assessment.getAction()); // AI Native: LLM action 직접 사용
 
-                log.info("Layer 3에서 최종 처리 완료 (0.2% 케이스) - 시간: {}ms",
-                        System.currentTimeMillis() - startTime);
+                log.info("Layer 3에서 최종 처리 완료 (0.2% 케이스) - action: {}, 시간: {}ms",
+                        layer3Assessment.getAction(), System.currentTimeMillis() - startTime);
 
                 return result;
             }
@@ -392,7 +395,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
 
         try {
-            String action = deriveAction(analysisResult.getThreatLevel());
+            // AI Native: LLM이 결정한 action을 직접 사용 (deriveAction 제거)
+            String action = analysisResult.getAction();
+            if (action == null || action.isBlank()) {
+                // 폴백: LLM이 action을 반환하지 않은 경우에만 MONITOR 사용
+                action = "MONITOR";
+                log.warn("[ColdPath][AI Native] LLM action 미반환, 기본값 MONITOR 사용 - userId: {}", userId);
+            }
 
             // Action별 TTL 설정
             Duration ttl = switch (action) {
@@ -484,23 +493,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
         saveAnalysisToRedis(userId, result);
     }
 
-    /**
-     * AI Native: ThreatLevel을 action 문자열로 변환
-     *
-     * @param level LLM이 결정한 위협 수준
-     * @return action 문자열 (ALLOW, MONITOR, INVESTIGATE, BLOCK)
-     */
-    private String deriveAction(ThreatAssessment.ThreatLevel level) {
-        if (level == null) {
-            return "MONITOR";  // LLM 분석 실패/미수행 시 기본값
-        }
-        return switch (level) {
-            case CRITICAL -> "BLOCK";
-            case HIGH -> "INVESTIGATE";
-            case MEDIUM -> "MONITOR";
-            case LOW, INFO -> "ALLOW";
-        };
-    }
+    // AI Native: deriveAction() 메서드 완전 제거
+    // LLM이 action을 직접 결정하므로 ThreatLevel → action 변환 로직 불필요
+    // Layer1/2/3 Strategy에서 ThreatAssessment.action에 LLM 응답 직접 저장
+    // saveAnalysisToRedis()에서 analysisResult.getAction() 직접 사용
 
     @Override
     public ProcessingMode getProcessingMode() {
@@ -609,6 +605,8 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private Set<String> indicators = new HashSet<>();
         private Set<String> recommendedActions = new HashSet<>();
         private int analysisDepth = 0;
+        // AI Native: LLM이 직접 결정한 action
+        private String action;
 
 
         public List<String> getIndicators() { return new ArrayList<>(indicators); }

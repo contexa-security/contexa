@@ -50,4 +50,11 @@ public class AuditLog {
 
     @Column(columnDefinition = "TEXT")
     private String details; // AI의 판단 근거 등 상세 정보를 JSON 형태로 저장
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.timestamp == null) {
+            this.timestamp = LocalDateTime.now();
+        }
+    }
 }

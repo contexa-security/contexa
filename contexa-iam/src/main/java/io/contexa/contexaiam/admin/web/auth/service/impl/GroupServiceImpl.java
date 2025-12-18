@@ -8,9 +8,6 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
@@ -26,13 +23,7 @@ public class GroupServiceImpl implements GroupService {
     private final RoleRepository roleRepository;
 
     @Transactional
-    @Caching(
-            evict = {
-                    @CacheEvict(value = "usersWithAuthorities", allEntries = true),
-                    @CacheEvict(value = "groups", allEntries = true)
-            },
-            put = { @CachePut(value = "groups", key = "#result.id") }
-    )
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public Group createGroup(Group group, List<Long> selectedRoleIds) {
         if (groupRepository.findByName(group.getName()).isPresent()) {
             throw new IllegalArgumentException("Group with name " + group.getName() + " already exists.");
@@ -55,31 +46,19 @@ public class GroupServiceImpl implements GroupService {
         return groupRepository.findByIdWithRoles(id);
     }
 
-    @Cacheable(value = "groups", key = "'allGroups'")
+    // groups 캐시 제거 - 그룹 멤버 변경 빈번, 무효화 비용 > 캐시 이득
     public List<Group> getAllGroups() {
         return groupRepository.findAllWithRolesAndUsers();
     }
 
     @Transactional
-    @Caching(
-            evict = {
-                    @CacheEvict(value = "usersWithAuthorities", allEntries = true),
-                    @CacheEvict(value = "groups", allEntries = true),
-                    @CacheEvict(value = "groups", key = "#id")
-            }
-    )
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void deleteGroup(Long id) {
         groupRepository.deleteById(id);
     }
 
     @Transactional
-    @Caching(
-            evict = {
-                    @CacheEvict(value = "usersWithAuthorities", allEntries = true),
-                    @CacheEvict(value = "groups", allEntries = true)
-            },
-            put = { @CachePut(value = "groups", key = "#result.id") }
-    )
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public Group updateGroup(Group group, List<Long> selectedRoleIds) {
         Group existingGroup = groupRepository.findByIdWithRoles(group.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + group.getId()));

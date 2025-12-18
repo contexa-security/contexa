@@ -22,7 +22,7 @@ import java.util.Map;
  * 4. Complete security incident analysis flow
  */
 @Slf4j
-@RestController
+//@RestController
 @RequestMapping("/api/tools")
 @RequiredArgsConstructor
 public class ToolTestController {

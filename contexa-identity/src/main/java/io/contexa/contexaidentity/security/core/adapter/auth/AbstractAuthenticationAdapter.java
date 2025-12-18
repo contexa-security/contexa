@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -15,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.SecurityContextConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -93,7 +95,9 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         SecurityContextRepository securityContextRepository = resolveSecurityContextRepository(
                 stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow
         );
-        http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+        if(http.getSharedObject(SecurityContextRepository.class) == null) {
+            http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+        }
 
         log.debug("AuthenticationFeature [{}]: SecurityContextRepository set to: {}",
                 getId(), securityContextRepository.getClass().getSimpleName());

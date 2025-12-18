@@ -58,16 +58,16 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
 
-    @Value("${ai.security.tiered.layer2.model:llama3.1:8b}")
+    @Value("${spring.ai.security.layer2.model:llama3.1:8b}")
     private String modelName;
 
-    @Value("${ai.security.tiered.layer2.timeout-ms:30000}")
+    @Value("${spring.ai.security.tiered.layer2.timeout-ms:10000}")
     private long timeoutMs;
 
-    @Value("${ai.security.tiered.layer2.context-window-minutes:30}")
+    @Value("${spring.ai.security.tiered.layer2.context-window-minutes:30}")
     private int contextWindowMinutes;
 
-    @Value("${ai.security.tiered.layer2.vector-search-limit:10}")
+    @Value("${spring.ai.security.tiered.layer2.vector-search-limit:10}")
     private int vectorSearchLimit;
 
     @Autowired
@@ -120,6 +120,9 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         // AI Native: LLM이 ESCALATE 액션을 반환하면 shouldEscalate = true
         boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
 
+        // AI Native: LLM이 결정한 action을 그대로 사용
+        String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
+
         // SecurityDecision을 ThreatAssessment로 변환
         return ThreatAssessment.builder()
                 .riskScore(decision.getRiskScore())
@@ -131,6 +134,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 .strategyName("Layer2-Contextual")
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(shouldEscalate)
+                .action(action)  // AI Native: LLM action 직접 저장
                 .build();
     }
 
@@ -633,7 +637,10 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * JSON 응답 파싱 (수동 파싱으로 BeanOutputConverter 제거)
+     * JSON 응답 파싱 (축약 JSON 우선, Jackson 폴백)
+     *
+     * 축약 형식: {"r":0.75,"c":0.85,"a":"E","d":"session anomaly detected"}
+     * 기존 형식: {"riskScore":0.75,"confidence":0.85,"action":"ESCALATE","reasoning":"..."}
      *
      * @param jsonResponse LLM이 생성한 JSON 문자열
      * @return Layer2SecurityResponse 객체
@@ -642,10 +649,33 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         try {
             // JSON 문자열에서 {}만 추출
             String cleanedJson = extractJsonObject(jsonResponse);
+
+            // 1단계: 축약 JSON 파싱 우선 시도 (프롬프트 최적화 후 표준 형식)
+            Layer2SecurityResponse compactResponse = Layer2SecurityResponse.fromCompactJson(cleanedJson);
+            if (compactResponse != null && isValidResponse(compactResponse)) {
+                log.debug("Layer2 compact JSON parsing successful: {}", cleanedJson);
+                // 컬렉션 필드 초기화 (축약 형식에서는 생략됨)
+                if (compactResponse.getMitigationActions() == null) {
+                    compactResponse.setMitigationActions(new ArrayList<>());
+                }
+                if (compactResponse.getBehaviorPatterns() == null) {
+                    compactResponse.setBehaviorPatterns(new ArrayList<>());
+                }
+                if (compactResponse.getSessionAnalysis() == null) {
+                    compactResponse.setSessionAnalysis(new HashMap<>());
+                }
+                if (compactResponse.getRelatedEvents() == null) {
+                    compactResponse.setRelatedEvents(new ArrayList<>());
+                }
+                return validateAndFixResponse(compactResponse);
+            }
+
+            // 2단계: 기존 전체 필드명 Jackson 파싱 (하위 호환성)
+            log.debug("Layer2 compact parsing failed, falling back to Jackson: {}", cleanedJson);
             JsonNode jsonNode = objectMapper.readTree(cleanedJson);
 
             // AI Native: LLM 응답에서 필수 필드 추출 (기본값 규칙 제거)
-            // 필드가 없으면 null 반환 → validateAndFixResponse()에서 NaN 처리
+            // 필드가 없으면 null 반환 -> validateAndFixResponse()에서 NaN 처리
             Double riskScore = jsonNode.has("riskScore") && !jsonNode.get("riskScore").isNull()
                     ? jsonNode.get("riskScore").asDouble() : null;
             Double confidence = jsonNode.has("confidence") && !jsonNode.get("confidence").isNull()
@@ -680,6 +710,15 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             log.error("Failed to parse JSON response from Layer2 LLM: {}", jsonResponse, e);
             return createDefaultResponse();
         }
+    }
+
+    /**
+     * Response 객체 유효성 검사
+     * riskScore 또는 confidence가 설정되어 있으면 유효한 응답으로 판단
+     */
+    private boolean isValidResponse(Layer2SecurityResponse response) {
+        if (response == null) return false;
+        return response.getRiskScore() != null || response.getConfidence() != null;
     }
 
     /**

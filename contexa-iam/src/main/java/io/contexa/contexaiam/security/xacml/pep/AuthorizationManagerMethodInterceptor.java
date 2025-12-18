@@ -6,8 +6,11 @@ import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.Pointcut;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.authorization.method.AuthorizationAdvisor;
 import org.springframework.security.authorization.method.AuthorizationInterceptorsOrder;
+import org.springframework.security.authorization.method.MethodAuthorizationDeniedHandler;
+import org.springframework.security.authorization.method.ThrowingMethodAuthorizationDeniedHandler;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
@@ -21,6 +24,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
 
     private final Pointcut pointcut;
     private final ProtectableMethodAuthorizationManager authorizationManager;
+    private final MethodAuthorizationDeniedHandler defaultHandler = new ThrowingMethodAuthorizationDeniedHandler();
     private int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1; // 다른 인터셉터보다 약간 뒤에 실행
     private final Supplier<SecurityContextHolderStrategy> securityContextHolderStrategy = SecurityContextHolder::getContextHolderStrategy;
     private AuthorizationEventPublisher authorizationEventPublisher;
@@ -36,29 +40,54 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         Authentication authentication = getAuthentication();
         boolean granted = false;
         String denialReason = null;
-        
+
         try {
             // Pre-authorization
-            authorizationManager.preAuthorize(() -> authentication, mi);
+            authorizationManager.protectable(() -> authentication, mi);
             granted = true;
-            
-            // Method execution
-            Object returnObject = mi.proceed();
-            
-            // Post-authorization
-            authorizationManager.postAuthorize(() -> authentication, mi, returnObject);
-            
-            return returnObject;
-            
+            return proceed(mi);
+
+        } catch (AuthorizationDeniedException denied) {
+            granted = false;
+            denialReason = denied.getMessage();
+            return handle(mi, denied);
+
         } catch (Exception e) {
             granted = false;
             denialReason = e.getMessage();
             throw e;
-            
+
         } finally {
             // @Protectable 메서드는 항상 이벤트 발행 (민감한 리소스)
             publishAuthorizationEvent(mi, authentication, granted, denialReason);
         }
+    }
+
+    /**
+     * 메서드 실행을 진행하고, 실행 중 발생하는 AuthorizationDeniedException을 처리한다.
+     * Spring Security의 AuthorizationManagerBeforeMethodInterceptor와 동일한 패턴 적용.
+     */
+    private Object proceed(MethodInvocation mi) throws Throwable {
+        try {
+            return mi.proceed();
+        } catch (AuthorizationDeniedException ex) {
+            if (authorizationManager instanceof MethodAuthorizationDeniedHandler handler) {
+                return handler.handleDeniedInvocation(mi, ex);
+            }
+            return defaultHandler.handleDeniedInvocation(mi, ex);
+        }
+    }
+
+    /**
+     * 권한 거부 시 핸들러에게 처리를 위임한다.
+     * authorizationManager가 MethodAuthorizationDeniedHandler를 구현하면 해당 핸들러 사용,
+     * 그렇지 않으면 기본 ThrowingMethodAuthorizationDeniedHandler 사용.
+     */
+    private Object handle(MethodInvocation mi, AuthorizationDeniedException denied) {
+        if (authorizationManager instanceof MethodAuthorizationDeniedHandler handler) {
+            return handler.handleDeniedInvocation(mi, denied);
+        }
+        return defaultHandler.handleDeniedInvocation(mi, denied);
     }
 
     private Authentication getAuthentication() {

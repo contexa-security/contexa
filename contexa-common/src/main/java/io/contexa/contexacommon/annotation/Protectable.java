@@ -35,7 +35,7 @@ public @interface Protectable {
     String ownerField() default "";
 
     // Note: condition 표현식은 policy_condition 테이블에서 관리됨
-    // SpEL 예: "#trust.levelExceeds(0.5)" 또는 "#ai.isAllowed() and hasRole('ADMIN')"
+    // SpEL 예: "#trust.isAllowed()" 또는 "#trust.hasActionIn('ALLOW', 'MONITOR') and hasRole('ADMIN')"
 
     /**
      * LLM 분석 요구 수준

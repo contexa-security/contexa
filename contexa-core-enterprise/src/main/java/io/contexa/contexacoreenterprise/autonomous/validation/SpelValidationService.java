@@ -31,25 +31,26 @@ public class SpelValidationService {
 
     /**
      * #trust 변수에서 허용된 메서드 (TrustSecurityExpressionRoot)
-     * Hot Path 전용 - Redis 사전 계산 위협 점수 조회
+     * Hot Path 전용 - Redis에서 LLM Action 조회
+     *
+     * 주의: 점수 기반 메서드(levelExceeds, isLowRisk 등)는 제거됨
+     * Action 기반 메서드(isAllowed, isBlocked 등)로 전환됨
      */
     private static final Set<String> TRUST_METHODS = Set.of(
-        // 위협/신뢰 점수 기반 메서드
-        "levelExceeds",           // #trust.levelExceeds(0.5)
-        "trustLevelAbove",        // #trust.trustLevelAbove(0.7)
-        "isLowRisk",              // #trust.isLowRisk()
-        "isMediumRisk",           // #trust.isMediumRisk()
-        "isHighRisk",             // #trust.isHighRisk()
-        "isCriticalRisk",         // #trust.isCriticalRisk()
-        "getCurrentThreatScore",  // #trust.getCurrentThreatScore()
-        "getCurrentTrustScore",   // #trust.getCurrentTrustScore()
         // 리소스/권한 기반 메서드
         "hasResourceAccess",      // #trust.hasResourceAccess('resource', 0.5)
         "hasTemporaryPermission", // #trust.hasTemporaryPermission('type')
-        // LLM Action 기반 메서드 (Zero Trust)
-        "hasActionIn",            // #trust.hasActionIn('ALLOW', 'MONITOR')
-        "requiresAnalysisWithAction", // #trust.requiresAnalysisWithAction('ALLOW')
-        "hasActionOrDefault"      // #trust.hasActionOrDefault('MONITOR', 'ALLOW', 'MONITOR')
+        // LLM Action 기반 메서드 (Zero Trust) - 권장
+        "isAllowed",              // #trust.isAllowed() - ALLOW 여부
+        "isBlocked",              // #trust.isBlocked() - BLOCK 여부
+        "needsChallenge",         // #trust.needsChallenge() - MFA 필요 여부
+        "needsInvestigation",     // #trust.needsInvestigation() - INVESTIGATE/ESCALATE 여부
+        "isMonitored",            // #trust.isMonitored() - MONITOR 여부
+        "isPendingAnalysis",      // #trust.isPendingAnalysis() - 분석 미완료 여부
+        "hasAction",              // #trust.hasAction('ALLOW') - 특정 action 여부
+        "hasActionIn",            // #trust.hasActionIn('ALLOW', 'MONITOR') - 목록 내 action 여부
+        "isAnalysisComplete",     // #trust.isAnalysisComplete() - 분석 완료 여부
+        "requiresAnalysis"        // #trust.requiresAnalysis() - 분석 필요 여부
     );
 
     /**
@@ -395,7 +396,7 @@ public class SpelValidationService {
         sb.append("=== Contexa SpEL API 문서 ===\n\n");
 
         sb.append("## #trust 변수 (Hot Path - Redis 조회)\n");
-        sb.append("신뢰/위협 점수 기반 빠른 인가 결정:\n");
+        sb.append("LLM 분석 결과(Action) 기반 빠른 인가 결정:\n");
         for (String method : TRUST_METHODS) {
             sb.append("  - #trust.").append(method).append("()\n");
         }

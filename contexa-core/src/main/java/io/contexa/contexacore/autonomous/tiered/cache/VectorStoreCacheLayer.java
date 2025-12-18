@@ -40,16 +40,16 @@ public class VectorStoreCacheLayer {
     @Autowired(required = false)
     private StandardVectorStoreService vectorStoreService;
 
-    @Value("${ai.security.vector-cache.max-size:10000}")
+    @Value("${spring.ai.security.vector-cache.max-size:10000}")
     private long maxCacheSize;
 
-    @Value("${ai.security.vector-cache.expire-minutes:5}")
+    @Value("${spring.ai.security.vector-cache.expire-minutes:5}")
     private int expireMinutes;
 
-    @Value("${ai.security.vector-cache.enabled:true}")
+    @Value("${spring.ai.security.vector-cache.enabled:true}")
     private boolean cacheEnabled;
 
-    @Value("${ai.security.vector-cache.record-stats:true}")
+    @Value("${spring.ai.security.vector-cache.record-stats:true}")
     private boolean recordStats;
 
     /**

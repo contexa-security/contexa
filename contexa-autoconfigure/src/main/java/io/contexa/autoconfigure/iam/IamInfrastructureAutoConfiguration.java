@@ -73,7 +73,7 @@ public class IamInfrastructureAutoConfiguration {
      * @return AuthorizationManagerMethodInterceptor
      */
     @Bean
-    @ConditionalOnBean(name = "meterRegistryPostProcessor")
+//    @ConditionalOnBean(name = "meterRegistryPostProcessor")
     @ConditionalOnMissingBean
     public AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
             ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,

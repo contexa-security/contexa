@@ -44,6 +44,41 @@ spring:
         options:
           model: text-embedding-3-small
 
+    # TieredLLMProperties 매핑 (contexa-core/config/TieredLLMProperties.java)
+    # AI Native 3계층 LLM 시스템 설정
+    security:
+      layer1:
+        model: exaone3.5
+      layer2:
+        model: exaone3.5
+      layer3:
+        model: exaone3.5
+      tiered:
+        enabled: true
+        traffic-distribution:
+          layer1-percentage: 98.0
+          layer2-percentage: 1.8
+          layer3-percentage: 0.2
+        layer1:
+          enabled: true
+          timeout-ms: 3000
+          cache-ttl-seconds: 60
+        layer2:
+          enabled: true
+          timeout-ms: 10000
+          context-window-minutes: 30
+        layer3:
+          enabled: true
+          timeout-ms: 30000
+          enable-soar: false
+        adaptive:
+          enabled: true
+          learning-rate: 0.01
+          peak-hours-start: 9
+          peak-hours-end: 18
+
+
+
     # vLLM 설정 (OpenAI 호환 API - spring.ai.vllm)
     # vLLM 사용 시 아래 설정을 활성화하고 vLLM 서버 실행 필요
     # vllm:
@@ -149,6 +184,10 @@ security:
 
 # 로깅 설정
 logging:
+  charset:
+    console: UTF-8
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   level:
     io.contexa.contexaidentity.security.statemachine: DEBUG
     org.springframework.statemachine: DEBUG

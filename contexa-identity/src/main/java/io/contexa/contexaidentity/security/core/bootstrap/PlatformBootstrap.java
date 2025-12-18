@@ -31,8 +31,8 @@ public class PlatformBootstrap implements InitializingBean {
 
         // 1. 플랫폼 전역 준비
         List<AuthenticationFlowConfig> flows = config.getFlows();
-        List<AuthenticationAdapter> features = registry.getAuthAdaptersFor(flows);
-        platform.prepareGlobal(config, features);
+        List<AuthenticationAdapter> adapters = registry.getAuthAdaptersFor(flows);
+        platform.prepareGlobal(config, adapters);
 
         // 2. 플랫폼 초기화
         platform.initialize();

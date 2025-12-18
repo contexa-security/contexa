@@ -48,10 +48,6 @@ import jakarta.servlet.http.HttpServletRequest;
 @Slf4j
 public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressionRoot {
 
-    // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
-    // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
-    // 이상 탐지, 권한 상승 평가 등은 AICoreOperations를 통한 LLM 호출로 처리
-
     // AI 호출 타임아웃 설정
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration CRITICAL_AI_TIMEOUT = Duration.ofSeconds(60);
@@ -79,7 +75,6 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
      * 하위 호환성을 위한 생성자
      * StringRedisTemplate 없이 생성 시 getCurrentAction()에서 실시간 분석 수행
      */
-    @Deprecated
     public RealtimeAISecurityExpressionRoot(Authentication authentication,
                                             AttributeInformationPoint attributePIP,
                                             AICoreOperations aINativeProcessor,
@@ -136,7 +131,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             }
             
             // AI 분석 요청
-            AIRequest<FraudAnalysisContext> aiRequest = FraudAnalysisRequest.create(context, "fraudAnalysis");
+            AIRequest<FraudAnalysisContext> aiRequest = FraudAnalysisRequest.create(context, "riskAssessment");
             
             Mono<FraudAnalysisResponse> responseMono = aINativeProcessor.process(aiRequest, FraudAnalysisResponse.class);
             FraudAnalysisResponse response = responseMono
@@ -200,7 +195,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             eventMetadata.put("timestamp", event.getTimestamp());
             riskContext.setEnvironmentAttributes(eventMetadata);
 
-            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "anomalyDetection");
+            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "riskAssessment");
 
             Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
             RiskAssessmentResponse response = responseMono
@@ -216,13 +211,21 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                 isNormal = riskScore < ANOMALY_THRESHOLD;
             }
 
-            log.info("이상 행동 탐지 완료 (AI Native) - userId: {}, riskScore: {}, normal: {}",
-                    userId, riskScore, isNormal);
+            // Action 병행 검증: LLM이 BLOCK으로 판정했으면 거부
+            String action = getCurrentAction();
+            if ("BLOCK".equals(action)) {
+                log.warn("detectAnomaly: LLM BLOCK action detected - userId: {}, operation: {}", userId, operation);
+                isNormal = false;
+            }
+
+            log.info("이상 행동 탐지 완료 (AI Native) - userId: {}, riskScore: {}, action: {}, normal: {}",
+                    userId, riskScore, action, isNormal);
 
             // 감사 로그 기록
             Map<String, Object> operationData = new HashMap<>();
             operationData.put("operation", operation);
             operationData.put("analysisType", "AI_NATIVE");
+            operationData.put("llmAction", action);
             recordAuditLog("ANOMALY_DETECTION", userId, operationData, riskScore, isNormal);
 
             return isNormal;
@@ -267,7 +270,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             riskContext.setEnvironmentAttributes(additionalContext);
             
             // AI 위험 평가 요청
-            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "criticalOperation");
+            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "riskAssessment");
             
             Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
             RiskAssessmentResponse response = responseMono
@@ -328,7 +331,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             riskContext.setRemoteIp(getRemoteIp());
             riskContext.setEnvironmentAttributes(dataAccess);
 
-            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "dataExfiltration");
+            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "riskAssessment");
 
             Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
             RiskAssessmentResponse response = responseMono
@@ -345,11 +348,12 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                 return isSafe;
             }
 
-            return true; // AI 분석 실패 시 기본 허용 (fail-open)
+            log.warn("evaluateDataExfiltration: AI 분석 응답 없음 - userId: {}, Fail-Closed 적용", userId);
+            return false; // AI 분석 실패 시 거부 (fail-closed)
 
         } catch (Exception e) {
-            log.error("데이터 유출 평가 실패", e);
-            return false;
+            log.error("데이터 유출 평가 실패 - userId: {}", userId, e);
+            return false; // Fail-Closed
         }
     }
     
@@ -384,7 +388,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                                                requestedRole.contains("SYSTEM"));
             riskContext.setEnvironmentAttributes(escalationContext);
 
-            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "privilegeEscalation");
+            AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "riskAssessment");
 
             Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
             RiskAssessmentResponse response = responseMono
@@ -423,27 +427,9 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         event.setMetadata(new HashMap<>());
         return event;
     }
-    
-    /**
-     * 사용자 ID 추출
-     */
-    private String extractUserId() {
-        Authentication authentication = getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return null;
-        }
-        
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof UserDto) {
-            UserDto userDto = (UserDto) principal;
-            return userDto.getId() != null ? userDto.getId().toString() : userDto.getUsername();
-        } else if (principal instanceof String) {
-            return (String) principal;
-        }
-        
-        return null;
-    }
-    
+
+    // extractUserId()는 AbstractAISecurityExpressionRoot에서 상속받아 사용
+
     /**
      * 감사 로그 기록
      */
@@ -474,23 +460,9 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                  userId, riskScore, context);
         // TODO: 실제 알림 시스템 연동
     }
-    
-    @Override
-    protected String getRemoteIp() {
-        if (authorizationContext != null && authorizationContext.environment() != null) {
-            HttpServletRequest request = authorizationContext.environment().request();
-            if (request != null) {
-                String xForwardedFor = request.getHeader("X-Forwarded-For");
-                if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-                    return xForwardedFor.split(",")[0].trim();
-                }
-                return request.getRemoteAddr();
-            }
-            return authorizationContext.environment().remoteIp();
-        }
-        return "unknown";
-    }
-    
+
+    // getRemoteIp()는 AbstractAISecurityExpressionRoot에서 상속받아 사용 (X-Real-IP 지원 포함)
+
     @Override
     protected String getCurrentActivityDescription() {
         if (authorizationContext != null) {
@@ -506,39 +478,14 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
     
     @Override
     protected ContextExtractionResult extractCurrentContext() {
-        String remoteIp = getRemoteIp();
-        String userAgent = "";
-        String resourceIdentifier = "";
-        String actionType = "";
-        
-        if (authorizationContext != null) {
-            if (authorizationContext.environment() != null && authorizationContext.environment().request() != null) {
-                userAgent = authorizationContext.environment().request().getHeader("User-Agent");
-            }
-            if (authorizationContext.resource() != null) {
-                resourceIdentifier = authorizationContext.resource().identifier();
-            }
-            actionType = authorizationContext.action();
-        }
-        
-        return new ContextExtractionResult(
-            remoteIp, userAgent, resourceIdentifier, actionType);
+        // 공통 메서드 사용 (Phase 2 - 중복 코드 공통화)
+        return extractContextFromAuthorizationContext();
     }
-    
+
     @Override
     protected String calculateContextHash() {
-        StringBuilder sb = new StringBuilder();
-        if (authorizationContext != null) {
-            if (authorizationContext.resource() != null) {
-                sb.append(authorizationContext.resource().identifier());
-            }
-            sb.append(authorizationContext.action());
-            if (authorizationContext.subjectEntity() != null) {
-                sb.append(authorizationContext.subjectEntity().getId());
-            }
-        }
-        sb.append(System.currentTimeMillis());
-        return Integer.toHexString(sb.toString().hashCode());
+        // 공통 메서드 사용 (Phase 2 - 중복 코드 공통화)
+        return calculateContextHashFromAuthorizationContext();
     }
 
     // ========================================================================
@@ -565,30 +512,15 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             return "PENDING_ANALYSIS";
         }
 
-        // StringRedisTemplate이 없으면 PENDING_ANALYSIS 반환
+        // StringRedisTemplate이 없으면 PENDING_ANALYSIS 반환 (하위 호환성)
         if (stringRedisTemplate == null) {
             log.debug("getCurrentAction: StringRedisTemplate 없음 - PENDING_ANALYSIS 반환");
             return "PENDING_ANALYSIS";
         }
 
-        // Redis Hash에서 action 필드 조회
-        try {
-            String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object actionValue = stringRedisTemplate.opsForHash().get(redisKey, "action");
-
-            if (actionValue != null) {
-                String action = actionValue.toString();
-                log.debug("getCurrentAction: Redis 조회 성공 - userId: {}, action: {}", userId, action);
-                return action;
-            } else {
-                // action이 없으면 분석 미완료
-                log.debug("getCurrentAction: Redis에 action 없음 - userId: {}, PENDING_ANALYSIS 반환", userId);
-                return "PENDING_ANALYSIS";
-            }
-        } catch (Exception e) {
-            log.error("getCurrentAction: Redis 조회 실패 - userId: {}, PENDING_ANALYSIS 반환", userId, e);
-            return "PENDING_ANALYSIS";
-        }
+        // 공통 메서드를 통한 Redis Hash 조회 (Phase 2 - 중복 코드 공통화)
+        String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+        return getActionFromRedisHash(userId, redisKey, stringRedisTemplate);
     }
 
     // Inner classes for missing domain objects

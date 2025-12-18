@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.security.xacml.prp;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.repository.PolicyRepository;
@@ -9,41 +11,89 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * 데이터베이스 기반 정책 조회 지점
+ *
+ * ContexaCacheService를 통한 2-Level 캐시를 사용하여 정책을 조회합니다:
+ * - L1: Caffeine (30초 TTL, 로컬 인메모리)
+ * - L2: Redis (5분 TTL, 분산)
+ *
+ * 캐시 키 형식:
+ * - URL 정책: "policies:url:all"
+ * - 메서드 정책: "policies:method:{identifier}"
+ * - 메서드 정책(phase): "policies:method:{identifier}:{phase}"
+ *
+ * @since 0.1.0-ALPHA
+ */
 @Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
 
+    private static final String CACHE_DOMAIN = "policies";
+    private static final String URL_POLICIES_KEY = "policies:url:all";
+    private static final String METHOD_POLICIES_PREFIX = "policies:method:";
+
+    private static final TypeReference<List<Policy>> POLICY_LIST_TYPE = new TypeReference<>() {};
+
     private final PolicyRepository policyRepository;
+    private final ContexaCacheService cacheService;
 
     @Override
     public List<Policy> findUrlPolicies() {
-        log.debug("Fetching all URL policies from database...");
-        List<Policy> policies = policyRepository.findByTargetTypeWithDetails("URL");
-        log.info("Retrieved {} URL policies.", policies.size());
-        return policies;
+        return cacheService.get(
+            URL_POLICIES_KEY,
+            () -> {
+                log.debug("URL 정책 DB 조회 (캐시 미스)");
+                List<Policy> policies = policyRepository.findByTargetTypeWithDetails("URL");
+                log.info("URL 정책 {} 건 조회 완료", policies.size());
+                return policies;
+            },
+            POLICY_LIST_TYPE,
+            CACHE_DOMAIN
+        );
     }
 
     @Override
     public void clearUrlPoliciesCache() {
-        log.info("URL policies cache will be evicted by annotation.");
+        log.info("URL 정책 캐시 무효화: {}", URL_POLICIES_KEY);
+        cacheService.invalidate(URL_POLICIES_KEY);
     }
 
     @Override
     public List<Policy> findMethodPolicies(String methodIdentifier) {
-        log.debug("Fetching method policies for identifier: {}", methodIdentifier);
-        return policyRepository.findByMethodIdentifier(methodIdentifier);
+        String cacheKey = METHOD_POLICIES_PREFIX + methodIdentifier;
+
+        return cacheService.get(
+            cacheKey,
+            () -> {
+                log.debug("메서드 정책 DB 조회 (캐시 미스): {}", methodIdentifier);
+                return policyRepository.findByMethodIdentifier(methodIdentifier);
+            },
+            POLICY_LIST_TYPE,
+            CACHE_DOMAIN
+        );
     }
 
     @Override
-    public List<Policy> findMethodPolicies(String methodIdentifier, String phase) { // [수정] phase 파라미터 추가
-        log.debug("Fetching method policies for identifier: {} and phase: {}", methodIdentifier, phase);
-        PolicyCondition.AuthorizationPhase authPhase = PolicyCondition.AuthorizationPhase.valueOf(phase);
-        return policyRepository.findByMethodIdentifierAndPhase(methodIdentifier, authPhase); // [수정] 새 쿼리 호출
+    public List<Policy> findMethodPolicies(String methodIdentifier, String phase) {
+        String cacheKey = METHOD_POLICIES_PREFIX + methodIdentifier + ":" + phase;
+
+        return cacheService.get(
+            cacheKey,
+            () -> {
+                log.debug("메서드 정책 DB 조회 (캐시 미스): {} phase: {}", methodIdentifier, phase);
+                PolicyCondition.AuthorizationPhase authPhase = PolicyCondition.AuthorizationPhase.valueOf(phase);
+                return policyRepository.findByMethodIdentifierAndPhase(methodIdentifier, authPhase);
+            },
+            POLICY_LIST_TYPE,
+            CACHE_DOMAIN
+        );
     }
 
     @Override
     public void clearMethodPoliciesCache() {
-        log.info("Method policies cache will be evicted by annotation.");
+        log.info("메서드 정책 캐시 전체 무효화: {}*", METHOD_POLICIES_PREFIX);
+        cacheService.invalidate(METHOD_POLICIES_PREFIX + "*");
     }
 }

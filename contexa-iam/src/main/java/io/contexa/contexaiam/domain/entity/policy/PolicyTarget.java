@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.domain.entity.policy;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -17,6 +18,7 @@ public class PolicyTarget implements Serializable {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_id", nullable = false)
+    @JsonBackReference("policy-targets")
     private Policy policy;
 
     @Column(nullable = false)

@@ -52,7 +52,6 @@ import java.util.Collections;
  * @see MfaPageConfig
  */
 @Slf4j
-@Component
 public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
     private final ApplicationContext applicationContext;

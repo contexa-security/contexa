@@ -59,22 +59,22 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
     // 프롬프트 템플릿
 
-    @Value("${ai.security.tiered.layer1.model:tinyllama}")
+    @Value("${spring.ai.security.layer1.model:tinyllama}")
     private String modelName;
 
-    @Value("${ai.security.tiered.layer1.timeout-ms:50}")
+    @Value("${spring.ai.security.tiered.layer1.timeout-ms:3000}")
     private long timeoutMs;
 
-    @Value("${ai.security.tiered.layer1.cache-ttl-seconds:300}")
+    @Value("${spring.ai.security.tiered.layer1.cache-ttl-seconds:60}")
     private long cacheTtlSeconds;
 
-    @Value("${ai.security.tiered.layer1.embedding-similarity-threshold:0.85}")
+    @Value("${spring.ai.security.tiered.layer1.embedding-similarity-threshold:0.85}")
     private double embeddingSimilarityThreshold;
 
-    @Value("${ai.security.tiered.layer1.embedding-search-limit:5}")
+    @Value("${spring.ai.security.tiered.layer1.embedding-search-limit:5}")
     private int embeddingSearchLimit;
 
-    @Value("${ai.security.tiered.layer1.embedding-cache-enabled:true}")
+    @Value("${spring.ai.security.tiered.layer1.embedding-cache-enabled:true}")
     private boolean embeddingCacheEnabled;
 
     @Autowired
@@ -125,6 +125,9 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         // AI Native: LLM이 ESCALATE 액션을 반환하면 shouldEscalate = true
         boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
 
+        // AI Native: LLM이 결정한 action을 그대로 사용
+        String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
+
         return ThreatAssessment.builder()
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
@@ -136,6 +139,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                 .strategyName("Layer1-FastFilter")
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(shouldEscalate)
+                .action(action)  // AI Native: LLM action 직접 저장
                 .build();
     }
 
@@ -183,9 +187,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
             String promptText = promptTemplate.buildPrompt(event, knownPatterns, baselineContext, deviationAnalysis);
 
-            // UnifiedLLMOrchestrator를 사용한 빠른 분석 - execute() + 수동 JSON 파싱
-            // BeanOutputConverter 제거로 1800+ 토큰 → 300 토큰 (85% 감소!)
-            // 예상 성능: 2-3초 → 50-100ms (40-60배 개선!)
             ExecutionContext context = ExecutionContext.builder()
                     .prompt(new Prompt(promptText))
                     .tier(1)
@@ -444,7 +445,10 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * JSON 응답 파싱 (수동 파싱으로 BeanOutputConverter 제거)
+     * JSON 응답 파싱 (축약 JSON 우선, Jackson 폴백)
+     *
+     * 축약 형식: {"r":0.75,"c":0.85,"a":"E","d":"new IP from US"}
+     * 기존 형식: {"riskScore":0.75,"confidence":0.85,"action":"ESCALATE","reasoning":"..."}
      *
      * @param jsonResponse LLM이 생성한 JSON 문자열
      * @return Layer1SecurityResponse 객체
@@ -454,6 +458,15 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
             // JSON 문자열에서 {}만 추출 (LLM이 추가 텍스트를 포함할 수 있음)
             String cleanedJson = extractJsonObject(jsonResponse);
 
+            // 1단계: 축약 JSON 파싱 우선 시도 (프롬프트 최적화 후 표준 형식)
+            Layer1SecurityResponse compactResponse = Layer1SecurityResponse.fromCompactJson(cleanedJson);
+            if (compactResponse != null && isValidResponse(compactResponse)) {
+                log.debug("Layer1 compact JSON parsing successful: {}", cleanedJson);
+                return validateAndFixResponse(compactResponse);
+            }
+
+            // 2단계: 기존 전체 필드명 Jackson 파싱 (하위 호환성)
+            log.debug("Layer1 compact parsing failed, falling back to Jackson: {}", cleanedJson);
             JsonNode jsonNode = objectMapper.readTree(cleanedJson);
 
             // AI Native: 필수 필드 추출 (기본값 할당 제거)
@@ -480,6 +493,15 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
             log.error("Failed to parse JSON response from Layer1 LLM: {}", jsonResponse, e);
             return createDefaultResponse();
         }
+    }
+
+    /**
+     * Response 객체 유효성 검사
+     * riskScore 또는 confidence가 설정되어 있으면 유효한 응답으로 판단
+     */
+    private boolean isValidResponse(Layer1SecurityResponse response) {
+        if (response == null) return false;
+        return response.getRiskScore() != null || response.getConfidence() != null;
     }
 
     /**

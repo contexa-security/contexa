@@ -45,16 +45,16 @@ public class MaliciousPatternDetector {
 
     private final RedisTemplate<String, String> stringRedisTemplate;
 
-    @Value("${ai.security.pattern-detection.similarity-threshold:0.75}")
+    @Value("${spring.ai.security.pattern-detection.similarity-threshold:0.75}")
     private double similarityThreshold;
 
-    @Value("${ai.security.pattern-detection.cache-enabled:true}")
+    @Value("${spring.ai.security.pattern-detection.cache-enabled:true}")
     private boolean cacheEnabled;
 
-    @Value("${ai.security.pattern-detection.auto-learn:true}")
+    @Value("${spring.ai.security.pattern-detection.auto-learn:true}")
     private boolean autoLearn;
 
-    @Value("${ai.security.pattern-detection.heuristic-enabled:true}")
+    @Value("${spring.ai.security.pattern-detection.heuristic-enabled:true}")
     private boolean heuristicEnabled;
 
     /**

@@ -1,9 +1,11 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
+@Order(0)
 public class AuthenticatedExpressionEvaluator implements ExpressionEvaluator {
     @Override
     public boolean supports(String expression) {

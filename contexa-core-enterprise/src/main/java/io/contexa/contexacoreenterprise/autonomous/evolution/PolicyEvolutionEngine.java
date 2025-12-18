@@ -417,15 +417,15 @@ public class PolicyEvolutionEngine {
         
         // 사용 가능한 SpEL API 목록 (AI가 실제 존재하는 메서드만 사용하도록)
         prompt.append("\n## 사용 가능한 SpEL API\n");
-        prompt.append("### #trust 변수 (Hot Path - Redis 조회, 응답시간 5ms 이내)\n");
-        prompt.append("- #trust.levelExceeds(threshold) : 위협 점수가 임계값 초과 확인 (0.0~1.0)\n");
-        prompt.append("- #trust.trustLevelAbove(minLevel) : 신뢰 수준이 최소값 이상인지 확인\n");
-        prompt.append("- #trust.isLowRisk() : 저위험 여부 (위협점수 <= 0.4)\n");
-        prompt.append("- #trust.isMediumRisk() : 중위험 여부 (0.4 < 위협점수 <= 0.7)\n");
-        prompt.append("- #trust.isHighRisk() : 고위험 여부 (위협점수 > 0.7)\n");
-        prompt.append("- #trust.isCriticalRisk() : 매우 고위험 여부 (위협점수 > 0.9)\n");
-        prompt.append("- #trust.hasActionIn('ACTION1', 'ACTION2') : HCAD 분석 결과 action 확인\n");
-        prompt.append("- #trust.requiresAnalysisWithAction('ACTION') : 분석 필요 여부\n");
+        prompt.append("### #trust 변수 (Hot Path - Redis LLM Action 조회, 응답시간 5ms 이내)\n");
+        prompt.append("- #trust.isAllowed() : LLM이 ALLOW로 판정했는지 확인\n");
+        prompt.append("- #trust.isBlocked() : LLM이 BLOCK으로 판정했는지 확인\n");
+        prompt.append("- #trust.needsChallenge() : MFA 추가 인증 필요 여부 (CHALLENGE)\n");
+        prompt.append("- #trust.needsInvestigation() : 추가 조사 필요 여부 (INVESTIGATE/ESCALATE)\n");
+        prompt.append("- #trust.isMonitored() : 모니터링 모드 여부 (MONITOR)\n");
+        prompt.append("- #trust.isPendingAnalysis() : 분석 미완료 여부 (PENDING_ANALYSIS)\n");
+        prompt.append("- #trust.hasAction('ACTION') : 특정 LLM action 확인\n");
+        prompt.append("- #trust.hasActionIn('ACTION1', 'ACTION2') : 여러 action 중 하나 확인\n");
         prompt.append("- #trust.hasResourceAccess('resourceId', threshold) : 리소스별 접근 권한\n");
         prompt.append("\n### #ai 변수 (Cold Path - 실시간 AI 분석, 고위험 작업 전용)\n");
         prompt.append("- #ai.analyzeFraud(#transaction) : 사기 거래 분석\n");
@@ -699,7 +699,7 @@ public class PolicyEvolutionEngine {
             String extractionPrompt = String.format(
                 "다음 텍스트에서 Spring Security SpEL 표현식만 추출해주세요. " +
                 "코드 블록이나 설명 없이 SpEL 표현식만 반환해주세요.\n" +
-                "허용된 API: #trust.levelExceeds(), #trust.isHighRisk(), #ai.hasSafeBehavior(), hasRole(), hasAuthority() 등\n\n%s",
+                "허용된 API: #trust.isAllowed(), #trust.isBlocked(), #trust.hasActionIn(), #ai.hasSafeBehavior(), hasRole(), hasAuthority() 등\n\n%s",
                 originalResponse.substring(0, Math.min(500, originalResponse.length()))
             );
 

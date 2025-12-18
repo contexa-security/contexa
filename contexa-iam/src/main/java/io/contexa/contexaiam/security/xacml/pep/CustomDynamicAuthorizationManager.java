@@ -71,7 +71,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies();
 
         for (Policy policy : urlPolicies) {
-            // AI 생성 정책이 승인되지 않았거나 비활성 상태면 건너뜀
             if (policy.isAIGenerated() &&
                 (policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED || !policy.getIsActive())) {
                 log.debug("Skipping AI policy '{}' - not approved or inactive", policy.getName());
@@ -104,54 +103,22 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
 
-        // AI 정책 평가를 위한 추가 컨텍스트 수집
-        Double aiConfidenceThreshold = determineConfidenceThreshold(request);
-
         for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
             if (mapping.getRequestMatcher().matcher(context.getRequest()).isMatch()) {
                 log.debug("Request matched by '{}'. Delegating to its AuthorizationManager.", mapping.getRequestMatcher());
 
-                // 매칭된 정책이 AI 정책인지 확인
-                Policy matchedPolicy = findMatchingPolicy(context.getRequest().getRequestURI());
-                if (matchedPolicy != null && matchedPolicy.isAIGenerated()) {
-                    // AI 정책의 신뢰도 확인
-                    if (matchedPolicy.getConfidenceScore() != null &&
-                            matchedPolicy.getConfidenceScore() < aiConfidenceThreshold) {
-                        log.warn("AI policy '{}' confidence score {} is below threshold {}",
-                                matchedPolicy.getName(), matchedPolicy.getConfidenceScore(), aiConfidenceThreshold);
-
-                        // 낮은 신뢰도 정책은 추가 검증 필요
-                        authorizationContext.attributes().put("low_confidence_ai_policy", true);
-                    }
-                }
-
                 AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
-                AuthorizationDecision decision = manager.check(authenticationSupplier, context);
 
-                // AI 평가 결과 추출
-                TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
-
-                // 감사 로그 기록
-                logAuthorizationAttempt(authentication, authorizationContext, decision);
-                return decision;
+                return manager.check(authenticationSupplier, context);
             }
         }
-        log.trace("No matching policy found for request. Denying access by default.");
+        log.trace("No matching policy found for request. Allowing access by default.");
         AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
-
-        // AI 평가 결과 추출 (기본 경로에서도 추출)
-        TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
-
-        // 감사 로그 기록
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
-        // 인가 실패인 경우에만 이벤트 발행 (성능 최적화)
-        // 성공한 수백만 요청은 이벤트 발행하지 않음
         if (authorizationEventPublisher != null && !authorizationDecision.isGranted()) {
-            // ===== 메트릭 수집 =====
             long startTime = System.nanoTime();
-
-            // 인가 실패는 보안상 중요하므로 동기로 확실히 기록
+            TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
             authorizationEventPublisher.publishWebAuthorizationDecision(
                     authentication, request, authorizationDecision, assessment
             );
@@ -213,22 +180,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     }
 
     /**
-     * 여러 정책을 받아 최종 SpEL 표현식으로 조합합니다.
-     * 각 정책의 표현식은 OR로 결합됩니다.
-     * 동적 메서드 인가(ProtectableMethodAuthorizationManager)에서 사용됩니다.
-     */
-    public String getExpressionFromPolicies(List<Policy> policies) {
-        if (policies == null || policies.isEmpty()) {
-            return "denyAll"; // 적용할 정책이 없으면 기본적으로 거부
-        }
-
-        return policies.stream()
-                .map(this::getExpressionFromPolicy) // 기존 단일 정책 변환 로직 재사용
-                .map(expr -> "(" + expr + ")")
-                .collect(Collectors.joining(" or ")); // 여러 정책은 OR로 결합
-    }
-
-    /**
      * 인가 시도 및 그 결과를 상세히 감사 로그에 기록합니다.
      * XAI 의 핵심인 AI 평가 근거를 포함합니다.
      */
@@ -261,52 +212,5 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         policyRetrievalPoint.clearUrlPoliciesCache();
         initialize();
         log.info("Dynamic authorization mappings reloaded successfully.");
-    }
-
-    /**
-     * 요청 URI에 매칭되는 정책을 찾습니다.
-     * AI 정책 평가를 위해 사용됩니다.
-     */
-    private Policy findMatchingPolicy(String requestUri) {
-        List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies();
-
-        for (Policy policy : urlPolicies) {
-            for (PolicyTarget target : policy.getTargets()) {
-                if ("URL".equals(target.getTargetType())) {
-                    RequestMatcher matcher = PathPatternRequestMatcher.withDefaults()
-                            .matcher(target.getTargetIdentifier());
-                    if (matcher.matcher(null).isMatch()) {
-                        return policy;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 요청에 따른 AI 정책 신뢰도 임계값을 결정합니다.
-     * 중요한 리소스일수록 높은 신뢰도를 요구합니다.
-     */
-    private Double determineConfidenceThreshold(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-
-        // 관리자 경로: 최고 신뢰도 요구
-        if (uri.startsWith("/admin/")) {
-            return 0.9;
-        }
-
-        // API 경로: 높은 신뢰도 요구
-        if (uri.startsWith("/api/")) {
-            return 0.8;
-        }
-
-        // 보안 관련 경로: 높은 신뢰도 요구
-        if (uri.contains("security") || uri.contains("auth") || uri.contains("policy")) {
-            return 0.85;
-        }
-
-        // 일반 경로: 보통 신뢰도
-        return 0.7;
     }
 }

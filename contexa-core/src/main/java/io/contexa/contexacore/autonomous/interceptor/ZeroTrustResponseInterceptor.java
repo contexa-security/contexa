@@ -180,7 +180,7 @@ public class ZeroTrustResponseInterceptor {
     /**
      * 오래된 컨텍스트 정리 (1분마다 실행)
      */
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 6000000)
     public void cleanupStaleContexts() {
         long now = System.currentTimeMillis();
         int removedCount = 0;

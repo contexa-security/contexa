@@ -32,8 +32,6 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
     @Autowired(required = false)
     private RoutingDecisionMetrics routingMetrics;
 
-    // AI Native: similarityThreshold 제거 - 유사도 기반 판단 사용 안 함
-
     /**
      * AI Native: 모든 요청을 Cold Path(LLM 분석)로 직접 라우팅
      *
@@ -94,13 +92,6 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
             return true;
         }
     }
-
-    // AI Native: 유사도 기반 라우팅 메서드 제거
-    // - applyDefaultRouting() 제거
-    // - determineModeFromSimilarity() 제거
-    // - getRoutingReasonBySimilarity() 제거
-    // - addModeSpecificMetadata() 제거
-    // 모든 요청은 handle()에서 직접 Cold Path로 라우팅
 
     @Override
     public String getName() {

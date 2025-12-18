@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.util.StringUtils;
 
 import java.util.Collections;
@@ -52,14 +51,14 @@ public class AuditLogQueryTool {
      * @return 조회된 로그와 위협 분석 결과
      */
     @Tool(
-        name = "queryAuditLogs", 
+        name = "queryAuditLogs",
         description = """
             감사 로그를 조회하여 보안 위협을 분석합니다.
             사용자 ID, IP 주소, 날짜 범위로 로그를 검색할 수 있습니다.
             자동으로 위협 레벨을 분석하여 제공합니다.
             """
     )
-    @Cacheable("soar-audit-logs")
+    // 감사 로그는 보안/법규 준수상 캐싱 금지 - 항상 실시간 데이터 조회 필요
     public Response queryAuditLogs(
         @ToolParam(description = "조회할 사용자 ID", required = false) 
         String userId,

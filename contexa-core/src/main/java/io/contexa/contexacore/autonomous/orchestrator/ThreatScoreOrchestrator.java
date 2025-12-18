@@ -43,68 +43,6 @@ public class ThreatScoreOrchestrator {
     private long cacheTtlHours;
 
     /**
-     * Threat Score 업데이트 - 메인 메서드
-     *
-     * 원자적 연산으로 Threat Score를 업데이트하고 UserSecurityContext를 관리합니다.
-     *
-     * @param userId 사용자 ID
-     * @param threatAdjustment 조정값 (양수: 위협 증가, 음수: 위협 감소)
-     * @param reason 업데이트 이유
-     * @param metadata 추가 메타데이터
-     * @return 업데이트된 Threat Score
-     */
-    public double updateThreatScore(String userId, double threatAdjustment, String reason, Map<String, Object> metadata) {
-        if (userId == null || userId.isEmpty()) {
-            log.warn("[ThreatScoreOrchestrator] Invalid userId provided");
-            return initialThreatScore;
-        }
-
-        try {
-            // 3. 컨텍스트 준비 및 업데이트
-            UserSecurityContext userContext = getUserContext(userId);
-            if (userContext == null) {
-                userContext = createInitialContext(userId);
-            }
-
-            // 현재 Threat Score 조회 (로깅용)
-            double currentThreatScore = getThreatScore(userId);
-
-            // 컨텍스트 업데이트
-            userContext.setUpdatedAt(LocalDateTime.now());
-            userContext.addThreatIndicator("lastUpdateReason", reason);
-            userContext.setCurrentThreatScore(currentThreatScore); // 현재값 설정
-
-            String contextJson = objectMapper.writeValueAsString(userContext);
-
-            // 4. Redis 원자적 업데이트 (컨텍스트 포함 저장, 범위 검증 포함)
-            double newThreatScore = redisAtomicOperations.updateThreatScoreWithContext(
-                userId, threatAdjustment, contextJson, (int) cacheTtlHours
-            );
-
-            log.info("[ThreatScoreOrchestrator] Threat Score updated - User: {}, {} -> {} (adjustment: {}), Reason: {}",
-                userId, String.format("%.3f", currentThreatScore), String.format("%.3f", newThreatScore),
-                threatAdjustment, reason);
-
-            return newThreatScore;
-
-        } catch (Exception e) {
-            log.error("[ThreatScoreOrchestrator] Failed to update Threat Score for user: {}", userId, e);
-            // CRITICAL FIX: Redis 장애 시 기존 점수 유지 시도 (v3.1)
-            // 기존: initialThreatScore(0.3)으로 리셋하여 데이터 손실
-            // 수정: 로컬 캐시 또는 기존 조회값 유지
-            try {
-                double existingScore = getThreatScore(userId);
-                log.warn("[ThreatScoreOrchestrator] Returning existing score due to update failure - userId: {}, existingScore: {}",
-                    userId, existingScore);
-                return existingScore;
-            } catch (Exception ex) {
-                log.error("[ThreatScoreOrchestrator] Failed to retrieve existing score, using initial - userId: {}", userId, ex);
-                return initialThreatScore;
-            }
-        }
-    }
-
-    /**
      * AI Native: Threat Score 직접 설정 (시간 감쇠 없음)
      *
      * LLM이 반환한 riskScore를 그대로 Redis에 저장합니다.

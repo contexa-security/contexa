@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.asep.handler.returnvaluehandler.
 import io.contexa.contexaidentity.security.core.asep.handler.returnvaluehandler.ResponseEntityReturnValueHandler;
 import io.contexa.contexaidentity.security.core.asep.handler.returnvaluehandler.SecurityHandlerMethodReturnValueHandler;
 import io.contexa.contexaidentity.security.core.asep.handler.returnvaluehandler.SecurityResponseBodyReturnValueHandler;
+import io.contexa.contexaidentity.security.core.bootstrap.configurer.FlowConfigurer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -110,7 +111,7 @@ public class AsepAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(AsepConfigurer.class)
     public AsepConfigurer asepConfigurer(
             SecurityExceptionHandlerMethodRegistry methodRegistry,
             @Qualifier("asepDefaultArgumentResolvers") List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers,

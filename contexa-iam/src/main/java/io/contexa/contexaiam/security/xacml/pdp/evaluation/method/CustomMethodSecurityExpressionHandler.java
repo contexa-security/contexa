@@ -1,7 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacore.std.operations.AINativeProcessor;
-import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.DocumentRepository;
@@ -63,13 +62,12 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     // === Zero Trust 의존성 ===
     private final RedisTemplate<String, Double> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;  // 세션-사용자 매핑 조회용
-    private final UnifiedNotificationService notificationService;
-    
-    // Zero Trust 모드 설정
-    @Value("${security.zerotrust.mode:STANDARD}")
-    private String zeroTrustMode; // STANDARD, TRUST, REALTIME
+
+    // Zero Trust 모드 설정 (생성자 주입 - 초기화 시점에 정확한 값 보장)
+    private final String zeroTrustMode; // STANDARD, TRUST, REALTIME
 
     public CustomMethodSecurityExpressionHandler(
+            @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
             CustomPermissionEvaluator customPermissionEvaluator,
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
@@ -83,10 +81,11 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             GroupRepository groupRepository,
             DocumentRepository documentRepository,
             RedisTemplate<String, Double> redisTemplate,
-            StringRedisTemplate stringRedisTemplate,
-            UnifiedNotificationService notificationService) {
+            StringRedisTemplate stringRedisTemplate) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
+        Assert.notNull(zeroTrustMode, "zeroTrustMode cannot be null");
 
+        this.zeroTrustMode = zeroTrustMode;
         this.policyRetrievalPoint = policyRetrievalPoint;
         this.contextHandler = contextHandler;
         this.attributePIP = attributePIP;
@@ -99,7 +98,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.groupRepository = groupRepository;
         this.redisTemplate = redisTemplate;
         this.stringRedisTemplate = stringRedisTemplate;
-        this.notificationService = notificationService;
         super.setPermissionEvaluator(customPermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
 
@@ -125,7 +123,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 // Hot Path - Redis 조회만 수행
                 root = new TrustSecurityExpressionRoot(
                     auth, attributePIP, aINativeProcessor, authorizationContext,
-                    auditLogRepository, redisTemplate, stringRedisTemplate, notificationService);
+                    auditLogRepository, redisTemplate, stringRedisTemplate);
                 log.debug("Zero Trust TRUST 모드 - TrustSecurityExpressionRoot 사용 (Redis 조회)");
                 break;
                 
@@ -161,50 +159,33 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(root, mi.getMethod(), mi.getArguments(), getParameterNameDiscoverer());
         ctx.setBeanResolver(getBeanResolver());
 
-        // SpEL 변수 설정 - Zero Trust 모드별로 다른 변수 제공
-        if (zeroTrustMode.equals("TRUST")) {
-            ctx.setVariable("trust", root); // #trust.levelExceeds() 지원
-            log.debug("SpEL 변수 설정: #trust → TrustSecurityExpressionRoot 인스턴스");
-        } else if (zeroTrustMode.equals("REALTIME")) {
-            ctx.setVariable("ai", root); // #ai.analyzeFraud() 지원
-            log.debug("SpEL 변수 설정: #ai → RealtimeAISecurityExpressionRoot 인스턴스");
-        } else {
-            ctx.setVariable("ai", root); // 기존 #ai.assessContext() 지원
-            log.debug("SpEL 변수 설정: #ai → CustomMethodSecurityExpressionRoot 인스턴스");
-        }
-        
-        // 🏠 ownerField 정보를 SpEL 변수로도 설정
+        // SpEL 변수 설정 - 모든 모드에서 #ai, #trust 둘 다 설정 (모드 전환 시에도 기존 SpEL 동작 보장)
+        ctx.setVariable("ai", root);
+        ctx.setVariable("trust", root);
+        log.debug("SpEL 변수 설정: #ai, #trust -> {} 인스턴스 (Zero Trust 모드: {})",
+            root.getClass().getSimpleName(), zeroTrustMode);
+
         if (StringUtils.hasText(ownerField)) {
             ctx.setVariable("ownerField", ownerField);
-            log.debug("🏠 SpEL 변수 설정: #ownerField → {}", ownerField);
+            log.debug("SpEL 변수 설정: #ownerField -> {}", ownerField);
         }
-        
-        log.debug("SpEL 변수 설정 완료: #ai → CustomMethodSecurityExpressionRoot 인스턴스");
 
-        // 5. PRP를 통해 동적 규칙(SpEL) 조회
+        // 5. PRP를 통해 phase별 동적 규칙(SpEL) 조회
         Method method = mi.getMethod();
         String params = Arrays.stream(method.getParameterTypes())
                 .map(Class::getSimpleName)
                 .collect(Collectors.joining(","));
         String methodIdentifier = String.format("%s.%s(%s)", method.getDeclaringClass().getName(), method.getName(), params);
-        List<Policy> policies = policyRetrievalPoint.findMethodPolicies(methodIdentifier);
 
-        // 6. 조회된 정책을 기반으로 최종 SpEL 표현식 생성 (기본값: denyAll)
-        String finalExpression = "denyAll";
-        if (!CollectionUtils.isEmpty(policies)) {
-            finalExpression = buildExpressionFromPolicies(policies);
-        } else {
-            log.trace("No dynamic method policy for [{}]. Denying by default.", methodIdentifier);
-        }
+        // 5-1. PRE_AUTHORIZE phase 정책 조회
+        List<Policy> protectablePolicies = policyRetrievalPoint.findMethodPolicies(methodIdentifier, "PROTECTABLE");
+        String protectableExpression = buildExpressionFromPoliciesWithDefault(protectablePolicies);
+        Expression protectableRule = getExpressionParser().parseExpression(protectableExpression);
+        ctx.setVariable("protectableRule", protectableRule);
 
-        // 7. 최종 표현식을 파싱하여 컨텍스트 변수 #dynamicRule 에 할당
-        Expression dynamicRuleExpression = getExpressionParser().parseExpression(finalExpression);
-        ctx.setVariable("dynamicRule", dynamicRuleExpression);
-
-        log.debug("Dynamic SpEL for method [{}] is: {}", methodIdentifier, finalExpression);
-
-        // 8. 감사 로그 기록
-        auditLogService.logDecision(auth.getName(), methodIdentifier, "METHOD_INVOCATION", "EVALUATING", "Evaluating with dynamic rule: " + finalExpression, null);
+        // 6. 감사 로그 기록
+        auditLogService.logDecision(auth.getName(), methodIdentifier, "METHOD_INVOCATION", "EVALUATING",
+            "Evaluating with protectableRule: " + protectableExpression, null);
 
         return ctx;
     }
@@ -220,8 +201,27 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         return null;
     }
 
+    /**
+     * 정책 목록에서 SpEL 표현식 생성 (기본값 처리 포함)
+     *
+     * @param policies 정책 목록
+     * @return SpEL 표현식 문자열
+     */
+    private String buildExpressionFromPoliciesWithDefault(List<Policy> policies) {
+        if (CollectionUtils.isEmpty(policies)) {
+            return "denyAll";
+        }
+        return buildExpressionFromPolicies(policies);
+    }
+
+    /**
+     * 정책 목록에서 SpEL 표현식 생성
+     *
+     * @param policies 정책 목록 (비어있지 않음)
+     * @return SpEL 표현식 문자열
+     */
     private String buildExpressionFromPolicies(List<Policy> policies) {
-        // 가장 우선순위가 높은 정책 하나만 사용.
+        // 가장 우선순위가 높은 정책 하나만 사용
         Policy policy = policies.getFirst();
 
         String conditionExpression = policy.getRules().stream()

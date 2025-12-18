@@ -1,13 +1,14 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authorization.AuthorityAuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
 import java.util.regex.Pattern;
 
+@Order(1)
 public class AuthorityExpressionEvaluator implements ExpressionEvaluator {
-    // SpEL 문법이 없는 순수 권한 문자열을 확인하는 정규식
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("^[A-Z_]+$");
 
     @Override

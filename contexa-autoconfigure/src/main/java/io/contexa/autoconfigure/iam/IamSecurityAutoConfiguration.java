@@ -4,7 +4,6 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
-import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandler;
@@ -12,8 +11,8 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomPermissi
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
@@ -47,6 +46,7 @@ public class IamSecurityAutoConfiguration {
      * XACML 기반 메서드 보안 표현식 처리를 제공합니다.
      * </p>
      *
+     * @param zeroTrustMode Zero Trust 모드 (STANDARD, TRUST, REALTIME)
      * @param customPermissionEvaluator 커스텀 권한 평가자
      * @param roleHierarchy 역할 계층
      * @param policyRetrievalPoint 정책 조회 포인트
@@ -60,12 +60,13 @@ public class IamSecurityAutoConfiguration {
      * @param groupRepository 그룹 레포지토리
      * @param documentRepository 문서 레포지토리
      * @param redisTemplate Trust Score Redis 템플릿
-     * @param notificationService 통합 알림 서비스
+     * @param stringRedisTemplate String Redis 템플릿
      * @return MethodSecurityExpressionHandler
      */
     @Bean
     @ConditionalOnMissingBean
     public MethodSecurityExpressionHandler methodSecurityExpressionHandler(
+            @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
             CustomPermissionEvaluator customPermissionEvaluator,
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
@@ -79,10 +80,10 @@ public class IamSecurityAutoConfiguration {
             GroupRepository groupRepository,
             DocumentRepository documentRepository,
             @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
-            StringRedisTemplate stringRedisTemplate,
-            @Autowired(required = false) UnifiedNotificationService notificationService) {
+            StringRedisTemplate stringRedisTemplate) {
 
         return new CustomMethodSecurityExpressionHandler(
+                zeroTrustMode,
                 customPermissionEvaluator,
                 roleHierarchy,
                 policyRetrievalPoint,
@@ -96,8 +97,7 @@ public class IamSecurityAutoConfiguration {
                 groupRepository,
                 documentRepository,
                 redisTemplate,
-                stringRedisTemplate,
-                notificationService
+                stringRedisTemplate
         );
     }
 }

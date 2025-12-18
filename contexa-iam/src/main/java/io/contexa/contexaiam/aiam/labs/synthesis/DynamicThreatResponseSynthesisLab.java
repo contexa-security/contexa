@@ -458,21 +458,21 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         String severity = request.getContext().getThreatInfo().getSeverity();
         String mitigationAction = request.getContext().getResponseInfo().getMitigationAction();
 
-        // 심각도에 따른 신뢰 기반 정책 생성 (Hot Path 우선)
+        // 심각도에 따른 LLM Action 기반 정책 생성 (Hot Path 우선)
         switch (severity) {
             case "CRITICAL":
-                // 매우 고위험: 즉시 차단 + AI 실시간 분석 필요
-                return "#trust.isCriticalRisk() or (#trust.isHighRisk() and #ai.hasSafeBehavior(10.0) == false)";
+                // 매우 고위험: LLM BLOCK 판정 또는 AI 실시간 분석 필요
+                return "#trust.isBlocked() or (#trust.needsInvestigation() and #ai.hasSafeBehavior(10.0) == false)";
             case "HIGH":
-                // 고위험: 고위험 사용자 차단
-                return "#trust.isHighRisk() and not #trust.hasActionIn('ALLOW')";
+                // 고위험: 차단/조사 대상 사용자 - ALLOW가 아닌 경우
+                return "#trust.hasActionIn('BLOCK', 'INVESTIGATE', 'ESCALATE') and not #trust.isAllowed()";
             case "MEDIUM":
-                // 중위험: 중간 이상 위험 사용자 추가 검증
-                return "#trust.isMediumRisk() and not hasRole('ROLE_TRUSTED_USER')";
+                // 중위험: MFA 추가 인증 필요 사용자
+                return "#trust.needsChallenge() and not hasRole('ROLE_TRUSTED_USER')";
             case "LOW":
             default:
-                // 저위험: 인증 필수 + 저위험 확인
-                return "isAuthenticated() and not #trust.isHighRisk()";
+                // 저위험: 인증 필수 + 허용/모니터링 상태 확인
+                return "isAuthenticated() and (#trust.isAllowed() or #trust.isMonitored())";
         }
     }
     

@@ -98,42 +98,20 @@ public class Layer1PromptTemplate {
 
             %s
 
-            USER-AGENT ANALYSIS:
-            - Browser (Chrome/Firefox/Safari/Edge): Normal user, low risk
-            - curl/wget: Automation tool, requires careful analysis
-            - python-requests/httpx: Scripting tool, potential bot or attacker
-            - Empty/Unknown: Highly suspicious, elevated risk
+            RULES:
+            - ZERO TRUST: Unknown != Safe
+            - Deviation > 0.5 -> ESCALATE
+            - confidence < 0.7 -> ESCALATE
+            - Attack signature + high confidence -> BLOCK
 
-            SCORING GUIDELINES:
-            1. ZERO TRUST: Unknown != Safe. Insufficient data requires conservative assessment.
-            2. BASELINE COMPARISON: Compare current request against user's established behavior patterns.
-            3. DEVIATION IMPORTANCE: Higher deviation score indicates higher risk potential.
-               - Deviation Score > 0.5 -> Strong indicator for ESCALATE
-               - Deviation Score > 0.7 -> Consider BLOCK if other risk factors present
-            4. NEW USER: If baseline not established, treat with extra caution.
-            5. HCAD Risk Score: Integrate with baseline deviation for final assessment.
-            6. Action Decision Principles:
-               - ALLOW: Request matches established baseline patterns with low deviation
-               - ESCALATE: Significant deviations detected (score > 0.3) or insufficient baseline
-               - BLOCK: Clear attack signature with high confidence AND baseline deviation
+            Response: JSON only, max 20 tokens for "d" field
+            {"r":<0-1>,"c":<0-1>,"a":"A|E|B","d":"<20 tokens max>"}
 
-            ESCALATION CRITERIA (MUST escalate if ANY apply):
-            1. confidence < 0.70 -> ESCALATE (insufficient certainty for Layer1 decision)
-            2. Deviation Score > 0.5 -> ESCALATE (significant behavioral anomaly)
-            3. New user (no baseline) + sensitive resource -> ESCALATE (needs deeper analysis)
-            4. Multiple deviation indicators (3+) -> ESCALATE (compound risk assessment needed)
-            5. Attack pattern partial match -> ESCALATE (requires expert verification)
-
-            Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
-
-            IMPORTANT:
-            - riskScore: 0.0 (completely safe) to 1.0 (confirmed attack)
-            - confidence: Express your certainty level in the assessment
-            - Baseline deviation should be reflected in riskScore calculation
-            - Add reasoning: "[DEVIATION: describe what]" when behavioral anomaly detected
-
-            JSON format:
-            {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
+            Fields:
+            r: riskScore (0.0=safe, 1.0=attack)
+            c: confidence (0.0-1.0)
+            a: A=Allow, E=Escalate, B=Block
+            d: Brief reason (max 20 tokens, e.g., "new IP from US", "SQL injection attempt")
             """,
             eventType, sourceIp, userId, userAgent, target, method, payloadSummary,
             patternsSection, hcadSection, contextSection,

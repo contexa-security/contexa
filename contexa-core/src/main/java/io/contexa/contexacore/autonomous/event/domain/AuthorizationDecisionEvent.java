@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -131,15 +132,19 @@ public class AuthorizationDecisionEvent {
         }
     }
     
-    // 호환성을 위한 추가 메서드들
+    // 호환성을 위한 추가 메서드들 (별칭)
+    // Jackson 역직렬화 시 setter 없는 getter가 null 반환하면 오류 발생하므로 @JsonIgnore 추가
+    @JsonIgnore
     public String getIpAddress() {
         return clientIp;
     }
-    
+
+    @JsonIgnore
     public String getSourceIp() {
         return clientIp;
     }
-    
+
+    @JsonIgnore
     public Map<String, Object> getAdditionalContext() {
         return metadata;
     }

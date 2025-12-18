@@ -6,9 +6,6 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.CachePut;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -38,17 +35,16 @@ public class RoleHierarchyService {
         reloadRoleHierarchyBean();
     }
 
-    @Cacheable(value = "roleHierarchies", key = "'allRoleHierarchies'")
+    // roleHierarchies 캐시 제거 - 보안 정책 즉시 반영 필요, 순환 참조 위험
     public List<RoleHierarchyEntity> getAllRoleHierarchies() {
         return roleHierarchyRepository.findAll();
     }
 
-    @Cacheable(value = "roleHierarchies", key = "#id")
     public Optional<RoleHierarchyEntity> getRoleHierarchy(Long id) {
         return roleHierarchyRepository.findById(id);
     }
 
-    @Cacheable(value = "activeRoleHierarchyString", key = "'current'")
+    // activeRoleHierarchyString 캐시 제거 - 보안 정책 즉시 반영 필요
     public String getActiveRoleHierarchyString() {
         return roleHierarchyRepository.findByIsActiveTrue()
                 .map(RoleHierarchyEntity::getHierarchyString)
@@ -56,14 +52,7 @@ public class RoleHierarchyService {
     }
 
     @Transactional
-    @Caching(
-            evict = {
-                    @CacheEvict(value = "usersWithAuthorities", allEntries = true),
-                    @CacheEvict(value = "roleHierarchies", allEntries = true),
-                    @CacheEvict(value = "activeRoleHierarchyString", allEntries = true)
-            },
-            put = { @CachePut(value = "roleHierarchies", key = "#result.id") }
-    )
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
             log.info("Creating new role hierarchy: {}", roleHierarchyEntity.getDescription());
@@ -94,14 +83,7 @@ public class RoleHierarchyService {
     }
 
     @Transactional
-    @Caching(
-            evict = {
-                    @CacheEvict(value = "usersWithAuthorities", allEntries = true),
-                    @CacheEvict(value = "roleHierarchies", allEntries = true),
-                    @CacheEvict(value = "activeRoleHierarchyString", allEntries = true)
-            },
-            put = { @CachePut(value = "roleHierarchies", key = "#result.id") }
-    )
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity updateRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
             log.info("Updating role hierarchy with ID: {}", roleHierarchyEntity.getId());
@@ -140,14 +122,7 @@ public class RoleHierarchyService {
     }
 
     @Transactional
-    @Caching(
-            evict = {
-                    @CacheEvict(value = "usersWithAuthorities", allEntries = true),
-                    @CacheEvict(value = "roleHierarchies", allEntries = true),
-                    @CacheEvict(value = "activeRoleHierarchyString", allEntries = true),
-                    @CacheEvict(value = "roleHierarchies", key = "#id")
-            }
-    )
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void deleteRoleHierarchy(Long id) {
         roleHierarchyRepository.deleteById(id);
         reloadRoleHierarchyBean();
@@ -155,7 +130,7 @@ public class RoleHierarchyService {
     }
 
     @Transactional
-    @CacheEvict(value = "activeRoleHierarchyString", allEntries = true)
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void activateRoleHierarchy(Long activeId) {
         List<RoleHierarchyEntity> all = roleHierarchyRepository.findAll();
         for (RoleHierarchyEntity entity : all) {

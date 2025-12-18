@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.enterprise.autonomous;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
 import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
@@ -430,6 +431,8 @@ public class EnterpriseAutonomousAutoConfiguration {
 
     /**
      * 7-3. PolicyUsageMetricsService - 정책 사용 메트릭
+     *
+     * ContexaCacheService를 통한 2-Level 캐시로 정책 효과 분석 결과를 캐싱합니다.
      */
     @Bean
     @ConditionalOnMissingBean
@@ -440,8 +443,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         matchIfMissing = true
     )
     public PolicyUsageMetricsService policyUsageMetricsService(
-            PolicyProposalRepository proposalRepository) {
-        return new PolicyUsageMetricsService(proposalRepository);
+            PolicyProposalRepository proposalRepository,
+            ContexaCacheService cacheService) {
+        return new PolicyUsageMetricsService(proposalRepository, cacheService);
     }
 
     /**
