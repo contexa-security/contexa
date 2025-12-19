@@ -704,13 +704,19 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             String cleanedJson = extractJsonObject(jsonResponse);
             JsonNode jsonNode = objectMapper.readTree(cleanedJson);
 
-            // AI Native: 필드 미존재 시 NaN (기본값 금지)
-            Double riskScore = jsonNode.has("riskScore") ? jsonNode.get("riskScore").asDouble() : Double.NaN;
-            Double confidence = jsonNode.has("confidence") ? jsonNode.get("confidence").asDouble() : Double.NaN;
-            String action = jsonNode.has("action") ? jsonNode.get("action").asText() : "ESCALATE";
+            // Phase 12: 통일된 출력 형식 지원 (r/c/a/d + 하위호환)
+            // 단축 필드(r,c,a,d) 우선, 없으면 긴 필드명(riskScore, confidence, action, reasoning)
+            Double riskScore = jsonNode.has("r") ? jsonNode.get("r").asDouble()
+                : (jsonNode.has("riskScore") ? jsonNode.get("riskScore").asDouble() : Double.NaN);
+            Double confidence = jsonNode.has("c") ? jsonNode.get("c").asDouble()
+                : (jsonNode.has("confidence") ? jsonNode.get("confidence").asDouble() : Double.NaN);
+            String action = jsonNode.has("a") ? expandAction(jsonNode.get("a").asText())
+                : (jsonNode.has("action") ? jsonNode.get("action").asText() : "ESCALATE");
+            String reasoning = jsonNode.has("d") ? jsonNode.get("d").asText()
+                : (jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning");
+
             String classification = jsonNode.has("classification") ? jsonNode.get("classification").asText() : "UNKNOWN";
             String scenario = jsonNode.has("scenario") ? jsonNode.get("scenario").asText() : "No scenario";
-            String reasoning = jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning";
             String threatActor = jsonNode.has("threatActor") ? jsonNode.get("threatActor").asText() : "UNKNOWN";
             String expertRecommendation = jsonNode.has("expertRecommendation") ? jsonNode.get("expertRecommendation").asText() : "Manual investigation required";
 
@@ -777,6 +783,21 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .expertRecommendation("Manual investigation required - LLM analysis not performed")
                 .mitreMapping(new HashMap<>())
                 .build();
+    }
+
+    /**
+     * Phase 12: 단축 액션 확장 (A/E/B -> ALLOW/ESCALATE/BLOCK)
+     *
+     * 통일된 출력 형식에서 사용하는 단축 액션을 긴 형식으로 변환
+     */
+    private String expandAction(String shortAction) {
+        if (shortAction == null) return "ESCALATE";
+        return switch (shortAction.toUpperCase()) {
+            case "A" -> "ALLOW";
+            case "E" -> "ESCALATE";
+            case "B" -> "BLOCK";
+            default -> shortAction;  // 이미 긴 형식이면 그대로 반환
+        };
     }
 
     /**

@@ -117,9 +117,11 @@ public class Layer3PromptTemplate {
             ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
             : "=== USER BEHAVIOR BASELINE ===\nBaseline: Not available for expert analysis";
 
-        // Phase 9: deviationSection 제거, LLM이 baselineSection의 raw 데이터를 직접 비교
+        // Phase 12: 프롬프트 최적화 (700→450 토큰, 36% 감소)
+        // - USER-AGENT ANALYSIS: 100→15 토큰
+        // - SCORING GUIDELINES: 200→50 토큰
         return String.format("""
-            Expert forensic security analysis. Deep threat analysis with behavioral baseline comparison.
+            Expert forensic security analysis with behavioral baseline comparison.
 
             Event: %s | IP: %s | UA: %s | Target: %s | Method: %s
             Payload: %s
@@ -131,54 +133,19 @@ public class Layer3PromptTemplate {
 
             %s
 
-            USER-AGENT ANALYSIS (Expert-level):
-            - Browser (Chrome/Firefox/Safari/Edge with version): Normal user traffic
-            - curl/wget: Command-line automation - check for reconnaissance patterns
-            - python-requests/httpx/aiohttp: Scripting tools - analyze request patterns for bot behavior
-            - Headless browsers (HeadlessChrome, PhantomJS): Potential scraping or automation
-            - Empty/Unknown/Malformed: Strong attack indicator, correlate with other threat signals
+            RULES:
+            - ZERO TRUST: Unknown != Safe
+            - confidence < 0.7 -> ESCALATE
+            - Attack signature + high confidence -> BLOCK
 
-            SCORING GUIDELINES (Expert-level):
-            1. ZERO TRUST: Unknown != Safe. Insufficient intelligence requires conservative assessment.
-            2. BEHAVIORAL BASELINE ANALYSIS (CRITICAL):
-               - Compare current request against user's established behavior patterns
-               - Baseline raw data: Normal IPs vs Current IP, Normal Hours vs Current Hour
-               - Compare paths, devices, user-agents against baseline
-               - Deviation from baseline + threat intelligence = strong attack indicator
-            3. BASELINE DEVIATION + THREAT CORRELATION:
-               - Within baseline + no threat indicators = likely legitimate
-               - Within baseline + threat indicators = possible insider threat
-               - Outside baseline + no threat indicators = possible account takeover
-               - Outside baseline + threat indicators = likely confirmed attack
-            4. HCAD Risk Score: Integrate with baseline comparison and threat intelligence.
-            5. Threat Intelligence:
-               - Reputation score: Higher values indicate more trust
-               - IOC matches: Consider matches as elevated risk signals
-               - Known actors: Attribution context for threat assessment
-            6. Historical Context:
-               - Previous attacks: Prior incident history informs current risk
-               - Similar incidents: Pattern matching for threat correlation
-            7. System Context:
-               - Asset criticality: Higher criticality warrants elevated concern
-               - Data sensitivity: Sensitive data requires conservative assessment
-            8. Risk Classification:
-               - BENIGN: Within baseline + trusted patterns + no threat indicators
-               - LOW_RISK: Within baseline + multiple trust signals
-               - UNKNOWN: Insufficient baseline or intelligence
-               - SUSPICIOUS: Outside baseline OR partial threat indicators
-               - MALICIOUS: Outside baseline + confirmed attack patterns
-               - CRITICAL_THREAT: APT/Ransomware indicators + behavioral anomaly
+            Response: JSON only, max 20 tokens for "d" field
+            {"r":<0-1>,"c":<0-1>,"a":"A|E|B","d":"<20 tokens max>"}
 
-            Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
-
-            IMPORTANT:
-            - riskScore: 0.0 (completely safe) to 1.0 (critical threat)
-            - confidence: Express your certainty level in the assessment
-            - Compare current request against baseline raw data (IPs, Hours, Paths)
-            - Add reasoning: "[NEW_IP]" or "[ODD_HOUR]" when behavioral anomaly detected
-
-            JSON format:
-            {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
+            Fields:
+            r: riskScore (0.0=safe, 1.0=attack)
+            c: confidence (0.0-1.0)
+            a: A=Allow, E=Escalate, B=Block
+            d: Brief reason (max 20 tokens, e.g., "new IP from US", "SQL injection attempt")
             """,
             eventType, sourceIp, userAgent, target, method,
             fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload,
