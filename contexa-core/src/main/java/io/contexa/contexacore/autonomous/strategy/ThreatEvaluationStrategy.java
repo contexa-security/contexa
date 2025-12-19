@@ -25,68 +25,6 @@ public interface ThreatEvaluationStrategy {
     ThreatAssessment evaluate(SecurityEvent event);
     
     /**
-     * SecurityContext를 활용한 향상된 위협 평가
-     * Zero Trust 아키텍처의 핵심 - 사용자 컨텍스트를 활용한 위협 평가
-     * 
-     * @param event 보안 이벤트
-     * @param context 사용자 보안 컨텍스트
-     * @return 컨텍스트 기반 향상된 위협 평가 결과
-     */
-    default ThreatAssessment evaluateWithContext(SecurityEvent event, SecurityContext context) {
-        // 기본 구현은 일반 evaluate 호출
-        // 구체적인 전략에서 SecurityContext 활용하도록 오버라이드
-        return evaluate(event);
-    }
-    
-    /**
-     * Map 형태의 컨텍스트를 활용한 위협 평가 (호환성)
-     * 
-     * @param contextData 컨텍스트 데이터
-     * @return 위협 평가 결과
-     */
-    default ThreatAssessment evaluate(Map<String, Object> contextData) {
-        // Map을 SecurityEvent로 변환 (기본 구현)
-        SecurityEvent event = SecurityEvent.builder()
-            .eventId("map-" + System.currentTimeMillis())
-            .eventType(SecurityEvent.EventType.UNKNOWN)
-            .source(SecurityEvent.EventSource.UNKNOWN)
-            .build();
-        return evaluate(event);
-    }
-    
-    /**
-     * 위협 지표 추출
-     * 
-     * @param event 보안 이벤트
-     * @return 위협 지표 리스트
-     */
-    List<ThreatIndicator> extractIndicators(SecurityEvent event);
-    
-    /**
-     * 전략 이름
-     * 
-     * @return 전략 이름
-     */
-    String getStrategyName();
-    
-    /**
-     * 전략 설명
-     * 
-     * @return 전략 설명
-     */
-    default String getDescription() {
-        return getStrategyName() + " threat evaluation strategy";
-    }
-    
-    /**
-     * 프레임워크 매핑
-     * 
-     * @param event 보안 이벤트
-     * @return 프레임워크 매핑 정보
-     */
-    Map<String, String> mapToFramework(SecurityEvent event);
-    
-    /**
      * 권장 액션 도출
      * 
      * @param event 보안 이벤트
@@ -104,51 +42,20 @@ public interface ThreatEvaluationStrategy {
     
     /**
      * 신뢰도 점수 계산
-     * 
+     *
+     * AI Native 원칙:
+     * - LLM 기반 전략은 LLM이 직접 confidence를 반환
+     * - 비-LLM 전략은 @Override로 자체 구현
+     * - 플랫폼은 규칙 기반 confidence 계산을 하지 않음
+     *
      * @param event 보안 이벤트
-     * @return 신뢰도 점수 (0.0 ~ 1.0)
+     * @return 신뢰도 점수 (Double.NaN = LLM/자체 구현 필요)
      */
     default double calculateConfidenceScore(SecurityEvent event) {
-        // 기본 구현: 이벤트 소스와 메타데이터 기반 계산
-        double baseScore = 0.5;
-        
-        if (event.getConfidenceScore() != null) {
-            baseScore = event.getConfidenceScore();
-        }
-        
-        // 소스별 가중치
-        if (event.getSource() != null) {
-            switch (event.getSource()) {
-                case IDS:
-                case IPS:
-                    baseScore += 0.2;
-                    break;
-                case SIEM:
-                    baseScore += 0.15;
-                    break;
-                case FIREWALL:
-                case WAF:
-                    baseScore += 0.1;
-                    break;
-                case MANUAL:
-                    baseScore -= 0.1;
-                    break;
-                default:
-                    // 기본값 유지
-            }
-        }
-        
-        // 규칙 매칭이 있으면 신뢰도 증가
-        if (event.getRuleId() != null && !event.getRuleId().isEmpty()) {
-            baseScore += 0.1;
-        }
-        
-        // MITRE 매핑이 있으면 신뢰도 증가
-        if (event.getMitreAttackId() != null && !event.getMitreAttackId().isEmpty()) {
-            baseScore += 0.1;
-        }
-        
-        return Math.min(Math.max(baseScore, 0.0), 1.0);
+        // AI Native: 플랫폼은 규칙 기반 confidence 계산 안 함
+        // LLM 기반 전략(Layer1/2/3)은 LLM이 confidence 반환
+        // 비-LLM 전략은 @Override로 자체 구현 필요
+        return Double.NaN;
     }
     
     /**
@@ -171,26 +78,49 @@ public interface ThreatEvaluationStrategy {
     
     /**
      * 특정 이벤트 타입 처리 가능 여부
-     * 
+     *
      * @param eventType 이벤트 타입
      * @return 처리 가능 여부
      */
     default boolean canEvaluate(SecurityEvent.EventType eventType) {
         return true; // 기본적으로 모든 타입 처리
     }
-    
+
     /**
-     * 임계값 설정
-     * 
-     * @return 위험 수준별 임계값
+     * 전략 이름 반환
+     *
+     * @return 전략 이름
      */
-    default Map<String, Double> getThresholds() {
-        return Map.of(
-            "CRITICAL", 0.9,
-            "HIGH", 0.7,
-            "MEDIUM", 0.5,
-            "LOW", 0.3,
-            "INFO", 0.1
-        );
+    String getStrategyName();
+
+    /**
+     * 전략 설명 반환
+     *
+     * @return 전략 설명
+     */
+    default String getDescription() {
+        return "Threat evaluation strategy";
     }
+
+    /**
+     * 위협 지표 추출
+     *
+     * @param event 보안 이벤트
+     * @return 위협 지표 리스트
+     */
+    default List<ThreatIndicator> extractIndicators(SecurityEvent event) {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * SecurityContext 기반 위협 평가 (Zero Trust)
+     *
+     * @param event 보안 이벤트
+     * @param context 보안 컨텍스트
+     * @return 위협 평가 결과
+     */
+    default ThreatAssessment evaluateWithContext(SecurityEvent event, SecurityContext context) {
+        return evaluate(event);
+    }
+
 }

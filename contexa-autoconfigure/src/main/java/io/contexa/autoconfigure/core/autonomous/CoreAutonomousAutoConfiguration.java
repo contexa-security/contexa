@@ -2,28 +2,30 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.properties.*;
-
-
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.config.SecurityPlaneConfiguration;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
-import io.contexa.contexacore.repository.SecurityIncidentRepository;
-import io.contexa.contexacore.repository.ThreatIndicatorRepository;
-import org.springframework.beans.factory.annotation.Value;
 import io.contexa.contexacore.autonomous.strategy.DynamicStrategySelector;
 import io.contexa.contexacore.autonomous.tiered.TieredEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.detection.MaliciousPatternDetector;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.template.Layer1PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.template.Layer2PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.template.Layer3PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.properties.*;
+import io.contexa.contexacore.repository.SecurityIncidentRepository;
+import io.contexa.contexacore.repository.ThreatIndicatorRepository;
 import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -238,19 +240,6 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /**
-     * 3-8. UnifiedRateLimiterService - 통합 Rate Limiter 서비스
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.ratelimit.UnifiedRateLimiterService unifiedRateLimiterService(
-            org.redisson.api.RedissonClient redissonClient,
-            io.micrometer.core.instrument.MeterRegistry meterRegistry) {
-        return new io.contexa.contexacore.autonomous.ratelimit.UnifiedRateLimiterService(
-            redissonClient, meterRegistry
-        );
-    }
-
-    /**
      * 3-9. SoarContextProviderImpl - SOAR Context Provider 구현체
      */
     @Bean
@@ -315,18 +304,16 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy layer1FastFilterStrategy(
             @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
-            @Autowired(required = false) org.springframework.ai.embedding.EmbeddingModel embeddingModel,
             @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
             @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
             Layer1PromptTemplate layer1PromptTemplate,
-            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService) {
-        return new io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy(
-            llmOrchestrator, embeddingModel, unifiedVectorService, redisTemplate,
+            FeedbackIntegrationProperties feedbackProperties,
+            @Autowired(required = false) BaselineLearningService baselineLearningService) {
+        return new Layer1FastFilterStrategy(
+            llmOrchestrator, unifiedVectorService, redisTemplate,
             securityEventEnricher, layer1PromptTemplate, feedbackProperties,
-            hcadVectorService, baselineLearningService
+            baselineLearningService
         );
     }
 
@@ -347,15 +334,12 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) Layer2PromptTemplate layer2PromptTemplate,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
             @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
-            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService) {
-        return new io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy(
+        return new Layer2ContextualStrategy(
             llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
-            layer2PromptTemplate, hcadVectorService, behaviorVectorService, feedbackProperties,
-            baselineLearningService
+            layer2PromptTemplate,behaviorVectorService, baselineLearningService
         );
     }
-
     /**
      * 5-3. Layer3ExpertStrategy - Layer 3 전문가 시스템 전략
      *
@@ -377,13 +361,12 @@ public class CoreAutonomousAutoConfiguration {
             io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
             @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService) {
-        return new io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy(
-            llmOrchestrator, labFactory, approvalService, redisTemplate, securityEventEnricher,
-            layer3PromptTemplate, hcadVectorService, behaviorVectorService, feedbackProperties,
-            unifiedVectorService, baselineLearningService
+        return new Layer3ExpertStrategy(
+            llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
+            layer3PromptTemplate, unifiedVectorService, behaviorVectorService, feedbackProperties,
+            baselineLearningService
         );
     }
-
     /**
      * 5-4. RoutingDecisionHandler - 라우팅 결정 핸들러
      */

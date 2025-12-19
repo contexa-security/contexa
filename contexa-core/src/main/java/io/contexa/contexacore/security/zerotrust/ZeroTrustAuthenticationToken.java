@@ -26,16 +26,6 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
     private ZeroTrustSecurityService.TrustTier trustTier;
 
     /**
-     * 인증되지 않은 토큰 생성자
-     */
-    public ZeroTrustAuthenticationToken(Object principal, Object credentials) {
-        super(principal, credentials);
-        this.trustScore = 0.7; // 기본 신뢰 점수
-        this.threatScore = 0.3; // 기본 위협 점수
-        this.lastEvaluated = LocalDateTime.now();
-    }
-
-    /**
      * 인증된 토큰 생성자
      */
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
@@ -82,7 +72,6 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
         }
     }
 
-    // Getters and Setters
     public double getTrustScore() {
         return trustScore;
     }
@@ -124,35 +113,11 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
         this.sessionId = sessionId;
     }
 
-    public ZeroTrustSecurityService.TrustTier getTrustTier() {
-        return trustTier;
-    }
-
-    public void setTrustTier(ZeroTrustSecurityService.TrustTier trustTier) {
-        this.trustTier = trustTier;
-    }
-
-    /**
-     * 재평가가 필요한지 확인 (5분 이상 경과)
-     */
-    public boolean needsReEvaluation() {
-        return lastEvaluated == null ||
-               LocalDateTime.now().isAfter(lastEvaluated.plusMinutes(5));
-    }
-
     /**
      * 높은 위험 수준인지 확인
      */
     public boolean isHighRisk() {
         return threatScore >= 0.7;
-    }
-
-    /**
-     * 제한된 권한 모드인지 확인
-     */
-    public boolean isRestricted() {
-        return trustTier == ZeroTrustSecurityService.TrustTier.UNTRUSTED ||
-               trustTier == ZeroTrustSecurityService.TrustTier.LOW;
     }
 
     @Override

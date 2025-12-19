@@ -83,49 +83,17 @@ public class SecurityDecision {
     /**
      * AI Native 헬퍼 메서드
      *
-     * NaN 처리 전략 (보수적 접근):
-     * - NaN = LLM 판단 불가 → 고위험으로 간주
-     * - action 기반 판단 우선 (riskScore는 참고용)
+     * Action 기반 판단 (점수 기반 메서드 제거):
+     * - isHighRisk(), isMediumRisk(), isLowRisk() 제거
+     * - Action(BLOCK/MITIGATE/ESCALATE/ALLOW)으로만 판단
+     * - riskScore는 메타데이터(감사 로그, 모니터링)용
      */
-    public boolean isHighRisk() {
-        // AI Native: NaN이면 보수적으로 고위험 간주
-        if (Double.isNaN(riskScore)) {
-            return true;
-        }
-        // AI Native: action 기반 판단 우선
-        if (action == Action.BLOCK || action == Action.MITIGATE) {
-            return true;
-        }
-        // riskScore는 참고용으로만 사용 (감사 로그, 모니터링)
-        return riskScore >= 0.7;
-    }
-
-    public boolean isMediumRisk() {
-        // AI Native: NaN이면 보수적으로 고위험 간주 (isMediumRisk는 false)
-        if (Double.isNaN(riskScore)) {
-            return false;
-        }
-        return riskScore >= 0.5 && riskScore < 0.7;
-    }
-
-    public boolean isLowRisk() {
-        // AI Native: NaN이면 보수적으로 고위험 간주 (isLowRisk는 false)
-        if (Double.isNaN(riskScore)) {
-            return false;
-        }
-        // AI Native: ALLOW action이면 저위험
-        if (action == Action.ALLOW) {
-            return true;
-        }
-        return riskScore < 0.5;
-    }
-
     public boolean shouldBlock() {
-        // AI Native: NaN이면 Fail-Safe로 차단
-        if (Double.isNaN(riskScore) || action == null) {
+        // AI Native: action이 null이면 Fail-Safe로 차단
+        if (action == null) {
             return true;
         }
-        // AI Native: LLM action 기반 판단
+        // AI Native: LLM action 기반 판단 (riskScore 불사용)
         return action == Action.BLOCK;
     }
 
@@ -134,63 +102,17 @@ public class SecurityDecision {
     }
 
     public boolean isConfident() {
-        // AI Native: NaN이면 저신뢰도
-        if (Double.isNaN(confidence)) {
-            return false;
-        }
-        return confidence >= 0.8;
-    }
-    
-    /**
-     * Layer 2로의 에스컬레이션 필요 여부
-     *
-     * AI Native 원칙:
-     * - LLM이 ESCALATE action을 직접 결정
-     * - NaN = LLM 판단 불가 → 에스컬레이션 (보수적)
-     */
-    public boolean needsLayer2Escalation() {
-        // AI Native: NaN이면 에스컬레이션 (LLM 판단 불가)
-        if (Double.isNaN(riskScore) || Double.isNaN(confidence)) {
-            return true;
-        }
-
-        // AI Native: LLM이 ESCALATE를 직접 결정
-        boolean explicitEscalation = (action == Action.ESCALATE && processingLayer == 1);
-
-        // riskScore 기반 조건은 참고용으로만 유지
-        boolean highRisk = riskScore >= 0.7 && riskScore < 0.8;
-        boolean uncertainButRisky = (riskScore >= 0.5 && riskScore < 0.7 &&
-                                     confidence >= 0.3 && confidence < 0.5);
-
-        return explicitEscalation || highRisk || uncertainButRisky;
+        // AI Native: 임계값 기반 판단 제거
+        // 플랫폼은 confidence 값의 존재 여부만 확인
+        // LLM이 confidence 값을 해석하여 신뢰도를 직접 판단
+        return !Double.isNaN(confidence);
     }
 
-    /**
-     * Layer 3로의 에스컬레이션 필요 여부
-     *
-     * AI Native 원칙:
-     * - NaN = LLM 판단 불가 → Layer3 에스컬레이션 (전문가 분석 필요)
-     * - LLM이 ESCALATE action을 직접 결정
-     * - riskScore 기반 조건은 참고용으로 유지
-     */
-    public boolean needsLayer3Escalation() {
-        // AI Native: NaN이면 Layer3 에스컬레이션 (전문가 분석 필요)
-        if (Double.isNaN(riskScore) || Double.isNaN(confidence)) {
-            return true;
-        }
+    // AI Native: needsLayer2Escalation(), needsLayer3Escalation() 제거
+    // - 임계값 기반 에스컬레이션 판단은 AI Native 원칙 위반
+    // - 각 Layer 전략에서 action == Action.ESCALATE로 직접 판단
+    // - Dead Code (호출처 0개)
 
-        // AI Native: Layer2의 명시적 에스컬레이션 (LLM 직접 결정)
-        boolean layer2Escalation = (action == Action.ESCALATE && processingLayer == 2);
-
-        // 승인 필요 플래그 (LLM이 설정)
-        boolean requiresExpert = requiresApproval;
-
-        // riskScore 기반 조건은 참고용으로만 유지
-        boolean criticalRisk = riskScore >= 0.8 && confidence >= 0.7;
-
-        return layer2Escalation || requiresExpert || criticalRisk;
-    }
-    
     /**
      * 처리 시간 계산
      */
@@ -202,36 +124,48 @@ public class SecurityDecision {
     
     /**
      * 정적 빌더 메서드 - 허용 결정
+     *
+     * AI Native: confidence를 NaN으로 설정
+     * - 플랫폼이 신뢰도를 결정하지 않음
+     * - LLM이 직접 confidence 값을 설정해야 함
      */
     public static SecurityDecision allow(double riskScore) {
         return SecurityDecision.builder()
                 .action(Action.ALLOW)
                 .riskScore(riskScore)
-                .confidence(0.9)
+                .confidence(Double.NaN)
                 .analysisTime(System.currentTimeMillis())
                 .build();
     }
     
     /**
      * 정적 빌더 메서드 - 차단 결정
+     *
+     * AI Native: confidence를 NaN으로 설정
+     * - 플랫폼이 신뢰도를 결정하지 않음
+     * - LLM이 직접 confidence 값을 설정해야 함
      */
     public static SecurityDecision block(double riskScore) {
         return SecurityDecision.builder()
                 .action(Action.BLOCK)
                 .riskScore(riskScore)
-                .confidence(0.9)
+                .confidence(Double.NaN)
                 .analysisTime(System.currentTimeMillis())
                 .build();
     }
     
     /**
      * 정적 빌더 메서드 - 에스컬레이션 결정
+     *
+     * AI Native: confidence를 NaN으로 설정
+     * - 플랫폼이 신뢰도를 결정하지 않음
+     * - LLM이 직접 confidence 값을 설정해야 함
      */
     public static SecurityDecision escalate(double riskScore) {
         return SecurityDecision.builder()
                 .action(Action.ESCALATE)
                 .riskScore(riskScore)
-                .confidence(0.6)
+                .confidence(Double.NaN)
                 .analysisTime(System.currentTimeMillis())
                 .build();
     }

@@ -657,26 +657,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         return "Session threat evaluation strategy for detecting session hijacking, " +
                "session fixation, and other session-related threats";
     }
-    
-    @Override
-    public Map<String, String> mapToFramework(SecurityEvent event) {
-        Map<String, String> mapping = new HashMap<>();
-        
-        // MITRE ATT&CK Mapping
-        mapping.put("MITRE_TECHNIQUE", "T1539"); // Steal Web Session Cookie
-        mapping.put("MITRE_TACTIC", "TA0006"); // Credential Access
-        
-        // NIST CSF Mapping
-        mapping.put("NIST_FUNCTION", "DE"); // Detect
-        mapping.put("NIST_CATEGORY", "DE.AE"); // Anomalies and Events
-        
-        // CIS Controls Mapping
-        mapping.put("CIS_CONTROL", "6"); // Access Control Management
-        mapping.put("CIS_SUBCONTROL", "6.8"); // Session Management
-        
-        return mapping;
-    }
-    
+
     @Override
     public List<String> getRecommendedActions(SecurityEvent event) {
         SessionThreatIndicators indicators = analyzeSessionContext(event);
@@ -717,6 +698,36 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
     @Override
     public int getPriority() {
         return 50; // 중간 우선순위
+    }
+
+    /**
+     * 세션 컨텍스트 기반 신뢰도 계산
+     *
+     * SessionThreatEvaluationStrategy는 LLM 없는 전통적 전략이므로
+     * 세션 정보 유무에 따라 confidence를 자체 계산합니다.
+     *
+     * @param event 보안 이벤트
+     * @return 신뢰도 점수 (0.5 ~ 1.0)
+     */
+    @Override
+    public double calculateConfidenceScore(SecurityEvent event) {
+        double confidence = 0.5;
+
+        // 세션 정보 유무에 따른 신뢰도 증가
+        if (event.getSessionId() != null) {
+            confidence += 0.2;
+        }
+        if (event.getUserId() != null) {
+            confidence += 0.1;
+        }
+        if (event.getSourceIp() != null) {
+            confidence += 0.1;
+        }
+        if (event.getUserAgent() != null) {
+            confidence += 0.1;
+        }
+
+        return Math.min(1.0, confidence);
     }
     
     /**

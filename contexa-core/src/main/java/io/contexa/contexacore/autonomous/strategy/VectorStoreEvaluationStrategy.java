@@ -123,7 +123,7 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
         return "Vector Store pattern-based threat evaluation using machine learning similarity search";
     }
     
-    @Override
+    // @Override 제거: ThreatEvaluationStrategy 인터페이스에서 mapToFramework 메서드 삭제됨
     public Map<String, String> mapToFramework(SecurityEvent event) {
         Map<String, String> mapping = new HashMap<>();
         mapping.put("FRAMEWORK", "VECTOR_PATTERN_MATCHING");

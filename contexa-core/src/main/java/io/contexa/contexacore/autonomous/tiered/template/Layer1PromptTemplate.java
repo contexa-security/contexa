@@ -36,11 +36,15 @@ public class Layer1PromptTemplate {
      * Layer1 프롬프트 생성 (기본 버전 - 하위 호환)
      */
     public String buildPrompt(SecurityEvent event, String knownPatterns) {
-        return buildPrompt(event, knownPatterns, null, null);
+        return buildPrompt(event, knownPatterns, null);
     }
 
     /**
-     * Layer1 프롬프트 생성 (AI Native - Baseline 포함)
+     * Layer1 프롬프트 생성 (AI Native - Baseline 포함, Phase 3 최적화)
+     *
+     * Phase 3 리팩토링:
+     * - Deviation Analysis 제거 (20 토큰 절감)
+     * - Baseline Context 단순화 (80→20 토큰)
      *
      * LLM이 사용자의 정상 행동 패턴과 현재 요청을 비교하여
      * 이상 여부를 판단할 수 있도록 baseline 컨텍스트 제공
@@ -48,11 +52,9 @@ public class Layer1PromptTemplate {
      * @param event 보안 이벤트
      * @param knownPatterns 알려진 위협 패턴
      * @param baselineContext 사용자 baseline 컨텍스트 (BaselineLearningService.buildBaselinePromptContext())
-     * @param deviationAnalysis 편차 분석 결과 (BaselineLearningService.analyzeDeviations())
      * @return LLM 프롬프트 문자열
      */
-    public String buildPrompt(SecurityEvent event, String knownPatterns,
-                               String baselineContext, String deviationAnalysis) {
+    public String buildPrompt(SecurityEvent event, String knownPatterns, String baselineContext) {
         Optional<String> targetResource = eventEnricher.getTargetResource(event);
         Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
         Optional<Object> payload = eventEnricher.getRequestPayload(event);
@@ -76,16 +78,15 @@ public class Layer1PromptTemplate {
         // 세션/시간 컨텍스트 추가 (Phase 9 개선)
         String contextSection = buildSessionTimeContext(event);
 
-        // AI Native: Baseline 컨텍스트 섹션 (v3.0)
+        // Phase 3: Baseline 컨텍스트 단순화 (80→20 토큰)
+        // Deviation Analysis 섹션 제거 (20 토큰 절감)
         String baselineSection = (baselineContext != null && !baselineContext.isEmpty())
-            ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
-            : "=== USER BEHAVIOR BASELINE ===\nBaseline: Not available";
+            ? "Baseline: " + summarizeBaseline(baselineContext)
+            : "";
 
-        // AI Native: 편차 분석 섹션 (v3.0)
-        String deviationSection = (deviationAnalysis != null && !deviationAnalysis.isEmpty())
-            ? "=== DEVIATION ANALYSIS ===\n" + deviationAnalysis
-            : "=== DEVIATION ANALYSIS ===\nDeviation: Not analyzed";
-
+        // Phase 3: 프롬프트 최적화 (350→190 토큰)
+        // - Deviation Analysis 섹션 제거 (20 토큰 절감)
+        // - Baseline Context 단순화 (80→20 토큰)
         return String.format("""
             Fast security filter. Analyze event and respond in JSON.
 
@@ -93,14 +94,10 @@ public class Layer1PromptTemplate {
             %s
             %s
             %s
-
-            %s
-
             %s
 
             RULES:
             - ZERO TRUST: Unknown != Safe
-            - Deviation > 0.5 -> ESCALATE
             - confidence < 0.7 -> ESCALATE
             - Attack signature + high confidence -> BLOCK
 
@@ -114,8 +111,7 @@ public class Layer1PromptTemplate {
             d: Brief reason (max 20 tokens, e.g., "new IP from US", "SQL injection attempt")
             """,
             eventType, sourceIp, userId, userAgent, target, method, payloadSummary,
-            patternsSection, hcadSection, contextSection,
-            baselineSection, deviationSection);
+            patternsSection, hcadSection, contextSection, baselineSection);
     }
 
     /**
@@ -226,5 +222,27 @@ public class Layer1PromptTemplate {
         }
 
         return payload;
+    }
+
+    /**
+     * Phase 3: Baseline Context 단순화 (80→20 토큰)
+     *
+     * 원본 baseline context를 압축하여 핵심 정보만 추출합니다.
+     * 예: "Normal: office-IP, morning-login, CREATE/UPDATE ops"
+     *
+     * @param baselineContext 원본 baseline 컨텍스트
+     * @return 압축된 baseline 문자열 (최대 100자)
+     */
+    private String summarizeBaseline(String baselineContext) {
+        if (baselineContext == null || baselineContext.isEmpty()) {
+            return "Not available";
+        }
+
+        // 최대 100자로 압축 (약 20 토큰)
+        if (baselineContext.length() > 100) {
+            return baselineContext.substring(0, 97) + "...";
+        }
+
+        return baselineContext;
     }
 }

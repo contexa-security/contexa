@@ -58,23 +58,17 @@ public class Layer2PromptTemplate {
             sessionContext.getSessionDuration(),
             sessionContext.getAccessPattern());
 
-        // Behavior 핵심만
-        String behaviorSummary = String.format("Normal Score: %.2f | Deviation Score: %.2f | Anomalies: %s",
-            behaviorAnalysis.getNormalBehaviorScore(),
-            behaviorAnalysis.getDeviationScore(),
-            behaviorAnalysis.getAnomalyIndicators().isEmpty() ? "none" :
-                String.join(", ", behaviorAnalysis.getAnomalyIndicators()).substring(0,
-                    Math.min(50, String.join(", ", behaviorAnalysis.getAnomalyIndicators()).length())));
+        // Behavior 핵심만 - Phase 9: deviationScore 제거 (AI Native 위반)
+        // AI Native 원칙: 플랫폼은 raw 데이터만 제공, LLM이 직접 판단
+        String behaviorSummary = String.format("Similar Events: %d",
+            behaviorAnalysis.getSimilarEvents().size());
 
-        // AI Native: Baseline 컨텍스트 섹션 (v3.0)
+        // AI Native (Phase 9): Baseline 컨텍스트 섹션
+        // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
+        // LLM이 직접 비교하여 ALLOW/BLOCK/ESCALATE 판단
         String baselineSection = (behaviorAnalysis.getBaselineContext() != null && !behaviorAnalysis.getBaselineContext().isEmpty())
             ? "=== USER BEHAVIOR BASELINE ===\n" + behaviorAnalysis.getBaselineContext()
             : "=== USER BEHAVIOR BASELINE ===\nBaseline: " + (behaviorAnalysis.isBaselineEstablished() ? "Available but not loaded" : "Not established (new user)");
-
-        // AI Native: 편차 분석 섹션 (v3.0)
-        String deviationSection = (behaviorAnalysis.getDeviationAnalysis() != null && !behaviorAnalysis.getDeviationAnalysis().isEmpty())
-            ? "=== DEVIATION ANALYSIS ===\n" + behaviorAnalysis.getDeviationAnalysis()
-            : "=== DEVIATION ANALYSIS ===\nDeviation: Not analyzed";
 
         // Related Documents - 최대 5개까지 사용, 각 300자 제한
         // Phase 9: RAG 문서 메타데이터 포함 (유사도 점수, 문서 타입)
@@ -104,6 +98,8 @@ public class Layer2PromptTemplate {
         // HCAD 유사도 분석 결과 추가
         String hcadSection = buildHCADSection(event);
 
+        // Phase 9: deviationSection 제거 (AI Native 위반)
+        // LLM이 baselineSection의 raw 데이터를 직접 비교하여 판단
         return String.format("""
             Contextual security analysis. Analyze with session/behavior patterns and user baseline.
 
@@ -116,26 +112,23 @@ public class Layer2PromptTemplate {
 
             %s
 
-            %s
-
             RULES:
-            - ZERO TRUST: Unknown != Safe
-            - Deviation 0.5-0.7 -> likely ESCALATE
-            - Deviation > 0.7 -> consider BLOCK
-            - Mixed signals -> ESCALATE for expert
+            - ZERO TRUST: Unknown != Safe. Verify everything.
+            - Analyze baseline raw data (Normal IPs vs Current IP, Normal Hours vs Current Hour)
+            - Determine action (ALLOW/BLOCK/ESCALATE) based on deviation from baseline
 
             Response: JSON only, max 20 tokens for "d" field
             {"r":<0-1>,"c":<0-1>,"a":"A|E|B","d":"<20 tokens max>"}
 
             Fields:
-            r: riskScore (0.0=safe, 1.0=attack), factor in baseline deviation
+            r: riskScore (0.0=safe, 1.0=attack), based on baseline comparison
             c: confidence (0.0-1.0)
             a: A=Allow, E=Escalate, B=Block
-            d: Brief reason (max 20 tokens, include [DEVIATION: ...] if anomaly)
+            d: Brief reason (max 20 tokens, include [NEW_IP] or [ODD_HOUR] if baseline deviation)
             """,
             eventType, sourceIp, userAgent, target, method, payloadSummary,
             layer1Summary, sessionSummary, behaviorSummary, relatedContext, hcadSection,
-            baselineSection, deviationSection);
+            baselineSection);
     }
 
     /**
@@ -260,44 +253,35 @@ public class Layer2PromptTemplate {
         public void setAccessPattern(String accessPattern) { this.accessPattern = accessPattern; }
     }
 
+    /**
+     * 행동 분석 결과 - AI Native (v4.0)
+     *
+     * Phase 8 리팩토링: 점수 기반 필드 제거
+     * - normalBehaviorScore 제거: 플랫폼 계산 점수 (AI Native 위반)
+     * - anomalyIndicators 제거: detectAnomalies() 제거로 미사용
+     * - temporalPattern 제거: analyzeTemporalPattern() 제거로 미사용
+     *
+     * Phase 9 리팩토링: 추가 점수 기반 필드 제거
+     * - deviationAnalysis 제거: analyzeDeviations() 제거로 미사용
+     * - deviationScore 제거: calculateDeviationScore() 제거로 미사용
+     *
+     * AI Native 원칙: 플랫폼은 raw 데이터만 제공, LLM이 직접 판단
+     */
     public static class BehaviorAnalysis {
-        private double normalBehaviorScore;
-        private List<String> anomalyIndicators;
-        private String temporalPattern;
         private List<String> similarEvents;
 
-        // ========== AI Native: Baseline 상세 정보 필드 (v3.0) ==========
-        // BaselineLearningService.buildBaselinePromptContext() 결과
+        // AI Native (Phase 9): Baseline 상세 정보 필드
+        // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
         private String baselineContext;
-        // BaselineLearningService.analyzeDeviations() 결과
-        private String deviationAnalysis;
-        // 편차 점수 (0.0 ~ 1.0) - BaselineLearningService.calculateDeviationScore() 결과
-        private double deviationScore;
         // baseline 존재 여부
         private boolean baselineEstablished;
-
-        public double getNormalBehaviorScore() { return normalBehaviorScore; }
-        public void setNormalBehaviorScore(double score) { this.normalBehaviorScore = score; }
-
-        public List<String> getAnomalyIndicators() { return anomalyIndicators != null ? anomalyIndicators : List.of(); }
-        public void setAnomalyIndicators(List<String> indicators) { this.anomalyIndicators = indicators; }
-
-        public String getTemporalPattern() { return temporalPattern != null ? temporalPattern : "unknown"; }
-        public void setTemporalPattern(String pattern) { this.temporalPattern = pattern; }
 
         public List<String> getSimilarEvents() { return similarEvents != null ? similarEvents : List.of(); }
         public void setSimilarEvents(List<String> events) { this.similarEvents = events; }
 
-        // ========== AI Native: Baseline 필드 Getter/Setter ==========
-
+        // AI Native: Baseline 필드 Getter/Setter
         public String getBaselineContext() { return baselineContext; }
         public void setBaselineContext(String baselineContext) { this.baselineContext = baselineContext; }
-
-        public String getDeviationAnalysis() { return deviationAnalysis; }
-        public void setDeviationAnalysis(String deviationAnalysis) { this.deviationAnalysis = deviationAnalysis; }
-
-        public double getDeviationScore() { return deviationScore; }
-        public void setDeviationScore(double deviationScore) { this.deviationScore = deviationScore; }
 
         public boolean isBaselineEstablished() { return baselineEstablished; }
         public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }

@@ -30,6 +30,7 @@ public class Layer3PromptTemplate {
 
     /**
      * Layer3 프롬프트 생성 (기본 버전 - 하위 호환)
+     * Phase 9: deviationAnalysis 파라미터 제거
      */
     public String buildPrompt(SecurityEvent event,
                                SecurityDecision layer1Decision,
@@ -38,7 +39,7 @@ public class Layer3PromptTemplate {
                                HistoricalContext historicalContext,
                                SystemContext systemContext) {
         return buildPrompt(event, layer1Decision, layer2Decision, threatIntel,
-                           historicalContext, systemContext, null, null);
+                           historicalContext, systemContext, null);
     }
 
     /**
@@ -53,9 +54,12 @@ public class Layer3PromptTemplate {
      * @param threatIntel 위협 인텔리전스
      * @param historicalContext 과거 이력 컨텍스트
      * @param systemContext 시스템 컨텍스트
-     * @param baselineContext 사용자 baseline 컨텍스트
-     * @param deviationAnalysis 편차 분석 결과
+     * @param baselineContext 사용자 baseline 컨텍스트 (raw 데이터)
      * @return LLM 프롬프트 문자열
+     *
+     * Phase 9: deviationAnalysis 파라미터 제거 (AI Native 위반)
+     * - analyzeDeviations() 제거로 불필요
+     * - LLM이 baselineContext의 raw 데이터를 직접 비교하여 판단
      */
     public String buildPrompt(SecurityEvent event,
                                SecurityDecision layer1Decision,
@@ -63,8 +67,7 @@ public class Layer3PromptTemplate {
                                ThreatIntelligence threatIntel,
                                HistoricalContext historicalContext,
                                SystemContext systemContext,
-                               String baselineContext,
-                               String deviationAnalysis) {
+                               String baselineContext) {
         Optional<String> targetResource = eventEnricher.getTargetResource(event);
         Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
         Optional<Object> payload = eventEnricher.getRequestPayload(event);
@@ -106,16 +109,15 @@ public class Layer3PromptTemplate {
         // HCAD 위험도 분석 결과 추가
         String hcadSection = buildHCADSection(event);
 
-        // AI Native: Baseline 컨텍스트 섹션 (v3.0)
+        // AI Native (Phase 9): Baseline 컨텍스트 섹션
+        // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
+        // LLM이 직접 비교하여 ALLOW/BLOCK/ESCALATE 판단
+        // deviationSection 제거됨 - analyzeDeviations() 제거로 불필요
         String baselineSection = (baselineContext != null && !baselineContext.isEmpty())
             ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
             : "=== USER BEHAVIOR BASELINE ===\nBaseline: Not available for expert analysis";
 
-        // AI Native: 편차 분석 섹션 (v3.0)
-        String deviationSection = (deviationAnalysis != null && !deviationAnalysis.isEmpty())
-            ? "=== DEVIATION ANALYSIS ===\n" + deviationAnalysis
-            : "=== DEVIATION ANALYSIS ===\nDeviation: Not analyzed";
-
+        // Phase 9: deviationSection 제거, LLM이 baselineSection의 raw 데이터를 직접 비교
         return String.format("""
             Expert forensic security analysis. Deep threat analysis with behavioral baseline comparison.
 
@@ -125,8 +127,6 @@ public class Layer3PromptTemplate {
             Threat: %s
             History: %s
             System: %s
-            %s
-
             %s
 
             %s
@@ -142,15 +142,15 @@ public class Layer3PromptTemplate {
             1. ZERO TRUST: Unknown != Safe. Insufficient intelligence requires conservative assessment.
             2. BEHAVIORAL BASELINE ANALYSIS (CRITICAL):
                - Compare current request against user's established behavior patterns
-               - Baseline shows: normal IP ranges, access hours, frequent paths, trusted devices
-               - Deviation score indicates how far current request deviates from normal patterns
-               - High deviation + threat intelligence correlation = strong attack indicator
-            3. DEVIATION + THREAT CORRELATION:
-               - Low deviation + no threat indicators = likely legitimate
-               - Low deviation + threat indicators = possible insider threat or compromised account
-               - High deviation + no threat indicators = possible account takeover
-               - High deviation + threat indicators = likely confirmed attack
-            4. HCAD Risk Score: Integrate with baseline deviation and threat intelligence.
+               - Baseline raw data: Normal IPs vs Current IP, Normal Hours vs Current Hour
+               - Compare paths, devices, user-agents against baseline
+               - Deviation from baseline + threat intelligence = strong attack indicator
+            3. BASELINE DEVIATION + THREAT CORRELATION:
+               - Within baseline + no threat indicators = likely legitimate
+               - Within baseline + threat indicators = possible insider threat
+               - Outside baseline + no threat indicators = possible account takeover
+               - Outside baseline + threat indicators = likely confirmed attack
+            4. HCAD Risk Score: Integrate with baseline comparison and threat intelligence.
             5. Threat Intelligence:
                - Reputation score: Higher values indicate more trust
                - IOC matches: Consider matches as elevated risk signals
@@ -161,12 +161,12 @@ public class Layer3PromptTemplate {
             7. System Context:
                - Asset criticality: Higher criticality warrants elevated concern
                - Data sensitivity: Sensitive data requires conservative assessment
-            8. Risk Classification with Baseline:
-               - BENIGN: Low deviation + trusted baseline + no threat indicators
-               - LOW_RISK: Low deviation + multiple trust signals
+            8. Risk Classification:
+               - BENIGN: Within baseline + trusted patterns + no threat indicators
+               - LOW_RISK: Within baseline + multiple trust signals
                - UNKNOWN: Insufficient baseline or intelligence
-               - SUSPICIOUS: High deviation OR partial threat indicators
-               - MALICIOUS: High deviation + confirmed attack patterns
+               - SUSPICIOUS: Outside baseline OR partial threat indicators
+               - MALICIOUS: Outside baseline + confirmed attack patterns
                - CRITICAL_THREAT: APT/Ransomware indicators + behavioral anomaly
 
             Respond: riskScore(0.0-1.0), confidence(0.0-1.0), action(ALLOW/BLOCK/ESCALATE), reasoning(1 sentence).
@@ -174,8 +174,8 @@ public class Layer3PromptTemplate {
             IMPORTANT:
             - riskScore: 0.0 (completely safe) to 1.0 (critical threat)
             - confidence: Express your certainty level in the assessment
-            - Baseline deviation MUST be factored into final risk assessment
-            - Add reasoning: "[DEVIATION: describe what]" when behavioral anomaly detected
+            - Compare current request against baseline raw data (IPs, Hours, Paths)
+            - Add reasoning: "[NEW_IP]" or "[ODD_HOUR]" when behavioral anomaly detected
 
             JSON format:
             {"riskScore": <number>, "confidence": <number>, "action": "ALLOW", "reasoning": "..."}
@@ -183,7 +183,7 @@ public class Layer3PromptTemplate {
             eventType, sourceIp, userAgent, target, method,
             fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload,
             previousAnalysis, threatSummary, historySummary, systemSummary, hcadSection,
-            baselineSection, deviationSection);
+            baselineSection);
     }
 
     /**

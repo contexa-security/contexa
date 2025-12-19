@@ -54,10 +54,13 @@ public class AuthorizationEventPublisher {
                 AuthorizationDecisionEvent.builder();
             
             // 기본 정보 설정
+            // userId는 SecurityEvent 변환 시 필수 - principal과 동일하게 설정
+            String userName = authentication != null ? authentication.getName() : null;
             builder.eventId(UUID.randomUUID().toString())
                    .timestamp(Instant.now())
                    .eventType("WEB_REQUEST")
-                   .principal(authentication != null ? authentication.getName() : "anonymous")
+                   .principal(userName != null ? userName : "anonymous")
+                   .userId(userName)  // userId 필수 설정 (null이면 Cold Path에서 처리 불가)
                    .resource(request.getRequestURI())
                    .action(request.getMethod())
                    .httpMethod(request.getMethod())
@@ -137,20 +140,22 @@ public class AuthorizationEventPublisher {
                 AuthorizationDecisionEvent.builder();
             
             // 기본 정보 설정
+            // userId는 SecurityEvent 변환 시 필수 - principal과 동일하게 설정
+            String userName = authentication != null ? authentication.getName() : null;
             builder.eventId(UUID.randomUUID().toString())
                    .timestamp(Instant.now())
                    .eventType("PROTECTABLE_METHOD")
-                   .principal(authentication != null ? authentication.getName() : "anonymous")
+                   .principal(userName != null ? userName : "anonymous")
+                   .userId(userName)  // userId 필수 설정 (null이면 Cold Path에서 처리 불가)
                    .resource(resource)
                    .action("EXECUTE")
-                   .result(granted ? 
-                       AuthorizationDecisionEvent.AuthorizationResult.ALLOWED : 
+                   .result(granted ?
+                       AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
                        AuthorizationDecisionEvent.AuthorizationResult.DENIED)
                    .reason(denialReason);
-            
-            // 사용자 정보
+
+            // 사용자 정보 (조직 ID 및 추가 정보)
             if (authentication != null) {
-                builder.userId(authentication.getName());
                 builder.organizationId(extractOrganizationId(authentication));
                 
                 // Trust Score 추출

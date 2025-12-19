@@ -94,14 +94,16 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
 
+            // 항상 Authentication 객체를 가져옴 (userId 추출에 필수)
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
             Boolean hcadAuthCheck = (Boolean) request.getAttribute("hcad.is_authenticated");
             boolean isAuthenticated;
-            Authentication auth = null;
             if (hcadAuthCheck != null) {
+                // HCADFilter의 인증 체크 결과 재사용 (성능 최적화)
                 isAuthenticated = hcadAuthCheck;
                 log.trace("[SecurityEventPublishingFilter] Reusing auth check from HCADFilter: isAuthenticated={}", isAuthenticated);
             } else {
-                auth = SecurityContextHolder.getContext().getAuthentication();
                 isAuthenticated = auth != null && trustResolver.isAuthenticated(auth);
                 log.trace("[SecurityEventPublishingFilter] Direct auth check (HCADFilter bypassed): isAuthenticated={}", isAuthenticated);
             }

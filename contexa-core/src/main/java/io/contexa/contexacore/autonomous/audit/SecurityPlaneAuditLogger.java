@@ -242,11 +242,11 @@ public class SecurityPlaneAuditLogger {
     // ==================== Private Helper Methods ====================
 
     private String createSecurityEventParams(SecurityEvent event) {
-        return String.format("eventType=%s,severity=%s,source=%s,ruleId=%s",
+        return String.format("eventType=%s,severity=%s,source=%s,threatType=%s",
             event.getEventType(),
             event.getSeverity() != null ? event.getSeverity() : "INFO",
             event.getSource() != null ? event.getSource() : "UNKNOWN",
-            event.getRuleId() != null ? event.getRuleId() : "N/A");
+            event.getThreatType() != null ? event.getThreatType() : "N/A");
     }
 
     private String createSecurityEventDetails(SecurityEvent event, String agentId, String context) {
@@ -259,7 +259,6 @@ public class SecurityPlaneAuditLogger {
         details.put("timestamp", event.getTimestamp().toString());
         details.put("userAgent", event.getUserAgent());
         details.put("targetResource", event.getTargetResource());
-        details.put("ruleId", event.getRuleId());
         details.put("mitreAttackId", event.getMitreAttackId());
 
         if (event.getMetadata() != null) {

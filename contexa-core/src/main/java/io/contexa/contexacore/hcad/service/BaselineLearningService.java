@@ -315,21 +315,19 @@ public class BaselineLearningService {
     // ========== AI Native: LLM 프롬프트 컨텍스트 생성 메서드 ==========
 
     /**
-     * Baseline을 LLM 프롬프트 형식으로 변환 (AI Native)
+     * Baseline을 LLM 프롬프트 형식으로 변환 (AI Native v2.0)
      *
-     * BaselineVector의 풍부한 데이터를 LLM이 이해할 수 있는 형식으로 변환
-     * - 정상 IP 범위
-     * - 정상 접근 시간대
-     * - 평균 요청 수
-     * - 자주 접근하는 경로
-     * - 신뢰 디바이스
+     * Phase 9 리팩토링:
+     * - 플랫폼 판단 로직 제거 (is*() 메서드 호출 제거)
+     * - raw 데이터만 제공, LLM이 직접 비교하여 판단
      *
-     * LLM이 "현재 요청"과 "사용자의 정상 패턴"을 비교하여
-     * 이상 여부를 판단할 수 있도록 컨텍스트 제공
+     * AI Native 원칙:
+     * - 플랫폼은 "정상 여부" 판단 금지
+     * - LLM이 baseline과 현재 요청을 직접 비교
      *
      * @param userId 사용자 ID
      * @param currentEvent 현재 이벤트 (비교용)
-     * @return LLM 프롬프트 형식 문자열
+     * @return LLM 프롬프트 형식 문자열 (raw 데이터만)
      */
     public String buildBaselinePromptContext(String userId, SecurityEvent currentEvent) {
         if (userId == null) {
@@ -342,319 +340,58 @@ public class BaselineLearningService {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("User Baseline Pattern:\n");
+        sb.append("User Baseline (compare with current request):\n");
 
-        // 1. IP 패턴
+        // 1. IP 패턴 - raw 데이터만 제공
         String[] normalIps = baseline.getNormalIpRanges();
-        sb.append(String.format("  - Normal IP Ranges: %s\n",
-            normalIps != null && normalIps.length > 0 ? String.join(", ", normalIps) : "not established"));
+        sb.append(String.format("  Normal IPs: %s\n",
+            normalIps != null && normalIps.length > 0 ? String.join(", ", normalIps) : "none"));
 
-        String currentIp = currentEvent != null ? currentEvent.getSourceIp() : null;
-        boolean ipInRange = isIpInNormalRange(currentIp, normalIps);
-        sb.append(String.format("  - Current IP: %s, In Normal Range: %s\n",
-            currentIp != null ? currentIp : "unknown", ipInRange));
+        String currentIp = currentEvent != null ? currentEvent.getSourceIp() : "unknown";
+        sb.append(String.format("  Current IP: %s\n", currentIp));
 
-        // 2. 시간 패턴
+        // 2. 시간 패턴 - raw 데이터만 제공
         Integer[] normalHours = baseline.getNormalAccessHours();
-        sb.append(String.format("  - Normal Access Hours: %s\n",
-            normalHours != null && normalHours.length > 0 ? Arrays.toString(normalHours) : "not established"));
+        sb.append(String.format("  Normal Hours: %s\n",
+            normalHours != null && normalHours.length > 0 ? Arrays.toString(normalHours) : "none"));
 
         int currentHour = currentEvent != null && currentEvent.getTimestamp() != null
             ? currentEvent.getTimestamp().getHour() : -1;
-        boolean hourNormal = isHourInNormalRange(currentHour, normalHours);
-        sb.append(String.format("  - Current Hour: %d, Normal: %s\n", currentHour, hourNormal));
+        sb.append(String.format("  Current Hour: %d\n", currentHour));
 
-        // 3. 요청 패턴
-        Long avgReqs = baseline.getAvgRequestCount();
-        sb.append(String.format("  - Avg Daily Requests: %d\n", avgReqs != null ? avgReqs : 0));
-
-        // 4. 신뢰 점수
-        Double avgTrustScore = baseline.getAvgTrustScore();
-        sb.append(String.format("  - Avg Trust Score: %.2f\n", avgTrustScore != null ? avgTrustScore : 0.0));
-
-        // 5. 경로 패턴
+        // 3. 경로 패턴 - raw 데이터만 제공
         String[] frequentPaths = baseline.getFrequentPaths();
         if (frequentPaths != null && frequentPaths.length > 0) {
-            int maxPaths = Math.min(5, frequentPaths.length);
-            sb.append(String.format("  - Frequent Paths: %s\n",
+            int maxPaths = Math.min(3, frequentPaths.length);
+            sb.append(String.format("  Frequent Paths: %s\n",
                 String.join(", ", Arrays.copyOf(frequentPaths, maxPaths))));
-        } else {
-            sb.append("  - Frequent Paths: not established\n");
         }
 
         String currentPath = extractPath(currentEvent);
-        boolean pathFrequent = isPathFrequent(currentPath, frequentPaths);
-        sb.append(String.format("  - Current Path: %s, Frequent: %s\n",
-            currentPath != null ? currentPath : "unknown", pathFrequent));
+        if (currentPath != null) {
+            sb.append(String.format("  Current Path: %s\n", currentPath));
+        }
 
-        // 6. 디바이스 패턴
-        String[] trustedDevices = baseline.getTrustedDeviceIds();
-        sb.append(String.format("  - Trusted Devices Count: %d\n",
-            trustedDevices != null ? trustedDevices.length : 0));
-
-        String currentDeviceId = extractDeviceId(currentEvent);
-        boolean deviceTrusted = isDeviceTrusted(currentDeviceId, trustedDevices);
-        sb.append(String.format("  - Current Device Trusted: %s\n", deviceTrusted));
-
-        // 7. 기준선 신뢰도
-        sb.append(String.format("  - Baseline Confidence: %.2f (updates: %d)\n",
+        // 4. 신뢰도 정보
+        sb.append(String.format("  Baseline Confidence: %.2f (updates: %d)\n",
             baseline.getConfidence() != null ? baseline.getConfidence() : 0.0,
             baseline.getUpdateCount() != null ? baseline.getUpdateCount() : 0));
 
         return sb.toString();
     }
 
-    /**
-     * 현재 요청과 Baseline의 편차 분석 (AI Native)
-     *
-     * LLM에게 현재 요청이 사용자의 정상 패턴에서 얼마나 벗어났는지 분석 결과 제공
-     * - 편차 점수 (0.0 ~ 1.0)
-     * - 구체적인 편차 항목
-     * - 위험 요소 설명
-     *
-     * @param userId 사용자 ID
-     * @param currentEvent 현재 이벤트
-     * @return 편차 분석 결과 문자열
-     */
-    public String analyzeDeviations(String userId, SecurityEvent currentEvent) {
-        if (userId == null || currentEvent == null) {
-            return "Deviation: Cannot analyze (missing userId or event)";
-        }
+    // Phase 9: analyzeDeviations() 제거 - AI Native 위반 (규칙 기반 점수 계산)
+    // Phase 9: calculateDeviationScore() 제거 - AI Native 위반 (중복 + 규칙 기반)
+    // Phase 9: is* 헬퍼 메서드 5개 제거 - AI Native 위반 (플랫폼 판단 로직)
+    //   - isIpInNormalRange(), isHourInNormalRange(), isPathFrequent()
+    //   - isDeviceTrusted(), isUserAgentNormal()
+    //
+    // AI Native 원칙: 플랫폼은 raw 데이터만 제공, LLM이 직접 비교하여 판단
 
-        BaselineVector baseline = getBaseline(userId);
-        if (baseline == null) {
-            return "Deviation: No baseline for comparison (new user - requires careful analysis)";
-        }
-
-        List<String> deviations = new ArrayList<>();
-        List<String> riskFactors = new ArrayList<>();
-        double deviationScore = 0.0;
-
-        // 1. IP 편차 분석
-        String[] normalIps = baseline.getNormalIpRanges();
-        String currentIp = currentEvent.getSourceIp();
-        if (normalIps != null && normalIps.length > 0 && currentIp != null
-            && !isIpInNormalRange(currentIp, normalIps)) {
-            deviations.add("IP address outside normal range");
-            riskFactors.add("New IP: " + currentIp + ", Normal ranges: " + String.join(", ", normalIps));
-            deviationScore += 0.30;
-        }
-
-        // 2. 시간 편차 분석
-        Integer[] normalHours = baseline.getNormalAccessHours();
-        int currentHour = currentEvent.getTimestamp() != null
-            ? currentEvent.getTimestamp().getHour() : -1;
-        if (normalHours != null && normalHours.length > 0 && currentHour >= 0
-            && !isHourInNormalRange(currentHour, normalHours)) {
-            deviations.add("Access time outside normal hours");
-            riskFactors.add("Current hour: " + currentHour + ", Normal hours: " + Arrays.toString(normalHours));
-            deviationScore += 0.20;
-        }
-
-        // 3. 경로 편차 분석
-        String[] frequentPaths = baseline.getFrequentPaths();
-        String currentPath = extractPath(currentEvent);
-        if (frequentPaths != null && frequentPaths.length > 0 && currentPath != null
-            && !isPathFrequent(currentPath, frequentPaths)) {
-            deviations.add("Accessing unfamiliar path");
-            riskFactors.add("Current path: " + currentPath);
-            deviationScore += 0.15;
-        }
-
-        // 4. 디바이스 편차 분석
-        String[] trustedDevices = baseline.getTrustedDeviceIds();
-        String currentDeviceId = extractDeviceId(currentEvent);
-        if (trustedDevices != null && trustedDevices.length > 0 && currentDeviceId != null
-            && !isDeviceTrusted(currentDeviceId, trustedDevices)) {
-            deviations.add("Unknown device");
-            riskFactors.add("Device not in trusted list");
-            deviationScore += 0.20;
-        }
-
-        // 5. User-Agent 편차 분석
-        String[] normalUserAgents = baseline.getNormalUserAgents();
-        String currentUserAgent = currentEvent.getUserAgent();
-        if (normalUserAgents != null && normalUserAgents.length > 0 && currentUserAgent != null
-            && !isUserAgentNormal(currentUserAgent, normalUserAgents)) {
-            deviations.add("Unusual User-Agent");
-            riskFactors.add("User-Agent not in normal list");
-            deviationScore += 0.15;
-        }
-
-        // 결과 문자열 생성
-        StringBuilder sb = new StringBuilder();
-        sb.append("Deviation Analysis:\n");
-        sb.append(String.format("  - Overall Deviation Score: %.2f\n", Math.min(1.0, deviationScore)));
-
-        if (!deviations.isEmpty()) {
-            sb.append("  - Detected Deviations:\n");
-            for (String d : deviations) {
-                sb.append("    * ").append(d).append("\n");
-            }
-            sb.append("  - Risk Factors:\n");
-            for (String r : riskFactors) {
-                sb.append("    * ").append(r).append("\n");
-            }
-        } else {
-            sb.append("  - No significant deviations detected\n");
-            sb.append("  - Request matches established baseline patterns\n");
-        }
-
-        // 기준선 신뢰도에 따른 해석 가이드
-        Double confidence = baseline.getConfidence();
-        if (confidence != null && confidence < 0.5) {
-            sb.append("  - NOTE: Baseline confidence is low (").append(String.format("%.2f", confidence))
-              .append("), deviations may be less reliable\n");
-        }
-
-        return sb.toString();
-    }
+    // ========== Helper Methods (raw 데이터 추출만 유지) ==========
 
     /**
-     * 편차 점수 계산 (수치만 반환)
-     *
-     * @param userId 사용자 ID
-     * @param currentEvent 현재 이벤트
-     * @return 편차 점수 (0.0 ~ 1.0)
-     */
-    public double calculateDeviationScore(String userId, SecurityEvent currentEvent) {
-        if (userId == null || currentEvent == null) {
-            return 0.5; // 분석 불가 시 중립값
-        }
-
-        BaselineVector baseline = getBaseline(userId);
-        if (baseline == null) {
-            return 0.5; // baseline 없음 - 신규 사용자
-        }
-
-        double deviationScore = 0.0;
-
-        // IP 편차
-        String[] normalIps = baseline.getNormalIpRanges();
-        if (normalIps != null && normalIps.length > 0
-            && !isIpInNormalRange(currentEvent.getSourceIp(), normalIps)) {
-            deviationScore += 0.30;
-        }
-
-        // 시간 편차
-        Integer[] normalHours = baseline.getNormalAccessHours();
-        int currentHour = currentEvent.getTimestamp() != null
-            ? currentEvent.getTimestamp().getHour() : -1;
-        if (normalHours != null && normalHours.length > 0
-            && !isHourInNormalRange(currentHour, normalHours)) {
-            deviationScore += 0.20;
-        }
-
-        // 경로 편차
-        String[] frequentPaths = baseline.getFrequentPaths();
-        String currentPath = extractPath(currentEvent);
-        if (frequentPaths != null && frequentPaths.length > 0
-            && !isPathFrequent(currentPath, frequentPaths)) {
-            deviationScore += 0.15;
-        }
-
-        // 디바이스 편차
-        String[] trustedDevices = baseline.getTrustedDeviceIds();
-        String currentDeviceId = extractDeviceId(currentEvent);
-        if (trustedDevices != null && trustedDevices.length > 0
-            && !isDeviceTrusted(currentDeviceId, trustedDevices)) {
-            deviationScore += 0.20;
-        }
-
-        // User-Agent 편차
-        String[] normalUserAgents = baseline.getNormalUserAgents();
-        if (normalUserAgents != null && normalUserAgents.length > 0
-            && !isUserAgentNormal(currentEvent.getUserAgent(), normalUserAgents)) {
-            deviationScore += 0.15;
-        }
-
-        return Math.min(1.0, deviationScore);
-    }
-
-    // ========== Helper Methods ==========
-
-    /**
-     * IP가 정상 범위에 속하는지 확인
-     */
-    private boolean isIpInNormalRange(String ip, String[] normalRanges) {
-        if (ip == null || normalRanges == null || normalRanges.length == 0) {
-            return false;
-        }
-
-        for (String range : normalRanges) {
-            if (range != null && ip.startsWith(range)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 현재 시간이 정상 접근 시간대에 속하는지 확인
-     */
-    private boolean isHourInNormalRange(int hour, Integer[] normalHours) {
-        if (hour < 0 || normalHours == null || normalHours.length == 0) {
-            return false;
-        }
-
-        for (Integer normalHour : normalHours) {
-            if (normalHour != null && normalHour == hour) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 현재 경로가 자주 접근하는 경로인지 확인
-     */
-    private boolean isPathFrequent(String path, String[] frequentPaths) {
-        if (path == null || frequentPaths == null || frequentPaths.length == 0) {
-            return false;
-        }
-
-        for (String frequentPath : frequentPaths) {
-            if (frequentPath != null && path.equals(frequentPath)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 디바이스가 신뢰할 수 있는 디바이스인지 확인
-     */
-    private boolean isDeviceTrusted(String deviceId, String[] trustedDevices) {
-        if (deviceId == null || trustedDevices == null || trustedDevices.length == 0) {
-            return false;
-        }
-
-        for (String trustedDevice : trustedDevices) {
-            if (trustedDevice != null && trustedDevice.equals(deviceId)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * User-Agent가 정상 목록에 있는지 확인
-     */
-    private boolean isUserAgentNormal(String userAgent, String[] normalUserAgents) {
-        if (userAgent == null || normalUserAgents == null || normalUserAgents.length == 0) {
-            return false;
-        }
-
-        for (String normalUa : normalUserAgents) {
-            if (normalUa != null && userAgent.contains(normalUa)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * SecurityEvent에서 경로 추출
+     * SecurityEvent에서 경로 추출 (raw 데이터 추출 유틸리티)
      */
     private String extractPath(SecurityEvent event) {
         if (event == null) {

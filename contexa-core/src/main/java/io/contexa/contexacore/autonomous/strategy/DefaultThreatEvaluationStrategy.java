@@ -65,7 +65,7 @@ public class DefaultThreatEvaluationStrategy implements ThreatEvaluationStrategy
         return "DEFAULT";
     }
     
-    @Override
+    // @Override 제거: ThreatEvaluationStrategy 인터페이스에서 mapToFramework 메서드 삭제됨
     public Map<String, String> mapToFramework(SecurityEvent event) {
         return Map.of("FRAMEWORK", "BASIC");
     }

@@ -60,7 +60,6 @@ public class SecurityEvent {
     
     // 위협 정보
     private String mitreAttackId;
-    private String ruleId;
     private String threatType;
     private String attackVector;
     private Double confidenceScore;
@@ -71,12 +70,9 @@ public class SecurityEvent {
     
     // 액션 정보
     private String action;
-    private String actionResult;
     private boolean blocked;
-    
+
     // 추가 필드
-    private String targetSystem;
-    private String targetUser;
     private String targetResource;  // Zero Trust - 접근 대상 리소스
     private Double riskScore;
     @Builder.Default

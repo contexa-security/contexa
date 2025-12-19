@@ -474,10 +474,10 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         return "Composite evaluation strategy that combines multiple threat evaluation strategies";
     }
     
-    @Override
+    // @Override 제거: ThreatEvaluationStrategy 인터페이스에서 mapToFramework 메서드 삭제됨
     public Map<String, String> mapToFramework(SecurityEvent event) {
         Map<String, String> mapping = new HashMap<>();
-        
+
         // 종합 프레임워크 매핑
         mapping.put("EVALUATION_TYPE", "COMPOSITE");
         mapping.put("STRATEGIES_COUNT", String.valueOf(availableStrategies.size()));

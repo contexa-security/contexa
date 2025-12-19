@@ -53,12 +53,6 @@ public class ZeroTrustSecurityService {
     @Value("${zerotrust.threat.initial:0.3}")
     private double initialThreatScore;
 
-    @Value("${zerotrust.threat.threshold.high:0.7}")
-    private double highThreatThreshold;
-
-    @Value("${zerotrust.threat.threshold.critical:0.9}")
-    private double criticalThreatThreshold;
-
     @Value("${zerotrust.cache.ttl.hours:24}")
     private long cacheTtlHours;
 
@@ -329,14 +323,12 @@ public class ZeroTrustSecurityService {
                 log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited to ROLE_USER: {}", userId);
             }
             default -> {
-                // 알 수 없는 action - 기본 권한만 유지 (안전한 쪽으로)
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));
                 log.warn("[ZeroTrust][AI Native] Unknown action '{}', limited to ROLE_USER: {}", action, userId);
             }
         }
 
-        // 권한이 변경된 경우 업데이트
         if (!adjustedAuthorities.equals(new HashSet<>(currentAuthorities))) {
             double trustScore = 1.0 - threatScoreOrchestrator.getThreatScore(userId);
             double threatScore = threatScoreOrchestrator.getThreatScore(userId);
@@ -357,9 +349,7 @@ public class ZeroTrustSecurityService {
      */
     private void setZeroTrustMetadata(SecurityContext context, double trustScore,
                                       double threatScore, UserSecurityContext userContext, String action) {
-        if (context.getAuthentication() instanceof ZeroTrustAuthenticationToken) {
-            ZeroTrustAuthenticationToken zeroTrustAuth =
-                (ZeroTrustAuthenticationToken) context.getAuthentication();
+        if (context.getAuthentication() instanceof ZeroTrustAuthenticationToken zeroTrustAuth) {
 
             zeroTrustAuth.setTrustScore(trustScore);
             zeroTrustAuth.setThreatScore(threatScore);
@@ -493,26 +483,6 @@ public class ZeroTrustSecurityService {
      */
     public double getThreatScore(String userId) {
         return threatScoreOrchestrator.getThreatScore(userId);
-    }
-
-    /**
-     * Trust Tier 결정
-     *
-     * @param threatScore 위협 점수
-     * @return Trust Tier
-     */
-    public TrustTier getTrustTier(double threatScore) {
-        if (threatScore >= criticalThreatThreshold) {
-            return TrustTier.UNTRUSTED;
-        } else if (threatScore >= highThreatThreshold) {
-            return TrustTier.LOW;
-        } else if (threatScore >= 0.5) {
-            return TrustTier.MEDIUM;
-        } else if (threatScore >= 0.3) {
-            return TrustTier.HIGH;
-        } else {
-            return TrustTier.FULL;
-        }
     }
 
     /**

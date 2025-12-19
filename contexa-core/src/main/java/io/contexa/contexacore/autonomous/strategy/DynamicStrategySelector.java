@@ -788,11 +788,6 @@ public class DynamicStrategySelector {
         }
 
         @Override
-        public Map<String, String> mapToFramework(SecurityEvent event) {
-            return Map.of("framework", "default");
-        }
-
-        @Override
         public List<String> getRecommendedActions(SecurityEvent event) {
             return List.of("monitor", "log");
         }
@@ -837,11 +832,6 @@ public class DynamicStrategySelector {
         @Override
         public String getStrategyName() {
             return "INTEGRATED";
-        }
-
-        @Override
-        public Map<String, String> mapToFramework(SecurityEvent event) {
-            return Map.of("framework", "integrated_multi_strategy");
         }
 
         @Override
