@@ -58,23 +58,28 @@ public class SecurityEvent {
     private String organizationId;
     private String userAgent;
     
-    // 위협 정보
-    private String mitreAttackId;
-    private String threatType;
-    private String attackVector;
-    private Double confidenceScore;
+    // AI Native: 위협 정보 필드 제거됨 (v3.0.0)
+    // mitreAttackId, threatType, attackVector, confidenceScore
+    // -> ThreatAssessment 또는 SecurityDecision에서 관리
+    // -> 필요한 정보는 metadata에 저장
 
     // 메타데이터
     @Builder.Default
     private Map<String, Object> metadata = new HashMap<>();
     
-    // 액션 정보
-    private String action;
+    // AI Native: action 필드 제거됨 (v3.0.0)
+    // -> SecurityDecision.action에서 관리
+    // -> Zero Trust는 점수 기반이 아닌 ACTION 기반 의사결정
+
     private boolean blocked;
 
     // 추가 필드
     private String targetResource;  // Zero Trust - 접근 대상 리소스
-    private Double riskScore;
+
+    // AI Native: riskScore 필드 제거됨 (v3.0.0)
+    // -> ThreatAssessment.riskScore 또는 SecurityDecision.riskScore 사용
+    // -> Zero Trust 의사결정은 ACTION 기반, 점수는 감사/모니터링용
+
     @Builder.Default
     private Map<String, Object> details = new HashMap<>();
     

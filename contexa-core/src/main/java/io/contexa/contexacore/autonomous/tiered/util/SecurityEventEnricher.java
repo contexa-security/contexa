@@ -245,13 +245,8 @@ public class SecurityEventEnricher {
             context.put("sessionId", event.getSessionId());
         }
         
-        // 위협 정보
-        if (event.getThreatType() != null) {
-            context.put("threatType", event.getThreatType());
-        }
-        if (event.getConfidenceScore() != null) {
-            context.put("confidenceScore", event.getConfidenceScore());
-        }
+        // AI Native: deprecated 필드(threatType, confidenceScore) 제거
+        // ThreatAssessment 또는 SecurityDecision에서 관리
         
         // 메타데이터에서 추가 정보
         getTargetResource(event).ifPresent(resource -> context.put("targetResource", resource));
@@ -272,10 +267,8 @@ public class SecurityEventEnricher {
             baseScore = event.getSeverity().getScore() / 10.0; // 0.1 ~ 1.0
         }
         
-        // 신뢰도 점수 가중
-        if (event.getConfidenceScore() != null) {
-            baseScore *= event.getConfidenceScore();
-        }
+        // AI Native: deprecated getConfidenceScore() 제거
+        // 신뢰도는 LLM 분석 결과(SecurityDecision.confidence)에서 결정
         
         // 패턴 점수 가중
         getPatternScore(event).ifPresent(score -> {

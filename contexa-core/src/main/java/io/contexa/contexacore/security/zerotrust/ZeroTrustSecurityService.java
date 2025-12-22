@@ -72,7 +72,9 @@ public class ZeroTrustSecurityService {
         }
 
         try {
-            // AI Native: LLM이 결정한 action 조회
+            // AI Native v3.2.0: LLM이 action 직접 결정 (ALLOW, BLOCK, CHALLENGE, ESCALATE)
+            // - BLOCK: 극고위험군 (즉시 차단)
+            // - CHALLENGE: 고위험군 (MFA 필요)
             String action = getLatestAction(userId);
 
             // 2. Threat Score 조회 (감사 로그/대시보드용)
@@ -208,8 +210,12 @@ public class ZeroTrustSecurityService {
      * - LLM 분석 전/실패/Redis 오류 시 기본값 "PENDING_ANALYSIS"
      * - "ALLOW" 기본값은 Zero Trust 원칙 위반 (신뢰하지 않고 항상 검증)
      *
+     * AI Native v3.3.0:
+     * - 4개 Action: ALLOW, BLOCK, CHALLENGE, ESCALATE
+     * - INVESTIGATE, MONITOR 제거
+     *
      * @param userId 사용자 ID
-     * @return action 문자열 (ALLOW, MONITOR, INVESTIGATE, CHALLENGE, BLOCK, PENDING_ANALYSIS)
+     * @return action 문자열 (ALLOW, BLOCK, CHALLENGE, ESCALATE, PENDING_ANALYSIS)
      */
     private String getLatestAction(String userId) {
         try {
@@ -250,18 +256,17 @@ public class ZeroTrustSecurityService {
     }
 
     /**
-     * AI Native: action 기반 권한 동적 조정
+     * AI Native v3.3.0: action 기반 권한 동적 조정
      *
-     * Zero Trust 원칙에 따른 권한 조정 전략:
+     * Zero Trust 원칙에 따른 권한 조정 전략 (4개 Action):
      * - ALLOW: 기존 권한 유지 (LLM이 안전하다고 판단)
-     * - BLOCK: 모든 권한 제거, ROLE_BLOCKED만 부여
-     * - CHALLENGE: 기존 권한 제거, ROLE_USER + ROLE_MFA_REQUIRED (MFA 완료 전 제한)
-     * - INVESTIGATE/ESCALATE: 기존 권한 제거, ROLE_USER + ROLE_REVIEW_REQUIRED (검토 완료 전 제한)
-     * - MONITOR: 기존 권한 유지 + ROLE_MONITORED (감시하면서 정상 접근 허용)
-     * - PENDING_ANALYSIS: 기존 권한 제거, ROLE_USER + ROLE_PENDING_ANALYSIS (분석 완료 전 제한)
+     * - BLOCK: 모든 권한 제거, ROLE_BLOCKED만 부여 (극고위험군)
+     * - CHALLENGE: 기존 권한 제거, ROLE_MFA_REQUIRED (고위험군, MFA 완료 전 제한)
+     * - ESCALATE: 기존 권한 제거, ROLE_REVIEW_REQUIRED (불확실, 검토 완료 전 제한)
+     * - PENDING_ANALYSIS: 기존 권한 제거, ROLE_PENDING_ANALYSIS (분석 완료 전 제한)
      *
      * @param context SecurityContext
-     * @param action LLM이 결정한 action
+     * @param action LLM이 결정한 action (ALLOW, BLOCK, CHALLENGE, ESCALATE)
      * @param userId 사용자 ID
      */
     private void adjustAuthoritiesByAction(SecurityContext context, String action, String userId) {
@@ -289,38 +294,28 @@ public class ZeroTrustSecurityService {
                 }
             }
             case "BLOCK" -> {
-                // 차단 - 모든 권한 제거
+                // 극고위험군 - 모든 권한 제거, 즉시 차단
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
-                log.warn("[ZeroTrust][AI Native] User BLOCKED: {}", userId);
+                log.warn("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
             case "CHALLENGE" -> {
-                // MFA 필요 - 기본 권한만 유지 (관리자/특권 권한 제거)
+                // 고위험군 - MFA 필요 (관리자/특권 권한 제거)
                 // MFA 완료 후 원래 권한으로 복원됨 (다음 요청에서 action=ALLOW)
-//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
-                log.info("[ZeroTrust][AI Native] MFA CHALLENGE required, elevated authorities removed: {}", userId);
+                log.info("[ZeroTrust][AI Native] MFA CHALLENGE required (HIGH RISK): {}", userId);
             }
-            case "INVESTIGATE", "ESCALATE" -> {
-                // 검토 필요 - 기본 권한만 유지 (관리자/특권 권한 제거)
+            case "ESCALATE" -> {
+                // 불확실 - 검토 필요 (관리자/특권 권한 제거)
                 // 보안 담당자 승인 후 원래 권한으로 복원됨 (action=ALLOW로 변경)
-//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));
-                log.warn("[ZeroTrust][AI Native] Security REVIEW required, elevated authorities removed: {}", userId);
-            }
-            case "MONITOR" -> {
-                // 감시 - 기존 권한 유지 + 감시 표시 (의도적 설계)
-                // 사용자는 정상적으로 접근하지만 모든 활동이 기록됨
-                adjustedAuthorities.addAll(currentAuthorities);
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MONITORED"));
-                // Silent monitoring - 사용자 모름
+                log.warn("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
             }
             case "PENDING_ANALYSIS" -> {
                 // Zero Trust 핵심 원칙: 분석 미완료 상태 - 기본 권한만 유지
                 // LLM 분석 전/실패/TTL 만료 시 적용
                 // 분석 완료 후 원래 권한으로 복원됨 (action=ALLOW로 변경)
-//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
-                log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited to ROLE_USER: {}", userId);
+                log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited access: {}", userId);
             }
             default -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));

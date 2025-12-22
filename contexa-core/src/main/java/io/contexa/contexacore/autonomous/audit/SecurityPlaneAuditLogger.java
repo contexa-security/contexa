@@ -83,26 +83,29 @@ public class SecurityPlaneAuditLogger {
     public void auditThreatAssessment(SecurityEvent event, ThreatAssessment assessment,
                                     String evaluator, String strategy, long processingTimeMs) {
         try {
+            // AI Native: threatLevel -> action 전환
+            String action = assessment.getAction() != null ? assessment.getAction() : "ESCALATE";
+
             AuditLog auditLog = AuditLog.builder()
                 .timestamp(LocalDateTime.now())
                 .principalName(event.getUserId() != null ? event.getUserId() : "SYSTEM")
                 .resourceIdentifier(event.getEventId())
                 .action("THREAT_ASSESSMENT")
-                .decision(assessment.getThreatLevel().toString())
+                .decision(action)  // AI Native: action 사용
                 .reason(String.format("Evaluated by %s using %s strategy", evaluator, strategy))
                 .outcome(String.format("Risk: %.2f, Confidence: %.2f", assessment.getRiskScore(), assessment.getConfidence()))
                 .resourceUri(event.getTargetResource())
                 .clientIp(event.getSourceIp())
                 .sessionId(event.getSessionId())
-                .status(assessment.getThreatLevel().toString())
+                .status(action)  // AI Native: action 사용
                 .parameters(createThreatAssessmentParams(assessment, evaluator, strategy, processingTimeMs))
                 .details(createThreatAssessmentDetails(assessment, evaluator, strategy, processingTimeMs))
                 .build();
 
             auditLogRepository.save(auditLog);
 
-            log.info("[THREAT_AUDIT] Assessment: {} | Risk: {:.2f} | Level: {} | Evaluator: {} | Time: {}ms",
-                assessment.getAssessmentId(), assessment.getRiskScore(), assessment.getThreatLevel(),
+            log.info("[THREAT_AUDIT] Assessment: {} | Risk: {:.2f} | Action: {} | Evaluator: {} | Time: {}ms",
+                assessment.getAssessmentId(), assessment.getRiskScore(), action,
                 evaluator, processingTimeMs);
 
         } catch (Exception e) {
@@ -242,11 +245,11 @@ public class SecurityPlaneAuditLogger {
     // ==================== Private Helper Methods ====================
 
     private String createSecurityEventParams(SecurityEvent event) {
-        return String.format("eventType=%s,severity=%s,source=%s,threatType=%s",
+        // AI Native: deprecated threatType 제거
+        return String.format("eventType=%s,severity=%s,source=%s",
             event.getEventType(),
             event.getSeverity() != null ? event.getSeverity() : "INFO",
-            event.getSource() != null ? event.getSource() : "UNKNOWN",
-            event.getThreatType() != null ? event.getThreatType() : "N/A");
+            event.getSource() != null ? event.getSource() : "UNKNOWN");
     }
 
     private String createSecurityEventDetails(SecurityEvent event, String agentId, String context) {
@@ -259,7 +262,7 @@ public class SecurityPlaneAuditLogger {
         details.put("timestamp", event.getTimestamp().toString());
         details.put("userAgent", event.getUserAgent());
         details.put("targetResource", event.getTargetResource());
-        details.put("mitreAttackId", event.getMitreAttackId());
+        // AI Native: mitreAttackId는 ThreatAssessment에서 관리 (SecurityEvent deprecated 필드 제거)
 
         if (event.getMetadata() != null) {
             details.put("metadata", event.getMetadata());
@@ -281,7 +284,8 @@ public class SecurityPlaneAuditLogger {
         details.put("assessmentId", assessment.getAssessmentId());
         details.put("evaluator", evaluator);
         details.put("strategy", strategy);
-        details.put("threatLevel", assessment.getThreatLevel().toString());
+        // AI Native: threatLevel -> action 전환
+        details.put("action", assessment.getAction() != null ? assessment.getAction() : "ESCALATE");
         details.put("riskScore", assessment.getRiskScore());
         details.put("confidence", assessment.getConfidence());
         details.put("processingTimeMs", processingTimeMs);

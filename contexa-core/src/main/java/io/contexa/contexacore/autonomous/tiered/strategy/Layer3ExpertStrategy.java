@@ -114,12 +114,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         log.warn("Layer 3 Expert Strategy evaluating event: {}", event.getEventId());
         SecurityDecision layer2Decision = createDefaultLayer2Decision();
         SecurityDecision expertDecision = performDeepAnalysis(event, layer2Decision);
-        String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "INVESTIGATE";
+        String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "ESCALATE";
 
         return ThreatAssessment.builder()
                 .riskScore(expertDecision.getRiskScore())
                 .confidence(expertDecision.getConfidence())
-                .threatLevel(null)
                 .indicators(expertDecision.getIocIndicators())
                 .recommendedActions(List.of(mapActionToRecommendation(expertDecision.getAction())))
                 .strategyName("Layer3-Expert")
@@ -171,11 +170,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 log.debug("[Layer3] Baseline context generated for user {}", userId);
             }
 
-            // AI Native: 시스템 컨텍스트는 raw 데이터 부재 마커 사용
-            // "UNKNOWN"은 플랫폼이 분류를 결정하는 것이므로 "[NOT_CLASSIFIED]" 사용
-            Layer3PromptTemplate.SystemContext systemCtx = new Layer3PromptTemplate.SystemContext();
-            systemCtx.setAssetCriticality("[NOT_CLASSIFIED]");
-            systemCtx.setDataSensitivity("[NOT_CLASSIFIED]");
+            // Priority 2: SystemContext 실제 데이터 연동 (하드코딩 제거)
+            Layer3PromptTemplate.SystemContext systemCtx = buildSystemContext(event, historicalContext);
 
             String promptText = promptTemplate.buildPrompt(
                     event, layer1Decision, layer2Decision,
@@ -198,8 +194,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                         .timeout(Duration.ofMillis(timeoutMs))
                         .onErrorResume(Exception.class, e -> {
                             log.warn("[Layer3][AI Native] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
-                            // AI Native: 에러 복구 시에도 플랫폼 분류 금지 - "[NOT_CLASSIFIED]" 마커 사용
-                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"classification\":\"[NOT_CLASSIFIED]\",\"scenario\":\"[AI Native] LLM execution failed - failsafe blocking applied\"}");
+                            // AI Native: 에러 복구 시 classification null - 플랫폼이 분류하지 않음
+                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"classification\":null,\"scenario\":\"LLM execution failed - failsafe blocking applied\"}");
                         })
                         .block();
 
@@ -225,9 +221,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             // 11. 벡터 스토어에 저장 (학습용)
             storeInVectorDatabase(event, expertDecision, response);
 
+            // v3.1.0: MITIGATE -> BLOCK으로 통합됨
             SecurityDecision.Action expertAction = expertDecision.getAction();
-            if (expertAction == SecurityDecision.Action.BLOCK ||
-                expertAction == SecurityDecision.Action.MITIGATE) {
+            if (expertAction == SecurityDecision.Action.BLOCK) {
                 String sourceIp = event.getSourceIp();
                 if (sourceIp != null && !sourceIp.isEmpty()) {
                     // 공격 카운트 증가 및 IP 평판 하향
@@ -292,18 +288,12 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             // 모든 병렬 작업 완료 대기
             CompletableFuture.allOf(actorsFuture, campaignsFuture).join();
 
+            // AI Native: 분류 마커 제거
+            // 빈 리스트는 그대로 전달, LLM이 "정보 없음"을 직접 인식
             List<String> knownActors = actorsFuture.get();
-            if (knownActors.isEmpty()) {
-                knownActors = new ArrayList<>();
-                knownActors.add("[NO_KNOWN_ACTORS: first time observation]");
-            }
             intel.setKnownActors(knownActors);
 
             List<String> relatedCampaigns = campaignsFuture.get();
-            if (relatedCampaigns.isEmpty()) {
-                relatedCampaigns = new ArrayList<>();
-                relatedCampaigns.add("[NO_CAMPAIGNS: isolated incident or new pattern]");
-            }
             intel.setRelatedCampaigns(relatedCampaigns);
 
             // AI Native: IOC는 LLM이 직접 분석, 플랫폼은 컨텍스트 제공 안 함
@@ -313,12 +303,12 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             intel.setGeoLocation(sourceIp != null ? "IP: " + sourceIp : "Unknown");
 
         } catch (Exception e) {
-            log.warn("[Layer3] Parallel threat intelligence gathering failed, using defaults", e);
-            // AI Native: reputationScore 제거 - LLM이 IP 컨텍스트로 직접 판단
-            intel.setKnownActors(List.of("[ERROR: threat actor lookup failed]"));
-            intel.setRelatedCampaigns(List.of("[ERROR: campaign lookup failed]"));
-            intel.setIocMatches(List.of("[ERROR: IOC lookup failed]"));
-            intel.setGeoLocation("Unknown");
+            log.warn("[Layer3] Parallel threat intelligence gathering failed, using empty lists", e);
+            // AI Native: 에러 마커 제거 - 빈 리스트로 전달, LLM이 직접 판단
+            intel.setKnownActors(new ArrayList<>());
+            intel.setRelatedCampaigns(new ArrayList<>());
+            intel.setIocMatches(new ArrayList<>());
+            intel.setGeoLocation(null);
         }
 
         return intel;
@@ -333,10 +323,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         if (unifiedVectorService != null) {
             try {
                 String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
-                String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "unknown";
-                String attackVector = event.getAttackVector() != null ? event.getAttackVector() : "";
+                String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "";
+                // AI Native: deprecated 필드 getAttackVector() 제거
+                // attackVector는 ThreatAssessment에서 LLM이 결정
 
-                String query = String.format("threat-actor %s %s IP:%s", eventType, attackVector, sourceIp);
+                String query = String.format("threat-actor %s IP:%s", eventType, sourceIp);
 
                 // AI Native: RAG 검색 파라미터는 설정에서 주입 (하드코딩 금지)
                 org.springframework.ai.vectorstore.SearchRequest searchRequest =
@@ -393,10 +384,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             try {
                 String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
                 Optional<String> targetResource = eventEnricher.getTargetResource(event);
-                String mitreId = event.getMitreAttackId() != null ? event.getMitreAttackId() : "";
+                // AI Native: deprecated 필드 getMitreAttackId() 제거
+                // MITRE ATT&CK 매핑은 ThreatAssessment에서 LLM이 결정
 
-                String campaignQuery = String.format("campaign %s targeting %s %s",
-                        eventType, targetResource.orElse("unknown"), mitreId);
+                String campaignQuery = String.format("campaign %s targeting %s",
+                        eventType, targetResource.orElse(""));
 
                 // AI Native: RAG 검색 파라미터는 설정에서 주입 (하드코딩 금지)
                 org.springframework.ai.vectorstore.SearchRequest searchRequest =
@@ -454,11 +446,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             return context;
         }
 
-        // 유사 인시던트 조회
+        // 유사 인시던트 조회 (AI Native: 분류 마커 제거)
+        // 빈 리스트는 그대로 전달, LLM이 "정보 없음"을 직접 인식
         List<String> similarIncidents = findSimilarIncidents(event);
-        if (similarIncidents.isEmpty()) {
-            similarIncidents.add("[NEW_THREAT: no similar historical incidents]");
-        }
         context.setSimilarIncidents(similarIncidents);
 
         // 소스로부터의 이전 공격 (null-safe)
@@ -613,11 +603,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             response.setRiskScore(Double.NaN);
         }
 
-        // AI Native: classification이 null이면 마커 표시 (플랫폼 분류 금지)
-        // "UNKNOWN_THREAT"는 플랫폼이 위협 유형을 결정하는 것이므로 위반
-        if (response.getClassification() == null || response.getClassification().isBlank()) {
-            response.setClassification("[NOT_CLASSIFIED]");
-        }
+        // AI Native: classification이 null이면 null 유지 (플랫폼 분류 금지)
+        // 마커 생성도 AI Native 위반이므로 null 그대로 유지
 
         // tactics 검증
         if (response.getTactics() == null) {
@@ -715,10 +702,15 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             String reasoning = jsonNode.has("d") ? jsonNode.get("d").asText()
                 : (jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning");
 
-            String classification = jsonNode.has("classification") ? jsonNode.get("classification").asText() : "UNKNOWN";
-            String scenario = jsonNode.has("scenario") ? jsonNode.get("scenario").asText() : "No scenario";
-            String threatActor = jsonNode.has("threatActor") ? jsonNode.get("threatActor").asText() : "UNKNOWN";
-            String expertRecommendation = jsonNode.has("expertRecommendation") ? jsonNode.get("expertRecommendation").asText() : "Manual investigation required";
+            // AI Native: 기본값 "UNKNOWN" 제거, LLM이 분류하지 않으면 null
+            String classification = jsonNode.has("classification") && !jsonNode.get("classification").isNull()
+                ? jsonNode.get("classification").asText() : null;
+            String scenario = jsonNode.has("scenario") && !jsonNode.get("scenario").isNull()
+                ? jsonNode.get("scenario").asText() : null;
+            String threatActor = jsonNode.has("threatActor") && !jsonNode.get("threatActor").isNull()
+                ? jsonNode.get("threatActor").asText() : null;
+            String expertRecommendation = jsonNode.has("expertRecommendation") && !jsonNode.get("expertRecommendation").isNull()
+                ? jsonNode.get("expertRecommendation").asText() : null;
 
             // 배열 파싱
             List<String> tactics = new ArrayList<>();
@@ -765,22 +757,23 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     private Layer3SecurityResponse createDefaultResponse() {
+        // AI Native: 기본값 "UNKNOWN" 제거, 플랫폼이 분류하지 않음
         return Layer3SecurityResponse.builder()
                 .riskScore(Double.NaN)  // AI Native: LLM 분석 미수행
                 .confidence(Double.NaN)  // AI Native: LLM 분석 미수행
                 .action("ESCALATE")
-                .classification("UNKNOWN")
-                .scenario("Analysis unavailable")
-                .stage("UNKNOWN")
+                .classification(null)  // AI Native: 플랫폼이 분류하지 않음
+                .scenario(null)
+                .stage(null)
                 .tactics(new ArrayList<>())
                 .techniques(new ArrayList<>())
                 .iocIndicators(new ArrayList<>())
-                .threatActor("UNKNOWN")
-                .businessImpact("Unknown impact")
+                .threatActor(null)  // AI Native: 플랫폼이 분류하지 않음
+                .businessImpact(null)
                 .playbookId("default-incident-response")
                 .requiresApproval(true)
-                .reasoning("[AI Native] Layer 3 LLM analysis unavailable")
-                .expertRecommendation("Manual investigation required - LLM analysis not performed")
+                .reasoning("Layer 3 LLM analysis unavailable")
+                .expertRecommendation(null)
                 .mitreMapping(new HashMap<>())
                 .build();
     }
@@ -801,23 +794,20 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * 문자열을 액션으로 매핑
+     * 문자열을 액션으로 매핑 (AI Native v3.3.0)
      *
-     * AI Native: 알 수 없는 action은 INVESTIGATE (Zero Trust)
-     * - Layer3는 최종 계층이므로 ESCALATE 불가
-     * - MONITOR는 플랫폼이 임의로 결정하는 것이므로 위반
-     * - 불확실 시 INVESTIGATE하여 인간 개입 요청
+     * LLM은 4개 결정: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
+     * - BLOCK: 극고위험군 (즉시 차단)
+     * - CHALLENGE: 고위험군 (MFA 인증 요구)
+     * Layer3는 최종 계층이므로 ESCALATE도 그대로 유지 (인간 개입 필요)
      */
     private SecurityDecision.Action mapStringToAction(String action) {
-        if (action == null) return SecurityDecision.Action.INVESTIGATE;
+        if (action == null) return SecurityDecision.Action.ESCALATE;
         return switch (action.toUpperCase()) {
-            case "ALLOW" -> SecurityDecision.Action.ALLOW;
-            case "BLOCK" -> SecurityDecision.Action.BLOCK;
-            case "MITIGATE" -> SecurityDecision.Action.MITIGATE;
-            case "INVESTIGATE" -> SecurityDecision.Action.INVESTIGATE;
-            case "ESCALATE" -> SecurityDecision.Action.ESCALATE;
-            case "MONITOR" -> SecurityDecision.Action.MONITOR;  // LLM이 명시적으로 MONITOR 반환한 경우만
-            default -> SecurityDecision.Action.INVESTIGATE;  // AI Native: 최종 계층 - 불확실 시 조사 요청
+            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
+            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
+            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
+            default -> SecurityDecision.Action.ESCALATE;  // E 포함, 최종 계층에서 불확실 = 인간 개입
         };
     }
 
@@ -990,7 +980,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         public List<String> getIocMatches() { return iocMatches; }
         public void setIocMatches(List<String> iocs) { this.iocMatches = iocs; }
 
-        public String getGeoLocation() { return geoLocation != null ? geoLocation : "Unknown"; }
+        // AI Native: "Unknown" 기본값 제거, null 그대로 반환
+        public String getGeoLocation() { return geoLocation; }
         public void setGeoLocation(String location) { this.geoLocation = location; }
     }
 
@@ -1093,10 +1084,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         Map<String, String> mapping = new HashMap<>();
         mapping.put("framework", "EXPERT_ANALYSIS");
         mapping.put("tier", "3");
-        // MITRE ATT&CK 매핑 추가
-        if (event.getMitreAttackId() != null) {
-            mapping.put("mitre_attack", event.getMitreAttackId());
-        }
+        // AI Native: MITRE ATT&CK 매핑은 LLM이 ThreatAssessment에서 생성
+        // deprecated 필드(getMitreAttackId) 사용 제거
         return mapping;
     }
 
@@ -1116,14 +1105,56 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         return Double.NaN;
     }
 
+    /**
+     * Action을 권장 조치 문자열로 변환 (AI Native v3.3.0 - 4개 Action)
+     */
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         return switch (action) {
+            case ALLOW -> "ALLOW_WITH_MONITORING";
             case BLOCK -> "BLOCK_WITH_INCIDENT_RESPONSE";
-            case MITIGATE -> "APPLY_ADVANCED_MITIGATION";
-            case INVESTIGATE -> "DEEP_FORENSIC_INVESTIGATION";
+            case CHALLENGE -> "REQUIRE_REAUTHENTICATION";
             case ESCALATE -> "ESCALATE_TO_SOC";
-            default -> "EXPERT_REVIEW_REQUIRED";
         };
+    }
+
+    /**
+     * AI Native: SystemContext - metadata에 있는 실제 값만 전달
+     *
+     * 규칙 기반 추론 로직 완전 제거:
+     * - 플랫폼이 경로 패턴으로 분류하지 않음
+     * - metadata에 실제 값이 있으면 그대로 전달
+     * - 값이 없으면 null (프롬프트에서 생략)
+     * - LLM이 targetResource 경로를 보고 직접 판단
+     */
+    private Layer3PromptTemplate.SystemContext buildSystemContext(SecurityEvent event, HistoricalContext historicalContext) {
+        Layer3PromptTemplate.SystemContext systemCtx = new Layer3PromptTemplate.SystemContext();
+
+        Map<String, Object> metadata = event.getMetadata();
+
+        // AI Native: metadata에서 실제 값만 추출 (없으면 null)
+        if (metadata != null) {
+            Object criticality = metadata.get("asset.criticality");
+            if (criticality != null && !criticality.toString().isEmpty()) {
+                systemCtx.setAssetCriticality(criticality.toString());
+            }
+
+            Object sensitivity = metadata.get("data.sensitivity");
+            if (sensitivity != null && !sensitivity.toString().isEmpty()) {
+                systemCtx.setDataSensitivity(sensitivity.toString());
+            }
+
+            Object compliance = metadata.get("compliance.requirements");
+            if (compliance != null && !compliance.toString().isEmpty()) {
+                systemCtx.setComplianceRequirements(compliance.toString());
+            }
+
+            Object posture = metadata.get("security.posture");
+            if (posture != null && !posture.toString().isEmpty()) {
+                systemCtx.setSecurityPosture(posture.toString());
+            }
+        }
+
+        return systemCtx;
     }
 
     /**
@@ -1149,26 +1180,47 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
             // 필수 공통 metadata
             metadata.put("documentType", VectorDocumentType.BEHAVIOR.getValue());
-            metadata.put("eventId", event.getEventId() != null ? event.getEventId() : "unknown");
+            // AI Native: null인 경우 필드 생략
+            if (event.getEventId() != null) {
+                metadata.put("eventId", event.getEventId());
+            }
             metadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            metadata.put("userId", event.getUserId() != null ? event.getUserId() : "unknown");
+            // AI Native: null인 경우 필드 생략 (LLM이 "unknown"을 실제 값으로 오해 방지)
+            if (event.getUserId() != null) {
+                metadata.put("userId", event.getUserId());
+            }
 
             // SecurityEvent 정보
-            metadata.put("eventType", event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN");
-            metadata.put("sourceIp", event.getSourceIp() != null ? event.getSourceIp() : "unknown");
-            metadata.put("sessionId", event.getSessionId() != null ? event.getSessionId() : "unknown");
+            if (event.getEventType() != null) {
+                metadata.put("eventType", event.getEventType().toString());
+            }
+            if (event.getSourceIp() != null) {
+                metadata.put("sourceIp", event.getSourceIp());
+            }
+            if (event.getSessionId() != null) {
+                metadata.put("sessionId", event.getSessionId());
+            }
 
             // SecurityDecision 정보
-            // AI Native: NaN은 metadata에 저장 불가 - Double.NaN 체크 후 -1.0으로 대체 (메타데이터 전용)
+            // AI Native: NaN인 경우 해당 필드를 생략 (LLM이 -1.0을 낮은 값으로 오해 방지)
             double metaRiskScore = decision.getRiskScore();
             double metaConfidence = decision.getConfidence();
-            metadata.put("riskScore", Double.isNaN(metaRiskScore) ? -1.0 : metaRiskScore);
-            metadata.put("action", decision.getAction() != null ? decision.getAction().toString() : "INVESTIGATE");
-            metadata.put("confidence", Double.isNaN(metaConfidence) ? -1.0 : metaConfidence);
-            metadata.put("threatCategory", decision.getThreatCategory() != null ? decision.getThreatCategory() : "[NOT_CLASSIFIED]");
+            if (!Double.isNaN(metaRiskScore)) {
+                metadata.put("riskScore", metaRiskScore);
+            }
+            metadata.put("action", decision.getAction() != null ? decision.getAction().toString() : "ESCALATE");
+            if (!Double.isNaN(metaConfidence)) {
+                metadata.put("confidence", metaConfidence);
+            }
+            // AI Native: null인 경우 필드 생략 (LLM이 "[NOT_CLASSIFIED]"를 실제 카테고리로 오해 방지)
+            if (decision.getThreatCategory() != null) {
+                metadata.put("threatCategory", decision.getThreatCategory());
+            }
 
             // Layer3 전문가 분석 결과
-            metadata.put("classification", response.getClassification() != null ? response.getClassification() : "[NOT_CLASSIFIED]");
+            if (response.getClassification() != null) {
+                metadata.put("classification", response.getClassification());
+            }
             if (response.getTactics() != null && !response.getTactics().isEmpty()) {
                 metadata.put("tactics", String.join(",", response.getTactics()));
             }
@@ -1190,8 +1242,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             Document document = new Document(content, metadata);
             unifiedVectorService.storeDocument(document);
 
-            if (storeAction == SecurityDecision.Action.BLOCK ||
-                storeAction == SecurityDecision.Action.MITIGATE) {
+            // v3.1.0: MITIGATE -> BLOCK으로 통합됨
+            if (storeAction == SecurityDecision.Action.BLOCK) {
                 storeThreatDocument(event, decision, response, content);
             }
 
@@ -1206,18 +1258,40 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
             // 위협 전용 documentType
             threatMetadata.put("documentType", VectorDocumentType.THREAT.getValue());
-            threatMetadata.put("riskScore", decision.getRiskScore());
+            // AI Native: NaN인 경우 필드 생략
+            double riskScore = decision.getRiskScore();
+            if (!Double.isNaN(riskScore)) {
+                threatMetadata.put("riskScore", riskScore);
+            }
 
             // 기본 정보
-            threatMetadata.put("eventId", event.getEventId());
+            // AI Native: null인 경우 필드 생략
+            if (event.getEventId() != null) {
+                threatMetadata.put("eventId", event.getEventId());
+            }
             threatMetadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            threatMetadata.put("userId", event.getUserId() != null ? event.getUserId() : "unknown");
-            threatMetadata.put("eventType", event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN");
-            threatMetadata.put("sourceIp", event.getSourceIp());
-            threatMetadata.put("sessionId", event.getSessionId());
+            if (event.getUserId() != null) {
+                threatMetadata.put("userId", event.getUserId());
+            }
+            if (event.getEventType() != null) {
+                threatMetadata.put("eventType", event.getEventType().toString());
+            }
+            if (event.getSourceIp() != null) {
+                threatMetadata.put("sourceIp", event.getSourceIp());
+            }
+            if (event.getSessionId() != null) {
+                threatMetadata.put("sessionId", event.getSessionId());
+            }
 
-            threatMetadata.put("threatType", determineThreatType(response));
-            threatMetadata.put("threatCategory", decision.getThreatCategory() != null ? decision.getThreatCategory() : response.getClassification());
+            // AI Native: null인 경우 필드 생략
+            String threatType = determineThreatType(response);
+            if (threatType != null) {
+                threatMetadata.put("threatType", threatType);
+            }
+            String threatCategory = decision.getThreatCategory() != null ? decision.getThreatCategory() : response.getClassification();
+            if (threatCategory != null) {
+                threatMetadata.put("threatCategory", threatCategory);
+            }
 
             // Layer3 전문가 분석 특화 정보
             if (response.getClassification() != null) {
@@ -1242,7 +1316,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             }
 
             // LLM 결정 정보
-            threatMetadata.put("confidence", decision.getConfidence());
+            // AI Native: NaN인 경우 필드 생략
+            double confidence = decision.getConfidence();
+            if (!Double.isNaN(confidence)) {
+                threatMetadata.put("confidence", confidence);
+            }
             threatMetadata.put("action", decision.getAction().toString());
 
             // 위협 설명 (전문가 분석 포함)

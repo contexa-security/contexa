@@ -688,12 +688,22 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             SoarIncident soarIncident = handler.getSoarIncident();
             SecurityEvent securityEvent = handler.getSecurityEvent();
 
+            // AI Native: SecurityEvent deprecated getAttackVector() 제거
+            // metadata에서 공격 벡터 정보 추출
+            String attackVector = null;
+            if (securityEvent != null && securityEvent.getMetadata() != null) {
+                Object av = securityEvent.getMetadata().get("attackVector");
+                if (av != null) {
+                    attackVector = av.toString();
+                }
+            }
+
             DynamicThreatResponseEvent threatEvent = DynamicThreatResponseEvent.builder()
                 .eventSource(this)
                 .severity(soarIncident.getSeverity())
                 .description("위협 대응 완료: " + resolutionMethod)
                 .threatType(soarIncident.getType())
-                .attackVector(securityEvent != null ? securityEvent.getAttackVector() : null)
+                .attackVector(attackVector)
                 .targetResource(extractTargetResource(soarIncident, securityEvent))
                 .attackerIdentity(securityEvent != null ? securityEvent.getSourceIp() : null)
                 .mitigationAction(resolutionMethod)
@@ -766,15 +776,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         Map<String, Object> additionalInfo = new HashMap<>();
         additionalInfo.put("recommendedAction", action);
         additionalInfo.put("eventId", event.getEventId());
-        additionalInfo.put("threatLevel", assessment.getThreatLevel());
+        additionalInfo.put("action", assessment.getAction());  // AI Native: action 사용
         additionalInfo.put("riskScore", assessment.getRiskScore());
-        
+
         // Create context from event
         SoarContext context = contextProvider.createContextFromEvents(List.of(event));
         context = contextProvider.enrichContext(context, additionalInfo);
-        
-        // Critical 상황에서 SOAR Lab 호출 (AI 분석 필요)
-        if (assessment.getThreatLevel() == ThreatAssessment.ThreatLevel.CRITICAL) {
+
+        // AI Native: BLOCK action에서 SOAR Lab 호출 (Critical 위협)
+        if ("BLOCK".equals(assessment.getAction()) || assessment.getRiskScore() >= 0.9) {
             if (soarLab != null) {
                 // SOAR Lab을 통한 AI 기반 분석 및 도구 실행
                 log.info("Invoking SOAR Lab for critical threat analysis");
@@ -782,8 +792,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     // 비동기 모드로 SOAR 호출
                     SoarContext finalContext = context;
                     String prompt = String.format(
-                        "Critical security event detected: %s with threat level %s and risk score %.2f. Recommended action: %s. Analyze and determine appropriate SOAR tools to execute.",
-                        event.getEventId(), assessment.getThreatLevel(), assessment.getRiskScore(), action
+                        "Critical security event detected: %s with action %s and risk score %.2f. Recommended action: %s. Analyze and determine appropriate SOAR tools to execute.",
+                        event.getEventId(), assessment.getAction(), assessment.getRiskScore(), action
                     );
 
                     // SoarRequest 생성 - ASYNC 모드 명시
@@ -1051,8 +1061,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private void evolveThreadEvaluationPolicy(SecurityEvent event, ThreatAssessment assessment) {
         if (policyEvolutionService != null) {
             try {
-                // 정책 학습
-                String decision = assessment.getThreatLevel().toString();
+                // AI Native: action 기반 정책 학습
+                String decision = assessment.getAction() != null ? assessment.getAction() : "ESCALATE";
                 String outcome = assessment.getRiskScore() > threatThreshold ? "HIGH_RISK" : "NORMAL";
 
                 policyEvolutionService.learnFromEvent(event, decision, outcome)
@@ -1142,10 +1152,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         error -> log.error("메모리 저장 실패", error)
                     );
 
-                // 중요한 정보는 단기 메모리에도 저장
+                // AI Native: BLOCK action 또는 고위험은 단기 메모리에도 저장
                 if (value instanceof ThreatAssessment) {
                     ThreatAssessment ta = (ThreatAssessment) value;
-                    if (ta.getThreatLevel() == ThreatAssessment.ThreatLevel.CRITICAL) {
+                    if ("BLOCK".equals(ta.getAction()) || ta.getRiskScore() >= 0.9) {
                         memorySystem.storeInSTM(key, valueToStore, metadata)
                             .subscribe();
                     }

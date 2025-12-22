@@ -198,9 +198,16 @@ public class KafkaSecurityEventCollector {
                 .timestamp(LocalDateTime.now())
                 .description(description)
                 .sourceIp(indicator.getValue())
-                .confidenceScore(indicator.getConfidence())
-                .mitreAttackId(indicator.getMitreAttackId())
+                // AI Native: deprecated 필드 제거, metadata로 이동
                 .build();
+
+            // AI Native: ThreatIndicator 정보를 metadata에 저장
+            if (indicator.getConfidence() != null) {
+                event.addMetadata("indicator.confidence", indicator.getConfidence());
+            }
+            if (indicator.getMitreAttackId() != null) {
+                event.addMetadata("indicator.mitreAttackId", indicator.getMitreAttackId());
+            }
 
             // Null 체크 추가
             if (indicator.getType() != null) {
@@ -585,7 +592,7 @@ public class KafkaSecurityEventCollector {
             .userName(authEvent.getUsername())
             .sourceIp(authEvent.getSourceIp())
             .sessionId(authEvent.getSessionId())
-            .confidenceScore(authEvent.getTrustScore())
+            // AI Native: deprecated confidenceScore 제거
             .build();
 
         // 추가 메타데이터
@@ -595,6 +602,10 @@ public class KafkaSecurityEventCollector {
         event.addMetadata("auth.type", authEvent.getAuthenticationType());
         event.addMetadata("auth.mfa_completed", String.valueOf(authEvent.isMfaCompleted()));
         event.addMetadata("auth.anomaly_detected", String.valueOf(authEvent.isAnomalyDetected()));
+        // AI Native: trustScore를 metadata에 저장
+        if (authEvent.getTrustScore() != null) {
+            event.addMetadata("auth.trustScore", authEvent.getTrustScore());
+        }
 
         return event;
     }
@@ -645,7 +656,7 @@ public class KafkaSecurityEventCollector {
             .userName(authzEvent.getPrincipal())
             .sourceIp(authzEvent.getClientIp())
             .sessionId(authzEvent.getSessionId())
-            .confidenceScore(authzEvent.getTrustScore())
+            // AI Native: deprecated confidenceScore 제거
             .build();
 
         // 추가 메타데이터
@@ -656,6 +667,10 @@ public class KafkaSecurityEventCollector {
         event.addMetadata("authz.action", authzEvent.getAction());
         event.addMetadata("authz.result", authzEvent.getResult().name());
         event.addMetadata("authz.reason", authzEvent.getReason());
+        // AI Native: trustScore를 metadata에 저장
+        if (authzEvent.getTrustScore() != null) {
+            event.addMetadata("authz.trustScore", authzEvent.getTrustScore());
+        }
 
         return event;
     }

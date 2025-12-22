@@ -240,16 +240,19 @@ public class ZeroTrustEventListener {
         
         // 위험 평가
         event.setSeverity(mapRiskLevelToSeverity(authEvent.calculateRiskLevel()));
-        event.setConfidenceScore(authEvent.getTrustScore());
-        
-        // 이상 징후
-        if (authEvent.isAnomalyDetected()) {
-            event.setThreatType("ANOMALY_DETECTED");
-            event.setBlocked(false); // 성공했지만 의심스러운 경우
-        }
+        // AI Native: deprecated 필드 제거, metadata로 이동
 
         // 메타데이터
         Map<String, Object> metadata = new HashMap<>();
+
+        // AI Native: deprecated 필드를 metadata로 이동
+        metadata.put("auth.trustScore", authEvent.getTrustScore());
+
+        // 이상 징후 - metadata로 이동
+        if (authEvent.isAnomalyDetected()) {
+            metadata.put("auth.threatType", "ANOMALY_DETECTED");
+            event.setBlocked(false); // 성공했지만 의심스러운 경우
+        }
         metadata.put("authenticationType", authEvent.getAuthenticationType());
         metadata.put("mfaCompleted", authEvent.isMfaCompleted());
         metadata.put("mfaMethod", authEvent.getMfaMethod());

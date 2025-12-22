@@ -35,11 +35,11 @@ public class DefaultThreatEvaluationStrategy implements ThreatEvaluationStrategy
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName())
-            .threatLevel(ThreatAssessment.ThreatLevel.INFO)  // AI Native: LLM 분석 미수행 상태
             .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
             .indicators(new ArrayList<>())
             .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED"))  // AI Native: LLM 분석 필요
             .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
+            .action("ESCALATE")  // AI Native: LLM 분석 필요
             .build();
     }
     

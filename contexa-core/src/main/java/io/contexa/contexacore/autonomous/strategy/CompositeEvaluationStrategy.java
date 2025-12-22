@@ -184,37 +184,36 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     }
     
     /**
-     * 평가 결과 통합
+     * 평가 결과 통합 (AI Native: action 기반)
      */
     private ThreatAssessment mergeAssessments(SecurityEvent event, List<StrategyResult> results) {
         if (results.isEmpty()) {
             return createMinimalAssessment(event);
         }
-        
+
         // 가중치 적용하여 위험 점수 계산
         double weightedRiskScore = calculateWeightedRiskScore(results);
-        
-        // 위협 수준 결정
-        ThreatAssessment.ThreatLevel threatLevel = determineConsensusThreatLevel(results, weightedRiskScore);
-        
+
+        // AI Native: action 합의 결정
+        String consensusAction = determineConsensusAction(results);
+
         // 모든 지표 수집
         List<ThreatIndicator> allIndicators = collectAllIndicators(results, event);
-        
+
         // 권장 액션 통합
         List<String> recommendedActions = mergeRecommendedActions(results);
-        
+
         // 신뢰도 계산
         double confidence = calculateCompositeConfidence(results);
-        
+
         // 메타데이터 생성
         Map<String, Object> metadata = createCompositeMetadata(results);
-        
+
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName())
-            .threatLevel(threatLevel)
             .riskScore(weightedRiskScore)
             .indicators(allIndicators.stream()
                 .map(indicator -> indicator.getType().getDescription() + ": " + indicator.getValue())
@@ -222,6 +221,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             .recommendedActions(recommendedActions)
             .confidence(confidence)
             .metadata(metadata)
+            .action(consensusAction)  // AI Native: action 사용
             .build();
     }
     
@@ -244,36 +244,41 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     }
     
     /**
-     * 합의 기반 위협 수준 결정
+     * AI Native: 합의 기반 action 결정
+     *
+     * 각 전략의 action을 투표로 합의합니다.
+     * 우선순위: BLOCK > INVESTIGATE > ESCALATE > ALLOW
      */
-    private ThreatAssessment.ThreatLevel determineConsensusThreatLevel(
-            List<StrategyResult> results, double weightedRiskScore) {
-        
-        // 각 위협 수준별 투표 수 계산
-        Map<ThreatAssessment.ThreatLevel, Double> votes = new HashMap<>();
-        
+    private String determineConsensusAction(List<StrategyResult> results) {
+        // 각 action별 투표 수 계산
+        Map<String, Double> votes = new HashMap<>();
+
         for (StrategyResult result : results) {
             if (result.getAssessment() != null) {
-                ThreatAssessment.ThreatLevel level = result.getAssessment().getThreatLevel();
-                double weight = strategyWeights.getOrDefault(result.getStrategyName(), 1.0);
-                votes.merge(level, weight, Double::sum);
+                String action = result.getAssessment().getAction();
+                if (action != null && !action.isBlank()) {
+                    double weight = strategyWeights.getOrDefault(result.getStrategyName(), 1.0);
+                    votes.merge(action.toUpperCase(), weight, Double::sum);
+                }
             }
         }
-        
-        // 최다 득표 수준 선택
-        ThreatAssessment.ThreatLevel consensusLevel = votes.entrySet().stream()
-            .max(Map.Entry.comparingByValue())
-            .map(Map.Entry::getKey)
-            .orElse(ThreatAssessment.ThreatLevel.INFO);
-        
-        // 가중치 점수 기반 조정
-        if (weightedRiskScore >= 0.9 && consensusLevel.ordinal() < ThreatAssessment.ThreatLevel.CRITICAL.ordinal()) {
-            return ThreatAssessment.ThreatLevel.CRITICAL;
-        } else if (weightedRiskScore >= 0.7 && consensusLevel.ordinal() < ThreatAssessment.ThreatLevel.HIGH.ordinal()) {
-            return ThreatAssessment.ThreatLevel.HIGH;
+
+        // AI Native: 우선순위 기반 선택 (BLOCK > INVESTIGATE > ESCALATE > ALLOW)
+        if (votes.containsKey("BLOCK")) {
+            return "BLOCK";
         }
-        
-        return consensusLevel;
+        if (votes.containsKey("INVESTIGATE")) {
+            return "INVESTIGATE";
+        }
+        if (votes.containsKey("ESCALATE")) {
+            return "ESCALATE";
+        }
+        if (votes.containsKey("ALLOW")) {
+            return "ALLOW";
+        }
+
+        // 기본값: ESCALATE
+        return "ESCALATE";
     }
     
     /**
@@ -369,17 +374,18 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         
         metadata.put("parallelExecution", parallelExecutionEnabled);
         
-        // 각 전략의 위협 수준
-        Map<String, String> strategyThreatLevels = new HashMap<>();
+        // AI Native: 각 전략의 action 수집 (threatLevel 제거)
+        Map<String, String> strategyActions = new HashMap<>();
         for (StrategyResult result : results) {
             if (result.getAssessment() != null) {
-                strategyThreatLevels.put(
+                String action = result.getAssessment().getAction();
+                strategyActions.put(
                     result.getStrategyName(),
-                    result.getAssessment().getThreatLevel().toString()
+                    action != null ? action : "ESCALATE"
                 );
             }
         }
-        metadata.put("strategyThreatLevels", strategyThreatLevels);
+        metadata.put("strategyActions", strategyActions);
         
         return metadata;
     }
@@ -402,7 +408,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     }
     
     /**
-     * 최소 평가 결과 생성
+     * 최소 평가 결과 생성 (AI Native)
      */
     private ThreatAssessment createMinimalAssessment(SecurityEvent event) {
         return ThreatAssessment.builder()
@@ -410,11 +416,11 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName())
-            .threatLevel(ThreatAssessment.ThreatLevel.INFO)
-            .riskScore(0.0)
+            .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
             .indicators(new ArrayList<>())
-            .recommendedActions(List.of("INSUFFICIENT_DATA"))
-            .confidence(0.1)
+            .recommendedActions(List.of("INSUFFICIENT_DATA", "LLM_ANALYSIS_REQUIRED"))
+            .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
+            .action("ESCALATE")  // AI Native: LLM 분석 필요
             .build();
     }
     

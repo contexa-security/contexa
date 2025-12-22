@@ -39,7 +39,6 @@ import java.util.concurrent.TimeUnit;
  * AI-Native 접근법으로 전통적인 규칙 기반 시스템을 대체합니다.
  */
 @Slf4j
-
 public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
     private final RedisTemplate<String, Object> redisTemplate;
@@ -102,7 +101,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         return ThreatAssessment.builder()
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
-                .threatLevel(null)
                 .indicators(new ArrayList<>())
                 .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer1-FastFilter")
@@ -225,7 +223,8 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
             }
         }
 
-        return patterns.isEmpty() ? "none" : patterns.toString();
+        // AI Native: 기본값 "none" 제거 - 빈 문자열 반환, LLM이 직접 인식
+        return patterns.toString();
     }
 
     /**
@@ -239,20 +238,16 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
             query.append(event.getEventType().toString()).append(" ");
         }
 
-        // 위협 타입 추가
-        if (event.getThreatType() != null && !event.getThreatType().isBlank()) {
-            query.append(event.getThreatType()).append(" ");
-        }
+        // AI Native: deprecated getThreatType() 제거
+        // ThreatAssessment에서 위협 유형 관리
 
         // 소스 IP 기반 위협 검색
         if (event.getSourceIp() != null && !event.getSourceIp().equals("unknown")) {
             query.append("IP:").append(event.getSourceIp()).append(" ");
         }
 
-        // 공격 벡터 추가
-        if (event.getAttackVector() != null && !event.getAttackVector().isBlank()) {
-            query.append(event.getAttackVector()).append(" ");
-        }
+        // AI Native: deprecated getAttackVector() 제거
+        // 공격 벡터 정보는 metadata 또는 ThreatAssessment에서 관리
 
         return query.toString().trim();
     }
@@ -303,29 +298,119 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         }
     }
 
+    /**
+     * LLM 응답 검증 (AI Native - Action 기반 Zero Trust)
+     *
+     * Zero Trust 원칙:
+     * - 점수 기반이 아닌 ACTION 기반 의사결정
+     * - riskScore/confidence는 감사/모니터링용 메타데이터
+     * - 유효한 action이 없으면 Fail-Safe로 ESCALATE
+     *
+     * 검증 항목:
+     * 1. [필수] action 유효성 - null/empty/invalid -> ESCALATE
+     * 2. [경고] riskScore 범위 - 0.0~1.0 벗어나면 로그 경고
+     * 3. [경고] confidence 범위 - 0.0~1.0 벗어나면 로그 경고
+     * 4. [경고] 데이터 일관성 - 모순 감지 시 로그 경고
+     */
     private Layer1SecurityResponse validateAndFixResponse(Layer1SecurityResponse response) {
         if (response == null) {
-            log.warn("[Layer1][AI Native] LLM 응답 null - 에스컬레이션 필요");
+            log.warn("[Layer1][AI Native] LLM 응답 null - Fail-Safe ESCALATE 적용");
             return Layer1SecurityResponse.builder()
                     .riskScore(Double.NaN)
                     .confidence(Double.NaN)
                     .action("ESCALATE")
-                    .reasoning("LLM response was null")
+                    .reasoning("[AI Native] LLM response was null - Fail-Safe escalation")
                     .build();
         }
 
-        // AI Native: LLM 응답 검증만 수행 (가공 없음)
-        if (response.getConfidence() == null) {
-            log.warn("[Layer1][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)");
-            response.setConfidence(Double.NaN);
+        // 1. [필수] Action 검증 - Zero Trust 핵심
+        String action = response.getAction();
+        if (!isValidAction(action)) {
+            log.warn("[Layer1][AI Native] 유효하지 않은 action '{}' - Fail-Safe ESCALATE 적용", action);
+            response.setAction("ESCALATE");
+            response.setReasoning(
+                (response.getReasoning() != null ? response.getReasoning() + " | " : "") +
+                "[AI Native] Invalid action detected - Fail-Safe escalation"
+            );
         }
 
-        if (response.getRiskScore() == null) {
-            log.warn("[Layer1][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)");
+        // 2. [경고] riskScore 범위 검증 (감사용 메타데이터 - 값 변경 안함)
+        Double riskScore = response.getRiskScore();
+        if (riskScore == null) {
+            log.debug("[Layer1][AI Native] LLM이 riskScore 미반환 (감사용 NaN 설정)");
             response.setRiskScore(Double.NaN);
+        } else if (riskScore < 0.0 || riskScore > 1.0) {
+            log.warn("[Layer1][AI Native] riskScore 범위 초과: {} (유효 범위: 0.0-1.0, 값 유지)", riskScore);
         }
+
+        // 3. [경고] confidence 범위 검증 (감사용 메타데이터 - 값 변경 안함)
+        Double confidence = response.getConfidence();
+        if (confidence == null) {
+            log.debug("[Layer1][AI Native] LLM이 confidence 미반환 (감사용 NaN 설정)");
+            response.setConfidence(Double.NaN);
+        } else if (confidence < 0.0 || confidence > 1.0) {
+            log.warn("[Layer1][AI Native] confidence 범위 초과: {} (유효 범위: 0.0-1.0, 값 유지)", confidence);
+        }
+
+        // 4. [경고] 데이터 일관성 검증 - 모순 감지 (참고용 로그)
+        validateDataConsistency(response);
 
         return response;
+    }
+
+    /**
+     * 유효한 action인지 검증 (AI Native v3.3.0 - 4개 Action)
+     *
+     * v3.3.0 변경:
+     * - 유효 Action: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E) (4개)
+     * - INVESTIGATE, MONITOR, MITIGATE 제거
+     */
+    private boolean isValidAction(String action) {
+        if (action == null || action.trim().isEmpty()) {
+            return false;
+        }
+        String upperAction = action.toUpperCase().trim();
+        // 4개 Action (긴 형식 + 단축형)
+        return "ALLOW".equals(upperAction) || "A".equals(upperAction) ||
+               "BLOCK".equals(upperAction) || "B".equals(upperAction) ||
+               "CHALLENGE".equals(upperAction) || "C".equals(upperAction) ||
+               "ESCALATE".equals(upperAction) || "E".equals(upperAction);
+    }
+
+    /**
+     * 데이터 일관성 검증 (참고용 로그 - AI Native 모니터링)
+     *
+     * 모순 패턴 감지:
+     * - 높은 위험도 + 낮은 신뢰도: LLM이 확신 없이 높은 위험 판단
+     * - BLOCK action + 낮은 위험도: 위험하지 않은데 차단
+     * - ALLOW action + 높은 위험도: 위험한데 허용
+     */
+    private void validateDataConsistency(Layer1SecurityResponse response) {
+        Double riskScore = response.getRiskScore();
+        Double confidence = response.getConfidence();
+        String action = response.getAction();
+
+        if (riskScore == null || confidence == null || action == null) {
+            return;
+        }
+
+        // 모순 패턴 1: 높은 위험도(>0.7) + 낮은 신뢰도(<0.3)
+        if (riskScore > 0.7 && confidence < 0.3) {
+            log.info("[Layer1][AI Native][모니터링] 높은 위험도({}) + 낮은 신뢰도({}) - LLM 판단 불확실",
+                String.format("%.2f", riskScore), String.format("%.2f", confidence));
+        }
+
+        // 모순 패턴 2: BLOCK + 낮은 위험도
+        if ("BLOCK".equalsIgnoreCase(action) && riskScore < 0.3) {
+            log.info("[Layer1][AI Native][모니터링] BLOCK action + 낮은 위험도({}) - 패턴 분석 필요",
+                String.format("%.2f", riskScore));
+        }
+
+        // 모순 패턴 3: ALLOW + 높은 위험도
+        if ("ALLOW".equalsIgnoreCase(action) && riskScore > 0.7) {
+            log.warn("[Layer1][AI Native][모니터링] ALLOW action + 높은 위험도({}) - 보안 검토 권장",
+                String.format("%.2f", riskScore));
+        }
     }
 
     private Layer1SecurityResponse parseJsonResponse(String jsonResponse) {
@@ -372,13 +457,19 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         return response.getRiskScore() != null || response.getConfidence() != null;
     }
 
+    /**
+     * 문자열 action을 SecurityDecision.Action으로 매핑 (AI Native v3.3.0)
+     *
+     * LLM은 4개 결정: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
+     * - BLOCK: 극고위험군 (즉시 차단)
+     * - CHALLENGE: 고위험군 (MFA 인증 요구)
+     */
     private SecurityDecision.Action mapToAction(String action) {
         return switch (action.toUpperCase()) {
-            case "ALLOW" -> SecurityDecision.Action.ALLOW;
-            case "BLOCK" -> SecurityDecision.Action.BLOCK;
-            case "MONITOR" -> SecurityDecision.Action.MONITOR;
-            case "MITIGATE" -> SecurityDecision.Action.MITIGATE;
-            default -> SecurityDecision.Action.ESCALATE;
+            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
+            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
+            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
+            default -> SecurityDecision.Action.ESCALATE;  // E 포함, 불확실한 경우 모두 에스컬레이션
         };
     }
 
@@ -422,12 +513,22 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         try {
             String eventText = eventEnricher.generateEventSummary(event);
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("eventId", event.getEventId() != null ? event.getEventId() : "unknown");
-            metadata.put("userId", event.getUserId() != null ? event.getUserId() : "unknown");
-            metadata.put("sourceIp", event.getSourceIp() != null ? event.getSourceIp() : "unknown");
+            // AI Native: null인 경우 필드 생략 (LLM이 "unknown"을 실제 값으로 오해 방지)
+            if (event.getEventId() != null) {
+                metadata.put("eventId", event.getEventId());
+            }
+            if (event.getUserId() != null) {
+                metadata.put("userId", event.getUserId());
+            }
+            if (event.getSourceIp() != null) {
+                metadata.put("sourceIp", event.getSourceIp());
+            }
             metadata.put("action", decision.getAction() != null ? decision.getAction().toString() : "ESCALATE");
+            // AI Native: NaN인 경우 해당 필드를 생략 (LLM이 -1.0을 낮은 위험도로 오해 방지)
             double riskScore = decision.getRiskScore();
-            metadata.put("riskScore", Double.isNaN(riskScore) ? -1.0 : riskScore);
+            if (!Double.isNaN(riskScore)) {
+                metadata.put("riskScore", riskScore);
+            }
             metadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
 
             // Document 생성 및 저장
@@ -464,17 +565,16 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         return Double.NaN;  // AI Native: LLM이 riskScore 직접 결정
     }
 
+    /**
+     * Action을 권장 조치 문자열로 변환 (AI Native v3.3.0 - 4개 Action)
+     */
     private String mapActionToRecommendation(SecurityDecision.Action action) {
-        switch (action) {
-            case BLOCK:
-                return "BLOCK_IMMEDIATELY";
-            case ALLOW:
-                return "ALLOW";
-            case ESCALATE:
-                return "ESCALATE_TO_LAYER2";
-            default:
-                return "MONITOR";
-        }
+        return switch (action) {
+            case ALLOW -> "ALLOW";
+            case BLOCK -> "BLOCK_IMMEDIATELY";
+            case CHALLENGE -> "REQUIRE_MFA";
+            case ESCALATE -> "ESCALATE_TO_LAYER2";
+        };
     }
 
     @Override

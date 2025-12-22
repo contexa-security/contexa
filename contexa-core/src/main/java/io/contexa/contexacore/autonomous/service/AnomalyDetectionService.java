@@ -262,7 +262,8 @@ public class AnomalyDetectionService {
                 .userAgent(event.getUserAgent())
                 // requestPath와 currentTrustScore 필드가 HCADContext에 정의되어 있음
                 .requestPath("/unknown") // SecurityEvent에 requestPath가 없으므로 기본값 사용
-                .currentTrustScore(event.getConfidenceScore() != null ? event.getConfidenceScore() : 0.5)
+                // AI Native: deprecated getConfidenceScore() 제거, metadata에서 추출 또는 기본값
+                .currentTrustScore(extractTrustScoreFromMetadata(event))
                 .build();
     }
 
@@ -307,6 +308,24 @@ public class AnomalyDetectionService {
         } catch (Exception e) {
             log.error("[AnomalyDetectionService] Failed to save anomaly detection for user: {}", userId, e);
         }
+    }
+
+    /**
+     * AI Native: metadata에서 trustScore 추출
+     * deprecated getConfidenceScore() 대체
+     */
+    private double extractTrustScoreFromMetadata(SecurityEvent event) {
+        if (event.getMetadata() != null) {
+            // auth.trustScore 또는 authz.trustScore에서 추출
+            Object trustScore = event.getMetadata().get("auth.trustScore");
+            if (trustScore == null) {
+                trustScore = event.getMetadata().get("authz.trustScore");
+            }
+            if (trustScore instanceof Number) {
+                return ((Number) trustScore).doubleValue();
+            }
+        }
+        return 0.5; // 기본값
     }
 
     /**

@@ -763,17 +763,17 @@ public class DynamicStrategySelector {
 
         @Override
         public ThreatAssessment evaluate(SecurityEvent event) {
-            // 기본 위협 평가 로직
+            // AI Native: 기본 위협 평가 - LLM 분석 필요 표시
             return ThreatAssessment.builder()
                 .eventId(event.getEventId())
                 .assessmentId("default-" + System.currentTimeMillis())
                 .assessedAt(LocalDateTime.now())
                 .evaluator("DEFAULT")
-                .threatLevel(ThreatAssessment.ThreatLevel.MEDIUM)
                 .riskScore(0.5)
                 .confidence(0.5)
-                .recommendedActions(List.of("monitor", "log"))
+                .recommendedActions(List.of("ESCALATE", "LLM_ANALYSIS_REQUIRED"))
                 .metadata(Map.of("strategy", "default"))
+                .action("ESCALATE")  // AI Native: LLM 분석 필요
                 .build();
         }
 

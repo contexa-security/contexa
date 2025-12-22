@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -68,89 +69,217 @@ public class Layer3PromptTemplate {
                                HistoricalContext historicalContext,
                                SystemContext systemContext,
                                String baselineContext) {
-        Optional<String> targetResource = eventEnricher.getTargetResource(event);
-        Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
         Optional<Object> payload = eventEnricher.getRequestPayload(event);
 
-        String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
-        String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "unknown";
-        String userAgent = event.getUserAgent() != null ? event.getUserAgent() : "unknown";
-        String target = targetResource.orElse("unknown");
-        String method = httpMethod.orElse("unknown");
+        // AI Native: "UNKNOWN" 기본값 제거, null 그대로 처리
+        String eventType = event.getEventType() != null ? event.getEventType().toString() : null;
+        String severity = event.getSeverity() != null ? event.getSeverity().name() : "MEDIUM";
+        // AI Native: null인 경우 프롬프트에서 생략
+        String userId = event.getUserId();
         String fullPayload = payload.map(Object::toString).orElse("empty");
 
-        // Layer1/2 결과 극도로 축약
-        String previousAnalysis = String.format("L1: Risk %.1f/%s | L2: Risk %.1f/%s",
-            layer1Decision.getRiskScore(),
-            layer1Decision.getAction() != null ? layer1Decision.getAction().toString() : "?",
-            layer2Decision.getRiskScore(),
-            layer2Decision.getThreatCategory() != null ? layer2Decision.getThreatCategory() : "?");
+        // Phase 5: metadata에서 authz 정보 추출 (Layer1 패턴 적용)
+        String authzSection = buildAuthzSection(event);
+        String networkSection = buildNetworkSection(event);
+        int dataQuality = calculateDataQuality(event);
 
-        // Threat Intelligence 핵심만
-        String threatSummary = String.format("Reputation: %.1f | IOC: %s | Actors: %s",
-            threatIntel.getReputationScore(),
-            threatIntel.getIocMatches().isEmpty() || "none".equals(threatIntel.getIocMatches()) ? "none" :
-                threatIntel.getIocMatches().substring(0, Math.min(30, threatIntel.getIocMatches().length())),
-            threatIntel.getKnownActors().isEmpty() || "none".equals(threatIntel.getKnownActors()) ? "none" :
-                threatIntel.getKnownActors().substring(0, Math.min(30, threatIntel.getKnownActors().length())));
+        // Threat Intelligence 핵심 (AI Native: null 체크)
+        StringBuilder threatBuilder = new StringBuilder();
+        threatBuilder.append("Reputation: ").append(String.format("%.1f", threatIntel.getReputationScore()));
 
-        // Historical Context 핵심만
-        String historySummary = String.format("Previous: %s | Similar: %s",
-            historicalContext.getPreviousAttacks().isEmpty() || "none".equals(historicalContext.getPreviousAttacks()) ? "none" :
-                historicalContext.getPreviousAttacks().substring(0, Math.min(30, historicalContext.getPreviousAttacks().length())),
-            historicalContext.getSimilarIncidents().isEmpty() || "none".equals(historicalContext.getSimilarIncidents()) ? "none" :
-                historicalContext.getSimilarIncidents().substring(0, Math.min(30, historicalContext.getSimilarIncidents().length())));
+        String iocMatches = threatIntel.getIocMatches();
+        if (iocMatches != null && !iocMatches.isEmpty()) {
+            threatBuilder.append(" | IOC: ").append(iocMatches.substring(0, Math.min(30, iocMatches.length())));
+        }
 
-        // System Context 핵심만
-        String systemSummary = String.format("Asset: %s | Data: %s",
-            systemContext.getAssetCriticality(),
-            systemContext.getDataSensitivity());
+        String knownActors = threatIntel.getKnownActors();
+        if (knownActors != null && !knownActors.isEmpty()) {
+            threatBuilder.append(" | Actors: ").append(knownActors.substring(0, Math.min(30, knownActors.length())));
+        }
+
+        // relatedCampaigns 추가 (AI Native: null 체크)
+        String campaigns = threatIntel.getRelatedCampaigns();
+        if (campaigns != null && !campaigns.isEmpty()) {
+            String campaignsSummary = campaigns.length() > 50 ? campaigns.substring(0, 47) + "..." : campaigns;
+            threatBuilder.append("\nCampaigns: ").append(campaignsSummary);
+        }
+        String threatSummary = threatBuilder.toString();
+
+        // Historical Context (AI Native: null 체크)
+        StringBuilder historyBuilder = new StringBuilder();
+
+        String previousAttacks = historicalContext.getPreviousAttacks();
+        if (previousAttacks != null && !previousAttacks.isEmpty()) {
+            historyBuilder.append("Previous: ").append(previousAttacks.substring(0, Math.min(30, previousAttacks.length())));
+        }
+
+        String similarIncidents = historicalContext.getSimilarIncidents();
+        if (similarIncidents != null && !similarIncidents.isEmpty()) {
+            if (historyBuilder.length() > 0) historyBuilder.append(" | ");
+            historyBuilder.append("Similar: ").append(similarIncidents.substring(0, Math.min(30, similarIncidents.length())));
+        }
+
+        // vulnerabilityHistory 추가 (AI Native: null 체크)
+        String vulnHistory = historicalContext.getVulnerabilityHistory();
+        if (vulnHistory != null && !vulnHistory.isEmpty()) {
+            String vulnSummary = vulnHistory.length() > 50 ? vulnHistory.substring(0, 47) + "..." : vulnHistory;
+            historyBuilder.append("\nVulnerabilities: ").append(vulnSummary);
+        }
+        String historySummary = historyBuilder.toString();
+
+        // AI Native: System Context - metadata에 있는 실제 값만 포함 (기본값 제거)
+        // 값이 없으면 해당 필드 생략, LLM이 targetResource 경로로 직접 판단
+        StringBuilder systemBuilder = new StringBuilder();
+        String assetCrit = systemContext.getAssetCriticality();
+        String dataSens = systemContext.getDataSensitivity();
+        String compliance = systemContext.getComplianceRequirements();
+        String posture = systemContext.getSecurityPosture();
+
+        // 실제 값이 있는 필드만 포함
+        if (assetCrit != null && !assetCrit.isEmpty()) {
+            systemBuilder.append("Asset: ").append(assetCrit);
+        }
+        if (dataSens != null && !dataSens.isEmpty()) {
+            if (systemBuilder.length() > 0) systemBuilder.append(" | ");
+            systemBuilder.append("Data: ").append(dataSens);
+        }
+        if (compliance != null && !compliance.isEmpty()) {
+            if (systemBuilder.length() > 0) systemBuilder.append("\n");
+            String compSummary = compliance.length() > 30 ? compliance.substring(0, 27) + "..." : compliance;
+            systemBuilder.append("Compliance: ").append(compSummary);
+        }
+        if (posture != null && !posture.isEmpty()) {
+            if (systemBuilder.length() > 0) systemBuilder.append(" | ");
+            systemBuilder.append("Posture: ").append(posture);
+        }
+        String systemSummary = systemBuilder.toString();
 
         // HCAD 위험도 분석 결과 추가
         String hcadSection = buildHCADSection(event);
 
         // AI Native (Phase 9): Baseline 컨텍스트 섹션
-        // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
-        // LLM이 직접 비교하여 ALLOW/BLOCK/ESCALATE 판단
-        // deviationSection 제거됨 - analyzeDeviations() 제거로 불필요
         String baselineSection = (baselineContext != null && !baselineContext.isEmpty())
             ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
             : "=== USER BEHAVIOR BASELINE ===\nBaseline: Not available for expert analysis";
 
-        // Phase 12: 프롬프트 최적화 (700→450 토큰, 36% 감소)
-        // - USER-AGENT ANALYSIS: 100→15 토큰
-        // - SCORING GUIDELINES: 200→50 토큰
-        return String.format("""
-            Expert forensic security analysis with behavioral baseline comparison.
+        // Phase 5: metadata에서 추출한 풍부한 컨텍스트 정보 제공
+        // AI Native v3.3.0: 4개 Action (ALLOW/BLOCK/CHALLENGE/ESCALATE)
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Expert forensic security analysis with behavioral baseline comparison.\n\n");
 
-            Event: %s | IP: %s | UA: %s | Target: %s | Method: %s
-            Payload: %s
-            Previous: %s
-            Threat: %s
-            History: %s
-            System: %s
-            %s
+        // 1. 이벤트 기본 정보 (AI Native: null 값 조건부 출력)
+        prompt.append("=== EVENT ===\n");
+        if (eventType != null) {
+            prompt.append("Type: ").append(eventType).append(" | Severity: ").append(severity).append("\n");
+        } else {
+            prompt.append("Severity: ").append(severity).append("\n");
+        }
+        if (userId != null) {
+            prompt.append("User: ").append(userId).append("\n");
+        }
 
-            %s
+        // 2. 네트워크 정보 (유효한 데이터만)
+        if (!networkSection.isEmpty()) {
+            prompt.append("\n=== NETWORK ===\n");
+            prompt.append(networkSection).append("\n");
+        }
 
-            RULES:
-            - ZERO TRUST: Unknown != Safe
-            - confidence < 0.7 -> ESCALATE
-            - Attack signature + high confidence -> BLOCK
+        // 3. Authorization 정보 (metadata에서 추출)
+        if (!authzSection.isEmpty()) {
+            prompt.append("\n=== AUTHORIZATION ===\n");
+            prompt.append(authzSection).append("\n");
+        }
 
-            Response: JSON only, max 20 tokens for "d" field
-            {"r":<0-1>,"c":<0-1>,"a":"A|E|B","d":"<20 tokens max>"}
+        // 4. 페이로드 정보 (있는 경우만)
+        if (!"empty".equals(fullPayload)) {
+            prompt.append("\n=== PAYLOAD ===\n");
+            String payloadSummary = fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload;
+            prompt.append(payloadSummary).append("\n");
+        }
 
-            Fields:
+        // 5. Layer1/Layer2 분석 결과 (AI Native: null 값 조건부 출력, "?" 기본값 제거)
+        prompt.append("\n=== PREVIOUS LAYER ANALYSIS ===\n");
+        prompt.append("Layer1: Risk=").append(String.format("%.2f", layer1Decision.getRiskScore()));
+        if (layer1Decision.getAction() != null) {
+            prompt.append(" | Action=").append(layer1Decision.getAction().toString());
+        }
+        Double l1Confidence = layer1Decision.getConfidence();
+        if (l1Confidence != null) {
+            prompt.append(" | Confidence=").append(String.format("%.2f", l1Confidence));
+        }
+        prompt.append("\n");
+        if (layer1Decision.getReasoning() != null && !layer1Decision.getReasoning().isEmpty()) {
+            String reasoning = layer1Decision.getReasoning();
+            if (reasoning.length() > 80) {
+                reasoning = reasoning.substring(0, 77) + "...";
+            }
+            prompt.append("L1 Reason: ").append(reasoning).append("\n");
+        }
+        prompt.append("Layer2: Risk=").append(String.format("%.2f", layer2Decision.getRiskScore()));
+        if (layer2Decision.getAction() != null) {
+            prompt.append(" | Action=").append(layer2Decision.getAction().toString());
+        }
+        if (layer2Decision.getThreatCategory() != null) {
+            prompt.append(" | Category=").append(layer2Decision.getThreatCategory());
+        }
+        prompt.append("\n");
+        if (layer2Decision.getReasoning() != null && !layer2Decision.getReasoning().isEmpty()) {
+            String reasoning = layer2Decision.getReasoning();
+            if (reasoning.length() > 80) {
+                reasoning = reasoning.substring(0, 77) + "...";
+            }
+            prompt.append("L2 Reason: ").append(reasoning).append("\n");
+        }
+
+        // 6. 위협 인텔리전스
+        prompt.append("\n=== THREAT INTELLIGENCE ===\n");
+        prompt.append(threatSummary).append("\n");
+
+        // 7. 과거 이력 (AI Native: 빈 경우 생략)
+        if (!historySummary.isEmpty()) {
+            prompt.append("\n=== HISTORICAL CONTEXT ===\n");
+            prompt.append(historySummary).append("\n");
+        }
+
+        // 8. 시스템 컨텍스트 (AI Native: 실제 metadata 값이 있을 때만 포함)
+        if (!systemSummary.isEmpty()) {
+            prompt.append("\n=== SYSTEM CONTEXT ===\n");
+            prompt.append(systemSummary).append("\n");
+        }
+
+        // 9. HCAD 분석
+        prompt.append("\n").append(hcadSection).append("\n");
+
+        // 10. 사용자 Baseline
+        prompt.append("\n").append(baselineSection).append("\n");
+
+        // 11. 데이터 품질 평가 (AI Native: 임계값 제거)
+        // LLM이 데이터 필드 수를 보고 직접 신뢰도 결정
+        prompt.append("\n=== DATA QUALITY ===\n");
+        prompt.append("Available info: ").append(dataQuality).append("/10 fields\n");
+
+        // 12. 응답 형식 (AI Native: EXPERT RULE 제거)
+        prompt.append("""
+
+            === RESPONSE FORMAT ===
+            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>"}
             r: riskScore (0.0=safe, 1.0=attack)
             c: confidence (0.0-1.0)
-            a: A=Allow, E=Escalate, B=Block
-            d: Brief reason (max 20 tokens, e.g., "new IP from US", "SQL injection attempt")
-            """,
-            eventType, sourceIp, userAgent, target, method,
-            fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload,
-            previousAnalysis, threatSummary, historySummary, systemSummary, hcadSection,
-            baselineSection);
+            a: Action (one of A/B/C/E)
+            d: Brief reason (max 20 tokens)
+
+            === ACTION GUIDE (Expert Level) ===
+            A (ALLOW): Safe - Verified normal behavior, no threat indicators
+            B (BLOCK): CRITICAL - Confirmed attack with high confidence.
+               Examples: Known threat actor, IOC match, MITRE technique confirmed, malware signature
+            C (CHALLENGE): HIGH RISK - Strong suspicion but needs human verification.
+               Examples: APT-like behavior, privilege escalation, lateral movement attempt
+            E (ESCALATE): Requires human SOC analyst review for final decision
+
+            Determine action based on your expert analysis of all available context.
+            """);
+
+        return prompt.toString();
     }
 
     /**
@@ -162,72 +291,244 @@ public class Layer3PromptTemplate {
      * - LLM이 riskScore를 해석하고 action을 직접 결정
      */
     private String buildHCADSection(SecurityEvent event) {
-        Double riskScore = event.getRiskScore();
-
-        if (riskScore == null || Double.isNaN(riskScore)) {
-            return "HCAD Analysis: Not available (requires LLM expert analysis)";
-        }
-
-        // AI Native: raw 데이터만 제공, 임계값 기반 assessment 제거
-        // LLM이 riskScore를 해석하여 action(ALLOW/BLOCK/INVESTIGATE)을 결정
-        return String.format("""
-            HCAD Risk Analysis:
-            - Risk Score: %.3f
-            - Layer3 Expert: Determine action based on this score and threat intelligence""",
-            riskScore
-        );
+        // AI Native: SecurityEvent.riskScore 필드 제거됨
+        // HCAD 분석 결과는 ThreatAssessment에서 관리
+        // LLM이 위협 인텔리전스와 함께 전문가 수준 분석하여 위험도 결정
+        return "HCAD Analysis: Expert LLM analysis with threat intelligence required";
     }
 
+    /**
+     * Phase 5: metadata에서 Authorization 정보 추출 (Layer1 패턴 적용)
+     *
+     * authz.resource, authz.action, authz.result, authz.reason,
+     * methodClass, methodName 등 풍부한 컨텍스트 정보 제공
+     */
+    private String buildAuthzSection(SecurityEvent event) {
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata == null || metadata.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder authz = new StringBuilder();
+
+        // authz.resource - 접근 대상 리소스
+        String authzResource = getStringFromMetadata(metadata, "authz.resource");
+        if (isValidData(authzResource)) {
+            authz.append("Resource: ").append(authzResource).append("\n");
+        }
+
+        // methodClass, methodName - 호출된 메서드 정보
+        String methodClass = getStringFromMetadata(metadata, "methodClass");
+        String methodName = getStringFromMetadata(metadata, "methodName");
+        if (isValidData(methodClass) || isValidData(methodName)) {
+            String classSimpleName = extractSimpleClassName(methodClass);
+            authz.append("Method: ").append(classSimpleName).append(".").append(methodName).append("\n");
+        }
+
+        // authz.action - 수행 액션
+        String authzAction = getStringFromMetadata(metadata, "authz.action");
+        if (isValidData(authzAction)) {
+            authz.append("Action: ").append(authzAction).append("\n");
+        }
+
+        // authz.result - 인가 결과
+        String authzResult = getStringFromMetadata(metadata, "authz.result");
+        if (isValidData(authzResult)) {
+            authz.append("Result: ").append(authzResult).append("\n");
+        }
+
+        // authz.reason - 거부 이유 (있는 경우)
+        String authzReason = getStringFromMetadata(metadata, "authz.reason");
+        if (isValidData(authzReason)) {
+            // 이유가 너무 길면 요약
+            if (authzReason.length() > 80) {
+                authzReason = authzReason.substring(0, 77) + "...";
+            }
+            authz.append("Reason: ").append(authzReason).append("\n");
+        }
+
+        return authz.toString().trim();
+    }
+
+    /**
+     * 네트워크 정보 섹션 구성 (유효한 데이터만)
+     */
+    private String buildNetworkSection(SecurityEvent event) {
+        StringBuilder network = new StringBuilder();
+
+        if (isValidData(event.getSourceIp())) {
+            network.append("IP: ").append(event.getSourceIp()).append("\n");
+        }
+
+        if (isValidData(event.getUserAgent())) {
+            String ua = event.getUserAgent();
+            if (ua.length() > 80) {
+                ua = ua.substring(0, 77) + "...";
+            }
+            network.append("UserAgent: ").append(ua).append("\n");
+        }
+
+        // targetResource, httpMethod는 eventEnricher에서 추출
+        Optional<String> targetResource = eventEnricher.getTargetResource(event);
+        Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
+
+        if (targetResource.isPresent() && isValidData(targetResource.get())) {
+            network.append("Target: ").append(targetResource.get()).append("\n");
+        }
+
+        if (httpMethod.isPresent() && isValidData(httpMethod.get())) {
+            network.append("HttpMethod: ").append(httpMethod.get()).append("\n");
+        }
+
+        return network.toString().trim();
+    }
+
+    /**
+     * 데이터가 유효한지 검사 (null, empty, "unknown" 제외)
+     */
+    private boolean isValidData(String value) {
+        return value != null && !value.isEmpty() && !value.equalsIgnoreCase("unknown");
+    }
+
+    /**
+     * metadata에서 문자열 값 안전하게 추출 (AI Native)
+     *
+     * AI Native 원칙: 기본값 "unknown" 제거
+     * - 값이 없으면 null 반환
+     * - 호출부에서 null 체크 후 프롬프트 생략
+     * - LLM이 "unknown" 문자열을 실제 데이터로 오인하는 문제 방지
+     */
+    private String getStringFromMetadata(Map<String, Object> metadata, String key) {
+        Object value = metadata.get(key);
+        if (value == null) {
+            return null;
+        }
+        String strValue = value.toString();
+        return strValue.isEmpty() ? null : strValue;
+    }
+
+    /**
+     * 클래스 풀네임에서 심플 클래스명 추출 (AI Native)
+     * 예: "io.contexa.service.TestService" -> "TestService"
+     *
+     * AI Native 원칙: 기본값 "unknown" 제거
+     * - 값이 없으면 null 반환
+     */
+    private String extractSimpleClassName(String fullClassName) {
+        if (fullClassName == null || fullClassName.isEmpty()) {
+            return null;
+        }
+        int lastDot = fullClassName.lastIndexOf('.');
+        if (lastDot >= 0 && lastDot < fullClassName.length() - 1) {
+            return fullClassName.substring(lastDot + 1);
+        }
+        return fullClassName;
+    }
+
+    /**
+     * 데이터 품질 점수 계산 (0-10)
+     * LLM이 판단의 신뢰도를 조절하는 데 참고
+     */
+    private int calculateDataQuality(SecurityEvent event) {
+        int score = 0;
+
+        // 필수 정보
+        if (event.getEventType() != null) score++;
+        if (event.getSeverity() != null) score++;
+        if (isValidData(event.getUserId())) score++;
+        if (isValidData(event.getSourceIp())) score++;
+        if (isValidData(event.getUserAgent())) score++;
+
+        // 추가 정보
+        if (isValidData(event.getSessionId())) score++;
+        if (isValidData(event.getTargetResource())) score++;
+        if (event.getTimestamp() != null) score++;
+
+        // metadata 정보
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null && !metadata.isEmpty()) {
+            if (metadata.containsKey("authz.resource")) score++;
+            if (metadata.containsKey("methodClass")) score++;
+        }
+
+        return Math.min(10, score);
+    }
+
+    /**
+     * ThreatIntelligence - AI Native
+     *
+     * AI Native 원칙: 기본값 "none" 제거
+     * - 값이 없으면 null 반환
+     * - 호출부에서 null 체크 후 프롬프트 생략
+     */
     public static class ThreatIntelligence {
         private String knownActors;
         private String relatedCampaigns;
         private String iocMatches;
         private double reputationScore;
 
-        public String getKnownActors() { return knownActors != null ? knownActors : "none"; }
+        // AI Native: 기본값 없이 null 반환
+        public String getKnownActors() { return knownActors; }
         public void setKnownActors(String knownActors) { this.knownActors = knownActors; }
 
-        public String getRelatedCampaigns() { return relatedCampaigns != null ? relatedCampaigns : "none"; }
+        public String getRelatedCampaigns() { return relatedCampaigns; }
         public void setRelatedCampaigns(String relatedCampaigns) { this.relatedCampaigns = relatedCampaigns; }
 
-        public String getIocMatches() { return iocMatches != null ? iocMatches : "none"; }
+        public String getIocMatches() { return iocMatches; }
         public void setIocMatches(String iocMatches) { this.iocMatches = iocMatches; }
 
         public double getReputationScore() { return reputationScore; }
         public void setReputationScore(double reputationScore) { this.reputationScore = reputationScore; }
     }
 
+    /**
+     * HistoricalContext - AI Native
+     *
+     * AI Native 원칙: 기본값 "none" 제거
+     * - 값이 없으면 null 반환
+     * - 호출부에서 null 체크 후 프롬프트 생략
+     */
     public static class HistoricalContext {
         private String similarIncidents;
         private String previousAttacks;
         private String vulnerabilityHistory;
 
-        public String getSimilarIncidents() { return similarIncidents != null ? similarIncidents : "none"; }
+        // AI Native: 기본값 없이 null 반환
+        public String getSimilarIncidents() { return similarIncidents; }
         public void setSimilarIncidents(String similarIncidents) { this.similarIncidents = similarIncidents; }
 
-        public String getPreviousAttacks() { return previousAttacks != null ? previousAttacks : "none"; }
+        public String getPreviousAttacks() { return previousAttacks; }
         public void setPreviousAttacks(String previousAttacks) { this.previousAttacks = previousAttacks; }
 
-        public String getVulnerabilityHistory() { return vulnerabilityHistory != null ? vulnerabilityHistory : "none"; }
+        public String getVulnerabilityHistory() { return vulnerabilityHistory; }
         public void setVulnerabilityHistory(String vulnerabilityHistory) { this.vulnerabilityHistory = vulnerabilityHistory; }
     }
 
+    /**
+     * AI Native: SystemContext - 기본값 제거
+     *
+     * 규칙 기반 기본값 완전 제거:
+     * - null이면 null 반환 (기본값 MEDIUM/NORMAL 등 사용 금지)
+     * - 프롬프트에서 null인 필드는 생략
+     * - LLM이 targetResource 경로를 보고 직접 판단
+     */
     public static class SystemContext {
         private String assetCriticality;
         private String dataSensitivity;
         private String complianceRequirements;
         private String securityPosture;
 
-        public String getAssetCriticality() { return assetCriticality != null ? assetCriticality : "MEDIUM"; }
+        // AI Native: 기본값 없이 null 반환
+        public String getAssetCriticality() { return assetCriticality; }
         public void setAssetCriticality(String assetCriticality) { this.assetCriticality = assetCriticality; }
 
-        public String getDataSensitivity() { return dataSensitivity != null ? dataSensitivity : "MEDIUM"; }
+        public String getDataSensitivity() { return dataSensitivity; }
         public void setDataSensitivity(String dataSensitivity) { this.dataSensitivity = dataSensitivity; }
 
-        public String getComplianceRequirements() { return complianceRequirements != null ? complianceRequirements : "none"; }
+        public String getComplianceRequirements() { return complianceRequirements; }
         public void setComplianceRequirements(String complianceRequirements) { this.complianceRequirements = complianceRequirements; }
 
-        public String getSecurityPosture() { return securityPosture != null ? securityPosture : "NORMAL"; }
+        public String getSecurityPosture() { return securityPosture; }
         public void setSecurityPosture(String securityPosture) { this.securityPosture = securityPosture; }
     }
 }

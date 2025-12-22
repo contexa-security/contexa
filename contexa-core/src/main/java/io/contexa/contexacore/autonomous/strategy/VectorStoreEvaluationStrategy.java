@@ -67,12 +67,12 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
                 .assessmentId(UUID.randomUUID().toString())
                 .assessedAt(LocalDateTime.now())
                 .evaluator(getStrategyName())
-                .threatLevel(ThreatAssessment.ThreatLevel.INFO)  // AI Native: LLM 분석 필요
                 .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
                 .indicators(convertToStringList(indicators))
                 .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED"))  // AI Native: LLM 분석 필요
                 .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
                 .metadata(createMetadata(event, similarPatterns))
+                .action("ESCALATE")  // AI Native: LLM 분석 필요
                 .build();
 
         } catch (Exception e) {
@@ -370,12 +370,12 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName() + "-Fallback")
-            .threatLevel(ThreatAssessment.ThreatLevel.INFO)  // AI Native: LLM 분석 미수행
             .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
             .indicators(List.of("VECTORSTORE_UNAVAILABLE"))
             .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED"))
             .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
             .metadata(Map.of("mode", "fallback", "reason", "vectorstore_unavailable"))
+            .action("ESCALATE")  // AI Native: LLM 분석 필요
             .build();
     }
 
@@ -386,12 +386,12 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName() + "-Error")
-            .threatLevel(ThreatAssessment.ThreatLevel.INFO)  // AI Native: LLM 분석 미수행
             .riskScore(Double.NaN)  // AI Native: LLM이 결정해야 함
             .indicators(List.of("EVALUATION_ERROR"))
             .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED", "MANUAL_REVIEW"))
             .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
             .metadata(Map.of("error", error.getMessage(), "mode", "error"))
+            .action("ESCALATE")  // AI Native: LLM 분석 필요
             .build();
     }
 }

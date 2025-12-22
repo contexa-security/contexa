@@ -34,6 +34,7 @@ public class PolicyCondition implements Serializable {
 
     public enum AuthorizationPhase {
         PRE_AUTHORIZE,
-        POST_AUTHORIZE
+        POST_AUTHORIZE,
+        PROTECTABLE
     }
 }

@@ -16,7 +16,11 @@
       "Bash(powershell -Command \"\\(Get-Content ''contexa-core/src/main/java/io/contexa/contexacore/autonomous/tiered/strategy/AbstractTieredStrategy.java'' -Raw\\) -replace ''protected abstract String getLayerName\\\\\\(\\\\\\);'', ''protected abstract String getLayerName\\(\\);\n\n    /**\n     * 전략 이름 반환 \\(ThreatEvaluationStrategy 인터페이스 구현\\)\n     *\n     * getLayerName\\(\\)에 위임하여 Layer 이름을 전략 이름으로 사용합니다.\n     *\n     * @return 전략 이름\n     */\n    @Override\n    public String getStrategyName\\(\\) {\n        return getLayerName\\(\\);\n    }'' | Set-Content ''contexa-core/src/main/java/io/contexa/contexacore/autonomous/tiered/strategy/AbstractTieredStrategy.java'' -NoNewline\")",
       "Bash(git checkout:*)",
       "Bash(python:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(gradlew.bat compileJava:*)",
+      "Bash(cmd.exe /c:*)",
+      "Bash(./gradlew :contexa-core:test:*)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": []

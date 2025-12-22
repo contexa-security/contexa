@@ -311,10 +311,8 @@ public class PolicyEvolutionEngine {
             context.put("organizationId", event.getOrganizationId());
         }
         
-        // 위협 정보
-        if (event.getMitreAttackId() != null) {
-            context.put("mitreAttackId", event.getMitreAttackId());
-        }
+        // AI Native: mitreAttackId는 ThreatAssessment에서 관리
+        // SecurityEvent의 deprecated 필드 제거됨
         
         // 학습 컨텍스트 병합
         context.putAll(metadata.getLearningContext());

@@ -95,7 +95,6 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         return ThreatAssessment.builder()
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
-                .threatLevel(null)
                 .indicators(new ArrayList<>())
                 .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer2-Contextual")
@@ -245,10 +244,8 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         String userId = event.getUserId();
 
         // 유사 이벤트 조회 (유지 - raw 데이터)
+        // AI Native: 빈 리스트는 그대로 유지, 마커 생성 금지
         List<String> similarEvents = findSimilarEvents(event);
-        if (similarEvents.isEmpty()) {
-            similarEvents.add("[FIRST_EVENT: no previous similar events found]");
-        }
         analysis.setSimilarEvents(similarEvents);
 
         if (baselineLearningService != null && userId != null) {
@@ -350,10 +347,8 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 queryBuilder.append("session ");
             }
 
-            // 위협 타입 기반 검색
-            if (event.getThreatType() != null && !event.getThreatType().isBlank()) {
-                queryBuilder.append(event.getThreatType()).append(" ");
-            }
+            // AI Native: getThreatType() deprecated 필드 사용 제거
+            // 위협 타입은 ThreatAssessment에서 LLM이 결정
 
             String query = queryBuilder.toString().trim();
 
@@ -462,11 +457,10 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                     ? jsonNode.get("confidence").asDouble() : null;
             String action = jsonNode.has("action") ? jsonNode.get("action").asText() : "ESCALATE";
             String reasoning = jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning provided";
-            // AI Native: threatCategory 기본값 제거 - LLM이 분류하지 않으면 마커 표시
-            // "UNKNOWN"은 플랫폼이 분류를 결정하는 것이므로 위반
-            // "[NOT_CLASSIFIED]"는 LLM에게 데이터 부재를 명시적으로 전달
+            // AI Native: threatCategory는 LLM이 분류, 없으면 null 유지
+            // 플랫폼이 기본값이나 마커를 생성하지 않음
             String threatCategory = jsonNode.has("threatCategory") && !jsonNode.get("threatCategory").asText().isBlank()
-                    ? jsonNode.get("threatCategory").asText() : "[NOT_CLASSIFIED]";
+                    ? jsonNode.get("threatCategory").asText() : null;
 
             List<String> mitigationActions = new ArrayList<>();
             if (jsonNode.has("mitigationActions") && jsonNode.get("mitigationActions").isArray()) {
@@ -509,8 +503,8 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 .riskScore(Double.NaN)
                 .confidence(Double.NaN)
                 .action("ESCALATE")  // AI Native: 분석 불가 시 상위 Layer로 에스컬레이션
-                .reasoning("[AI Native] Layer 2 LLM analysis unavailable - escalating to Layer 3")
-                .threatCategory("[NOT_CLASSIFIED]")  // AI Native: 플랫폼 분류 대신 마커
+                .reasoning("Layer 2 LLM analysis unavailable - escalating to Layer 3")
+                .threatCategory(null)  // AI Native: 플랫폼이 분류하지 않음
                 .behaviorPatterns(new ArrayList<>())
                 .mitigationActions(new ArrayList<>())
                 .sessionAnalysis(new HashMap<>())
@@ -520,20 +514,19 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * 문자열을 액션으로 매핑
+     * 문자열을 액션으로 매핑 (AI Native v3.3.0)
+     *
+     * LLM은 4개 결정: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
+     * - BLOCK: 극고위험군 (즉시 차단)
+     * - CHALLENGE: 고위험군 (MFA 인증 요구)
      */
     private SecurityDecision.Action mapStringToAction(String action) {
-        // AI Native: 알 수 없는 action은 ESCALATE (Zero Trust)
-        // MONITOR는 플랫폼이 임의로 결정하는 것이므로 위반
         if (action == null) return SecurityDecision.Action.ESCALATE;
         return switch (action.toUpperCase()) {
-            case "ALLOW" -> SecurityDecision.Action.ALLOW;
-            case "BLOCK" -> SecurityDecision.Action.BLOCK;
-            case "MITIGATE" -> SecurityDecision.Action.MITIGATE;
-            case "INVESTIGATE" -> SecurityDecision.Action.INVESTIGATE;
-            case "ESCALATE" -> SecurityDecision.Action.ESCALATE;
-            case "MONITOR" -> SecurityDecision.Action.MONITOR;  // LLM이 명시적으로 MONITOR 반환한 경우만
-            default -> SecurityDecision.Action.ESCALATE;  // AI Native: 불확실 시 에스컬레이션
+            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
+            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
+            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
+            default -> SecurityDecision.Action.ESCALATE;  // E 포함, 불확실한 경우 모두 에스컬레이션
         };
     }
 
@@ -596,9 +589,9 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                             decision.getAction())
             );
 
+            // v3.1.0: MITIGATE -> BLOCK으로 통합됨
             SecurityDecision.Action sessionAction = decision.getAction();
-            if (sessionAction == SecurityDecision.Action.BLOCK ||
-                sessionAction == SecurityDecision.Action.MITIGATE) {
+            if (sessionAction == SecurityDecision.Action.BLOCK) {
                 redisTemplate.opsForValue().set(
                         "session:risk:" + sessionId,
                         decision.getRiskScore(),
@@ -631,35 +624,52 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                     decision.getReasoning()
             );
 
-            // Spring AI Document는 null 값을 허용하지 않으므로 기본값 설정 필수
             Map<String, Object> metadata = new HashMap<>();
 
             // 필수 공통 metadata
             metadata.put("documentType", VectorDocumentType.BEHAVIOR.getValue());
-            metadata.put("eventId", event.getEventId() != null ? event.getEventId() : "unknown");
             metadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            metadata.put("userId", event.getUserId() != null ? event.getUserId() : "unknown");
+            // AI Native: null인 경우 필드 생략 (LLM이 "unknown"을 실제 값으로 오해 방지)
+            if (event.getEventId() != null) {
+                metadata.put("eventId", event.getEventId());
+            }
+            if (event.getUserId() != null) {
+                metadata.put("userId", event.getUserId());
+            }
 
             // SecurityEvent 정보
-            metadata.put("eventType", event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN");
-            metadata.put("sourceIp", event.getSourceIp() != null ? event.getSourceIp() : "unknown");
-            metadata.put("sessionId", event.getSessionId() != null ? event.getSessionId() : "unknown");
+            if (event.getEventType() != null) {
+                metadata.put("eventType", event.getEventType().toString());
+            }
+            if (event.getSourceIp() != null) {
+                metadata.put("sourceIp", event.getSourceIp());
+            }
+            if (event.getSessionId() != null) {
+                metadata.put("sessionId", event.getSessionId());
+            }
 
             // SecurityDecision 정보 (LLM이 직접 결정한 값만 저장)
-            // AI Native: NaN은 metadata에 저장 불가 - Double.NaN 체크 후 -1.0으로 대체 (메타데이터 전용)
+            // AI Native: NaN인 경우 필드 생략 (LLM이 -1.0을 낮은 값으로 오해 방지)
             double metaRiskScore = decision.getRiskScore();
             double metaConfidence = decision.getConfidence();
-            metadata.put("riskScore", Double.isNaN(metaRiskScore) ? -1.0 : metaRiskScore);
+            if (!Double.isNaN(metaRiskScore)) {
+                metadata.put("riskScore", metaRiskScore);
+            }
             metadata.put("action", decision.getAction() != null ? decision.getAction().toString() : "ESCALATE");
-            metadata.put("confidence", Double.isNaN(metaConfidence) ? -1.0 : metaConfidence);
-            metadata.put("threatCategory", decision.getThreatCategory() != null ? decision.getThreatCategory() : "[NOT_CLASSIFIED]");
+            if (!Double.isNaN(metaConfidence)) {
+                metadata.put("confidence", metaConfidence);
+            }
+            // AI Native: null인 경우 필드 생략
+            if (decision.getThreatCategory() != null) {
+                metadata.put("threatCategory", decision.getThreatCategory());
+            }
 
             Document document = new Document(content, metadata);
             unifiedVectorService.storeDocument(document);
 
+            // v3.1.0: MITIGATE -> BLOCK으로 통합됨
             SecurityDecision.Action vectorAction = decision.getAction();
-            if (vectorAction == SecurityDecision.Action.BLOCK ||
-                vectorAction == SecurityDecision.Action.MITIGATE) {
+            if (vectorAction == SecurityDecision.Action.BLOCK) {
                 storeThreatDocument(event, decision, content);
             }
 
@@ -676,18 +686,39 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             threatMetadata.put("documentType", VectorDocumentType.THREAT.getValue());
 
             // LLM이 직접 결정한 값만 저장
-            threatMetadata.put("riskScore", decision.getRiskScore());
-            threatMetadata.put("confidence", decision.getConfidence());
+            // AI Native: NaN인 경우 필드 생략
+            double riskScore = decision.getRiskScore();
+            double confidence = decision.getConfidence();
+            if (!Double.isNaN(riskScore)) {
+                threatMetadata.put("riskScore", riskScore);
+            }
+            if (!Double.isNaN(confidence)) {
+                threatMetadata.put("confidence", confidence);
+            }
             threatMetadata.put("action", decision.getAction().toString());
-            threatMetadata.put("threatCategory", decision.getThreatCategory() != null ? decision.getThreatCategory() : "UNKNOWN");
+            // AI Native: null인 경우 필드 생략
+            if (decision.getThreatCategory() != null) {
+                threatMetadata.put("threatCategory", decision.getThreatCategory());
+            }
 
             // 이벤트 컨텍스트 (Zero Trust 추적성)
-            threatMetadata.put("eventId", event.getEventId());
+            // AI Native: null인 경우 필드 생략
+            if (event.getEventId() != null) {
+                threatMetadata.put("eventId", event.getEventId());
+            }
             threatMetadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            threatMetadata.put("userId", event.getUserId() != null ? event.getUserId() : "unknown");
-            threatMetadata.put("eventType", event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN");
-            threatMetadata.put("sourceIp", event.getSourceIp());
-            threatMetadata.put("sessionId", event.getSessionId());
+            if (event.getUserId() != null) {
+                threatMetadata.put("userId", event.getUserId());
+            }
+            if (event.getEventType() != null) {
+                threatMetadata.put("eventType", event.getEventType().toString());
+            }
+            if (event.getSourceIp() != null) {
+                threatMetadata.put("sourceIp", event.getSourceIp());
+            }
+            if (event.getSessionId() != null) {
+                threatMetadata.put("sessionId", event.getSessionId());
+            }
 
             // Layer2 특화 정보: 행동 패턴 (LLM 분석 결과)
             if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
@@ -745,14 +776,15 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         return Double.NaN;
     }
 
+    /**
+     * Action을 권장 조치 문자열로 변환 (AI Native v3.3.0 - 4개 Action)
+     */
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         return switch (action) {
-            case BLOCK -> "BLOCK_IMMEDIATELY";
             case ALLOW -> "ALLOW";
-            case MITIGATE -> "APPLY_MITIGATION";
-            case INVESTIGATE -> "INVESTIGATE_FURTHER";
+            case BLOCK -> "BLOCK_IMMEDIATELY";
+            case CHALLENGE -> "REQUIRE_MFA";
             case ESCALATE -> "ESCALATE_TO_EXPERT";
-            default -> "MONITOR";
         };
     }
 
@@ -790,16 +822,19 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         public String getSessionId() { return sessionId; }
         public void setSessionId(String sessionId) { this.sessionId = sessionId; }
 
-        public String getUserId() { return userId != null ? userId : "unknown"; }
+        // AI Native: "unknown" 기본값 제거, null 그대로 반환
+        public String getUserId() { return userId; }
         public void setUserId(String userId) { this.userId = userId; }
 
-        public String getAuthMethod() { return authMethod != null ? authMethod : "unknown"; }
+        // AI Native: "unknown" 기본값 제거, null 그대로 반환
+        public String getAuthMethod() { return authMethod; }
         public void setAuthMethod(String authMethod) { this.authMethod = authMethod; }
 
         public LocalDateTime getStartTime() { return startTime; }
         public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
 
-        public String getIpAddress() { return ipAddress != null ? ipAddress : "unknown"; }
+        // AI Native: "unknown" 기본값 제거, null 그대로 반환
+        public String getIpAddress() { return ipAddress; }
         public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
 
         public List<String> getRecentActions() { return recentActions; }
@@ -825,11 +860,8 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             response.setRiskScore(Double.NaN);
         }
 
-        // AI Native: threatCategory가 null이면 마커 표시 (플랫폼 분류 금지)
-        // "UNKNOWN"은 플랫폼이 분류를 결정하는 것이므로 위반
-        if (response.getThreatCategory() == null || response.getThreatCategory().isBlank()) {
-            response.setThreatCategory("[NOT_CLASSIFIED]");
-        }
+        // AI Native: threatCategory가 null이면 null 유지 (플랫폼 분류 금지)
+        // 마커 생성도 AI Native 위반이므로 null 그대로 유지
 
         // mitigationActions 검증
         if (response.getMitigationActions() == null) {

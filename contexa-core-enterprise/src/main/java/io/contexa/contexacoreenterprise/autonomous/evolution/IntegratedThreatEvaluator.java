@@ -296,8 +296,8 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         double finalRiskScore = totalWeight > 0 ? weightedRiskSum / totalWeight : 0.5;
         double finalConfidence = totalWeight > 0 ? weightedConfidenceSum / totalWeight : 0.5;
 
-        // 위협 레벨 결정
-        ThreatAssessment.ThreatLevel threatLevel = determineThreatLevel(finalRiskScore);
+        // AI Native v3.1.0: threatLevel -> action 전환
+        String action = determineAction(finalRiskScore);
 
         // 중복 제거된 추천 액션
         List<String> uniqueActions = allRecommendedActions.stream()
@@ -315,11 +315,11 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .assessmentId(evaluationId)
             .assessedAt(LocalDateTime.now())
             .evaluator("IntegratedThreatEvaluator")
-            .threatLevel(threatLevel)
             .riskScore(finalRiskScore)
             .confidence(finalConfidence)
             .recommendedActions(uniqueActions)
             .metadata(combinedDetails)
+            .action(action)  // AI Native: action 사용
             .build();
     }
 
@@ -341,19 +341,20 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     }
 
     /**
-     * 위험 점수로 위협 레벨 결정
+     * AI Native v3.1.0: riskScore 기반 action 결정
+     *
+     * 참고: 이 로직은 개별 전략에서 action이 제공되지 않는 경우의 폴백입니다.
+     * 이상적으로는 각 전략이 LLM으로부터 직접 action을 받아야 합니다.
      */
-    private ThreatAssessment.ThreatLevel determineThreatLevel(double riskScore) {
+    private String determineAction(double riskScore) {
         if (riskScore >= 0.9) {
-            return ThreatAssessment.ThreatLevel.CRITICAL;
+            return "BLOCK";
         } else if (riskScore >= 0.7) {
-            return ThreatAssessment.ThreatLevel.HIGH;
+            return "INVESTIGATE";
         } else if (riskScore >= 0.5) {
-            return ThreatAssessment.ThreatLevel.MEDIUM;
-        } else if (riskScore >= 0.3) {
-            return ThreatAssessment.ThreatLevel.LOW;
+            return "ESCALATE";
         } else {
-            return ThreatAssessment.ThreatLevel.INFO;
+            return "ALLOW";
         }
     }
 
@@ -403,7 +404,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     }
 
     /**
-     * 폴백 평가 생성
+     * 폴백 평가 생성 (AI Native v3.1.0)
      */
     private ThreatAssessment createFallbackAssessment(SecurityEvent event, String evaluationId, String error) {
         log.warn("[IntegratedEvaluator] 폴백 평가 사용 - Error: {}", error);
@@ -413,11 +414,11 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .assessmentId(evaluationId)
             .assessedAt(LocalDateTime.now())
             .evaluator("IntegratedThreatEvaluator-Fallback")
-            .threatLevel(ThreatAssessment.ThreatLevel.MEDIUM)
             .riskScore(0.5)
             .confidence(0.3)
-            .recommendedActions(List.of("monitor", "log", "alert"))
+            .recommendedActions(List.of("ESCALATE", "LLM_ANALYSIS_REQUIRED"))
             .metadata(Map.of("error", error, "fallback", true, "consensusAchieved", false))
+            .action("ESCALATE")  // AI Native: 폴백 시 상위 검토 필요
             .build();
     }
 

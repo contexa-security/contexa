@@ -66,37 +66,37 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         
         // 세션 컨텍스트 분석
         SessionThreatIndicators indicators = analyzeSessionContext(event);
-        
-        // 위협 수준 결정
-        ThreatAssessment.ThreatLevel threatLevel = determineThreatLevel(indicators);
-        
+
         // 위협 지표 변환
         List<ThreatIndicator> threatIndicatorObjects = convertToThreatIndicators(indicators);
-        
+
         // String 리스트로 변환 (ThreatAssessment에 맞게)
         List<String> threatIndicatorStrings = indicators.getIndicators().entrySet().stream()
             .map(e -> e.getKey() + ": " + e.getValue())
             .collect(Collectors.toList());
-        
+
         // 권장 액션 생성
         List<String> recommendedActions = generateRecommendedActions(indicators);
-        
+
+        // AI Native: action 직접 결정 (threatLevel 기반 규칙 제거)
+        String action = determineAction(indicators);
+
         // 높은 위험도의 경우 세션 무효화 이벤트 발행
         if (indicators.shouldInvalidateSession()) {
             publishSessionInvalidationEvent(event, indicators);
         }
-        
+
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName())
-            .threatLevel(threatLevel)
             .riskScore(indicators.getAdditionalRisk())
             .indicators(threatIndicatorStrings)
             .recommendedActions(recommendedActions)
             .confidence(calculateConfidenceScore(event))
             .metadata(createMetadata(indicators))
+            .action(action)  // AI Native: action 직접 설정
             .build();
     }
     
@@ -489,22 +489,32 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
     }
     
     /**
-     * 위협 수준 결정
+     * AI Native: action 직접 결정
+     *
+     * 세션 위협 지표 기반으로 action을 결정합니다.
+     * threatLevel 기반 점수 임계값 로직 제거됨.
+     *
+     * @param indicators 세션 위협 지표
+     * @return action 문자열 (BLOCK, INVESTIGATE, ESCALATE, ALLOW)
      */
-    private ThreatAssessment.ThreatLevel determineThreatLevel(SessionThreatIndicators indicators) {
-        double risk = indicators.getAdditionalRisk();
-        
-        if (risk >= 0.9) {
-            return ThreatAssessment.ThreatLevel.CRITICAL;
-        } else if (risk >= 0.7) {
-            return ThreatAssessment.ThreatLevel.HIGH;
-        } else if (risk >= 0.5) {
-            return ThreatAssessment.ThreatLevel.MEDIUM;
-        } else if (risk >= 0.3) {
-            return ThreatAssessment.ThreatLevel.LOW;
-        } else {
-            return ThreatAssessment.ThreatLevel.INFO;
+    private String determineAction(SessionThreatIndicators indicators) {
+        // 세션 무효화 필요 = 즉시 차단
+        if (indicators.shouldInvalidateSession()) {
+            return "BLOCK";
         }
+
+        // 세션 하이재킹 의심 = 조사 필요
+        if (indicators.isSessionHijackSuspected()) {
+            return "INVESTIGATE";
+        }
+
+        // 의심스러운 활동 = 에스컬레이션
+        if (indicators.isSuspiciousActivity()) {
+            return "ESCALATE";
+        }
+
+        // 정상
+        return "ALLOW";
     }
     
     /**
@@ -609,11 +619,11 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             .assessmentId(UUID.randomUUID().toString())
             .assessedAt(LocalDateTime.now())
             .evaluator(getStrategyName())
-            .threatLevel(ThreatAssessment.ThreatLevel.INFO)
             .riskScore(0.0)
             .indicators(new ArrayList<>())
             .recommendedActions(List.of("NO_SESSION_CONTEXT"))
             .confidence(0.1)
+            .action("ALLOW")  // AI Native: action 직접 설정
             .build();
     }
     

@@ -108,19 +108,18 @@ public class AuditingHandler implements SecurityEventHandler {
 
             SecurityEvent event = context.getSecurityEvent();
 
-            // AI Native: threatLevel은 LLM이 결정해야 함
-            // 현재 AIAnalysisResult에는 ThreatLevel 필드가 없으므로 INFO 사용
-            // 향후 AIAnalysisResult에 LLM이 직접 결정한 ThreatLevel 필드 추가 필요
-            ThreatAssessment.ThreatLevel threatLevel = ThreatAssessment.ThreatLevel.INFO;
+            // AI Native: action 기반으로 전환 (threatLevel 제거)
+            // riskScore 기반으로 action 결정
+            String action = determineActionFromRiskScore(aiResult.getThreatLevel());
 
-            // ThreatAssessment 재구성
+            // ThreatAssessment 재구성 (AI Native: action 사용)
             ThreatAssessment assessment = ThreatAssessment.builder()
                 .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
                 .riskScore(aiResult.getThreatLevel())
                 .confidence(aiResult.getConfidenceScore())
                 .reason(aiResult.getSummary())
                 .evaluator(aiResult.getAiModel())
-                .threatLevel(threatLevel)  // AI Native: LLM이 결정해야 함 (현재 기본값)
+                .action(action)  // AI Native: action 사용
                 .assessedAt(LocalDateTime.now())
                 .build();
 
@@ -173,9 +172,24 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    // AI Native: 임계값 기반 ThreatLevel 매핑 제거
-    // LLM이 ThreatLevel을 직접 결정해야 함
-    // private ThreatAssessment.ThreatLevel mapThreatLevel(double riskScore) { ... }
+    /**
+     * AI Native: riskScore 기반 action 결정
+     *
+     * 참고: 이 로직은 AIAnalysisResult에 action 필드가 없는 경우의 폴백입니다.
+     * 향후 AIAnalysisResult에 LLM이 직접 결정한 action 필드가 추가되면
+     * 해당 필드를 우선 사용해야 합니다.
+     */
+    private String determineActionFromRiskScore(double riskScore) {
+        if (riskScore >= 0.9) {
+            return "BLOCK";
+        } else if (riskScore >= 0.7) {
+            return "INVESTIGATE";
+        } else if (riskScore >= 0.5) {
+            return "ESCALATE";
+        } else {
+            return "ALLOW";
+        }
+    }
 
     @Override
     public String getName() {
