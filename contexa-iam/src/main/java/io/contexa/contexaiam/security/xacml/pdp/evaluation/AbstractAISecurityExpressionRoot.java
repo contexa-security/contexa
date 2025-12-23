@@ -598,11 +598,11 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             return;
         }
 
+        // AI Native v3.3.0: 4개 Action 체계 (ALLOW, BLOCK, CHALLENGE, ESCALATE)
         double score = switch (action != null ? action.toUpperCase() : "PENDING_ANALYSIS") {
             case "ALLOW" -> 1.0;
-            case "MONITOR" -> 0.7;
             case "CHALLENGE" -> 0.5;
-            case "INVESTIGATE", "ESCALATE" -> 0.3;
+            case "ESCALATE" -> 0.3;
             case "BLOCK" -> 0.0;
             default -> 0.5; // PENDING_ANALYSIS
         };
@@ -654,21 +654,12 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     }
 
     /**
-     * LLM action이 INVESTIGATE 또는 ESCALATE인지 확인
+     * LLM action이 ESCALATE인지 확인 (AI Native v3.3.0)
      *
-     * @return LLM이 추가 조사/에스컬레이션을 결정했으면 true
+     * @return LLM이 에스컬레이션을 결정했으면 true
      */
-    public boolean needsInvestigation() {
-        return hasActionIn("INVESTIGATE", "ESCALATE");
-    }
-
-    /**
-     * LLM action이 MONITOR인지 확인
-     *
-     * @return LLM이 모니터링 모드를 결정했으면 true
-     */
-    public boolean isMonitored() {
-        return hasAction("MONITOR");
+    public boolean needsEscalation() {
+        return hasAction("ESCALATE");
     }
 
     /**
@@ -744,16 +735,16 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     }
 
     /**
-     * 컨텍스트 평가 + LLM action 통합 검증
+     * 컨텍스트 평가 + LLM action 통합 검증 (AI Native v3.3.0)
      *
-     * @return 컨텍스트 평가 통과 및 ALLOW/MONITOR action이면 true
+     * @return 컨텍스트 평가 통과 및 ALLOW action이면 true
      */
     public boolean assessContextWithAction() {
         TrustAssessment assessment = assessContext();
         if (assessment == null || assessment.score() < 0.5) {
             return false;
         }
-        return hasActionIn("ALLOW", "MONITOR");
+        return hasAction("ALLOW");
     }
 
     // ========================================================================

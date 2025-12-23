@@ -119,17 +119,19 @@ public class Layer2SecurityResponse {
     }
 
     /**
-     * 축약 action 코드를 전체 action 문자열로 확장
+     * AI Native v3.3.0: 축약 action 코드를 전체 action 문자열로 확장
+     *
+     * 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
      */
     private static String expandAction(String shortAction) {
         if (shortAction == null) return null;
 
+        // AI Native v3.3.0: 4개 Action만 허용
         return switch (shortAction.toUpperCase().trim()) {
             case "A" -> "ALLOW";
             case "E" -> "ESCALATE";
             case "B" -> "BLOCK";
-            case "M" -> "MONITOR";      // 하위 호환
-            case "C" -> "CHALLENGE";    // 하위 호환
+            case "C" -> "CHALLENGE";
             default -> shortAction;     // 이미 전체 문자열인 경우
         };
     }

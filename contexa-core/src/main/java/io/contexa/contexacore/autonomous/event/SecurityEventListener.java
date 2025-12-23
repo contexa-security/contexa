@@ -42,12 +42,16 @@ public interface SecurityEventListener {
     /**
      * 고위험 이벤트 처리
      *
-     * @deprecated AI Native 원칙 위반 - onBlockEvent() 또는 onHighRiskEventByAction() 사용 권장
+     * AI Native v3.3.0: severity 기반 판단 (하위 호환)
+     * onBlockEvent() 사용 권장
+     *
+     * @deprecated AI Native 원칙 위반 - onBlockEvent() 사용 권장
      */
     @Deprecated(since = "3.1.0", forRemoval = true)
-    @SuppressWarnings("deprecation")
     default void onHighRiskEvent(SecurityEvent event) {
-        if (event.isHighRisk()) {
+        // AI Native: severity 기반 판단 (하위 호환)
+        if (event.getSeverity() == SecurityEvent.Severity.CRITICAL ||
+            event.getSeverity() == SecurityEvent.Severity.HIGH) {
             onSecurityEvent(event);
         }
     }

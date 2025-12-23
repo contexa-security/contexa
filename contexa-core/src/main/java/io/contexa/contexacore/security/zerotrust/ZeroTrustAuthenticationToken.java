@@ -114,10 +114,11 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
     }
 
     /**
-     * 높은 위험 수준인지 확인
+     * Trust Tier 조회 (AI Native: isHighRisk() 대체)
+     * 고위험 판단: trustTier == LOW || trustTier == UNTRUSTED
      */
-    public boolean isHighRisk() {
-        return threatScore >= 0.7;
+    public ZeroTrustSecurityService.TrustTier getTrustTier() {
+        return trustTier;
     }
 
     @Override

@@ -243,19 +243,10 @@ public class SecurityEvent {
     }
     
     /**
-     * 고위험 이벤트 여부
-     *
-     * @return 고위험이면 true
-     * @deprecated AI Native 원칙 위반 - isHighRiskByAction() 사용 권장
-     */
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    public boolean isHighRisk() {
-        return severity == Severity.CRITICAL || severity == Severity.HIGH;
-    }
-
-    /**
-     * AI Native: action 기반 고위험 판단
+     * AI Native v3.3.0: action 기반 고위험 판단
      * LLM이 결정한 action으로 위험도 판단
+     *
+     * Severity 기반 isHighRisk() 제거됨 - Action 기반 판단 필수
      *
      * @param action LLM이 결정한 보안 액션
      * @return BLOCK 또는 ESCALATE이면 true
@@ -264,14 +255,17 @@ public class SecurityEvent {
         return action == SecurityDecision.Action.BLOCK ||
                action == SecurityDecision.Action.ESCALATE;
     }
-    
+
     /**
-     * 차단 가능한 이벤트 여부
-     * 
-     * @return 차단 가능하면 true
+     * AI Native v3.3.0: 차단 가능한 이벤트 여부
+     *
+     * Severity 기반 판단 제거 - 이미 차단되지 않은 모든 이벤트는 잠재적으로 차단 가능
+     * 실제 차단 여부는 LLM action으로 결정
+     *
+     * @return 아직 차단되지 않았으면 true
      */
     public boolean isBlockable() {
-        return !blocked && isHighRisk();
+        return !blocked;
     }
     
     /**

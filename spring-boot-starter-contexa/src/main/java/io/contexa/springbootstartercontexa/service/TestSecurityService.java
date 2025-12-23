@@ -54,7 +54,7 @@ public class TestSecurityService {
      */
     @Protectable(
         analysisRequirement = AnalysisRequirement.PREFERRED,
-        defaultAction = "MONITOR"
+        defaultAction = "ALLOW"
     )
     public String getNormalData(String resourceId) {
         log.info("일반 데이터 조회 요청 - resourceId: {}", resourceId);
@@ -63,7 +63,7 @@ public class TestSecurityService {
             throw new IllegalArgumentException("resourceId는 필수입니다.");
         }
 
-        return String.format("일반 데이터 [%s]: 이 데이터는 ALLOW 또는 MONITOR Action일 때 접근 가능합니다.", resourceId);
+        return String.format("일반 데이터 [%s]: 이 데이터는 ALLOW Action일 때 접근 가능합니다.", resourceId);
     }
 
     /**

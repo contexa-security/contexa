@@ -484,13 +484,13 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
     }
     
     /**
-     * AI Native: action 직접 결정
+     * AI Native v3.3.0: action 직접 결정
      *
      * 세션 위협 지표 기반으로 action을 결정합니다.
-     * threatLevel 기반 점수 임계값 로직 제거됨.
+     * INVESTIGATE 제거 - 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
      *
      * @param indicators 세션 위협 지표
-     * @return action 문자열 (BLOCK, INVESTIGATE, ESCALATE, ALLOW)
+     * @return action 문자열 (BLOCK, ESCALATE, CHALLENGE, ALLOW)
      */
     private String determineAction(SessionThreatIndicators indicators) {
         // 세션 무효화 필요 = 즉시 차단
@@ -498,14 +498,15 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             return "BLOCK";
         }
 
-        // 세션 하이재킹 의심 = 조사 필요
+        // 세션 하이재킹 의심 = 상위 계층 결정 위임
+        // AI Native v3.3.0: INVESTIGATE 제거 -> ESCALATE
         if (indicators.isSessionHijackSuspected()) {
-            return "INVESTIGATE";
+            return "ESCALATE";
         }
 
-        // 의심스러운 활동 = 에스컬레이션
+        // 의심스러운 활동 = MFA 요구
         if (indicators.isSuspiciousActivity()) {
-            return "ESCALATE";
+            return "CHALLENGE";
         }
 
         // 정상

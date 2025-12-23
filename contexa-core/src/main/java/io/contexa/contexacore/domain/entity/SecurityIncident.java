@@ -205,13 +205,6 @@ public class SecurityIncident {
             return description;
         }
         
-        /**
-         * AI Native v3.3.0: Action 기반 고위험 판단으로 대체 권장
-         * 사용처: SecurityDecision.Action.BLOCK 또는 ESCALATE 확인
-         */
-        public boolean isHighRisk() {
-            return this == CRITICAL || this == HIGH;
-        }
 
         /**
          * AI Native v3.3.0: LLM이 직접 ThreatLevel 결정
@@ -335,7 +328,10 @@ public class SecurityIncident {
      * 승인 필요 여부 판단
      */
     public boolean needsApproval() {
-        return requiresApproval || threatLevel.isHighRisk();
+        // AI Native: ThreatLevel 직접 비교
+        return requiresApproval ||
+               threatLevel == ThreatLevel.CRITICAL ||
+               threatLevel == ThreatLevel.HIGH;
     }
     
     /**

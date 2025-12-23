@@ -9,10 +9,10 @@ package io.contexa.contexacore.autonomous.event.decision;
  * 1. LLM action 기반 분류 (fromAction) - Primary
  * 2. riskScore 기반 분류 (fromRiskScore) - Deprecated, 감사 로그용
  *
- * Action 기반 Tier 매핑:
+ * Action 기반 Tier 매핑 (AI Native v3.3.0):
  * - BLOCK → CRITICAL (즉시 차단)
  * - ESCALATE → HIGH (상세 분석 필요)
- * - MONITOR → MEDIUM (모니터링)
+ * - CHALLENGE → MEDIUM (추가 인증 필요)
  * - ALLOW + isAnomaly → LOW (정상이지만 이상 신호)
  * - ALLOW → BENIGN (정상)
  *
@@ -71,19 +71,20 @@ public enum EventTier {
     }
 
     /**
-     * AI Native: Action 기반 Tier 분류 (Primary)
+     * AI Native v3.3.0: Action 기반 Tier 분류 (Primary)
      *
      * LLM이 결정한 action을 직접 사용하여 Tier 분류
      * riskScore 임계값 기반 판단 제거
+     * INVESTIGATE/MONITOR 제거 - 4개 Action만 허용
      *
      * Action 매핑:
      * - BLOCK → CRITICAL (즉시 차단)
-     * - ESCALATE/INVESTIGATE → HIGH (상세 분석 필요)
-     * - MONITOR → MEDIUM (모니터링)
+     * - ESCALATE → HIGH (상세 분석 필요)
+     * - CHALLENGE → MEDIUM (추가 인증 필요)
      * - ALLOW + isAnomaly → LOW (정상이지만 이상 신호)
      * - ALLOW → BENIGN (정상)
      *
-     * @param action LLM이 결정한 action (ALLOW/BLOCK/ESCALATE/MONITOR/INVESTIGATE)
+     * @param action LLM이 결정한 action (ALLOW/BLOCK/CHALLENGE/ESCALATE)
      * @param isAnomaly LLM이 판단한 이상 여부
      * @return 분류된 Tier
      */
@@ -93,12 +94,12 @@ public enum EventTier {
             return CRITICAL;
         }
 
-        // AI Native: LLM action 기반 Tier 결정
+        // AI Native v3.3.0: 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
         return switch (action.toUpperCase()) {
             case "BLOCK" -> CRITICAL;
-            case "ESCALATE", "INVESTIGATE" -> HIGH;
+            case "ESCALATE" -> HIGH;
+            case "CHALLENGE" -> MEDIUM;
             case "PENDING_ANALYSIS" -> MEDIUM;  // 분석 미완료: 50% 샘플링으로 재분석 트리거
-            case "MONITOR" -> MEDIUM;
             case "ALLOW" -> Boolean.TRUE.equals(isAnomaly) ? LOW : BENIGN;
             default -> MEDIUM; // 알 수 없는 action은 MEDIUM으로 안전하게 처리
         };

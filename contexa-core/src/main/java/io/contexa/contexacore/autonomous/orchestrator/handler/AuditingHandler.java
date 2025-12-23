@@ -173,22 +173,16 @@ public class AuditingHandler implements SecurityEventHandler {
     }
 
     /**
-     * AI Native: riskScore 기반 action 결정
+     * AI Native v3.3.0: Fallback action 결정
      *
-     * 참고: 이 로직은 AIAnalysisResult에 action 필드가 없는 경우의 폴백입니다.
-     * 향후 AIAnalysisResult에 LLM이 직접 결정한 action 필드가 추가되면
-     * 해당 필드를 우선 사용해야 합니다.
+     * LLM이 action을 결정하지 못한 경우 상위 계층에 결정 위임
+     * 점수 기반 분기 제거 - Action 기반 원칙 준수
+     * INVESTIGATE 제거 - 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
      */
     private String determineActionFromRiskScore(double riskScore) {
-        if (riskScore >= 0.9) {
-            return "BLOCK";
-        } else if (riskScore >= 0.7) {
-            return "INVESTIGATE";
-        } else if (riskScore >= 0.5) {
-            return "ESCALATE";
-        } else {
-            return "ALLOW";
-        }
+        // AI Native: LLM action 없을 시 상위 계층에 결정 위임
+        // 점수 기반 분기 제거
+        return "ESCALATE";
     }
 
     @Override

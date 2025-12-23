@@ -98,12 +98,12 @@ public class SecurityAnalysisCompletedEvent extends ApplicationEvent {
     }
 
     /**
-     * 고위험 여부 확인
+     * 고위험 여부 확인 (AI Native: Action 기반)
      *
-     * @return 위험도 점수가 0.7 이상이면 true
+     * @return BLOCK 또는 ESCALATE action이면 true
      */
     public boolean isHighRisk() {
-        return riskScore >= 0.7;
+        return "BLOCK".equalsIgnoreCase(action) || "ESCALATE".equalsIgnoreCase(action);
     }
 
     @Override

@@ -145,8 +145,10 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
         // 승인 이유 설정
         builder.requestReason(determineApprovalReason(context));
 
-        // 위험 수준 설정 - enum 사용
-        builder.riskLevel(context.isHighRisk() ?
+        // AI Native v3.3.0: threatLevel 기반 위험 수준 설정
+        boolean highRisk = context.getAiAnalysisResult() != null &&
+                          context.getAiAnalysisResult().getThreatLevel() >= 0.7;
+        builder.riskLevel(highRisk ?
             ApprovalRequest.RiskLevel.CRITICAL :
             ApprovalRequest.RiskLevel.HIGH);
 
@@ -329,8 +331,10 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
         // 승인 상태 설정
         builder.approvalStatus(PolicyDTO.ApprovalStatus.PENDING);
 
-        // 우선순위 설정 (높은 위험도일수록 높은 우선순위)
-        builder.priority(context.isHighRisk() ? 100 : 50);
+        // AI Native v3.3.0: threatLevel 기반 우선순위 설정
+        boolean highRiskPriority = context.getAiAnalysisResult() != null &&
+                                   context.getAiAnalysisResult().getThreatLevel() >= 0.7;
+        builder.priority(highRiskPriority ? 100 : 50);
 
         // 시간 정보 설정
         builder.createdAt(LocalDateTime.now());
@@ -355,7 +359,8 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
     private String determineApprovalReason(SecurityEventContext context) {
         StringBuilder reason = new StringBuilder("Human approval required: ");
 
-        if (context.isHighRisk()) {
+        // AI Native v3.3.0: threatLevel 기반
+        if (context.getAiAnalysisResult() != null && context.getAiAnalysisResult().getThreatLevel() >= 0.7) {
             reason.append("High risk event; ");
         }
 
@@ -389,8 +394,10 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
             actions.addAll(context.getAiAnalysisResult().getRecommendedActions().keySet());
         }
 
-        // 기본 크리티컬 액션
-        if (context.isHighRisk()) {
+        // AI Native v3.3.0: threatLevel 기반 크리티컬 액션
+        boolean highRiskActions = context.getAiAnalysisResult() != null &&
+                                  context.getAiAnalysisResult().getThreatLevel() >= 0.7;
+        if (highRiskActions) {
             if (!actions.contains("BLOCK_USER")) {
                 actions.add("BLOCK_USER");
             }
@@ -423,7 +430,8 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
     private String determinePotentialImpact(SecurityEventContext context) {
         StringBuilder impact = new StringBuilder();
 
-        if (context.isHighRisk()) {
+        // AI Native v3.3.0: threatLevel 기반
+        if (context.getAiAnalysisResult() != null && context.getAiAnalysisResult().getThreatLevel() >= 0.7) {
             impact.append("Critical security impact: potential data breach or system compromise. ");
         }
 

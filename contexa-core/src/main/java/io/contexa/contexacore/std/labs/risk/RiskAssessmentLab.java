@@ -396,18 +396,15 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
     }
 
     /**
-     * AI Native v3.3.0: 보수적 권장사항 결정
+     * AI Native v3.3.0: Fallback 권장사항
      *
-     * Fallback 모드에서만 사용 - 정상 흐름에서는 LLM이 Action 결정
-     * 이 메서드는 AI 시스템 오류 시 안전한 기본값 제공 목적
+     * LLM 실패 시 상위 계층에 결정 위임
+     * 점수 기반 분기 제거 - Action 기반 원칙 준수
      */
     private String determineConservativeRecommendation(double riskScore) {
-        // Fallback: 높은 riskScore는 보수적으로 BLOCK 처리
-        // 정상 흐름에서는 LLM이 ALLOW/BLOCK/CHALLENGE/ESCALATE 직접 결정
-        if (riskScore >= 0.8) return "BLOCK";
-        if (riskScore >= 0.6) return "CHALLENGE";
-        if (riskScore >= 0.4) return "ESCALATE";
-        return "ALLOW";
+        // AI Native: LLM 실패 시 상위 계층에 결정 위임
+        // 점수 기반 분기 제거 - 모든 Fallback은 ESCALATE
+        return "ESCALATE";
     }
 
     private void validateScoreConsistency(RiskAssessmentResponse response, String assessmentId) {

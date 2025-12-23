@@ -385,7 +385,10 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         );
 
         context.setExecutionMode(SoarExecutionMode.ASYNC);
-        context.setHumanApprovalNeeded(threatIndicators.stream().anyMatch(ThreatIndicator::requiresImmediateAction));
+        // AI Native v3.3.0: severity 기반 판단 (requiresImmediateAction 제거됨)
+        context.setHumanApprovalNeeded(threatIndicators.stream()
+            .anyMatch(indicator -> indicator.getSeverity() == ThreatIndicator.Severity.CRITICAL &&
+                                   indicator.getConfidence() > 0.8));
 
         logger.info("Created SOAR context from {} threat indicators: {}", threatIndicators.size(), incidentId);
 

@@ -9,12 +9,15 @@ import io.contexa.contexacore.autonomous.event.domain.ThreatDetectionEvent;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.decision.EventTier;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -41,12 +44,21 @@ public class ZeroTrustEventListener {
 
     private final KafkaSecurityEventPublisher kafkaSecurityEventPublisher;
     private final SecurityEventEnricher eventEnricher;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    /**
+     * Phase 14: 분석 락 TTL (30초)
+     * 동시 @Protectable 접근 시 중복 LLM 분석 방지
+     */
+    private static final Duration ANALYSIS_LOCK_TTL = Duration.ofSeconds(30);
 
     public ZeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
-            SecurityEventEnricher eventEnricher) {
+            SecurityEventEnricher eventEnricher,
+            RedisTemplate<String, Object> redisTemplate) {
         this.kafkaSecurityEventPublisher = kafkaSecurityEventPublisher;
         this.eventEnricher = eventEnricher;
+        this.redisTemplate = redisTemplate;
     }
     
     @Value("${security.zerotrust.enabled:true}")
@@ -134,6 +146,10 @@ public class ZeroTrustEventListener {
     
     /**
      * 권한 결정 이벤트 처리
+     *
+     * Phase 14: Redis SETNX 패턴으로 동시 LLM 분석 방지
+     * 동일 사용자에 대해 여러 @Protectable 리소스 동시 접근 시
+     * 첫 번째 요청만 LLM 분석을 트리거하고 나머지는 스킵
      */
     @EventListener
     public void handleAuthorizationDecision(AuthorizationDecisionEvent event) {
@@ -143,8 +159,19 @@ public class ZeroTrustEventListener {
                 return;
             }
 
+            String userId = event.getUserId();
+
             log.info("[ZeroTrustEventListener] Authorization decision event - user: {}, resource: {}, granted: {}",
-                    event.getUserId(), event.getResource(), event.isGranted());
+                    userId, event.getResource(), event.isGranted());
+
+            // Phase 14: Redis SETNX 패턴으로 중복 LLM 분석 방지
+            if (userId != null && !userId.isEmpty() && !"anonymous".equals(userId)) {
+                if (!tryAcquireAnalysisLock(userId)) {
+                    log.debug("[ZeroTrustEventListener] Phase 14: LLM 분석 스킵 (이미 분석 중) - userId: {}, resource: {}",
+                            userId, event.getResource());
+                    return;
+                }
+            }
 
             // 이벤트 발행 (특화 메서드 사용 - 권한 부여/거부 패턴 분석 및 계층화 처리)
             kafkaSecurityEventPublisher.publishAuthorizationEvent(event);
@@ -156,6 +183,48 @@ public class ZeroTrustEventListener {
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("[ZeroTrustEventListener] Failed to process authorization decision event - duration: {}ms", duration, e);
+        }
+    }
+
+    /**
+     * Phase 14: LLM 분석 락 획득 시도
+     *
+     * Redis SETNX 패턴으로 동시 분석 방지
+     * - 락 획득 성공: true 반환 (분석 진행)
+     * - 락 획득 실패: false 반환 (분석 스킵 - 이미 다른 요청이 분석 중)
+     *
+     * @param userId 사용자 ID
+     * @return 락 획득 성공 여부
+     */
+    private boolean tryAcquireAnalysisLock(String userId) {
+        try {
+            // 캐시된 분석 결과가 유효한지 먼저 확인
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Object existingAction = redisTemplate.opsForHash().get(analysisKey, "action");
+            if (existingAction != null && !"PENDING_ANALYSIS".equals(existingAction.toString())) {
+                // 이미 유효한 분석 결과 있음 - 재분석 불필요
+                log.debug("[ZeroTrustEventListener] Phase 14: 유효한 분석 결과 존재 - userId: {}, action: {}",
+                        userId, existingAction);
+                return false;
+            }
+
+            // SETNX로 분석 락 획득 시도
+            String lockKey = ZeroTrustRedisKeys.analysisLock(userId);
+            Boolean acquired = redisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, "1", ANALYSIS_LOCK_TTL);
+
+            if (Boolean.TRUE.equals(acquired)) {
+                log.debug("[ZeroTrustEventListener] Phase 14: 분석 락 획득 성공 - userId: {}", userId);
+                return true;
+            } else {
+                log.debug("[ZeroTrustEventListener] Phase 14: 분석 락 획득 실패 (이미 분석 중) - userId: {}", userId);
+                return false;
+            }
+
+        } catch (Exception e) {
+            log.warn("[ZeroTrustEventListener] Phase 14: 분석 락 확인 실패 - userId: {}, 분석 진행", userId, e);
+            // Redis 오류 시 안전하게 분석 진행 (fail-open)
+            return true;
         }
     }
     

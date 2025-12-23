@@ -244,10 +244,11 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     }
     
     /**
-     * AI Native: 합의 기반 action 결정
+     * AI Native v3.3.0: 합의 기반 action 결정
      *
      * 각 전략의 action을 투표로 합의합니다.
-     * 우선순위: BLOCK > INVESTIGATE > ESCALATE > ALLOW
+     * 우선순위: BLOCK > ESCALATE > CHALLENGE > ALLOW
+     * INVESTIGATE 제거 - 4개 Action만 허용
      */
     private String determineConsensusAction(List<StrategyResult> results) {
         // 각 action별 투표 수 계산
@@ -258,20 +259,22 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
                 String action = result.getAssessment().getAction();
                 if (action != null && !action.isBlank()) {
                     double weight = strategyWeights.getOrDefault(result.getStrategyName(), 1.0);
-                    votes.merge(action.toUpperCase(), weight, Double::sum);
+                    // AI Native: INVESTIGATE/MONITOR를 ESCALATE로 매핑
+                    String normalizedAction = normalizeAction(action);
+                    votes.merge(normalizedAction, weight, Double::sum);
                 }
             }
         }
 
-        // AI Native: 우선순위 기반 선택 (BLOCK > INVESTIGATE > ESCALATE > ALLOW)
+        // AI Native v3.3.0: 우선순위 기반 선택 (BLOCK > ESCALATE > CHALLENGE > ALLOW)
         if (votes.containsKey("BLOCK")) {
             return "BLOCK";
         }
-        if (votes.containsKey("INVESTIGATE")) {
-            return "INVESTIGATE";
-        }
         if (votes.containsKey("ESCALATE")) {
             return "ESCALATE";
+        }
+        if (votes.containsKey("CHALLENGE")) {
+            return "CHALLENGE";
         }
         if (votes.containsKey("ALLOW")) {
             return "ALLOW";
@@ -279,6 +282,20 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
 
         // 기본값: ESCALATE
         return "ESCALATE";
+    }
+
+    /**
+     * AI Native v3.3.0: Action 정규화
+     *
+     * 레거시 Action을 4개 Action 체계로 변환
+     */
+    private String normalizeAction(String action) {
+        if (action == null) return "ESCALATE";
+        String upper = action.toUpperCase();
+        return switch (upper) {
+            case "INVESTIGATE", "MONITOR" -> "ESCALATE";
+            default -> upper;
+        };
     }
     
     /**

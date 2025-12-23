@@ -326,24 +326,6 @@ public class SecurityEventContext {
         updateTimestamp();
     }
 
-    /**
-     * 고위험 이벤트 여부
-     *
-     * AI Native: AI 분석 결과 우선 사용
-     * securityEvent.isHighRisk() 호출 제거 (deprecated 메서드)
-     */
-    public boolean isHighRisk() {
-        // AI Native: AI 분석 결과 우선 (LLM 판단 결과)
-        if (aiAnalysisResult != null) {
-            return aiAnalysisResult.getThreatLevel() >= 0.7;
-        }
-        // Fallback: 사용자 컨텍스트의 RiskLevel 사용
-        if (userContext != null) {
-            return userContext.getCurrentRiskLevel() == UserSecurityContext.RiskLevel.HIGH ||
-                   userContext.getCurrentRiskLevel() == UserSecurityContext.RiskLevel.CRITICAL;
-        }
-        return false;
-    }
 
     /**
      * 학습 가능 여부
@@ -356,9 +338,12 @@ public class SecurityEventContext {
 
     /**
      * 승인 필요 여부
+     *
+     * AI Native v3.3.0: threatLevel 기반 판단
      */
     public boolean requiresApproval() {
-        return isHighRisk() &&
+        boolean highRisk = aiAnalysisResult != null && aiAnalysisResult.getThreatLevel() >= 0.7;
+        return highRisk &&
                (processingStatus == ProcessingStatus.AWAITING_APPROVAL ||
                 processingStatus == ProcessingStatus.ANALYZING);
     }
@@ -379,7 +364,7 @@ public class SecurityEventContext {
 
         summary.put("incidentId", incidentId);
         summary.put("processingStatus", processingStatus);
-        summary.put("isHighRisk", isHighRisk());
+        summary.put("threatLevel", aiAnalysisResult != null ? aiAnalysisResult.getThreatLevel() : 0.0);
         summary.put("requiresApproval", requiresApproval());
 
         // AI 분석 결과

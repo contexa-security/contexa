@@ -131,8 +131,8 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
      * 승인 필요 여부 확인
      */
     private boolean requiresApproval(SecurityEventContext context) {
-        // 고위험 이벤트는 승인 필요
-        if (context.isHighRisk()) {
+        // AI Native v3.3.0: threatLevel 기반 고위험 판단
+        if (context.getAiAnalysisResult() != null && context.getAiAnalysisResult().getThreatLevel() >= 0.7) {
             return true;
         }
 

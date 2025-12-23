@@ -61,15 +61,15 @@ public @interface Protectable {
     long analysisTimeout() default 5000;
 
     /**
-     * 분석 미완료 시 기본 action
+     * 분석 미완료 시 기본 action (AI Native v3.3.0)
      *
      * analysisRequirement가 NOT_REQUIRED 또는 PREFERRED일 때 사용
-     * 가능한 값: ALLOW, MONITOR, BLOCK, CHALLENGE
-     * 기본값: MONITOR (모니터링 모드로 접근 허용)
+     * 가능한 값: ALLOW, BLOCK, CHALLENGE, ESCALATE (4개 Action)
+     * 기본값: ALLOW (분석 미완료 시 접근 허용)
      *
      * @return 기본 action 문자열
      */
-    String defaultAction() default "MONITOR";
+    String defaultAction() default "ALLOW";
 
     /**
      * 실시간 응답 차단 활성화 (Phase 7)

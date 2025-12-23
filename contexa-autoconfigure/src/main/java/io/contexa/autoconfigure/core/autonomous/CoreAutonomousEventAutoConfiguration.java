@@ -101,8 +101,9 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public ZeroTrustEventListener zeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
-            SecurityEventEnricher securityEventEnricher) {
-        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, securityEventEnricher);
+            SecurityEventEnricher securityEventEnricher,
+            RedisTemplate<String, Object> redisTemplate) {
+        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, securityEventEnricher, redisTemplate);
     }
 
     // ========== Event Publishers ==========

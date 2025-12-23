@@ -96,7 +96,7 @@ public class TestSecurityController {
      *
      * 서비스 메서드: TestSecurityService.getNormalData(String)
      * AnalysisRequirement: PREFERRED
-     * 정책: #trust.hasActionIn('ALLOW', 'MONITOR') and hasRole('USER')
+     * 정책: #trust.hasAction('ALLOW') and hasRole('USER')
      *
      * @param resourceId 리소스 식별자
      * @return 조회 결과 또는 에러 응답
@@ -150,7 +150,7 @@ public class TestSecurityController {
      *
      * 서비스 메서드: TestSecurityService.getSensitiveData(String)
      * AnalysisRequirement: REQUIRED
-     * 정책: #trust.requiresAnalysisWithAction('ALLOW', 'MONITOR') and hasRole('USER')
+     * 정책: #trust.requiresAnalysisWithAction('ALLOW') and hasRole('USER')
      *
      * @param resourceId 리소스 식별자
      * @return 조회 결과 또는 에러 응답
@@ -258,7 +258,7 @@ public class TestSecurityController {
      *
      * 서비스 메서드: TestSecurityService.getBulkData()
      * AnalysisRequirement: PREFERRED + enableRuntimeInterception
-     * 정책: #trust.hasActionOrDefault('MONITOR', 'ALLOW', 'MONITOR')
+     * 정책: #trust.hasActionOrDefault('ALLOW', 'ALLOW')
      *
      * @return 조회 결과 또는 에러 응답
      */

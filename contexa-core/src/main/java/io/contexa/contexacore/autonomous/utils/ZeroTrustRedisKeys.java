@@ -100,6 +100,31 @@ public class ZeroTrustRedisKeys {
     }
 
     /**
+     * Phase 14: LLM 분석 락 키
+     * 동시 @Protectable 접근 시 중복 LLM 분석 방지
+     * Format: security:analysis:lock:{userId}
+     * TTL: 30 seconds
+     *
+     * 사용처:
+     * - ZeroTrustEventListener: SETNX 락 획득/해제
+     */
+    public static String analysisLock(String userId) {
+        validateUserId(userId);
+        return String.format("%s:analysis:lock:%s", NAMESPACE, userId);
+    }
+
+    /**
+     * Phase 14: LLM 분석 캐시 유효 시간 키
+     * 분석 결과 캐시 만료 시간 저장
+     * Format: security:analysis:validUntil:{userId}
+     * TTL: 30 seconds (분석 결과와 동일)
+     */
+    public static String analysisValidUntil(String userId) {
+        validateUserId(userId);
+        return String.format("%s:analysis:validUntil:%s", NAMESPACE, userId);
+    }
+
+    /**
      * HCAD 분석 결과 (Primary - Single Source of Truth)
      *
      * AI Native: LLM이 분석한 전체 결과를 Hash로 저장

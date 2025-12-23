@@ -351,11 +351,14 @@ public class SecurityEventAIRequest {
 
     /**
      * 실시간 처리 필요 여부
+     *
+     * AI Native: threatLevel 기반 고위험 판단 (isHighRisk() 제거)
      */
     public boolean requiresRealTimeProcessing() {
-        return isCritical() ||
-               (eventContext != null && eventContext.isHighRisk()) ||
-               analysisPurpose == AnalysisPurpose.THREAT_DETECTION;
+        boolean highRisk = eventContext != null &&
+                eventContext.getAiAnalysisResult() != null &&
+                eventContext.getAiAnalysisResult().getThreatLevel() >= 0.7;
+        return isCritical() || highRisk || analysisPurpose == AnalysisPurpose.THREAT_DETECTION;
     }
 
     /**

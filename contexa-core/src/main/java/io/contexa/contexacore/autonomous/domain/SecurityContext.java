@@ -183,21 +183,6 @@ public class SecurityContext {
     }
     
     /**
-     * 고위험 사용자 여부
-     *
-     * AI Native: RiskLevel 기반 판단 (Severity 하드코딩 제거)
-     */
-    public boolean isHighRisk() {
-        // AI Native: RiskLevel enum 사용 (deprecated isHighRisk() 호출 제거)
-        if (userSecurityContext != null) {
-            return userSecurityContext.getRiskLevel() == UserSecurityContext.RiskLevel.HIGH ||
-                   userSecurityContext.getRiskLevel() == UserSecurityContext.RiskLevel.CRITICAL;
-        }
-        // 인시던트 수 기반 판단 (임계값은 설정으로 외부화 권장)
-        return incidents != null && incidents.size() > 5;
-    }
-    
-    /**
      * Trust Score 조회 (UserSecurityContext에서 위임)
      */
     public Double getTrustScore() {
@@ -254,7 +239,10 @@ public class SecurityContext {
         if (userSecurityContext != null) {
             return userSecurityContext.requiresMfa();
         }
-        return isHighRisk();
+        // AI Native: RiskLevel 기반 판단
+        UserSecurityContext.RiskLevel riskLevel = getCurrentRiskLevel();
+        return riskLevel == UserSecurityContext.RiskLevel.HIGH ||
+               riskLevel == UserSecurityContext.RiskLevel.CRITICAL;
     }
     
     /**
@@ -406,7 +394,7 @@ public class SecurityContext {
         summary.put("threatIndicatorCount", threatIndicators != null ? threatIndicators.size() : 0);
         summary.put("protectableAccessCount", protectableAccessHistory != null ? protectableAccessHistory.size() : 0);
         summary.put("recentAccessDenied", getRecentAccessDeniedCount(60));
-        summary.put("isHighRisk", isHighRisk());
+        summary.put("riskLevel", getCurrentRiskLevel());
         summary.put("requiresMfa", requiresMfa());
         summary.put("createdAt", createdAt);
         summary.put("updatedAt", updatedAt);

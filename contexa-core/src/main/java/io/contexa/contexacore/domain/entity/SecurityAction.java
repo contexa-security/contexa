@@ -416,22 +416,4 @@ public class SecurityAction {
         return status == ActionStatus.PENDING || status == ActionStatus.SCHEDULED;
     }
 
-    /**
-     * 고위험 액션 여부
-     */
-    @JsonIgnore
-    public boolean isHighRisk() {
-        // ActionType enum을 사용하여 actionType 문자열을 체크
-        try {
-            ActionType type = ActionType.valueOf(actionType);
-            return riskLevel == SoarTool.RiskLevel.HIGH || 
-                   riskLevel == SoarTool.RiskLevel.CRITICAL ||
-                   type.isDestructive();
-        } catch (Exception e) {
-            // actionType이 enum과 매치되지 않으면 risk level만 체크
-            return riskLevel == SoarTool.RiskLevel.HIGH || 
-                   riskLevel == SoarTool.RiskLevel.CRITICAL;
-        }
-    }
-    
 }

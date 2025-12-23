@@ -341,21 +341,16 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     }
 
     /**
-     * AI Native v3.1.0: riskScore 기반 action 결정
+     * AI Native v3.3.0: Fallback action 결정
      *
-     * 참고: 이 로직은 개별 전략에서 action이 제공되지 않는 경우의 폴백입니다.
-     * 이상적으로는 각 전략이 LLM으로부터 직접 action을 받아야 합니다.
+     * LLM이 action을 결정하지 못한 경우 상위 계층에 결정 위임
+     * 점수 기반 분기 제거 - Action 기반 원칙 준수
+     * INVESTIGATE 제거 - 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
      */
     private String determineAction(double riskScore) {
-        if (riskScore >= 0.9) {
-            return "BLOCK";
-        } else if (riskScore >= 0.7) {
-            return "INVESTIGATE";
-        } else if (riskScore >= 0.5) {
-            return "ESCALATE";
-        } else {
-            return "ALLOW";
-        }
+        // AI Native: LLM action 없을 시 상위 계층에 결정 위임
+        // 점수 기반 분기 제거
+        return "ESCALATE";
     }
 
     /**

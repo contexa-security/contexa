@@ -112,44 +112,6 @@ public class ThreatAssessment {
         return confidence > 0.8 && riskScore >= 0.7;
     }
 
-    // ============================================================
-    // Deprecated 메서드 (threatLevel 기반 - 하위 호환성)
-    // ============================================================
-
-    /**
-     * 고위험 위협 여부
-     *
-     * @return 고위험이면 true
-     * @deprecated v3.1.0: isHighRiskByScore() 사용 권장
-     */
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    public boolean isHighRisk() {
-        return threatLevel == ThreatLevel.CRITICAL ||
-               threatLevel == ThreatLevel.HIGH;
-    }
-
-    /**
-     * 즉각 조치 필요 여부
-     *
-     * @return 즉각 조치가 필요하면 true
-     * @deprecated v3.1.0: requiresImmediateActionByScore() 사용 권장
-     */
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    public boolean requiresImmediateAction() {
-        return threatLevel == ThreatLevel.CRITICAL;
-    }
-
-    /**
-     * 자동 차단 가능 여부
-     *
-     * @return 자동 차단 가능하면 true
-     * @deprecated v3.1.0: canAutoBlockByScore() 사용 권장
-     */
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    public boolean canAutoBlock() {
-        return confidence > 0.8 && isHighRisk();
-    }
-    
     /**
      * Get confidence score (alias for confidence field)
      */

@@ -8,10 +8,12 @@ import org.springframework.security.access.AccessDeniedException;
  * URL Security와 Method Security에서 일관된 예외 처리를 위해 사용한다.
  * LLM action 기반 차단 시 발생하며, action 유형에 따른 HTTP 상태 코드 매핑을 지원한다.
  *
+ * AI Native v3.3.0: 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
+ *
  * action별 HTTP 상태 코드:
  * - BLOCK: 403 Forbidden
  * - CHALLENGE: 401 Unauthorized (MFA 필요)
- * - INVESTIGATE/ESCALATE: 423 Locked (검토 대기)
+ * - ESCALATE: 423 Locked (검토 대기)
  *
  * @author AI Security Framework
  * @since 3.0.0
@@ -21,7 +23,8 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
     private static final long serialVersionUID = 1L;
 
     /**
-     * LLM이 결정한 action (BLOCK, CHALLENGE, INVESTIGATE, ESCALATE)
+     * AI Native v3.3.0: LLM이 결정한 action (BLOCK, CHALLENGE, ESCALATE)
+     * ALLOW는 예외를 발생시키지 않음
      */
     private final String action;
 
@@ -150,13 +153,15 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
     /**
      * 검토 대기 예외 생성
      *
+     * AI Native v3.3.0: INVESTIGATE → ESCALATE 변경
+     *
      * @param resourceId 리소스 식별자
      * @param riskScore 위험도 점수
      * @return 검토 대기 예외
      */
     public static ZeroTrustAccessDeniedException pendingReview(String resourceId, double riskScore) {
         return new ZeroTrustAccessDeniedException(
-            "INVESTIGATE",
+            "ESCALATE",
             resourceId,
             riskScore,
             "Access pending security review"
@@ -176,10 +181,11 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         if (action == null) {
             return 403;
         }
+        // AI Native v3.3.0: 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
         return switch (action.toUpperCase()) {
             case "BLOCK" -> 403;           // Forbidden
             case "CHALLENGE" -> 401;       // Unauthorized (MFA 필요)
-            case "INVESTIGATE", "ESCALATE" -> 423; // Locked (검토 대기)
+            case "ESCALATE" -> 423;        // Locked (검토 대기)
             case "PENDING_ANALYSIS" -> analysisTimeout ? 408 : 503; // Request Timeout / Service Unavailable
             default -> 403;
         };

@@ -319,17 +319,12 @@ public class UserSecurityContext {
     }
     
     /**
-     * 고위험 사용자 여부
-     */
-    public boolean isHighRisk() {
-        return riskLevel == RiskLevel.HIGH || riskLevel == RiskLevel.CRITICAL;
-    }
-    
-    /**
      * MFA 필요 여부
      */
     public boolean requiresMfa() {
-        return isHighRisk() || 
+        // AI Native: RiskLevel 기반 판단
+        boolean highRisk = riskLevel == RiskLevel.HIGH || riskLevel == RiskLevel.CRITICAL;
+        return highRisk ||
                (mfaStatus != null && !mfaStatus.isEnabled()) ||
                (failureCounters != null && failureCounters.values().stream().anyMatch(c -> c > 3));
     }

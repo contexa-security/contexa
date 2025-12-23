@@ -21,6 +21,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -54,6 +55,16 @@ public class ProtectableMethodAuthorizationManager {
      * 분석 대기 폴링 간격 (밀리초)
      */
     private static final long POLLING_INTERVAL_MS = 100;
+
+    /**
+     * Phase 14: 분석 결과 캐시 유효 시간 (30초)
+     */
+    private static final Duration ANALYSIS_CACHE_TTL = Duration.ofSeconds(30);
+
+    /**
+     * Phase 14: 분석 락 TTL (30초 - 분석 완료 전 만료 방지)
+     */
+    private static final Duration ANALYSIS_LOCK_TTL = Duration.ofSeconds(30);
 
     /**
      * AI Native v3.3.0: 허용된 action 목록
@@ -173,7 +184,7 @@ public class ProtectableMethodAuthorizationManager {
                     if ("BLOCK".equalsIgnoreCase(defaultAction)) {
                         throw ZeroTrustAccessDeniedException.blocked(resourceId, 0.5);
                     }
-                    // 그 외는 통과 (ALLOW, MONITOR 등)
+                    // AI Native v3.3.0: BLOCK이 아니면 통과 (ALLOW 등)
                 } else {
                     // 분석 완료됨 - action 기반 판단
                     validateAction(action, resourceId);

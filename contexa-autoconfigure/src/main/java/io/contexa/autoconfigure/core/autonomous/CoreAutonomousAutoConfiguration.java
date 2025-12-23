@@ -286,18 +286,10 @@ public class CoreAutonomousAutoConfiguration {
         );
     }
 
-    /**
-     * 4-3. AnomalyDetectionService - 통계 기반 이상 탐지 서비스
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.service.AnomalyDetectionService anomalyDetectionService(
-            RedisTemplate<String, Object> redisTemplate,
-            io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorIntegrationService) {
-        return new io.contexa.contexacore.autonomous.service.AnomalyDetectionService(
-            redisTemplate, hcadVectorIntegrationService
-        );
-    }
+    // AI Native: AnomalyDetectionService 제거 (v3.1.0)
+    // - 핵심 기능(세션 하이재킹 감지)이 데드 코드 (getTrustScoreHistory() 항상 null 반환)
+    // - Z-Score 기반 직접 Severity 결정은 AI Native 원칙 위반
+    // - LLM이 HCADContext를 직접 분석하여 판단
 
     // ========== Level 5: Level 4 의존 (5개) ==========
 

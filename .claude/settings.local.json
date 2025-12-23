@@ -35,7 +35,8 @@
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\infra\\\\session\\\\RedisAIStrategySessionRepository.java\")",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\infra\\\\redis\\\\RedisStreamInitializer.java\")",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\autonomous\\\\orchestrator\\\\handler\\\\ThreatScoreHandler.java\")",
-      "Bash(d:)"
+      "Bash(d:)",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\autonomous\\\\service\\\\AnomalyDetectionService.java\")"
     ],
     "deny": [],
     "ask": []
