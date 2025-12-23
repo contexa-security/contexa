@@ -65,4 +65,45 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
         return response;
     }
+
+    /**
+     * 문자열 action을 SecurityDecision.Action으로 매핑 (AI Native v3.3.0)
+     *
+     * 공통 매핑 로직:
+     * - ALLOW(A): 안전한 요청
+     * - BLOCK(B): 극고위험군 (즉시 차단)
+     * - CHALLENGE(C): 고위험군 (MFA 인증 요구)
+     * - ESCALATE(E): 상위 Layer로 에스컬레이션
+     *
+     * @param action LLM이 반환한 action 문자열
+     * @return SecurityDecision.Action enum
+     */
+    protected SecurityDecision.Action mapStringToAction(String action) {
+        if (action == null) return SecurityDecision.Action.ESCALATE;
+        return switch (action.toUpperCase().trim()) {
+            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
+            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
+            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
+            default -> SecurityDecision.Action.ESCALATE;
+        };
+    }
+
+    /**
+     * 유효한 action인지 검증 (AI Native v3.3.0 - 4개 Action)
+     *
+     * 유효 Action: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
+     *
+     * @param action 검증할 action 문자열
+     * @return 유효하면 true
+     */
+    protected boolean isValidAction(String action) {
+        if (action == null || action.trim().isEmpty()) {
+            return false;
+        }
+        String upperAction = action.toUpperCase().trim();
+        return "ALLOW".equals(upperAction) || "A".equals(upperAction) ||
+               "BLOCK".equals(upperAction) || "B".equals(upperAction) ||
+               "CHALLENGE".equals(upperAction) || "C".equals(upperAction) ||
+               "ESCALATE".equals(upperAction) || "E".equals(upperAction);
+    }
 }

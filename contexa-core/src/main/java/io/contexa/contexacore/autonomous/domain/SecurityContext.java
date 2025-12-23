@@ -184,15 +184,17 @@ public class SecurityContext {
     
     /**
      * 고위험 사용자 여부
+     *
+     * AI Native: RiskLevel 기반 판단 (Severity 하드코딩 제거)
      */
     public boolean isHighRisk() {
+        // AI Native: RiskLevel enum 사용 (deprecated isHighRisk() 호출 제거)
         if (userSecurityContext != null) {
-            return userSecurityContext.isHighRisk();
+            return userSecurityContext.getRiskLevel() == UserSecurityContext.RiskLevel.HIGH ||
+                   userSecurityContext.getRiskLevel() == UserSecurityContext.RiskLevel.CRITICAL;
         }
-        // 인시던트가 많거나 위협 지표가 높으면 고위험
-        return (incidents != null && incidents.size() > 5) ||
-               (threatIndicators != null && threatIndicators.stream()
-                   .anyMatch(t -> t.getSeverity() == ThreatIndicator.Severity.CRITICAL));
+        // 인시던트 수 기반 판단 (임계값은 설정으로 외부화 권장)
+        return incidents != null && incidents.size() > 5;
     }
     
     /**

@@ -108,12 +108,6 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
             // Stream 크기 제한 (최대 10000개 유지)
             redisTemplate.opsForStream().trim(authorizationStream, streamMaxLength);
             
-            // 중요 이벤트는 별도 키로 저장 (TTL 적용)
-            if (event.getResult() == AuthorizationDecisionEvent.AuthorizationResult.DENIED) {
-                String key = ZeroTrustRedisKeys.authDenied(event.getPrincipal(), event.getEventId());
-                redisTemplate.opsForValue().set(key, event, Duration.ofMinutes(ttlMinutes));
-            }
-            
             log.debug("Authorization event published to Redis: eventId={}, principal={}, result={}", 
                 event.getEventId(), event.getPrincipal(), event.getResult());
                 
@@ -138,14 +132,7 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
             
             // Stream 크기 제한
             redisTemplate.opsForStream().trim(incidentStream, streamMaxLength);
-            
-            // 중요 사고는 별도 키로 저장 (긴 TTL)
-            if (event.getSeverity() == SecurityIncidentEvent.IncidentSeverity.CRITICAL ||
-                event.getSeverity() == SecurityIncidentEvent.IncidentSeverity.HIGH) {
-                String key = ZeroTrustRedisKeys.incidentCritical(event.getIncidentId());
-                redisTemplate.opsForValue().set(key, event, Duration.ofHours(24));
-            }
-            
+
             log.info("Security incident published to Redis: incidentId={}, severity={}", 
                 event.getIncidentId(), event.getSeverity());
                 
@@ -170,18 +157,7 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
             
             // Stream 크기 제한
             redisTemplate.opsForStream().trim(threatStream, streamMaxLength);
-            
-            // 고위험 위협은 별도 키로 저장
-            if (event.getThreatLevel() == ThreatDetectionEvent.ThreatLevel.CRITICAL ||
-                event.getThreatLevel() == ThreatDetectionEvent.ThreatLevel.HIGH) {
-                String key = ZeroTrustRedisKeys.threatHigh(event.getThreatId());
-                redisTemplate.opsForValue().set(key, event, Duration.ofHours(12));
 
-                // 위협 카운터 증가
-                String counterKey = ZeroTrustRedisKeys.threatCounter(event.getThreatType());
-                redisTemplate.opsForValue().increment(counterKey);
-            }
-            
             log.info("Threat detection published to Redis: threatId={}, level={}, confidence={}", 
                 event.getThreatId(), event.getThreatLevel(), event.getConfidenceScore());
                 
@@ -244,26 +220,6 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
                 streamMaxLength * 2 : streamMaxLength;
             redisTemplate.opsForStream().trim(stream, maxLen);
             
-            // Zero Trust: 이상 징후 감지된 성공 인증은 별도 저장
-            if (event.isAnomalyDetected() ||
-                event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.CRITICAL) {
-                String key = ZeroTrustRedisKeys.authAnomaly(event.getUserId(), event.getEventId());
-                redisTemplate.opsForValue().set(key, event, Duration.ofHours(24));
-
-                // 이상 징후 카운터 증가
-                String counterKey = ZeroTrustRedisKeys.authAnomalyCounter(event.getUserId());
-                redisTemplate.opsForValue().increment(counterKey);
-            }
-
-            // 사용자별 최근 인증 이력 업데이트 (Pipeline으로 최적화)
-            String userKey = ZeroTrustRedisKeys.authRecent(event.getUserId());
-            redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
-                redisTemplate.opsForList().leftPush(userKey, event);
-                redisTemplate.opsForList().trim(userKey, 0, 99); // 최근 100개만 유지
-                redisTemplate.expire(userKey, Duration.ofDays(7));
-                return null;
-            });
-            
             log.debug("Authentication success published to Redis: eventId={}, user={}, tier={}", 
                 event.getEventId(), event.getUsername(), tier);
                 
@@ -302,15 +258,12 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
                 streamMaxLength * 2 : streamMaxLength;
             redisTemplate.opsForStream().trim(stream, maxLen);
             
-            // 공격 패턴 감지 시 별도 저장
+            // 공격 패턴 감지 시 IP 차단 처리
             if (event.isBruteForceDetected() || event.isCredentialStuffingDetected()) {
-                String key = ZeroTrustRedisKeys.authAttack(event.getSourceIp(), event.getEventId());
-                redisTemplate.opsForValue().set(key, event, Duration.ofHours(48));
-
-                // IP별 공격 카운터 증가 (TTL 수정: 1시간 → 24시간, IP 차단과 일치)
+                // IP별 공격 카운터 증가
                 String counterKey = ZeroTrustRedisKeys.authAttackCounter(event.getSourceIp());
                 Long count = redisTemplate.opsForValue().increment(counterKey);
-                redisTemplate.expire(counterKey, Duration.ofHours(24)); // 수정: 1시간 → 24시간
+                redisTemplate.expire(counterKey, Duration.ofHours(24));
 
                 // 임계치 초과 시 IP 차단 목록에 추가
                 if (count != null && count > 10) {
@@ -319,15 +272,6 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
                 }
             }
 
-            // 사용자별 실패 이력 업데이트 (Pipeline 으로 최적화)
-            String userKey = ZeroTrustRedisKeys.authFailures(event.getUsername());
-            redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
-                redisTemplate.opsForList().leftPush(userKey, event);
-                redisTemplate.opsForList().trim(userKey, 0, 49); // 최근 50개만 유지
-                redisTemplate.expire(userKey, Duration.ofDays(1));
-                return null;
-            });
-            
             log.debug("Authentication failure published to Redis: eventId={}, user={}, tier={}, attackType={}", 
                 event.getEventId(), event.getUsername(), tier, event.determineAttackType());
                 

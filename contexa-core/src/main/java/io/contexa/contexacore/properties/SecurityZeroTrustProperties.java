@@ -62,7 +62,15 @@ public class SecurityZeroTrustProperties {
     }
 
     /**
-     * 임계값 설정
+     * 임계값 설정 (AI Native v3.3.0)
+     *
+     * 이 임계값들은 LLM 분석 요청 라우팅용으로만 사용
+     * 실제 보안 결정(ALLOW/BLOCK/CHALLENGE/ESCALATE)은 LLM이 결정
+     *
+     * - skip: 이 신뢰 수준 이상이면 LLM 분석 스킵 가능 (성능 최적화)
+     * - optional: LLM 분석 선택적 적용
+     * - required: LLM 분석 필수
+     * - strict: 엄격 모드 (LLM 분석 + 추가 검증)
      */
     @Data
     public static class ThresholdsSettings {

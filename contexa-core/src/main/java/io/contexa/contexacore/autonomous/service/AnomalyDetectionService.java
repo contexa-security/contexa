@@ -269,15 +269,15 @@ public class AnomalyDetectionService {
 
     /**
      * Trust Score 이력 조회
+     *
+     * AI Native 리팩토링 (v3.1.0):
+     * - trustScoreHistory Redis 키 제거됨
+     * - Trust Score 이력 기반 급격한 변화 감지는 LLM이 수행
+     * - 항상 null 반환 (호출부에서 null 처리됨)
      */
     private TrustScoreHistory getTrustScoreHistory(String userId) {
-        try {
-            String key = ZeroTrustRedisKeys.trustScoreHistory(userId);
-            return (TrustScoreHistory) redisTemplate.opsForValue().get(key);
-        } catch (Exception e) {
-            log.error("[AnomalyDetectionService] Failed to get trust score history for user: {}", userId, e);
-            return null;
-        }
+        // AI Native: Trust Score 이력 조회 제거 - LLM이 직접 분석
+        return null;
     }
 
     /**

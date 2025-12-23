@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.config.FeedbackConstants;
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -47,6 +48,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     private final Layer1PromptTemplate promptTemplate;
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
+    private final TieredStrategyProperties tieredStrategyProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 프롬프트 템플릿
@@ -60,12 +62,10 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     @Value("${spring.ai.security.tiered.layer1.cache-ttl-seconds:60}")
     private long cacheTtlSeconds;
 
-    // Phase 7: RAG 파라미터 설정화 (AI Native - 하드코딩 제거)
+    // Phase 7: RAG 파라미터 설정화
     @Value("${spring.ai.security.tiered.layer1.rag.top-k:3}")
     private int ragTopK;
-
-    @Value("${spring.ai.security.tiered.layer1.rag.similarity-threshold:0.8}")
-    private double ragSimilarityThreshold;
+    // AI Native v3.3.0: ragSimilarityThreshold 제거 - LLM이 직접 관련성 판단
 
     @Autowired
     public Layer1FastFilterStrategy(@Autowired(required = false) UnifiedLLMOrchestrator llmOrchestrator,
@@ -73,14 +73,15 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
                                     @Autowired(required = false) SecurityEventEnricher eventEnricher,
                                     @Autowired Layer1PromptTemplate promptTemplate,
-                                    @Autowired FeedbackIntegrationProperties feedbackProperties,
-                                    @Autowired(required = false) BaselineLearningService baselineLearningService) {
+                                    @Autowired(required = false) BaselineLearningService baselineLearningService,
+                                    @Autowired TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.unifiedVectorService = unifiedVectorService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate;
         this.baselineLearningService = baselineLearningService;
+        this.tieredStrategyProperties = tieredStrategyProperties;
 
         log.info("Layer 1 Fast Filter Strategy initialized with Layer1PromptTemplate");
         log.info("  - Model: {}", modelName);
@@ -196,11 +197,10 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
             try {
                 String searchQuery = buildThreatSearchQuery(event);
 
-                // Phase 7: 하드코딩 제거 → 설정 주입
+                // AI Native v3.3.0: similarityThreshold 제거 - LLM이 직접 관련성 판단
                 SearchRequest searchRequest = SearchRequest.builder()
                     .query(searchQuery)
                     .topK(ragTopK)
-                    .similarityThreshold(ragSimilarityThreshold)
                     .build();
 
                 List<Document> threatDocs = unifiedVectorService.searchSimilar(searchRequest);
@@ -358,58 +358,19 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         return response;
     }
 
-    /**
-     * 유효한 action인지 검증 (AI Native v3.3.0 - 4개 Action)
-     *
-     * v3.3.0 변경:
-     * - 유효 Action: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E) (4개)
-     * - INVESTIGATE, MONITOR, MITIGATE 제거
-     */
-    private boolean isValidAction(String action) {
-        if (action == null || action.trim().isEmpty()) {
-            return false;
-        }
-        String upperAction = action.toUpperCase().trim();
-        // 4개 Action (긴 형식 + 단축형)
-        return "ALLOW".equals(upperAction) || "A".equals(upperAction) ||
-               "BLOCK".equals(upperAction) || "B".equals(upperAction) ||
-               "CHALLENGE".equals(upperAction) || "C".equals(upperAction) ||
-               "ESCALATE".equals(upperAction) || "E".equals(upperAction);
-    }
+    // isValidAction()은 AbstractTieredStrategy로 이동됨
 
     /**
-     * 데이터 일관성 검증 (참고용 로그 - AI Native 모니터링)
+     * 데이터 일관성 검증 (AI Native v3.3.0)
      *
-     * 모순 패턴 감지:
-     * - 높은 위험도 + 낮은 신뢰도: LLM이 확신 없이 높은 위험 판단
-     * - BLOCK action + 낮은 위험도: 위험하지 않은데 차단
-     * - ALLOW action + 높은 위험도: 위험한데 허용
+     * AI Native: 점수 기반 임계값 분기 제거
+     * LLM이 결정한 Action만 신뢰, 점수 기반 모순 감지 폐기
      */
     private void validateDataConsistency(Layer1SecurityResponse response) {
-        Double riskScore = response.getRiskScore();
-        Double confidence = response.getConfidence();
-        String action = response.getAction();
-
-        if (riskScore == null || confidence == null || action == null) {
-            return;
-        }
-
-        // 모순 패턴 1: 높은 위험도(>0.7) + 낮은 신뢰도(<0.3)
-        if (riskScore > 0.7 && confidence < 0.3) {
-            log.info("[Layer1][AI Native][모니터링] 높은 위험도({}) + 낮은 신뢰도({}) - LLM 판단 불확실",
-                String.format("%.2f", riskScore), String.format("%.2f", confidence));
-        }
-
-        // 모순 패턴 2: BLOCK + 낮은 위험도
-        if ("BLOCK".equalsIgnoreCase(action) && riskScore < 0.3) {
-            log.info("[Layer1][AI Native][모니터링] BLOCK action + 낮은 위험도({}) - 패턴 분석 필요",
-                String.format("%.2f", riskScore));
-        }
-
-        // 모순 패턴 3: ALLOW + 높은 위험도
-        if ("ALLOW".equalsIgnoreCase(action) && riskScore > 0.7) {
-            log.warn("[Layer1][AI Native][모니터링] ALLOW action + 높은 위험도({}) - 보안 검토 권장",
-                String.format("%.2f", riskScore));
+        // AI Native v3.3.0: 점수 기반 임계값 분기 제거
+        // LLM이 결정한 Action만 신뢰
+        if (response.getAction() == null || response.getAction().isBlank()) {
+            log.debug("[Layer1][AI Native] Action이 없음 - ESCALATE 적용");
         }
     }
 
@@ -458,19 +419,11 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * 문자열 action을 SecurityDecision.Action으로 매핑 (AI Native v3.3.0)
-     *
-     * LLM은 4개 결정: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
-     * - BLOCK: 극고위험군 (즉시 차단)
-     * - CHALLENGE: 고위험군 (MFA 인증 요구)
+     * 문자열 action을 SecurityDecision.Action으로 매핑
+     * AbstractTieredStrategy의 mapStringToAction()으로 위임
      */
     private SecurityDecision.Action mapToAction(String action) {
-        return switch (action.toUpperCase()) {
-            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
-            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
-            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
-            default -> SecurityDecision.Action.ESCALATE;  // E 포함, 불확실한 경우 모두 에스컬레이션
-        };
+        return mapStringToAction(action);
     }
 
     private String generateCacheKey(SecurityEvent event) {

@@ -1,6 +1,7 @@
 package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -181,7 +182,7 @@ public class HCADContextExtractor {
                                       String userId, String sessionId) {
         try {
             // 세션 정보 키
-            String sessionKey = "session:info:" + sessionId;
+            String sessionKey = ZeroTrustRedisKeys.sessionMetadata(sessionId);
             Map<Object, Object> sessionInfo = redisTemplate.opsForHash().entries(sessionKey);
 
             if (sessionInfo != null && !sessionInfo.isEmpty()) {
@@ -278,8 +279,7 @@ public class HCADContextExtractor {
         try {
             // AI Native: 신규 사용자 판별 (이전 HCAD 분석 기록 확인)
             // LLM 분석 결과가 Redis에 저장되어 있으면 기존 사용자
-            // security:hcad:analysis:{userId} 키에 LLM 분석 결과가 저장됨
-            String analysisKey = "security:hcad:analysis:" + userId;
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Boolean hasAnalysis = redisTemplate.hasKey(analysisKey);
             context.setNewUser(!Boolean.TRUE.equals(hasAnalysis));
 

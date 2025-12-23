@@ -64,25 +64,31 @@ public class TieredEventProcessor {
     }
     
     /**
-     * 인증 성공 이벤트 계층 결정
+     * 인증 성공 이벤트 계층 결정 (AI Native v3.3.0)
+     *
+     * LLM이 설정한 riskLevel 필드 기반으로 분류
+     * 점수 기반 계산 없음 - LLM 판단 사용
      */
     public EventTier determineTier(AuthenticationSuccessEvent event) {
-        // 고위험 인증은 Critical
-        if (event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.CRITICAL ||
-            event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.HIGH ||
+        // AI Native: LLM이 설정한 riskLevel 기반 분류
+        AuthenticationSuccessEvent.RiskLevel riskLevel = event.calculateRiskLevel();
+
+        // 고위험 또는 이상 탐지 -> Critical
+        if (riskLevel == AuthenticationSuccessEvent.RiskLevel.CRITICAL ||
+            riskLevel == AuthenticationSuccessEvent.RiskLevel.HIGH ||
             event.isAnomalyDetected()) {
             tierCounters.get(EventTier.CRITICAL).incrementAndGet();
             return EventTier.CRITICAL;
         }
-        
-        // MFA 완료나 중간 위험은 Contextual
-        if (event.isMfaCompleted() || 
-            event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.MEDIUM) {
+
+        // MFA 완료 또는 중간 위험 -> Contextual
+        if (event.isMfaCompleted() ||
+            riskLevel == AuthenticationSuccessEvent.RiskLevel.MEDIUM) {
             tierCounters.get(EventTier.CONTEXTUAL).incrementAndGet();
             return EventTier.CONTEXTUAL;
         }
-        
-        // 일반 로그인은 General
+
+        // 일반 로그인 (MINIMAL, LOW, UNKNOWN) -> General
         tierCounters.get(EventTier.GENERAL).incrementAndGet();
         return EventTier.GENERAL;
     }
@@ -113,15 +119,20 @@ public class TieredEventProcessor {
     
     /**
      * Critical 이벤트 판단
+     *
+     * AI Native: Severity 조건 제거, AI action 기반 판단
      */
     private boolean isCriticalEvent(SecurityEvent event) {
-        // 심각도가 CRITICAL 또는 HIGH
-        if (event.getSeverity() == SecurityEvent.Severity.CRITICAL ||
-            event.getSeverity() == SecurityEvent.Severity.HIGH) {
-            return true;
+        // AI Native: AI action 기반 판단
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null && metadata.containsKey("aiAction")) {
+            String action = (String) metadata.get("aiAction");
+            if ("BLOCK".equals(action)) {
+                return true;
+            }
         }
-        
-        // 특정 이벤트 타입들
+
+        // EventType 기반 분류 유지 (공격 패턴은 Critical)
         switch (event.getEventType()) {
             case PRIVILEGE_ESCALATION:
             case INTRUSION_SUCCESS:
@@ -132,26 +143,32 @@ public class TieredEventProcessor {
                 return true;
             case AUTH_FAILURE:
                 // 연속된 인증 실패
-                Integer failCount = (Integer) event.getMetadata().get("failureCount");
+                Integer failCount = metadata != null ? (Integer) metadata.get("failureCount") : null;
                 return failCount != null && failCount > 5;
             default:
                 break;
         }
-        
+
         // 차단된 이벤트
         return event.isBlocked();
     }
     
     /**
      * Contextual 이벤트 판단
+     *
+     * AI Native: Severity 조건 제거, AI action 기반 판단
      */
     private boolean isContextualEvent(SecurityEvent event) {
-        // 중간 심각도
-        if (event.getSeverity() == SecurityEvent.Severity.MEDIUM) {
-            return true;
+        // AI Native: AI action 기반 판단
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null && metadata.containsKey("aiAction")) {
+            String action = (String) metadata.get("aiAction");
+            if ("CHALLENGE".equals(action) || "ESCALATE".equals(action)) {
+                return true;
+            }
         }
-        
-        // 특정 이벤트 타입들
+
+        // EventType 기반 분류 유지
         switch (event.getEventType()) {
             case AUTH_SUCCESS:  // Zero Trust를 위해 모든 성공 인증은 최소 Contextual
             case ANOMALY_DETECTED:
@@ -162,17 +179,16 @@ public class TieredEventProcessor {
             default:
                 break;
         }
-        
+
         // 세션 변경이나 위치 변경
-        Map<String, Object> metadata = event.getMetadata();
         if (metadata != null) {
-            if (metadata.containsKey("sessionChange") || 
+            if (metadata.containsKey("sessionChange") ||
                 metadata.containsKey("locationChange") ||
                 metadata.containsKey("deviceChange")) {
                 return true;
             }
         }
-        
+
         return false;
     }
     

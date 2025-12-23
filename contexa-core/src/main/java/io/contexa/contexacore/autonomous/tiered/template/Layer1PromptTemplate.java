@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.tiered.template;
 
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
@@ -26,10 +27,15 @@ import java.util.Optional;
 public class Layer1PromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;
+    private final TieredStrategyProperties tieredStrategyProperties;
 
     @Autowired
-    public Layer1PromptTemplate(@Autowired(required = false) SecurityEventEnricher eventEnricher) {
+    public Layer1PromptTemplate(
+            @Autowired(required = false) SecurityEventEnricher eventEnricher,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
+        this.tieredStrategyProperties = tieredStrategyProperties != null
+            ? tieredStrategyProperties : new TieredStrategyProperties();
     }
 
     /**
@@ -112,24 +118,26 @@ public class Layer1PromptTemplate {
         prompt.append("\n=== DATA QUALITY ===\n");
         prompt.append("Available info: ").append(dataQuality).append("/10 fields\n");
 
-        // 8. 응답 형식 (AI Native v3.3.0 - 4개 Action)
+        // 8. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙)
         prompt.append("""
 
             === RESPONSE FORMAT ===
             {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>"}
-            r: risk (0=safe, 1=attack)
-            c: confidence (0-1, lower if data is limited)
-            a: Action (one of A/B/C/E)
+            a: YOUR FINAL DECISION (one of A/B/C/E) - Action is primary
+            r: risk level supporting your action (0=safe, 1=attack) - for traceability
+            c: your confidence in this decision (0-1, lower if data is limited)
             d: brief reason (max 20 tokens)
 
             === ACTION GUIDE ===
-            A (ALLOW): Safe request, normal access pattern
-            B (BLOCK): CRITICAL RISK - Confirmed attack, malicious pattern, SQL injection, XSS, etc.
-            C (CHALLENGE): HIGH RISK - Suspicious but not certain attack. Requires MFA verification.
-               Examples: New IP, unusual time, failed auth attempts, privilege escalation attempt
-            E (ESCALATE): Uncertain - Need deeper analysis by next layer
+            A (ALLOW): Safe request, normal access pattern -> r~0.0-0.3
+            B (BLOCK): Confirmed attack, malicious pattern detected -> r~0.8-1.0
+            C (CHALLENGE): Suspicious but not confirmed, needs MFA -> r~0.5-0.8
+            E (ESCALATE): Insufficient data for decision -> any r, low c
 
-            KEY: B=Definite threat | C=Suspicious, needs verification | E=Need more context
+            === AI NATIVE PRINCIPLE ===
+            - YOU decide the action. Risk score justifies your action.
+            - If uncertain, ALWAYS use E (ESCALATE) - never guess.
+            - Action takes precedence over risk score if they conflict.
             """);
 
         return prompt.toString();
@@ -137,9 +145,10 @@ public class Layer1PromptTemplate {
 
     /**
      * 데이터가 유효한지 검사 (null, empty, "unknown" 제외)
+     * PromptTemplateUtils로 위임
      */
     private boolean isValidData(String value) {
-        return value != null && !value.isEmpty() && !value.equalsIgnoreCase("unknown");
+        return PromptTemplateUtils.isValidData(value);
     }
 
     /**
@@ -153,13 +162,15 @@ public class Layer1PromptTemplate {
 
     /**
      * UserAgent 요약 (너무 길면 축약)
+     * Truncation 정책은 TieredStrategyProperties에서 관리
      */
     private String summarizeUserAgent(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
-        if (userAgent.length() > 80) {
-            return userAgent.substring(0, 77) + "...";
+        int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getUserAgent();
+        if (userAgent.length() > maxLength) {
+            return userAgent.substring(0, maxLength - 3) + "...";
         }
         return userAgent;
     }
@@ -226,30 +237,10 @@ public class Layer1PromptTemplate {
     /**
      * 데이터 품질 점수 계산 (0-10)
      * LLM이 판단의 신뢰도를 조절하는 데 참고
+     * PromptTemplateUtils로 위임
      */
     private int calculateDataQuality(SecurityEvent event) {
-        int score = 0;
-
-        // 필수 정보
-        if (event.getEventType() != null) score++;
-        if (event.getSeverity() != null) score++;
-        if (isValidData(event.getUserId())) score++;
-        if (isValidData(event.getSourceIp())) score++;
-        if (isValidData(event.getUserAgent())) score++;
-
-        // 추가 정보
-        if (isValidData(event.getSessionId())) score++;
-        if (isValidData(event.getTargetResource())) score++;
-        if (event.getTimestamp() != null) score++;
-
-        // metadata 정보
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata != null && !metadata.isEmpty()) {
-            if (metadata.containsKey("authz.resource")) score++;
-            if (metadata.containsKey("methodClass")) score++;
-        }
-
-        return Math.min(10, score);
+        return PromptTemplateUtils.calculateDataQuality(event);
     }
 
     /**
@@ -289,9 +280,10 @@ public class Layer1PromptTemplate {
         // authz.reason - 거부 이유 (있는 경우)
         String authzReason = getStringFromMetadata(metadata, "authz.reason");
         if (authzReason != null) {
-            // 이유가 너무 길면 요약
-            if (authzReason.length() > 50) {
-                authzReason = authzReason.substring(0, 47) + "...";
+            // 이유가 너무 길면 요약 (Truncation 정책 적용)
+            int maxAuthzReason = tieredStrategyProperties.getTruncation().getLayer1().getAuthzReason();
+            if (authzReason.length() > maxAuthzReason) {
+                authzReason = authzReason.substring(0, maxAuthzReason - 3) + "...";
             }
             authz.append("Reason=").append(authzReason).append(" | ");
         }
@@ -327,37 +319,18 @@ public class Layer1PromptTemplate {
 
     /**
      * metadata에서 문자열 값 안전하게 추출 (AI Native)
-     *
-     * AI Native 원칙: 기본값 "unknown" 제거
-     * - 값이 없으면 null 반환
-     * - 호출부에서 null 체크 후 프롬프트 생략
-     * - LLM이 "unknown" 문자열을 실제 데이터로 오인하는 문제 방지
+     * PromptTemplateUtils로 위임
      */
     private String getStringFromMetadata(Map<String, Object> metadata, String key) {
-        Object value = metadata.get(key);
-        if (value == null) {
-            return null;
-        }
-        String strValue = value.toString();
-        return strValue.isEmpty() ? null : strValue;
+        return PromptTemplateUtils.getStringFromMetadata(metadata, key);
     }
 
     /**
      * 클래스 풀네임에서 심플 클래스명 추출 (AI Native)
-     * 예: "io.contexa.service.TestService" -> "TestService"
-     *
-     * AI Native 원칙: 기본값 "unknown" 제거
-     * - 값이 없으면 null 반환
+     * PromptTemplateUtils로 위임
      */
     private String extractSimpleClassName(String fullClassName) {
-        if (fullClassName == null || fullClassName.isEmpty()) {
-            return null;
-        }
-        int lastDot = fullClassName.lastIndexOf('.');
-        if (lastDot >= 0 && lastDot < fullClassName.length() - 1) {
-            return fullClassName.substring(lastDot + 1);
-        }
-        return fullClassName;
+        return PromptTemplateUtils.extractSimpleClassName(fullClassName);
     }
 
     // AI Native 원칙: buildSessionTimeContext(), getTimeContext() 제거
@@ -366,49 +339,39 @@ public class Layer1PromptTemplate {
     // LLM이 시간 변수의 위험도를 직접 판단
 
     /**
-     * HCAD 위험도 분석 결과 섹션 구성 (AI Native)
-     *
-     * AI Native 원칙:
-     * - 플랫폼은 raw 데이터만 제공
-     * - 임계값 기반 판단(assessment) 제거
-     * - LLM이 riskScore를 해석하고 action을 직접 결정
+     * Payload 요약 (Truncation 정책 적용)
      */
-    private String buildHCADSection(SecurityEvent event) {
-        // AI Native: SecurityEvent.riskScore 필드 제거됨
-        // HCAD 분석 결과는 ThreatAssessment에서 관리
-        // LLM이 이벤트 컨텍스트를 직접 분석하여 위험도 결정
-        return "HCAD Analysis: LLM analysis required";
-    }
-
     private String summarizePayload(String payload) {
         if (payload == null || payload.isEmpty()) {
             return "empty";
         }
 
-        if (payload.length() > 200) {
-            return payload.substring(0, 200) + "... (truncated)";
+        int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getPayload();
+        if (payload.length() > maxLength) {
+            return payload.substring(0, maxLength) + "... (truncated)";
         }
 
         return payload;
     }
 
     /**
-     * Phase 3: Baseline Context 단순화 (80→20 토큰)
+     * Phase 3: Baseline Context 단순화 (Truncation 정책 적용)
+     * Phase 2-7: null -> N/A 명시적 표현
      *
      * 원본 baseline context를 압축하여 핵심 정보만 추출합니다.
      * 예: "Normal: office-IP, morning-login, CREATE/UPDATE ops"
      *
      * @param baselineContext 원본 baseline 컨텍스트
-     * @return 압축된 baseline 문자열 (최대 100자)
+     * @return 압축된 baseline 문자열 또는 "N/A"
      */
     private String summarizeBaseline(String baselineContext) {
         if (baselineContext == null || baselineContext.isEmpty()) {
-            return "Not available";
+            return "N/A";
         }
 
-        // 최대 100자로 압축 (약 20 토큰)
-        if (baselineContext.length() > 100) {
-            return baselineContext.substring(0, 97) + "...";
+        int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getBaselineContext();
+        if (baselineContext.length() > maxLength) {
+            return baselineContext.substring(0, maxLength - 3) + "...";
         }
 
         return baselineContext;

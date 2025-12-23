@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.config.FeedbackConstants;
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -62,6 +63,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     private final FeedbackIntegrationProperties localFeedbackProperties;
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
+    private final TieredStrategyProperties tieredStrategyProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${spring.ai.security.layer3.model:llama3.1:8b}")
@@ -91,16 +93,18 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                                 @Autowired(required = false) UnifiedVectorService unifiedVectorService,
                                 @Autowired(required = false) BehaviorVectorService behaviorVectorService,
                                 @Autowired FeedbackIntegrationProperties feedbackProperties,
-                                @Autowired(required = false) BaselineLearningService baselineLearningService) {
+                                @Autowired(required = false) BaselineLearningService baselineLearningService,
+                                @Autowired TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.approvalService = approvalService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer3PromptTemplate(eventEnricher);
+        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer3PromptTemplate(eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.localFeedbackProperties = feedbackProperties;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
+        this.tieredStrategyProperties = tieredStrategyProperties;
 
         log.info("Layer 3 Expert Strategy initialized with UnifiedLLMOrchestrator");
         log.info("  - Model: {}", modelName);
@@ -231,10 +235,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 }
             }
 
-            // 12. Layer3 → Layer1 피드백 루프 (Cross-Layer Learning)
-            feedbackToLayer1(event, expertDecision);
-
-            // 13. 메트릭 업데이트
+            // 12. 메트릭 업데이트
             expertDecision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             expertDecision.setProcessingLayer(3);
 
@@ -340,6 +341,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 List<Document> threatDocs = unifiedVectorService.searchSimilar(searchRequest);
 
                 if (threatDocs != null && !threatDocs.isEmpty()) {
+                    // 설정에서 위협 액터 제한 개수 가져오기
+                    int threatActorLimit = tieredStrategyProperties.getLayer3().getRag().getThreatActorLimit();
                     actors = threatDocs.stream()
                         .map(doc -> {
                             Map<String, Object> meta = doc.getMetadata();
@@ -355,7 +358,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                             return null;
                         })
                         .filter(Objects::nonNull)
-                        .limit(5)
+                        .limit(threatActorLimit)
                         .collect(Collectors.toList());
 
                     log.debug("RAG threat actor search: {} actors found", actors.size());
@@ -401,6 +404,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 List<Document> campaignDocs = unifiedVectorService.searchSimilar(searchRequest);
 
                 if (campaignDocs != null && !campaignDocs.isEmpty()) {
+                    // 설정에서 캠페인 제한 개수 가져오기
+                    int campaignLimit = tieredStrategyProperties.getLayer3().getRag().getCampaignLimit();
                     campaigns = campaignDocs.stream()
                         .map(doc -> {
                             Map<String, Object> meta = doc.getMetadata();
@@ -419,7 +424,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                             return null;
                         })
                         .filter(Objects::nonNull)
-                        .limit(5)
+                        .limit(campaignLimit)
                         .collect(Collectors.toList());
 
                     log.debug("RAG campaign search: {} campaigns found", campaigns.size());
@@ -702,6 +707,14 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             String reasoning = jsonNode.has("d") ? jsonNode.get("d").asText()
                 : (jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning");
 
+            // Phase 4: "m" (MITRE ATT&CK) 필드 파싱 추가
+            String mitreMapping = jsonNode.has("m") && !jsonNode.get("m").isNull()
+                ? jsonNode.get("m").asText() : null;
+
+            // Phase 4: "rec" (recommendation) 필드 파싱 추가
+            String recommendation = jsonNode.has("rec") && !jsonNode.get("rec").isNull()
+                ? jsonNode.get("rec").asText() : null;
+
             // AI Native: 기본값 "UNKNOWN" 제거, LLM이 분류하지 않으면 null
             String classification = jsonNode.has("classification") && !jsonNode.get("classification").isNull()
                 ? jsonNode.get("classification").asText() : null;
@@ -729,6 +742,19 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             }
 
             // Response 객체 생성
+            // Phase 4: mitreMapping을 "m" 필드에서 파싱한 값으로 설정
+            Map<String, Object> mitreMappingMap = new HashMap<>();
+            if (mitreMapping != null && !mitreMapping.isEmpty()) {
+                // "m" 필드 값 (예: "T1078", "T1566.001")을 tactics에도 추가
+                mitreMappingMap.put(mitreMapping, mitreMapping);
+                if (!tactics.contains(mitreMapping)) {
+                    tactics.add(mitreMapping);
+                }
+            }
+
+            // Phase 4: recommendation을 "rec" 필드에서 파싱한 값으로 설정
+            String finalRecommendation = recommendation != null ? recommendation : expertRecommendation;
+
             Layer3SecurityResponse response = Layer3SecurityResponse.builder()
                     .riskScore(riskScore)
                     .confidence(confidence)
@@ -737,7 +763,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                     .scenario(scenario)
                     .reasoning(reasoning)
                     .threatActor(threatActor)
-                    .expertRecommendation(expertRecommendation)
+                    .expertRecommendation(finalRecommendation)
                     .tactics(tactics)
                     .techniques(techniques)
                     .iocIndicators(iocIndicators)
@@ -745,7 +771,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                     .businessImpact("Unknown impact")
                     .playbookId("default-incident-response")
                     .requiresApproval(true)
-                    .mitreMapping(new HashMap<>())
+                    .mitreMapping(mitreMappingMap)
                     .build();
 
             return validateAndFixResponse(response);
@@ -793,23 +819,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         };
     }
 
-    /**
-     * 문자열을 액션으로 매핑 (AI Native v3.3.0)
-     *
-     * LLM은 4개 결정: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
-     * - BLOCK: 극고위험군 (즉시 차단)
-     * - CHALLENGE: 고위험군 (MFA 인증 요구)
-     * Layer3는 최종 계층이므로 ESCALATE도 그대로 유지 (인간 개입 필요)
-     */
-    private SecurityDecision.Action mapStringToAction(String action) {
-        if (action == null) return SecurityDecision.Action.ESCALATE;
-        return switch (action.toUpperCase()) {
-            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
-            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
-            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
-            default -> SecurityDecision.Action.ESCALATE;  // E 포함, 최종 계층에서 불확실 = 인간 개입
-        };
-    }
+    // mapStringToAction()은 AbstractTieredStrategy로 이동됨
 
 
     /**
@@ -1001,65 +1011,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         public void setVulnerabilityHistory(List<String> history) { this.vulnerabilityHistory = history; }
     }
 
-    private void feedbackToLayer1(SecurityEvent event, SecurityDecision decision) {
-        if (redisTemplate == null) {
-            return;
-        }
-
-        // AI Native: Action 기반 피드백 결정
-        // Action이 null이거나 ALLOW인 경우 피드백 불필요
-        SecurityDecision.Action action = decision.getAction();
-        if (action == null || action == SecurityDecision.Action.ALLOW) {
-            return;
-        }
-
-        try {
-            String feedbackKey = "layer3:feedback:" + event.getEventId();
-
-            Map<String, Object> feedback = new HashMap<>();
-            feedback.put("eventId", event.getEventId());
-            feedback.put("userId", event.getUserId() != null ? event.getUserId() : FeedbackConstants.DEFAULT_USER_ID);
-            feedback.put("sourceIp", event.getSourceIp());
-            feedback.put("eventType", event.getEventType() != null ? event.getEventType().toString() : FeedbackConstants.DEFAULT_EVENT_TYPE);
-            feedback.put("riskScore", decision.getRiskScore());
-            feedback.put("confidence", decision.getConfidence());
-            feedback.put("action", action.toString());
-            feedback.put("threatCategory", decision.getThreatCategory());
-            feedback.put("mitreTactics", decision.getMitreMapping() != null ? new ArrayList<>(decision.getMitreMapping().keySet()) : List.of());
-            feedback.put("iocIndicators", decision.getIocIndicators());
-            feedback.put("timestamp", System.currentTimeMillis());
-
-            storeFeedbackWithRetry(feedbackKey, feedback);
-
-            String patternKey = localFeedbackProperties.getRedis().getPatternKeyPrefix() + event.getEventType();
-            redisTemplate.opsForList().rightPush(patternKey, feedback);
-            redisTemplate.expire(patternKey, Duration.ofDays(30));
-
-            log.info("[Layer3] Feedback stored: eventId={}, action={}", event.getEventId(), action);
-
-        } catch (Exception e) {
-            log.warn("[Layer3] Failed to store feedback: eventId={}", event.getEventId(), e);
-        }
-    }
-
-    /**
-     * Redis 저장 실패 시 자동 재시도 (최대 3회, exponential backoff)
-     */
-    @Retryable(
-            value = {Exception.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 1000, multiplier = 2)
-    )
-    private void storeFeedbackWithRetry(String feedbackKey, Map<String, Object> feedback) {
-        try {
-            redisTemplate.opsForValue().set(feedbackKey, feedback, Duration.ofDays(7));
-            log.debug("Feedback stored successfully: key={}", feedbackKey);
-        } catch (Exception e) {
-            log.error("Failed to store feedback (will retry): key={}", feedbackKey, e);
-            throw e;
-        }
-    }
-
     /**
      * AbstractTieredStrategy의 getLayerName() 구현
      */
@@ -1077,16 +1028,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     public List<ThreatIndicator> extractIndicators(SecurityEvent event) {
         // ThreatIndicator 추출 로직
         return new ArrayList<>();
-    }
-
-    // ThreatEvaluationStrategy 인터페이스에서 mapToFramework 제거됨
-    public Map<String, String> mapToFramework(SecurityEvent event) {
-        Map<String, String> mapping = new HashMap<>();
-        mapping.put("framework", "EXPERT_ANALYSIS");
-        mapping.put("tier", "3");
-        // AI Native: MITRE ATT&CK 매핑은 LLM이 ThreatAssessment에서 생성
-        // deprecated 필드(getMitreAttackId) 사용 제거
-        return mapping;
     }
 
     @Override

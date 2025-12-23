@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import io.contexa.contexacore.infra.redis.RedisEventListener;
-import io.contexa.contexacore.infra.redis.RedisStreamInitializer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,10 +17,9 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
  *
  * Contexa Core의 Infrastructure 관련 컴포넌트 자동 구성
  *
- * 포함된 컴포넌트 (3개):
+ * 포함된 컴포넌트 (2개):
  * - RedisAtomicOperations
  * - RedisEventListener
- * - RedisStreamInitializer
  *
  * @since 0.1.0-ALPHA
  */
@@ -47,11 +45,5 @@ public class CoreInfrastructureExtendedAutoConfiguration {
             RedisMessageListenerContainer messageListenerContainer,
             ObjectMapper objectMapper) {
         return new RedisEventListener(messageListenerContainer, objectMapper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RedisStreamInitializer redisStreamInitializer() {
-        return new RedisStreamInitializer();
     }
 }

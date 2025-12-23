@@ -151,6 +151,11 @@ public class HCADContext {
     /**
      * 벡터화를 위한 384차원 숫자 배열 변환
      *
+     * AI Native v3.3.0: 규칙 기반 코드 제거
+     * - 임계값 플래그 (> X ? 1.0 : 0.0) 제거
+     * - 하드코딩된 키워드 체크 (contains("admin")) 제거
+     * - 연속 정규화 값과 시간 원-핫만 유지
+     *
      * 차원 구성:
      * - 0-31: 시간 특성 (32차원)
      * - 32-95: 행동 패턴 (64차원)
@@ -187,17 +192,15 @@ public class HCADContext {
 
         // ========== 32-95: 행동 패턴 (64차원) ==========
         // 요청 빈도 다양한 스케일 (10차원)
+        // AI Native v3.3.0: 연속 값만 유지, 임계값 플래그 제거
         int reqCount = recentRequestCount != null ? recentRequestCount : 0;
         vector[idx++] = Math.tanh(reqCount / 10.0);    // 10개 단위
         vector[idx++] = Math.tanh(reqCount / 50.0);    // 50개 단위
         vector[idx++] = Math.tanh(reqCount / 100.0);   // 100개 단위
         vector[idx++] = Math.tanh(reqCount / 500.0);   // 500개 단위
         vector[idx++] = Math.tanh(reqCount / 1000.0);  // 1000개 단위
-        vector[idx++] = reqCount > 10 ? 1.0 : 0.0;     // 임계값 플래그들
-        vector[idx++] = reqCount > 50 ? 1.0 : 0.0;
-        vector[idx++] = reqCount > 100 ? 1.0 : 0.0;
-        vector[idx++] = reqCount > 500 ? 1.0 : 0.0;
-        vector[idx++] = reqCount > 1000 ? 1.0 : 0.0;
+        // AI Native: 임계값 플래그 제거 - LLM이 원시 연속 값으로 직접 판단
+        idx += 5;  // 하위 호환성 유지 (벡터 차원)
 
         // 세션 특성 (10차원)
         vector[idx++] = isNewSession != null && isNewSession ? 1.0 : 0.0;
@@ -224,27 +227,23 @@ public class HCADContext {
 
         // ========== 96-159: 보안 특성 (64차원) ==========
         // 신뢰 점수 다양한 표현 (10차원)
+        // AI Native v3.3.0: 연속 값만 유지, 임계값 플래그 제거
         double trust = currentTrustScore != null ? currentTrustScore : 0.5;
         vector[idx++] = trust;
         vector[idx++] = trust * trust;  // 제곱
         vector[idx++] = Math.sqrt(trust);  // 제곱근
         vector[idx++] = Math.log1p(trust);  // 로그
-        vector[idx++] = trust > 0.3 ? 1.0 : 0.0;  // 임계값들
-        vector[idx++] = trust > 0.5 ? 1.0 : 0.0;
-        vector[idx++] = trust > 0.7 ? 1.0 : 0.0;
-        vector[idx++] = trust > 0.9 ? 1.0 : 0.0;
-        vector[idx++] = trust < 0.3 ? 1.0 : 0.0;
-        vector[idx++] = trust < 0.1 ? 1.0 : 0.0;
+        // AI Native: 임계값 플래그 제거 - LLM이 연속 값으로 직접 판단
+        idx += 6;  // 하위 호환성 유지 (벡터 차원)
 
         // 로그인 실패 패턴 (10차원)
+        // AI Native v3.3.0: 연속 값만 유지, 임계값 플래그 제거
         int failures = failedLoginAttempts != null ? failedLoginAttempts : 0;
-        vector[idx++] = Math.tanh(failures / 5.0);
-        vector[idx++] = failures > 0 ? 1.0 : 0.0;
-        vector[idx++] = failures > 3 ? 1.0 : 0.0;
-        vector[idx++] = failures > 5 ? 1.0 : 0.0;
-        vector[idx++] = failures > 10 ? 1.0 : 0.0;
+        vector[idx++] = Math.tanh(failures / 5.0);  // 연속 정규화 값
+        // AI Native: 임계값 플래그 제거 - LLM이 연속 값으로 직접 판단
+        idx += 4;  // 하위 호환성 유지 (벡터 차원)
         for (int i = 0; i < 5; i++) {
-            vector[idx++] = (failures == i) ? 1.0 : 0.0;  // 0-4 실패 횟수 원-핫
+            vector[idx++] = (failures == i) ? 1.0 : 0.0;  // 0-4 실패 횟수 원-핫 (범주형 유지)
         }
 
         // 인증 방법 (10차원)
@@ -341,18 +340,14 @@ public class HCADContext {
 
         // ========== 224-287: 리소스 접근 패턴 (64차원) ==========
         // 경로 깊이 및 구조 (10차원)
+        // AI Native v3.3.0: 하드코딩된 키워드 체크 제거, 연속 값만 유지
         if (requestPath != null) {
             String[] pathParts = requestPath.split("/");
-            vector[idx++] = Math.tanh(pathParts.length / 10.0);  // 경로 깊이
-            vector[idx++] = requestPath.contains("admin") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.contains("api") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.contains("secure") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.contains("public") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.contains("user") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.contains("account") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.contains("config") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.contains("system") ? 1.0 : 0.0;
-            vector[idx++] = requestPath.length() > 100 ? 1.0 : 0.0;
+            vector[idx++] = Math.tanh(pathParts.length / 10.0);  // 경로 깊이 (연속)
+            // AI Native: 하드코딩된 키워드 체크 제거 (admin, api, secure 등)
+            // LLM이 requestPath 원시 데이터를 직접 분석
+            idx += 8;  // 하위 호환성 유지 (벡터 차원)
+            vector[idx++] = Math.tanh(requestPath.length() / 200.0);  // 경로 길이 정규화 (연속)
         } else {
             idx += 10;
         }
@@ -379,27 +374,14 @@ public class HCADContext {
 
         // ========== 288-351: 디바이스/UA 특성 (64차원) ==========
         // User-Agent 파싱 (20차원)
+        // AI Native v3.3.0: 하드코딩된 키워드 체크 제거, 연속 값만 유지
         if (userAgent != null) {
-            vector[idx++] = userAgent.toLowerCase().contains("windows") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("mac") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("linux") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("android") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("iphone") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("chrome") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("firefox") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("safari") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("edge") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("bot") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("crawler") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("curl") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("wget") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("python") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("java") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("mobile") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.toLowerCase().contains("tablet") ? 1.0 : 0.0;
-            vector[idx++] = userAgent.length() > 200 ? 1.0 : 0.0;
-            vector[idx++] = userAgent.length() < 50 ? 1.0 : 0.0;
-            vector[idx++] = Math.tanh(userAgent.length() / 500.0);
+            // AI Native: 하드코딩된 키워드 체크 제거 (windows, bot, crawler 등)
+            // LLM이 userAgent 원시 데이터를 직접 분석
+            idx += 17;  // 하위 호환성 유지 (벡터 차원)
+            vector[idx++] = Math.tanh(userAgent.length() / 500.0);  // 길이 정규화 (연속)
+            vector[idx++] = Math.tanh(userAgent.length() / 100.0);  // 다른 스케일
+            vector[idx++] = Math.tanh(userAgent.length() / 300.0);  // 중간 스케일
         } else {
             idx += 20;
         }

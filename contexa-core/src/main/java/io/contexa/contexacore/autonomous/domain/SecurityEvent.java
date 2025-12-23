@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.HashMap;
@@ -242,11 +244,25 @@ public class SecurityEvent {
     
     /**
      * 고위험 이벤트 여부
-     * 
+     *
      * @return 고위험이면 true
+     * @deprecated AI Native 원칙 위반 - isHighRiskByAction() 사용 권장
      */
+    @Deprecated(since = "3.1.0", forRemoval = true)
     public boolean isHighRisk() {
         return severity == Severity.CRITICAL || severity == Severity.HIGH;
+    }
+
+    /**
+     * AI Native: action 기반 고위험 판단
+     * LLM이 결정한 action으로 위험도 판단
+     *
+     * @param action LLM이 결정한 보안 액션
+     * @return BLOCK 또는 ESCALATE이면 true
+     */
+    public boolean isHighRiskByAction(SecurityDecision.Action action) {
+        return action == SecurityDecision.Action.BLOCK ||
+               action == SecurityDecision.Action.ESCALATE;
     }
     
     /**

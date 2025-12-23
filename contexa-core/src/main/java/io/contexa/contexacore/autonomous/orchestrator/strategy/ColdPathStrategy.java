@@ -7,14 +7,6 @@ import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * AI 기반 상세 분석 전략
@@ -29,22 +21,12 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class ColdPathStrategy implements ProcessingStrategy {
 
-    @Autowired(required = false)
-    private ColdPathEventProcessor coldPathProcessor;
+    private final ColdPathEventProcessor coldPathProcessor;
 
     @Override
     public ProcessingResult process(SecurityEventContext context) {
         SecurityEvent event = context.getSecurityEvent();
         log.info("[ColdPathStrategy] Processing AI analysis for event: {}", event.getEventId());
-
-        if (coldPathProcessor == null) {
-            log.error("[ColdPathStrategy] ColdPathProcessor not available");
-            return ProcessingResult.builder()
-                .success(false)
-                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
-                .message("ColdPathProcessor not available")
-                .build();
-        }
 
         try {
             // AI 분석 결과에서 위험도 점수 추출 (0.0-1.0 스케일)
@@ -72,8 +54,7 @@ public class ColdPathStrategy implements ProcessingStrategy {
                 .metadata(result.getMetadata())
                 .message(result.getMessage())
                 .requiresIncident(result.isRequiresIncident())
-                .incidentSeverity(result.getIncidentSeverity() != null ?
-                    ProcessingResult.IncidentSeverity.valueOf(result.getIncidentSeverity()) : null)
+                .incidentSeverity(parseIncidentSeverity(result.getIncidentSeverity()))
                 .threatIndicators(result.getThreatIndicators())
                 .recommendedActions(result.getRecommendedActions())
                 .aiAnalysisPerformed(result.isAiAnalysisPerformed())
@@ -85,29 +66,49 @@ public class ColdPathStrategy implements ProcessingStrategy {
                 .build();
 
         } catch (Exception e) {
+            // 에러 상세는 로그에만 기록, 메시지에는 일반화된 내용만 반환 (보안)
             log.error("[ColdPathStrategy] Error processing event: {}", event.getEventId(), e);
             return ProcessingResult.builder()
                 .success(false)
                 .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
-                .message("Processing error: " + e.getMessage())
+                .message("AI analysis processing failed")
                 .riskScore(0.0)  // AI Native: 실패 시 기본값
                 .build();
         }
     }
 
     /**
+     * 문자열을 IncidentSeverity enum으로 안전하게 변환
+     *
+     * @param severity 심각도 문자열
+     * @return IncidentSeverity enum 또는 null (유효하지 않은 경우)
+     */
+    private ProcessingResult.IncidentSeverity parseIncidentSeverity(String severity) {
+        if (severity == null || severity.isBlank()) {
+            return null;
+        }
+        try {
+            return ProcessingResult.IncidentSeverity.valueOf(severity);
+        } catch (IllegalArgumentException e) {
+            log.warn("[ColdPathStrategy] Invalid incident severity: {}", severity);
+            return null;
+        }
+    }
+
+    /**
      * Context에서 위험도 점수 추출 (0.0-1.0 스케일)
      *
-     * AI Native: LLM이 결정한 riskScore 사용, 없으면 NaN (기본값 제거)
+     * AI Native: LLM이 결정한 riskScore 사용
+     * 분석 미수행 상태는 -1.0으로 표현 (NaN은 JSON 직렬화/비교 연산 문제 발생)
      *
      * @param context 보안 이벤트 컨텍스트
-     * @return 위험도 점수 (LLM이 결정, 없으면 NaN)
+     * @return 위험도 점수 (LLM이 결정, 분석 미수행 시 -1.0)
      */
     private double extractRiskScore(SecurityEventContext context) {
         if (context.getAiAnalysisResult() == null) {
-            // AI Native: 분석 미수행 상태는 NaN (규칙 기반 기본값 제거)
-            log.debug("[ColdPathStrategy][AI Native] No AI analysis result, riskScore=NaN");
-            return Double.NaN;
+            // AI Native: 분석 미수행 상태는 -1.0 (NaN은 JSON 직렬화/비교 연산 문제)
+            log.debug("[ColdPathStrategy][AI Native] No AI analysis result, riskScore=-1.0");
+            return -1.0;
         }
 
         // threatLevel 필드를 riskScore로 사용 (0.0-1.0 범위)

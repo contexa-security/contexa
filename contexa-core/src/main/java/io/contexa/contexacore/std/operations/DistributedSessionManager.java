@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexacore.infra.session.AIStrategyExecutionPhase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -77,7 +76,7 @@ public class DistributedSessionManager<T extends DomainContext> {
                 "resultType", result != null ? result.getClass().getSimpleName() : "null"
             );
             
-            updateSessionState(sessionId, AIStrategyExecutionPhase.COMPLETED, completionData);
+            updateSessionState(sessionId, "COMPLETED", completionData);
             
             // 실행 메트릭 저장
             AIExecutionMetrics metrics = createExecutionMetrics(sessionId, success);
@@ -104,7 +103,7 @@ public class DistributedSessionManager<T extends DomainContext> {
                 "strategyId", strategyId
             );
             
-            updateSessionState(sessionId, AIStrategyExecutionPhase.FAILED, failureData);
+            updateSessionState(sessionId, "FAILED", failureData);
             
             // 실패 이벤트 발행
             publishExecutionFailureEvent(sessionId, request, error);
@@ -169,15 +168,15 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
     
 
-    private void updateSessionState(String sessionId, AIStrategyExecutionPhase phase, Map<String, Object> phaseData) {
+    private void updateSessionState(String sessionId, String phase, Map<String, Object> phaseData) {
         try {
             // 실제 구현에서는 sessionRepository.updateExecutionPhase 사용
             log.debug("Updating session {} to phase: {}", sessionId, phase);
-            
+
             // 분산 이벤트 발행
             eventPublisher.publishEvent("ai:strategy:phase:updated", Map.of(
                 "sessionId", sessionId,
-                "phase", phase.name(),
+                "phase", phase,
                 "timestamp", System.currentTimeMillis(),
                 "phaseData", phaseData
             ));

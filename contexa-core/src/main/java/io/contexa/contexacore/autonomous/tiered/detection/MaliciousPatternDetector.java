@@ -45,8 +45,12 @@ public class MaliciousPatternDetector {
 
     private final RedisTemplate<String, String> stringRedisTemplate;
 
-    @Value("${spring.ai.security.pattern-detection.similarity-threshold:0.75}")
-    private double similarityThreshold;
+    /**
+     * AI Native v3.3.0: 유사도 임계값은 사전 필터링용
+     * 최종 악성 판단은 LLM의 Action으로 결정
+     */
+    @Value("${spring.ai.security.pattern-detection.min-similarity-filter:0.5}")
+    private double minSimilarityFilter;
 
     @Value("${spring.ai.security.pattern-detection.cache-enabled:true}")
     private boolean cacheEnabled;
@@ -180,17 +184,17 @@ public class MaliciousPatternDetector {
             Document topMatch = similarDocuments.get(0);
             double maxSimilarity = extractSimilarity(topMatch);
 
-            // 유사도가 임계값 이상이면 악성
-            boolean isMalicious = maxSimilarity >= similarityThreshold;
+            // AI Native v3.3.0: 유사도는 참고용으로 반환
+            // 최종 악성 판단은 LLM이 결정 - 여기서는 유사 패턴 발견 사실만 전달
+            // Cold Path에서 LLM이 BLOCK/ALLOW/CHALLENGE/ESCALATE 결정
+            boolean hasHighSimilarity = maxSimilarity >= 0.7; // 참고용 플래그
 
             return PatternAnalysisResult.builder()
-                    .malicious(isMalicious)
+                    .malicious(hasHighSimilarity) // LLM 분석 전 예비 판단
                     .similarityScore(maxSimilarity)
                     .matchedPatternCount(similarDocuments.size())
                     .detectionMethod(DetectionMethod.AI_VECTOR)
-                    .reason(isMalicious ?
-                            String.format("High similarity to known malicious pattern (%.2f%%)", maxSimilarity * 100) :
-                            String.format("Low similarity to known patterns (%.2f%%)", maxSimilarity * 100))
+                    .reason(String.format("Similarity to known patterns: %.2f%% (LLM will determine final action)", maxSimilarity * 100))
                     .matchedDocument(topMatch)
                     .build();
 
@@ -397,12 +401,17 @@ public class MaliciousPatternDetector {
     }
 
     /**
-     * 유사도로부터 심각도 결정
+     * AI Native v3.3.0: 유사도로부터 심각도 결정
+     *
+     * 참고용 분류 - 실제 Action은 LLM이 결정
+     * 이 값은 로깅/모니터링 용도로만 사용
      *
      * @param similarityScore 유사도
-     * @return 심각도
+     * @return 심각도 문자열 (참고용)
      */
     private String determineSeverity(double similarityScore) {
+        // AI Native: 유사도 기반 분류는 참고용
+        // 실제 보안 조치는 LLM의 Action(ALLOW/BLOCK/CHALLENGE/ESCALATE)으로 결정
         if (similarityScore >= 0.9) {
             return "CRITICAL";
         } else if (similarityScore >= 0.8) {

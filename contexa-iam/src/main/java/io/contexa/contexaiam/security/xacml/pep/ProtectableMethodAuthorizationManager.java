@@ -56,9 +56,10 @@ public class ProtectableMethodAuthorizationManager {
     private static final long POLLING_INTERVAL_MS = 100;
 
     /**
-     * 허용된 action 목록 (ALLOW, MONITOR는 접근 허용)
+     * AI Native v3.3.0: 허용된 action 목록
+     * ALLOW만 접근 허용 (MONITOR 제거됨)
      */
-    private static final Set<String> ALLOWED_ACTIONS = Set.of("ALLOW", "MONITOR");
+    private static final Set<String> ALLOWED_ACTIONS = Set.of("ALLOW");
 
     /**
      * 사전 인가 처리
@@ -249,22 +250,24 @@ public class ProtectableMethodAuthorizationManager {
     }
 
     /**
-     * action 유효성 검증
+     * action 유효성 검증 (AI Native v3.3.0)
      *
-     * BLOCK, CHALLENGE, INVESTIGATE, ESCALATE인 경우 예외 발생
+     * 4개 Action 체계:
+     * - ALLOW: 통과
+     * - BLOCK, CHALLENGE, ESCALATE: 예외 발생
      *
      * @param action LLM이 결정한 action
      * @param resourceId 리소스 식별자
      */
     private void validateAction(String action, String resourceId) {
         if (action == null || ALLOWED_ACTIONS.contains(action.toUpperCase())) {
-            return; // ALLOW, MONITOR는 통과
+            return; // ALLOW만 통과
         }
 
         switch (action.toUpperCase()) {
             case "BLOCK" -> throw ZeroTrustAccessDeniedException.blocked(resourceId, 0.8);
             case "CHALLENGE" -> throw ZeroTrustAccessDeniedException.challengeRequired(resourceId, 0.6);
-            case "INVESTIGATE", "ESCALATE" -> throw ZeroTrustAccessDeniedException.pendingReview(resourceId, 0.7);
+            case "ESCALATE" -> throw ZeroTrustAccessDeniedException.pendingReview(resourceId, 0.7);
             default -> {
                 log.warn("[ZeroTrust] 알 수 없는 action: {} - 거부", action);
                 throw new ZeroTrustAccessDeniedException(
@@ -299,13 +302,6 @@ public class ProtectableMethodAuthorizationManager {
             Object action = redisTemplate.opsForHash().get(analysisKey, "action");
             if (action != null) {
                 return action.toString();
-            }
-
-            // 2. Fallback: 레거시 키 조회
-            String legacyKey = ZeroTrustRedisKeys.userAction(userId);
-            Object legacyAction = redisTemplate.opsForValue().get(legacyKey);
-            if (legacyAction != null) {
-                return legacyAction.toString();
             }
 
             // 3. 키 없음 -> PENDING_ANALYSIS

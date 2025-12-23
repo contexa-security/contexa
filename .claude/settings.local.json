@@ -20,7 +20,22 @@
       "Bash(gradlew.bat compileJava:*)",
       "Bash(cmd.exe /c:*)",
       "Bash(./gradlew :contexa-core:test:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(.\\\\gradlew :contexa-core:compileJava:*)",
+      "Bash(gradlew.bat:*)",
+      "Bash(cmd /c \"gradlew.bat :contexa-core:compileJava --no-daemon\")",
+      "Bash(powershell -Command:*)",
+      "Bash(./gradlew.bat:*)",
+      "Bash(cmd /c:*)",
+      "Bash(./gradlew :contexa-core:compileJava:*)",
+      "Bash(./gradlew :spring-boot-starter-contexa:compileJava:*)",
+      "Bash(.\\\\gradlew:*)",
+      "Bash(cd:*)",
+      "Bash(d:\\\\projects\\\\contexa\\\\gradlew.bat:*)",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\infra\\\\session\\\\RedisAIStrategySessionRepository.java\")",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\infra\\\\redis\\\\RedisStreamInitializer.java\")",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\autonomous\\\\orchestrator\\\\handler\\\\ThreatScoreHandler.java\")",
+      "Bash(d:)"
     ],
     "deny": [],
     "ask": []

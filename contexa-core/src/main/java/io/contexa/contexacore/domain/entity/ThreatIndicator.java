@@ -300,7 +300,10 @@ public class ThreatIndicator {
 
     /**
      * Check if high risk
+     *
+     * @deprecated AI Native 원칙 위반 - LLM 분석 결과의 action/riskScore 사용 권장
      */
+    @Deprecated(since = "3.1.0", forRemoval = true)
     @JsonIgnore
     public boolean isHighRisk() {
         return severity == Severity.HIGH || severity == Severity.CRITICAL;
@@ -324,7 +327,10 @@ public class ThreatIndicator {
     
     /**
      * Check if this threat indicator requires immediate action
+     *
+     * @deprecated AI Native 원칙 위반 - SecurityDecision.action == BLOCK 사용 권장
      */
+    @Deprecated(since = "3.1.0", forRemoval = true)
     public boolean requiresImmediateAction() {
         return severity == Severity.CRITICAL && confidence > 0.8;
     }

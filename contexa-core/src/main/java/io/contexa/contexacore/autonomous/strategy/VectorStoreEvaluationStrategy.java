@@ -133,20 +133,15 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
         return mapping;
     }
     
+    /**
+     * AI Native: LLM이 직접 recommendedActions 결정
+     * 규칙 기반 액션 추천 제거
+     */
     @Override
     public List<String> getRecommendedActions(SecurityEvent event) {
-        if (event.getSeverity() == null) {
-            return List.of("MONITOR", "LOG");
-        }
-        
-        return switch (event.getSeverity()) {
-            case CRITICAL -> List.of("IMMEDIATE_RESPONSE", "ISOLATE_SYSTEM", "ALERT_SOC", "BLOCK_SOURCE");
-            case HIGH -> List.of("ESCALATE", "ENHANCE_MONITORING", "INVESTIGATE", "NOTIFY_ADMIN");
-            case MEDIUM -> List.of("INVESTIGATE", "MONITOR_CLOSELY", "LOG_ANALYSIS");
-            case LOW -> List.of("MONITOR", "LOG", "BASELINE_UPDATE");
-            case INFO -> List.of("LOG", "TRACK_METRICS");
-            default -> List.of("MONITOR", "LOG");
-        };
+        // AI Native: 규칙 기반 액션 추천 제거
+        // LLM이 ThreatAssessment.recommendedActions를 직접 결정
+        return List.of("LLM_ANALYSIS_REQUIRED");
     }
     
     @Override

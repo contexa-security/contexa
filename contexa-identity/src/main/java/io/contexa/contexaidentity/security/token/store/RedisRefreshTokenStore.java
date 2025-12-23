@@ -139,14 +139,15 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
         Objects.requireNonNull(refreshToken, "refreshToken cannot be null");
         Objects.requireNonNull(username, "username cannot be null");
 
-        // 보안 강화: 비정상 패턴 감지
+        // 보안 강화: 비정상 패턴 감지 (AI Native v3.3.0)
         if (enhancedSecurityEnabled && anomalyDetector != null) {
             String deviceId = extractDeviceId(refreshToken);
             ClientInfo clientInfo = getCurrentClientInfo();
             AnomalyDetectionResult anomaly = anomalyDetector.detectAnomaly(username, deviceId, clientInfo);
 
-            if (anomaly.isAnomalous() && anomaly.riskScore() > 0.8) {
-                log.error("High risk anomaly detected for user: {}. Type: {}, Score: {}",
+            // AI Native: 점수 기반이 아닌 이상 탐지 타입 기반 판단
+            if (anomaly.isAnomalous() && isCriticalAnomalyType(anomaly.type())) {
+                log.error("Critical anomaly detected for user: {}. Type: {}, Score: {}",
                         username, anomaly.type(), anomaly.riskScore());
                 throw new SecurityException("Token save rejected due to security risk");
             }
@@ -592,6 +593,23 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
             log.trace("Failed to extract deviceId from token. Error: {}", e.getMessage(), e);
             return "unknown";
         }
+    }
+
+    /**
+     * AI Native v3.3.0: 심각한 이상 탐지 타입 판별
+     *
+     * 점수 기반이 아닌 타입 기반으로 판단
+     * - REUSED_TOKEN: 토큰 재사용 공격
+     * - GEOGRAPHIC_ANOMALY: 불가능한 이동 (지리적으로 불가능한 시간 내 접속)
+     * - DEVICE_MISMATCH: 디바이스 불일치
+     * - RAPID_REFRESH: 비정상적으로 빈번한 갱신
+     */
+    private boolean isCriticalAnomalyType(AnomalyType type) {
+        if (type == null) return false;
+        return switch (type) {
+            case REUSED_TOKEN, GEOGRAPHIC_ANOMALY, DEVICE_MISMATCH, RAPID_REFRESH -> true;
+            default -> false;
+        };
     }
 
     /**

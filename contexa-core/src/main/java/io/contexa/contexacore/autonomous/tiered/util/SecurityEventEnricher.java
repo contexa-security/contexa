@@ -1,18 +1,29 @@
 package io.contexa.contexacore.autonomous.tiered.util;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import lombok.extern.slf4j.Slf4j;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * SecurityEvent 메타데이터 보강 유틸리티
- * 
+ *
  * SecurityEvent의 metadata Map을 통해 추가 필드를 관리하는 헬퍼 클래스입니다.
  * Layer 전략들이 필요로 하는 추가 필드를 안전하게 처리합니다.
  */
+@Slf4j
 public class SecurityEventEnricher {
+
+    // Base64 패턴 감지 정규식
+    private static final Pattern BASE64_PATTERN = Pattern.compile("^[A-Za-z0-9+/=]{4,}$");
+    // URL 인코딩 패턴 감지 (%XX 형식)
+    private static final Pattern URL_ENCODED_PATTERN = Pattern.compile(".*%[0-9A-Fa-f]{2}.*");
     
     // 메타데이터 키 상수
     public static final String TARGET_RESOURCE = "targetResource";
@@ -77,7 +88,109 @@ public class SecurityEventEnricher {
     public Optional<Object> getRequestPayload(SecurityEvent event) {
         return getMetadataValue(event, REQUEST_PAYLOAD, Object.class);
     }
-    
+
+    /**
+     * 디코딩된 페이로드 조회 (Phase 3-7: Payload 인코딩 전처리)
+     *
+     * Base64 또는 URL 인코딩된 페이로드를 자동 감지하여 디코딩합니다.
+     * LLM이 인코딩된 데이터를 직접 분석하지 않도록 전처리합니다.
+     *
+     * 디코딩 순서:
+     * 1. URL 인코딩 감지 및 디코딩 (%XX 형식)
+     * 2. Base64 인코딩 감지 및 디코딩
+     * 3. 디코딩 실패 시 원본 반환
+     *
+     * @param event SecurityEvent
+     * @return 디코딩된 페이로드 문자열 (Optional)
+     */
+    public Optional<String> getDecodedPayload(SecurityEvent event) {
+        return getRequestPayload(event)
+                .map(payload -> {
+                    String payloadStr = payload.toString();
+                    return decodePayload(payloadStr);
+                });
+    }
+
+    /**
+     * 페이로드 디코딩 (URL + Base64)
+     *
+     * @param payload 원본 페이로드
+     * @return 디코딩된 페이로드 (디코딩 불가 시 원본 반환)
+     */
+    private String decodePayload(String payload) {
+        if (payload == null || payload.isEmpty()) {
+            return payload;
+        }
+
+        String decoded = payload;
+
+        // 1. URL 디코딩 시도
+        if (URL_ENCODED_PATTERN.matcher(payload).matches()) {
+            try {
+                decoded = URLDecoder.decode(payload, StandardCharsets.UTF_8);
+                log.debug("[SecurityEventEnricher] URL decoded payload: {} -> {}",
+                        truncateForLog(payload), truncateForLog(decoded));
+            } catch (Exception e) {
+                log.debug("[SecurityEventEnricher] URL decoding failed, keeping original");
+            }
+        }
+
+        // 2. Base64 디코딩 시도 (URL 디코딩 후)
+        if (isLikelyBase64(decoded)) {
+            try {
+                byte[] decodedBytes = Base64.getDecoder().decode(decoded);
+                String base64Decoded = new String(decodedBytes, StandardCharsets.UTF_8);
+                // 디코딩 결과가 출력 가능한 문자열인지 확인
+                if (isPrintable(base64Decoded)) {
+                    log.debug("[SecurityEventEnricher] Base64 decoded payload: {} -> {}",
+                            truncateForLog(decoded), truncateForLog(base64Decoded));
+                    decoded = base64Decoded;
+                }
+            } catch (Exception e) {
+                log.debug("[SecurityEventEnricher] Base64 decoding failed, keeping previous result");
+            }
+        }
+
+        return decoded;
+    }
+
+    /**
+     * Base64 인코딩 여부 추정
+     * - 길이가 4의 배수
+     * - Base64 문자셋만 포함
+     * - 최소 길이 이상
+     */
+    private boolean isLikelyBase64(String str) {
+        if (str == null || str.length() < 8) {
+            return false;
+        }
+        // 길이가 4의 배수이고 Base64 패턴에 맞는지 확인
+        return str.length() % 4 == 0 && BASE64_PATTERN.matcher(str).matches();
+    }
+
+    /**
+     * 문자열이 출력 가능한지 확인 (바이너리 데이터 필터링)
+     */
+    private boolean isPrintable(String str) {
+        if (str == null || str.isEmpty()) {
+            return false;
+        }
+        // 80% 이상이 출력 가능한 ASCII 문자인지 확인
+        long printableCount = str.chars()
+                .filter(c -> c >= 32 && c < 127)
+                .count();
+        return (double) printableCount / str.length() >= 0.8;
+    }
+
+    /**
+     * 로깅용 문자열 잘라내기
+     */
+    private String truncateForLog(String str) {
+        if (str == null) return "null";
+        if (str.length() <= 50) return str;
+        return str.substring(0, 47) + "...";
+    }
+
     /**
      * 사용자 행동 패턴 설정
      */
@@ -190,24 +303,111 @@ public class SecurityEventEnricher {
     }
     
     /**
-     * 메타데이터 값 안전하게 조회
+     * 메타데이터 값 안전하게 조회 (Phase 3-8: 타입 안전성 강화)
+     *
+     * 타입 변환 지원:
+     * - 정확한 타입 일치
+     * - 숫자 타입 자동 변환 (Integer -> Long, Float -> Double 등)
+     * - 문자열 -> 숫자 변환
+     * - 타입 불일치 시 경고 로깅
+     *
+     * @param event SecurityEvent
+     * @param key 메타데이터 키
+     * @param type 요청 타입
+     * @return Optional<T> 변환된 값
      */
     @SuppressWarnings("unchecked")
     private <T> Optional<T> getMetadataValue(SecurityEvent event, String key, Class<T> type) {
         if (event.getMetadata() == null || !event.getMetadata().containsKey(key)) {
             return Optional.empty();
         }
-        
+
         Object value = event.getMetadata().get(key);
         if (value == null) {
             return Optional.empty();
         }
-        
+
+        // 1. 정확한 타입 일치
         if (type.isInstance(value)) {
             return Optional.of((T) value);
         }
-        
+
+        // 2. 숫자 타입 변환 시도
+        if (Number.class.isAssignableFrom(type) && value instanceof Number) {
+            try {
+                Number numValue = (Number) value;
+                Object converted = convertNumber(numValue, type);
+                if (converted != null) {
+                    return Optional.of((T) converted);
+                }
+            } catch (Exception e) {
+                log.debug("[SecurityEventEnricher] Number conversion failed for key '{}': {} -> {}",
+                        key, value.getClass().getSimpleName(), type.getSimpleName());
+            }
+        }
+
+        // 3. 문자열 -> 숫자 변환 시도
+        if (Number.class.isAssignableFrom(type) && value instanceof String) {
+            try {
+                Object converted = parseStringToNumber((String) value, type);
+                if (converted != null) {
+                    return Optional.of((T) converted);
+                }
+            } catch (Exception e) {
+                log.debug("[SecurityEventEnricher] String to number parsing failed for key '{}': '{}'",
+                        key, value);
+            }
+        }
+
+        // 4. 문자열 요청 시 toString() 사용
+        if (type == String.class) {
+            return Optional.of((T) value.toString());
+        }
+
+        // 5. 타입 불일치 경고 로깅
+        log.warn("[SecurityEventEnricher] Type mismatch for key '{}': expected {}, got {}",
+                key, type.getSimpleName(), value.getClass().getSimpleName());
         return Optional.empty();
+    }
+
+    /**
+     * Number 타입 변환
+     */
+    private Object convertNumber(Number value, Class<?> targetType) {
+        if (targetType == Integer.class || targetType == int.class) {
+            return value.intValue();
+        } else if (targetType == Long.class || targetType == long.class) {
+            return value.longValue();
+        } else if (targetType == Double.class || targetType == double.class) {
+            return value.doubleValue();
+        } else if (targetType == Float.class || targetType == float.class) {
+            return value.floatValue();
+        } else if (targetType == Short.class || targetType == short.class) {
+            return value.shortValue();
+        } else if (targetType == Byte.class || targetType == byte.class) {
+            return value.byteValue();
+        }
+        return null;
+    }
+
+    /**
+     * 문자열 -> Number 파싱
+     */
+    private Object parseStringToNumber(String value, Class<?> targetType) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (targetType == Integer.class || targetType == int.class) {
+            return Integer.parseInt(trimmed);
+        } else if (targetType == Long.class || targetType == long.class) {
+            return Long.parseLong(trimmed);
+        } else if (targetType == Double.class || targetType == double.class) {
+            return Double.parseDouble(trimmed);
+        } else if (targetType == Float.class || targetType == float.class) {
+            return Float.parseFloat(trimmed);
+        }
+        return null;
     }
     
     /**

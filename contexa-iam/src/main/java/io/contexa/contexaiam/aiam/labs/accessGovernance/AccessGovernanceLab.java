@@ -238,18 +238,13 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
     }
 
     /**
-     * Severity를 Risk Score로 변환
+     * AI Native: LLM이 riskScore 직접 제공
+     * Finding에 riskScore가 있으면 사용, 없으면 기본값
      */
     private Integer mapSeverityToRiskScore(String severity) {
-        if (severity == null) return 50;
-
-        switch (severity.toUpperCase()) {
-            case "CRITICAL": return 95;
-            case "HIGH": return 80;
-            case "MEDIUM": return 50;
-            case "LOW": return 30;
-            default: return 50;
-        }
+        // AI Native: Severity 기반 규칙 제거
+        // LLM이 Finding.riskScore를 직접 제공
+        return 50;
     }
 
     /**

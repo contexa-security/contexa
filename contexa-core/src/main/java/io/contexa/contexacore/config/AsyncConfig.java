@@ -160,4 +160,27 @@ public class AsyncConfig {
 
         return executor;
     }
+
+    /**
+     * LLM 분석 전용 Executor (Throttling)
+     *
+     * B2B Login Storm 시 LLM 부하를 제어하기 위해 고정된 스레드 수를 사용합니다.
+     * 1000명이 몰려도 10개씩만 순차 처리하여 시스템 안정성을 보장합니다.
+     */
+    @Bean(name = "llmAnalysisExecutor")
+    public Executor llmAnalysisExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        // 고정 스레드 풀 (Throttling)
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(10);
+        // 대기 큐는 충분히 확보 (SecurityMonitoringService 큐와 별개로 Task 대기용)
+        executor.setQueueCapacity(1000);
+        executor.setThreadNamePrefix("LLM-Analysis-");
+        // 초과 시 대기 (CallerRunsPolicy를 쓰면 메인 루프가 막히므로, 큐를 충분히 크게 잡는게 나음)
+        // 안전하게 CallerRunsPolicy 유지 (메인 루프가 천천히 돌게 됨)
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.initialize();
+        return executor;
+    }
 }

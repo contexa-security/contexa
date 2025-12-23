@@ -206,47 +206,17 @@ public class ThreatIndicators implements Serializable {
     }
     
     /**
-     * 종합 위협 점수 계산
+     * AI Native v3.3.0: 규칙 기반 점수 계산 제거
+     *
+     * 원시 데이터(iocCount, mitreTechniques, anomalyScore 등)를
+     * LLM에게 직접 전달하여 분석하도록 변경
+     *
+     * @return 기존 호환성을 위해 anomalyScore 반환 (LLM이 최종 판단)
      */
     public double calculateThreatScore() {
-        double score = 0.0;
-        
-        // IOC 기반 점수
-        if (iocPresent) {
-            score += Math.min(iocCount * 5, 30);
-        }
-        
-        // MITRE 기반 점수
-        if (mitreMapping) {
-            score += Math.min(mitreTechniques * 3, 25);
-        }
-        
-        // 이상 행동 점수
-        if (anomalyDetected) {
-            score += anomalyScore * 0.2;
-        }
-        
-        // 과거 위협 점수
-        if (historicalThreat) {
-            score += Math.min(historicalCount * 2, 15);
-        }
-        
-        // 네트워크 지표
-        if (networkIndicators != null && networkIndicators.suspiciousTraffic) {
-            score += networkIndicators.networkAnomalyScore * 0.1;
-        }
-        
-        // 행동 지표
-        if (behaviorIndicators != null && behaviorIndicators.unusualActivity) {
-            score += behaviorIndicators.deviationScore * 0.1;
-        }
-        
-        // 시스템 지표
-        if (systemIndicators != null && systemIndicators.processAnomaly) {
-            score += 10;
-        }
-        
-        return Math.min(score, 100);
+        // AI Native: 규칙 기반 가중치 계산 제거
+        // LLM이 toSummary()의 원시 데이터를 분석하여 직접 판단
+        return anomalyScore;
     }
     
     /**

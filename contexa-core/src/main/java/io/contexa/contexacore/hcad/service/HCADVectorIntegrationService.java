@@ -2,6 +2,7 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -262,7 +263,7 @@ public class HCADVectorIntegrationService {
     private void syncColdPathAnalysisResult(String userId) {
         try {
             // Cold Path 분석 결과 조회
-            String analysisKey = "security:hcad:analysis:" + userId;
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Map<Object, Object> analysis = redisTemplate.opsForHash().entries(analysisKey);
 
             if (analysis == null || analysis.isEmpty()) {

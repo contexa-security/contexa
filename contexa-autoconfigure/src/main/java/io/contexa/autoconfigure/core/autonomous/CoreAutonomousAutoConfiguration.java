@@ -17,6 +17,7 @@ import io.contexa.contexacore.autonomous.tiered.template.Layer1PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.template.Layer2PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.template.Layer3PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
@@ -140,6 +141,15 @@ public class CoreAutonomousAutoConfiguration {
         return new LayerFeedbackService(unifiedVectorService, redisTemplate, feedbackIntegrationProperties);
     }
 
+    /**
+     * 1-6. TieredStrategyProperties - Tiered 전략 설정 (Phase 4 추가)
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public TieredStrategyProperties tieredStrategyProperties() {
+        return new TieredStrategyProperties();
+    }
+
     // ========== Level 2: Level 1 의존 (4개) ==========
 
     /**
@@ -148,8 +158,9 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public Layer1PromptTemplate layer1PromptTemplate(
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher) {
-        return new Layer1PromptTemplate(securityEventEnricher);
+            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
+        return new Layer1PromptTemplate(securityEventEnricher, tieredStrategyProperties);
     }
 
     /**
@@ -158,8 +169,9 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public Layer2PromptTemplate layer2PromptTemplate(
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher) {
-        return new Layer2PromptTemplate(securityEventEnricher);
+            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
+        return new Layer2PromptTemplate(securityEventEnricher, tieredStrategyProperties);
     }
 
     /**
@@ -168,8 +180,9 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public Layer3PromptTemplate layer3PromptTemplate(
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher) {
-        return new Layer3PromptTemplate(securityEventEnricher);
+            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
+        return new Layer3PromptTemplate(securityEventEnricher, tieredStrategyProperties);
     }
 
     // ========== Level 3: 독립적/선택적 의존 (6개) ==========
@@ -216,27 +229,22 @@ public class CoreAutonomousAutoConfiguration {
         return new io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler(redisTemplate);
     }
 
-    /**
-     * 3-6. ThreatScoreHandler - Threat Score 업데이트 핸들러
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.handler.ThreatScoreHandler threatScoreHandler() {
-        return new io.contexa.contexacore.autonomous.orchestrator.handler.ThreatScoreHandler();
-    }
+    // AI Native: ThreatScoreHandler 제거 (v3.1.0)
+    // - 핸들러 체인에서 직접 ThreatScoreOrchestrator.saveThreatScore() 호출로 대체
+    // - 불필요한 중간 레이어 제거
 
     /**
-     * 3-7. ThreatScoreOrchestrator - 중앙집중식 Threat Score 관리자
+     * 3-7. ThreatScoreOrchestrator - AI Native Threat Score 관리자
+     *
+     * AI Native 리팩토링 (v3.1.0):
+     * - RedisAtomicOperations, ObjectMapper 의존성 제거
+     * - 단순 RedisTemplate만 사용
      */
     @Bean
     @ConditionalOnMissingBean
     public io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator threatScoreOrchestrator(
-            io.contexa.contexacore.infra.redis.RedisAtomicOperations redisAtomicOperations,
-            RedisTemplate<String, Object> redisTemplate,
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
-        return new io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator(
-            redisAtomicOperations, redisTemplate, objectMapper
-        );
+            RedisTemplate<String, Object> redisTemplate) {
+        return new io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator(redisTemplate);
     }
 
     /**
@@ -308,12 +316,12 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
             Layer1PromptTemplate layer1PromptTemplate,
-            FeedbackIntegrationProperties feedbackProperties,
-            @Autowired(required = false) BaselineLearningService baselineLearningService) {
+            @Autowired(required = false) BaselineLearningService baselineLearningService,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1FastFilterStrategy(
             llmOrchestrator, unifiedVectorService, redisTemplate,
-            securityEventEnricher, layer1PromptTemplate, feedbackProperties,
-            baselineLearningService
+            securityEventEnricher, layer1PromptTemplate,
+            baselineLearningService, tieredStrategyProperties
         );
     }
 
@@ -334,12 +342,14 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) Layer2PromptTemplate layer2PromptTemplate,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
             @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService) {
+            @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
         return new Layer2ContextualStrategy(
             llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
-            layer2PromptTemplate,behaviorVectorService, baselineLearningService
+            layer2PromptTemplate, behaviorVectorService, baselineLearningService, tieredStrategyProperties
         );
     }
+
     /**
      * 5-3. Layer3ExpertStrategy - Layer 3 전문가 시스템 전략
      *
@@ -360,11 +370,12 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
             io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
             @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService) {
+            @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
         return new Layer3ExpertStrategy(
             llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
             layer3PromptTemplate, unifiedVectorService, behaviorVectorService, feedbackProperties,
-            baselineLearningService
+            baselineLearningService, tieredStrategyProperties
         );
     }
     /**

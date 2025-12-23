@@ -6,59 +6,44 @@ import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacore.infra.redis.DistributedAIStrategyCoordinator;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexacore.infra.session.AIExecutionMetrics;
-import io.contexa.contexacore.infra.session.AIStrategyExecutionPhase;
-import io.contexa.contexacore.infra.session.AIStrategySessionRepository;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
-import io.contexa.contexacore.std.strategy.LabExecutionStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Map;
-import java.util.UUID;
-
 /**
  * 분산 전략 실행을 담당하는 전용 서비스
- * 
+ *
  * 핵심 역할:
  * 1. 마스터 브레인(AINativeIAMOperations)의 지휘를 받아 구체적인 실행 담당
  * 2. DiagnosisStrategyRegistry를 통해 적절한 전략 선택 및 실행
- * 3. 분산 환경에서의 세션 관리 및 상태 추적
- * 4. AI 파이프라인과 전략 실행의 조율
+ * 3. AI 파이프라인과 전략 실행의 조율
  * PipelineOrchestrator 직접 사용 (새로운 아키텍처)
- * 
+ *
  * 자연의 이치:
- * - AINativeIAMOperations → DistributedStrategyExecutor → DiagnosisStrategyRegistry → 구체적 전략
+ * - AINativeIAMOperations -> DistributedStrategyExecutor -> DiagnosisStrategyRegistry -> 구체적 전략
  * - 각 계층은 자신의 역할만 수행하고 하위 계층에 위임
  */
 @Slf4j
 public class DistributedStrategyExecutor<T extends DomainContext> {
-    
+
     private final PipelineOrchestrator orchestrator;
-    private final AIStrategySessionRepository sessionRepository;
     private final RedisEventPublisher eventPublisher;
-    
+
     // ==================== 핵심 의존성: 전략 레지스트리 ====================
     private final AIStrategyRegistry strategyRegistry; // 실제 전략 실행 담당
-    
+
     @Autowired
     public DistributedStrategyExecutor(PipelineOrchestrator orchestrator,
-                                     @Qualifier("aiStrategySessionRepository") AIStrategySessionRepository sessionRepository,
-                                     DistributedAIStrategyCoordinator strategyCoordinator,
                                      RedisEventPublisher eventPublisher,
                                        AIStrategyRegistry strategyRegistry) {
         this.orchestrator = orchestrator;
-        this.sessionRepository = sessionRepository;
         this.eventPublisher = eventPublisher;
         this.strategyRegistry = strategyRegistry; // 전략 레지스트리 주입
-        
+
         log.info("DistributedStrategyExecutor initialized with DiagnosisStrategyRegistry - PipelineOrchestrator 직접 사용");
     }
     
@@ -76,38 +61,23 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
                                                                String sessionId,
                                                                String auditId) {
         log.info("Distributed Strategy Executor: Starting strategy execution for session: {}", sessionId);
-        
-        // 세션 상태 업데이트: 전략 실행 시작
-        updateSessionState(sessionId, AIStrategyExecutionPhase.EXECUTING, 
-                          Map.of("startTime", System.currentTimeMillis()));
-        
+
         try {
             // 1. 전략 레지스트리를 통한 전략 실행 시도
             R result = executeStrategyThroughRegistry(request, responseType, sessionId);
-            
+
             // 2. 결과 검증
             validateResult(result, sessionId);
-            
-            // 3. 세션 상태 업데이트: 전략 실행 완료
-            updateSessionState(sessionId, AIStrategyExecutionPhase.COMPLETED, 
-                              Map.of("endTime", System.currentTimeMillis(), "resultType", result.getClass().getSimpleName()));
-            
+
             log.info("Distributed Strategy Executor: Strategy execution completed successfully for session: {}", sessionId);
             return result;
-            
+
         } catch (Exception e) {
             log.warn("Strategy execution failed for session: {}, falling back to AI Pipeline", sessionId, e);
-            
-            // 4. 폴백: AI 파이프라인 실행
-            updateSessionState(sessionId, AIStrategyExecutionPhase.VALIDATING, 
-                              Map.of("fallbackReason", e.getMessage()));
-            
+
+            // 폴백: AI 파이프라인 실행
             R fallbackResult = executeAIPipelineFallback(request, responseType, sessionId);
-            
-            // 5. 세션 상태 업데이트: 폴백 완료
-            updateSessionState(sessionId, AIStrategyExecutionPhase.COMPLETED, 
-                              Map.of("fallbackResultType", fallbackResult.getClass().getSimpleName()));
-            
+
             return fallbackResult;
         }
     }
@@ -125,36 +95,18 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
                                                                          String sessionId,
                                                                          String auditId) {
         log.info("Distributed Strategy Executor: Starting ASYNC strategy execution for session: {}", sessionId);
-        
-        // 세션 상태 업데이트: 전략 실행 시작
-        updateSessionState(sessionId, AIStrategyExecutionPhase.EXECUTING, 
-                          Map.of("startTime", System.currentTimeMillis()));
-        
-        // 1. 전략 레지스트리를 통한 비동기 전략 실행 시도
+
+        // 전략 레지스트리를 통한 비동기 전략 실행 시도
         return executeStrategyThroughRegistryAsync(request, responseType, sessionId)
             .doOnSuccess(result -> {
-                // 2. 결과 검증
+                // 결과 검증
                 validateResult(result, sessionId);
-                
-                // 3. 세션 상태 업데이트: 전략 실행 완료
-                updateSessionState(sessionId, AIStrategyExecutionPhase.COMPLETED, 
-                                  Map.of("endTime", System.currentTimeMillis(), "resultType", result.getClass().getSimpleName()));
-                
                 log.info("Distributed Strategy Executor: ASYNC strategy execution completed successfully for session: {}", sessionId);
             })
             .onErrorResume(error -> {
                 log.warn("ASYNC strategy execution failed for session: {}, falling back to AI Pipeline", sessionId, error);
-                
-                // 4. 폴백: AI 파이프라인 비동기 실행
-                updateSessionState(sessionId, AIStrategyExecutionPhase.VALIDATING, 
-                                  Map.of("fallbackReason", error.getMessage()));
-                
-                return executeAIPipelineFallbackAsync(request, responseType, sessionId)
-                    .doOnSuccess(fallbackResult -> {
-                        // 5. 세션 상태 업데이트: 폴백 완료
-                        updateSessionState(sessionId, AIStrategyExecutionPhase.COMPLETED, 
-                                          Map.of("fallbackResultType", fallbackResult.getClass().getSimpleName()));
-                    });
+                // 폴백: AI 파이프라인 비동기 실행
+                return executeAIPipelineFallbackAsync(request, responseType, sessionId);
             });
     }
     
@@ -169,59 +121,25 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
      */
     public <R extends AIResponse> Flux<String> executeDistributedStrategyStream(AIRequest<T> request,
                                                                                 Class<R> responseType,
-                                                                                String sessionId, 
+                                                                                String sessionId,
                                                                                 String auditId) {
         try {
-            // Phase 1: LAB_ALLOCATION - 세션 상태 업데이트 (동일한 공정)
-            updateSessionState(sessionId, AIStrategyExecutionPhase.LAB_ALLOCATION, Map.of(
-                "auditId", auditId,
-                "requestType", request.getClass().getSimpleName(),
-                "diagnosisType", request.getDiagnosisType() != null ? request.getDiagnosisType().name() : "UNKNOWN",
-                "streamingMode", true
-            ));
-            
-            LabExecutionStrategy labStrategy = createLabExecutionStrategy(request, sessionId);
-            
-            // Phase 2: EXECUTING - 실제 전략 스트리밍 실행
-            updateSessionState(sessionId, AIStrategyExecutionPhase.EXECUTING, Map.of(
-                "labStrategy", labStrategy.getStrategyName(),
-                "expectedDuration", labStrategy.getExpectedDuration(),
-                "startTime", System.currentTimeMillis(),
-                "streamingMode", true
-            ));
-            
-            // 핵심: DiagnosisStrategyRegistry를 통한 스트리밍 전략 실행
+            log.info("Starting streaming strategy execution for session: {}", sessionId);
+
+            // DiagnosisStrategyRegistry를 통한 스트리밍 전략 실행
             return executeStrategyThroughRegistryStream(request, responseType, sessionId)
                 .doOnNext(chunk -> {
-                    // 실시간 검증 및 상태 업데이트
                     log.debug("Streaming chunk received for session: {} - length: {}", sessionId, chunk.length());
                 })
                 .doOnComplete(() -> {
-                    // Phase 4: COMPLETED - 스트리밍 성공 완료
-                    updateSessionState(sessionId, AIStrategyExecutionPhase.COMPLETED, Map.of(
-                        "completionTime", System.currentTimeMillis(),
-                        "success", true,
-                        "streamingMode", true
-                    ));
                     log.info("Streaming strategy execution completed for session: {}", sessionId);
                 })
                 .doOnError(error -> {
-                    // 스트리밍 오류 처리
                     log.error("Streaming strategy execution failed for session: {} - {}", sessionId, error.getMessage());
-                    updateSessionState(sessionId, AIStrategyExecutionPhase.FAILED, Map.of(
-                        "error", error.getMessage(),
-                        "failureTime", System.currentTimeMillis(),
-                        "streamingMode", true
-                    ));
                 });
-            
+
         } catch (Exception e) {
             log.error("Distributed streaming strategy execution failed for session: {}", sessionId, e);
-            updateSessionState(sessionId, AIStrategyExecutionPhase.FAILED, Map.of(
-                "error", e.getMessage(),
-                "failureTime", System.currentTimeMillis(),
-                "streamingMode", true
-            ));
             return Flux.error(new AIOperationException("Streaming strategy execution failed", e));
         }
     }
@@ -456,62 +374,4 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         log.debug("Result validation completed for session: {}", sessionId);
     }
     
-    /**
-     * 세션 상태 업데이트
-     */
-    private void updateSessionState(String sessionId, AIStrategyExecutionPhase phase, Map<String, Object> phaseData) {
-        try {
-            sessionRepository.updateExecutionPhase(sessionId, phase, phaseData);
-            
-            // 분산 이벤트 발행
-            eventPublisher.publishEvent("ai:strategy:phase:updated", Map.of(
-                "sessionId", sessionId,
-                "phase", phase.name(),
-                "timestamp", System.currentTimeMillis(),
-                "phaseData", phaseData
-            ));
-            
-        } catch (Exception e) {
-            log.warn("Failed to update session state for {}: {}", sessionId, e.getMessage());
-        }
-    }
-    
-    /**
-     * Lab 실행 전략 생성
-     */
-    private LabExecutionStrategy createLabExecutionStrategy(AIRequest<T> request, String strategyId) {
-        return LabExecutionStrategy.builder()
-            .strategyId(strategyId)
-            .requestType(request.getClass().getSimpleName())
-            .complexity(determineComplexity(request))
-            .priority(request.getPriority().name())
-            .build();
-    }
-    
-    /**
-     * 요청 복잡도 판단
-     */
-    private int determineComplexity(AIRequest<T> request) {
-        // 간단한 복잡도 계산 로직
-        return request.getClass().getSimpleName().length() % 10 + 1;
-    }
-    
-    /**
-     * 실행 메트릭 생성
-     */
-    public AIExecutionMetrics createExecutionMetrics(String sessionId, boolean success) {
-        return AIExecutionMetrics.builder()
-            .sessionId(sessionId)
-            .processingTime(System.currentTimeMillis())
-            .success(success)
-            .customMetrics(Map.of("nodeId", getNodeId()))
-            .build();
-    }
-    
-    /**
-     * 현재 노드 ID 반환
-     */
-    private String getNodeId() {
-        return UUID.randomUUID().toString().substring(0, 8);
-    }
 } 

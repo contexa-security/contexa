@@ -451,29 +451,15 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         );
     }
     
+    /**
+     * AI Native: LLM이 SpEL 표현식 직접 생성하도록 유도
+     * Fallback은 가장 안전한 정책 반환
+     */
     private String generateFallbackSpel(DynamicThreatResponseRequest request) {
-        // 위협 심각도에 따른 SpEL 표현식 생성
-        // 주의: #threatType, #targetResource는 Contexa에 존재하지 않는 변수
-        // 실제 존재하는 #trust, #ai 변수 및 Spring Security 메서드 사용
-        String severity = request.getContext().getThreatInfo().getSeverity();
-        String mitigationAction = request.getContext().getResponseInfo().getMitigationAction();
-
-        // 심각도에 따른 LLM Action 기반 정책 생성 (Hot Path 우선)
-        switch (severity) {
-            case "CRITICAL":
-                // 매우 고위험: LLM BLOCK 판정 또는 AI 실시간 분석 필요
-                return "#trust.isBlocked() or (#trust.needsInvestigation() and #ai.hasSafeBehavior(10.0) == false)";
-            case "HIGH":
-                // 고위험: 차단/조사 대상 사용자 - ALLOW가 아닌 경우
-                return "#trust.hasActionIn('BLOCK', 'INVESTIGATE', 'ESCALATE') and not #trust.isAllowed()";
-            case "MEDIUM":
-                // 중위험: MFA 추가 인증 필요 사용자
-                return "#trust.needsChallenge() and not hasRole('ROLE_TRUSTED_USER')";
-            case "LOW":
-            default:
-                // 저위험: 인증 필수 + 허용/모니터링 상태 확인
-                return "isAuthenticated() and (#trust.isAllowed() or #trust.isMonitored())";
-        }
+        // AI Native: Severity 기반 switch 제거
+        // LLM이 SpEL 표현식을 직접 생성해야 함
+        // Fallback은 보수적인 기본 정책 반환
+        return "#trust.needsChallenge() or #trust.isBlocked()";
     }
     
     private String generateProposalTitle(DynamicThreatResponseRequest request) {
@@ -508,22 +494,15 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return "LOW";
     }
     
+    /**
+     * AI Native: LLM이 효과 예측 직접 수행
+     * 규칙 기반 계산 제거
+     */
     private double calculateThreatReduction(DynamicThreatResponseRequest request) {
-        // ML 모델 사용
-        // 심각도에 따른 위협 감소율 계산
-        String severity = request.getContext().getThreatInfo().getSeverity();
-        switch (severity) {
-            case "CRITICAL":
-                return 0.95;
-            case "HIGH":
-                return 0.85;
-            case "MEDIUM":
-                return 0.70;
-            case "LOW":
-                return 0.50;
-            default:
-                return 0.30;
-        }
+        // AI Native: Severity 기반 규칙 제거
+        // LLM이 PolicyEffectPrediction에서 직접 결정
+        // 기본값으로 중간 수준 반환
+        return 0.70;
     }
     
     private double calculateFalsePositiveRate(PolicyProposal proposal) {

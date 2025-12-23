@@ -67,11 +67,14 @@ public class PgVectorStoreProperties extends CommonVectorStoreProperties {
     private int topK = 100;
 
     /**
-     * 유사도 임계값 (0.0 ~ 1.0)
+     * AI Native v3.3.0: 벡터 검색 사전 필터용 유사도 임계값 (0.0 ~ 1.0)
+     *
+     * 이 값은 벡터 스토어의 검색 필터로만 사용됨
+     * 실제 보안 판단은 LLM이 Action(ALLOW/BLOCK/CHALLENGE/ESCALATE)으로 결정
      */
     @DecimalMin("0.0")
     @DecimalMax("1.0")
-    private double similarityThreshold = 0.75;
+    private double similarityThreshold = 0.5;
 
     /**
      * HNSW 인덱스 설정

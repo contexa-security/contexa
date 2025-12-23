@@ -14,7 +14,6 @@ import io.contexa.contexacore.infra.redis.RedisAsyncEventConfiguration;
 import io.contexa.contexacore.infra.redis.RedisCacheConfiguration;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexacore.infra.redis.RedisStreamConfiguration;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
 import io.contexa.contexacore.scheduler.VirtualThreadConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -42,7 +41,6 @@ import org.springframework.data.redis.core.RedisTemplate;
  *   <li>UnifiedRedisConfiguration - Redis 통합 설정 (조건부)</li>
  *   <li>RedisAsyncEventConfiguration - Redis 비동기 이벤트 (조건부)</li>
  *   <li>RedisCacheConfiguration - Redis 캐시 (조건부)</li>
- *   <li>RedisStreamConfiguration - Redis Stream (조건부)</li>
  *   <li>RedissonConfiguration - Redisson (조건부)</li>
  *   <li>KafkaConfiguration - Kafka 기본 설정 (조건부)</li>
  *   <li>KafkaTopicConfiguration - Kafka 토픽 (조건부)</li>
@@ -72,7 +70,6 @@ import org.springframework.data.redis.core.RedisTemplate;
     UnifiedRedisConfiguration.class,
     RedisAsyncEventConfiguration.class,
     RedisCacheConfiguration.class,
-    RedisStreamConfiguration.class,
     RedissonConfiguration.class,
     KafkaConfiguration.class,
     KafkaTopicConfiguration.class,

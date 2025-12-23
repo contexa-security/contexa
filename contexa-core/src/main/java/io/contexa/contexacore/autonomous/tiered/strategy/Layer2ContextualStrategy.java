@@ -2,7 +2,9 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.response.Layer2SecurityResponse;
@@ -26,10 +28,13 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
 import reactor.core.publisher.Mono;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -49,7 +54,8 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     private final BehaviorVectorService behaviorVectorService;
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
-    private final Map<String, SessionContext> sessionContextCache = new ConcurrentHashMap<>();
+    private final TieredStrategyProperties tieredStrategyProperties;
+    private final Cache<String, SessionContext> sessionContextCache;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
 
@@ -69,14 +75,24 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) SecurityEventEnricher eventEnricher,
                                     @Autowired(required = false) Layer2PromptTemplate promptTemplate,
                                     @Autowired(required = false) BehaviorVectorService behaviorVectorService,
-                                    @Autowired(required = false) BaselineLearningService baselineLearningService) {
+                                    @Autowired(required = false) BaselineLearningService baselineLearningService,
+                                    @Autowired TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.unifiedVectorService = unifiedVectorService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer2PromptTemplate(eventEnricher);
+        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer2PromptTemplate(eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.baselineLearningService = baselineLearningService;
+        this.tieredStrategyProperties = tieredStrategyProperties;
+
+        // Phase 2-5: 메모리 누수 수정 - Caffeine TTL 캐시로 교체
+        TieredStrategyProperties.Layer2.Cache cacheConfig = tieredStrategyProperties.getLayer2().getCache();
+        this.sessionContextCache = Caffeine.newBuilder()
+                .maximumSize(cacheConfig.getMaxSize())
+                .expireAfterAccess(cacheConfig.getTtlMinutes(), TimeUnit.MINUTES)
+                .recordStats()
+                .build();
 
         log.info("Layer 2 Contextual Strategy initialized with UnifiedLLMOrchestrator");
         log.info("  - Model: {}", modelName);
@@ -192,9 +208,9 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
     private SessionContext buildSessionContext(SecurityEvent event) {
         String sessionId = event.getSessionId();
 
-        // 캐시 확인
+        // 캐시 확인 (Caffeine: getIfPresent 사용)
         if (sessionId != null) {
-            SessionContext cached = sessionContextCache.get(sessionId);
+            SessionContext cached = sessionContextCache.getIfPresent(sessionId);
             if (cached != null && cached.isValid()) {
                 cached.addEvent(event);
                 return cached;
@@ -220,7 +236,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         if (sessionId != null && redisTemplate != null) {
             try {
                 List<String> recentActions = (List<String>) (List<?>) redisTemplate.opsForList()
-                        .range("session:actions:" + sessionId, -10, -1);
+                        .range(ZeroTrustRedisKeys.sessionActions(sessionId), -10, -1);
                 if (recentActions != null && !recentActions.isEmpty()) {
                     context.setRecentActions(recentActions);
                 }
@@ -352,10 +368,12 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
             String query = queryBuilder.toString().trim();
 
+            // 설정에서 유사도 임계값 가져오기
+            double similarityThreshold = tieredStrategyProperties.getLayer2().getRag().getSimilarityThreshold();
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
                     .topK(Math.min(15, vectorSearchLimit * 2))
-                    .similarityThreshold(0.0)
+                    .similarityThreshold(similarityThreshold)
                     .build();
 
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
@@ -513,22 +531,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    /**
-     * 문자열을 액션으로 매핑 (AI Native v3.3.0)
-     *
-     * LLM은 4개 결정: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
-     * - BLOCK: 극고위험군 (즉시 차단)
-     * - CHALLENGE: 고위험군 (MFA 인증 요구)
-     */
-    private SecurityDecision.Action mapStringToAction(String action) {
-        if (action == null) return SecurityDecision.Action.ESCALATE;
-        return switch (action.toUpperCase()) {
-            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
-            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
-            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
-            default -> SecurityDecision.Action.ESCALATE;  // E 포함, 불확실한 경우 모두 에스컬레이션
-        };
-    }
+    // mapStringToAction()은 AbstractTieredStrategy로 이동됨
 
     /**
      * 결정에 컨텍스트 정보 추가
@@ -583,7 +586,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
         try {
             redisTemplate.opsForList().rightPush(
-                    "session:actions:" + sessionId,
+                    ZeroTrustRedisKeys.sessionActions(sessionId),
                     String.format("%s:%s:%s", event.getEventType(),
                             eventEnricher.getTargetResource(event).orElse("unknown"),
                             decision.getAction())
@@ -593,7 +596,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             SecurityDecision.Action sessionAction = decision.getAction();
             if (sessionAction == SecurityDecision.Action.BLOCK) {
                 redisTemplate.opsForValue().set(
-                        "session:risk:" + sessionId,
+                        ZeroTrustRedisKeys.sessionRisk(sessionId),
                         decision.getRiskScore(),
                         Duration.ofHours(1)
                 );
@@ -803,7 +806,9 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
         public void addEvent(SecurityEvent event) {
             accessFrequency++;
-            if (recentActions.size() > 100) {
+            // 설정에서 최대 액션 수 가져오기
+            int maxRecentActions = tieredStrategyProperties.getLayer2().getSession().getMaxRecentActions();
+            if (recentActions.size() > maxRecentActions) {
                 recentActions.remove(0);
             }
             String targetResource = eventEnricher.getTargetResource(event).orElse("unknown");

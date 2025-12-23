@@ -6,7 +6,7 @@ package io.contexa.contexacore.autonomous;
  * Spring AOP 프록시를 위한 인터페이스
  */
 public interface ISecurityPlaneAgent {
-    void checkForIncidents();
+    // checkForIncidents() 제거: startBackgroundMonitoring()과 중복
     void checkPendingApprovals();
     void performHealthCheck();
     void start();

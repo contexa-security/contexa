@@ -43,19 +43,18 @@ public class SecurityPlaneProperties {
 
     /**
      * 에이전트 설정
+     *
+     * AI Native v3.3.0: 점수 기반 임계값 제거
+     * LLM이 Action (ALLOW/BLOCK/CHALLENGE/ESCALATE)을 직접 결정
      */
     @Data
     public static class AgentSettings {
         private String name = "SecurityPlaneAgent-1";
         private boolean autoStart = true;
         private int maxConcurrentIncidents = 10;
-        private double threatThreshold = 0.7;
-        private double similarityThreshold = 0.70;
-        private double layer1Threshold = 0.55;
-        private double layer2Threshold = 0.40;
+        // AI Native v3.3.0: threatThreshold, similarityThreshold, layer1Threshold, layer2Threshold, autoApproveLowRisk 제거
         private String organizationId = "default-org";
         private String executionMode = "ASYNC";
-        private boolean autoApproveLowRisk = false;
     }
 
     /**
@@ -80,25 +79,29 @@ public class SecurityPlaneProperties {
 
     /**
      * 모니터 설정
+     *
+     * AI Native v3.3.0: 점수 기반 임계값 제거
      */
     @Data
     public static class MonitorSettings {
         private int queueSize = 10000;
         private int workerThreads = 5;
         private int correlationWindowMinutes = 10;
-        private double threatThreshold = 0.7;
+        // AI Native v3.3.0: threatThreshold 제거
         private boolean autoIncidentCreation = true;
         private int dedupWindowMinutes = 5;
     }
 
     /**
      * 알림 설정
+     *
+     * AI Native v3.3.0: 점수 기반 임계값 제거
      */
     @Data
     public static class NotifierSettings {
         private int batchSize = 10;
         private boolean asyncEnabled = true;
-        private double criticalThreshold = 0.8;
+        // AI Native v3.3.0: criticalThreshold 제거
     }
 
     /**
@@ -114,9 +117,6 @@ public class SecurityPlaneProperties {
         @NestedConfigurationProperty
         private ChannelSettings channel = new ChannelSettings();
 
-        @NestedConfigurationProperty
-        private StreamSettings stream = new StreamSettings();
-
         @Data
         public static class CacheSettings {
             private int ttlMinutes = 60;
@@ -127,11 +127,6 @@ public class SecurityPlaneProperties {
             private String securityEvents = "security:events";
             private String threatAlerts = "security:threats";
             private String incidents = "security:incidents";
-        }
-
-        @Data
-        public static class StreamSettings {
-            private String events = "security-events-stream";
         }
     }
 }

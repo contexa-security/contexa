@@ -9,7 +9,6 @@ import io.contexa.contexacore.std.rag.observation.SecurityVectorStoreObservation
 import io.contexa.contexacore.infra.redis.DistributedAIStrategyCoordinator;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexacore.infra.session.AIStrategySessionRepository;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
@@ -234,13 +233,9 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean
     public DistributedStrategyExecutor distributedStrategyExecutor(
             PipelineOrchestrator orchestrator,
-            @Qualifier("aiStrategySessionRepository") AIStrategySessionRepository sessionRepository,
-            DistributedAIStrategyCoordinator strategyCoordinator,
             RedisEventPublisher eventPublisher,
             AIStrategyRegistry strategyRegistry) {
-        return new DistributedStrategyExecutor(
-            orchestrator, sessionRepository, strategyCoordinator, eventPublisher, strategyRegistry
-        );
+        return new DistributedStrategyExecutor(orchestrator, eventPublisher, strategyRegistry);
     }
 
     /**

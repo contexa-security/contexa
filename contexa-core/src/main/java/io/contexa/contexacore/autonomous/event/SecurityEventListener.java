@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.event;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,9 +41,42 @@ public interface SecurityEventListener {
     
     /**
      * 고위험 이벤트 처리
+     *
+     * @deprecated AI Native 원칙 위반 - onBlockEvent() 또는 onHighRiskEventByAction() 사용 권장
      */
+    @Deprecated(since = "3.1.0", forRemoval = true)
+    @SuppressWarnings("deprecation")
     default void onHighRiskEvent(SecurityEvent event) {
         if (event.isHighRisk()) {
+            onSecurityEvent(event);
+        }
+    }
+
+    /**
+     * AI Native: BLOCK action 이벤트 처리
+     */
+    default void onBlockEvent(SecurityEvent event, SecurityDecision decision) {
+        if (decision != null && decision.getAction() == SecurityDecision.Action.BLOCK) {
+            onSecurityEvent(event);
+        }
+    }
+
+    /**
+     * AI Native: CHALLENGE action 이벤트 처리
+     */
+    default void onChallengeEvent(SecurityEvent event, SecurityDecision decision) {
+        if (decision != null && decision.getAction() == SecurityDecision.Action.CHALLENGE) {
+            onSecurityEvent(event);
+        }
+    }
+
+    /**
+     * AI Native: action 기반 고위험 이벤트 처리
+     */
+    default void onHighRiskEventByAction(SecurityEvent event, SecurityDecision decision) {
+        if (decision != null &&
+            (decision.getAction() == SecurityDecision.Action.BLOCK ||
+             decision.getAction() == SecurityDecision.Action.ESCALATE)) {
             onSecurityEvent(event);
         }
     }
@@ -112,24 +146,6 @@ public interface SecurityEventListener {
      */
     default boolean canHandle(SecurityEvent.EventSource source) {
         return true; // 기본적으로 모든 소스 처리
-    }
-    
-    /**
-     * Critical 이벤트 처리 (레거시 호환성)
-     */
-    default void onCriticalEvent(SecurityEvent event) {
-        if (event.getSeverity() == SecurityEvent.Severity.CRITICAL) {
-            onSecurityEvent(event);
-        }
-    }
-    
-    /**
-     * High Priority 이벤트 처리 (레거시 호환성)
-     */
-    default void onHighPriorityEvent(SecurityEvent event) {
-        if (event.getSeverity() == SecurityEvent.Severity.HIGH) {
-            onSecurityEvent(event);
-        }
     }
     
     /**

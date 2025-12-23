@@ -38,35 +38,16 @@ public class ZeroTrustRedisKeys {
      * 사용자 위협 점수 (Primary)
      * Zero Trust 평가의 핵심 지표
      * Format: threat_score:{userId}
-     * TTL: No expiry (영구 보관)
-     * 
+     * TTL: 90 days (휴면 사용자 자동 정리)
+     *
      * 주의: Trust Score = 1.0 - Threat Score
      */
     public static String threatScore(String userId) {
         validateUserId(userId);
         return String.format("threat_score:%s", userId);
     }
-    
-    /**
-     * @deprecated Use {@link #threatScore(String)} instead
-     * 하위 호환성을 위해 유지, threat_score로 마이그레이션 필요
-     */
-    @Deprecated
-    public static String trustScore(String userId) {
-        validateUserId(userId);
-        return String.format("%s:trust:score:%s", NAMESPACE, userId);
-    }
-    
-    /**
-     * 사용자 신뢰 점수 이력
-     * 시간에 따른 신뢰도 변화 추적
-     * Format: security:trust:history:{userId}
-     * TTL: 90 days
-     */
-    public static String trustHistory(String userId) {
-        validateUserId(userId);
-        return String.format("%s:trust:history:%s", NAMESPACE, userId);
-    }
+
+    // AI Native: trustHistory() 제거 (v3.1.0) - 미사용
 
     /**
      * HCAD 베이스라인 벡터
@@ -79,17 +60,8 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:baseline:vector:%s", NAMESPACE, userId);
     }
 
-    /**
-     * 신뢰 점수 이력 (별칭)
-     * trustHistory와 동일하지만 일부 코드에서 사용되는 명칭
-     * 호환성을 위해 유지
-     * @deprecated Use {@link #trustHistory(String)} instead
-     */
-    @Deprecated
-    public static String trustScoreHistory(String userId) {
-        return trustHistory(userId);
-    }
-    
+    // AI Native: trustScoreHistory() 제거 (v3.1.0) - @Deprecated 완전 제거
+
     /**
      * 사용자 권한 캐시
      * 동적으로 조정된 권한 정보
@@ -113,39 +85,8 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:user:sessions:%s", NAMESPACE, userId);
     }
     
-    /**
-     * 사용자 행동 패턴
-     * AI 학습용 행동 데이터
-     * Format: security:user:behavior:{userId}
-     * TTL: 30 days
-     */
-    public static String userBehavior(String userId) {
-        validateUserId(userId);
-        return String.format("%s:user:behavior:%s", NAMESPACE, userId);
-    }
-    
-    /**
-     * 사용자 위협 지표
-     * 사용자별 위협 신호 누적
-     * Format: security:user:threats:{userId}
-     * TTL: 7 days
-     */
-    public static String userThreats(String userId) {
-        validateUserId(userId);
-        return String.format("%s:user:threats:%s", NAMESPACE, userId);
-    }
-    
-    /**
-     * 사용자 이벤트 스트림
-     * 사용자별 보안 이벤트 시계열 데이터
-     * Format: security:user:events:{userId}
-     * Type: Stream
-     * TTL: 7 days
-     */
-    public static String userEventStream(String userId) {
-        validateUserId(userId);
-        return String.format("%s:user:events:%s", NAMESPACE, userId);
-    }
+    // AI Native: userBehavior() 제거 (v3.1.0) - 미사용
+    // AI Native: userThreats() 제거 (v3.1.0) - 미사용
 
     /**
      * 이상 탐지 플래그
@@ -156,21 +97,6 @@ public class ZeroTrustRedisKeys {
     public static String anomalyDetected(String userId) {
         validateUserId(userId);
         return String.format("anomaly_detected:%s", userId);
-    }
-
-    /**
-     * 사용자별 LLM action 저장 (Legacy - Dual-Write용)
-     * AI Native: LLM이 결정한 action을 저장
-     * Format: security:user:action:{userId}
-     * Value: ALLOW, MONITOR, CHALLENGE, INVESTIGATE, ESCALATE, BLOCK
-     * TTL: Action별 상이 (BLOCK: 영구, INVESTIGATE: 5분, MONITOR: 10분)
-     *
-     * @deprecated Phase 5 마이그레이션 후 hcadAnalysis(userId) 사용 권장
-     */
-    @Deprecated
-    public static String userAction(String userId) {
-        validateUserId(userId);
-        return String.format("%s:user:action:%s", NAMESPACE, userId);
     }
 
     /**
@@ -358,22 +284,33 @@ public class ZeroTrustRedisKeys {
         validateSessionId(sessionId);
         return String.format("%s:session:invalid:%s", NAMESPACE, sessionId);
     }
-    
-    // ============================================
-    // LEGACY KEYS (하위 호환성 - 점진적 제거 예정)
-    // ============================================
-    
+
     /**
-     * [DEPRECATED] 세션 컨텍스트 (레거시)
-     * 하위 호환성을 위해 유지, userId 기반으로 마이그레이션 필요
-     * Format: security:session:context:{sessionId}
+     * 세션별 액션 이력
+     * 세션 내에서 수행된 최근 액션 목록
+     * Format: security:session:actions:{sessionId}
+     * Type: List
+     * TTL: Session lifetime
      */
-    @Deprecated
-    public static String legacySessionContext(String sessionId) {
+    public static String sessionActions(String sessionId) {
         validateSessionId(sessionId);
-        return String.format("%s:session:context:%s", NAMESPACE, sessionId);
+        return String.format("%s:session:actions:%s", NAMESPACE, sessionId);
     }
-    
+
+    /**
+     * 세션별 리스크 점수
+     * 세션의 현재 리스크 수준
+     * Format: security:session:risk:{sessionId}
+     * TTL: Session lifetime
+     */
+    public static String sessionRisk(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:risk:%s", NAMESPACE, sessionId);
+    }
+
+    // AI Native: LEGACY KEYS 섹션 제거 (v3.1.0) - @Deprecated 완전 제거
+    // legacySessionContext() 삭제됨
+
     // ============================================
     // PUB/SUB CHANNELS
     // ============================================
@@ -529,20 +466,7 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:auth:denied:stream", NAMESPACE);
     }
 
-    /**
-     * 거부된 인증 개별 키 (레거시 - 마이그레이션 예정)
-     * @deprecated Use authDeniedStream() instead
-     */
-    @Deprecated
-    public static String authDenied(String principal, String eventId) {
-        if (principal == null || principal.isBlank()) {
-            throw new IllegalArgumentException("Principal cannot be null or empty");
-        }
-        if (eventId == null || eventId.isBlank()) {
-            throw new IllegalArgumentException("Event ID cannot be null or empty");
-        }
-        return String.format("%s:auth:denied:%s:%s", NAMESPACE, principal, eventId);
-    }
+    // AI Native: authDenied() 제거 (v3.1.0) - @Deprecated 완전 제거, authDeniedStream() 사용
 
     /**
      * Critical 사고 스트림
@@ -554,17 +478,7 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:incident:critical:stream", NAMESPACE);
     }
 
-    /**
-     * Critical 사고 개별 키 (레거시 - 마이그레이션 예정)
-     * @deprecated Use incidentCriticalStream() instead
-     */
-    @Deprecated
-    public static String incidentCritical(String incidentId) {
-        if (incidentId == null || incidentId.isBlank()) {
-            throw new IllegalArgumentException("Incident ID cannot be null or empty");
-        }
-        return String.format("%s:incident:critical:%s", NAMESPACE, incidentId);
-    }
+    // AI Native: incidentCritical() 제거 (v3.1.0) - @Deprecated 완전 제거, incidentCriticalStream() 사용
 
     /**
      * 고위험 위협 스트림
@@ -576,17 +490,7 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:threat:high:stream", NAMESPACE);
     }
 
-    /**
-     * 고위험 위협 개별 키 (레거시 - 마이그레이션 예정)
-     * @deprecated Use threatHighStream() instead
-     */
-    @Deprecated
-    public static String threatHigh(String threatId) {
-        if (threatId == null || threatId.isBlank()) {
-            throw new IllegalArgumentException("Threat ID cannot be null or empty");
-        }
-        return String.format("%s:threat:high:%s", NAMESPACE, threatId);
-    }
+    // AI Native: threatHigh() 제거 (v3.1.0) - @Deprecated 완전 제거, threatHighStream() 사용
 
     /**
      * 위협 타입별 카운터
@@ -612,18 +516,7 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:auth:anomaly:stream:%s", NAMESPACE, userId);
     }
 
-    /**
-     * 인증 이상 징후 개별 키 (레거시 - 마이그레이션 예정)
-     * @deprecated Use authAnomalyStream() instead
-     */
-    @Deprecated
-    public static String authAnomaly(String userId, String eventId) {
-        validateUserId(userId);
-        if (eventId == null || eventId.isBlank()) {
-            throw new IllegalArgumentException("Event ID cannot be null or empty");
-        }
-        return String.format("%s:auth:anomaly:%s:%s", NAMESPACE, userId, eventId);
-    }
+    // AI Native: authAnomaly() 제거 (v3.1.0) - @Deprecated 완전 제거, authAnomalyStream() 사용
 
     /**
      * 이상 징후 카운터
@@ -645,16 +538,6 @@ public class ZeroTrustRedisKeys {
     public static String userAuthStream(String userId) {
         validateUserId(userId);
         return String.format("%s:user:auth:stream:%s", NAMESPACE, userId);
-    }
-
-    /**
-     * 사용자별 최근 인증 (레거시 - List 기반, 마이그레이션 예정)
-     * @deprecated Use userAuthStream() instead
-     */
-    @Deprecated
-    public static String authRecent(String userId) {
-        validateUserId(userId);
-        return String.format("%s:auth:recent:%s", NAMESPACE, userId);
     }
 
     /**
@@ -683,20 +566,7 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:auth:attack:stream:%s", NAMESPACE, sourceIp);
     }
 
-    /**
-     * IP별 공격 개별 키 (레거시 - 마이그레이션 예정)
-     * @deprecated Use authAttackStream() instead
-     */
-    @Deprecated
-    public static String authAttack(String sourceIp, String eventId) {
-        if (sourceIp == null || sourceIp.isBlank()) {
-            throw new IllegalArgumentException("Source IP cannot be null or empty");
-        }
-        if (eventId == null || eventId.isBlank()) {
-            throw new IllegalArgumentException("Event ID cannot be null or empty");
-        }
-        return String.format("%s:auth:attack:%s:%s", NAMESPACE, sourceIp, eventId);
-    }
+    // AI Native: authAttack() 제거 (v3.1.0) - @Deprecated 완전 제거, authAttackStream() 사용
 
     /**
      * IP별 공격 카운터
@@ -766,4 +636,24 @@ public class ZeroTrustRedisKeys {
         }
         return String.format("%s:governance:approval:request:%s", NAMESPACE, requestId);
     }
+
+    // ============================================
+    // AGENT OPERATION KEYS
+    // ============================================
+
+    /**
+     * 이벤트 처리 완료 표시
+     * SecurityPlaneAgent가 이벤트 처리 완료 후 설정
+     * Format: security:processed:{eventId}
+     * Type: String (boolean)
+     * TTL: 1 hour
+     */
+    public static String eventProcessed(String eventId) {
+        if (eventId == null || eventId.isBlank()) {
+            throw new IllegalArgumentException("Event ID cannot be null or empty");
+        }
+        return String.format("%s:processed:%s", NAMESPACE, eventId);
+    }
+
+    // processingMetrics() 제거: Dead Code - 저장만 하고 조회 코드 없음
 }

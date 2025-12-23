@@ -29,8 +29,7 @@ public class SecurityPipelineProperties {
      */
     @Data
     public static class RedisSettings {
-        private String streamKey = "security-events-stream";
-        private String consumerGroup = "security-simulation-consumers";
+        // Stream 관련 설정 제거됨 (Dead Code - Consumer 없음)
     }
 
     /**

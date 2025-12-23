@@ -134,18 +134,23 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         return "GLOBAL";
     }
     
+    /**
+     * AI Native: LLM이 우선순위 결정
+     * 기본값 반환하여 LLM 분석 유도
+     */
     private static Integer calculatePriority(DynamicThreatResponseEvent event) {
-        switch (event.getSeverity()) {
-            case "CRITICAL": return 100;
-            case "HIGH": return 75;
-            case "MEDIUM": return 50;
-            case "LOW": return 25;
-            default: return 10;
-        }
+        // AI Native: Severity 기반 규칙 제거
+        // LLM이 우선순위 결정
+        return 50;
     }
-    
+
+    /**
+     * AI Native: LLM이 승인 필요 여부 결정
+     */
     private static Boolean shouldRequireApproval(DynamicThreatResponseEvent event) {
-        return "CRITICAL".equals(event.getSeverity()) || "HIGH".equals(event.getSeverity());
+        // AI Native: Severity 기반 규칙 제거
+        // 기본값으로 승인 필요로 설정 (보수적 접근)
+        return true;
     }
     
     private static String inferTargetAudience(DynamicThreatResponseEvent event) {

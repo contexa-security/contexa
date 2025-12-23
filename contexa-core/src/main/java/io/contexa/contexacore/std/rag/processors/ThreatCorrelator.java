@@ -14,10 +14,15 @@ import java.util.stream.Collectors;
 
 /**
  * 위협 상관 관계 분석 프로세서
- * 
+ *
  * 검색된 문서 간의 위협 패턴과 상관 관계를 분석하여
  * 복합적인 위협 시나리오를 식별합니다.
- * 
+ *
+ * AI Native v3.3.0:
+ * - 이 프로세서의 점수 계산은 RAG 문서 상관 관계 분석용 (LLM 입력 사전 처리)
+ * - 실제 보안 결정(ALLOW/BLOCK/CHALLENGE/ESCALATE)은 LLM이 결정
+ * - threatScore, correlationScore 등은 LLM의 분석 컨텍스트로만 사용
+ *
  * @since 1.0.0
  */
 public class ThreatCorrelator implements DocumentPostProcessor {
@@ -86,37 +91,18 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             result.put("timestamp", LocalDateTime.now().toString());
             result.put("correlationId", UUID.randomUUID().toString());
             
-            // MITRE ATT&CK 매핑
+            // MITRE ATT&CK 매핑 (LLM 분석용 원시 데이터)
             String eventType = eventData.getOrDefault("eventType", "").toString().toUpperCase();
             if (ATTACK_TACTICS.containsKey(eventType)) {
                 result.put("mitreTactic", ATTACK_TACTICS.get(eventType));
             }
-            
-            // 위협 수준 평가
-            double threatScore = calculateThreatScore(eventData);
-            result.put("threatScore", threatScore);
-            result.put("correlationThreshold", correlationThreshold);
+
+            // AI Native v3.3.0: 점수 계산 로직 제거
+            // LLM이 eventType, mitreTactic 등 원시 데이터를 직접 분석하여 판단
+            result.put("eventType", eventType);
         }
-        
+
         return result;
-    }
-    
-    /**
-     * 위협 점수 계산
-     */
-    private double calculateThreatScore(Map<String, Object> eventData) {
-        double score = 0.5; // 기본 점수
-        
-        // 이벤트 타입에 따른 가중치
-        String eventType = eventData.getOrDefault("eventType", "").toString().toUpperCase();
-        if (eventType.contains("PRIVILEGE") || eventType.contains("ESCALATION")) {
-            score += 0.3;
-        }
-        if (eventType.contains("EXFILTRATION") || eventType.contains("CREDENTIAL")) {
-            score += 0.2;
-        }
-        
-        return Math.min(1.0, score);
     }
     
     /**

@@ -39,7 +39,7 @@ public class Layer1SecurityResponse {
      * 축약 형식: {"r":0.75,"c":0.85,"a":"E","d":"new IP from US"}
      * - r: riskScore
      * - c: confidence
-     * - a: A=ALLOW, E=ESCALATE, B=BLOCK
+     * - a: A=ALLOW, B=BLOCK, C=CHALLENGE, E=ESCALATE (AI Native v3.3.0 4개 Action)
      * - d: description (reasoning)
      *
      * @param json 축약 JSON 문자열
@@ -104,16 +104,19 @@ public class Layer1SecurityResponse {
 
     /**
      * 축약 action 코드를 전체 action 문자열로 확장
+     *
+     * AI Native v3.3.0: 4개 Action 체계
+     * - A: ALLOW, B: BLOCK, C: CHALLENGE, E: ESCALATE
+     * - MONITOR/INVESTIGATE 제거됨
      */
     private static String expandAction(String shortAction) {
         if (shortAction == null) return null;
 
         return switch (shortAction.toUpperCase().trim()) {
             case "A" -> "ALLOW";
-            case "E" -> "ESCALATE";
             case "B" -> "BLOCK";
-            case "M" -> "MONITOR";      // 하위 호환
-            case "C" -> "CHALLENGE";    // 하위 호환
+            case "C" -> "CHALLENGE";
+            case "E" -> "ESCALATE";
             default -> shortAction;     // 이미 전체 문자열인 경우
         };
     }

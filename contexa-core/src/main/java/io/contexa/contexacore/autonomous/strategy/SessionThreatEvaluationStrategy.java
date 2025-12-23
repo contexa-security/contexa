@@ -126,14 +126,12 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
                     redisTemplate.delete(userContextKey);
                 }
             }
-            
-            // 하위 호환성: 레거시 세션 기반 조회 (점진적 제거 예정)
-            if (previousContext == null || previousContext.isEmpty()) {
-                String legacyKey = ZeroTrustRedisKeys.legacySessionContext(event.getSessionId());
-                previousContext = redisTemplate.opsForHash().entries(legacyKey);
-            }
-            
-            if (!previousContext.isEmpty()) {
+
+            // AI Native: legacySessionContext 제거 (v3.1.0)
+            // - 레거시 세션 기반 조회 완전 제거
+            // - userId 기반 컨텍스트만 사용
+
+            if (previousContext != null && !previousContext.isEmpty()) {
                 // IP 변경 검사
                 checkIpChange(event, previousContext, indicators);
                 
@@ -147,11 +145,8 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
                 checkGeographicAnomaly(event, previousContext, indicators);
             }
             
-            // 현재 컨텍스트 저장 (듀얼 모드)
-            saveCurrentContext(event, 
-                event.getSessionId() != null ? 
-                ZeroTrustRedisKeys.legacySessionContext(event.getSessionId()) : 
-                "security:session:context:unknown");
+            // 현재 컨텍스트 저장
+            saveCurrentContext(event);
             
         } catch (Exception e) {
             log.error("Failed to analyze session context", e);
@@ -402,7 +397,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
     /**
      * 현재 세션 컨텍스트 저장 (듀얼 모드: userId + sessionId)
      */
-    private void saveCurrentContext(SecurityEvent event, String contextKey) {
+    private void saveCurrentContext(SecurityEvent event) {
         // userId 기반 저장 (Primary)
         if (event.hasUserId()) {
             updateUserContext(event);

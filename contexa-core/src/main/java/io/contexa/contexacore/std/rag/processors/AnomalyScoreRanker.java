@@ -16,10 +16,15 @@ import java.util.stream.Collectors;
 
 /**
  * 이상 점수 기반 문서 순위 지정 프로세서
- * 
+ *
  * 각 문서의 이상 점수를 계산하고 높은 위험도 순으로 정렬합니다.
  * 벡터 거리, 시간 편차, 행동 빈도 등 다양한 요소를 종합적으로 고려합니다.
- * 
+ *
+ * AI Native v3.3.0:
+ * - 이 프로세서의 점수 계산은 RAG 문서 순위 지정용 (LLM 입력 사전 처리)
+ * - 실제 보안 결정(ALLOW/BLOCK/CHALLENGE/ESCALATE)은 LLM이 결정
+ * - anomalyScore는 LLM의 분석 우선순위 결정에 참고용으로만 사용
+ *
  * @since 1.0.0
  */
 public class AnomalyScoreRanker implements DocumentPostProcessor {
@@ -268,9 +273,13 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
     }
     
     /**
-     * 이상도 수준 결정
+     * 이상도 수준 결정 (AI Native v3.3.0)
+     *
+     * 이 분류는 RAG 문서 순위 지정 및 LLM 프롬프트 컨텍스트용
+     * 실제 보안 Action(ALLOW/BLOCK/CHALLENGE/ESCALATE)은 LLM이 결정
      */
     private String determineAnomalyLevel(double anomalyScore) {
+        // RAG 문서 순위 지정용 참고 분류
         if (anomalyScore >= 0.9) {
             return "CRITICAL";
         } else if (anomalyScore >= 0.7) {

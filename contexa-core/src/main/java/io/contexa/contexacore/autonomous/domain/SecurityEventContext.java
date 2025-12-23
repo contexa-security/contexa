@@ -328,16 +328,19 @@ public class SecurityEventContext {
 
     /**
      * 고위험 이벤트 여부
+     *
+     * AI Native: AI 분석 결과 우선 사용
+     * securityEvent.isHighRisk() 호출 제거 (deprecated 메서드)
      */
     public boolean isHighRisk() {
-        if (securityEvent != null && securityEvent.isHighRisk()) {
-            return true;
+        // AI Native: AI 분석 결과 우선 (LLM 판단 결과)
+        if (aiAnalysisResult != null) {
+            return aiAnalysisResult.getThreatLevel() >= 0.7;
         }
-        if (aiAnalysisResult != null && aiAnalysisResult.getThreatLevel() > 0.7) {
-            return true;
-        }
-        if (userContext != null && userContext.isHighRisk()) {
-            return true;
+        // Fallback: 사용자 컨텍스트의 RiskLevel 사용
+        if (userContext != null) {
+            return userContext.getCurrentRiskLevel() == UserSecurityContext.RiskLevel.HIGH ||
+                   userContext.getCurrentRiskLevel() == UserSecurityContext.RiskLevel.CRITICAL;
         }
         return false;
     }

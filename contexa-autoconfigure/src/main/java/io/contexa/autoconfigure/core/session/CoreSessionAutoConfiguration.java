@@ -1,12 +1,7 @@
 package io.contexa.autoconfigure.core.session;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexacore.infra.session.AIStrategySessionRepository;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacore.infra.session.RedisAIStrategySessionRepository;
 import io.contexa.contexacore.infra.session.generator.HttpSessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.RedisSessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
@@ -19,15 +14,12 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Arrays;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * MFA Repository 자동 설정 및 통합 관리 - 최종 완성판
@@ -46,14 +38,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CoreSessionAutoConfiguration {
 
     private final AuthContextProperties properties;
-    private final ApplicationContext applicationContext;
     private final Environment environment;
-    private final RedisEventPublisher redisEventPublisher;
-    private final RedisDistributedLockService lockService;
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
-
-    private final Map<String, AIStrategySessionRepository> repositoryCache = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void initialize() {
@@ -99,166 +85,10 @@ public class CoreSessionAutoConfiguration {
         }
     }
 
-    /**
-     * AI 전략 실행 전용 Repository Bean
-     * AI 전략 실행 컴포넌트(DistributedStrategyExecutor 등)에서 사용
-     * AI 기능이 활성화된 경우에만 생성
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public AIStrategySessionRepository aiStrategySessionRepository() {
-        log.info("Creating AI Strategy Repository for AI execution");
-
-        if (properties.getMfa().isAutoSelectRepository()) {
-            return createAutoSelectedRepository();
-        } else {
-            return createConfiguredRepository();
-        }
-    }
-
     @Bean
     @ConditionalOnMissingBean
     public SessionIdGenerator sessionIdGenerator() {
             return new HttpSessionIdGenerator();
-    }
-
-    /**
-     * Repository 자동 선택 로직
-     */
-    private AIStrategySessionRepository createAutoSelectedRepository() {
-        log.info("Auto-selecting optimal AI Strategy Repository based on environment: {}", detectEnvironmentType());
-
-        String[] priorities = properties.getMfa().getRepositoryPriority().split(",");
-
-        for (String repositoryType : priorities) {
-            String trimmedType = repositoryType.trim().toLowerCase();
-
-            try {
-                AIStrategySessionRepository repository = createRepositoryByType(trimmedType);
-                if (repository != null) {
-                    log.info("Auto-selected AI Strategy Repository: {}", repository.getClass().getSimpleName());
-                    return repository;
-                }
-            } catch (Exception e) {
-                log.warn("Failed to create repository type '{}': {}", trimmedType, e.getMessage());
-            }
-        }
-
-        return createFallbackRepository();
-    }
-
-    /**
-     * 설정된 Repository 생성
-     */
-    private AIStrategySessionRepository createConfiguredRepository() {
-        String storageType = properties.getMfa().getSessionStorageType().toLowerCase();
-        log.info("Creating configured AI Strategy Repository: {}", storageType);
-
-        try {
-            AIStrategySessionRepository repository = createRepositoryByType(storageType);
-            if (repository != null) {
-                return repository;
-            }
-        } catch (Exception e) {
-            log.error("Failed to create configured repository '{}': {}", storageType, e.getMessage());
-        }
-
-        log.warn("Falling back to fallback repository due to configuration failure");
-        return createFallbackRepository();
-    }
-
-    /**
-     * 타입별 Repository 생성
-     */
-    private AIStrategySessionRepository createRepositoryByType(String type) {
-        return repositoryCache.computeIfAbsent(type, t -> {
-            return switch (t) {
-                case "redis" -> createAIRedisRepository();
-//                case "memory" -> createInMemoryRepository();
-//                case "http-session" -> createHttpSessionRepository();
-                case "auto" -> createAutoSelectedRepository();
-                default -> {
-                    log.warn("Unknown repository type: {}", t);
-                    yield null;
-                }
-            };
-        });
-    }
-
-    /**
-     * AI Redis Repository 생성
-     */
-    private AIStrategySessionRepository createAIRedisRepository() {
-        try {
-            redisTemplate.opsForValue().get("__health_check__");
-
-            RedisAIStrategySessionRepository repository = new RedisAIStrategySessionRepository(
-                    redisTemplate,
-                    new RedisSessionIdGenerator(redisTemplate),
-                    lockService,
-                    redisEventPublisher,
-                    objectMapper
-            );
-            repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-
-            log.info("Redis MFA Repository created successfully");
-            return repository;
-
-        } catch (Exception e) {
-            log.warn("Failed to create Redis repository: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * InMemory Repository 생성
-     */
-    /*private AIStrategySessionRepository createInMemoryRepository() {
-        try {
-            InMemoryMfaRepository repository = new InMemoryMfaRepository(new InMemorySessionIdGenerator());
-            repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-
-            log.info("InMemory MFA Repository created successfully");
-            return repository;
-
-        } catch (Exception e) {
-            log.warn("Failed to create InMemory repository: {}", e.getMessage());
-            return null;
-        }
-    }*/
-
-    /**
-     * HttpSession Repository 생성
-     */
-    private MfaSessionRepository createHttpSessionRepository() {
-        try {
-            HttpSessionMfaRepository repository = new HttpSessionMfaRepository(new HttpSessionIdGenerator());
-            repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-
-            log.info("HttpSession MFA Repository created successfully");
-            return repository;
-
-        } catch (Exception e) {
-            log.warn("Failed to create HttpSession repository: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Fallback Repository 생성
-     */
-    private AIStrategySessionRepository createFallbackRepository() {
-        String fallbackType = properties.getMfa().getFallbackRepositoryType().toLowerCase();
-        log.info("Creating fallback AI Strategy Repository: {}", fallbackType);
-
-        AIStrategySessionRepository repository = createRepositoryByType(fallbackType);
-        if (repository != null) {
-            log.info("Fallback repository created: {}", repository.getClass().getSimpleName());
-            return repository;
-        }
-
-        log.warn("All repository creation failed, using final fallback: Redis AI Repository");
-        return createAIRedisRepository();
     }
 
     /**

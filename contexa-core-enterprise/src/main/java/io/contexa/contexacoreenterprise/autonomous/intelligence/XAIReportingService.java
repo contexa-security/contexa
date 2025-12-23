@@ -822,7 +822,14 @@ public class XAIReportingService {
         return eventType.contains("AUTH") ? 0.7 : 0.5;
     }
     
+    /**
+     * XAI 보고서용 점수 (감사 로그 및 메타데이터 목적)
+     *
+     * AI Native에서는 LLM riskScore 우선 사용 권장
+     * 이 메서드는 XAI 보고서 가시화용으로 유지
+     */
     private double getSeverityScore(String severity) {
+        // XAI 보고서용 메타데이터 - Fallback 매핑 유지
         return switch (severity) {
             case "CRITICAL" -> 1.0;
             case "HIGH" -> 0.8;

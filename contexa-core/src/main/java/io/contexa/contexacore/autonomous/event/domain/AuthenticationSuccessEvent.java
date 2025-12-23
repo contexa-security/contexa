@@ -41,8 +41,9 @@ public class AuthenticationSuccessEvent {
     private boolean mfaCompleted;
     private String mfaMethod;
 
-    // 위험 평가
+    // 위험 평가 (AI Native v3.3.0)
     private Double trustScore;
+    private RiskLevel riskLevel;  // LLM이 직접 설정
     private Map<String, Object> riskIndicators;
     private boolean anomalyDetected;
 
@@ -55,30 +56,26 @@ public class AuthenticationSuccessEvent {
     private Map<String, Object> metadata;
     
     /**
-     * 위험 수준 계산
-     * 
-     * 중요: trustScore는 이미 AI Vector Store RAG에 의해 평가된 값이므로
-     * 재평가하지 않고 그대로 사용합니다. 이중 평가를 방지합니다.
+     * 위험 수준 반환 (AI Native v3.3.0)
+     *
+     * LLM이 직접 설정한 riskLevel 필드를 반환
+     * 점수 기반 변환 로직 제거
+     *
+     * @return LLM이 설정한 riskLevel, 미설정시 UNKNOWN
      */
     public RiskLevel calculateRiskLevel() {
-        // anomalyDetected는 별도의 이상 탐지 시스템에서 오는 독립적인 신호
+        // AI Native: LLM이 설정한 riskLevel 사용
+        // 점수 기반 변환 로직 제거
+        if (riskLevel != null) {
+            return riskLevel;
+        }
+
+        // 이상 탐지 시스템의 독립적 신호
         if (anomalyDetected) {
             return RiskLevel.CRITICAL;
         }
-        
-        // trustScore가 없으면 UNKNOWN
-        if (trustScore == null) {
-            return RiskLevel.UNKNOWN;
-        }
-        
-        // trustScore는 이미 AI가 평가한 값이므로 직접 매핑만 수행
-        // 하드코딩된 임계값을 사용하지 않고 UnifiedRiskEvaluator 사용 권장
-        // 하위 호환성을 위해 남겨둠
-        if (trustScore >= 0.8) return RiskLevel.MINIMAL;
-        if (trustScore >= 0.6) return RiskLevel.LOW;
-        if (trustScore >= 0.4) return RiskLevel.MEDIUM;
-        if (trustScore >= 0.2) return RiskLevel.HIGH;
-        return RiskLevel.CRITICAL;
+
+        return RiskLevel.UNKNOWN;
     }
     
     

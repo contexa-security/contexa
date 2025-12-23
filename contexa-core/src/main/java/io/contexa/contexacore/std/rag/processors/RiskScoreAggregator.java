@@ -268,14 +268,19 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
     }
     
     /**
-     * 위험 수준 결정
+     * 위험 수준 결정 (AI Native v3.3.0)
+     *
+     * 참고용 분류만 제공 - 실제 판단은 LLM이 Action으로 결정
+     * 이 값은 로깅/모니터링 용도로만 사용
      */
     private String determineRiskLevel(double riskScore) {
-        if (riskScore >= criticalThreshold) {
+        // AI Native: 임계값 기반 분류는 참고용
+        // 실제 접근 제어는 LLM의 Action(ALLOW/BLOCK/CHALLENGE/ESCALATE)으로 결정
+        if (riskScore >= 0.8) {
             return "CRITICAL";
-        } else if (riskScore >= highThreshold) {
+        } else if (riskScore >= 0.6) {
             return "HIGH";
-        } else if (riskScore >= mediumThreshold) {
+        } else if (riskScore >= 0.4) {
             return "MEDIUM";
         } else {
             return "LOW";

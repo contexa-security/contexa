@@ -205,16 +205,28 @@ public class SecurityIncident {
             return description;
         }
         
+        /**
+         * AI Native v3.3.0: Action 기반 고위험 판단으로 대체 권장
+         * 사용처: SecurityDecision.Action.BLOCK 또는 ESCALATE 확인
+         */
         public boolean isHighRisk() {
             return this == CRITICAL || this == HIGH;
         }
-        
-        public static ThreatLevel fromScore(double score) {
-            if (score >= 0.9) return CRITICAL;
-            if (score >= 0.7) return HIGH;
-            if (score >= 0.5) return MEDIUM;
-            if (score >= 0.3) return LOW;
-            return INFO;
+
+        /**
+         * AI Native v3.3.0: LLM이 직접 ThreatLevel 결정
+         * 이 메서드는 LLM이 결정한 threatLevel 문자열을 enum으로 변환할 때만 사용
+         * 점수 기반 변환은 AI Native 원칙 위반
+         */
+        public static ThreatLevel fromString(String level) {
+            if (level == null) return INFO;
+            return switch (level.toUpperCase()) {
+                case "CRITICAL" -> CRITICAL;
+                case "HIGH" -> HIGH;
+                case "MEDIUM" -> MEDIUM;
+                case "LOW" -> LOW;
+                default -> INFO;
+            };
         }
     }
     

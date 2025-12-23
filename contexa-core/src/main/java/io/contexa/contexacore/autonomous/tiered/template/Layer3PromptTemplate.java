@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.tiered.template;
 
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -23,10 +24,15 @@ import java.util.Optional;
 public class Layer3PromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;
+    private final TieredStrategyProperties tieredStrategyProperties;
 
     @Autowired
-    public Layer3PromptTemplate(@Autowired(required = false) SecurityEventEnricher eventEnricher) {
+    public Layer3PromptTemplate(
+            @Autowired(required = false) SecurityEventEnricher eventEnricher,
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
+        this.tieredStrategyProperties = tieredStrategyProperties != null
+            ? tieredStrategyProperties : new TieredStrategyProperties();
     }
 
     /**
@@ -69,14 +75,15 @@ public class Layer3PromptTemplate {
                                HistoricalContext historicalContext,
                                SystemContext systemContext,
                                String baselineContext) {
-        Optional<Object> payload = eventEnricher.getRequestPayload(event);
+        // Phase 4: getDecodedPayload() 사용 (Base64/URL 인코딩 자동 디코딩)
+        Optional<String> decodedPayload = eventEnricher.getDecodedPayload(event);
 
         // AI Native: "UNKNOWN" 기본값 제거, null 그대로 처리
         String eventType = event.getEventType() != null ? event.getEventType().toString() : null;
         String severity = event.getSeverity() != null ? event.getSeverity().name() : "MEDIUM";
         // AI Native: null인 경우 프롬프트에서 생략
         String userId = event.getUserId();
-        String fullPayload = payload.map(Object::toString).orElse("empty");
+        String fullPayload = decodedPayload.orElse("empty");
 
         // Phase 5: metadata에서 authz 정보 추출 (Layer1 패턴 적용)
         String authzSection = buildAuthzSection(event);
@@ -87,9 +94,15 @@ public class Layer3PromptTemplate {
         StringBuilder threatBuilder = new StringBuilder();
         threatBuilder.append("Reputation: ").append(String.format("%.1f", threatIntel.getReputationScore()));
 
+        // Truncation 정책 적용
+        TieredStrategyProperties.Truncation.Layer3Truncation layer3Truncation =
+            tieredStrategyProperties.getTruncation().getLayer3();
+
         String iocMatches = threatIntel.getIocMatches();
         if (iocMatches != null && !iocMatches.isEmpty()) {
-            threatBuilder.append(" | IOC: ").append(iocMatches.substring(0, Math.min(30, iocMatches.length())));
+            // SHA-256 해시(64자), URL 등 전체 IOC 데이터 유지
+            int maxIoc = layer3Truncation.getIocMatches();
+            threatBuilder.append(" | IOC: ").append(iocMatches.substring(0, Math.min(maxIoc, iocMatches.length())));
         }
 
         String knownActors = threatIntel.getKnownActors();
@@ -100,7 +113,9 @@ public class Layer3PromptTemplate {
         // relatedCampaigns 추가 (AI Native: null 체크)
         String campaigns = threatIntel.getRelatedCampaigns();
         if (campaigns != null && !campaigns.isEmpty()) {
-            String campaignsSummary = campaigns.length() > 50 ? campaigns.substring(0, 47) + "..." : campaigns;
+            int maxCampaigns = layer3Truncation.getCampaigns();
+            String campaignsSummary = campaigns.length() > maxCampaigns
+                ? campaigns.substring(0, maxCampaigns - 3) + "..." : campaigns;
             threatBuilder.append("\nCampaigns: ").append(campaignsSummary);
         }
         String threatSummary = threatBuilder.toString();
@@ -119,10 +134,12 @@ public class Layer3PromptTemplate {
             historyBuilder.append("Similar: ").append(similarIncidents.substring(0, Math.min(30, similarIncidents.length())));
         }
 
-        // vulnerabilityHistory 추가 (AI Native: null 체크)
+        // vulnerabilityHistory 추가 (AI Native: null 체크, Truncation 정책 적용)
         String vulnHistory = historicalContext.getVulnerabilityHistory();
         if (vulnHistory != null && !vulnHistory.isEmpty()) {
-            String vulnSummary = vulnHistory.length() > 50 ? vulnHistory.substring(0, 47) + "..." : vulnHistory;
+            int maxVulnerabilities = layer3Truncation.getVulnerabilities();
+            String vulnSummary = vulnHistory.length() > maxVulnerabilities
+                ? vulnHistory.substring(0, maxVulnerabilities - 3) + "..." : vulnHistory;
             historyBuilder.append("\nVulnerabilities: ").append(vulnSummary);
         }
         String historySummary = historyBuilder.toString();
@@ -145,7 +162,9 @@ public class Layer3PromptTemplate {
         }
         if (compliance != null && !compliance.isEmpty()) {
             if (systemBuilder.length() > 0) systemBuilder.append("\n");
-            String compSummary = compliance.length() > 30 ? compliance.substring(0, 27) + "..." : compliance;
+            int maxCompliance = layer3Truncation.getCompliance();
+            String compSummary = compliance.length() > maxCompliance
+                ? compliance.substring(0, maxCompliance - 3) + "..." : compliance;
             systemBuilder.append("Compliance: ").append(compSummary);
         }
         if (posture != null && !posture.isEmpty()) {
@@ -154,13 +173,11 @@ public class Layer3PromptTemplate {
         }
         String systemSummary = systemBuilder.toString();
 
-        // HCAD 위험도 분석 결과 추가
-        String hcadSection = buildHCADSection(event);
-
         // AI Native (Phase 9): Baseline 컨텍스트 섹션
+        // Phase 2-7: null -> N/A 명시적 표현
         String baselineSection = (baselineContext != null && !baselineContext.isEmpty())
             ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
-            : "=== USER BEHAVIOR BASELINE ===\nBaseline: Not available for expert analysis";
+            : "=== USER BEHAVIOR BASELINE ===\nBaseline: N/A (Not available for expert analysis)";
 
         // Phase 5: metadata에서 추출한 풍부한 컨텍스트 정보 제공
         // AI Native v3.3.0: 4개 Action (ALLOW/BLOCK/CHALLENGE/ESCALATE)
@@ -190,10 +207,12 @@ public class Layer3PromptTemplate {
             prompt.append(authzSection).append("\n");
         }
 
-        // 4. 페이로드 정보 (있는 경우만)
+        // 4. 페이로드 정보 (있는 경우만, Truncation 정책 적용)
         if (!"empty".equals(fullPayload)) {
             prompt.append("\n=== PAYLOAD ===\n");
-            String payloadSummary = fullPayload.length() > 200 ? fullPayload.substring(0, 200) + "..." : fullPayload;
+            int maxPayload = layer3Truncation.getPayload();
+            String payloadSummary = fullPayload.length() > maxPayload
+                ? fullPayload.substring(0, maxPayload) + "..." : fullPayload;
             prompt.append(payloadSummary).append("\n");
         }
 
@@ -208,10 +227,11 @@ public class Layer3PromptTemplate {
             prompt.append(" | Confidence=").append(String.format("%.2f", l1Confidence));
         }
         prompt.append("\n");
+        int maxReasoning = layer3Truncation.getReasoning();
         if (layer1Decision.getReasoning() != null && !layer1Decision.getReasoning().isEmpty()) {
             String reasoning = layer1Decision.getReasoning();
-            if (reasoning.length() > 80) {
-                reasoning = reasoning.substring(0, 77) + "...";
+            if (reasoning.length() > maxReasoning) {
+                reasoning = reasoning.substring(0, maxReasoning - 3) + "...";
             }
             prompt.append("L1 Reason: ").append(reasoning).append("\n");
         }
@@ -225,8 +245,8 @@ public class Layer3PromptTemplate {
         prompt.append("\n");
         if (layer2Decision.getReasoning() != null && !layer2Decision.getReasoning().isEmpty()) {
             String reasoning = layer2Decision.getReasoning();
-            if (reasoning.length() > 80) {
-                reasoning = reasoning.substring(0, 77) + "...";
+            if (reasoning.length() > maxReasoning) {
+                reasoning = reasoning.substring(0, maxReasoning - 3) + "...";
             }
             prompt.append("L2 Reason: ").append(reasoning).append("\n");
         }
@@ -247,10 +267,7 @@ public class Layer3PromptTemplate {
             prompt.append(systemSummary).append("\n");
         }
 
-        // 9. HCAD 분석
-        prompt.append("\n").append(hcadSection).append("\n");
-
-        // 10. 사용자 Baseline
+        // 9. 사용자 Baseline
         prompt.append("\n").append(baselineSection).append("\n");
 
         // 11. 데이터 품질 평가 (AI Native: 임계값 제거)
@@ -258,100 +275,46 @@ public class Layer3PromptTemplate {
         prompt.append("\n=== DATA QUALITY ===\n");
         prompt.append("Available info: ").append(dataQuality).append("/10 fields\n");
 
-        // 12. 응답 형식 (AI Native: EXPERT RULE 제거)
+        // 12. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙)
         prompt.append("""
 
             === RESPONSE FORMAT ===
-            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>"}
-            r: riskScore (0.0=safe, 1.0=attack)
-            c: confidence (0.0-1.0)
-            a: Action (one of A/B/C/E)
-            d: Brief reason (max 20 tokens)
+            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>","m":"<MITRE>","rec":"<recommendation>"}
+            a: YOUR FINAL DECISION (one of A/B/C/E) - Action is primary
+            r: risk level supporting your action (0=safe, 1=attack) - for traceability
+            c: your confidence in this decision (0-1)
+            d: brief reason (max 30 tokens)
+            m: MITRE ATT&CK technique if applicable (e.g., T1078, T1566)
+            rec: specific recommendation for SOC (max 20 tokens)
 
             === ACTION GUIDE (Expert Level) ===
-            A (ALLOW): Safe - Verified normal behavior, no threat indicators
-            B (BLOCK): CRITICAL - Confirmed attack with high confidence.
-               Examples: Known threat actor, IOC match, MITRE technique confirmed, malware signature
-            C (CHALLENGE): HIGH RISK - Strong suspicion but needs human verification.
-               Examples: APT-like behavior, privilege escalation, lateral movement attempt
-            E (ESCALATE): Requires human SOC analyst review for final decision
+            A (ALLOW): Verified safe, no threat indicators -> r~0.0-0.2
+            B (BLOCK): Confirmed attack (IOC match, MITRE confirmed, malware) -> r~0.9-1.0
+            C (CHALLENGE): Strong suspicion, needs MFA/human verification -> r~0.6-0.9
+            E (ESCALATE): HUMAN SOC ANALYST REQUIRED - Layer3 cannot decide -> any r, low c
+               Use E when: conflicting evidence, APT-like patterns, or novel attack
 
-            Determine action based on your expert analysis of all available context.
+            === AI NATIVE PRINCIPLE ===
+            - This is the FINAL layer. YOU must make a decision.
+            - E (ESCALATE) means "require human SOC analyst" - use only when truly uncertain.
+            - For APT/zero-day patterns: prefer C (CHALLENGE) with detailed reasoning.
+            - Action takes precedence over risk score if they conflict.
+            - Always provide MITRE technique (m) if threat is detected.
             """);
 
         return prompt.toString();
     }
 
     /**
-     * HCAD 위험도 분석 결과 섹션 구성 (AI Native)
-     *
-     * AI Native 원칙:
-     * - 플랫폼은 raw 데이터만 제공
-     * - 임계값 기반 판단(assessment) 제거
-     * - LLM이 riskScore를 해석하고 action을 직접 결정
-     */
-    private String buildHCADSection(SecurityEvent event) {
-        // AI Native: SecurityEvent.riskScore 필드 제거됨
-        // HCAD 분석 결과는 ThreatAssessment에서 관리
-        // LLM이 위협 인텔리전스와 함께 전문가 수준 분석하여 위험도 결정
-        return "HCAD Analysis: Expert LLM analysis with threat intelligence required";
-    }
-
-    /**
      * Phase 5: metadata에서 Authorization 정보 추출 (Layer1 패턴 적용)
-     *
-     * authz.resource, authz.action, authz.result, authz.reason,
-     * methodClass, methodName 등 풍부한 컨텍스트 정보 제공
+     * PromptTemplateUtils로 위임
      */
     private String buildAuthzSection(SecurityEvent event) {
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata == null || metadata.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder authz = new StringBuilder();
-
-        // authz.resource - 접근 대상 리소스
-        String authzResource = getStringFromMetadata(metadata, "authz.resource");
-        if (isValidData(authzResource)) {
-            authz.append("Resource: ").append(authzResource).append("\n");
-        }
-
-        // methodClass, methodName - 호출된 메서드 정보
-        String methodClass = getStringFromMetadata(metadata, "methodClass");
-        String methodName = getStringFromMetadata(metadata, "methodName");
-        if (isValidData(methodClass) || isValidData(methodName)) {
-            String classSimpleName = extractSimpleClassName(methodClass);
-            authz.append("Method: ").append(classSimpleName).append(".").append(methodName).append("\n");
-        }
-
-        // authz.action - 수행 액션
-        String authzAction = getStringFromMetadata(metadata, "authz.action");
-        if (isValidData(authzAction)) {
-            authz.append("Action: ").append(authzAction).append("\n");
-        }
-
-        // authz.result - 인가 결과
-        String authzResult = getStringFromMetadata(metadata, "authz.result");
-        if (isValidData(authzResult)) {
-            authz.append("Result: ").append(authzResult).append("\n");
-        }
-
-        // authz.reason - 거부 이유 (있는 경우)
-        String authzReason = getStringFromMetadata(metadata, "authz.reason");
-        if (isValidData(authzReason)) {
-            // 이유가 너무 길면 요약
-            if (authzReason.length() > 80) {
-                authzReason = authzReason.substring(0, 77) + "...";
-            }
-            authz.append("Reason: ").append(authzReason).append("\n");
-        }
-
-        return authz.toString().trim();
+        return PromptTemplateUtils.buildAuthzSection(event);
     }
 
     /**
-     * 네트워크 정보 섹션 구성 (유효한 데이터만)
+     * 네트워크 정보 섹션 구성 (유효한 데이터만, Truncation 정책 적용)
      */
     private String buildNetworkSection(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
@@ -362,8 +325,9 @@ public class Layer3PromptTemplate {
 
         if (isValidData(event.getUserAgent())) {
             String ua = event.getUserAgent();
-            if (ua.length() > 80) {
-                ua = ua.substring(0, 77) + "...";
+            int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer3().getUserAgent();
+            if (ua.length() > maxUserAgent) {
+                ua = ua.substring(0, maxUserAgent - 3) + "...";
             }
             network.append("UserAgent: ").append(ua).append("\n");
         }
@@ -385,73 +349,35 @@ public class Layer3PromptTemplate {
 
     /**
      * 데이터가 유효한지 검사 (null, empty, "unknown" 제외)
+     * PromptTemplateUtils로 위임
      */
     private boolean isValidData(String value) {
-        return value != null && !value.isEmpty() && !value.equalsIgnoreCase("unknown");
+        return PromptTemplateUtils.isValidData(value);
     }
 
     /**
      * metadata에서 문자열 값 안전하게 추출 (AI Native)
-     *
-     * AI Native 원칙: 기본값 "unknown" 제거
-     * - 값이 없으면 null 반환
-     * - 호출부에서 null 체크 후 프롬프트 생략
-     * - LLM이 "unknown" 문자열을 실제 데이터로 오인하는 문제 방지
+     * PromptTemplateUtils로 위임
      */
     private String getStringFromMetadata(Map<String, Object> metadata, String key) {
-        Object value = metadata.get(key);
-        if (value == null) {
-            return null;
-        }
-        String strValue = value.toString();
-        return strValue.isEmpty() ? null : strValue;
+        return PromptTemplateUtils.getStringFromMetadata(metadata, key);
     }
 
     /**
      * 클래스 풀네임에서 심플 클래스명 추출 (AI Native)
-     * 예: "io.contexa.service.TestService" -> "TestService"
-     *
-     * AI Native 원칙: 기본값 "unknown" 제거
-     * - 값이 없으면 null 반환
+     * PromptTemplateUtils로 위임
      */
     private String extractSimpleClassName(String fullClassName) {
-        if (fullClassName == null || fullClassName.isEmpty()) {
-            return null;
-        }
-        int lastDot = fullClassName.lastIndexOf('.');
-        if (lastDot >= 0 && lastDot < fullClassName.length() - 1) {
-            return fullClassName.substring(lastDot + 1);
-        }
-        return fullClassName;
+        return PromptTemplateUtils.extractSimpleClassName(fullClassName);
     }
 
     /**
      * 데이터 품질 점수 계산 (0-10)
      * LLM이 판단의 신뢰도를 조절하는 데 참고
+     * PromptTemplateUtils로 위임
      */
     private int calculateDataQuality(SecurityEvent event) {
-        int score = 0;
-
-        // 필수 정보
-        if (event.getEventType() != null) score++;
-        if (event.getSeverity() != null) score++;
-        if (isValidData(event.getUserId())) score++;
-        if (isValidData(event.getSourceIp())) score++;
-        if (isValidData(event.getUserAgent())) score++;
-
-        // 추가 정보
-        if (isValidData(event.getSessionId())) score++;
-        if (isValidData(event.getTargetResource())) score++;
-        if (event.getTimestamp() != null) score++;
-
-        // metadata 정보
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata != null && !metadata.isEmpty()) {
-            if (metadata.containsKey("authz.resource")) score++;
-            if (metadata.containsKey("methodClass")) score++;
-        }
-
-        return Math.min(10, score);
+        return PromptTemplateUtils.calculateDataQuality(event);
     }
 
     /**

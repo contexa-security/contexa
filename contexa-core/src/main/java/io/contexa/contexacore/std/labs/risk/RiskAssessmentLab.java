@@ -395,10 +395,18 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         return adjusted;
     }
 
+    /**
+     * AI Native v3.3.0: 보수적 권장사항 결정
+     *
+     * Fallback 모드에서만 사용 - 정상 흐름에서는 LLM이 Action 결정
+     * 이 메서드는 AI 시스템 오류 시 안전한 기본값 제공 목적
+     */
     private String determineConservativeRecommendation(double riskScore) {
-        if (riskScore >= 0.8) return "DENY";
-        if (riskScore >= 0.6) return "RESTRICT";
-        if (riskScore >= 0.4) return "MONITOR";
+        // Fallback: 높은 riskScore는 보수적으로 BLOCK 처리
+        // 정상 흐름에서는 LLM이 ALLOW/BLOCK/CHALLENGE/ESCALATE 직접 결정
+        if (riskScore >= 0.8) return "BLOCK";
+        if (riskScore >= 0.6) return "CHALLENGE";
+        if (riskScore >= 0.4) return "ESCALATE";
         return "ALLOW";
     }
 

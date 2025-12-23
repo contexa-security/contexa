@@ -198,13 +198,12 @@ public class ZeroTrustSecurityService {
     }
 
     /**
-     * AI Native: Redis에서 LLM이 결정한 최신 action 조회 (Dual-Read)
+     * AI Native: Redis에서 LLM이 결정한 최신 action 조회
      *
      * 조회 우선순위:
      * 1. 차단 상태 확인 (RealtimeBlockStrategy가 저장)
-     * 2. Primary: security:hcad:analysis:{userId} Hash에서 action 필드 조회
-     * 3. Fallback: security:user:action:{userId} String 조회 (레거시 호환)
-     * 4. 키 없음 → PENDING_ANALYSIS (Zero Trust 기본값)
+     * 2. security:hcad:analysis:{userId} Hash에서 action 필드 조회
+     * 3. 키 없음 -> PENDING_ANALYSIS (Zero Trust 기본값)
      *
      * Zero Trust 원칙:
      * - LLM 분석 전/실패/Redis 오류 시 기본값 "PENDING_ANALYSIS"
@@ -226,26 +225,17 @@ public class ZeroTrustSecurityService {
                 return "BLOCK";
             }
 
-            // 2. Primary: security:hcad:analysis:{userId} Hash에서 action 필드 조회
+            // 2. security:hcad:analysis:{userId} Hash에서 action 필드 조회
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Object action = redisTemplate.opsForHash().get(analysisKey, "action");
             if (action != null) {
-                log.debug("[ZeroTrust][Dual-Read] Action from primary key: userId={}, action={}",
+                log.debug("[ZeroTrust] Action from hcadAnalysis: userId={}, action={}",
                         userId, action);
                 return action.toString();
             }
 
-            // 3. Fallback: security:user:action:{userId} String 조회 (레거시 호환)
-            String legacyKey = ZeroTrustRedisKeys.userAction(userId);
-            Object legacyAction = redisTemplate.opsForValue().get(legacyKey);
-            if (legacyAction != null) {
-                log.debug("[ZeroTrust][Dual-Read] Action from legacy key: userId={}, action={}",
-                        userId, legacyAction);
-                return legacyAction.toString();
-            }
-
-            // 4. Zero Trust 기본값: PENDING_ANALYSIS (LLM 분석 전 상태)
-            log.debug("[ZeroTrust][Dual-Read] No action found, returning PENDING_ANALYSIS: userId={}", userId);
+            // 3. Zero Trust 기본값: PENDING_ANALYSIS (LLM 분석 전 상태)
+            log.debug("[ZeroTrust] No action found, returning PENDING_ANALYSIS: userId={}", userId);
             return "PENDING_ANALYSIS";
 
         } catch (Exception e) {

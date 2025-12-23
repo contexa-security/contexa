@@ -223,8 +223,8 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ColdPathStrategy coldPathStrategy() {
-        return new ColdPathStrategy();
+    public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
+        return new ColdPathStrategy(coldPathEventProcessor);
     }
 
     // AI Native: HotPathStrategy 제거 (삭제된 Hot Path 전략)

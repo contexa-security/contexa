@@ -45,9 +45,6 @@ public class RedisSecurityEventCollector {
     @Value("${security.plane.redis.channel.incidents:security:incidents}")
     private String incidentsChannel;
     
-    @Value("${security.plane.redis.stream.events:security-events-stream}")
-    private String eventsStreamKey;
-    
     @Value("${security.plane.redis.cache.ttl-minutes:60}")
     private int cacheTtlMinutes;
     
@@ -373,9 +370,10 @@ public class RedisSecurityEventCollector {
                 break;
         }
         
-        // High-risk events
-        if (event.getSeverity() == SecurityEvent.Severity.CRITICAL ||
-            event.getSeverity() == SecurityEvent.Severity.HIGH) {
+        // AI Native: action 기반 고위험 이벤트 판단
+        Map<String, Object> metadata = event.getMetadata();
+        String aiAction = metadata != null ? (String) metadata.get("aiAction") : null;
+        if ("BLOCK".equals(aiAction) || "CHALLENGE".equals(aiAction)) {
             listener.onHighRiskEvent(event);
         }
     }

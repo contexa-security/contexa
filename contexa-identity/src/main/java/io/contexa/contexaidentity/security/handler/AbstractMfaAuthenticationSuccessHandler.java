@@ -485,13 +485,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            // 1. Primary: security:hcad:analysis:{userId} Hash의 action 필드를 "ALLOW"로 설정
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
-
-            // 2. Legacy: security:user:action:{userId} String을 "ALLOW"로 설정 (하위 호환성)
-            String legacyKey = ZeroTrustRedisKeys.userAction(userId);
-            redisTemplate.opsForValue().set(legacyKey, "ALLOW", Duration.ofMinutes(30));
 
             log.info("[MFA][AI Native][Dual-Write] Action set to ALLOW for user: {} (CHALLENGE cleared, original authorities will be restored)",
                     userId);

@@ -32,6 +32,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,11 +40,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * Security Plane Agent 메인 클래스
@@ -115,6 +118,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     
     @Value("${security.plane.agent.threat-threshold:0.7}")
     private double threatThreshold;
+
+    @Value("${security.plane.agent.dynamic-response.min-severity:HIGH}")
+    private String dynamicResponseMinSeverity;
+
     private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
@@ -224,34 +231,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         stop();
     }
     
-    /**
-     * Check for new incidents - runs every minute
-     */
-    @Override
-//    @Scheduled(fixedDelayString = "#{${security.plane.agent.incident-check-interval-minutes:1} * 60 * 1000}")
-    public void checkForIncidents() {
-        if (!isRunning()) {
-            return;
-        }
-        
-        try {
-            log.debug("Agent {} checking for new incidents", agentName);
-            
-            // Get active incidents
-            List<SecurityIncident> incidents = incidentRepository.findActiveIncidents();
-            
-            // Process each incident
-            for (SecurityIncident incident : incidents) {
-                if (!activeIncidentHandlers.containsKey(incident.getIncidentId())) {
-                    handleNewIncident(incident);
-                }
-            }
-            
-        } catch (Exception e) {
-            log.error("Error checking incidents", e);
-        }
-    }
-    
+    // checkForIncidents() 제거: startBackgroundMonitoring()과 중복 기능
+
+
     /**
      * Check pending approvals - runs every 10 seconds
      *
@@ -306,7 +288,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      * Health check - runs every 5 minutes
      */
     @Override
-//    @Scheduled(fixedDelayString = "#{${security.plane.agent.health-check-interval-minutes:5} * 60 * 1000}")
+    @Scheduled(fixedDelayString = "#{${security.plane.agent.health-check-interval-minutes:5} * 60 * 1000}")
     public void performHealthCheck() {
         if (!running.get()) {
             return;
@@ -390,9 +372,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             // 멱등성 마커 저장 (처리 완료 표시)
             markEventAsProcessed(event.getEventId());
 
-            // 성능 메트릭 수집
-            recordProcessingMetrics(event.getEventId(), processingTime, "SUCCESS");
-
         } catch (Exception e) {
             log.error("[SecurityPlaneAgent] Error processing event with orchestrator: {}",
                 event.getEventId(), e);
@@ -419,22 +398,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 auditLogger.auditError("SecurityPlaneAgent", "processWithOrchestrator", e, errorContext);
             }
 
-            // 성능 메트릭 수집 (실패)
-            recordProcessingMetrics(event.getEventId(), System.currentTimeMillis() - startTime, "FAILED");
-
             // 트랜잭션 롤백을 위해 예외 재발생
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
 
         } finally {
-            // 컨텍스트 캐시 저장
-            if (context != null) {
-                String contextKey = "security:context:" + event.getEventId();
-                try {
-                    redisTemplate.opsForValue().set(contextKey, context, Duration.ofHours(24));
-                } catch (Exception e) {
-                    log.warn("[SecurityPlaneAgent] Failed to save context for event: {}", event.getEventId(), e);
-                }
-            }
+            // AI Native: 컨텍스트 캐시 저장 제거 (Dead Code - 조회 코드 없음)
         }
     }
 
@@ -446,7 +414,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      */
     private boolean isEventAlreadyProcessed(String eventId) {
         try {
-            String processingKey = "security:processed:" + eventId;
+            String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
             Boolean exists = redisTemplate.hasKey(processingKey);
             return Boolean.TRUE.equals(exists);
         } catch (Exception e) {
@@ -462,7 +430,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
      */
     private void markEventAsProcessed(String eventId) {
         try {
-            String processingKey = "security:processed:" + eventId;
+            String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
             // 24시간 동안 처리 완료 상태 유지
             redisTemplate.opsForValue().set(processingKey, "1", Duration.ofHours(24));
             log.debug("[SecurityPlaneAgent] Event marked as processed: {}", eventId);
@@ -471,31 +439,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * 처리 성능 메트릭 기록
-     *
-     * @param eventId 이벤트 ID
-     * @param processingTime 처리 시간 (ms)
-     * @param status 처리 상태
-     */
-    private void recordProcessingMetrics(String eventId, long processingTime, String status) {
-        try {
-            String metricsKey = "security:metrics:processing:" + agentName;
-            Map<String, String> metrics = new HashMap<>();
-            metrics.put("eventId", eventId);
-            metrics.put("processingTime", String.valueOf(processingTime));
-            metrics.put("status", status);
-            metrics.put("timestamp", String.valueOf(System.currentTimeMillis()));
-
-            // Redis Hash로 메트릭 저장 (최근 1000개 유지)
-            redisTemplate.opsForHash().put(metricsKey, eventId, metrics);
-
-            log.debug("[SecurityPlaneAgent] Metrics recorded - eventId: {}, time: {}ms, status: {}",
-                eventId, processingTime, status);
-        } catch (Exception e) {
-            log.warn("[SecurityPlaneAgent] Failed to record processing metrics: {}", eventId, e);
-        }
-    }
+    // recordProcessingMetrics() 제거: Dead Code - 저장만 하고 조회 코드 없음
 
     public void handleNewIncident(SecurityIncident incident) {
         handleNewIncident(incident, null);
@@ -659,7 +603,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     /**
      * DynamicThreatResponseEvent 발행 여부 결정
      *
-     * 조건: 고위험(CRITICAL/HIGH) 위협 대응 성공 시만 정책 생성 대상
+     * 조건: 설정된 최소 심각도(dynamicResponseMinSeverity) 이상인 위협 대응 성공 시만 정책 생성 대상
+     * 심각도 순서: CRITICAL > HIGH > MEDIUM > LOW > INFO
      *
      * @param handler 인시던트 핸들러
      * @return 이벤트 발행 여부
@@ -671,7 +616,37 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
 
         String severity = soarIncident.getSeverity();
-        return "CRITICAL".equalsIgnoreCase(severity) || "HIGH".equalsIgnoreCase(severity);
+        if (severity == null) {
+            return false;
+        }
+
+        // 심각도 순위 비교 (CRITICAL=5, HIGH=4, MEDIUM=3, LOW=2, INFO=1)
+        int incidentSeverityRank = getSeverityRank(severity);
+        int minSeverityRank = getSeverityRank(dynamicResponseMinSeverity);
+
+        return incidentSeverityRank >= minSeverityRank;
+    }
+
+    /**
+     * 심각도 문자열을 순위 숫자로 변환
+     *
+     * @param severity 심각도 문자열
+     * @return 순위 (CRITICAL=5, HIGH=4, MEDIUM=3, LOW=2, INFO=1, UNKNOWN=0)
+     * @deprecated AI Native 원칙 위반 - SecurityDecision.action 기반 판단 권장
+     */
+    @Deprecated(since = "3.1.0", forRemoval = true)
+    private int getSeverityRank(String severity) {
+        if (severity == null) {
+            return 0;
+        }
+        return switch (severity.toUpperCase()) {
+            case "CRITICAL" -> 5;
+            case "HIGH" -> 4;
+            case "MEDIUM" -> 3;
+            case "LOW" -> 2;
+            case "INFO" -> 1;
+            default -> 0;
+        };
     }
 
     /**
@@ -897,15 +872,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private boolean needsAttention(Map<String, Object> health) {
         // Check if any health metrics indicate problems
         Long queueSize = (Long) health.get("event_queue_size");
-        if (queueSize != null && queueSize > 1000) {
+        if (queueSize != null && queueSize > maxQueueSize) {
             return true;
         }
 
         Integer pendingApprovals = (Integer) health.get("pending_approvals");
-        if (pendingApprovals != null && pendingApprovals > 10) {
+        if (pendingApprovals != null && pendingApprovals > maxPendingApprovals) {
             return true;
         }
-        
+
         return false;
     }
     
@@ -1085,8 +1060,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private void learnFromSecurityEvent(SecurityEvent event, String response) {
         if (learningEngine != null) {
             try {
-                // 효과성 계산
-                double effectiveness = calculateResponseEffectiveness(event, response);
+                // AI Native: effectiveness는 LLM이 판단해야 함 (-1.0 = 미측정)
+                // calculateResponseEffectiveness() 제거 (규칙 기반 판단 위반)
+                double effectiveness = -1.0;
 
                 // Learning Engine을 통한 학습 수행
                 learningEngine.learnFromEvent(event, response, effectiveness)
@@ -1168,24 +1144,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * 응답 효과성 계산 (간단한 예시)
-     */
-    private double calculateResponseEffectiveness(SecurityEvent event, String response) {
-        // 실제로는 더 복잡한 로직이 필요
-        if (response.contains("blocked") || response.contains("prevented")) {
-            return 0.9;
-        } else if (response.contains("alerted") || response.contains("notified")) {
-            return 0.7;
-        } else {
-            return 0.5;
-        }
-    }
-    
+    // AI Native: calculateResponseEffectiveness() 제거됨
+    // 규칙 기반 판단(문자열 포함 여부로 점수 결정)은 AI Native 원칙 위반
+    // effectiveness는 LLM이 판단해야 함
+
 
     /**
      * ThreatLevel을 Severity로 매핑
+     *
+     * @deprecated JPA 호환성 유지를 위해 임시 유지
+     * 향후 버전에서 SecurityIncident.ThreatLevel도 action 기반으로 대체 예정
      */
+    @Deprecated(since = "3.1.0")
     private SecurityEvent.Severity mapThreatLevelToSeverity(SecurityIncident.ThreatLevel threatLevel) {
         if (threatLevel == null) {
             return SecurityEvent.Severity.MEDIUM;
@@ -1204,8 +1174,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
+    @Autowired
+    @Qualifier("llmAnalysisExecutor")
+    private Executor llmAnalysisExecutor;
+
     /**
-     * 백그라운드 모니터링 시작 - 진정한 24/7 실행
+     * 백그라운드 모니터링 시작 - 진정한 24/7 실행 (Parallel Processing)
      */
     private void startBackgroundMonitoring() {
         if (backgroundTask != null && !backgroundTask.isDone()) {
@@ -1213,33 +1187,31 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return;
         }
 
+        // 메인 루프는 별도 스레드(backgroundExecutor)에서 실행하여 메인 스레드 차단 방지
         backgroundTask = CompletableFuture.runAsync(() -> {
             log.info("Starting continuous background monitoring for agent {}", agentName);
 
             while (running.get()) {
                 try {
-                    List<SecurityEvent> events = securityMonitor.pollEventsFromQueue(50, 100);
+                    // 큐에서 이벤트를 가져옴 (10개씩)
+                    List<SecurityEvent> events = securityMonitor.pollEventsFromQueue(10, 100);
 
                     if (!events.isEmpty()) {
-                        log.info("[SecurityPlaneAgent] Processing {} events in background for agent {}", events.size(), agentName);
-
-                        List<CompletableFuture<Void>> futures = new ArrayList<>();
+                        log.debug("[SecurityPlaneAgent] Dispaching {} events to workers", events.size());
 
                         for (SecurityEvent event : events) {
-                            CompletableFuture<Void> future = CompletableFuture.runAsync(
-                                    () -> processSecurityEvent(event),
-                                    backgroundExecutor
-                            );
-                            futures.add(future);
+                            // 각 이벤트를 LLM 분석 전용 Executor에 직접 제출 (Fire-and-forget)
+                            // CompletableFuture로 감싸지 않고 Executor 인터페이스 직접 사용
+                            llmAnalysisExecutor.execute(() -> {
+                                try {
+                                    processSecurityEvent(event);
+                                } catch (Exception e) {
+                                    log.error("Error processing event {} in worker thread", event.getEventId(), e);
+                                }
+                            });
                         }
-
-                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                                .orTimeout(300, TimeUnit.SECONDS)
-                                .exceptionally(ex -> {
-                                    log.error("Error processing events in background", ex);
-                                    return null;
-                                }).join();
-
+                        
+                        // 통계 업데이트
                         processedEvents.addAndGet(events.size());
                     }
 
@@ -1248,28 +1220,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     handleMonitoringError(e);
                 }
             }
-
+            
             log.info("Background monitoring stopped for agent {}", agentName);
         }, backgroundExecutor);
     }
+    
+    // shutdownWorkerPool 제거: Bean으로 관리되는 Executor는 Spring이 종료 관리함
 
-    /**
-     * Redis에서 현재 Threat Score 조회
-     */
-    private double getThreatScoreFromRedis(String userId) {
-        try {
-            String threatScoreKey = ZeroTrustRedisKeys.threatScore(userId);
-            Object threatScoreObj = redisTemplate.opsForValue().get(threatScoreKey);
-
-            if (threatScoreObj != null) {
-                return Double.parseDouble(threatScoreObj.toString());
-            }
-        } catch (Exception e) {
-            log.error("Failed to retrieve Threat Score for user: {}", userId, e);
-        }
-
-        return 0.3; // 기본값
-    }
+    // getThreatScoreFromRedis() 제거: Dead Code - 호출하는 곳 없음
 
     /**
      * 백그라운드 모니터링 중지
@@ -1277,11 +1235,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private void stopBackgroundMonitoring() {
         if (backgroundTask != null) {
             log.info("Stopping background monitoring for agent {}", agentName);
-            backgroundTask.cancel(true);
+            // AI Native: cancel 전에 먼저 정상 종료 대기 시도
             try {
                 backgroundTask.get(5, TimeUnit.SECONDS);
+                log.info("Background monitoring task completed normally for agent {}", agentName);
+            } catch (java.util.concurrent.TimeoutException e) {
+                log.warn("Background task timeout, forcing cancel for agent {}", agentName);
+                backgroundTask.cancel(true);
+            } catch (java.util.concurrent.CancellationException e) {
+                log.info("Background task was already cancelled for agent {}", agentName);
             } catch (Exception e) {
-                log.warn("Background monitoring task did not complete cleanly for agent {}", agentName);
+                log.warn("Background monitoring task error for agent {}: {}", agentName, e.getMessage());
+                backgroundTask.cancel(true);
             }
         }
     }
