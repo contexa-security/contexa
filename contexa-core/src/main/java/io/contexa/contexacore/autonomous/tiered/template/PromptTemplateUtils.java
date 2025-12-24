@@ -110,6 +110,119 @@ public final class PromptTemplateUtils {
     }
 
     /**
+     * Zero Trust: 데이터 품질 및 누락 필드 분석 (AI Native v3.1.0)
+     *
+     * LLM에게 다음 정보 제공:
+     * - 데이터 품질 점수 (0-10)
+     * - 누락된 필드 목록 (Missing: sourceIp, sessionId)
+     * - 필수 필드 누락 시 CRITICAL 경고
+     *
+     * Zero Trust 원칙: "Never Trust, Always Verify"
+     * - 필수 필드(IP, SessionId)가 없으면 검증 불가
+     * - LLM이 ALLOW를 반환하지 않도록 경고 제공
+     *
+     * @param event 보안 이벤트
+     * @return 데이터 품질 분석 문자열
+     */
+    public static String buildDataQualitySection(SecurityEvent event) {
+        StringBuilder result = new StringBuilder();
+        java.util.List<String> missingFields = new java.util.ArrayList<>();
+        java.util.List<String> missingCriticalFields = new java.util.ArrayList<>();
+        int score = 0;
+
+        // 필수 정보 (Critical)
+        if (event.getEventType() != null) {
+            score++;
+        } else {
+            missingFields.add("eventType");
+        }
+
+        if (event.getSeverity() != null) {
+            score++;
+        } else {
+            missingFields.add("severity");
+        }
+
+        if (isValidData(event.getUserId())) {
+            score++;
+        } else {
+            missingFields.add("userId");
+            missingCriticalFields.add("userId");
+        }
+
+        // Zero Trust Critical: IP, SessionId
+        if (isValidData(event.getSourceIp())) {
+            score++;
+        } else {
+            missingFields.add("sourceIp");
+            missingCriticalFields.add("sourceIp");
+        }
+
+        if (isValidData(event.getSessionId())) {
+            score++;
+        } else {
+            missingFields.add("sessionId");
+            missingCriticalFields.add("sessionId");
+        }
+
+        if (isValidData(event.getUserAgent())) {
+            score++;
+        } else {
+            missingFields.add("userAgent");
+        }
+
+        // 추가 정보
+        if (isValidData(event.getTargetResource())) {
+            score++;
+        } else {
+            missingFields.add("targetResource");
+        }
+
+        if (event.getTimestamp() != null) {
+            score++;
+        } else {
+            missingFields.add("timestamp");
+        }
+
+        // metadata 정보
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null && !metadata.isEmpty()) {
+            if (metadata.containsKey("authz.resource")) {
+                score++;
+            } else {
+                missingFields.add("authz.resource");
+            }
+            if (metadata.containsKey("methodClass")) {
+                score++;
+            } else {
+                missingFields.add("methodClass");
+            }
+        } else {
+            missingFields.add("authz.resource");
+            missingFields.add("methodClass");
+        }
+
+        score = Math.min(10, score);
+
+        // 결과 문자열 생성
+        result.append(String.format("Data Quality: %d/10 fields available\n", score));
+
+        if (!missingFields.isEmpty()) {
+            result.append(String.format("Missing: %s\n", String.join(", ", missingFields)));
+        }
+
+        // Zero Trust: 필수 필드 누락 시 CRITICAL 경고
+        if (!missingCriticalFields.isEmpty()) {
+            result.append("\n=== CRITICAL: MISSING VERIFICATION DATA ===\n");
+            result.append(String.format("Missing critical fields: %s\n", String.join(", ", missingCriticalFields)));
+            result.append("Zero Trust: Cannot verify identity without these fields.\n");
+            result.append("RECOMMENDATION: Consider CHALLENGE or ESCALATE action.\n");
+        }
+
+        return result.toString();
+    }
+
+    /**
      * Authorization 정보 섹션 구성 (AI Native)
      *
      * metadata에서 authz.resource, authz.action, authz.result, authz.reason,

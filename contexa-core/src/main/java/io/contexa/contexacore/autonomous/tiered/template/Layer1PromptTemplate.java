@@ -69,21 +69,18 @@ public class Layer1PromptTemplate {
         appendIfValid(prompt, "User", event.getUserId());
         appendIfValid(prompt, "Description", event.getDescription());
 
-        // 2. 네트워크 정보 (유효한 데이터만)
-        boolean hasNetworkInfo = false;
-        if (isValidData(event.getSourceIp())) {
-            if (!hasNetworkInfo) {
-                prompt.append("\n=== NETWORK ===\n");
-                hasNetworkInfo = true;
-            }
-            prompt.append("IP: ").append(event.getSourceIp()).append("\n");
-        }
-        if (isValidData(event.getUserAgent())) {
-            if (!hasNetworkInfo) {
-                prompt.append("\n=== NETWORK ===\n");
-                hasNetworkInfo = true;
-            }
-            prompt.append("UserAgent: ").append(summarizeUserAgent(event.getUserAgent())).append("\n");
+        // 2. 네트워크 정보 (Zero Trust: 항상 출력 - 누락 필드 명시)
+        prompt.append("\n=== NETWORK ===\n");
+        // IP는 필수 필드 - 없으면 CRITICAL 경고
+        appendFieldWithNullCheck(prompt, "IP", event.getSourceIp(), true);
+        // SessionId는 필수 필드 - 없으면 CRITICAL 경고
+        appendFieldWithNullCheck(prompt, "SessionId", event.getSessionId(), true);
+        // UserAgent는 선택적 필드
+        String userAgent = event.getUserAgent();
+        if (isValidData(userAgent)) {
+            prompt.append("UserAgent: ").append(summarizeUserAgent(userAgent)).append("\n");
+        } else {
+            prompt.append("UserAgent: NOT_PROVIDED\n");
         }
 
         // 3. Authorization 정보 (metadata에서 추출 - 가장 중요한 컨텍스트)
@@ -112,11 +109,10 @@ public class Layer1PromptTemplate {
             prompt.append(summarizeBaseline(baselineContext)).append("\n");
         }
 
-        // 7. 데이터 품질 평가 (AI Native: 임계값 제거)
-        // LLM이 데이터 필드 수를 보고 직접 신뢰도 결정
-        int dataQuality = calculateDataQuality(event);
+        // 7. 데이터 품질 평가 (AI Native v3.1.0: 누락 필드 명시)
+        // Zero Trust: 누락된 필드를 명시적으로 표시하여 LLM이 인식하도록 함
         prompt.append("\n=== DATA QUALITY ===\n");
-        prompt.append("Available info: ").append(dataQuality).append("/10 fields\n");
+        prompt.append(PromptTemplateUtils.buildDataQualitySection(event));
 
         // 8. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙)
         prompt.append("""
@@ -152,11 +148,34 @@ public class Layer1PromptTemplate {
     }
 
     /**
-     * 유효한 데이터만 프롬프트에 추가
+     * 유효한 데이터만 프롬프트에 추가 (기존 메서드 - 선택적 필드용)
      */
     private void appendIfValid(StringBuilder sb, String label, String value) {
         if (isValidData(value)) {
             sb.append(label).append(": ").append(value).append("\n");
+        }
+    }
+
+    /**
+     * 필드를 프롬프트에 추가 (Zero Trust - null 필드 명시적 표현)
+     *
+     * AI Native 원칙:
+     * - LLM이 "데이터 없음"을 인식할 수 있도록 NOT_PROVIDED 명시
+     * - 필수 필드(isCritical=true)가 없으면 검증 데이터 부재 경고
+     *
+     * @param sb StringBuilder
+     * @param label 필드 라벨
+     * @param value 필드 값
+     * @param isCritical 필수 필드 여부 (true면 NOT_PROVIDED + 경고)
+     */
+    private void appendFieldWithNullCheck(StringBuilder sb, String label, String value, boolean isCritical) {
+        if (isValidData(value)) {
+            sb.append(label).append(": ").append(value).append("\n");
+        } else if (isCritical) {
+            // Zero Trust: 필수 필드 부재 명시
+            sb.append(label).append(": NOT_PROVIDED [CRITICAL: Missing verification data]\n");
+        } else {
+            sb.append(label).append(": NOT_PROVIDED\n");
         }
     }
 
@@ -186,16 +205,23 @@ public class Layer1PromptTemplate {
 
     /**
      * Baseline 정보가 실제로 유효한지 검사
+     *
+     * Zero Trust 원칙:
+     * - CRITICAL 경고가 포함된 신규 사용자 메시지는 반드시 출력
+     * - LLM이 신규 사용자에 대한 보수적 판단을 할 수 있도록 함
      */
     private boolean isValidBaseline(String baseline) {
         if (baseline == null || baseline.isEmpty()) {
             return false;
         }
-        // "Not established", "Not available", "new user" 등은 유효하지 않음
-        return !baseline.contains("Not established")
-            && !baseline.contains("Not available")
-            && !baseline.contains("new user")
-            && !baseline.contains("none");
+        // Zero Trust: CRITICAL 경고가 포함된 신규 사용자 메시지는 반드시 출력
+        if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE")) {
+            return true;  // 신규 사용자 경고는 반드시 LLM에게 전달
+        }
+        // 기타 무의미한 기본값만 제외
+        return !baseline.equals("Not available")
+            && !baseline.equals("none")
+            && !baseline.equals("N/A");
     }
 
     /**

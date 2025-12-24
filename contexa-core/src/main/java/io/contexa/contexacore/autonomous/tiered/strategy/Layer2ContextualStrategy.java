@@ -421,9 +421,10 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                                                        SecurityDecision layer1Decision) {
         SecurityDecision.Action action = mapStringToAction(response.getAction());
 
+        // AI Native: Layer1 점수 폴백 금지 - LLM이 분석 못하면 NaN
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
-                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : layer1Decision.getRiskScore())
+                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
                 .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
                 .threatCategory(response.getThreatCategory())
                 .mitigationActions(response.getMitigationActions())
@@ -765,11 +766,16 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
+    /**
+     * AI Native v3.3.0: MONITOR deprecated
+     * - MONITOR_USER_BEHAVIOR 제거
+     * - LLM이 결정한 action 기반 권장 조치
+     */
     @Override
     public List<String> getRecommendedActions(SecurityEvent event) {
         List<String> actions = new ArrayList<>();
-        actions.add("MONITOR_USER_BEHAVIOR");
         actions.add("ANALYZE_SESSION_CONTEXT");
+        actions.add("CHECK_BEHAVIOR_BASELINE");
         return actions;
     }
 

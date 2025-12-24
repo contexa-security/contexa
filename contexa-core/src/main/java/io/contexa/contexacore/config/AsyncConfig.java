@@ -129,6 +129,10 @@ public class AsyncConfig {
      *
      * 수백만 사용자의 이벤트를 처리하기 위해 최적화된 스레드 풀 구성
      * Zero Trust 보안 모델을 위해 모든 인증 이벤트를 실시간 분석합니다.
+     *
+     * AI Native v3.4.0: RequestContextCopyingDecorator 추가
+     * - @Async 메서드에서 RequestContextHolder 전파
+     * - sourceIp, sessionId, userAgent가 null이 되는 문제 해결
      */
     @Bean(name = "securityEventExecutor")
     public Executor securityEventExecutor() {
@@ -145,6 +149,10 @@ public class AsyncConfig {
 
         // 스레드 이름 프리픽스
         executor.setThreadNamePrefix("SecurityEvent-");
+
+        // AI Native v3.4.0: RequestContext 전파를 위한 TaskDecorator 설정
+        // @Async 메서드에서 sourceIp, sessionId, userAgent가 null이 되는 문제 해결
+        executor.setTaskDecorator(new RequestContextCopyingDecorator());
 
         // 큐가 가득 찼을 때 정책: 호출자 스레드에서 실행
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());

@@ -8,11 +8,13 @@ import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrateg
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -50,11 +52,20 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 @RequiredArgsConstructor
 public class ColdPathEventProcessor implements IPathProcessor {
-    
+
     private final RedisTemplate<String, Object> redisTemplate;
     private final Layer1FastFilterStrategy layer1Strategy;
     private final Layer2ContextualStrategy layer2Strategy;
     private final Layer3ExpertStrategy layer3Strategy;
+
+    /**
+     * AI Native: Baseline Learning Service (Optional)
+     *
+     * LLM이 ALLOW + confidence >= 0.7 판정한 정상 요청을 학습하여
+     * 다음 요청 분석 시 비교 기준선 제공
+     */
+    @Autowired(required = false)
+    private BaselineLearningService baselineLearningService;
 
     private final AtomicLong processedCount = new AtomicLong(0);
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
@@ -127,7 +138,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
             // 분석 레벨 기록 (항상 계층적 분석 사용)
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
 
-            // 비동기로 감사 필수 데이터만 기록
+            // 비동기로 감사 필수 데이터만 기록 + Baseline 학습
             final String finalUserId = userId;
             final SecurityEvent finalEvent = event;
             final ThreatAnalysisResult finalAnalysisResult = analysisResult;
@@ -136,6 +147,11 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 // AI Native: LLM 분석 결과를 Redis에 저장 (security:hcad:analysis)
                 // 다음 요청에서 HCADAnalysisService와 ZeroTrustSecurityService가 조회
                 saveAnalysisToRedis(finalUserId, finalAnalysisResult);
+
+                // AI Native: Baseline Learning
+                // LLM이 ALLOW + confidence >= 0.7 판정한 정상 요청을 학습
+                // 다음 요청의 Layer1 프롬프트에서 비교 기준선으로 제공
+                learnFromAnalysisResult(finalUserId, finalEvent, finalAnalysisResult);
             }).exceptionally(ex -> {
                 log.error("Failed to save analysis to Redis: userId={}, eventId={}",
                     userId, event.getEventId(), ex);
@@ -367,6 +383,54 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
         } catch (Exception e) {
             log.error("[ColdPath] Failed to save analysis to Redis: userId={}", userId, e);
+        }
+    }
+
+    /**
+     * AI Native: Baseline Learning 수행
+     *
+     * LLM이 ALLOW + confidence >= 0.7 판정한 정상 요청을 학습하여
+     * 다음 요청 분석 시 비교 기준선 제공
+     *
+     * 학습 조건 (BaselineLearningService 내부에서 검증):
+     * - action = ALLOW
+     * - confidence >= 0.7
+     *
+     * 학습 데이터:
+     * - IP 대역 (C 클래스)
+     * - 접근 시간대 (hour)
+     * - 접근 경로
+     *
+     * @param userId 사용자 ID
+     * @param event SecurityEvent (IP, 시간, 경로 추출)
+     * @param analysisResult LLM 분석 결과 (action, confidence 포함)
+     */
+    private void learnFromAnalysisResult(String userId, SecurityEvent event, ThreatAnalysisResult analysisResult) {
+        if (baselineLearningService == null) {
+            log.debug("[ColdPath] BaselineLearningService not available, skipping baseline learning");
+            return;
+        }
+
+        if (userId == null || userId.isBlank() || analysisResult == null) {
+            return;
+        }
+
+        try {
+            // ThreatAnalysisResult에서 SecurityDecision 추출
+            SecurityDecision decision = analysisResult.getFinalDecision();
+
+            // BaselineLearningService에 학습 요청
+            // 내부에서 action=ALLOW, confidence>=0.7 조건 검증
+            boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
+
+            if (learned) {
+                log.debug("[ColdPath][AI Native] Baseline learning completed: userId={}, action={}, confidence={}",
+                    userId, decision.getAction(), String.format("%.3f", decision.getConfidence()));
+            }
+
+        } catch (Exception e) {
+            log.warn("[ColdPath] Baseline learning failed (non-critical): userId={}", userId, e);
+            // Baseline 학습 실패는 치명적이지 않음 - 다음 요청에서 재시도 가능
         }
     }
 

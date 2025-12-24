@@ -56,7 +56,8 @@ public class Layer2PromptTemplate {
         // Phase 5: metadata에서 authz 정보 추출 (Layer1 패턴 적용)
         String authzSection = buildAuthzSection(event);
         String networkSection = buildNetworkSection(event);
-        int dataQuality = calculateDataQuality(event);
+        // Phase 22: buildDataQualitySection() 사용 - 누락 필드 명시적 표시
+        String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event);
 
         // Layer1 결과 핵심만 (AI Native: "UNKNOWN" 기본값 제거)
         String actionStr = layer1Decision.getAction() != null ? layer1Decision.getAction().toString() : null;
@@ -134,11 +135,10 @@ public class Layer2PromptTemplate {
             prompt.append("User: ").append(userId).append("\n");
         }
 
-        // 2. 네트워크 정보 (유효한 데이터만)
-        if (!networkSection.isEmpty()) {
-            prompt.append("\n=== NETWORK ===\n");
-            prompt.append(networkSection).append("\n");
-        }
+        // 2. 네트워크 정보 (Zero Trust: 필수 출력)
+        // IP, SessionId 누락 시 NOT_PROVIDED 표시하여 LLM에게 경고
+        prompt.append("\n=== NETWORK ===\n");
+        prompt.append(networkSection).append("\n");
 
         // 3. Authorization 정보 (metadata에서 추출)
         if (!authzSection.isEmpty()) {
@@ -203,10 +203,10 @@ public class Layer2PromptTemplate {
         // 9. 사용자 Baseline
         prompt.append("\n").append(baselineSection).append("\n");
 
-        // 11. 데이터 품질 평가 (AI Native: 임계값 제거)
-        // LLM이 데이터 필드 수를 보고 직접 신뢰도 결정
+        // 11. 데이터 품질 평가 (AI Native: 누락 필드 명시)
+        // buildDataQualitySection()이 누락 필드 목록과 CRITICAL 경고 포함
         prompt.append("\n=== DATA QUALITY ===\n");
-        prompt.append("Available info: ").append(dataQuality).append("/10 fields\n");
+        prompt.append(dataQualitySection);
 
         // 12. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙)
         prompt.append("""
@@ -318,15 +318,31 @@ public class Layer2PromptTemplate {
     }
 
     /**
-     * 네트워크 정보 섹션 구성 (유효한 데이터만, Truncation 정책 적용)
+     * 네트워크 정보 섹션 구성 (Zero Trust: 필수 필드 누락 시 경고)
+     *
+     * AI Native + Zero Trust 원칙:
+     * - IP, SessionId는 검증 필수 필드
+     * - 누락 시 NOT_PROVIDED [CRITICAL] 표시
+     * - LLM이 데이터 부재를 인식하여 CHALLENGE/ESCALATE 판단
      */
     private String buildNetworkSection(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
 
+        // IP (Zero Trust Critical)
         if (isValidData(event.getSourceIp())) {
             network.append("IP: ").append(event.getSourceIp()).append("\n");
+        } else {
+            network.append("IP: NOT_PROVIDED [CRITICAL: Cannot verify origin]\n");
         }
 
+        // SessionId (Zero Trust Critical)
+        if (isValidData(event.getSessionId())) {
+            network.append("SessionId: ").append(event.getSessionId()).append("\n");
+        } else {
+            network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
+        }
+
+        // UserAgent (선택)
         if (isValidData(event.getUserAgent())) {
             String ua = event.getUserAgent();
             int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer2().getUserAgent();

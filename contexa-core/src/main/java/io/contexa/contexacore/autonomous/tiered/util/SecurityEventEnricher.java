@@ -458,7 +458,18 @@ public class SecurityEventEnricher {
     
     /**
      * 위험 점수 계산 (메타데이터 기반)
+     *
+     * @deprecated AI Native 원칙 위반 - 플랫폼이 직접 점수를 계산하면 안 됩니다.
+     *             위험 점수(riskScore)는 LLM이 SecurityDecision에서 결정해야 합니다.
+     *             대신 SecurityDecision.getRiskScore()를 사용하세요.
+     *
+     *             Phase 13 AI Native 원칙:
+     *             - 플랫폼: raw 데이터만 제공
+     *             - LLM: action(ALLOW/BLOCK/CHALLENGE/ESCALATE) 및 riskScore 결정
+     *
+     * @see io.contexa.contexacore.autonomous.domain.SecurityDecision#getRiskScore()
      */
+    @Deprecated(since = "3.4.0", forRemoval = true)
     public double calculateRiskScore(SecurityEvent event) {
         double baseScore = 0.0;
         

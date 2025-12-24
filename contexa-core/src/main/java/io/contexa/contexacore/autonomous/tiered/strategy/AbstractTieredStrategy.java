@@ -75,16 +75,43 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
      * - CHALLENGE(C): 고위험군 (MFA 인증 요구)
      * - ESCALATE(E): 상위 Layer로 에스컬레이션
      *
+     * Deprecated Actions (v3.3.0):
+     * - INVESTIGATE(I): deprecated -> ESCALATE로 변환 (경고 로그)
+     * - MONITOR(M): deprecated -> ESCALATE로 변환 (경고 로그)
+     *
      * @param action LLM이 반환한 action 문자열
      * @return SecurityDecision.Action enum
      */
     protected SecurityDecision.Action mapStringToAction(String action) {
         if (action == null) return SecurityDecision.Action.ESCALATE;
-        return switch (action.toUpperCase().trim()) {
+
+        String upperAction = action.toUpperCase().trim();
+
+        // Deprecated action 감지 및 경고 로그
+        if ("INVESTIGATE".equals(upperAction) || "I".equals(upperAction)) {
+            log.warn("[{}][AI Native v3.3.0] Deprecated action 'INVESTIGATE' detected. " +
+                    "Converting to ESCALATE. Please update LLM prompt to use 4-action system: " +
+                    "ALLOW, BLOCK, CHALLENGE, ESCALATE", getLayerName());
+            return SecurityDecision.Action.ESCALATE;
+        }
+        if ("MONITOR".equals(upperAction) || "M".equals(upperAction)) {
+            log.warn("[{}][AI Native v3.3.0] Deprecated action 'MONITOR' detected. " +
+                    "Converting to ESCALATE. Please update LLM prompt to use 4-action system: " +
+                    "ALLOW, BLOCK, CHALLENGE, ESCALATE", getLayerName());
+            return SecurityDecision.Action.ESCALATE;
+        }
+
+        return switch (upperAction) {
             case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
             case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
             case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
-            default -> SecurityDecision.Action.ESCALATE;
+            default -> {
+                if (!"ESCALATE".equals(upperAction) && !"E".equals(upperAction)) {
+                    log.warn("[{}][AI Native] Unknown action '{}' detected. Converting to ESCALATE",
+                            getLayerName(), action);
+                }
+                yield SecurityDecision.Action.ESCALATE;
+            }
         };
     }
 

@@ -211,18 +211,22 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityDecision expertDecision = convertToSecurityDecision(response, event, layer2Decision);
 
+            // SOAR 플레이북 실행 (설정에서 활성화된 경우)
             if (enableSoar && expertDecision.getAction() == SecurityDecision.Action.BLOCK) {
-//                executeSoarPlaybook(expertDecision, event);
+                executeSoarPlaybook(expertDecision, event);
             }
 
+            // 승인 프로세스 처리 (필요한 경우)
             if (expertDecision.isRequiresApproval() && approvalService != null) {
-//                handleApprovalProcess(expertDecision, event);
+                handleApprovalProcess(expertDecision, event);
             }
 
-            // 10. 인시던트 생성 및 알림
-//            createSecurityIncident(expertDecision, event);
+            // 인시던트 생성 및 알림 (BLOCK 액션인 경우)
+            if (expertDecision.getAction() == SecurityDecision.Action.BLOCK) {
+                createSecurityIncident(expertDecision, event);
+            }
 
-            // 11. 벡터 스토어에 저장 (학습용)
+            // 벡터 스토어에 저장 (학습용)
             storeInVectorDatabase(event, expertDecision, response);
 
             // v3.1.0: MITIGATE -> BLOCK으로 통합됨

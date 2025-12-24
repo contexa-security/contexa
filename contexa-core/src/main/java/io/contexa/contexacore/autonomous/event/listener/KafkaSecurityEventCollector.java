@@ -192,7 +192,6 @@ public class KafkaSecurityEventCollector {
 
             SecurityEvent event = SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .eventType(SecurityEvent.EventType.THREAT_DETECTED)
                 .source(SecurityEvent.EventSource.THREAT_INTEL)
                 .severity(mapSeverity(indicator.getSeverity()))
                 .timestamp(LocalDateTime.now())
@@ -265,7 +264,6 @@ public class KafkaSecurityEventCollector {
 
             SecurityEvent event = SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .eventType(determineNetworkEventType(networkData))
                 .source(SecurityEvent.EventSource.FIREWALL)
                 .severity(determineNetworkSeverity(networkData))
                 .timestamp(LocalDateTime.now())
@@ -457,30 +455,6 @@ public class KafkaSecurityEventCollector {
         return objectMapper.readValue(json, SecurityEvent.class);
     }
     
-    private SecurityEvent.EventType determineNetworkEventType(Map<String, Object> data) {
-        String action = (String) data.get("action");
-        if ("block".equalsIgnoreCase(action) || "deny".equalsIgnoreCase(action)) {
-            return SecurityEvent.EventType.INTRUSION_ATTEMPT;
-        }
-        if ("alert".equalsIgnoreCase(action)) {
-            return ANOMALY_DETECTED;
-        }
-        return SecurityEvent.EventType.NETWORK_SCAN;
-    }
-    
-    private SecurityEvent.EventType determineAuthEventType(Map<String, Object> data) {
-        String result = (String) data.get("result");
-        String eventType = (String) data.get("event_type");
-        
-        if ("failed".equalsIgnoreCase(result)) {
-            return SecurityEvent.EventType.AUTH_FAILURE;
-        }
-        if ("privilege_escalation".equalsIgnoreCase(eventType)) {
-            return PRIVILEGE_ESCALATION;
-        }
-        return SecurityEvent.EventType.SUSPICIOUS_ACTIVITY;
-    }
-    
     private SecurityEvent.Severity determineNetworkSeverity(Map<String, Object> data) {
         Integer priority = (Integer) data.get("priority");
         if (priority != null) {
@@ -583,7 +557,6 @@ public class KafkaSecurityEventCollector {
     private SecurityEvent convertAuthSuccessToSecurityEvent(AuthenticationSuccessEvent authEvent) {
         SecurityEvent event = SecurityEvent.builder()
             .eventId(authEvent.getEventId())
-            .eventType(SecurityEvent.EventType.AUTH_SUCCESS)
             .source(SecurityEvent.EventSource.IAM)
             .severity(determineSeverityFromTrustScore(authEvent.getTrustScore()))
             .timestamp(authEvent.getEventTimestamp())
@@ -616,7 +589,6 @@ public class KafkaSecurityEventCollector {
     private SecurityEvent convertAuthFailureToSecurityEvent(AuthenticationFailureEvent authEvent) {
         SecurityEvent event = SecurityEvent.builder()
             .eventId(authEvent.getEventId())
-            .eventType(SecurityEvent.EventType.AUTH_FAILURE)
             .source(SecurityEvent.EventSource.IAM)
             .severity(determineSeverityFromAttack(authEvent))
             .timestamp(authEvent.getEventTimestamp())
@@ -645,8 +617,6 @@ public class KafkaSecurityEventCollector {
     private SecurityEvent convertAuthorizationToSecurityEvent(AuthorizationDecisionEvent authzEvent) {
         SecurityEvent event = SecurityEvent.builder()
             .eventId(authzEvent.getEventId())
-            .eventType(authzEvent.getResult() == AuthorizationDecisionEvent.AuthorizationResult.DENIED ?
-                SecurityEvent.EventType.ACCESS_DENIED : SecurityEvent.EventType.SUSPICIOUS_ACTIVITY)
             .source(SecurityEvent.EventSource.IAM)
             .severity(authzEvent.getResult() == AuthorizationDecisionEvent.AuthorizationResult.DENIED ?
                 SecurityEvent.Severity.MEDIUM : SecurityEvent.Severity.LOW)
@@ -681,7 +651,6 @@ public class KafkaSecurityEventCollector {
     private SecurityEvent convertIncidentToSecurityEvent(SecurityIncidentEvent incidentEvent) {
         SecurityEvent event = SecurityEvent.builder()
             .eventId(incidentEvent.getIncidentId())
-            .eventType(SecurityEvent.EventType.SUSPICIOUS_ACTIVITY)  // SECURITY_INCIDENT가 없으므로 대체
             .source(SecurityEvent.EventSource.SIEM)
             .severity(mapIncidentSeverity(incidentEvent.getSeverity()))
             .timestamp(LocalDateTime.ofInstant(incidentEvent.getTimestamp(), java.time.ZoneId.systemDefault()))
@@ -704,7 +673,6 @@ public class KafkaSecurityEventCollector {
     private SecurityEvent convertAuditToSecurityEvent(AuditEvent auditEvent) {
         SecurityEvent event = SecurityEvent.builder()
             .eventId(auditEvent.getEventId())
-            .eventType(SecurityEvent.EventType.SUSPICIOUS_ACTIVITY)  // AUDIT_LOG가 없으므로 대체
             .source(SecurityEvent.EventSource.IAM)
             .severity(SecurityEvent.Severity.INFO)
             .timestamp(LocalDateTime.ofInstant(auditEvent.getTimestamp(), java.time.ZoneId.systemDefault()))

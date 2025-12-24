@@ -48,7 +48,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
     private final Layer1PromptTemplate promptTemplate;
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
-    private final TieredStrategyProperties tieredStrategyProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // 프롬프트 템플릿
@@ -81,7 +80,6 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate;
         this.baselineLearningService = baselineLearningService;
-        this.tieredStrategyProperties = tieredStrategyProperties;
 
         log.info("Layer 1 Fast Filter Strategy initialized with Layer1PromptTemplate");
         log.info("  - Model: {}", modelName);
