@@ -53,7 +53,7 @@ public class TieredStrategyProperties {
             private int payload = 1000;
             private int ragDocument = 500;
             private int reasoning = 100;
-            private int source = 20;
+            private int source = 50;
         }
 
         @Data
@@ -64,7 +64,7 @@ public class TieredStrategyProperties {
             private int campaigns = 100;
             private int vulnerabilities = 150;
             private int reasoning = 100;
-            private int compliance = 50;
+            private int compliance = 100;
         }
     }
 

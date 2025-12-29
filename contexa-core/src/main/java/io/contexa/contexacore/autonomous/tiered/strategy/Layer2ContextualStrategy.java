@@ -37,12 +37,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * Layer 2: 컨텍스트 기반 분석 전략
- *
- * Llama3.1:8b와 같은 중급 LLM을 사용하여 세션 컨텍스트와 행동 패턴을 분석합니다.
- * 사용자 행동, 시간적 패턴, 세션 이력을 고려한 정교한 분석을 수행합니다.
- */
 @Slf4j
 
 public class Layer2ContextualStrategy extends AbstractTieredStrategy {

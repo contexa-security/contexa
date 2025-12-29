@@ -14,6 +14,7 @@ import jakarta.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -412,7 +413,8 @@ public class EmergencyKillSwitch {
         private final Long proposalId;
         private final AtomicInteger successCount = new AtomicInteger(0);
         private final AtomicInteger failureCount = new AtomicInteger(0);
-        private final LinkedList<Long> errorTimestamps = new LinkedList<>();
+        // Phase 3: 동시성 문제 수정 - LinkedList -> ConcurrentLinkedQueue
+        private final ConcurrentLinkedQueue<Long> errorTimestamps = new ConcurrentLinkedQueue<>();
         private volatile boolean isOpen = false;
         
         public CircuitBreaker(Long proposalId) {

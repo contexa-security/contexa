@@ -42,13 +42,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-/**
- * Layer 3: 전문가 시스템 전략
- *
- * 0.2%의 가장 복잡한 보안 이벤트를 1-5초 내에 처리하는 최종 방어선입니다.
- * Claude API 또는 고급 LLM을 사용하여 심층 분석을 수행하고 SOAR와 통합합니다.
- * 복잡한 공격 시나리오, 위협 인텔리전스, MITRE ATT&CK 매핑을 포함합니다.
- */
 @Slf4j
 
 public class Layer3ExpertStrategy extends AbstractTieredStrategy {
@@ -60,7 +53,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     private final Layer3PromptTemplate promptTemplate;
 
     private final BehaviorVectorService behaviorVectorService;
-    private final FeedbackIntegrationProperties localFeedbackProperties;
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
     private final TieredStrategyProperties tieredStrategyProperties;
@@ -92,7 +84,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                                 @Autowired(required = false) Layer3PromptTemplate promptTemplate,
                                 @Autowired(required = false) UnifiedVectorService unifiedVectorService,
                                 @Autowired(required = false) BehaviorVectorService behaviorVectorService,
-                                @Autowired FeedbackIntegrationProperties feedbackProperties,
                                 @Autowired(required = false) BaselineLearningService baselineLearningService,
                                 @Autowired TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
@@ -101,7 +92,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer3PromptTemplate(eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
-        this.localFeedbackProperties = feedbackProperties;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
         this.tieredStrategyProperties = tieredStrategyProperties;

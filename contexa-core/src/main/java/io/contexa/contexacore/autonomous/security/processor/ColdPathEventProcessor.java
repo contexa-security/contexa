@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrateg
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.Getter;
@@ -66,6 +67,18 @@ public class ColdPathEventProcessor implements IPathProcessor {
      */
     @Autowired(required = false)
     private BaselineLearningService baselineLearningService;
+
+    /**
+     * AI Native v3.4.0: Admin Override Service (Optional)
+     *
+     * LLM이 BLOCK 판정한 요청을 관리자 검토 대기열에 추가
+     * 관리자가 검토 후 승인/거부 결정 가능
+     *
+     * 기준선 오염 방지:
+     * - 관리자 승인 시에도 baselineUpdateAllowed=true를 명시적으로 설정해야 기준선 학습
+     */
+    @Autowired(required = false)
+    private AdminOverrideService adminOverrideService;
 
     private final AtomicLong processedCount = new AtomicLong(0);
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
@@ -380,6 +393,26 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     String.format("%.3f", analysisResult.getFinalScore()),
                     String.format("%.3f", analysisResult.getConfidence()),
                     ttl != null ? ttl.toMinutes() + "m" : "permanent");
+
+            // AI Native v3.4.0: BLOCK 판정 시 관리자 검토 대기열에 추가
+            if ("BLOCK".equalsIgnoreCase(action) && adminOverrideService != null) {
+                String requestId = (String) fields.get("requestId");
+                if (requestId == null) {
+                    requestId = UUID.randomUUID().toString();
+                }
+                String reasoning = String.join(", ", analysisResult.getIndicators());
+
+                adminOverrideService.addToPendingReview(
+                    requestId,
+                    userId,
+                    analysisResult.getFinalScore(),
+                    analysisResult.getConfidence(),
+                    reasoning
+                );
+
+                log.info("[ColdPath][AI Native] BLOCK 요청을 관리자 검토 대기열에 추가: userId={}, requestId={}",
+                    userId, requestId);
+            }
 
         } catch (Exception e) {
             log.error("[ColdPath] Failed to save analysis to Redis: userId={}", userId, e);

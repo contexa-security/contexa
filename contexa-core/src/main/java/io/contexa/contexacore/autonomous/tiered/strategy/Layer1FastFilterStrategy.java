@@ -33,12 +33,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Layer 1: 초고속 필터링 전략
- *
- * TinyLlama와 같은 경량 LLM을 사용하여 빠른 의사결정을 수행합니다.
- * AI-Native 접근법으로 전통적인 규칙 기반 시스템을 대체합니다.
- */
 @Slf4j
 public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 

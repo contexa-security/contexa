@@ -20,12 +20,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Baseline Learning Service (AI Native)
+ * Baseline Learning Service (AI Native v3.4.0)
  *
  * 정상 패턴 학습 서비스 - EMA(Exponential Moving Average) 기반
  *
- * AI Native 원칙:
- * - LLM이 판단한 정상 요청(action=ALLOW, !isAnomaly, confidence >= 0.7)만 학습
+ * AI Native 원칙 (v3.4.0 강화):
+ * - LLM이 ALLOW를 반환하면 무조건 학습 (confidence 임계값 검증 제거)
+ * - LLM이 확신 없으면 ALLOW 대신 CHALLENGE/ESCALATE를 반환하도록 프롬프트에서 강제
  * - 학습된 Baseline은 Layer1 프롬프트의 컨텍스트로 제공
  * - LLM이 Baseline과 현재 요청을 비교하여 판단
  *
@@ -33,10 +34,15 @@ import java.util.Map;
  * newBaseline = (alpha * currentValue) + ((1 - alpha) * oldBaseline)
  * - alpha = 0.1 (기본값, 새 값에 10% 가중치)
  *
- * 학습 조건:
- * - action = ALLOW (LLM이 허용 결정)
+ * 학습 조건 (AI Native v3.4.0):
+ * - action = ALLOW (LLM이 허용 결정) -> 무조건 학습
  * - isAnomaly = false (LLM이 정상 판단)
- * - confidence >= 0.7 (LLM 확신도 70% 이상)
+ * - confidence 임계값 검증 제거 (규칙 기반 판단 = AI Native 위반)
+ *
+ * 기준선 오염 불가능 증명:
+ * - 공격자 패턴 -> LLM이 BLOCK -> 학습 안 됨
+ * - 애매한 패턴 -> LLM이 CHALLENGE/ESCALATE -> 학습 안 됨
+ * - ALLOW는 "확실히 정상"일 때만 반환 -> 무조건 학습해도 안전
  *
  * Redis 저장 스키마:
  * - Key: security:hcad:baseline:{userId}
@@ -172,13 +178,16 @@ public class BaselineLearningService {
     }
 
     /**
-     * 학습 조건 검증
+     * 학습 조건 검증 (AI Native v3.4.0)
      *
      * AI Native 학습 조건:
-     * - action = ALLOW (LLM이 허용 결정)
+     * - action = ALLOW (LLM이 허용 결정) -> 무조건 학습
      * - analysisResult != null (검증 데이터 필수 - Zero Trust 원칙)
      * - isAnomaly = false (LLM이 정상 판단)
-     * - confidence >= 0.7 (LLM 확신도 70% 이상)
+     *
+     * v3.4.0 변경: confidence 임계값 검증 제거
+     * - 규칙 기반 판단은 AI Native 원칙 위반
+     * - LLM이 확신 없으면 ALLOW 대신 CHALLENGE/ESCALATE 반환하도록 프롬프트에서 강제
      *
      * Zero Trust 원칙: 검증 데이터 없이는 학습 금지
      * - 악의적 요청이 첫 Baseline이 되는 것을 방지
@@ -201,39 +210,30 @@ public class BaselineLearningService {
             return false;
         }
 
-        // 3. confidence >= 0.7
-        double confidence = decision.getConfidence();
-        if (Double.isNaN(confidence) || confidence < minConfidence) {
-            return false;
-        }
-
+        // AI Native v3.4.0: confidence 임계값 검증 제거
+        // LLM이 ALLOW를 반환했으면 무조건 학습
+        // LLM이 확신 없으면 ALLOW 대신 CHALLENGE/ESCALATE를 반환해야 함
         return true;
     }
 
     /**
-     * SecurityEvent 기반 학습 조건 검증
+     * SecurityEvent 기반 학습 조건 검증 (AI Native v3.4.0)
      *
      * AI Native 학습 조건 (SecurityEvent용 - HCADAnalysisResult 없이):
-     * - action = ALLOW (LLM이 허용 결정)
-     * - confidence >= 0.7 (LLM 확신도 70% 이상)
+     * - action = ALLOW (LLM이 허용 결정) -> 무조건 학습
+     *
+     * v3.4.0 변경: confidence 임계값 검증 제거
+     * - 규칙 기반 판단은 AI Native 원칙 위반
+     * - LLM이 확신 없으면 ALLOW 대신 CHALLENGE/ESCALATE 반환하도록 프롬프트에서 강제
      *
      * 주의: HCADAnalysisResult.isAnomaly() 검증 없이 진행
      * ColdPathEventProcessor의 ThreatAnalysisResult.getFinalDecision()이
      * 이미 이상 여부를 반영한 action을 반환하므로 action=ALLOW면 정상으로 판단
      */
     private boolean shouldLearnFromSecurityEvent(SecurityDecision decision) {
-        // 1. action = ALLOW
-        if (decision.getAction() != SecurityDecision.Action.ALLOW) {
-            return false;
-        }
-
-        // 2. confidence >= 0.7
-        double confidence = decision.getConfidence();
-        if (Double.isNaN(confidence) || confidence < minConfidence) {
-            return false;
-        }
-
-        return true;
+        // AI Native v3.4.0: ALLOW면 무조건 학습
+        // LLM이 확신 없으면 ALLOW 대신 CHALLENGE/ESCALATE를 반환해야 함
+        return decision.getAction() == SecurityDecision.Action.ALLOW;
     }
 
     /**

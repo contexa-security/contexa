@@ -82,8 +82,9 @@ public class Layer3PromptTemplate {
         String eventType = event.getEventType() != null ? event.getEventType().toString() : null;
         String severity = event.getSeverity() != null ? event.getSeverity().name() : "MEDIUM";
         // AI Native: null인 경우 프롬프트에서 생략
-        String userId = event.getUserId();
-        String fullPayload = decodedPayload.orElse("empty");
+        // AI Native v3.3.0: 프롬프트 인젝션 방어 적용
+        String userId = PromptTemplateUtils.sanitizeUserInput(event.getUserId());
+        String fullPayload = PromptTemplateUtils.sanitizeUserInput(decodedPayload.orElse("empty"));
 
         // Phase 5: metadata에서 authz 정보 추출 (Layer1 패턴 적용)
         String authzSection = buildAuthzSection(event);
@@ -275,7 +276,7 @@ public class Layer3PromptTemplate {
         prompt.append("\n=== DATA QUALITY ===\n");
         prompt.append(dataQualitySection);
 
-        // 12. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙)
+        // 12. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙 + 기준선 학습 연동)
         prompt.append("""
 
             === RESPONSE FORMAT ===
@@ -287,12 +288,32 @@ public class Layer3PromptTemplate {
             m: MITRE ATT&CK technique if applicable (e.g., T1078, T1566)
             rec: specific recommendation for SOC (max 20 tokens)
 
-            === ACTION GUIDE (Expert Level) ===
-            A (ALLOW): Verified safe, no threat indicators -> r~0.0-0.2
-            B (BLOCK): Confirmed attack (IOC match, MITRE confirmed, malware) -> r~0.9-1.0
-            C (CHALLENGE): Strong suspicion, needs MFA/human verification -> r~0.6-0.9
-            E (ESCALATE): HUMAN SOC ANALYST REQUIRED - Layer3 cannot decide -> any r, low c
-               Use E when: conflicting evidence, APT-like patterns, or novel attack
+            === ACTION SELECTION RULES (MANDATORY - EXPERT LEVEL) ===
+            You MUST follow these rules when selecting action:
+
+            1. A (ALLOW): Use ONLY when you are CERTAIN this is normal behavior
+               - Verified safe after comprehensive analysis (threat intel, history, baseline)
+               - ALLOW means this pattern WILL BE LEARNED as the user's normal baseline
+               - Wrong ALLOW = baseline pollution = future attacks may bypass detection
+
+            2. B (BLOCK): Use when you are CERTAIN this is malicious
+               - IOC match, MITRE technique confirmed, malware signature detected
+               - BLOCK patterns are NEVER learned into baseline
+
+            3. C (CHALLENGE): Use when request SEEMS normal but evidence is conflicting
+               - Strong suspicion but not confirmed attack
+               - APT-like patterns, zero-day suspicion
+               - This triggers MFA/human verification before proceeding
+
+            4. E (ESCALATE): HUMAN SOC ANALYST REQUIRED
+               - Layer3 (final layer) cannot make confident decision
+               - Use when: novel attack patterns, conflicting evidence, or truly uncertain
+
+            CRITICAL WARNING:
+            - If NOT CERTAIN, do NOT return A (ALLOW)
+            - This is the FINAL layer - your decision has real consequences
+            - A wrong ALLOW can permanently pollute the baseline
+            - For APT/zero-day: prefer C (CHALLENGE) over A (ALLOW)
 
             === AI NATIVE PRINCIPLE ===
             - This is the FINAL layer. YOU must make a decision.
@@ -320,27 +341,32 @@ public class Layer3PromptTemplate {
      * - IP, SessionId는 검증 필수 필드
      * - 누락 시 NOT_PROVIDED [CRITICAL] 표시
      * - LLM이 데이터 부재를 인식하여 CHALLENGE/ESCALATE 판단
+     *
+     * AI Native v3.3.0: 프롬프트 인젝션 방어
+     * - 모든 사용자 입력값은 sanitizeUserInput()으로 새니타이징
      */
     private String buildNetworkSection(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
 
-        // IP (Zero Trust Critical)
+        // IP (Zero Trust Critical) - 프롬프트 인젝션 방어 적용
         if (isValidData(event.getSourceIp())) {
-            network.append("IP: ").append(event.getSourceIp()).append("\n");
+            String sanitizedIp = PromptTemplateUtils.sanitizeUserInput(event.getSourceIp());
+            network.append("IP: ").append(sanitizedIp).append("\n");
         } else {
             network.append("IP: NOT_PROVIDED [CRITICAL: Cannot verify origin]\n");
         }
 
-        // SessionId (Zero Trust Critical)
+        // SessionId (Zero Trust Critical) - 프롬프트 인젝션 방어 적용
         if (isValidData(event.getSessionId())) {
-            network.append("SessionId: ").append(event.getSessionId()).append("\n");
+            String sanitizedSessionId = PromptTemplateUtils.sanitizeUserInput(event.getSessionId());
+            network.append("SessionId: ").append(sanitizedSessionId).append("\n");
         } else {
             network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
         }
 
-        // UserAgent (선택)
+        // UserAgent (선택) - 프롬프트 인젝션 방어 적용
         if (isValidData(event.getUserAgent())) {
-            String ua = event.getUserAgent();
+            String ua = PromptTemplateUtils.sanitizeUserInput(event.getUserAgent());
             int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer3().getUserAgent();
             if (ua.length() > maxUserAgent) {
                 ua = ua.substring(0, maxUserAgent - 3) + "...";
@@ -348,12 +374,13 @@ public class Layer3PromptTemplate {
             network.append("UserAgent: ").append(ua).append("\n");
         }
 
-        // targetResource, httpMethod는 eventEnricher에서 추출
+        // targetResource, httpMethod는 eventEnricher에서 추출 - 프롬프트 인젝션 방어 적용
         Optional<String> targetResource = eventEnricher.getTargetResource(event);
         Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
 
         if (targetResource.isPresent() && isValidData(targetResource.get())) {
-            network.append("Target: ").append(targetResource.get()).append("\n");
+            String sanitizedTarget = PromptTemplateUtils.sanitizeUserInput(targetResource.get());
+            network.append("Target: ").append(sanitizedTarget).append("\n");
         }
 
         if (httpMethod.isPresent() && isValidData(httpMethod.get())) {

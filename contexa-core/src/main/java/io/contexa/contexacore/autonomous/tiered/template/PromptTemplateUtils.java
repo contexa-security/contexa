@@ -338,4 +338,46 @@ public final class PromptTemplateUtils {
         }
         return truncate(value, maxLength);
     }
+
+    /**
+     * 사용자 입력 새니타이징 - 프롬프트 인젝션 방어 (AI Native v3.3.0)
+     *
+     * LLM 프롬프트에 포함되는 사용자 입력값에서 특수 문자를 이스케이프하여
+     * 프롬프트 인젝션 공격을 방지합니다.
+     *
+     * 방어 대상:
+     * - 백슬래시(\): 이스케이프 시퀀스 주입 방지
+     * - 큰따옴표("): JSON/프롬프트 구조 탈출 방지
+     * - 줄바꿈(\n, \r): 프롬프트 구조 변조 방지
+     * - 백틱(`): 코드 블록 주입 방지
+     * - 중괄호({, }): 템플릿 변수 주입 방지
+     *
+     * @param input 사용자 입력 문자열
+     * @return 새니타이징된 문자열 또는 null
+     */
+    public static String sanitizeUserInput(String input) {
+        if (input == null) {
+            return null;
+        }
+        return input
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", " ")
+            .replace("\r", " ")
+            .replace("`", "'")
+            .replace("{", "(")
+            .replace("}", ")");
+    }
+
+    /**
+     * 사용자 입력 새니타이징 후 길이 제한 적용
+     *
+     * @param input 사용자 입력 문자열
+     * @param maxLength 최대 길이
+     * @return 새니타이징 및 길이 제한된 문자열
+     */
+    public static String sanitizeAndTruncate(String input, int maxLength) {
+        String sanitized = sanitizeUserInput(input);
+        return truncate(sanitized, maxLength);
+    }
 }

@@ -208,7 +208,7 @@ public class Layer2PromptTemplate {
         prompt.append("\n=== DATA QUALITY ===\n");
         prompt.append(dataQualitySection);
 
-        // 12. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙)
+        // 12. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙 + 기준선 학습 연동)
         prompt.append("""
 
             === RESPONSE FORMAT ===
@@ -218,11 +218,32 @@ public class Layer2PromptTemplate {
             c: your confidence in this decision (0-1, lower if data is limited)
             d: brief reason (max 20 tokens)
 
-            === ACTION GUIDE ===
-            A (ALLOW): Normal pattern, matches baseline -> r~0.0-0.3
-            B (BLOCK): Confirmed attack, malicious payload detected -> r~0.8-1.0
-            C (CHALLENGE): Baseline deviation, needs MFA verification -> r~0.5-0.8
-            E (ESCALATE): Need expert analysis by Layer3 -> any r, low c
+            === ACTION SELECTION RULES (MANDATORY) ===
+            You MUST follow these rules when selecting action:
+
+            1. A (ALLOW): Use ONLY when you are CERTAIN this is normal behavior
+               - ALLOW means this pattern WILL BE LEARNED as the user's normal baseline
+               - If you have ANY doubt about legitimacy, DO NOT use ALLOW
+               - Wrong ALLOW = baseline pollution = future attacks may bypass detection
+
+            2. B (BLOCK): Use when you are CERTAIN this is malicious/abnormal
+               - Confirmed attack patterns, payload injection, known threats
+               - BLOCK patterns are NEVER learned into baseline
+
+            3. C (CHALLENGE): Use when request SEEMS normal but you are NOT CERTAIN
+               - Baseline deviation detected but not confirmed malicious
+               - This triggers MFA verification before proceeding
+               - After MFA success, the pattern will be learned as normal
+
+            4. E (ESCALATE): Use when you CANNOT determine if normal or abnormal
+               - Conflicting signals, complex patterns requiring Layer3 expert analysis
+               - Significant deviation from baseline but not obviously malicious
+
+            CRITICAL WARNING:
+            - If NOT CERTAIN, do NOT return A (ALLOW)
+            - Use C (CHALLENGE) or E (ESCALATE) when you have ANY doubt
+            - Your ALLOW decision directly affects user's baseline learning
+            - A wrong ALLOW can permanently pollute the baseline
 
             === AI NATIVE PRINCIPLE ===
             - YOU decide the action based on context + baseline. Risk score justifies it.

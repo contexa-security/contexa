@@ -3,7 +3,11 @@ package io.contexa.contexacoreenterprise.autonomous.monitor;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -362,51 +366,208 @@ public class PolicyAuditLogger {
     }
     
     /**
-     * 권한 검증 헬퍼 메서드들
+     * 권한 검증 헬퍼 메서드들 (AI Native v3.3.0: 실제 권한 검증 구현)
+     *
+     * Zero Trust 원칙:
+     * - 모든 권한은 Spring Security를 통해 검증
+     * - 권한 없으면 컴플라이언스 위반으로 기록
+     * - stub 구현 제거, 실제 보안 검증 수행
+     */
+
+    private static final String ROLE_POLICY_CREATOR = "ROLE_POLICY_CREATOR";
+    private static final String ROLE_POLICY_APPROVER = "ROLE_POLICY_APPROVER";
+    private static final String ROLE_POLICY_ADMIN = "ROLE_POLICY_ADMIN";
+    private static final String ROLE_SECURITY_ADMIN = "ROLE_SECURITY_ADMIN";
+
+    /**
+     * 정책 생성 권한 검증 (AI Native v3.3.0)
+     *
+     * 필요 권한: ROLE_POLICY_CREATOR 또는 ROLE_POLICY_ADMIN
      */
     private boolean hasCreationPermission(String user) {
-        // 실제 구현: 사용자 권한 시스템과 연동
-        return user != null && !user.isEmpty();
+        if (user == null || user.isEmpty()) {
+            log.warn("[Zero Trust] 정책 생성 권한 검증 실패: 사용자 정보 없음");
+            return false;
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("[Zero Trust] 정책 생성 권한 검증 실패: 인증되지 않은 사용자");
+            return false;
+        }
+
+        // 현재 인증된 사용자와 요청 사용자 일치 여부 확인
+        if (!user.equals(authentication.getName())) {
+            return false;
+        }
+
+        // 필요 권한 확인
+        boolean hasPermission = hasAnyRole(authentication, ROLE_POLICY_CREATOR, ROLE_POLICY_ADMIN, ROLE_SECURITY_ADMIN);
+        if (!hasPermission) {
+            log.warn("[Zero Trust] 정책 생성 권한 부족: user={}", user);
+        }
+        return hasPermission;
     }
-    
+
+    /**
+     * 정책 승인 권한 검증 (AI Native v3.3.0)
+     *
+     * 필요 권한: 레벨별 승인 권한
+     * - L1: ROLE_POLICY_APPROVER
+     * - L2: ROLE_POLICY_ADMIN
+     * - L3: ROLE_SECURITY_ADMIN
+     */
     private boolean hasApprovalPermission(String user, String level) {
-        // 실제 구현: 레벨별 승인 권한 체크
-        return user != null && level != null;
+        if (user == null || user.isEmpty() || level == null) {
+            log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 필수 정보 누락");
+            return false;
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 인증되지 않은 사용자");
+            return false;
+        }
+
+        // 현재 인증된 사용자와 요청 사용자 일치 여부 확인
+        if (!user.equals(authentication.getName())) {
+            log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 사용자 불일치");
+            return false;
+        }
+
+        // 레벨별 필요 권한 결정
+        String requiredRole = switch (level.toUpperCase()) {
+            case "L1", "LEVEL1", "BASIC" -> ROLE_POLICY_APPROVER;
+            case "L2", "LEVEL2", "ADVANCED" -> ROLE_POLICY_ADMIN;
+            case "L3", "LEVEL3", "CRITICAL" -> ROLE_SECURITY_ADMIN;
+            default -> ROLE_POLICY_ADMIN;
+        };
+
+        boolean hasPermission = hasRole(authentication, requiredRole) ||
+                                hasRole(authentication, ROLE_SECURITY_ADMIN); // SECURITY_ADMIN은 모든 레벨 승인 가능
+
+        if (!hasPermission) {
+            log.warn("[Zero Trust] 정책 승인 권한 부족: level={}, requiredRole={}, user={}",
+                    level, requiredRole, user);
+        }
+        return hasPermission;
     }
-    
+
+    /**
+     * 정책 활성화 권한 검증 (AI Native v3.3.0)
+     *
+     * 필요 권한: ROLE_POLICY_ADMIN 또는 ROLE_SECURITY_ADMIN
+     */
     private boolean hasActivationPermission(String user) {
-        // 실제 구현: 활성화 권한 체크
-        return user != null && !user.isEmpty();
+        if (user == null || user.isEmpty()) {
+            log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 정보 없음");
+            return false;
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 인증되지 않은 사용자");
+            return false;
+        }
+
+        // 현재 인증된 사용자와 요청 사용자 일치 여부 확인
+        if (!user.equals(authentication.getName())) {
+            log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 불일치");
+            return false;
+        }
+
+        boolean hasPermission = hasAnyRole(authentication, ROLE_POLICY_ADMIN, ROLE_SECURITY_ADMIN);
+        if (!hasPermission) {
+        }
+        return hasPermission;
     }
-    
+
+    /**
+     * 역할 보유 여부 확인
+     */
+    private boolean hasRole(Authentication authentication, String role) {
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(authority -> authority.equals(role));
+    }
+
+    /**
+     * 주어진 역할 중 하나라도 보유하는지 확인
+     */
+    private boolean hasAnyRole(Authentication authentication, String... roles) {
+        Set<String> requiredRoles = Set.of(roles);
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(requiredRoles::contains);
+    }
+
+    /**
+     * 이해 상충 검사 (AI Native v3.3.0)
+     *
+     * 제안자와 승인자가 동일하면 이해 상충
+     */
     private boolean hasConflictOfInterest(Long proposalId, String approver) {
-        // 실제 구현: 제안자와 승인자가 동일한지 체크
-        return false; // 간단한 구현
+        if (proposalId == null || approver == null) {
+            return false;
+        }
+
+        // DB에서 제안자 조회
+        Optional<String> creatorOpt = synthesisPolicyRepository.findById(proposalId)
+                .map(policy -> policy.getCreatedBy())
+                .filter(creator -> creator != null);
+
+        if (creatorOpt.isEmpty()) {
+            log.debug("정책 제안 #{} 의 생성자를 찾을 수 없음", proposalId);
+            return false;
+        }
+
+        String creator = creatorOpt.get();
+        boolean conflict = creator.equals(approver);
+
+        if (conflict) {
+        }
+
+        return conflict;
     }
-    
+
+    /**
+     * 승인 타임라인 검사 (stub - 향후 구현)
+     */
     private boolean withinApprovalTimeline(Long proposalId) {
-        // 실제 구현: 승인 타임라인 체크
-        return true; // 간단한 구현
+        // TODO: 실제 구현 필요 - 승인 요청 후 72시간 이내 처리 등
+        return true;
     }
-    
+
+    /**
+     * 정책 명명 규칙 검증 (stub - 향후 구현)
+     */
     private boolean validatePolicyNamingConvention(Long proposalId) {
-        // 실제 구현: 정책 명명 규칙 검증
-        return true; // 간단한 구현
+        // TODO: 실제 구현 필요 - 정책명 패턴 검증
+        return true;
     }
-    
+
+    /**
+     * 정책 내용 검증 (stub - 향후 구현)
+     */
     private boolean validatePolicyContent(Long proposalId) {
-        // 실제 구현: 정책 내용 검증
-        return true; // 간단한 구현
+        // TODO: 실제 구현 필요 - 정책 내용 유효성 검증
+        return true;
     }
-    
+
+    /**
+     * 테스트 통과 여부 검사 (stub - 향후 구현)
+     */
     private boolean hasPassedRequiredTests(Long policyId) {
-        // 실제 구현: 테스트 통과 여부 체크
-        return true; // 간단한 구현
+        // TODO: 실제 구현 필요 - 테스트 결과 확인
+        return true;
     }
-    
+
+    /**
+     * 문서화 요구사항 검사 (stub - 향후 구현)
+     */
     private boolean hasRequiredDocumentation(Long policyId) {
-        // 실제 구현: 문서화 요구사항 체크
-        return true; // 간단한 구현
+        // TODO: 실제 구현 필요 - 문서화 완료 여부 확인
+        return true;
     }
     
     /**

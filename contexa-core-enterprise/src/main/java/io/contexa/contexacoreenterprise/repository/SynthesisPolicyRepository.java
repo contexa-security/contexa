@@ -396,7 +396,8 @@ public class SynthesisPolicyRepository {
         private LocalDateTime updatedAt;
         private LocalDateTime activatedAt;
         private LocalDateTime deactivatedAt;
-        
+        private String createdBy;
+
         public void incrementVersion() {
             this.version++;
         }

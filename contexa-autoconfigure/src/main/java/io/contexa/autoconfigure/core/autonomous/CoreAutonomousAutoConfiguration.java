@@ -19,6 +19,8 @@ import io.contexa.contexacore.autonomous.tiered.template.Layer3PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.repository.ThreatIndicatorRepository;
@@ -150,17 +152,32 @@ public class CoreAutonomousAutoConfiguration {
         return new TieredStrategyProperties();
     }
 
-    // ========== Level 2: Level 1 의존 (4개) ==========
+    /**
+     * 1-7. AdminOverrideRepository - 관리자 개입 Redis 저장소 (AI Native v3.4.0)
+     *
+     * AI Native 원칙:
+     * - BLOCK 판정된 요청에 대한 관리자 검토 이력을 영구 저장
+     * - 모든 관리자 개입은 감사 로그로 30일간 보존
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AdminOverrideRepository adminOverrideRepository(
+            RedisTemplate<String, Object> redisTemplate) {
+        return new AdminOverrideRepository(redisTemplate);
+    }
+
+    // ========== Level 2: Level 1 의존 (5개) ==========
 
     /**
      * 2-1. Layer1PromptTemplate - Layer 1 프롬프트 템플릿
+     *
+     * AI Native v3.4.0: SecurityEventEnricher 의존성 제거 (미사용 코드 정리)
      */
     @Bean
     @ConditionalOnMissingBean
     public Layer1PromptTemplate layer1PromptTemplate(
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer1PromptTemplate(securityEventEnricher, tieredStrategyProperties);
+        return new Layer1PromptTemplate(tieredStrategyProperties);
     }
 
     /**
@@ -185,6 +202,26 @@ public class CoreAutonomousAutoConfiguration {
         return new Layer3PromptTemplate(securityEventEnricher, tieredStrategyProperties);
     }
 
+    /**
+     * 2-4. AdminOverrideService - 관리자 개입 서비스 (AI Native v3.4.0)
+     *
+     * AI Native 원칙:
+     * - LLM 판정은 최종 결정이 아님 (관리자 개입 가능)
+     * - 그러나 관리자 개입은 명시적 승인 + 기준선 업데이트 허용이 별도로 필요
+     * - 모든 개입은 감사 로그로 기록됨
+     *
+     * 기준선 오염 방지 메커니즘:
+     * - 관리자 승인만으로는 기준선 업데이트되지 않음
+     * - baselineUpdateAllowed=true를 명시적으로 설정해야 함
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public AdminOverrideService adminOverrideService(
+            AdminOverrideRepository adminOverrideRepository,
+            @Autowired(required = false) BaselineLearningService baselineLearningService) {
+        return new AdminOverrideService(adminOverrideRepository, baselineLearningService);
+    }
+
     // ========== Level 3: 독립적/선택적 의존 (6개) ==========
 
     /**
@@ -196,14 +233,10 @@ public class CoreAutonomousAutoConfiguration {
         return new VectorStoreCacheLayer();
     }
 
-    /**
-     * 3-2. ValidationHandler - 보안 이벤트 유효성 검증 핸들러
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.handler.ValidationHandler validationHandler() {
-        return new io.contexa.contexacore.autonomous.orchestrator.handler.ValidationHandler();
-    }
+    // AI Native: ValidationHandler 제거
+    // - 중복 이벤트 필터링: EventDeduplicator에서 더 우수하게 처리 (Caffeine 캐시 + SHA-256 해시)
+    // - 시간 기반 필터링 (24시간): AI Native 원칙 위반 (규칙 기반)
+    // - 필수 필드 검증: SecurityEvent 생성 시점에서 처리해야 함
 
     // AI Native: VectorSimilarityHandler 제거
     // - 유사도 기반 규칙으로 신뢰도/위험도 계산하는 것은 AI Native 명제 위반
@@ -366,7 +399,7 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
         return new Layer3ExpertStrategy(
             llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
-            layer3PromptTemplate, unifiedVectorService, behaviorVectorService, feedbackProperties,
+            layer3PromptTemplate, unifiedVectorService, behaviorVectorService,
             baselineLearningService, tieredStrategyProperties
         );
     }

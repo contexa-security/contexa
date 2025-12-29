@@ -17,9 +17,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 처리 실행 핸들러
@@ -43,8 +43,8 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     @Value("${security.plane.agent.name:SecurityPlaneAgent-1}")
     private String agentName;
 
-    // 전략 캐시 (성능 최적화)
-    private final Map<ProcessingMode, ProcessingStrategy> strategyCache = new HashMap<>();
+    // Phase 3: 동시성 문제 수정 - HashMap -> ConcurrentHashMap
+    private final Map<ProcessingMode, ProcessingStrategy> strategyCache = new ConcurrentHashMap<>();
 
     @Override
     public boolean handle(SecurityEventContext context) {

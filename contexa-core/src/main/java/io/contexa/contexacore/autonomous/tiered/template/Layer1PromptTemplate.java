@@ -2,7 +2,6 @@ package io.contexa.contexacore.autonomous.tiered.template;
 
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -26,14 +25,11 @@ import java.util.Optional;
 @Slf4j
 public class Layer1PromptTemplate {
 
-    private final SecurityEventEnricher eventEnricher;
     private final TieredStrategyProperties tieredStrategyProperties;
 
     @Autowired
     public Layer1PromptTemplate(
-            @Autowired(required = false) SecurityEventEnricher eventEnricher,
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.tieredStrategyProperties = tieredStrategyProperties != null
             ? tieredStrategyProperties : new TieredStrategyProperties();
     }
@@ -114,7 +110,7 @@ public class Layer1PromptTemplate {
         prompt.append("\n=== DATA QUALITY ===\n");
         prompt.append(PromptTemplateUtils.buildDataQualitySection(event));
 
-        // 8. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙)
+        // 8. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙 + 기준선 학습 연동)
         prompt.append("""
 
             === RESPONSE FORMAT ===
@@ -124,11 +120,33 @@ public class Layer1PromptTemplate {
             c: your confidence in this decision (0-1, lower if data is limited)
             d: brief reason (max 20 tokens)
 
-            === ACTION GUIDE ===
-            A (ALLOW): Safe request, normal access pattern -> r~0.0-0.3
-            B (BLOCK): Confirmed attack, malicious pattern detected -> r~0.8-1.0
-            C (CHALLENGE): Suspicious but not confirmed, needs MFA -> r~0.5-0.8
-            E (ESCALATE): Insufficient data for decision -> any r, low c
+            === ACTION SELECTION RULES (MANDATORY) ===
+            You MUST follow these rules when selecting action:
+
+            1. A (ALLOW): Use ONLY when you are CERTAIN this is normal behavior
+               - ALLOW means this pattern WILL BE LEARNED as the user's normal baseline
+               - If you have ANY doubt about legitimacy, DO NOT use ALLOW
+               - Wrong ALLOW = baseline pollution = future attacks may bypass detection
+
+            2. B (BLOCK): Use when you are CERTAIN this is malicious/abnormal
+               - Confirmed attack patterns, known threats, obvious malicious behavior
+               - BLOCK patterns are NEVER learned into baseline
+
+            3. C (CHALLENGE): Use when request SEEMS normal but you are NOT CERTAIN
+               - This triggers MFA verification before proceeding
+               - After MFA success, the pattern will be learned as normal
+               - Use this for: new device, unusual time, slightly different pattern
+
+            4. E (ESCALATE): Use when you CANNOT determine if normal or abnormal
+               - Insufficient data for confident decision
+               - Complex patterns requiring Layer2 deep analysis
+               - Pattern deviates significantly from baseline but not obviously malicious
+
+            CRITICAL WARNING:
+            - If NOT CERTAIN, do NOT return A (ALLOW)
+            - Use C (CHALLENGE) or E (ESCALATE) when you have ANY doubt
+            - Your ALLOW decision directly affects user's baseline learning
+            - A wrong ALLOW can permanently pollute the baseline
 
             === AI NATIVE PRINCIPLE ===
             - YOU decide the action. Risk score justifies your action.
@@ -149,10 +167,14 @@ public class Layer1PromptTemplate {
 
     /**
      * 유효한 데이터만 프롬프트에 추가 (기존 메서드 - 선택적 필드용)
+     *
+     * AI Native v3.3.0: 프롬프트 인젝션 방어
+     * - 사용자 입력값은 sanitizeUserInput()을 통해 새니타이징
      */
     private void appendIfValid(StringBuilder sb, String label, String value) {
         if (isValidData(value)) {
-            sb.append(label).append(": ").append(value).append("\n");
+            String sanitized = PromptTemplateUtils.sanitizeUserInput(value);
+            sb.append(label).append(": ").append(sanitized).append("\n");
         }
     }
 
@@ -163,6 +185,9 @@ public class Layer1PromptTemplate {
      * - LLM이 "데이터 없음"을 인식할 수 있도록 NOT_PROVIDED 명시
      * - 필수 필드(isCritical=true)가 없으면 검증 데이터 부재 경고
      *
+     * AI Native v3.3.0: 프롬프트 인젝션 방어
+     * - 사용자 입력값은 sanitizeUserInput()을 통해 새니타이징
+     *
      * @param sb StringBuilder
      * @param label 필드 라벨
      * @param value 필드 값
@@ -170,7 +195,8 @@ public class Layer1PromptTemplate {
      */
     private void appendFieldWithNullCheck(StringBuilder sb, String label, String value, boolean isCritical) {
         if (isValidData(value)) {
-            sb.append(label).append(": ").append(value).append("\n");
+            String sanitized = PromptTemplateUtils.sanitizeUserInput(value);
+            sb.append(label).append(": ").append(sanitized).append("\n");
         } else if (isCritical) {
             // Zero Trust: 필수 필드 부재 명시
             sb.append(label).append(": NOT_PROVIDED [CRITICAL: Missing verification data]\n");
@@ -182,16 +208,21 @@ public class Layer1PromptTemplate {
     /**
      * UserAgent 요약 (너무 길면 축약)
      * Truncation 정책은 TieredStrategyProperties에서 관리
+     *
+     * AI Native v3.3.0: 프롬프트 인젝션 방어
+     * - UserAgent는 사용자가 조작 가능한 헤더이므로 새니타이징 필수
      */
     private String summarizeUserAgent(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
+        // 프롬프트 인젝션 방어: 새니타이징 후 truncation
+        String sanitized = PromptTemplateUtils.sanitizeUserInput(userAgent);
         int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getUserAgent();
-        if (userAgent.length() > maxLength) {
-            return userAgent.substring(0, maxLength - 3) + "...";
+        if (sanitized.length() > maxLength) {
+            return sanitized.substring(0, maxLength - 3) + "...";
         }
-        return userAgent;
+        return sanitized;
     }
 
     /**
@@ -218,10 +249,10 @@ public class Layer1PromptTemplate {
         if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE")) {
             return true;  // 신규 사용자 경고는 반드시 LLM에게 전달
         }
-        // 기타 무의미한 기본값만 제외
-        return !baseline.equals("Not available")
-            && !baseline.equals("none")
-            && !baseline.equals("N/A");
+        // 기타 무의미한 기본값만 제외 (case-insensitive)
+        return !baseline.equalsIgnoreCase("Not available")
+            && !baseline.equalsIgnoreCase("none")
+            && !baseline.equalsIgnoreCase("N/A");
     }
 
     /**
@@ -304,9 +335,11 @@ public class Layer1PromptTemplate {
         }
 
         // authz.reason - 거부 이유 (있는 경우)
+        // AI Native v3.3.0: 프롬프트 인젝션 방어 적용
         String authzReason = getStringFromMetadata(metadata, "authz.reason");
         if (authzReason != null) {
-            // 이유가 너무 길면 요약 (Truncation 정책 적용)
+            // 새니타이징 후 Truncation 적용
+            authzReason = PromptTemplateUtils.sanitizeUserInput(authzReason);
             int maxAuthzReason = tieredStrategyProperties.getTruncation().getLayer1().getAuthzReason();
             if (authzReason.length() > maxAuthzReason) {
                 authzReason = authzReason.substring(0, maxAuthzReason - 3) + "...";
@@ -366,18 +399,23 @@ public class Layer1PromptTemplate {
 
     /**
      * Payload 요약 (Truncation 정책 적용)
+     *
+     * AI Native v3.3.0: 프롬프트 인젝션 방어
+     * - Payload는 사용자가 직접 조작하는 요청 본문이므로 새니타이징 필수
      */
     private String summarizePayload(String payload) {
         if (payload == null || payload.isEmpty()) {
             return "empty";
         }
 
+        // 프롬프트 인젝션 방어: 새니타이징 후 truncation
+        String sanitized = PromptTemplateUtils.sanitizeUserInput(payload);
         int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getPayload();
-        if (payload.length() > maxLength) {
-            return payload.substring(0, maxLength) + "... (truncated)";
+        if (sanitized.length() > maxLength) {
+            return sanitized.substring(0, maxLength) + "... (truncated)";
         }
 
-        return payload;
+        return sanitized;
     }
 
     /**

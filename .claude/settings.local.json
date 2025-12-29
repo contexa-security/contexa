@@ -36,7 +36,9 @@
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\infra\\\\redis\\\\RedisStreamInitializer.java\")",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\autonomous\\\\orchestrator\\\\handler\\\\ThreatScoreHandler.java\")",
       "Bash(d:)",
-      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\autonomous\\\\service\\\\AnomalyDetectionService.java\")"
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\autonomous\\\\service\\\\AnomalyDetectionService.java\")",
+      "Bash(mvn clean compile:*)",
+      "Bash(./gradlew :contexa-core-enterprise:compileJava:*)"
     ],
     "deny": [],
     "ask": []

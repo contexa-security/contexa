@@ -1,10 +1,13 @@
 package io.contexa.contexacore.autonomous.security.identification;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.authentication.WebAuthenticationDetails;
 import org.springframework.stereotype.Service;
@@ -28,11 +31,20 @@ import java.util.Map;
  */
 @Slf4j
 public class UserIdentificationService {
-    
+
     private static final String USERNAME_PARAM = "username";
     private static final String EMAIL_PARAM = "email";
     private static final String USER_ID_PARAM = "userId";
     private static final String LOGIN_ID_PARAM = "loginId";
+
+    /**
+     * JWT 서명 검증을 위한 JwtDecoder (AI Native v3.3.0)
+     *
+     * Spring Security OAuth2 Resource Server가 설정되어 있으면 자동 주입됨
+     * 없는 경우 null이며, extractFromJwtToken()에서 검증 없이 fallback 처리
+     */
+    @Autowired(required = false)
+    private JwtDecoder jwtDecoder;
     
     /**
      * 모든 가능한 소스에서 사용자 ID 추출
@@ -248,39 +260,91 @@ public class UserIdentificationService {
     }
     
     /**
-     * JWT Token에서 추출
+     * JWT Token에서 추출 (AI Native v3.3.0: 서명 검증 추가)
+     *
+     * 보안 강화:
+     * - JwtDecoder가 주입된 경우: JWT 서명 검증 후 클레임 추출
+     * - JwtDecoder가 없는 경우: 경고 로그 + Base64 디코딩만 수행 (fallback)
+     *
+     * Zero Trust 원칙:
+     * - 서명 검증 없이 추출된 userId는 신뢰할 수 없음
+     * - 가능한 한 Spring Security 인증 경로 사용 권장
      */
     private String extractFromJwtToken(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+
+        String token = authHeader.substring(7);
+
+        // 1. JwtDecoder가 있으면 서명 검증 후 클레임 추출 (권장)
+        if (jwtDecoder != null) {
             try {
-                // JWT 파싱 (간단한 Base64 디코딩)
-                String[] parts = token.split("\\.");
-                if (parts.length >= 2) {
-                    String payload = parts[1];
-                    // Base64 디코딩 및 JSON 파싱
-                    java.util.Base64.Decoder decoder = java.util.Base64.getUrlDecoder();
-                    String json = new String(decoder.decode(payload));
-                    
-                    // 간단한 JSON 파싱 (정규식)
-                    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"sub\"\\s*:\\s*\"([^\"]+)\"");
-                    java.util.regex.Matcher matcher = pattern.matcher(json);
-                    if (matcher.find()) {
-                        return matcher.group(1);
-                    }
-                    
-                    pattern = java.util.regex.Pattern.compile("\"user_id\"\\s*:\\s*\"([^\"]+)\"");
-                    matcher = pattern.matcher(json);
-                    if (matcher.find()) {
-                        return matcher.group(1);
-                    }
+                Jwt jwt = jwtDecoder.decode(token);
+
+                // 클레임에서 사용자 ID 추출
+                String userId = jwt.getClaimAsString("sub");
+                if (userId != null && !userId.isEmpty()) {
+                    log.trace("JWT 서명 검증 성공, sub 클레임에서 userId 추출: {}", userId);
+                    return userId;
                 }
+
+                userId = jwt.getClaimAsString("user_id");
+                if (userId != null && !userId.isEmpty()) {
+                    log.trace("JWT 서명 검증 성공, user_id 클레임에서 userId 추출: {}", userId);
+                    return userId;
+                }
+
+                userId = jwt.getClaimAsString("username");
+                if (userId != null && !userId.isEmpty()) {
+                    log.trace("JWT 서명 검증 성공, username 클레임에서 userId 추출: {}", userId);
+                    return userId;
+                }
+
+                log.debug("JWT 클레임에서 userId를 찾을 수 없음");
+                return null;
+
+            } catch (JwtException e) {
+                // JWT 검증 실패 - 위조되었거나 만료된 토큰
+                log.warn("[Zero Trust] JWT 서명 검증 실패 - 위조 또는 만료된 토큰: {}", e.getMessage());
+                return null;
             } catch (Exception e) {
-                log.debug("JWT 파싱 실패", e);
+                log.error("JWT 디코딩 중 예외 발생", e);
+                return null;
             }
         }
+
+        // 2. JwtDecoder가 없는 경우: 경고 + Base64 디코딩 fallback
+        // 주의: 이 경로는 서명 검증 없이 페이로드만 디코딩하므로 보안상 취약함
+        log.warn("[Zero Trust] JwtDecoder가 설정되지 않음 - JWT 서명 검증 없이 페이로드만 디코딩 (보안 취약)");
+
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length >= 2) {
+                String payload = parts[1];
+                java.util.Base64.Decoder decoder = java.util.Base64.getUrlDecoder();
+                String json = new String(decoder.decode(payload));
+
+                // 간단한 JSON 파싱 (정규식)
+                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"sub\"\\s*:\\s*\"([^\"]+)\"");
+                java.util.regex.Matcher matcher = pattern.matcher(json);
+                if (matcher.find()) {
+                    log.warn("[Zero Trust] 서명 검증 없이 추출된 userId는 신뢰할 수 없음: {}", matcher.group(1));
+                    return matcher.group(1);
+                }
+
+                pattern = java.util.regex.Pattern.compile("\"user_id\"\\s*:\\s*\"([^\"]+)\"");
+                matcher = pattern.matcher(json);
+                if (matcher.find()) {
+                    log.warn("[Zero Trust] 서명 검증 없이 추출된 userId는 신뢰할 수 없음: {}", matcher.group(1));
+                    return matcher.group(1);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("JWT 파싱 실패", e);
+        }
+
         return null;
     }
     
