@@ -215,7 +215,8 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
 
             SecurityIncident incident = SecurityIncident.builder()
                 .incidentId("INC-" + result.getProcessingPath() + "-" + System.currentTimeMillis())
-                .type(mapEventTypeToIncidentType(event.getEventType()))
+                // AI Native v4.1.0: LLM 분석 결과 기반 IncidentType 결정
+                .type(determineIncidentType(result))
                 .threatLevel(threatLevel)
                 .status(SecurityIncident.IncidentStatus.NEW)
                 .description(String.format("%s path detected %s threat",
@@ -273,25 +274,75 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     }
 
     /**
-     * EventType을 IncidentType으로 변환
+     * AI Native v4.1.0: LLM 분석 결과 기반 IncidentType 결정
+     *
+     * 이전: Severity 기반 인시던트 타입 결정 (하드코딩)
+     * 변경: LLM 분석 결과(ProcessingResult)의 metadata/analysisData에서 action 추출
+     *
+     * @param result LLM 분석 결과
+     * @return 인시던트 타입
      */
-    private SecurityIncident.IncidentType mapEventTypeToIncidentType(SecurityEvent.EventType eventType) {
-        switch (eventType) {
-            case INTRUSION_ATTEMPT:
-            case INTRUSION_SUCCESS:
-                return SecurityIncident.IncidentType.INTRUSION;
-            case AUTH_FAILURE:
-            case AUTH_SUCCESS:
-                return SecurityIncident.IncidentType.UNAUTHORIZED_ACCESS;
-            case DATA_EXFILTRATION:
-                return SecurityIncident.IncidentType.DATA_BREACH;
-            case MALWARE_DETECTED:
-                return SecurityIncident.IncidentType.MALWARE;
-            case ANOMALY_DETECTED:
-                return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
-            default:
-                return SecurityIncident.IncidentType.OTHER;
+    private SecurityIncident.IncidentType determineIncidentType(ProcessingResult result) {
+        if (result == null) {
+            return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
         }
+
+        // LLM 분석 결과에서 action 추출 (metadata 또는 analysisData)
+        String action = null;
+
+        // 1. metadata에서 action 확인
+        if (result.getMetadata() != null) {
+            Object actionObj = result.getMetadata().get("action");
+            if (actionObj != null) {
+                action = actionObj.toString();
+            }
+        }
+
+        // 2. analysisData에서 action 확인
+        if (action == null && result.getAnalysisData() != null) {
+            Object actionObj = result.getAnalysisData().get("action");
+            if (actionObj != null) {
+                action = actionObj.toString();
+            }
+        }
+
+        // LLM action 기반 IncidentType 결정
+        if (action != null) {
+            switch (action.toUpperCase()) {
+                case "BLOCK":
+                case "B":
+                    return SecurityIncident.IncidentType.INTRUSION;
+                case "ESCALATE":
+                case "E":
+                    return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+                case "CHALLENGE":
+                case "C":
+                    return SecurityIncident.IncidentType.POLICY_VIOLATION;
+                case "ALLOW":
+                case "A":
+                default:
+                    return SecurityIncident.IncidentType.OTHER;
+            }
+        }
+
+        // riskScore 기반 폴백 (AI Native: LLM이 계산한 값 사용)
+        double riskScore = result.getRiskScore();
+        if (riskScore >= 0.8) {
+            return SecurityIncident.IncidentType.INTRUSION;
+        } else if (riskScore >= 0.6) {
+            return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+        }
+
+        return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+    }
+
+    /**
+     * @deprecated AI Native v4.1.0 - LLM 분석 결과 기반 determineIncidentType 사용
+     */
+    @Deprecated(since = "4.1.0", forRemoval = true)
+    private SecurityIncident.IncidentType mapSeverityToIncidentType(SecurityEvent.Severity severity) {
+        // AI Native: Severity 기반 매핑 제거 - 기본값만 반환
+        return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
     }
 
     /**

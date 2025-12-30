@@ -234,19 +234,18 @@ public class ZeroTrustEventListener {
     private SecurityEvent convertAuthFailureToSecurityEvent(AuthenticationFailureEvent authEvent) {
         SecurityEvent event = new SecurityEvent();
         event.setEventId(authEvent.getEventId());
-        event.setEventType(authEvent.getFailureCount() > 3 ?
-                           SecurityEvent.EventType.BRUTE_FORCE :
-                           SecurityEvent.EventType.AUTH_FAILURE);
+        // AI Native v4.0.0: eventType 제거 - severity, source로 분류
+        event.setSource(SecurityEvent.EventSource.IAM);
         event.setUserId(authEvent.getUsername());
         event.setUserName(authEvent.getUsername());
         event.setTimestamp(authEvent.getEventTimestamp());
         event.setSourceIp(authEvent.getSourceIp());
-        event.setSeverity(authEvent.getFailureCount() > 3 ?
-                          SecurityEvent.Severity.HIGH :
-                          SecurityEvent.Severity.MEDIUM);
+        // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
+        event.setSeverity(SecurityEvent.Severity.MEDIUM);
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("failureCount", authEvent.getFailureCount());
+        // AI Native: 원시 데이터 제공 (LLM이 직접 위험도 평가)
+        metadata.put("auth.failure_count", authEvent.getFailureCount());
         metadata.put("failureReason", authEvent.getFailureReason());
 
         event.setMetadata(metadata);
@@ -260,23 +259,22 @@ public class ZeroTrustEventListener {
     private SecurityEvent convertAuthDecisionToSecurityEvent(AuthorizationDecisionEvent authEvent) {
         SecurityEvent event = new SecurityEvent();
         event.setEventId(authEvent.getEventId() != null ? authEvent.getEventId() : UUID.randomUUID().toString());
-        event.setEventType(authEvent.isGranted() ?
-                           SecurityEvent.EventType.AUTH_SUCCESS :
-                           SecurityEvent.EventType.ACCESS_CONTROL_VIOLATION);
+        // AI Native v4.0.0: eventType 제거 - severity, source로 분류
+        event.setSource(SecurityEvent.EventSource.IAM);
         event.setUserId(authEvent.getUserId());
         event.setUserName(authEvent.getUserId());
         event.setTimestamp(authEvent.getTimestamp() != null ?
                           LocalDateTime.ofInstant(authEvent.getTimestamp(), ZoneId.systemDefault()) :
                           LocalDateTime.now());
         event.setSourceIp(authEvent.getClientIp());
-        event.setSeverity(authEvent.isGranted() ?
-                          SecurityEvent.Severity.INFO :
-                          SecurityEvent.Severity.MEDIUM);
+        // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
+        event.setSeverity(SecurityEvent.Severity.MEDIUM);
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("resource", authEvent.getResource());
         metadata.put("action", authEvent.getAction());
-        metadata.put("granted", authEvent.isGranted());
+        // AI Native: 원시 데이터 제공 (LLM이 granted 값을 보고 직접 판단)
+        metadata.put("authz.granted", authEvent.isGranted());
         metadata.put("reason", authEvent.getReason());
 
         if (authEvent.getMetadata() != null) {
@@ -294,7 +292,7 @@ public class ZeroTrustEventListener {
         SecurityEvent event = new SecurityEvent();
         
         event.setEventId(authEvent.getEventId());
-        event.setEventType(SecurityEvent.EventType.AUTH_SUCCESS);
+        // AI Native v4.0.0: eventType 제거 - severity, source로 분류
         event.setSource(SecurityEvent.EventSource.IAM);
         event.setTimestamp(authEvent.getEventTimestamp());
         
@@ -306,16 +304,16 @@ public class ZeroTrustEventListener {
         // 네트워크 정보
         event.setSourceIp(authEvent.getSourceIp());
         event.setUserAgent(authEvent.getUserAgent());
-        
-        // 위험 평가
-        event.setSeverity(mapRiskLevelToSeverity(authEvent.calculateRiskLevel()));
-        // AI Native: deprecated 필드 제거, metadata로 이동
+
+        // AI Native v4.1.0: Severity 매핑 제거 - LLM이 원시 데이터로 직접 판단
+        event.setSeverity(SecurityEvent.Severity.MEDIUM);
 
         // 메타데이터
         Map<String, Object> metadata = new HashMap<>();
 
-        // AI Native: deprecated 필드를 metadata로 이동
-        metadata.put("auth.trustScore", authEvent.getTrustScore());
+        // AI Native: 원시 데이터 제공 (LLM이 직접 위험도 평가)
+        metadata.put("authz.trustScore", authEvent.getTrustScore());
+        metadata.put("auth.riskLevel", authEvent.calculateRiskLevel().name());
 
         // 이상 징후 - metadata로 이동
         if (authEvent.isAnomalyDetected()) {
@@ -379,10 +377,11 @@ public class ZeroTrustEventListener {
             // 세션 컨텍스트 이벤트 생성
             SecurityEvent contextEvent = new SecurityEvent();
             contextEvent.setEventId(UUID.randomUUID().toString());
-            contextEvent.setEventType(SecurityEvent.EventType.SUSPICIOUS_ACTIVITY);
+            // AI Native v4.0.0: eventType 제거 - severity, source로 분류
             contextEvent.setSource(SecurityEvent.EventSource.IAM);
             contextEvent.setTimestamp(LocalDateTime.now());
-            contextEvent.setSeverity(SecurityEvent.Severity.HIGH);
+            // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
+            contextEvent.setSeverity(SecurityEvent.Severity.MEDIUM);
             
             // 사용자 정보
             contextEvent.setUserId(authEvent.getUserId());
@@ -407,18 +406,16 @@ public class ZeroTrustEventListener {
     }
     
     /**
-     * 샘플링 결정
+     * AI Native v4.1.0: 샘플링 제거 - 모든 이벤트 LLM 분석
+     *
+     * 이전: Risk Level, 이상 징후에 따른 조건부 샘플링
+     * 변경: 모든 이벤트 100% LLM 분석 (필터링 없음)
+     *
+     * LLM이 원시 데이터를 보고 직접 위험도 판단
      */
     private boolean shouldProcessEvent(AuthenticationSuccessEvent event) {
-        // 높은 위험도는 항상 처리
-        if (event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.HIGH ||
-            event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.CRITICAL ||
-            event.isAnomalyDetected()) {
-            return true;
-        }
-        
-        // 샘플링 비율 적용
-        return Math.random() < samplingRate;
+        // AI Native: 모든 이벤트 처리 - LLM이 판단
+        return true;
     }
     
     /**
@@ -484,40 +481,11 @@ public class ZeroTrustEventListener {
             // 1. Session Context 업데이트 (모든 샘플링된 이벤트)
             updateSessionContext(event);
 
-            // 2. 조건부 발행: CRITICAL/HIGH 위협만 발행
-            boolean shouldPublish = false;
-            String publishReason = null;
-
-            if (event.getEventTier() != null) {
-                switch (event.getEventTier()) {
-                    case CRITICAL:
-                        shouldPublish = true;
-                        publishReason = "CRITICAL tier - immediate threat";
-                        break;
-                    case HIGH:
-                        shouldPublish = true;
-                        publishReason = "HIGH tier - significant risk";
-                        break;
-                    case MEDIUM:
-                        // MEDIUM은 Risk Score 0.6 이상만 발행
-                        if (event.getRiskScore() != null && event.getRiskScore() >= 0.6) {
-                            shouldPublish = true;
-                            publishReason = "MEDIUM tier with high risk score";
-                        }
-                        break;
-                    case LOW:
-                    case BENIGN:
-                        // LOW/BENIGN은 발행 안 함 (피드백 루프만)
-                        shouldPublish = false;
-                        break;
-                }
-            }
-
-            if (!shouldPublish) {
-                log.debug("[ZeroTrustEventListener] Event not published (tier: {}, reason: normal traffic) - SessionContext updated",
-                         event.getEventTier());
-                return;
-            }
+            // AI Native v4.1.0: 조건부 발행 제거 - 모든 이벤트 LLM 분석
+            // 이전: EventTier/RiskScore 기반 조건부 발행 (CRITICAL/HIGH만)
+            // 변경: 모든 이벤트 100% 발행 - LLM이 위험도 직접 판단
+            boolean shouldPublish = true;
+            String publishReason = "AI Native: All events forwarded for LLM analysis";
 
             // 3. 위협 레벨에 따라 적절한 메서드 사용
             if (event.getEventTier() == EventTier.CRITICAL) {
@@ -619,8 +587,9 @@ public class ZeroTrustEventListener {
         secEvent.setSourceIp(event.getSourceIp());
         secEvent.setUserAgent(event.getUserAgent());  // User-Agent 전달 (봇/정상 사용자 구별용)
 
-        // 이벤트 타입 결정 (익명 vs 인증)
-        secEvent.setEventType(SecurityEvent.EventType.SUSPICIOUS_ACTIVITY);
+        // AI Native v4.0.0: eventType 제거 - severity, source로 분류
+        // 이벤트 source는 IAM으로 설정
+        secEvent.setSource(SecurityEvent.EventSource.IAM);
 
         if (event.getUserId() != null && event.getUserId().startsWith("anonymous:")) {
             secEvent.setUserName("anonymous");
@@ -680,46 +649,21 @@ public class ZeroTrustEventListener {
             metadata.put("recentRequestCount", event.getRecentRequestCount());
         }
 
+        // AI Native v4.1.0: 원시 데이터 추가 (LLM이 직접 판단)
+        if (event.getRiskScore() != null) {
+            metadata.put("authz.riskScore", event.getRiskScore());
+        }
+        if (event.getEventTier() != null) {
+            metadata.put("event.tier", event.getEventTier().name());
+        }
         secEvent.setMetadata(metadata);
 
-        // 심각도 (통합 Risk Score 기반)
-        if (event.getEventTier() != null) {
-            secEvent.setSeverity(mapEventTierToSeverity(event.getEventTier()));
-        } else if (event.getRiskScore() != null) {
-            // Tier가 없으면 Risk Score로 직접 계산
-            double risk = event.getRiskScore();
-            if (risk > 0.8) {
-                secEvent.setSeverity(SecurityEvent.Severity.CRITICAL);
-            } else if (risk > 0.6) {
-                secEvent.setSeverity(SecurityEvent.Severity.HIGH);
-            } else if (risk > 0.4) {
-                secEvent.setSeverity(SecurityEvent.Severity.MEDIUM);
-            } else if (risk > 0.2) {
-                secEvent.setSeverity(SecurityEvent.Severity.LOW);
-            } else {
-                secEvent.setSeverity(SecurityEvent.Severity.INFO);
-            }
-        } else {
-            secEvent.setSeverity(SecurityEvent.Severity.MEDIUM);
-        }
+        // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
+        // 이전: Risk Score 임계값 기반 Severity 매핑 (0.8/0.6/0.4/0.2)
+        // 변경: 기본값 MEDIUM, 원시 데이터(riskScore, eventTier)는 metadata에 저장
+        secEvent.setSeverity(SecurityEvent.Severity.MEDIUM);
 
         return secEvent;
-    }
-
-    /**
-     * EventTier를 Severity로 매핑 (통합 버전)
-     *
-     * @param tier AI 분류한 위험도 등급 (Risk Score 기반)
-     * @return SecurityEvent Severity
-     */
-    private SecurityEvent.Severity mapEventTierToSeverity(EventTier tier) {
-        return switch (tier) {
-            case CRITICAL -> SecurityEvent.Severity.CRITICAL;
-            case HIGH -> SecurityEvent.Severity.HIGH;
-            case MEDIUM -> SecurityEvent.Severity.MEDIUM;
-            case LOW -> SecurityEvent.Severity.LOW;
-            case BENIGN -> SecurityEvent.Severity.INFO;
-        };
     }
 
     /**

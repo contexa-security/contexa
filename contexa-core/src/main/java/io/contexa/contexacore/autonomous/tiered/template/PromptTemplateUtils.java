@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous.tiered.template;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * PromptTemplate 공통 유틸리티 클래스
@@ -88,7 +89,6 @@ public final class PromptTemplateUtils {
         int score = 0;
 
         // 필수 정보
-        if (event.getEventType() != null) score++;
         if (event.getSeverity() != null) score++;
         if (isValidData(event.getUserId())) score++;
         if (isValidData(event.getSourceIp())) score++;
@@ -96,13 +96,11 @@ public final class PromptTemplateUtils {
 
         // 추가 정보
         if (isValidData(event.getSessionId())) score++;
-        if (isValidData(event.getTargetResource())) score++;
         if (event.getTimestamp() != null) score++;
 
         // metadata 정보
         Map<String, Object> metadata = event.getMetadata();
         if (metadata != null && !metadata.isEmpty()) {
-            if (metadata.containsKey("authz.resource")) score++;
             if (metadata.containsKey("methodClass")) score++;
         }
 
@@ -110,178 +108,119 @@ public final class PromptTemplateUtils {
     }
 
     /**
-     * Zero Trust: 데이터 품질 및 누락 필드 분석 (AI Native v3.1.0)
+     * Zero Trust v6.0: 데이터 품질 및 누락 필드 분석 (전면 재설계)
      *
-     * LLM에게 다음 정보 제공:
-     * - 데이터 품질 점수 (0-10)
-     * - 누락된 필드 목록 (Missing: sourceIp, sessionId)
-     * - 필수 필드 누락 시 CRITICAL 경고
+     * 이전 문제점 (v3.1.0):
+     * - 7개 기본 필드만 평가, baseline/trustScore 미포함
+     * - "7/10" 표시가 LLM에게 "70% 충분" 오해 유발
+     * - 가장 중요한 필드(baseline)가 평가에서 누락
      *
-     * Zero Trust 원칙: "Never Trust, Always Verify"
-     * - 필수 필드(IP, SessionId)가 없으면 검증 불가
-     * - LLM이 ALLOW를 반환하지 않도록 경고 제공
+     * Zero Trust v6.0 개선:
+     * - CRITICAL 필드: baseline, trustScore, userId, sourceIp, sessionId (5개)
+     * - HIGH 필드: isNewSession, isNewDevice, recentRequestCount (3개)
+     * - 8개 필드 기준으로 정확한 점수 계산
+     * - baseline 없으면 강제 경고 추가
      *
      * @param event 보안 이벤트
+     * @param baselineContext baseline 컨텍스트 (null이면 baseline 없음으로 판단)
      * @return 데이터 품질 분석 문자열
      */
-    public static String buildDataQualitySection(SecurityEvent event) {
+    public static String buildDataQualitySection(SecurityEvent event, String baselineContext) {
         StringBuilder result = new StringBuilder();
-        java.util.List<String> missingFields = new java.util.ArrayList<>();
-        java.util.List<String> missingCriticalFields = new java.util.ArrayList<>();
-        int score = 0;
+        java.util.List<String> criticalMissing = new java.util.ArrayList<>();
+        java.util.List<String> criticalPresent = new java.util.ArrayList<>();
+        java.util.List<String> highMissing = new java.util.ArrayList<>();
 
-        // 필수 정보 (Critical)
-        if (event.getEventType() != null) {
-            score++;
+        // 1. CRITICAL 필드 평가 (의사결정 필수)
+
+        // baseline 존재 여부 (가장 중요!)
+        boolean hasBaseline = baselineContext != null
+            && !baselineContext.startsWith("[NO")
+            && !baselineContext.startsWith("[SERVICE")
+            && !baselineContext.contains("CRITICAL: NO USER BASELINE")
+            && !baselineContext.contains("[NEW_USER]");
+        if (hasBaseline) {
+            criticalPresent.add("baseline");
         } else {
-            missingFields.add("eventType");
+            criticalMissing.add("baseline");
         }
 
-        if (event.getSeverity() != null) {
-            score++;
-        } else {
-            missingFields.add("severity");
-        }
-
-        if (isValidData(event.getUserId())) {
-            score++;
-        } else {
-            missingFields.add("userId");
-            missingCriticalFields.add("userId");
-        }
-
-        // Zero Trust Critical: IP, SessionId
-        if (isValidData(event.getSourceIp())) {
-            score++;
-        } else {
-            missingFields.add("sourceIp");
-            missingCriticalFields.add("sourceIp");
-        }
-
-        if (isValidData(event.getSessionId())) {
-            score++;
-        } else {
-            missingFields.add("sessionId");
-            missingCriticalFields.add("sessionId");
-        }
-
-        if (isValidData(event.getUserAgent())) {
-            score++;
-        } else {
-            missingFields.add("userAgent");
-        }
-
-        // 추가 정보
-        if (isValidData(event.getTargetResource())) {
-            score++;
-        } else {
-            missingFields.add("targetResource");
-        }
-
-        if (event.getTimestamp() != null) {
-            score++;
-        } else {
-            missingFields.add("timestamp");
-        }
-
-        // metadata 정보
+        // trustScore
         Map<String, Object> metadata = event.getMetadata();
-        if (metadata != null && !metadata.isEmpty()) {
-            if (metadata.containsKey("authz.resource")) {
-                score++;
-            } else {
-                missingFields.add("authz.resource");
-            }
-            if (metadata.containsKey("methodClass")) {
-                score++;
-            } else {
-                missingFields.add("methodClass");
-            }
+        if (metadata != null && metadata.containsKey("authz.trustScore")) {
+            criticalPresent.add("trustScore");
         } else {
-            missingFields.add("authz.resource");
-            missingFields.add("methodClass");
+            criticalMissing.add("trustScore");
         }
 
-        score = Math.min(10, score);
-
-        // 결과 문자열 생성
-        result.append(String.format("Data Quality: %d/10 fields available\n", score));
-
-        if (!missingFields.isEmpty()) {
-            result.append(String.format("Missing: %s\n", String.join(", ", missingFields)));
+        // userId
+        if (isValidData(event.getUserId())) {
+            criticalPresent.add("userId");
+        } else {
+            criticalMissing.add("userId");
         }
 
-        // Zero Trust: 필수 필드 누락 시 CRITICAL 경고
-        if (!missingCriticalFields.isEmpty()) {
-            result.append("\n=== CRITICAL: MISSING VERIFICATION DATA ===\n");
-            result.append(String.format("Missing critical fields: %s\n", String.join(", ", missingCriticalFields)));
-            result.append("Zero Trust: Cannot verify identity without these fields.\n");
-            result.append("RECOMMENDATION: Consider CHALLENGE or ESCALATE action.\n");
+        // sourceIp
+        if (isValidData(event.getSourceIp())) {
+            criticalPresent.add("sourceIp");
+        } else {
+            criticalMissing.add("sourceIp");
+        }
+
+        // sessionId
+        if (isValidData(event.getSessionId())) {
+            criticalPresent.add("sessionId");
+        } else {
+            criticalMissing.add("sessionId");
+        }
+
+        // 2. HIGH 필드 평가 (중요하지만 필수 아님)
+        if (metadata == null || !metadata.containsKey("isNewSession")) {
+            highMissing.add("isNewSession");
+        }
+        if (metadata == null || !metadata.containsKey("isNewDevice")) {
+            highMissing.add("isNewDevice");
+        }
+        if (metadata == null || !metadata.containsKey("recentRequestCount")) {
+            highMissing.add("recentRequestCount");
+        }
+
+        // 3. 점수 계산 (CRITICAL 5개 + HIGH 3개 = 8개 기준)
+        int score = criticalPresent.size() + (3 - highMissing.size());
+        int maxScore = 8;
+
+        // 4. 결과 출력
+        result.append(String.format("Decision Data: %d/%d fields available\n", score, maxScore));
+
+        if (!criticalMissing.isEmpty()) {
+            result.append(String.format("CRITICAL MISSING: %s\n", String.join(", ", criticalMissing)));
+        }
+        if (!highMissing.isEmpty()) {
+            result.append(String.format("HIGH MISSING: %s\n", String.join(", ", highMissing)));
+        }
+
+        // 5. baseline 없으면 강제 경고 (Zero Trust v6.0 핵심)
+        if (!hasBaseline) {
+            result.append("\n=== WARNING: NO BASELINE DATA ===\n");
+            result.append("- Cannot verify if behavior is normal\n");
+            result.append("- ALLOW decision is NOT recommended\n");
+            result.append("- Suggested action: CHALLENGE or ESCALATE\n");
         }
 
         return result.toString();
     }
 
     /**
-     * Authorization 정보 섹션 구성 (AI Native)
-     *
-     * metadata에서 authz.resource, authz.action, authz.result, authz.reason,
-     * methodClass, methodName 등 풍부한 컨텍스트 정보 추출
+     * 하위 호환성 유지를 위한 기존 메서드 (deprecated)
      *
      * @param event 보안 이벤트
-     * @return Authorization 섹션 문자열 (빈 경우 빈 문자열)
+     * @return 데이터 품질 분석 문자열
+     * @deprecated Zero Trust v6.0: baseline 파라미터를 포함하는 오버로드 메서드 사용 권장
      */
-    public static String buildAuthzSection(SecurityEvent event) {
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata == null || metadata.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder authz = new StringBuilder();
-
-        // authz.resource - 접근 대상 리소스
-        String authzResource = getStringFromMetadata(metadata, "authz.resource");
-        if (isValidData(authzResource)) {
-            authz.append("Resource: ").append(authzResource).append("\n");
-        }
-
-        // methodClass, methodName - 호출된 메서드 정보
-        String methodClass = getStringFromMetadata(metadata, "methodClass");
-        String methodName = getStringFromMetadata(metadata, "methodName");
-        if (isValidData(methodClass) || isValidData(methodName)) {
-            String classSimpleName = extractSimpleClassName(methodClass);
-            if (classSimpleName != null && isValidData(methodName)) {
-                authz.append("Method: ").append(classSimpleName).append(".").append(methodName).append("\n");
-            } else if (classSimpleName != null) {
-                authz.append("Class: ").append(classSimpleName).append("\n");
-            } else if (isValidData(methodName)) {
-                authz.append("Method: ").append(methodName).append("\n");
-            }
-        }
-
-        // authz.action - 수행 액션
-        String authzAction = getStringFromMetadata(metadata, "authz.action");
-        if (isValidData(authzAction)) {
-            authz.append("Action: ").append(authzAction).append("\n");
-        }
-
-        // authz.result - 인가 결과
-        String authzResult = getStringFromMetadata(metadata, "authz.result");
-        if (isValidData(authzResult)) {
-            authz.append("Result: ").append(authzResult).append("\n");
-        }
-
-        // authz.reason - 거부 이유 (있는 경우)
-        String authzReason = getStringFromMetadata(metadata, "authz.reason");
-        if (isValidData(authzReason)) {
-            // 이유가 너무 길면 요약
-            if (authzReason.length() > 80) {
-                authzReason = authzReason.substring(0, 77) + "...";
-            }
-            authz.append("Reason: ").append(authzReason).append("\n");
-        }
-
-        return authz.toString().trim();
+    @Deprecated
+    public static String buildDataQualitySection(SecurityEvent event) {
+        // baseline 정보 없이 호출되면 baseline 없음으로 판단
+        return buildDataQualitySection(event, null);
     }
 
     /**
@@ -379,5 +318,70 @@ public final class PromptTemplateUtils {
     public static String sanitizeAndTruncate(String input, int maxLength) {
         String sanitized = sanitizeUserInput(input);
         return truncate(sanitized, maxLength);
+    }
+
+    // ========== AI Native v4.0: IP 형식 검증 ==========
+
+    /**
+     * IPv4 형식 정규표현식 패턴
+     * 예: 192.168.1.1, 10.0.0.1, 255.255.255.255
+     */
+    private static final Pattern IPV4_PATTERN = Pattern.compile(
+        "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
+
+    /**
+     * IPv6 간이 형식 정규표현식 패턴 (축약형 포함)
+     * 예: ::1, fe80::1, 2001:0db8:85a3::8a2e:0370:7334
+     */
+    private static final Pattern IPV6_PATTERN = Pattern.compile(
+        "^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|" +
+        "([0-9a-fA-F]{1,4}:){1,7}:|" +
+        "([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|" +
+        "([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|" +
+        "([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|" +
+        "([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|" +
+        "([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|" +
+        "[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|" +
+        ":((:[0-9a-fA-F]{1,4}){1,7}|:)|" +
+        "fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]+|" +
+        "::(ffff(:0{1,4})?:)?((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9])|" +
+        "([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9]))$");
+
+    /**
+     * IP 형식이 유효한지 검사 (IPv4 또는 IPv6)
+     *
+     * AI Native v4.0: Zero Trust 필수 필드 검증
+     * - 잘못된 IP 형식이 프롬프트에 포함되면 LLM 혼란 유발
+     * - "999.999.999.999" 같은 잘못된 값을 걸러냄
+     *
+     * @param ip 검사할 IP 주소 문자열
+     * @return 유효한 IPv4 또는 IPv6 형식이면 true
+     */
+    public static boolean isValidIpFormat(String ip) {
+        if (ip == null || ip.isEmpty()) {
+            return false;
+        }
+        return IPV4_PATTERN.matcher(ip).matches() || IPV6_PATTERN.matcher(ip).matches();
+    }
+
+    /**
+     * IP 주소를 검증하여 StringBuilder에 추가
+     *
+     * AI Native v4.0: IP 형식 검증 결과에 따른 라벨 표시
+     * - 유효한 IP: "IP: 192.168.1.1"
+     * - 유효하지 않은 형식: "IP: abc.def [INVALID_FORMAT]"
+     * - 값 없음: "IP: NOT_PROVIDED [CRITICAL]"
+     *
+     * @param sb StringBuilder
+     * @param ip IP 주소 문자열
+     */
+    public static void appendIpWithValidation(StringBuilder sb, String ip) {
+        if (ip == null || ip.isEmpty()) {
+            sb.append("IP: NOT_PROVIDED [CRITICAL]\n");
+        } else if (!isValidIpFormat(ip)) {
+            sb.append("IP: ").append(sanitizeUserInput(ip)).append(" [INVALID_FORMAT]\n");
+        } else {
+            sb.append("IP: ").append(sanitizeUserInput(ip)).append("\n");
+        }
     }
 }

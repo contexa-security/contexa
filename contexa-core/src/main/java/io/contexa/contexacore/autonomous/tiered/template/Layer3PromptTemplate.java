@@ -78,34 +78,24 @@ public class Layer3PromptTemplate {
         // Phase 4: getDecodedPayload() 사용 (Base64/URL 인코딩 자동 디코딩)
         Optional<String> decodedPayload = eventEnricher.getDecodedPayload(event);
 
-        // AI Native: "UNKNOWN" 기본값 제거, null 그대로 처리
-        String eventType = event.getEventType() != null ? event.getEventType().toString() : null;
-        String severity = event.getSeverity() != null ? event.getSeverity().name() : "MEDIUM";
+        // AI Native v4.1.0: Severity 제거 - LLM이 원시 데이터로 직접 판단
         // AI Native: null인 경우 프롬프트에서 생략
         // AI Native v3.3.0: 프롬프트 인젝션 방어 적용
         String userId = PromptTemplateUtils.sanitizeUserInput(event.getUserId());
         String fullPayload = PromptTemplateUtils.sanitizeUserInput(decodedPayload.orElse("empty"));
 
-        // Phase 5: metadata에서 authz 정보 추출 (Layer1 패턴 적용)
-        String authzSection = buildAuthzSection(event);
         String networkSection = buildNetworkSection(event);
         // Phase 22: buildDataQualitySection() 사용 - 누락 필드 명시적 표시
         String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event);
 
         // Threat Intelligence 핵심 (AI Native: null 체크)
         StringBuilder threatBuilder = new StringBuilder();
-        threatBuilder.append("Reputation: ").append(String.format("%.1f", threatIntel.getReputationScore()));
+        // AI Native: reputationScore 제거 - 항상 0.0 (설정 코드 없음, 죽은 데이터)
+        // AI Native: iocMatches 제거 - 항상 빈 문자열 (죽은 데이터)
 
         // Truncation 정책 적용
         TieredStrategyProperties.Truncation.Layer3Truncation layer3Truncation =
             tieredStrategyProperties.getTruncation().getLayer3();
-
-        String iocMatches = threatIntel.getIocMatches();
-        if (iocMatches != null && !iocMatches.isEmpty()) {
-            // SHA-256 해시(64자), URL 등 전체 IOC 데이터 유지
-            int maxIoc = layer3Truncation.getIocMatches();
-            threatBuilder.append(" | IOC: ").append(iocMatches.substring(0, Math.min(maxIoc, iocMatches.length())));
-        }
 
         String knownActors = threatIntel.getKnownActors();
         if (knownActors != null && !knownActors.isEmpty()) {
@@ -136,50 +126,30 @@ public class Layer3PromptTemplate {
             historyBuilder.append("Similar: ").append(similarIncidents.substring(0, Math.min(30, similarIncidents.length())));
         }
 
-        // vulnerabilityHistory 추가 (AI Native: null 체크, Truncation 정책 적용)
-        String vulnHistory = historicalContext.getVulnerabilityHistory();
-        if (vulnHistory != null && !vulnHistory.isEmpty()) {
-            int maxVulnerabilities = layer3Truncation.getVulnerabilities();
-            String vulnSummary = vulnHistory.length() > maxVulnerabilities
-                ? vulnHistory.substring(0, maxVulnerabilities - 3) + "..." : vulnHistory;
-            historyBuilder.append("\nVulnerabilities: ").append(vulnSummary);
-        }
+        // AI Native: vulnerabilityHistory 제거 - 항상 빈 문자열 (죽은 데이터)
         String historySummary = historyBuilder.toString();
 
-        // AI Native: System Context - metadata에 있는 실제 값만 포함 (기본값 제거)
-        // 값이 없으면 해당 필드 생략, LLM이 targetResource 경로로 직접 판단
-        StringBuilder systemBuilder = new StringBuilder();
-        String assetCrit = systemContext.getAssetCriticality();
-        String dataSens = systemContext.getDataSensitivity();
-        String compliance = systemContext.getComplianceRequirements();
-        String posture = systemContext.getSecurityPosture();
+        // AI Native: SystemContext 제거 - asset.criticality, data.sensitivity,
+        // compliance.requirements, security.posture 모두 설정 코드 없음 (항상 null, 죽은 데이터)
 
-        // 실제 값이 있는 필드만 포함
-        if (assetCrit != null && !assetCrit.isEmpty()) {
-            systemBuilder.append("Asset: ").append(assetCrit);
+        // AI Native v4.0: Baseline 컨텍스트 섹션 (항상 출력 - Zero Trust)
+        // STATUS 라벨 추가: 상태 메시지와 실제 데이터를 명확히 구분하여 LLM 오인 방지
+        StringBuilder baselineSectionBuilder = new StringBuilder();
+        baselineSectionBuilder.append("=== USER BEHAVIOR BASELINE ===\n");
+        if (isValidBaseline(baselineContext)) {
+            // 유효한 baseline 데이터 - sanitization 적용
+            String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
+            baselineSectionBuilder.append("STATUS: Available\n");
+            baselineSectionBuilder.append(sanitizedBaseline);
+        } else if (baselineContext != null && baselineContext.startsWith("[")) {
+            // 상태 메시지 (SERVICE_UNAVAILABLE, NO_USER_ID, NO_DATA)
+            baselineSectionBuilder.append("STATUS: ").append(baselineContext).append("\n");
+            baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable");
+        } else {
+            baselineSectionBuilder.append("STATUS: [NEW_USER] No baseline established for this user\n");
+            baselineSectionBuilder.append("IMPACT: Cannot compare against historical patterns");
         }
-        if (dataSens != null && !dataSens.isEmpty()) {
-            if (systemBuilder.length() > 0) systemBuilder.append(" | ");
-            systemBuilder.append("Data: ").append(dataSens);
-        }
-        if (compliance != null && !compliance.isEmpty()) {
-            if (systemBuilder.length() > 0) systemBuilder.append("\n");
-            int maxCompliance = layer3Truncation.getCompliance();
-            String compSummary = compliance.length() > maxCompliance
-                ? compliance.substring(0, maxCompliance - 3) + "..." : compliance;
-            systemBuilder.append("Compliance: ").append(compSummary);
-        }
-        if (posture != null && !posture.isEmpty()) {
-            if (systemBuilder.length() > 0) systemBuilder.append(" | ");
-            systemBuilder.append("Posture: ").append(posture);
-        }
-        String systemSummary = systemBuilder.toString();
-
-        // AI Native (Phase 9): Baseline 컨텍스트 섹션
-        // Phase 2-7: null -> N/A 명시적 표현
-        String baselineSection = (baselineContext != null && !baselineContext.isEmpty())
-            ? "=== USER BEHAVIOR BASELINE ===\n" + baselineContext
-            : "=== USER BEHAVIOR BASELINE ===\nBaseline: N/A (Not available for expert analysis)";
+        String baselineSection = baselineSectionBuilder.toString();
 
         // Phase 5: metadata에서 추출한 풍부한 컨텍스트 정보 제공
         // AI Native v3.3.0: 4개 Action (ALLOW/BLOCK/CHALLENGE/ESCALATE)
@@ -188,13 +158,15 @@ public class Layer3PromptTemplate {
 
         // 1. 이벤트 기본 정보 (AI Native: null 값 조건부 출력)
         prompt.append("=== EVENT ===\n");
-        if (eventType != null) {
-            prompt.append("Type: ").append(eventType).append(" | Severity: ").append(severity).append("\n");
-        } else {
-            prompt.append("Severity: ").append(severity).append("\n");
-        }
         if (userId != null) {
             prompt.append("User: ").append(userId).append("\n");
+        }
+
+        // AI Native v4.1.0: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null) {
+            appendMetadataIfPresent(prompt, metadata, "auth.failure_count", "FailureCount");
+            appendMetadataIfPresent(prompt, metadata, "authz.trustScore", "TrustScore");
         }
 
         // 2. 네트워크 정보 (Zero Trust: 필수 출력)
@@ -202,13 +174,7 @@ public class Layer3PromptTemplate {
         prompt.append("\n=== NETWORK ===\n");
         prompt.append(networkSection).append("\n");
 
-        // 3. Authorization 정보 (metadata에서 추출)
-        if (!authzSection.isEmpty()) {
-            prompt.append("\n=== AUTHORIZATION ===\n");
-            prompt.append(authzSection).append("\n");
-        }
-
-        // 4. 페이로드 정보 (있는 경우만, Truncation 정책 적용)
+        // 3. 페이로드 정보 (있는 경우만, Truncation 정책 적용)
         if (!"empty".equals(fullPayload)) {
             prompt.append("\n=== PAYLOAD ===\n");
             int maxPayload = layer3Truncation.getPayload();
@@ -217,14 +183,19 @@ public class Layer3PromptTemplate {
             prompt.append(payloadSummary).append("\n");
         }
 
-        // 5. Layer1/Layer2 분석 결과 (AI Native: null 값 조건부 출력, "?" 기본값 제거)
+        // AI Native v4.0: Layer1/Layer2 분석 결과 - NaN 체크 추가 (LLM 혼란 방지)
+        // NaN 검증: LLM이 "Risk=NaN"을 이해하지 못하므로 "[NOT_ANALYZED]" 라벨 사용
         prompt.append("\n=== PREVIOUS LAYER ANALYSIS ===\n");
-        prompt.append("Layer1: Risk=").append(String.format("%.2f", layer1Decision.getRiskScore()));
+
+        // Layer1 결과
+        double l1RiskScore = layer1Decision.getRiskScore();
+        String l1RiskStr = Double.isNaN(l1RiskScore) ? "[NOT_ANALYZED]" : String.format("%.2f", l1RiskScore);
+        prompt.append("Layer1: Risk=").append(l1RiskStr);
         if (layer1Decision.getAction() != null) {
             prompt.append(" | Action=").append(layer1Decision.getAction().toString());
         }
         Double l1Confidence = layer1Decision.getConfidence();
-        if (l1Confidence != null) {
+        if (l1Confidence != null && !l1Confidence.isNaN()) {
             prompt.append(" | Confidence=").append(String.format("%.2f", l1Confidence));
         }
         prompt.append("\n");
@@ -236,9 +207,18 @@ public class Layer3PromptTemplate {
             }
             prompt.append("L1 Reason: ").append(reasoning).append("\n");
         }
-        prompt.append("Layer2: Risk=").append(String.format("%.2f", layer2Decision.getRiskScore()));
+
+        // Layer2 결과
+        double l2RiskScore = layer2Decision.getRiskScore();
+        String l2RiskStr = Double.isNaN(l2RiskScore) ? "[NOT_ANALYZED]" : String.format("%.2f", l2RiskScore);
+        prompt.append("Layer2: Risk=").append(l2RiskStr);
         if (layer2Decision.getAction() != null) {
             prompt.append(" | Action=").append(layer2Decision.getAction().toString());
+        }
+        // AI Native v3.0: Layer2 confidence 추가 - LLM이 Layer2 판단의 신뢰도를 참고하여 최종 판단
+        Double l2Confidence = layer2Decision.getConfidence();
+        if (l2Confidence != null && !l2Confidence.isNaN()) {
+            prompt.append(" | Confidence=").append(String.format("%.2f", l2Confidence));
         }
         if (layer2Decision.getThreatCategory() != null) {
             prompt.append(" | Category=").append(layer2Decision.getThreatCategory());
@@ -256,17 +236,15 @@ public class Layer3PromptTemplate {
         prompt.append("\n=== THREAT INTELLIGENCE ===\n");
         prompt.append(threatSummary).append("\n");
 
-        // 7. 과거 이력 (AI Native: 빈 경우 생략)
+        // 7. 과거 이력 - 항상 출력 (Zero Trust)
+        prompt.append("\n=== HISTORICAL CONTEXT ===\n");
         if (!historySummary.isEmpty()) {
-            prompt.append("\n=== HISTORICAL CONTEXT ===\n");
             prompt.append(historySummary).append("\n");
+        } else {
+            prompt.append("[NO_DATA] No historical context available for this event\n");
         }
 
-        // 8. 시스템 컨텍스트 (AI Native: 실제 metadata 값이 있을 때만 포함)
-        if (!systemSummary.isEmpty()) {
-            prompt.append("\n=== SYSTEM CONTEXT ===\n");
-            prompt.append(systemSummary).append("\n");
-        }
+        // AI Native: SYSTEM CONTEXT 섹션 제거 - 모든 필드가 항상 null (죽은 데이터)
 
         // 9. 사용자 Baseline
         prompt.append("\n").append(baselineSection).append("\n");
@@ -276,62 +254,28 @@ public class Layer3PromptTemplate {
         prompt.append("\n=== DATA QUALITY ===\n");
         prompt.append(dataQualitySection);
 
-        // 12. 응답 형식 (AI Native v3.4.0 - 액션 우선 원칙 + 기준선 학습 연동)
+        // 12. 응답 형식 (AI Native v4.0.0 - 중립적 정보 제공, 유도 금지)
         prompt.append("""
 
+            === ACTIONS ===
+            A (ALLOW): Permit the request
+            B (BLOCK): Deny the request
+            C (CHALLENGE): Request additional verification (MFA)
+            E (ESCALATE): Requires human security analyst review
+
             === RESPONSE FORMAT ===
-            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>","m":"<MITRE>","rec":"<recommendation>"}
-            a: YOUR FINAL DECISION (one of A/B/C/E) - Action is primary
-            r: risk level supporting your action (0=safe, 1=attack) - for traceability
-            c: your confidence in this decision (0-1)
-            d: brief reason (max 30 tokens)
+            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>","m":"<MITRE>","rec":"<recommendation>","i":<boolean>}
+
+            r: Your risk assessment (0=safe, 1=critical threat)
+            c: Your confidence level (0=uncertain, 1=certain)
+            a: Your action decision
+            d: Detailed reasoning (max 50 tokens)
             m: MITRE ATT&CK technique if applicable (e.g., T1078, T1566)
-            rec: specific recommendation for SOC (max 20 tokens)
-
-            === ACTION SELECTION RULES (MANDATORY - EXPERT LEVEL) ===
-            You MUST follow these rules when selecting action:
-
-            1. A (ALLOW): Use ONLY when you are CERTAIN this is normal behavior
-               - Verified safe after comprehensive analysis (threat intel, history, baseline)
-               - ALLOW means this pattern WILL BE LEARNED as the user's normal baseline
-               - Wrong ALLOW = baseline pollution = future attacks may bypass detection
-
-            2. B (BLOCK): Use when you are CERTAIN this is malicious
-               - IOC match, MITRE technique confirmed, malware signature detected
-               - BLOCK patterns are NEVER learned into baseline
-
-            3. C (CHALLENGE): Use when request SEEMS normal but evidence is conflicting
-               - Strong suspicion but not confirmed attack
-               - APT-like patterns, zero-day suspicion
-               - This triggers MFA/human verification before proceeding
-
-            4. E (ESCALATE): HUMAN SOC ANALYST REQUIRED
-               - Layer3 (final layer) cannot make confident decision
-               - Use when: novel attack patterns, conflicting evidence, or truly uncertain
-
-            CRITICAL WARNING:
-            - If NOT CERTAIN, do NOT return A (ALLOW)
-            - This is the FINAL layer - your decision has real consequences
-            - A wrong ALLOW can permanently pollute the baseline
-            - For APT/zero-day: prefer C (CHALLENGE) over A (ALLOW)
-
-            === AI NATIVE PRINCIPLE ===
-            - This is the FINAL layer. YOU must make a decision.
-            - E (ESCALATE) means "require human SOC analyst" - use only when truly uncertain.
-            - For APT/zero-day patterns: prefer C (CHALLENGE) with detailed reasoning.
-            - Action takes precedence over risk score if they conflict.
-            - Always provide MITRE technique (m) if threat is detected.
+            rec: Recommendation for SOC (max 20 tokens)
+            i: Create security incident (true if B selected)
             """);
 
         return prompt.toString();
-    }
-
-    /**
-     * Phase 5: metadata에서 Authorization 정보 추출 (Layer1 패턴 적용)
-     * PromptTemplateUtils로 위임
-     */
-    private String buildAuthzSection(SecurityEvent event) {
-        return PromptTemplateUtils.buildAuthzSection(event);
     }
 
     /**
@@ -374,19 +318,6 @@ public class Layer3PromptTemplate {
             network.append("UserAgent: ").append(ua).append("\n");
         }
 
-        // targetResource, httpMethod는 eventEnricher에서 추출 - 프롬프트 인젝션 방어 적용
-        Optional<String> targetResource = eventEnricher.getTargetResource(event);
-        Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
-
-        if (targetResource.isPresent() && isValidData(targetResource.get())) {
-            String sanitizedTarget = PromptTemplateUtils.sanitizeUserInput(targetResource.get());
-            network.append("Target: ").append(sanitizedTarget).append("\n");
-        }
-
-        if (httpMethod.isPresent() && isValidData(httpMethod.get())) {
-            network.append("HttpMethod: ").append(httpMethod.get()).append("\n");
-        }
-
         return network.toString().trim();
     }
 
@@ -421,6 +352,55 @@ public class Layer3PromptTemplate {
      */
     private int calculateDataQuality(SecurityEvent event) {
         return PromptTemplateUtils.calculateDataQuality(event);
+    }
+
+    /**
+     * AI Native v4.1.0: metadata에서 값을 추출하여 프롬프트에 추가
+     * Severity 대신 원시 메트릭을 LLM에게 제공
+     *
+     * @param sb 프롬프트 StringBuilder
+     * @param metadata 이벤트 메타데이터
+     * @param metadataKey metadata에서 조회할 키
+     * @param promptLabel 프롬프트에 표시할 라벨
+     */
+    private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
+        if (metadata == null) {
+            return;
+        }
+        Object value = metadata.get(metadataKey);
+        if (value != null) {
+            sb.append(promptLabel).append(": ").append(value).append("\n");
+        }
+    }
+
+    /**
+     * Baseline 데이터가 유효한지 검사 (Zero Trust)
+     *
+     * 상태 메시지는 유효한 데이터가 아님:
+     * - [SERVICE_UNAVAILABLE]: 서비스 미구성
+     * - [NO_USER_ID]: 사용자 ID 없음
+     * - [NO_DATA]: 데이터 없음
+     *
+     * @param baseline baseline 컨텍스트 문자열
+     * @return 유효하면 true
+     */
+    private boolean isValidBaseline(String baseline) {
+        if (baseline == null || baseline.isEmpty()) {
+            return false;
+        }
+        // Zero Trust: 상태 메시지는 유효한 데이터가 아님
+        if (baseline.startsWith("[SERVICE_UNAVAILABLE]") ||
+            baseline.startsWith("[NO_USER_ID]") ||
+            baseline.startsWith("[NO_DATA]")) {
+            return false;
+        }
+        // Zero Trust: CRITICAL 경고가 포함된 신규 사용자 메시지는 반드시 출력
+        if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE")) {
+            return true;
+        }
+        return !baseline.equalsIgnoreCase("Not available")
+            && !baseline.equalsIgnoreCase("none")
+            && !baseline.equalsIgnoreCase("N/A");
     }
 
     /**

@@ -92,6 +92,12 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
         String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
 
         return ThreatAssessment.builder()
+                .assessmentId(java.util.UUID.randomUUID().toString())
+                .eventId(event.getEventId())
+                .threatType("Potential Threat") // 기본값
+                .description(decision.getReasoning())
+                .evaluator("Layer1-FastFilter")
+                .assessedAt(LocalDateTime.now())
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
                 .indicators(new ArrayList<>())
@@ -99,6 +105,7 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
                 .strategyName("Layer1-FastFilter")
                 .shouldEscalate(shouldEscalate)
                 .action(action)  // AI Native: LLM action 직접 저장
+                .timestamp(LocalDateTime.now()) // Timestamp 필드 추가
                 .build();
     }
 
@@ -116,10 +123,20 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
             String knownPatterns = getKnownPatterns(event);
             String userId = event.getUserId();
-            String baselineContext = null;
-            if (baselineLearningService != null && userId != null) {
+
+            // Zero Trust: 서비스 상태를 명시적으로 LLM에게 전달
+            String baselineContext;
+            if (baselineLearningService == null) {
+                baselineContext = "[SERVICE_UNAVAILABLE] Baseline learning service not configured";
+            } else if (userId == null) {
+                baselineContext = "[NO_USER_ID] Cannot retrieve baseline without user identification";
+            } else {
                 baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
-                log.debug("[Layer1] Baseline context generated for user {}", userId);
+                if (baselineContext == null || baselineContext.isEmpty()) {
+                    baselineContext = "[NO_DATA] Baseline service returned empty response";
+                } else {
+                    log.debug("[Layer1] Baseline context generated for user {}", userId);
+                }
             }
 
             String promptText = promptTemplate.buildPrompt(event, knownPatterns, baselineContext);
@@ -181,67 +198,88 @@ public class Layer1FastFilterStrategy extends AbstractTieredStrategy {
 
     /**
      * Phase 5.3: Layer3 학습 패턴 + RAG 기반 위협 패턴 조회
+     *
+     * Zero Trust 원칙: 서비스 상태를 명시적으로 LLM에게 전달
+     * - 서비스 null: [SERVICE_UNAVAILABLE] 메시지
+     * - 데이터 없음: [NO_DATA] 메시지
+     * - 에러 발생: [ERROR] 메시지 + 원인
+     * - 데이터 있음: 실제 위협 패턴 문자열
      */
     private String getKnownPatterns(SecurityEvent event) {
-        StringBuilder patterns = new StringBuilder();
-
-        if (unifiedVectorService != null) {
-            try {
-                String searchQuery = buildThreatSearchQuery(event);
-
-                // AI Native v3.3.0: similarityThreshold 제거 - LLM이 직접 관련성 판단
-                SearchRequest searchRequest = SearchRequest.builder()
-                    .query(searchQuery)
-                    .topK(ragTopK)
-                    .build();
-
-                List<Document> threatDocs = unifiedVectorService.searchSimilar(searchRequest);
-
-                if (threatDocs != null && !threatDocs.isEmpty()) {
-                    for (Document doc : threatDocs) {
-                        String threatInfo = extractThreatInfo(doc);
-                        if (threatInfo != null && !threatInfo.isBlank()) {
-                            if (!patterns.isEmpty()) {
-                                patterns.append(", ");
-                            }
-                            patterns.append(threatInfo);
-                        }
-                    }
-                    log.debug("RAG threat patterns found: {} docs for event {}",
-                        threatDocs.size(), event.getEventId());
-                }
-            } catch (Exception e) {
-                log.warn("Failed to retrieve RAG threat patterns: {}", e.getMessage());
-            }
+        // Zero Trust: 서비스 상태를 명시적으로 LLM에게 전달
+        if (unifiedVectorService == null) {
+            return "[SERVICE_UNAVAILABLE] RAG threat pattern service not configured";
         }
 
-        // AI Native: 기본값 "none" 제거 - 빈 문자열 반환, LLM이 직접 인식
-        return patterns.toString();
+        StringBuilder patterns = new StringBuilder();
+        try {
+            String searchQuery = buildThreatSearchQuery(event);
+
+            // AI Native v3.3.0: similarityThreshold 제거 - LLM이 직접 관련성 판단
+            SearchRequest searchRequest = SearchRequest.builder()
+                .query(searchQuery)
+                .topK(ragTopK)
+                .build();
+
+            List<Document> threatDocs = unifiedVectorService.searchSimilar(searchRequest);
+
+            if (threatDocs == null || threatDocs.isEmpty()) {
+                return "[NO_DATA] No threat patterns found in vector store";
+            }
+
+            for (Document doc : threatDocs) {
+                String threatInfo = extractThreatInfo(doc);
+                if (threatInfo != null && !threatInfo.isBlank()) {
+                    if (!patterns.isEmpty()) {
+                        patterns.append(", ");
+                    }
+                    patterns.append(threatInfo);
+                }
+            }
+
+            if (patterns.isEmpty()) {
+                return "[NO_DATA] No threat patterns found in vector store";
+            }
+
+            log.debug("RAG threat patterns found: {} docs for event {}",
+                threatDocs.size(), event.getEventId());
+            return patterns.toString();
+
+        } catch (Exception e) {
+            log.warn("Failed to retrieve RAG threat patterns: {}", e.getMessage());
+            return "[ERROR] Failed to retrieve threat patterns: " + e.getMessage();
+        }
     }
 
     /**
      * 이벤트 기반 위협 검색 쿼리 생성
+     * AI Native: eventType 제거 - 행동 패턴 기반 검색
      */
     private String buildThreatSearchQuery(SecurityEvent event) {
         StringBuilder query = new StringBuilder();
-
-        // 이벤트 타입 기반 쿼리
-        if (event.getEventType() != null) {
-            query.append(event.getEventType().toString()).append(" ");
-        }
-
-        // AI Native: deprecated getThreatType() 제거
-        // ThreatAssessment에서 위협 유형 관리
 
         // 소스 IP 기반 위협 검색
         if (event.getSourceIp() != null && !event.getSourceIp().equals("unknown")) {
             query.append("IP:").append(event.getSourceIp()).append(" ");
         }
 
-        // AI Native: deprecated getAttackVector() 제거
-        // 공격 벡터 정보는 metadata 또는 ThreatAssessment에서 관리
+        // 사용자 기반 위협 검색
+        if (event.getUserId() != null && !event.getUserId().isEmpty()) {
+            query.append("user:").append(event.getUserId()).append(" ");
+        }
 
-        return query.toString().trim();
+        // 세션 기반 검색
+        if (event.getSessionId() != null) {
+            query.append("session ");
+        }
+
+        // 쿼리가 비어있으면 기본 쿼리
+        String result = query.toString().trim();
+        if (result.isEmpty()) {
+            return "security threat pattern";
+        }
+
+        return result;
     }
 
     /**

@@ -150,8 +150,9 @@ public class RedisSecurityEventCollector {
                         // 타입 정보 포함 형식 - 두 번째 요소만 파싱
                         SecurityEvent event = objectMapper.treeToValue(rootNode.get(1), SecurityEvent.class);
 
-                        logger.debug("[RedisCollector] Parsed event from typed array - eventId: {}, type: {}",
-                            event.getEventId(), event.getEventType());
+                        // AI Native: eventType 제거 - userId, severity 기반 로깅
+                        logger.debug("[RedisCollector] Parsed event from typed array - eventId: {}, userId: {}",
+                            event.getEventId(), event.getUserId());
 
                         event.setSource(SecurityEvent.EventSource.REDIS);
                         event.addMetadata("redis.channel", channel.toString());
@@ -187,8 +188,9 @@ public class RedisSecurityEventCollector {
                     // 단일 객체 처리
                     SecurityEvent event = objectMapper.readValue(msg, SecurityEvent.class);
 
-                    logger.debug("[RedisCollector] Parsed event - eventId: {}, type: {}, userId: {}",
-                        event.getEventId(), event.getEventType(), event.getUserId());
+                    // AI Native: eventType 제거
+                    logger.debug("[RedisCollector] Parsed event - eventId: {}, severity: {}, userId: {}",
+                        event.getEventId(), event.getSeverity(), event.getUserId());
 
                     event.setSource(SecurityEvent.EventSource.REDIS);
                     event.addMetadata("redis.channel", channel.toString());
@@ -336,39 +338,27 @@ public class RedisSecurityEventCollector {
     private void notifyListeners(SecurityEvent event) {
         for (SecurityEventListener listener : listeners) {
             try {
-                if (listener.canHandle(event.getEventType()) && 
-                    listener.canHandle(event.getSource())) {
+                // AI Native: eventType 기반 필터링 제거 - 소스만 확인
+                if (listener.canHandle(event.getSource())) {
                     listener.onSecurityEvent(event);
-                    
-                    // Route to specialized handlers
-                    routeToSpecializedHandler(listener, event);
+
+                    // AI Native: 특화 핸들러 라우팅 deprecated - LLM 분석 결과 기반
+                    // routeToSpecializedHandler(listener, event);
                 }
             } catch (Exception e) {
                 listener.onError(event, e);
             }
         }
     }
-    
+
+    /**
+     * @deprecated AI Native: eventType 필드 제거로 인해 사용 중단
+     * LLM이 분석하여 action을 결정하므로 eventType 기반 라우팅 불필요
+     */
+    @Deprecated(since = "4.0.0", forRemoval = true)
     private void routeToSpecializedHandler(SecurityEventListener listener, SecurityEvent event) {
-        switch (event.getEventType()) {
-            case INTRUSION_ATTEMPT:
-            case NETWORK_SCAN:
-                listener.onNetworkEvent(event);
-                break;
-            case AUTH_FAILURE:
-            case PRIVILEGE_ESCALATION:
-                listener.onAuthenticationEvent(event);
-                break;
-            case MALWARE_DETECTED:
-                listener.onMalwareEvent(event);
-                break;
-            case ANOMALY_DETECTED:
-                listener.onAnomalyEvent(event);
-                break;
-            case POLICY_VIOLATION:
-                listener.onPolicyViolationEvent(event);
-                break;
-        }
+        // AI Native: eventType 기반 라우팅 제거 - 모든 이벤트는 onSecurityEvent로 통합 처리
+        // LLM이 분석 후 action (ALLOW/BLOCK/CHALLENGE/ESCALATE)을 결정
         
         // AI Native: action 기반 고위험 이벤트 판단
         Map<String, Object> metadata = event.getMetadata();
@@ -381,9 +371,9 @@ public class RedisSecurityEventCollector {
     private SecurityEvent parseThreatAlert(String json) throws Exception {
         Map<String, Object> data = objectMapper.readValue(json, Map.class);
         
+        // AI Native v4.0.0: eventType 제거 - severity, source 기반
         return SecurityEvent.builder()
             .eventId(UUID.randomUUID().toString())
-            .eventType(SecurityEvent.EventType.THREAT_DETECTED)
             .source(SecurityEvent.EventSource.THREAT_INTEL)
             .severity(SecurityEvent.Severity.HIGH)
             .timestamp(LocalDateTime.now())
@@ -395,9 +385,9 @@ public class RedisSecurityEventCollector {
     private SecurityEvent parseIncident(String json) throws Exception {
         Map<String, Object> data = objectMapper.readValue(json, Map.class);
         
+        // AI Native v4.0.0: eventType 제거 - severity, source 기반
         return SecurityEvent.builder()
             .eventId((String) data.get("incident_id"))
-            .eventType(SecurityEvent.EventType.INCIDENT_CREATED)
             .source(SecurityEvent.EventSource.SIEM)
             .severity(parseSeverity((String) data.get("severity")))
             .timestamp(LocalDateTime.now())

@@ -42,18 +42,15 @@ public interface SecurityEventListener {
     /**
      * 고위험 이벤트 처리
      *
-     * AI Native v3.3.0: severity 기반 판단 (하위 호환)
+     * AI Native v4.1.0: Severity 필터링 제거 - 모든 이벤트 LLM 분석
      * onBlockEvent() 사용 권장
      *
      * @deprecated AI Native 원칙 위반 - onBlockEvent() 사용 권장
      */
     @Deprecated(since = "3.1.0", forRemoval = true)
     default void onHighRiskEvent(SecurityEvent event) {
-        // AI Native: severity 기반 판단 (하위 호환)
-        if (event.getSeverity() == SecurityEvent.Severity.CRITICAL ||
-            event.getSeverity() == SecurityEvent.Severity.HIGH) {
-            onSecurityEvent(event);
-        }
+        // AI Native v4.1.0: Severity 필터링 제거 - 모든 이벤트 전달
+        onSecurityEvent(event);
     }
 
     /**
@@ -87,49 +84,52 @@ public interface SecurityEventListener {
     
     /**
      * 네트워크 이벤트 처리
+     * AI Native v4.1.0: EventSource 필터링 제거 - 모든 이벤트 LLM 분석
      */
     default void onNetworkEvent(SecurityEvent event) {
-        if (event.isNetworkRelated()) {
-            onSecurityEvent(event);
-        }
+        // AI Native v4.1.0: EventSource 필터링 제거 - 모든 이벤트 전달
+        onSecurityEvent(event);
     }
-    
+
     /**
      * 인증 이벤트 처리
+     * AI Native v4.1.0: EventSource 필터링 제거 - 모든 이벤트 LLM 분석
      */
     default void onAuthenticationEvent(SecurityEvent event) {
-        if (event.isAuthenticationRelated()) {
-            onSecurityEvent(event);
-        }
+        // AI Native v4.1.0: EventSource 필터링 제거 - 모든 이벤트 전달
+        onSecurityEvent(event);
     }
     
     /**
-     * 맬웨어 이벤트 처리
+     * 맬웨어 이벤트 처리 (AI Native: eventType 제거 - severity 기반 판단)
+     * @deprecated eventType 필드 제거로 인해 사용 중단. onSecurityEvent() 사용 권장
      */
+    @Deprecated(since = "4.0.0", forRemoval = true)
     default void onMalwareEvent(SecurityEvent event) {
-        if (event.getEventType() == SecurityEvent.EventType.MALWARE_DETECTED) {
-            onSecurityEvent(event);
-        }
+        // AI Native: 모든 이벤트를 LLM이 분석하므로 무조건 전달
+        onSecurityEvent(event);
     }
-    
+
     /**
-     * 이상 탐지 이벤트 처리
+     * 이상 탐지 이벤트 처리 (AI Native: eventType 제거 - LLM 분석 기반)
+     * @deprecated eventType 필드 제거로 인해 사용 중단. onSecurityEvent() 사용 권장
      */
+    @Deprecated(since = "4.0.0", forRemoval = true)
     default void onAnomalyEvent(SecurityEvent event) {
-        if (event.getEventType() == SecurityEvent.EventType.ANOMALY_DETECTED) {
-            onSecurityEvent(event);
-        }
+        // AI Native: 모든 이벤트를 LLM이 분석하므로 무조건 전달
+        onSecurityEvent(event);
     }
-    
+
     /**
-     * 정책 위반 이벤트 처리
+     * 정책 위반 이벤트 처리 (AI Native: eventType 제거 - LLM 분석 기반)
+     * @deprecated eventType 필드 제거로 인해 사용 중단. onSecurityEvent() 사용 권장
      */
+    @Deprecated(since = "4.0.0", forRemoval = true)
     default void onPolicyViolationEvent(SecurityEvent event) {
-        if (event.getEventType() == SecurityEvent.EventType.POLICY_VIOLATION) {
-            onSecurityEvent(event);
-        }
+        // AI Native: 모든 이벤트를 LLM이 분석하므로 무조건 전달
+        onSecurityEvent(event);
     }
-    
+
     /**
      * 에러 처리
      */
@@ -137,13 +137,10 @@ public interface SecurityEventListener {
         // 기본 에러 처리 - 로깅
         log.error("[SecurityEventListener] Error processing event {}: {}", event.getEventId(), e.getMessage(), e);
     }
-    
-    /**
-     * 이벤트 타입 처리 가능 여부
-     */
-    default boolean canHandle(SecurityEvent.EventType eventType) {
-        return true; // 기본적으로 모든 타입 처리
-    }
+
+    // AI Native v4.0.0: canHandle(EventType) 메서드 완전 제거
+    // eventType 필드가 SecurityEvent에서 제거됨에 따라 삭제
+    // 대체: canHandle(SecurityEvent.EventSource source) 사용
     
     /**
      * 이벤트 소스 처리 가능 여부

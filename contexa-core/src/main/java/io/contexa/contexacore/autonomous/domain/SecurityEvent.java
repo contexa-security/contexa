@@ -30,10 +30,7 @@ public class SecurityEvent {
     // 기본 필드
     @Builder.Default
     private String eventId = UUID.randomUUID().toString();
-    
-    @Builder.Default
-    private EventType eventType = EventType.UNKNOWN;
-    
+
     @Builder.Default
     private EventSource source = EventSource.UNKNOWN;
     
@@ -48,16 +45,16 @@ public class SecurityEvent {
     
     // 네트워크 정보
     private String sourceIp;
-    private String targetIp;
-    private Integer sourcePort;
-    private Integer targetPort;
+    // AI Native v3.1: 죽은 필드 제거 - LLM 프롬프트 미사용, 설정 코드 없음
+    // - targetIp: 네트워크 이벤트에서만 사용 → metadata로 이동
+    // - sourcePort: 네트워크 이벤트에서만 사용 → metadata로 이동
+    // - targetPort: 네트워크 이벤트에서만 사용 → metadata로 이동
     private String protocol;
     
     // 사용자 정보
     private String userId;  // Zero Trust 필수 - 사용자 식별자
     private String userName;
     private String sessionId;
-    private String organizationId;
     private String userAgent;
     
     // AI Native: 위협 정보 필드 제거됨 (v3.0.0)
@@ -75,86 +72,12 @@ public class SecurityEvent {
 
     private boolean blocked;
 
-    // 추가 필드
-    private String targetResource;  // Zero Trust - 접근 대상 리소스
-
     // AI Native: riskScore 필드 제거됨 (v3.0.0)
     // -> ThreatAssessment.riskScore 또는 SecurityDecision.riskScore 사용
     // -> Zero Trust 의사결정은 ACTION 기반, 점수는 감사/모니터링용
 
-    @Builder.Default
-    private Map<String, Object> details = new HashMap<>();
-    
-    /**
-     * 이벤트 타입 열거형
-     */
-    public enum EventType {
-        // 기본값
-        UNKNOWN("Unknown Event"),
-        
-        // 인증 관련
-        AUTH_FAILURE("Authentication Failure"),
-        AUTH_SUCCESS("Authentication Success"),
-        ACCESS_DENIED("Access Denied"),
-        PRIVILEGE_ESCALATION("Privilege Escalation"),
-        
-        // 공격 관련
-        INTRUSION_ATTEMPT("Intrusion Attempt"),
-        INTRUSION_SUCCESS("Intrusion Success"),
-        DATA_EXFILTRATION("Data Exfiltration"),
-        MALWARE_DETECTED("Malware Detected"),
-        BRUTE_FORCE("Brute Force Attack"),
-        CREDENTIAL_STUFFING("Credential Stuffing"),
-        ACCESS_CONTROL_VIOLATION("Access Control Violation"),
-        
-        // 탐지 관련
-        ANOMALY_DETECTED("Anomaly Detected"),
-        THREAT_DETECTED("Threat Detected"),
-        NETWORK_SCAN("Network Scan"),
-        SUSPICIOUS_ACTIVITY("Suspicious Activity"),
-        
-        // 공격 유형들
-        SQL_INJECTION_ATTACK("SQL Injection Attack"),
-        LATERAL_MOVEMENT("Lateral Movement"),
-        DDOS_ATTACK("DDoS Attack"),
-        PHISHING_ATTEMPT("Phishing Attempt"),
-        MALWARE_DEPLOYMENT("Malware Deployment"),
-        ZERO_DAY_EXPLOIT("Zero Day Exploit"),
-        INSIDER_THREAT("Insider Threat"),
-        RANSOMWARE_ATTACK("Ransomware Attack"),
-        APT_CAMPAIGN("APT Campaign"),
-        
-        // 정책 관련
-        POLICY_VIOLATION("Policy Violation"),
-        CONFIGURATION_CHANGE("Configuration Change"),
-        
-        // 시스템 관련
-        SYSTEM_COMPROMISE("System Compromise"),
-        SYSTEM_ERROR("System Error"),
-        
-        // 인시던트 관련
-        INCIDENT_CREATED("Incident Created"),
-        INCIDENT_UPDATED("Incident Updated"),
-        
-        // 추가 이벤트 타입들
-        DENIAL_OF_SERVICE("Denial of Service"),
-        COMMAND_CONTROL("Command and Control"),
-        
-        // 자율 학습용 이벤트 타입
-        ACCESS_VIOLATION("Access Violation"),
-        SYSTEM_ALERT("System Alert");
-        
-        private final String displayName;
-        
-        EventType(String displayName) {
-            this.displayName = displayName;
-        }
-        
-        public String getDisplayName() {
-            return displayName;
-        }
-    }
-    
+    // AI Native v3.1: details 필드 제거 - metadata와 중복, 죽은 필드
+
     /**
      * 이벤트 소스 열거형
      */
@@ -267,39 +190,7 @@ public class SecurityEvent {
     public boolean isBlockable() {
         return !blocked;
     }
-    
-    /**
-     * 인증 관련 이벤트 여부
-     * 
-     * @return 인증 관련이면 true
-     */
-    public boolean isAuthenticationRelated() {
-        return eventType == EventType.AUTH_FAILURE || 
-               eventType == EventType.AUTH_SUCCESS ||
-               eventType == EventType.PRIVILEGE_ESCALATION;
-    }
-    
-    /**
-     * 네트워크 관련 이벤트 여부
-     * 
-     * @return 네트워크 관련이면 true
-     */
-    public boolean isNetworkRelated() {
-        return eventType == EventType.INTRUSION_ATTEMPT || 
-               eventType == EventType.INTRUSION_SUCCESS ||
-               eventType == EventType.NETWORK_SCAN;
-    }
-    
-    /**
-     * 인시던트 관련 이벤트 여부
-     * 
-     * @return 인시던트 관련이면 true
-     */
-    public boolean isIncidentRelated() {
-        return eventType == EventType.INCIDENT_CREATED ||
-               eventType == EventType.INCIDENT_UPDATED;
-    }
-    
+
     /**
      * Zero Trust를 위한 userId 검증
      * 

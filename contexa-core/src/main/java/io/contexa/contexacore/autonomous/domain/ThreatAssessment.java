@@ -32,14 +32,6 @@ public class ThreatAssessment {
     private String assessmentId;
     private String eventId;
 
-    /**
-     * @deprecated v3.1.0: riskScore + action으로 대체됨.
-     *             AI Native 원칙에 따라 LLM이 action을 직접 결정하므로
-     *             임계값 기반 threatLevel 분류는 더 이상 사용하지 않음.
-     *             하위 호환성을 위해 유지되나 향후 버전에서 제거 예정.
-     */
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    private ThreatLevel threatLevel;
     private double riskScore;
     private String threatType;
     private String description;
@@ -50,17 +42,17 @@ public class ThreatAssessment {
     private List<String> indicators;
     private List<String> tactics;
     private List<String> techniques;
-    private Map<String, Object> metadata;
+    // AI Native v3.1: metadata 제거 - 죽은 필드 (설정 코드 없음)
     
     // 권장 조치
     private List<String> recommendedActions;
-    private String mitigationStrategy;
+    // AI Native v3.0: mitigationStrategy 제거 - 죽은 필드 (설정 코드 없음)
     private String strategyName;
-    private int priorityScore;
-    
+    // AI Native v3.0: priorityScore 제거 - 죽은 필드 (설정 코드 없음)
+
     // 평가 신뢰도
     private double confidence;
-    private String confidenceReason;
+    // AI Native v3.0: confidenceReason 제거 - 죽은 필드 (설정 코드 없음)
 
     private String action;
 
@@ -75,80 +67,15 @@ public class ThreatAssessment {
     private Map<String, String> frameworkMapping = new HashMap<>();
     private LocalDateTime timestamp;
 
-    // 패턴 정보 (Strategy 클래스들을 위한 필드)
-    private Set<String> patterns;
-
-    // reason 필드 (builder 호환성)
-    private String reason;
+    // AI Native v3.1: 죽은 필드 제거
+    // - patterns: 설정 코드 없음, 외부 호출 없음
+    // - reason: SecurityDecision.reasoning과 중복
     
-    // ============================================================
-    // AI Native 메서드 (riskScore + action 기반)
-    // ============================================================
-
-    /**
-     * 고위험 위협 여부 (AI Native - riskScore 기반)
-     *
-     * @return riskScore >= 0.7 이면 true
-     */
-    public boolean isHighRiskByScore() {
-        return riskScore >= 0.7;
-    }
-
-    /**
-     * 즉각 조치 필요 여부 (AI Native - riskScore 기반)
-     *
-     * @return riskScore >= 0.9 이면 true
-     */
-    public boolean requiresImmediateActionByScore() {
-        return riskScore >= 0.9;
-    }
-
-    /**
-     * 자동 차단 가능 여부 (AI Native - riskScore + confidence 기반)
-     *
-     * @return confidence > 0.8 AND riskScore >= 0.7 이면 true
-     */
-    public boolean canAutoBlockByScore() {
-        return confidence > 0.8 && riskScore >= 0.7;
-    }
-
     /**
      * Get confidence score (alias for confidence field)
      */
     public double getConfidenceScore() {
         return confidence;
     }
-    
-    /**
-     * 위협 수준 Enum
-     *
-     * @deprecated v3.1.0: riskScore + action으로 대체됨.
-     *             AI Native 원칙에 따라 LLM이 action을 직접 결정하므로
-     *             임계값 기반 ThreatLevel 분류는 더 이상 사용하지 않음.
-     *             SecurityIncident 엔티티에서는 여전히 사용됨 (JPA 호환성).
-     */
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    public enum ThreatLevel {
-        CRITICAL("Critical", 0.9),
-        HIGH("High", 0.7),
-        MEDIUM("Medium", 0.5),
-        LOW("Low", 0.3),
-        INFO("Info", 0.1);
 
-        private final String description;
-        private final double threshold;
-
-        ThreatLevel(String description, double threshold) {
-            this.description = description;
-            this.threshold = threshold;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public double getThreshold() {
-            return threshold;
-        }
-    }
 }

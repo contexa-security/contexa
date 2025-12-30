@@ -1,8 +1,11 @@
 package io.contexa.contexacore.autonomous.event.publisher;
 
-import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
-import io.contexa.contexacore.autonomous.event.domain.AuditEvent;
 import io.contexa.contexacommon.domain.TrustAssessment;
+import io.contexa.contexacore.autonomous.event.domain.AuditEvent;
+import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.Builder;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
@@ -10,11 +13,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -33,74 +34,98 @@ import java.util.UUID;
 @Slf4j
 @RequiredArgsConstructor
 public class AuthorizationEventPublisher {
-    
+
     private final ApplicationEventPublisher eventPublisher;
-    
+
     /**
-     * 웹 요청에 대한 인가 결정 이벤트 발행 (비동기)
-     * CustomDynamicAuthorizationManager에서 호출
-     * 
-     * 일반적인 경우 비동기로 처리하여 성능 영향 최소화
+     * 웹 요청에 대한 인가 결정 이벤트 발행 (동기 진입점)
+     *
+     * 동기 컨텍스트에서 request 정보를 먼저 추출한 후 비동기 처리.
+     * Tomcat request 객체 재활용(recycle) 문제 방지.
      */
-    @Async("securityEventExecutor")
-    public void publishWebAuthorizationDecisionAsync(
+    public void publishWebAuthorizationDecision(
             Authentication authentication,
             HttpServletRequest request,
             AuthorizationDecision decision,
             TrustAssessment trustAssessment) {
-        
+
+        // 동기 컨텍스트에서 request 정보 추출 (핵심!)
+        // @Async 비동기 스레드에서 request 객체 접근 시 IllegalStateException 방지
+        RequestInfo requestInfo = RequestInfo.from(request);
+
+        // 이벤트 발행 플래그 설정 (동기 컨텍스트에서 수행)
+        request.setAttribute("security.event.published", true);
+
+        // 추출된 정보로 비동기 처리
+        publishWebAuthorizationDecisionAsyncInternal(authentication, requestInfo, decision, trustAssessment);
+    }
+
+    /**
+     * 내부 비동기 처리 메서드 (RequestInfo 사용)
+     *
+     * HttpServletRequest 대신 불변 RequestInfo DTO를 받아 처리.
+     * Tomcat request 객체 재활용 문제 완전 방지.
+     */
+    @Async("securityEventExecutor")
+    void publishWebAuthorizationDecisionAsyncInternal(
+            Authentication authentication,
+            RequestInfo requestInfo,
+            AuthorizationDecision decision,
+            TrustAssessment trustAssessment) {
+
         try {
-            AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder = 
-                AuthorizationDecisionEvent.builder();
-            
-            // 기본 정보 설정
-            // userId는 SecurityEvent 변환 시 필수 - principal과 동일하게 설정
+            AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder =
+                    AuthorizationDecisionEvent.builder();
+
+            // 기본 정보 설정 (RequestInfo에서 추출)
             String userName = authentication != null ? authentication.getName() : null;
             builder.eventId(UUID.randomUUID().toString())
-                   .timestamp(Instant.now())
-                   .eventType("WEB_REQUEST")
-                   .principal(userName != null ? userName : "anonymous")
-                   .userId(userName)  // userId 필수 설정 (null이면 Cold Path에서 처리 불가)
-                   .resource(request.getRequestURI())
-                   .action(request.getMethod())
-                   .httpMethod(request.getMethod())
-                   .result(decision.isGranted() ?
-                       AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
-                       AuthorizationDecisionEvent.AuthorizationResult.DENIED)
-                   .clientIp(extractClientIp(request))
-                   .userAgent(extractUserAgent(request))  // X-Simulated-User-Agent 우선 읽기
-                   .sessionId(request.getSession(false) != null ? 
-                       request.getSession(false).getId() : null)
-                   .requestId(extractRequestId(request));
-            
+                    .timestamp(Instant.now())
+                    .eventType("WEB_REQUEST")
+                    .principal(userName != null ? userName : "anonymous")
+                    .userId(userName)
+                    .resource(requestInfo.getRequestUri())
+                    .action(requestInfo.getMethod())
+                    .httpMethod(requestInfo.getMethod())
+                    .result(decision.isGranted() ?
+                            AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
+                            AuthorizationDecisionEvent.AuthorizationResult.DENIED)
+                    .clientIp(requestInfo.getClientIp())
+                    .userAgent(requestInfo.getUserAgent())
+                    .sessionId(requestInfo.getSessionId())
+                    .requestId(requestInfo.getRequestId());
+
             // 사용자 정보 추가
             if (authentication != null && authentication.getPrincipal() != null) {
                 builder.userId(authentication.getName());
                 builder.organizationId(extractOrganizationId(authentication));
             }
-            
+
             // AI 평가 정보 추가
             if (trustAssessment != null) {
                 addAIAssessment(builder, trustAssessment);
             }
-            
+
             // 결정 이유 추출
             String reason = extractDecisionReason(decision, trustAssessment);
             builder.reason(reason);
-            
-            // 메타데이터 추가
-            Map<String, Object> metadata = extractWebMetadata(request, authentication);
+
+            // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
+            // LLM 프롬프트에서 NOT_PROVIDED 방지
+            builder.isNewSession(requestInfo.getIsNewSession())
+                    .isNewDevice(requestInfo.getIsNewDevice())
+                    .recentRequestCount(requestInfo.getRecentRequestCount());
+
+            // 메타데이터 추가 (RequestInfo 사용)
+            Map<String, Object> metadata = extractWebMetadata(requestInfo, authentication);
             builder.metadata(metadata);
-            
+
             // 이벤트 발행
             AuthorizationDecisionEvent event = builder.build();
             eventPublisher.publishEvent(event);
 
-            // 이벤트 발행 플래그 설정 (SecurityEventPublishingFilter에서 중복 방지)
-            request.setAttribute("security.event.published", true);
-
             log.debug("Web authorization event published: eventId={}, resource={}, result={}",
-                event.getEventId(), event.getResource(), event.getResult());
+                    event.getEventId(), event.getResource(), event.getResult());
 
         } catch (Exception e) {
             log.error("Failed to publish web authorization event", e);
@@ -108,87 +133,115 @@ public class AuthorizationEventPublisher {
     }
     
     /**
-     * 웹 요청에 대한 인가 결정 이벤트 발행 (동기)
-     * 
-     * 중요한 보안 이벤트의 경우 동기로 처리하여 확실히 기록
-     */
-    public void publishWebAuthorizationDecision(
-            Authentication authentication,
-            HttpServletRequest request,
-            AuthorizationDecision decision,
-            TrustAssessment trustAssessment) {
-        
-        publishWebAuthorizationDecisionAsync(authentication, request, decision, trustAssessment);
-    }
-    
-    /**
-     * @Protectable 메서드에 대한 인가 결정 이벤트 발행 (비동기)
+     * @Protectable 메서드에 대한 인가 결정 이벤트 발행 (동기 진입점)
      * AuthorizationManagerMethodInterceptor에서 호출
+     *
+     * 동기 컨텍스트에서 RequestInfo를 먼저 추출한 후 비동기 처리.
+     * Tomcat request 객체 재활용(recycle) 문제 방지.
      */
-    @Async("securityEventExecutor")
     public void publishMethodAuthorizationDecisionAsync(
             MethodInvocation methodInvocation,
             Authentication authentication,
             boolean granted,
             String denialReason) {
-        
+
+        // 동기 컨텍스트에서 RequestInfo 추출 (가능한 경우)
+        RequestInfo requestInfo = null;
+        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attrs != null) {
+            HttpServletRequest request = attrs.getRequest();
+            requestInfo = RequestInfo.from(request);
+            // 이벤트 발행 플래그 설정 (동기 컨텍스트에서 수행)
+            request.setAttribute("security.event.published", true);
+        }
+
+        // 추출된 정보로 비동기 처리
+        publishMethodAuthorizationDecisionAsyncInternal(
+                methodInvocation, authentication, granted, denialReason, requestInfo);
+    }
+
+    /**
+     * @Protectable 메서드 인가 이벤트 발행 (내부 비동기 처리)
+     *
+     * RequestInfo를 사용하여 비동기 스레드에서 안전하게 처리.
+     */
+    @Async("securityEventExecutor")
+    void publishMethodAuthorizationDecisionAsyncInternal(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            boolean granted,
+            String denialReason,
+            RequestInfo requestInfo) {
+
         try {
-            String resource = methodInvocation.getMethod().getDeclaringClass().getSimpleName() + 
-                            "." + methodInvocation.getMethod().getName();
-            
-            AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder = 
-                AuthorizationDecisionEvent.builder();
-            
+            String resource = methodInvocation.getMethod().getDeclaringClass().getSimpleName() +
+                    "." + methodInvocation.getMethod().getName();
+
+            AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder =
+                    AuthorizationDecisionEvent.builder();
+
             // 기본 정보 설정
-            // userId는 SecurityEvent 변환 시 필수 - principal과 동일하게 설정
             String userName = authentication != null ? authentication.getName() : null;
             builder.eventId(UUID.randomUUID().toString())
-                   .timestamp(Instant.now())
-                   .eventType("PROTECTABLE_METHOD")
-                   .principal(userName != null ? userName : "anonymous")
-                   .userId(userName)  // userId 필수 설정 (null이면 Cold Path에서 처리 불가)
-                   .resource(resource)
-                   .action("EXECUTE")
-                   .result(granted ?
-                       AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
-                       AuthorizationDecisionEvent.AuthorizationResult.DENIED)
-                   .reason(denialReason);
+                    .timestamp(Instant.now())
+                    .eventType("PROTECTABLE_METHOD")
+                    .principal(userName != null ? userName : "anonymous")
+                    .userId(userName)
+                    .resource(resource)
+                    .action("EXECUTE")
+                    .result(granted ?
+                            AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
+                            AuthorizationDecisionEvent.AuthorizationResult.DENIED)
+                    .reason(denialReason);
 
             // 사용자 정보 (조직 ID 및 추가 정보)
             if (authentication != null) {
                 builder.organizationId(extractOrganizationId(authentication));
-                
+
                 // Trust Score 추출
                 if (authentication.getDetails() instanceof TrustAssessment) {
                     TrustAssessment assessment = (TrustAssessment) authentication.getDetails();
                     builder.trustScore(assessment.score());
                     addAIAssessment(builder, assessment);
+                } else {
+                    // Zero Trust v6.0: TrustAssessment 없을 때 기본 trustScore 설정
+                    // 기본값 0.7 = 1.0 - threatScore(0.3) (ZeroTrustSecurityService 기본값)
+                    // 이전 문제: trustScore 미설정 → LLM이 신뢰도 판단 불가
+                    builder.trustScore(0.7);
                 }
+            } else {
+                // Zero Trust v6.0: 인증 정보 없으면 낮은 trustScore 설정
+                // 인증되지 않은 요청은 신뢰도가 낮음
+                builder.trustScore(0.5);
             }
-            
-            // HTTP 요청 정보 추출 (가능한 경우)
-            extractHttpInfoFromContext(builder);
-            
+
+            // HTTP 요청 정보 추가 (RequestInfo 사용, null 가능)
+            if (requestInfo != null) {
+                builder.clientIp(requestInfo.getClientIp())
+                        .sessionId(requestInfo.getSessionId())
+                        .userAgent(requestInfo.getUserAgent())
+                        .httpMethod(requestInfo.getMethod());
+
+                // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
+                // LLM 프롬프트에서 NOT_PROVIDED 방지
+                builder.isNewSession(requestInfo.getIsNewSession())
+                        .isNewDevice(requestInfo.getIsNewDevice())
+                        .recentRequestCount(requestInfo.getRecentRequestCount());
+            }
+
             // 메타데이터 추가
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("methodClass", methodInvocation.getMethod().getDeclaringClass().getName());
             metadata.put("methodName", methodInvocation.getMethod().getName());
             metadata.put("parameterTypes", methodInvocation.getMethod().getParameterTypes());
             builder.metadata(metadata);
-            
+
             // 이벤트 발행
             AuthorizationDecisionEvent event = builder.build();
             eventPublisher.publishEvent(event);
 
-            // 이벤트 발행 플래그 설정 (SecurityEventPublishingFilter에서 중복 방지)
-            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attrs != null) {
-                HttpServletRequest httpRequest = attrs.getRequest();
-                httpRequest.setAttribute("security.event.published", true);
-            }
-
             log.debug("Method authorization event published: eventId={}, resource={}, granted={}",
-                event.getEventId(), resource, granted);
+                    event.getEventId(), resource, granted);
 
         } catch (Exception e) {
             log.error("Failed to publish method authorization event", e);
@@ -323,21 +376,21 @@ public class AuthorizationEventPublisher {
     }
     
     /**
-     * 웹 요청 메타데이터 추출
+     * 웹 요청 메타데이터 추출 (RequestInfo 사용)
      */
-    private Map<String, Object> extractWebMetadata(HttpServletRequest request, Authentication authentication) {
+    private Map<String, Object> extractWebMetadata(RequestInfo requestInfo, Authentication authentication) {
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("requestPath", request.getServletPath());
-        metadata.put("queryString", request.getQueryString());
-        metadata.put("remoteHost", request.getRemoteHost());
-        metadata.put("protocol", request.getProtocol());
-        metadata.put("secure", request.isSecure());
-        
+        metadata.put("requestPath", requestInfo.getServletPath());
+        metadata.put("queryString", requestInfo.getQueryString());
+        metadata.put("remoteHost", requestInfo.getRemoteHost());
+        metadata.put("protocol", requestInfo.getProtocol());
+        metadata.put("secure", requestInfo.isSecure());
+
         if (authentication != null) {
             metadata.put("authorities", authentication.getAuthorities().toString());
             metadata.put("authenticated", authentication.isAuthenticated());
         }
-        
+
         return metadata;
     }
     
@@ -409,10 +462,101 @@ public class AuthorizationEventPublisher {
     }
     
     /**
-     * 위험 점수 계산
+     * AI Native: riskScore 계산 제거
+     *
+     * 이전: return 1.0 - trustScore (하드코딩 공식)
+     * 변경: trustScore만 제공, LLM이 직접 위험도 판단
+     *
+     * 이 메서드는 호환성을 위해 유지하되 null 반환
+     * (프롬프트 템플릿에서 riskScore 참조 제거됨)
      */
     private Double calculateRiskScore(TrustAssessment assessment) {
-        double trustScore = assessment.score();
-        return 1.0 - trustScore;
+        // AI Native: 하드코딩 공식 제거 - LLM이 trustScore로 직접 판단
+        return null;
+    }
+
+    /**
+     * HTTP 요청 정보를 담는 불변 DTO
+     * 비동기 처리 시 HttpServletRequest 객체 재활용(recycle) 문제 방지
+     *
+     * Tomcat은 HTTP 요청 처리 완료 후 request 객체를 재활용하므로,
+     * @Async 비동기 메서드에서 직접 접근하면 IllegalStateException 발생
+     */
+    @Builder
+    @Getter
+    public static class RequestInfo {
+        private final String requestUri;
+        private final String method;
+        private final String clientIp;
+        private final String userAgent;
+        private final String sessionId;
+        private final String requestId;
+        private final String servletPath;
+        private final String queryString;
+        private final String remoteHost;
+        private final String protocol;
+        private final boolean secure;
+
+        // AI Native v3.1: HCADContext 세션 컨텍스트 필드
+        // HCADFilter에서 설정한 request attribute 값
+        private final Boolean isNewSession;
+        private final Boolean isNewDevice;
+        private final Integer recentRequestCount;
+
+        /**
+         * HttpServletRequest에서 RequestInfo 추출 (동기 컨텍스트에서 호출 필수)
+         *
+         * AI Native v3.1: HCADContext 필드 추출 추가
+         * - hcad.is_new_session: 새 세션 여부
+         * - hcad.is_new_device: 새 디바이스 여부
+         * - hcad.recent_request_count: 최근 요청 수
+         */
+        public static RequestInfo from(HttpServletRequest request) {
+            return RequestInfo.builder()
+                    .requestUri(request.getRequestURI())
+                    .method(request.getMethod())
+                    .clientIp(extractClientIpStatic(request))
+                    .userAgent(extractUserAgentStatic(request))
+                    .sessionId(request.getSession(false) != null ?
+                            request.getSession(false).getId() : null)
+                    .requestId(extractRequestIdStatic(request))
+                    .servletPath(request.getServletPath())
+                    .queryString(request.getQueryString())
+                    .remoteHost(request.getRemoteHost())
+                    .protocol(request.getProtocol())
+                    .secure(request.isSecure())
+                    // AI Native v3.1: HCADContext 필드 추출 (HCADFilter에서 설정)
+                    .isNewSession((Boolean) request.getAttribute("hcad.is_new_session"))
+                    .isNewDevice((Boolean) request.getAttribute("hcad.is_new_device"))
+                    .recentRequestCount((Integer) request.getAttribute("hcad.recent_request_count"))
+                    .build();
+        }
+
+        private static String extractClientIpStatic(HttpServletRequest request) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                return xForwardedFor.split(",")[0].trim();
+            }
+            String xRealIp = request.getHeader("X-Real-IP");
+            if (xRealIp != null && !xRealIp.isEmpty()) {
+                return xRealIp;
+            }
+            return request.getRemoteAddr();
+        }
+
+        private static String extractUserAgentStatic(HttpServletRequest request) {
+            String userAgent = request.getHeader("X-Simulated-User-Agent");
+            if (userAgent != null && !userAgent.isEmpty()) {
+                return userAgent;
+            }
+            userAgent = request.getHeader("User-Agent");
+            return userAgent != null ? userAgent : "unknown";
+        }
+
+        private static String extractRequestIdStatic(HttpServletRequest request) {
+            String requestId = request.getHeader("X-Request-ID");
+            return (requestId != null && !requestId.isEmpty()) ?
+                    requestId : UUID.randomUUID().toString();
+        }
     }
 }

@@ -80,8 +80,9 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
         // 중복 검사
         if (isDuplicate(event)) {
             duplicateEvents.incrementAndGet();
-            log.debug("Duplicate event detected and filtered: eventId={}, type={}", 
-                     event.getEventId(), event.getEventType());
+            // AI Native: eventType 제거 - userId, sourceIp 기반 로깅
+            log.debug("Duplicate event detected and filtered: eventId={}, userId={}",
+                     event.getEventId(), event.getUserId());
             return null; // 중복 이벤트 필터링
         }
         
@@ -142,14 +143,9 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             
-            // 주요 필드를 기반으로 해시 생성
+            // 주요 필드를 기반으로 해시 생성 (AI Native: eventType 제거 - 행동 패턴 기반)
             StringBuilder sb = new StringBuilder();
-            
-            // 이벤트 타입
-            if (event.getEventType() != null) {
-                sb.append(event.getEventType().name()).append("|");
-            }
-            
+
             // 소스 IP
             if (event.getSourceIp() != null) {
                 sb.append(event.getSourceIp()).append("|");
@@ -159,12 +155,9 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
             if (event.getUserId() != null) {
                 sb.append(event.getUserId()).append("|");
             }
-            
-            // 타겟 IP
-            if (event.getTargetIp() != null) {
-                sb.append(event.getTargetIp()).append("|");
-            }
-            
+
+            // AI Native v3.1: targetIp 필드 제거됨 - metadata로 이동 (네트워크 이벤트 전용)
+
             // Severity
             if (event.getSeverity() != null) {
                 sb.append(event.getSeverity().name()).append("|");

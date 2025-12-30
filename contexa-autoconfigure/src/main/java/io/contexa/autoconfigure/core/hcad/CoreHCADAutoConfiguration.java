@@ -9,6 +9,7 @@ import io.contexa.contexacore.hcad.service.EmbeddingService;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
 import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,6 +79,24 @@ public class CoreHCADAutoConfiguration {
 
     // ========== Level 2: Level 1 의존 ==========
     // AI Native 전환: FewShotAnomalyDetector 삭제 (완전 규칙 기반 로직 - LLM 무관)
+
+    /**
+     * BaselineLearningService - 정상 패턴 학습 서비스
+     *
+     * AI Native: LLM이 ALLOW 판정한 요청만 학습
+     * EMA 기반 점진적 기준선 업데이트
+     *
+     * Zero Trust 필수 데이터:
+     * - normalIpRanges: 정상 IP 대역
+     * - normalAccessHours: 정상 접근 시간대
+     * - frequentPaths: 자주 접근하는 경로
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public BaselineLearningService baselineLearningService(
+            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
+        return new BaselineLearningService(redisTemplate);
+    }
 
     // ========== Level 3: Level 2 의존 ==========
 

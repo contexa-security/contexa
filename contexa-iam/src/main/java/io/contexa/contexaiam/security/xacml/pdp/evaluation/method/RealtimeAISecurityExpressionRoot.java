@@ -191,7 +191,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             riskContext.setRemoteIp(getRemoteIp());
 
             Map<String, Object> eventMetadata = new HashMap<>();
-            eventMetadata.put("eventType", event.getEventType());
+            eventMetadata.put("severity", event.getSeverity());
             eventMetadata.put("timestamp", event.getTimestamp());
             riskContext.setEnvironmentAttributes(eventMetadata);
 
@@ -415,16 +415,19 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
     
     /**
      * SecurityEvent 생성 헬퍼
+     * AI Native v4.0.0: eventType 제거 - source/metadata 기반
      */
     private SecurityEvent createSecurityEvent(String userId, String eventType) {
         SecurityEvent event = new SecurityEvent();
         event.setEventId(java.util.UUID.randomUUID().toString());
-        event.setEventType(SecurityEvent.EventType.valueOf(eventType));
+        event.setSource(SecurityEvent.EventSource.IAM);
+        event.setSeverity(SecurityEvent.Severity.MEDIUM);
         event.setUserId(userId);
         event.setUserName(userId);
         event.setTimestamp(LocalDateTime.now());
         event.setSourceIp(getRemoteIp());
         event.setMetadata(new HashMap<>());
+        event.addMetadata("incidentType", eventType);
         return event;
     }
 

@@ -291,6 +291,8 @@ public class ZeroTrustSecurityService {
             case "CHALLENGE" -> {
                 // 고위험군 - MFA 필요 (관리자/특권 권한 제거)
                 // MFA 완료 후 원래 권한으로 복원됨 (다음 요청에서 action=ALLOW)
+                String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+                redisTemplate.opsForHash().put(analysisKey, "action", "PENDING_ANALYSIS");
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
                 log.info("[ZeroTrust][AI Native] MFA CHALLENGE required (HIGH RISK): {}", userId);
             }

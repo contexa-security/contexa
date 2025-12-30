@@ -181,9 +181,9 @@ public class PolicyEvolutionEngine {
 
     /**
      * SoarIncidentDto를 SecurityEvent로 변환
+     * AI Native v4.0.0: eventType 제거 - metadata에 incidentType 저장
      */
     private SecurityEvent convertSoarIncidentToSecurityEvent(io.contexa.contexacore.domain.SoarIncidentDto incident) {
-        SecurityEvent.EventType eventType = mapIncidentTypeToEventType(incident.getType());
         SecurityEvent.Severity severity = mapIncidentSeverityToEventSeverity(incident.getSeverity());
 
         Map<String, Object> metadata = new HashMap<>();
@@ -195,6 +195,10 @@ public class PolicyEvolutionEngine {
         metadata.put("assignee", incident.getAssignee());
         metadata.put("detectedAt", incident.getDetectedAt());
         metadata.put("reportedAt", incident.getReportedAt());
+        // AI Native v4.0.0: eventType 대신 incidentType을 metadata에 저장
+        if (incident.getType() != null) {
+            metadata.put("incidentType", incident.getType().name());
+        }
 
         if (incident.getAffectedAssets() != null) {
             metadata.put("affectedAssets", incident.getAffectedAssets());
@@ -211,46 +215,12 @@ public class PolicyEvolutionEngine {
 
         return SecurityEvent.builder()
             .eventId(incident.getIncidentId())
-            .eventType(eventType)
             .severity(severity)
             .description(incident.getDescription())
             .timestamp(incident.getCreatedAt() != null ? incident.getCreatedAt() : LocalDateTime.now())
             .source(SecurityEvent.EventSource.SIEM)  // SOAR가 없으므로 SIEM 사용
             .metadata(metadata)
             .build();
-    }
-
-    /**
-     * SoarIncidentDto.IncidentType을 SecurityEvent.EventType으로 매핑
-     */
-    private SecurityEvent.EventType mapIncidentTypeToEventType(io.contexa.contexacore.domain.SoarIncidentDto.IncidentType incidentType) {
-        if (incidentType == null) {
-            return SecurityEvent.EventType.UNKNOWN;
-        }
-
-        switch (incidentType) {
-            case MALWARE:
-                return SecurityEvent.EventType.MALWARE_DETECTED;
-            case RANSOMWARE:
-                return SecurityEvent.EventType.RANSOMWARE_ATTACK;
-            case PHISHING:
-                return SecurityEvent.EventType.PHISHING_ATTEMPT;
-            case DATA_BREACH:
-                return SecurityEvent.EventType.DATA_EXFILTRATION; // DATA_BREACH가 없으므로 가장 유사한 값
-            case UNAUTHORIZED_ACCESS:
-                return SecurityEvent.EventType.ACCESS_DENIED; // UNAUTHORIZED_ACCESS가 없으므로 가장 유사한 값
-            case DOS_ATTACK:
-                return SecurityEvent.EventType.DDOS_ATTACK;
-            case INSIDER_THREAT:
-                return SecurityEvent.EventType.INSIDER_THREAT;
-            case VULNERABILITY:
-                return SecurityEvent.EventType.THREAT_DETECTED; // VULNERABILITY_DETECTED가 없으므로 가장 유사한 값
-            case COMPLIANCE_VIOLATION:
-                return SecurityEvent.EventType.POLICY_VIOLATION; // COMPLIANCE_VIOLATION가 없으므로 가장 유사한 값
-            case OTHER:
-            default:
-                return SecurityEvent.EventType.UNKNOWN;
-        }
     }
 
     /**
@@ -293,22 +263,21 @@ public class PolicyEvolutionEngine {
     private Map<String, Object> collectContext(SecurityEvent event, LearningMetadata metadata) {
         Map<String, Object> context = new HashMap<>();
         
-        // 이벤트 정보
-        context.put("eventType", event.getEventType());
+        // 이벤트 정보 (AI Native v4.0.0: eventType 제거 - severity 기반)
         context.put("severity", event.getSeverity());
+        context.put("source", event.getSource());
         context.put("timestamp", event.getTimestamp());
         
         // 네트워크 정보
         if (event.getSourceIp() != null) {
             context.put("sourceIp", event.getSourceIp());
-            context.put("targetIp", event.getTargetIp());
+            // AI Native v3.1: targetIp 필드 제거됨 - metadata로 이동 (네트워크 이벤트 전용)
         }
         
-        // 사용자 정보
+        // 사용자 정보 (AI Native v4.0.0: organizationId 필드 제거)
         if (event.getUserId() != null) {
             context.put("userId", event.getUserId());
             context.put("userName", event.getUserName());
-            context.put("organizationId", event.getOrganizationId());
         }
         
         // AI Native: mitreAttackId는 ThreatAssessment에서 관리
@@ -389,10 +358,10 @@ public class PolicyEvolutionEngine {
         StringBuilder prompt = new StringBuilder();
         prompt.append("보안 이벤트를 분석하여 정책 제안을 생성해주세요.\n\n");
         
-        // 이벤트 정보
+        // 이벤트 정보 (AI Native v4.0.0: eventType 제거 - severity 기반)
         prompt.append("## 보안 이벤트\n");
-        prompt.append(String.format("- 유형: %s\n", event.getEventType()));
         prompt.append(String.format("- 심각도: %s\n", event.getSeverity()));
+        prompt.append(String.format("- 출처: %s\n", event.getSource()));
         prompt.append(String.format("- 설명: %s\n", event.getDescription()));
         
         // 학습 유형
@@ -516,9 +485,9 @@ public class PolicyEvolutionEngine {
             .expectedImpact(extractExpectedImpact(aiResponse))
             .build();
         
-        // 액션 페이로드 설정
+        // 액션 페이로드 설정 (AI Native v4.0.0: eventType 제거)
         Map<String, Object> actionPayload = new HashMap<>();
-        actionPayload.put("eventType", event.getEventType());
+        actionPayload.put("severity", event.getSeverity());
         actionPayload.put("learningType", metadata.getLearningType());
         proposal.setActionPayload(actionPayload);
         
@@ -528,10 +497,11 @@ public class PolicyEvolutionEngine {
     /**
      * 제목 생성
      */
+    // AI Native v4.0.0: eventType 제거 - severity 기반
     private String generateTitle(SecurityEvent event, LearningMetadata metadata) {
-        return String.format("[%s] %s 대응 정책", 
-                            metadata.getLearningType(), 
-                            event.getEventType());
+        return String.format("[%s] %s 대응 정책",
+                            metadata.getLearningType(),
+                            event.getSeverity());
     }
     
     /**
@@ -1096,20 +1066,22 @@ public class PolicyEvolutionEngine {
     /**
      * 캐시 키 생성
      */
+    // AI Native v4.0.0: eventType 제거 - severity + source 기반
     private String generateCacheKey(SecurityEvent event, LearningMetadata metadata) {
-        return String.format("%s_%s_%s", 
-                            event.getEventType(),
+        return String.format("%s_%s_%s",
+                            event.getSeverity(),
                             metadata.getLearningType(),
-                            event.getSeverity());
+                            event.getSource());
     }
     
     /**
      * 검색 쿼리 생성
      */
+    // AI Native v4.0.0: eventType 제거 - severity + source 기반
     private String buildSearchQuery(SecurityEvent event, LearningMetadata metadata) {
         return String.format("%s %s %s %s",
-                            event.getEventType(),
                             event.getSeverity(),
+                            event.getSource(),
                             metadata.getLearningType(),
                             event.getDescription() != null ? event.getDescription() : "");
     }
@@ -1304,8 +1276,8 @@ public class PolicyEvolutionEngine {
 
         try {
             // 1. SecurityEvent 생성 (정책 변경 이벤트)
+            // AI Native v4.0.0: eventType 필드 제거
             SecurityEvent event = SecurityEvent.builder()
-                .eventType(SecurityEvent.EventType.POLICY_VIOLATION)
                 .source(SecurityEvent.EventSource.IAM)
                 .severity(SecurityEvent.Severity.MEDIUM)
                 .description("Policy evolution requested: " + policy.getName())

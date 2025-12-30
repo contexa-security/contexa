@@ -82,7 +82,19 @@ public class AuthorizationDecisionEvent {
 
     @JsonProperty("metadata")
     private Map<String, Object> metadata;
-    
+
+    // AI Native v3.1: Zero Trust 세션 컨텍스트 필드
+    // HCADContext에서 추출한 세션/요청 패턴 정보
+    // LLM 프롬프트에서 NOT_PROVIDED 방지를 위해 추가
+    @JsonProperty("is_new_session")
+    private Boolean isNewSession;
+
+    @JsonProperty("is_new_device")
+    private Boolean isNewDevice;
+
+    @JsonProperty("recent_request_count")
+    private Integer recentRequestCount;
+
     /**
      * 인가 결과 열거형
      */

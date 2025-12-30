@@ -69,18 +69,18 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
     @Override
     protected String calculateContextHash() {
         try {
-            // 웹 요청 기반 해시 계산
+            // 웹 요청 기반 해시 계산 (프록시 헤더 지원)
             StringBuilder hashBuilder = new StringBuilder();
             hashBuilder.append(request.getRequestURI());
             hashBuilder.append("|");
             hashBuilder.append(request.getMethod());
             hashBuilder.append("|");
-            hashBuilder.append(request.getRemoteAddr());
+            hashBuilder.append(extractCurrentRequestIp()); // 프록시 환경에서 올바른 클라이언트 IP 사용
             hashBuilder.append("|");
             hashBuilder.append(System.currentTimeMillis() / 30000); // 30초 단위 캐시
-            
+
             return String.valueOf(hashBuilder.toString().hashCode());
-            
+
         } catch (Exception e) {
             return String.valueOf(System.currentTimeMillis() / 30000);
         }
@@ -146,7 +146,8 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
 
     @Override
     protected String getRemoteIp() {
-        return request.getRemoteAddr();
+        // 프록시 환경에서 올바른 클라이언트 IP 반환 (X-Forwarded-For, X-Real-IP 지원)
+        return extractCurrentRequestIp();
     }
 
     @Override

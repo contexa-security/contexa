@@ -98,10 +98,13 @@ public class HCADBaselineController {
                 response.put("updateCount", baseline.getUpdateCount());
                 response.put("confidence", baseline.getConfidence());
                 response.put("lastUpdated", baseline.getLastUpdated());
-                response.put("vectorNorm", calculateVectorNorm(baseline.getVector()));
                 response.put("avgRequestCount", baseline.getAvgRequestCount());
-                response.put("meanRequestInterval", baseline.getMeanRequestInterval());
                 response.put("avgTrustScore", baseline.getAvgTrustScore());
+                // AI Native v3.1: LLM 분석에 필요한 필드 추가
+                response.put("normalIpRanges", baseline.getNormalIpRanges());
+                response.put("normalAccessHours", baseline.getNormalAccessHours());
+                response.put("frequentPaths", baseline.getFrequentPaths());
+                response.put("normalUserAgents", baseline.getNormalUserAgents());
 
                 log.debug("[HCADBaselineController] Baseline 조회 성공: userId={}, updateCount={}, confidence={}",
                     userId, baseline.getUpdateCount(), baseline.getConfidence());
@@ -150,7 +153,7 @@ public class HCADBaselineController {
                         item.put("updateCount", baseline.getUpdateCount());
                         item.put("confidence", baseline.getConfidence());
                         item.put("lastUpdated", baseline.getLastUpdated());
-                        item.put("vectorNorm", calculateVectorNorm(baseline.getVector()));
+                        item.put("avgTrustScore", baseline.getAvgTrustScore());
 
                         baselines.add(item);
                     }
@@ -191,16 +194,7 @@ public class HCADBaselineController {
         }
     }
 
-    /**
-     * 벡터 노름(길이) 계산
-     */
-    private double calculateVectorNorm(double[] vector) {
-        if (vector == null) return 0.0;
-
-        double sum = 0.0;
-        for (double v : vector) {
-            sum += v * v;
-        }
-        return Math.sqrt(sum);
-    }
+    // AI Native v3.1: calculateVectorNorm() 메서드 삭제
+    // - vector 필드 삭제됨 (LLM 분석에 불필요)
+    // - vectorNorm은 관리자 UI에서 표시하지 않음
 }

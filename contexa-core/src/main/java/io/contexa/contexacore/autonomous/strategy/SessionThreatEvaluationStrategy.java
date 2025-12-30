@@ -95,7 +95,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             .indicators(threatIndicatorStrings)
             .recommendedActions(recommendedActions)
             .confidence(calculateConfidenceScore(event))
-            .metadata(createMetadata(indicators))
+            // AI Native v3.1: metadata 필드 제거됨 - 죽은 필드
             .action(action)  // AI Native: action 직접 설정
             .build();
     }
@@ -449,7 +449,8 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         }
         
         // 행동 패턴 업데이트
-        userContext.addBehaviorPattern("lastEventType", event.getEventType().toString());
+        // AI Native v4.0.0: eventType 제거 - severity, source 기반
+        userContext.addBehaviorPattern("lastSeverity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
         userContext.addBehaviorPattern("lastSourceIp", event.getSourceIp());
         
         // 사용자 컨텍스트 저장 (30일 TTL)
@@ -692,13 +693,12 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         return Math.min(1.0, totalRisk);
     }
     
+    // AI Native v4.0.0: EventType 기반 canEvaluate 제거 - Severity 기반으로 전환
     @Override
-    public boolean canEvaluate(SecurityEvent.EventType eventType) {
-        // 세션 관련 이벤트 타입만 처리
-        return eventType == SecurityEvent.EventType.AUTH_SUCCESS ||
-               eventType == SecurityEvent.EventType.AUTH_FAILURE ||
-               eventType == SecurityEvent.EventType.ACCESS_VIOLATION ||
-               eventType == SecurityEvent.EventType.SUSPICIOUS_ACTIVITY;
+    public boolean canEvaluate(SecurityEvent.Severity severity) {
+        // 세션 전략은 모든 심각도의 이벤트를 처리 가능
+        // 세션 컨텍스트가 있으면 평가 수행
+        return true;
     }
     
     @Override

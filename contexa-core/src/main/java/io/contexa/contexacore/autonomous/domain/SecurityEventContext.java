@@ -357,7 +357,8 @@ public class SecurityEventContext {
         // 기본 정보
         if (securityEvent != null) {
             summary.put("eventId", securityEvent.getEventId());
-            summary.put("eventType", securityEvent.getEventType());
+            // AI Native v4.0.0: eventType 제거 - severity, source 기반
+            summary.put("source", securityEvent.getSource());
             summary.put("severity", securityEvent.getSeverity());
             summary.put("timestamp", securityEvent.getTimestamp());
         }

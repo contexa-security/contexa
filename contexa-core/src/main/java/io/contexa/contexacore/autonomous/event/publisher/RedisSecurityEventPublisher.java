@@ -8,7 +8,6 @@ import io.contexa.contexacore.autonomous.event.domain.AuditEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationFailureEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.tiered.TieredEventProcessor;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,15 +38,12 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final TieredEventProcessor tieredEventProcessor;
 
     public RedisSecurityEventPublisher(
             @Qualifier("eventRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-            ObjectMapper objectMapper,
-            TieredEventProcessor tieredEventProcessor) {
+            ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
-        this.tieredEventProcessor = tieredEventProcessor;
     }
     
     @Value("${security.redis.channel.authorization:security:authorization:events}")
@@ -195,36 +191,26 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
     @Override
     public void publishAuthenticationSuccess(AuthenticationSuccessEvent event) {
         try {
-            // 계층 결정 - Zero Trust를 위해 모든 성공 인증을 분석
-            TieredEventProcessor.EventTier tier = tieredEventProcessor.determineTier(event);
-            TieredEventProcessor.TierConfiguration config = tieredEventProcessor.getConfiguration(tier);
-            
-            String channel = determineChannel(tier, authenticationChannel);
-            String stream = determineStream(tier, authenticationStream);
-            
             // Redis Pub/Sub으로 실시간 전파
-            redisTemplate.convertAndSend(channel, event);
-            
+            redisTemplate.convertAndSend(authenticationChannel, event);
+
             // Redis Stream에 이력 저장
             Map<String, String> fields = convertEventToFields(event);
-            fields.put("tier", tier.name());
             fields.put("riskLevel", event.calculateRiskLevel().toString());
-            
+
             StringRecord record = StreamRecords.string(fields)
-                .withStreamKey(stream);
-            
+                .withStreamKey(authenticationStream);
+
             redisTemplate.opsForStream().add(record);
-            
-            // Stream 크기 제한 (계층별 차등 적용)
-            long maxLen = tier == TieredEventProcessor.EventTier.CRITICAL ? 
-                streamMaxLength * 2 : streamMaxLength;
-            redisTemplate.opsForStream().trim(stream, maxLen);
-            
-            log.debug("Authentication success published to Redis: eventId={}, user={}, tier={}", 
-                event.getEventId(), event.getUsername(), tier);
-                
+
+            // Stream 크기 제한
+            redisTemplate.opsForStream().trim(authenticationStream, streamMaxLength);
+
+            log.debug("Authentication success published to Redis: eventId={}, user={}",
+                event.getEventId(), event.getUsername());
+
         } catch (Exception e) {
-            log.error("Failed to publish authentication success to Redis: eventId={}", 
+            log.error("Failed to publish authentication success to Redis: eventId={}",
                 event.getEventId(), e);
         }
     }
@@ -232,32 +218,22 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
     @Override
     public void publishAuthenticationFailure(AuthenticationFailureEvent event) {
         try {
-            // 계층 결정 - 공격 패턴 감지
-            TieredEventProcessor.EventTier tier = tieredEventProcessor.determineTier(event);
-            TieredEventProcessor.TierConfiguration config = tieredEventProcessor.getConfiguration(tier);
-            
-            String channel = determineChannel(tier, authenticationChannel);
-            String stream = determineStream(tier, authenticationStream);
-            
             // Redis Pub/Sub으로 실시간 전파
-            redisTemplate.convertAndSend(channel, event);
-            
+            redisTemplate.convertAndSend(authenticationChannel, event);
+
             // Redis Stream에 이력 저장
             Map<String, String> fields = convertEventToFields(event);
-            fields.put("tier", tier.name());
             fields.put("attackType", event.determineAttackType().toString());
             fields.put("failureCount", String.valueOf(event.getFailureCount()));
-            
+
             StringRecord record = StreamRecords.string(fields)
-                .withStreamKey(stream);
-            
+                .withStreamKey(authenticationStream);
+
             redisTemplate.opsForStream().add(record);
-            
+
             // Stream 크기 제한
-            long maxLen = tier == TieredEventProcessor.EventTier.CRITICAL ? 
-                streamMaxLength * 2 : streamMaxLength;
-            redisTemplate.opsForStream().trim(stream, maxLen);
-            
+            redisTemplate.opsForStream().trim(authenticationStream, streamMaxLength);
+
             // 공격 패턴 감지 시 IP 차단 처리
             if (event.isBruteForceDetected() || event.isCredentialStuffingDetected()) {
                 // IP별 공격 카운터 증가
@@ -272,11 +248,11 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
                 }
             }
 
-            log.debug("Authentication failure published to Redis: eventId={}, user={}, tier={}, attackType={}", 
-                event.getEventId(), event.getUsername(), tier, event.determineAttackType());
-                
+            log.debug("Authentication failure published to Redis: eventId={}, user={}, attackType={}",
+                event.getEventId(), event.getUsername(), event.determineAttackType());
+
         } catch (Exception e) {
-            log.error("Failed to publish authentication failure to Redis: eventId={}", 
+            log.error("Failed to publish authentication failure to Redis: eventId={}",
                 event.getEventId(), e);
         }
     }
@@ -284,8 +260,9 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
     @Override
     public void publishSecurityEvent(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
-        log.info("[RedisPublisher] START publishing event - eventId={}, type={}, thread={}",
-            event.getEventId(), event.getEventType(), Thread.currentThread().getName());
+        // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
+        log.info("[RedisPublisher] START publishing event - eventId={}, severity={}, thread={}",
+            event.getEventId(), event.getSeverity(), Thread.currentThread().getName());
 
         try {
             // Redis Pub/Sub으로 실시간 전파
@@ -307,45 +284,14 @@ public class RedisSecurityEventPublisher implements SecurityEventPublisher {
             redisTemplate.opsForStream().trim(generalStream, streamMaxLength);
             
             long duration = System.currentTimeMillis() - startTime;
-            log.info("[RedisPublisher] COMPLETED publishing event - eventId={}, type={}, duration={}ms",
-                event.getEventId(), event.getEventType(), duration);
+            // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
+            log.info("[RedisPublisher] COMPLETED publishing event - eventId={}, severity={}, duration={}ms",
+                event.getEventId(), event.getSeverity(), duration);
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("[RedisPublisher] FAILED to publish event - eventId={}, error: {}, duration={}ms",
                 event.getEventId(), e.getMessage(), duration, e);
-        }
-    }
-    
-    /**
-     * 계층별 채널 결정
-     */
-    private String determineChannel(TieredEventProcessor.EventTier tier, String baseChannel) {
-        switch (tier) {
-            case CRITICAL:
-                return baseChannel + ":critical";
-            case CONTEXTUAL:
-                return baseChannel + ":contextual";
-            case GENERAL:
-                return baseChannel + ":general";
-            default:
-                return baseChannel;
-        }
-    }
-    
-    /**
-     * 계층별 스트림 결정
-     */
-    private String determineStream(TieredEventProcessor.EventTier tier, String baseStream) {
-        switch (tier) {
-            case CRITICAL:
-                return baseStream + ":critical";
-            case CONTEXTUAL:
-                return baseStream + ":contextual";
-            case GENERAL:
-                return baseStream + ":general";
-            default:
-                return baseStream;
         }
     }
     

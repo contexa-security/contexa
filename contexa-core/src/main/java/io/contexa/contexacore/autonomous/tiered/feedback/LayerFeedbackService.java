@@ -131,11 +131,12 @@ public class LayerFeedbackService {
             String userId = event.getUserId() != null ? event.getUserId() : FeedbackConstants.DEFAULT_USER_ID;
 
             // Layer3는 Redis가 아닌 Vector Store에만 저장 (전문가 분석 결과는 장기 보관)
+            // AI Native v4.0.0: eventType 제거 - severity, source 기반
             String contextText = String.format(
-                "Layer3 Expert Analysis - User: %s, EventType: %s, RiskScore: %.2f, " +
+                "Layer3 Expert Analysis - User: %s, Severity: %s, RiskScore: %.2f, " +
                 "ThreatCategory: %s, Action: %s, MITRE: %s, Confidence: %.2f",
                 userId,
-                event.getEventType(),
+                event.getSeverity() != null ? event.getSeverity() : "INFO",
                 decision.getRiskScore(),
                 decision.getThreatCategory(),
                 decision.getAction(),
@@ -147,7 +148,7 @@ public class LayerFeedbackService {
             metadata.put("documentType", VectorDocumentType.BEHAVIOR_ANALYSIS.getValue());
             metadata.put("source", FeedbackConstants.FEEDBACK_SOURCE);
             metadata.put("userId", userId);
-            metadata.put("eventType", event.getEventType() != null ? event.getEventType().toString() : FeedbackConstants.DEFAULT_EVENT_TYPE);
+            metadata.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
             metadata.put("riskScore", decision.getRiskScore());
             metadata.put("threatCategory", decision.getThreatCategory());
             metadata.put("confidence", decision.getConfidence());
@@ -282,7 +283,8 @@ public class LayerFeedbackService {
         feedbackData.put("threatCategory", decision.getThreatCategory());
         feedbackData.put("action", decision.getAction() != null ? decision.getAction().toString() : "UNKNOWN");
         feedbackData.put("timestamp", System.currentTimeMillis());
-        feedbackData.put("eventType", event.getEventType() != null ? event.getEventType().toString() : FeedbackConstants.DEFAULT_EVENT_TYPE);
+        // AI Native v4.0.0: eventType 제거 - severity 기반
+        feedbackData.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
         feedbackData.put("source", source);
         return feedbackData;
     }
@@ -292,9 +294,10 @@ public class LayerFeedbackService {
      */
     private void indexToVectorStore(SecurityEvent event, SecurityDecision decision, String userId, String source) {
         try {
+            // AI Native v4.0.0: eventType 제거 - severity 기반
             String contextText = String.format(
-                "%s - User: %s, EventType: %s, RiskScore: %.2f, ThreatCategory: %s, Action: %s, Confidence: %.2f",
-                source, userId, event.getEventType(), decision.getRiskScore(),
+                "%s - User: %s, Severity: %s, RiskScore: %.2f, ThreatCategory: %s, Action: %s, Confidence: %.2f",
+                source, userId, event.getSeverity() != null ? event.getSeverity() : "INFO", decision.getRiskScore(),
                 decision.getThreatCategory(), decision.getAction(), decision.getConfidence()
             );
 
@@ -302,7 +305,7 @@ public class LayerFeedbackService {
             metadata.put("documentType", VectorDocumentType.BEHAVIOR_ANALYSIS.getValue());
             metadata.put("source", source);
             metadata.put("userId", userId);
-            metadata.put("eventType", event.getEventType() != null ? event.getEventType().toString() : FeedbackConstants.DEFAULT_EVENT_TYPE);
+            metadata.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
             metadata.put("riskScore", decision.getRiskScore());
             metadata.put("threatCategory", decision.getThreatCategory());
             metadata.put("confidence", decision.getConfidence());

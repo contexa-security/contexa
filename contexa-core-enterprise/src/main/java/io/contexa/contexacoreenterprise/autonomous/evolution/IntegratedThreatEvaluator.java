@@ -310,6 +310,10 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         combinedDetails.put("totalStrategies", results.size());
         combinedDetails.put("minRequiredStrategies", minStrategiesRequired);
 
+        // AI Native v3.1: metadata 필드 제거됨 - 상세 정보는 로그로 출력
+        log.debug("[IntegratedEvaluator] Combined details - evaluationId: {}, totalStrategies: {}, minRequired: {}",
+            evaluationId, results.size(), minStrategiesRequired);
+
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
             .assessmentId(evaluationId)
@@ -318,7 +322,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .riskScore(finalRiskScore)
             .confidence(finalConfidence)
             .recommendedActions(uniqueActions)
-            .metadata(combinedDetails)
+            // AI Native v3.1: metadata 필드 제거됨
             .action(action)  // AI Native: action 사용
             .build();
     }
@@ -367,8 +371,8 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         auditEntry.put("strategiesExecuted", results.keySet());
         auditEntry.put("finalRiskScore", finalAssessment.getRiskScore());
         auditEntry.put("finalConfidence", finalAssessment.getConfidence());
-        auditEntry.put("threatLevel", finalAssessment.getThreatLevel());
-        auditEntry.put("consensusAchieved", finalAssessment.getMetadata().get("consensusAchieved"));
+        // AI Native v3.1: metadata 필드 제거됨 - consensus는 confidence 값으로 대체
+        auditEntry.put("consensusAchieved", finalAssessment.getConfidence() >= 0.6);
 
         // 각 전략의 결과
         Map<String, Map<String, Object>> strategyDetails = new HashMap<>();
@@ -412,7 +416,8 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .riskScore(0.5)
             .confidence(0.3)
             .recommendedActions(List.of("ESCALATE", "LLM_ANALYSIS_REQUIRED"))
-            .metadata(Map.of("error", error, "fallback", true, "consensusAchieved", false))
+            // AI Native v3.1: metadata 필드 제거됨 - error는 description에 포함
+            .description("Fallback assessment - Error: " + error)
             .action("ESCALATE")  // AI Native: 폴백 시 상위 검토 필요
             .build();
     }

@@ -56,9 +56,9 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         // 심각도 결정 (가장 높은 심각도 선택)
         String severity = determineSeverity(events);
 
-        // 설명 생성
-        String description = String.format("Security events detected: %d events starting with %s",
-                events.size(), primaryEvent.getEventType());
+        // 설명 생성 (AI Native v4.0.0: eventType 제거 - severity 기반)
+        String description = String.format("Security events detected: %d events starting with %s severity",
+                events.size(), primaryEvent.getSeverity());
 
         // 영향받는 시스템 추출
         List<String> affectedSystems = extractAffectedSystems(events);
@@ -70,8 +70,8 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         additionalInfo.put("event_types", extractEventTypes(events));
         additionalInfo.put("source_ips", extractSourceIps(events));
 
-        // 위협 타입 결정
-        String threatType = primaryEvent.getEventType().toString();
+        // 위협 타입 결정 (AI Native v4.0.0: eventType 제거 - severity 기반)
+        String threatType = primaryEvent.getSeverity() != null ? primaryEvent.getSeverity().toString() : "UNKNOWN";
 
         // SoarContext 생성
         SoarContext context = new SoarContext(
@@ -283,9 +283,12 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * AI Native v4.0.0: eventType 제거 - severity 기반 추출
+     */
     private List<String> extractEventTypes(List<SecurityEvent> events) {
         return events.stream()
-                .map(e -> e.getEventType().toString())
+                .map(e -> e.getSeverity() != null ? e.getSeverity().toString() : null)
                 .filter(Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());

@@ -8,9 +8,10 @@ import io.contexa.contexacore.autonomous.event.domain.AuditEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationFailureEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.tiered.TieredEventProcessor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Builder;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,10 +30,9 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @RequiredArgsConstructor
 public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
-    
+
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
-    private final TieredEventProcessor tieredEventProcessor;
     
     @Value("${security.kafka.topic.authorization:security-authorization-events}")
     private String authorizationTopic;
@@ -154,30 +154,18 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     @Override
     public void publishAuthenticationSuccess(AuthenticationSuccessEvent event) {
         try {
-            // 계층 결정 - Zero Trust를 위해 모든 성공 인증을 분석
-            TieredEventProcessor.EventTier tier = tieredEventProcessor.determineTier(event);
-
             String key = generateKey(event.getUsername(), event.getSessionId());
-            String topic = determineTopic(tier, authenticationTopic);
 
-            // 모든 계층 비동기 처리 (일관된 처리 전략)
-            // 순수 DTO이므로 직접 발행 가능
             CompletableFuture<SendResult<String, Object>> future =
-                kafkaTemplate.send(topic, key, event);
+                kafkaTemplate.send(authenticationTopic, key, event);
 
             future.whenComplete((result, ex) -> {
                 if (ex == null) {
-                    // 계층별 로그 레벨 차등화
-                    if (tier == TieredEventProcessor.EventTier.CRITICAL) {
-                        log.warn("CRITICAL authentication success published: eventId={}, user={}, riskLevel={}, topic={}",
-                            event.getEventId(), event.getUsername(), event.calculateRiskLevel(), topic);
-                    } else {
-                        log.debug("Authentication success published: eventId={}, user={}, tier={}, topic={}",
-                            event.getEventId(), event.getUsername(), tier, topic);
-                    }
+                    log.debug("Authentication success published: eventId={}, user={}, topic={}",
+                        event.getEventId(), event.getUsername(), authenticationTopic);
                 } else {
-                    log.error("Failed to publish authentication success: eventId={}, tier={}",
-                        event.getEventId(), tier, ex);
+                    log.error("Failed to publish authentication success: eventId={}",
+                        event.getEventId(), ex);
                     sendToDeadLetterQueue(event, ex);
                 }
             });
@@ -190,30 +178,18 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     @Override
     public void publishAuthenticationFailure(AuthenticationFailureEvent event) {
         try {
-            // 계층 결정 - 공격 패턴 감지
-            TieredEventProcessor.EventTier tier = tieredEventProcessor.determineTier(event);
-
             String key = generateKey(event.getUsername(), event.getSessionId());
-            String topic = determineTopic(tier, authenticationTopic);
 
-            // 모든 계층 비동기 처리 (일관된 처리 전략)
-            // 순수 DTO이므로 직접 발행 가능
             CompletableFuture<SendResult<String, Object>> future =
-                kafkaTemplate.send(topic, key, event);
+                kafkaTemplate.send(authenticationTopic, key, event);
 
             future.whenComplete((result, ex) -> {
                 if (ex == null) {
-                    // 계층별 로그 레벨 차등화
-                    if (tier == TieredEventProcessor.EventTier.CRITICAL) {
-                        log.warn("CRITICAL authentication failure published: eventId={}, user={}, attackType={}, topic={}",
-                            event.getEventId(), event.getUsername(), event.determineAttackType(), topic);
-                    } else {
-                        log.debug("Authentication failure published: eventId={}, user={}, tier={}, topic={}",
-                            event.getEventId(), event.getUsername(), tier, topic);
-                    }
+                    log.debug("Authentication failure published: eventId={}, user={}, topic={}",
+                        event.getEventId(), event.getUsername(), authenticationTopic);
                 } else {
-                    log.error("Failed to publish authentication failure: eventId={}, tier={}",
-                        event.getEventId(), tier, ex);
+                    log.error("Failed to publish authentication failure: eventId={}",
+                        event.getEventId(), ex);
                     sendToDeadLetterQueue(event, ex);
                 }
             });
@@ -226,8 +202,9 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     @Override
     public void publishSecurityEvent(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
-        log.debug("[KafkaPublisher] START publishing event - eventId={}, type={}, thread={}",
-            event.getEventId(), event.getEventType(), Thread.currentThread().getName());
+        // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
+        log.debug("[KafkaPublisher] START publishing event - eventId={}, severity={}, thread={}",
+            event.getEventId(), event.getSeverity(), Thread.currentThread().getName());
 
         try {
             String key = event.getEventId();
@@ -242,8 +219,9 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
             future.whenComplete((result, ex) -> {
                 long duration = System.currentTimeMillis() - startTime;
                 if (ex == null) {
-                    log.debug("[KafkaPublisher] SUCCESS - Event published to topic '{}' - eventId={}, type={}, duration={}ms",
-                        topic, event.getEventId(), event.getEventType(), duration);
+                    // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
+                    log.debug("[KafkaPublisher] SUCCESS - Event published to topic '{}' - eventId={}, severity={}, duration={}ms",
+                        topic, event.getEventId(), event.getSeverity(), duration);
                 } else {
                     log.error("[KafkaPublisher] FAILED to publish event - eventId={}, error: {}, duration={}ms",
                         event.getEventId(), ex.getMessage(), duration, ex);
@@ -257,22 +235,6 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
             log.error("[KafkaPublisher] ERROR during publishing - eventId={}, error: {}",
                 event.getEventId(), e.getMessage(), e);
             sendToDeadLetterQueue(event, e);
-        }
-    }
-    
-    /**
-     * 계층별 토픽 결정
-     */
-    private String determineTopic(TieredEventProcessor.EventTier tier, String baseTopic) {
-        switch (tier) {
-            case CRITICAL:
-                return baseTopic + "-critical";
-            case CONTEXTUAL:
-                return baseTopic + "-contextual";
-            case GENERAL:
-                return baseTopic + "-general";
-            default:
-                return baseTopic;
         }
     }
     
@@ -310,13 +272,13 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     /**
      * Dead Letter Event 내부 클래스
      */
-    @lombok.Data
-    @lombok.Builder
+    @Data
+    @Builder
     private static class DeadLetterEvent {
         private Object originalEvent;
         private String errorMessage;
         private String errorType;
-        @lombok.Builder.Default
+        @Builder.Default
         private long timestamp = System.currentTimeMillis();
     }
 }

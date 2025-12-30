@@ -28,7 +28,6 @@ import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
 import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
-import io.contexa.contexacore.autonomous.tiered.TieredEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
@@ -126,18 +125,16 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
             KafkaTemplate<String, Object> kafkaTemplate,
-            ObjectMapper objectMapper,
-            TieredEventProcessor tieredEventProcessor) {
-        return new KafkaSecurityEventPublisher(kafkaTemplate, objectMapper, tieredEventProcessor);
+            ObjectMapper objectMapper) {
+        return new KafkaSecurityEventPublisher(kafkaTemplate, objectMapper);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public RedisSecurityEventPublisher redisSecurityEventPublisher(
             RedisTemplate<String, Object> redisTemplate,
-            ObjectMapper objectMapper,
-            TieredEventProcessor tieredEventProcessor) {
-        return new RedisSecurityEventPublisher(redisTemplate, objectMapper, tieredEventProcessor);
+            ObjectMapper objectMapper) {
+        return new RedisSecurityEventPublisher(redisTemplate, objectMapper);
     }
 
     // ========== Event Monitoring ==========

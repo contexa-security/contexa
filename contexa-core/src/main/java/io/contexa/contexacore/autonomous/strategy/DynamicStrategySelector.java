@@ -772,7 +772,7 @@ public class DynamicStrategySelector {
                 .riskScore(0.5)
                 .confidence(0.5)
                 .recommendedActions(List.of("ESCALATE", "LLM_ANALYSIS_REQUIRED"))
-                .metadata(Map.of("strategy", "default"))
+                // AI Native v3.1: metadata 필드 제거됨 - 죽은 필드
                 .action("ESCALATE")  // AI Native: LLM 분석 필요
                 .build();
         }

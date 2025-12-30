@@ -43,27 +43,6 @@ public class TieredEventProcessor {
     }
     
     /**
-     * 이벤트 계층 결정
-     */
-    public EventTier determineTier(SecurityEvent event) {
-        // Critical: 즉시 처리가 필요한 고위험 이벤트
-        if (isCriticalEvent(event)) {
-            tierCounters.get(EventTier.CRITICAL).incrementAndGet();
-            return EventTier.CRITICAL;
-        }
-        
-        // Contextual: 중요한 컨텍스트 정보를 담은 이벤트
-        if (isContextualEvent(event)) {
-            tierCounters.get(EventTier.CONTEXTUAL).incrementAndGet();
-            return EventTier.CONTEXTUAL;
-        }
-        
-        // General: 일반 활동 로그
-        tierCounters.get(EventTier.GENERAL).incrementAndGet();
-        return EventTier.GENERAL;
-    }
-    
-    /**
      * 인증 성공 이벤트 계층 결정 (AI Native v3.3.0)
      *
      * LLM이 설정한 riskLevel 필드 기반으로 분류
@@ -118,81 +97,6 @@ public class TieredEventProcessor {
     }
     
     /**
-     * Critical 이벤트 판단
-     *
-     * AI Native: Severity 조건 제거, AI action 기반 판단
-     */
-    private boolean isCriticalEvent(SecurityEvent event) {
-        // AI Native: AI action 기반 판단
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata != null && metadata.containsKey("aiAction")) {
-            String action = (String) metadata.get("aiAction");
-            if ("BLOCK".equals(action)) {
-                return true;
-            }
-        }
-
-        // EventType 기반 분류 유지 (공격 패턴은 Critical)
-        switch (event.getEventType()) {
-            case PRIVILEGE_ESCALATION:
-            case INTRUSION_SUCCESS:
-            case DATA_EXFILTRATION:
-            case SYSTEM_COMPROMISE:
-            case MALWARE_DETECTED:
-            case THREAT_DETECTED:
-                return true;
-            case AUTH_FAILURE:
-                // 연속된 인증 실패
-                Integer failCount = metadata != null ? (Integer) metadata.get("failureCount") : null;
-                return failCount != null && failCount > 5;
-            default:
-                break;
-        }
-
-        // 차단된 이벤트
-        return event.isBlocked();
-    }
-    
-    /**
-     * Contextual 이벤트 판단
-     *
-     * AI Native: Severity 조건 제거, AI action 기반 판단
-     */
-    private boolean isContextualEvent(SecurityEvent event) {
-        // AI Native: AI action 기반 판단
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata != null && metadata.containsKey("aiAction")) {
-            String action = (String) metadata.get("aiAction");
-            if ("CHALLENGE".equals(action) || "ESCALATE".equals(action)) {
-                return true;
-            }
-        }
-
-        // EventType 기반 분류 유지
-        switch (event.getEventType()) {
-            case AUTH_SUCCESS:  // Zero Trust를 위해 모든 성공 인증은 최소 Contextual
-            case ANOMALY_DETECTED:
-            case SUSPICIOUS_ACTIVITY:
-            case POLICY_VIOLATION:
-            case CONFIGURATION_CHANGE:
-                return true;
-            default:
-                break;
-        }
-
-        // 세션 변경이나 위치 변경
-        if (metadata != null) {
-            if (metadata.containsKey("sessionChange") ||
-                metadata.containsKey("locationChange") ||
-                metadata.containsKey("deviceChange")) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-    
-    /**
      * 계층별 처리 설정
      */
     public TierConfiguration getConfiguration(EventTier tier) {
@@ -226,21 +130,6 @@ public class TieredEventProcessor {
         }
         
         return config;
-    }
-    
-    /**
-     * 샘플링 결정
-     */
-    public boolean shouldProcess(EventTier tier, SecurityEvent event) {
-        TierConfiguration config = getConfiguration(tier);
-        
-        // Critical과 Contextual은 항상 처리
-        if (tier == EventTier.CRITICAL || tier == EventTier.CONTEXTUAL) {
-            return true;
-        }
-        
-        // General은 샘플링 적용
-        return Math.random() < config.getSamplingRate();
     }
     
     /**

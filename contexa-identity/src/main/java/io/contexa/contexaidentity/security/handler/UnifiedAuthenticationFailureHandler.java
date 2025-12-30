@@ -379,10 +379,10 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                           factorContext.getCurrentProcessingFactor().toString() : "PRIMARY")
                        .deviceId((String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
                 
-                // 공격 패턴 감지
-                boolean bruteForce = failureCount > 10;
-                builder.bruteForceDetected(bruteForce);
-                
+                // AI Native: bruteForceDetected 계산 제거
+                // 하드코딩 임계값(failureCount > 10) 대신 failureCount raw 데이터를 LLM에게 전달
+                // LLM이 컨텍스트를 고려하여 brute force 여부를 직접 판단
+
                 // 위험 점수
                 Double riskScore = calculateFailureRiskScore(failureCount, exception);
                 builder.riskScore(riskScore);

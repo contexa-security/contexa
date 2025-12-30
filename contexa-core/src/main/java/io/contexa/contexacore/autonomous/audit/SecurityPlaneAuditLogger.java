@@ -51,15 +51,17 @@ public class SecurityPlaneAuditLogger {
      */
     public void auditSecurityEvent(SecurityEvent event, String agentId, String context) {
         try {
+            // AI Native: eventType, targetResource 필드 제거 - metadata 또는 eventId 사용
+            String resourceId = getResourceFromMetadata(event);
             AuditLog auditLog = AuditLog.builder()
                 .timestamp(LocalDateTime.now())
                 .principalName(event.getUserId() != null ? event.getUserId() : "SYSTEM")
-                .resourceIdentifier(event.getTargetResource() != null ? event.getTargetResource() : event.getEventType().toString())
+                .resourceIdentifier(resourceId != null ? resourceId : event.getEventId())
                 .action("SECURITY_EVENT")
                 .decision("DETECTED")
                 .reason(String.format("Security event detected by %s", agentId))
                 .outcome("PROCESSING")
-                .resourceUri(event.getTargetResource())
+                .resourceUri(resourceId)
                 .clientIp(event.getSourceIp())
                 .sessionId(event.getSessionId())
                 .status(event.getSeverity() != null ? event.getSeverity().toString() : "INFO")
@@ -94,7 +96,7 @@ public class SecurityPlaneAuditLogger {
                 .decision(action)  // AI Native: action 사용
                 .reason(String.format("Evaluated by %s using %s strategy", evaluator, strategy))
                 .outcome(String.format("Risk: %.2f, Confidence: %.2f", assessment.getRiskScore(), assessment.getConfidence()))
-                .resourceUri(event.getTargetResource())
+                .resourceUri(getResourceFromMetadata(event))
                 .clientIp(event.getSourceIp())
                 .sessionId(event.getSessionId())
                 .status(action)  // AI Native: action 사용
@@ -128,7 +130,7 @@ public class SecurityPlaneAuditLogger {
                 .reason(reason)
                 .outcome(String.format("Router: %s | Blocking: %s | Escalation: %s",
                     router, mode.isBlocking(), mode.needsEscalation()))
-                .resourceUri(event.getTargetResource())
+                .resourceUri(getResourceFromMetadata(event))
                 .clientIp(event.getSourceIp())
                 .sessionId(event.getSessionId())
                 .status(mode.isBlocking() ? "BLOCKED" : "ALLOWED")
@@ -245,24 +247,28 @@ public class SecurityPlaneAuditLogger {
     // ==================== Private Helper Methods ====================
 
     private String createSecurityEventParams(SecurityEvent event) {
-        // AI Native: deprecated threatType 제거
-        return String.format("eventType=%s,severity=%s,source=%s",
-            event.getEventType(),
+        // AI Native: eventType 필드 제거 - severity, source 기반 파라미터
+        return String.format("severity=%s,source=%s,userId=%s",
             event.getSeverity() != null ? event.getSeverity() : "INFO",
-            event.getSource() != null ? event.getSource() : "UNKNOWN");
+            event.getSource() != null ? event.getSource() : "UNKNOWN",
+            event.getUserId() != null ? event.getUserId() : "unknown");
     }
 
     private String createSecurityEventDetails(SecurityEvent event, String agentId, String context) {
         Map<String, Object> details = new HashMap<>();
+        // AI Native: eventType, targetResource 필드 제거 - metadata 기반
         details.put("auditType", "SECURITY_EVENT");
         details.put("eventId", event.getEventId());
-        details.put("eventType", event.getEventType().toString());
+        details.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
         details.put("agentId", agentId);
         details.put("context", context);
-        details.put("timestamp", event.getTimestamp().toString());
+        details.put("timestamp", event.getTimestamp() != null ? event.getTimestamp().toString() : null);
         details.put("userAgent", event.getUserAgent());
-        details.put("targetResource", event.getTargetResource());
-        // AI Native: mitreAttackId는 ThreatAssessment에서 관리 (SecurityEvent deprecated 필드 제거)
+        // targetResource는 metadata에서 가져옴
+        String resourceFromMeta = getResourceFromMetadata(event);
+        if (resourceFromMeta != null) {
+            details.put("targetResource", resourceFromMeta);
+        }
 
         if (event.getMetadata() != null) {
             details.put("metadata", event.getMetadata());
@@ -292,9 +298,7 @@ public class SecurityPlaneAuditLogger {
         details.put("assessedAt", assessment.getAssessedAt().toString());
         details.put("recommendedActions", assessment.getRecommendedActions());
 
-        if (assessment.getMetadata() != null) {
-            details.put("metadata", assessment.getMetadata());
-        }
+        // AI Native v3.1: ThreatAssessment.metadata 제거됨 - 죽은 필드
 
         return toJsonString(details);
     }
@@ -385,5 +389,16 @@ public class SecurityPlaneAuditLogger {
             log.error("Failed to convert details to JSON", e);
             return details.toString();
         }
+    }
+
+    /**
+     * SecurityEvent metadata에서 targetResource 추출 (AI Native: targetResource 필드 제거)
+     */
+    private String getResourceFromMetadata(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return null;
+        }
+        Object resource = event.getMetadata().get("targetResource");
+        return resource != null ? resource.toString() : null;
     }
 }

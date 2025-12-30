@@ -177,7 +177,8 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
             Map<String, Object> notificationData = new HashMap<>();
             notificationData.put("severity", "CRITICAL");
             notificationData.put("eventId", event.getEventId());
-            notificationData.put("eventType", event.getEventType());
+            // AI Native v4.0.0: eventType 제거 - severity 기반
+            notificationData.put("eventSeverity", event.getSeverity());
             notificationData.put("userId", event.getUserId());
             notificationData.put("sourceIp", event.getSourceIp());
             notificationData.put("message", "CRITICAL SECURITY THREAT DETECTED - IMMEDIATE ACTION REQUIRED");

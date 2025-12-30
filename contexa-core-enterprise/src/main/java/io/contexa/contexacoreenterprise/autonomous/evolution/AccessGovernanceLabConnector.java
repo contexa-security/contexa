@@ -424,14 +424,17 @@ public class AccessGovernanceLabConnector {
             Integer excessiveCount = (Integer) user.get("excessivePermissionCount");
             Double riskScore = (Double) user.get("riskScore");
 
+            // AI Native v4.0.0: eventType 제거 - source 기반
+            Map<String, Object> enrichedMetadata = new HashMap<>(user);
+            enrichedMetadata.put("incidentType", "ACCESS_VIOLATION");
             return SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .eventType(SecurityEvent.EventType.ACCESS_VIOLATION)
+                .source(SecurityEvent.EventSource.IAM)
                 .severity(calculateSeverity(riskScore))
                 .description(String.format("사용자 '%s'에게 과도한 권한 %d개 탐지", userName, excessiveCount))
                 .timestamp(LocalDateTime.now())
                 .userId(userId)
-                .metadata(user)
+                .metadata(enrichedMetadata)
                 .build();
 
         } catch (Exception e) {
@@ -449,14 +452,17 @@ public class AccessGovernanceLabConnector {
             String permissionName = (String) permission.get("permissionName");
             Integer unusedDays = (Integer) permission.get("unusedDays");
 
+            // AI Native v4.0.0: eventType, targetResource 제거 - source/metadata 기반
+            Map<String, Object> enrichedMetadata = new HashMap<>(permission);
+            enrichedMetadata.put("incidentType", "ANOMALY_DETECTED");
+            enrichedMetadata.put("targetResource", permissionId);
             return SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .eventType(SecurityEvent.EventType.ANOMALY_DETECTED)
+                .source(SecurityEvent.EventSource.IAM)
                 .severity(SecurityEvent.Severity.LOW)
                 .description(String.format("권한 '%s'가 %d일 동안 미사용", permissionName, unusedDays))
                 .timestamp(LocalDateTime.now())
-                .targetResource(permissionId)
-                .metadata(permission)
+                .metadata(enrichedMetadata)
                 .build();
 
         } catch (Exception e) {
@@ -474,13 +480,16 @@ public class AccessGovernanceLabConnector {
             String description = (String) anomaly.get("description");
             Double confidence = (Double) anomaly.get("confidence");
 
+            // AI Native v4.0.0: eventType 제거 - source 기반
+            Map<String, Object> enrichedMetadata = new HashMap<>(anomaly);
+            enrichedMetadata.put("incidentType", "ANOMALY_DETECTED");
             return SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .eventType(SecurityEvent.EventType.ANOMALY_DETECTED)
+                .source(SecurityEvent.EventSource.IAM)
                 .severity(calculateSeverity(confidence))
                 .description(description)
                 .timestamp(LocalDateTime.now())
-                .metadata(anomaly)
+                .metadata(enrichedMetadata)
                 .build();
 
         } catch (Exception e) {

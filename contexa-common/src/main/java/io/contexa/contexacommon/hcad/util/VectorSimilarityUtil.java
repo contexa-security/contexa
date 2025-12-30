@@ -35,24 +35,29 @@ public class VectorSimilarityUtil {
     /**
      * 코사인 유사도 계산 (double[] 버전)
      *
+     * AI Native v3.0: 에러 시 0.5 대신 Double.NaN 반환
+     * - 0.5는 플랫폼의 임의 판단 (AI Native 위반)
+     * - NaN은 "계산 불가"를 명확히 표현
+     * - 호출자가 NaN을 처리하여 LLM에 상태 전달
+     *
      * @param vecA 첫 번째 벡터
      * @param vecB 두 번째 벡터
-     * @return 코사인 유사도 (0.0 ~ 1.0)
+     * @return 코사인 유사도 (0.0 ~ 1.0), 계산 불가 시 Double.NaN
      */
     public static double cosineSimilarity(double[] vecA, double[] vecB) {
         if (vecA == null || vecB == null) {
             log.warn("[VectorSimilarityUtil] Null vector provided");
-            return 0.5;
+            return Double.NaN;  // AI Native: 계산 불가 명시
         }
 
         if (vecA.length != vecB.length) {
             log.warn("[VectorSimilarityUtil] Vector dimension mismatch: {} vs {}", vecA.length, vecB.length);
-            return 0.5;
+            return Double.NaN;  // AI Native: 계산 불가 명시
         }
 
         if (vecA.length == 0) {
             log.warn("[VectorSimilarityUtil] Empty vector provided");
-            return 0.5;
+            return Double.NaN;  // AI Native: 계산 불가 명시
         }
 
         try {
@@ -69,24 +74,26 @@ public class VectorSimilarityUtil {
     /**
      * 코사인 유사도 계산 (float[] 버전)
      *
+     * AI Native v3.0: 에러 시 0.5 대신 Double.NaN 반환
+     *
      * @param vecA 첫 번째 벡터
      * @param vecB 두 번째 벡터
-     * @return 코사인 유사도 (0.0 ~ 1.0)
+     * @return 코사인 유사도 (0.0 ~ 1.0), 계산 불가 시 Double.NaN
      */
     public static double cosineSimilarity(float[] vecA, float[] vecB) {
         if (vecA == null || vecB == null) {
             log.warn("[VectorSimilarityUtil] Null vector provided");
-            return 0.5;
+            return Double.NaN;  // AI Native: 계산 불가 명시
         }
 
         if (vecA.length != vecB.length) {
             log.warn("[VectorSimilarityUtil] Vector dimension mismatch: {} vs {}", vecA.length, vecB.length);
-            return 0.5;
+            return Double.NaN;  // AI Native: 계산 불가 명시
         }
 
         if (vecA.length == 0) {
             log.warn("[VectorSimilarityUtil] Empty vector provided");
-            return 0.5;
+            return Double.NaN;  // AI Native: 계산 불가 명시
         }
 
         try {
@@ -104,28 +111,54 @@ public class VectorSimilarityUtil {
 
     /**
      * ND4J SIMD 최적화 코사인 유사도 (double[])
+     *
+     * AI Native v3.0: -1~1 -> 0~1 정규화 (정보 보존)
+     * AI Native v3.1: ND4J 반환값 NaN/Infinity 검증 추가
      */
     private static double cosineSimilarityWithND4J(double[] vecA, double[] vecB) {
         org.nd4j.linalg.api.ndarray.INDArray ndA = org.nd4j.linalg.factory.Nd4j.create(vecA);
         org.nd4j.linalg.api.ndarray.INDArray ndB = org.nd4j.linalg.factory.Nd4j.create(vecB);
         double similarity = org.nd4j.linalg.ops.transforms.Transforms.cosineSim(ndA, ndB);
-        return Math.max(0.0, Math.min(1.0, similarity));
+
+        // AI Native v3.1: ND4J 반환값 검증 - NaN/Infinity는 LLM 분석 품질 저하 유발
+        if (Double.isNaN(similarity) || Double.isInfinite(similarity)) {
+            log.warn("[VectorSimilarityUtil] ND4J returned invalid value: {}", similarity);
+            return Double.NaN;
+        }
+
+        // AI Native: -1~1 -> 0~1 정규화 (정보 보존)
+        return (similarity + 1.0) / 2.0;
     }
 
     /**
      * ND4J SIMD 최적화 코사인 유사도 (float[])
+     *
+     * AI Native v3.0: -1~1 -> 0~1 정규화 (정보 보존)
+     * AI Native v3.1: ND4J 반환값 NaN/Infinity 검증 추가
      */
     private static double cosineSimilarityWithND4J(float[] vecA, float[] vecB) {
         org.nd4j.linalg.api.ndarray.INDArray ndA = org.nd4j.linalg.factory.Nd4j.create(vecA);
         org.nd4j.linalg.api.ndarray.INDArray ndB = org.nd4j.linalg.factory.Nd4j.create(vecB);
         double similarity = org.nd4j.linalg.ops.transforms.Transforms.cosineSim(ndA, ndB);
-        return Math.max(0.0, Math.min(1.0, similarity));
+
+        // AI Native v3.1: ND4J 반환값 검증 - NaN/Infinity는 LLM 분석 품질 저하 유발
+        if (Double.isNaN(similarity) || Double.isInfinite(similarity)) {
+            log.warn("[VectorSimilarityUtil] ND4J returned invalid value: {}", similarity);
+            return Double.NaN;
+        }
+
+        // AI Native: -1~1 -> 0~1 정규화 (정보 보존)
+        return (similarity + 1.0) / 2.0;
     }
 
     // ==================== 순수 자바 폴백 버전 ====================
 
     /**
      * 순수 자바 코사인 유사도 (double[])
+     *
+     * AI Native v3.0:
+     * - 영벡터: NaN 반환 (0.0 아님)
+     * - 범위 정규화: (similarity + 1) / 2 로 -1~1 → 0~1 변환 (정보 보존)
      */
     private static double cosineSimilarityPureJava(double[] vecA, double[] vecB) {
         double dotProduct = 0.0;
@@ -154,16 +187,23 @@ public class VectorSimilarityUtil {
             normB += vecB[i] * vecB[i];
         }
 
+        // AI Native: 영벡터는 계산 불가
         if (normA == 0.0 || normB == 0.0) {
-            return 0.0;
+            return Double.NaN;
         }
 
         double similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-        return Math.max(0.0, Math.min(1.0, similarity));
+        // AI Native: -1~1 → 0~1 정규화 (정보 보존)
+        // -1 (반대 방향) → 0.0, 0 (직교) → 0.5, 1 (동일 방향) → 1.0
+        return (similarity + 1.0) / 2.0;
     }
 
     /**
      * 순수 자바 코사인 유사도 (float[])
+     *
+     * AI Native v3.0:
+     * - 영벡터: NaN 반환 (0.0 아님)
+     * - 범위 정규화: (similarity + 1) / 2 로 -1~1 → 0~1 변환 (정보 보존)
      */
     private static double cosineSimilarityPureJava(float[] vecA, float[] vecB) {
         double dotProduct = 0.0;
@@ -192,12 +232,14 @@ public class VectorSimilarityUtil {
             normB += (double)vecB[i] * vecB[i];
         }
 
+        // AI Native: 영벡터는 계산 불가
         if (normA == 0.0 || normB == 0.0) {
-            return 0.0;
+            return Double.NaN;
         }
 
         double similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-        return Math.max(0.0, Math.min(1.0, similarity));
+        // AI Native: -1~1 → 0~1 정규화 (정보 보존)
+        return (similarity + 1.0) / 2.0;
     }
 
     // ==================== ND4J 사용 가능 여부 확인 ====================

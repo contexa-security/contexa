@@ -113,11 +113,12 @@ public class AuditingHandler implements SecurityEventHandler {
             String action = determineActionFromRiskScore(aiResult.getThreatLevel());
 
             // ThreatAssessment 재구성 (AI Native: action 사용)
+            // AI Native v3.1: reason 필드 제거됨 - SecurityDecision.reasoning으로 대체
             ThreatAssessment assessment = ThreatAssessment.builder()
                 .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
                 .riskScore(aiResult.getThreatLevel())
                 .confidence(aiResult.getConfidenceScore())
-                .reason(aiResult.getSummary())
+                .description(aiResult.getSummary())  // AI Native v3.1: reason -> description
                 .evaluator(aiResult.getAiModel())
                 .action(action)  // AI Native: action 사용
                 .assessedAt(LocalDateTime.now())

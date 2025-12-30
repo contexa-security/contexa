@@ -136,9 +136,9 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
      */
     @Override
     public void evolvePolicy(SecurityEvent event, ThreatAssessment assessment) {
-        // 간단한 정책 진화 로직
+        // 간단한 정책 진화 로직 (AI Native v4.0.0: eventType 제거 - severity 기반)
         if (event != null) {
-            String policyId = "POLICY_" + event.getEventType();
+            String policyId = "POLICY_" + event.getSeverity();
             recordPolicyApplication(policyId, event, "AUTO", true);
         }
     }
@@ -151,7 +151,8 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             Map<String, Object> applicationRecord = new HashMap<>();
             applicationRecord.put("policyId", policyId);
             applicationRecord.put("eventId", event.getEventId());
-            applicationRecord.put("eventType", event.getEventType().name());
+            // AI Native v4.0.0: eventType 제거 - severity 기반
+            applicationRecord.put("severity", event.getSeverity() != null ? event.getSeverity().name() : "UNKNOWN");
             applicationRecord.put("applicationType", applicationType);
             applicationRecord.put("success", success);
             applicationRecord.put("timestamp", System.currentTimeMillis());
@@ -537,8 +538,9 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
                normalized.contains("LOW") || normalized.contains("PASS");
     }
 
+    // AI Native v4.0.0: eventType 제거 - severity + source 기반
     private String extractPolicyId(SecurityEvent event) {
-        return "policy_" + event.getEventType() + "_" + event.getSeverity();
+        return "policy_" + event.getSeverity() + "_" + event.getSource();
     }
     
     private String generatePolicyId(Map<String, Object> context) {

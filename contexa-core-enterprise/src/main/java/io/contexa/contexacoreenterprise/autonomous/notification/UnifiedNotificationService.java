@@ -192,7 +192,7 @@ public class UnifiedNotificationService {
             event.getEventId(), indicators.getRiskLevel());
         
         NotificationPriority priority = calculatePriority(indicators);
-        Set<NotificationChannel> channels = selectChannels(priority, event.getEventType().name());
+        Set<NotificationChannel> channels = selectChannels(priority, event.getSeverity().name());
         
         List<Mono<ChannelResult>> notifications = new ArrayList<>();
         
@@ -304,8 +304,8 @@ public class UnifiedNotificationService {
         context.put("indicators", indicators);
         context.put("priority", priority);
         
-        String subject = String.format("[%s] 보안 이벤트 감지 - %s", 
-            indicators.getRiskLevel(), event.getEventType());
+        String subject = String.format("[%s] 보안 이벤트 감지 - %s",
+            indicators.getRiskLevel(), event.getSeverity());
         
         NotificationTemplate template = templates.get("SECURITY_EVENT");
         String content = template != null ? template.render(context) : createDefaultContent(event, indicators);
@@ -534,7 +534,7 @@ public class UnifiedNotificationService {
         StringBuilder content = new StringBuilder();
         content.append("보안 이벤트 상세:\n");
         content.append("- 이벤트 ID: ").append(event.getEventId()).append("\n");
-        content.append("- 이벤트 유형: ").append(event.getEventType()).append("\n");
+        content.append("- 이벤트 심각도: ").append(event.getSeverity()).append("\n");
         content.append("- 위험 수준: ").append(indicators.getRiskLevel()).append("\n");
         content.append("- 위협 점수: ").append(indicators.calculateThreatScore()).append("\n");
         content.append("- 감지 시각: ").append(event.getTimestamp()).append("\n");

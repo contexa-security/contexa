@@ -86,17 +86,9 @@ public class HCADVectorIntegrationService {
             );
 
             if (!similarBehaviors.isEmpty()) {
-                // 패턴들을 평균하여 고차원 임베딩 생성 (EmbeddingService 위임)
-                float[] averageEmbedding = embeddingService.calculateAverageEmbedding(similarBehaviors);
-
-                // BaselineVector에 고차원 임베딩 설정
-                baseline.setHighDimensionalEmbedding(averageEmbedding);
-                baseline.setEmbeddingVersion("BehaviorVectorService-v2.0");
-                baseline.setEmbeddingUpdatedAt(Instant.now());
-
-                // AI Native 전환: 시나리오 패턴 업데이트 제거
-                // - 시나리오 분류는 LLM이 직접 수행
-                // - 패턴 데이터는 LLM 컨텍스트로 전달됨
+                // AI Native v3.0: highDimensionalEmbedding, embeddingVersion, embeddingUpdatedAt 설정 제거
+                // - BaselineVector에서 해당 필드 제거됨
+                // - LLM 분석에 불필요한 데이터
 
                 log.debug("사용자 {} 패턴 통합 완료: {} 개 행동 패턴 적용", userId, similarBehaviors.size());
             }
@@ -364,27 +356,9 @@ public class HCADVectorIntegrationService {
     // calculateAverageEmbedding, calculateWeightedEmbedding, calculateCosineSimilarity
     // 모두 EmbeddingService로 위임됨 (중복 제거)
 
-    private void updateScenarioPatterns(BaselineVector baseline, List<Document> behaviors) {
-        Map<String, List<Document>> scenarioBehaviors = new HashMap<>();
-
-        // 행동을 시나리오별로 그룹화
-        for (Document behavior : behaviors) {
-            String scenario = detectScenarioFromDocument(behavior);
-            scenarioBehaviors.computeIfAbsent(scenario, k -> new ArrayList<>()).add(behavior);
-        }
-
-        // 각 시나리오별 패턴 업데이트
-        for (Map.Entry<String, List<Document>> entry : scenarioBehaviors.entrySet()) {
-            String scenario = entry.getKey();
-            List<Document> docs = entry.getValue();
-
-            // HCADContext 생성 (문서에서 추출)
-            HCADContext avgContext = createAverageContext(docs);
-            if (avgContext != null) {
-                baseline.updateScenarioPattern(scenario, avgContext, 0.1);
-            }
-        }
-    }
+    // AI Native v3.0: updateScenarioPatterns() 제거
+    // - BaselineVector.updateScenarioPattern() 제거됨
+    // - 시나리오 분류는 LLM이 직접 수행
 
     /**
      * 시나리오별 임베딩 추출
@@ -470,104 +444,9 @@ public class HCADVectorIntegrationService {
     // - IP 기반 내부/외부 판단은 LLM이 컨텍스트로 직접 수행
     // - IP 주소 원시 데이터를 LLM에게 전달
 
-    /**
-     * Phase 6.1: Layer3 피드백을 BaselineVector에 저장
-     *
-     * AI Native 전환: 신뢰도 보정/벡터 조정 규칙 제거
-     * - 피드백 데이터는 저장만 하고, 판단은 LLM이 컨텍스트로 수행
-     * - 모든 피드백 정보는 LLM 프롬프트의 컨텍스트로 전달됨
-     *
-     * @param baseline 기준선 벡터
-     * @param userId 사용자 ID
-     */
-    public void applyLayer3FeedbackToBaseline(BaselineVector baseline, String userId) {
-        try {
-            Map<String, Object> feedback = layerFeedbackService.getLayer3FeedbackForUser(userId);
-
-            int feedbackCount = (int) feedback.get("feedbackCount");
-            if (feedbackCount == 0) {
-                return;
-            }
-
-            // AI Native: 피드백 데이터를 baseline에 저장 (판단은 LLM이 수행)
-            // 신뢰도 보정(1.1)/벡터 조정(0.95) 규칙 제거
-            double avgRiskScore = (double) feedback.get("averageRiskScore");
-            List<String> threatCategories = (List<String>) feedback.getOrDefault("threatCategories", List.of());
-
-            // 피드백 메타데이터로 저장 (LLM 컨텍스트에 포함됨)
-            baseline.setFeedbackMetadata(Map.of(
-                "layer3FeedbackCount", feedbackCount,
-                "layer3AvgRiskScore", avgRiskScore,
-                "layer3ThreatCategories", threatCategories
-            ));
-
-            log.info("Layer3 피드백 저장: userId={}, feedbackCount={}, avgRiskScore={}, 위협 카테고리: {}",
-                userId, feedbackCount, String.format("%.2f", avgRiskScore),
-                threatCategories.isEmpty() ? "none" : String.join(", ", threatCategories));
-
-        } catch (Exception e) {
-            log.error("Layer3 피드백 저장 실패: userId={}", userId, e);
-        }
-    }
-
-    /**
-     * 모든 Layer의 피드백을 통합하여 BaselineVector에 저장
-     *
-     * AI Native 전환: 가중 평균/신뢰도 보정/벡터 조정 규칙 완전 제거
-     * - 모든 Layer의 피드백 데이터를 저장만 함
-     * - 판단은 LLM이 컨텍스트로 직접 수행
-     * - 모든 피드백 정보는 LLM 프롬프트에 포함되어 전달됨
-     *
-     * @param baseline 기준선 벡터
-     * @param userId 사용자 ID
-     */
-    public void applyAllLayersFeedbackToBaseline(BaselineVector baseline, String userId) {
-        try {
-            Map<String, Object> layer1Feedback = layerFeedbackService.getLayer1FeedbackForUser(userId);
-            Map<String, Object> layer2Feedback = layerFeedbackService.getLayer2FeedbackForUser(userId);
-            Map<String, Object> layer3Feedback = layerFeedbackService.getLayer3FeedbackForUser(userId);
-
-            int layer1Count = (int) layer1Feedback.get("feedbackCount");
-            int layer2Count = (int) layer2Feedback.get("feedbackCount");
-            int layer3Count = (int) layer3Feedback.get("feedbackCount");
-
-            if (layer1Count + layer2Count + layer3Count == 0) {
-                return;
-            }
-
-            // AI Native: 모든 피드백 데이터를 원시 형태로 저장
-            // 가중 평균/신뢰도 보정/벡터 조정 규칙 완전 제거
-            // LLM이 모든 피드백 컨텍스트를 받아서 직접 판단
-            double layer1Avg = (double) layer1Feedback.get("averageRiskScore");
-            double layer2Avg = (double) layer2Feedback.get("averageRiskScore");
-            double layer3Avg = (double) layer3Feedback.get("averageRiskScore");
-
-            // 모든 Layer의 위협 카테고리 통합 (LLM 컨텍스트용)
-            Set<String> allThreatCategories = new HashSet<>();
-            allThreatCategories.addAll((List<String>) layer1Feedback.getOrDefault("threatCategories", List.of()));
-            allThreatCategories.addAll((List<String>) layer2Feedback.getOrDefault("threatCategories", List.of()));
-            allThreatCategories.addAll((List<String>) layer3Feedback.getOrDefault("threatCategories", List.of()));
-
-            // 피드백 메타데이터로 저장 (LLM 컨텍스트에 포함됨)
-            Map<String, Object> feedbackMetadata = new HashMap<>();
-            feedbackMetadata.put("layer1FeedbackCount", layer1Count);
-            feedbackMetadata.put("layer1AvgRiskScore", layer1Avg);
-            feedbackMetadata.put("layer2FeedbackCount", layer2Count);
-            feedbackMetadata.put("layer2AvgRiskScore", layer2Avg);
-            feedbackMetadata.put("layer3FeedbackCount", layer3Count);
-            feedbackMetadata.put("layer3AvgRiskScore", layer3Avg);
-            feedbackMetadata.put("allThreatCategories", new ArrayList<>(allThreatCategories));
-            baseline.setFeedbackMetadata(feedbackMetadata);
-
-            log.info("통합 피드백 저장 완료: userId={}, Layer1(count={}, avg={}), Layer2(count={}, avg={}), Layer3(count={}, avg={}), 위협 카테고리: {}",
-                userId,
-                layer1Count, String.format("%.2f", layer1Avg),
-                layer2Count, String.format("%.2f", layer2Avg),
-                layer3Count, String.format("%.2f", layer3Avg),
-                allThreatCategories.isEmpty() ? "none" : String.join(", ", allThreatCategories));
-
-        } catch (Exception e) {
-            log.error("통합 피드백 저장 실패: userId={}", userId, e);
-        }
-    }
+    // AI Native v3.1: 다음 메서드 삭제 - 죽은 코드
+    // - applyLayer3FeedbackToBaseline() - 외부 호출 없음
+    // - applyAllLayersFeedbackToBaseline() - 외부 호출 없음
+    // - feedbackMetadata 필드 저장/검색 구현 없음 (saveBaseline/getBaseline에서 처리 안 함)
+    // - 데이터 흐름 전체가 미구현/죽은 코드
 }

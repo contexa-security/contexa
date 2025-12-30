@@ -387,12 +387,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
             context.markAsFailed("Processing error: " + e.getMessage());
 
-            // 에러 감사 기록
+            // 에러 감사 기록 (AI Native: eventType 제거)
             if (auditLogger != null) {
                 Map<String, Object> errorContext = Map.of(
                     "eventId", event.getEventId(),
-                    "eventType", event.getEventType().toString(),
                     "userId", event.getUserId() != null ? event.getUserId() : "unknown",
+                    "sourceIp", event.getSourceIp() != null ? event.getSourceIp() : "unknown",
                     "processingTime", System.currentTimeMillis() - startTime
                 );
                 auditLogger.auditError("SecurityPlaneAgent", "processWithOrchestrator", e, errorContext);
@@ -476,12 +476,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             activeIncidentHandlers.put(incident.getIncidentId(), handler);
             
             // 인시던트에서 학습 (Learning Capability)
+            // AI Native v4.0.0: eventType 제거 - source 기반
             if (incident.getAffectedUser() != null) {
                 SecurityEvent relatedEvent = new SecurityEvent();
                 relatedEvent.setUserId(incident.getAffectedUser());
-                relatedEvent.setEventType(SecurityEvent.EventType.INCIDENT_CREATED);
+                relatedEvent.setSource(SecurityEvent.EventSource.IAM);
                 relatedEvent.setEventId(incident.getIncidentId());
                 relatedEvent.setSeverity(mapThreatLevelToSeverity(incident.getThreatLevel()));
+                relatedEvent.addMetadata("incidentType", "INCIDENT_CREATED");
 
                 String response = "INCIDENT_" + incident.getType();
                 double effectiveness = incident.getRiskScore();
@@ -716,12 +718,17 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     /**
-     * 대상 리소스 추출
+     * 대상 리소스 추출 (AI Native: SecurityEvent.targetResource 필드 제거됨 - metadata에서 추출)
      */
     private String extractTargetResource(SoarIncident soarIncident, SecurityEvent securityEvent) {
-        if (securityEvent != null && securityEvent.getTargetResource() != null) {
-            return securityEvent.getTargetResource();
+        // SecurityEvent metadata에서 targetResource 추출
+        if (securityEvent != null && securityEvent.getMetadata() != null) {
+            Object resource = securityEvent.getMetadata().get("targetResource");
+            if (resource != null) {
+                return resource.toString();
+            }
         }
+        // SoarIncident metadata에서 targetResource 추출
         if (soarIncident != null && soarIncident.getMetadata() != null) {
             try {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
@@ -965,9 +972,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 ProcessingResult.IncidentSeverity.MEDIUM;
             SecurityIncident.ThreatLevel threatLevel = mapSeverityToThreatLevel(severity);
             
+            // AI Native: eventType 제거 - severity 기반으로 인시던트 타입 결정
             SecurityIncident incident = SecurityIncident.builder()
                     .incidentId("INC-" + result.getProcessingPath() + "-" + System.currentTimeMillis())
-                    .type(mapEventTypeToIncidentType(event.getEventType()))
+                    .type(mapSeverityToIncidentType(severity))
                     .threatLevel(threatLevel)
                     .status(SecurityIncident.IncidentStatus.NEW)
                     .description(String.format("%s path detected %s threat",
@@ -1011,19 +1019,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
     
     /**
-     * 이벤트 타입을 인시던트 타입으로 매핑
+     * Severity 기반으로 인시던트 타입으로 매핑 (AI Native: eventType 제거)
+     *
+     * AI Native 원칙: 인시던트 타입은 LLM 분석 결과의 severity/action에서 결정
      */
-    private SecurityIncident.IncidentType mapEventTypeToIncidentType(SecurityEvent.EventType eventType) {
-        switch (eventType) {
-            case BRUTE_FORCE:
-            case CREDENTIAL_STUFFING:
-            case INTRUSION_ATTEMPT:
+    private SecurityIncident.IncidentType mapSeverityToIncidentType(ProcessingResult.IncidentSeverity severity) {
+        switch (severity) {
+            case CRITICAL:
                 return SecurityIncident.IncidentType.INTRUSION_ATTEMPT;
-            case DATA_EXFILTRATION:
-                return SecurityIncident.IncidentType.DATA_EXFILTRATION;
-            case PRIVILEGE_ESCALATION:
-            case ACCESS_CONTROL_VIOLATION:
+            case HIGH:
                 return SecurityIncident.IncidentType.POLICY_VIOLATION;
+            case MEDIUM:
+                return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
             default:
                 return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
         }

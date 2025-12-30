@@ -39,24 +39,24 @@ public class EventNormalizer implements EventProcessor<SecurityEvent> {
         
         // 타임스탬프 정규화
         normalizeTimestamp(event);
-        
-        // 이벤트 타입 정규화
-        normalizeEventType(event);
-        
+
+        // AI Native: eventType 정규화 제거 - 행동 패턴 기반 분석으로 전환
+
         // Severity 정규화
         normalizeSeverity(event);
-        
+
         // IP 주소 정규화
         normalizeIpAddress(event);
-        
+
         // 이벤트 ID 검증
         normalizeEventId(event);
-        
+
         // Source 정규화
         normalizeSource(event);
-        
-        log.trace("Event normalized: eventId={}, type={}, severity={}", 
-                 event.getEventId(), event.getEventType(), event.getSeverity());
+
+        // AI Native: eventType 제거 - severity, userId 기반 로깅
+        log.trace("Event normalized: eventId={}, severity={}, userId={}",
+                 event.getEventId(), event.getSeverity(), event.getUserId());
         
         return event;
     }
@@ -72,50 +72,18 @@ public class EventNormalizer implements EventProcessor<SecurityEvent> {
         }
     }
     
+    // AI Native: normalizeEventType 제거 - eventType 필드 삭제됨
+
     /**
-     * 이벤트 타입 정규화
-     * null인 경우 SYSTEM_ERROR로 설정
-     */
-    private void normalizeEventType(SecurityEvent event) {
-        if (event.getEventType() == null) {
-            event.setEventType(SecurityEvent.EventType.SYSTEM_ERROR);
-            log.debug("Event type normalized to SYSTEM_ERROR for event: {}", event.getEventId());
-        }
-    }
-    
-    /**
-     * Severity 레벨 정규화
+     * Severity 레벨 정규화 (AI Native: eventType 제거)
      * null인 경우 INFO로 설정
      */
     private void normalizeSeverity(SecurityEvent event) {
         if (event.getSeverity() == null) {
-            // 이벤트 타입에 따른 기본 Severity 설정
-            SecurityEvent.Severity defaultSeverity = determineDefaultSeverity(event.getEventType());
-            event.setSeverity(defaultSeverity);
-            log.trace("Severity normalized to {} for event: {}", defaultSeverity, event.getEventId());
+            // AI Native: eventType 없이 기본 INFO 설정
+            event.setSeverity(SecurityEvent.Severity.INFO);
+            log.trace("Severity normalized to INFO for event: {}", event.getEventId());
         }
-    }
-    
-    /**
-     * 이벤트 타입에 따른 기본 Severity 결정
-     */
-    private SecurityEvent.Severity determineDefaultSeverity(SecurityEvent.EventType eventType) {
-        if (eventType == null) {
-            return SecurityEvent.Severity.INFO;
-        }
-        
-        return switch (eventType) {
-            case INTRUSION_SUCCESS, MALWARE_DETECTED, DATA_EXFILTRATION -> 
-                SecurityEvent.Severity.CRITICAL;
-            case INTRUSION_ATTEMPT, PRIVILEGE_ESCALATION, SUSPICIOUS_ACTIVITY -> 
-                SecurityEvent.Severity.HIGH;
-            case AUTH_FAILURE, POLICY_VIOLATION, ANOMALY_DETECTED -> 
-                SecurityEvent.Severity.MEDIUM;
-            case NETWORK_SCAN, CONFIGURATION_CHANGE -> 
-                SecurityEvent.Severity.LOW;
-            default -> 
-                SecurityEvent.Severity.INFO;
-        };
     }
     
     /**

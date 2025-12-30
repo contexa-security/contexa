@@ -156,7 +156,7 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
         List<String> requestedActions = determineRequestedActions(context);
         Map<String, Object> actionParams = new HashMap<>();
         actionParams.put("requestedActions", requestedActions);
-        actionParams.put("eventType", event.getEventType());
+        actionParams.put("severity", event.getSeverity());
         actionParams.put("sourceIp", event.getSourceIp());
         builder.toolParameters(actionParams);
 
@@ -215,10 +215,10 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
                                                          String approvalId) {
         try {
             Map<String, Object> notificationData = new HashMap<>();
-            notificationData.put("severity", "CRITICAL");
+            notificationData.put("alertLevel", "CRITICAL");
             notificationData.put("eventId", event.getEventId());
             notificationData.put("approvalId", approvalId);
-            notificationData.put("eventType", event.getEventType());
+            notificationData.put("eventSeverity", event.getSeverity());
             notificationData.put("userId", event.getUserId());
             notificationData.put("sourceIp", event.getSourceIp());
             notificationData.put("riskLevel", request.getRiskLevel());
@@ -313,7 +313,7 @@ public class AwaitApprovalStrategy implements ProcessingStrategy {
         PolicyDTO.PolicyDTOBuilder builder = PolicyDTO.builder();
 
         // 정책 기본 정보 설정
-        builder.name("AUTO_GENERATED_" + event.getEventType());
+        builder.name("AUTO_GENERATED_" + event.getSeverity());
         builder.description("Auto-generated policy based on event: " + event.getEventId());
 
         // AI 권장사항 기반 설정

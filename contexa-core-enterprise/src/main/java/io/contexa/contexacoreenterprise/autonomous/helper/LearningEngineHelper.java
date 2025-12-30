@@ -549,15 +549,17 @@ public class LearningEngineHelper implements LearningEngine {
     }
     
     // Helper 메서드들
+    // AI Native v4.0.0: eventType 제거 - severity + source 기반
     private String generateContextId(SecurityEvent event) {
-        return event.getEventType() + "_" + event.getSeverity();
+        return event.getSeverity() + "_" + event.getSource();
     }
-    
+
+    // AI Native v4.0.0: eventType 제거 - severity + source 기반
     private String extractPatternSignature(SecurityEvent event) {
         // 이벤트의 패턴 시그니처 추출
-        return event.getEventType() + "_" + 
-               event.getSeverity() + "_" + 
-               event.getSource();
+        return event.getSeverity() + "_" +
+               event.getSource() + "_" +
+               event.getEventId();
     }
     
     /**
@@ -622,21 +624,28 @@ public class LearningEngineHelper implements LearningEngine {
     /**
      * 상태 맵에서 SecurityEvent 재구성
      */
+    // AI Native v4.0.0: eventType, targetResource 필드 제거
     private SecurityEvent reconstructEventFromState(String eventId, Map<String, Object> state) {
         try {
+            Map<String, Object> metadata = (Map<String, Object>) state.get("metadata");
+            if (metadata == null) {
+                metadata = new HashMap<>();
+            }
+            // targetResource를 metadata에 저장
+            if (state.get("targetResource") != null) {
+                metadata.put("targetResource", state.get("targetResource"));
+            }
+
             return SecurityEvent.builder()
                 .eventId(eventId)
-                .eventType(SecurityEvent.EventType.valueOf(
-                    (String) state.getOrDefault("eventType", "UNKNOWN")))
                 .userId((String) state.get("userId"))
                 .sourceIp((String) state.get("sourceIp"))
-                .targetResource((String) state.get("targetResource"))
                 .severity(SecurityEvent.Severity.valueOf(
                     (String) state.getOrDefault("severity", "MEDIUM")))
-                .timestamp(state.containsKey("timestamp") ? 
-                    LocalDateTime.parse(state.get("timestamp").toString()) : 
+                .timestamp(state.containsKey("timestamp") ?
+                    LocalDateTime.parse(state.get("timestamp").toString()) :
                     LocalDateTime.now())
-                .metadata((Map<String, Object>) state.get("metadata"))
+                .metadata(metadata)
                 .build();
         } catch (Exception e) {
             log.error("Failed to reconstruct event from state", e);

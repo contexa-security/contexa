@@ -147,31 +147,34 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                     String.join(", ", threatIntel.getKnownActors()) : "");
             threatIntelCtx.setRelatedCampaigns(threatIntel.getRelatedCampaigns() != null ?
                     String.join(", ", threatIntel.getRelatedCampaigns()) : "");
-            threatIntelCtx.setIocMatches(threatIntel.getIocMatches() != null ?
-                    String.join(", ", threatIntel.getIocMatches()) : "");
+            // AI Native: iocMatches 제거 - 항상 빈 리스트 (죽은 데이터)
 
             Layer3PromptTemplate.HistoricalContext historicalCtx = new Layer3PromptTemplate.HistoricalContext();
             historicalCtx.setSimilarIncidents(historicalContext.getSimilarIncidents() != null ?
                     String.join(", ", historicalContext.getSimilarIncidents()) : "");
             historicalCtx.setPreviousAttacks(String.valueOf(historicalContext.getPreviousAttacks()));
-            historicalCtx.setVulnerabilityHistory(historicalContext.getVulnerabilityHistory() != null ?
-                    String.join(", ", historicalContext.getVulnerabilityHistory()) : "");
+            // AI Native: vulnerabilityHistory 제거 - 항상 빈 리스트 (죽은 데이터)
 
             String userId = event.getUserId();
-            String baselineContext = null;
-            if (baselineLearningService != null && userId != null) {
+            // Zero Trust: 서비스 상태를 명시적으로 LLM에게 전달
+            String baselineContext;
+            if (baselineLearningService == null) {
+                baselineContext = "[SERVICE_UNAVAILABLE] Baseline learning service not configured";
+            } else if (userId == null) {
+                baselineContext = "[NO_USER_ID] Cannot retrieve baseline without user identification";
+            } else {
                 baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
-                log.debug("[Layer3] Baseline context generated for user {}", userId);
+                if (baselineContext == null || baselineContext.isEmpty()) {
+                    baselineContext = "[NO_DATA] Baseline service returned empty response";
+                } else {
+                    log.debug("[Layer3] Baseline context generated for user {}", userId);
+                }
             }
 
             // Priority 2: SystemContext 실제 데이터 연동 (하드코딩 제거)
             Layer3PromptTemplate.SystemContext systemCtx = buildSystemContext(event, historicalContext);
 
-            String promptText = promptTemplate.buildPrompt(
-                    event, layer1Decision, layer2Decision,
-                    threatIntelCtx, historicalCtx, systemCtx,
-                    baselineContext
-            );
+            String promptText = promptTemplate.buildPrompt(event, layer1Decision, layer2Decision, threatIntelCtx, historicalCtx, systemCtx, baselineContext);
 
             Layer3SecurityResponse response = null;
             if (llmOrchestrator != null) {
@@ -291,8 +294,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             List<String> relatedCampaigns = campaignsFuture.get();
             intel.setRelatedCampaigns(relatedCampaigns);
 
-            // AI Native: IOC는 LLM이 직접 분석, 플랫폼은 컨텍스트 제공 안 함
-            intel.setIocMatches(new ArrayList<>());
+            // AI Native: IOC는 LLM이 직접 분석 (항상 빈 리스트이므로 설정 불필요)
 
             // AI Native: GeoLocation은 sourceIp raw 데이터로 충분, LLM이 직접 판단
             intel.setGeoLocation(sourceIp != null ? "IP: " + sourceIp : "Unknown");
@@ -311,18 +313,17 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     /**
      * 알려진 위협 액터 찾기 (UnifiedVectorService RAG 기반)
+     * AI Native: eventType 제거 - 행동 패턴 기반 검색
      */
     private List<String> findKnownThreatActors(SecurityEvent event) {
         List<String> actors = new ArrayList<>();
 
         if (unifiedVectorService != null) {
             try {
-                String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
                 String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "";
-                // AI Native: deprecated 필드 getAttackVector() 제거
-                // attackVector는 ThreatAssessment에서 LLM이 결정
+                String userId = event.getUserId() != null ? event.getUserId() : "";
 
-                String query = String.format("threat-actor %s IP:%s", eventType, sourceIp);
+                String query = String.format("threat-actor IP:%s user:%s", sourceIp, userId);
 
                 // AI Native: RAG 검색 파라미터는 설정에서 주입 (하드코딩 금지)
                 org.springframework.ai.vectorstore.SearchRequest searchRequest =
@@ -379,13 +380,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
         if (unifiedVectorService != null) {
             try {
-                String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
-                Optional<String> targetResource = eventEnricher.getTargetResource(event);
-                // AI Native: deprecated 필드 getMitreAttackId() 제거
-                // MITRE ATT&CK 매핑은 ThreatAssessment에서 LLM이 결정
+                // AI Native: eventType, targetResource 제거 - 행동 패턴 기반 검색
+                String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "";
+                String userId = event.getUserId() != null ? event.getUserId() : "";
 
-                String campaignQuery = String.format("campaign %s targeting %s",
-                        eventType, targetResource.orElse(""));
+                String campaignQuery = String.format("campaign IP:%s user:%s", sourceIp, userId);
 
                 // AI Native: RAG 검색 파라미터는 설정에서 주입 (하드코딩 금지)
                 org.springframework.ai.vectorstore.SearchRequest searchRequest =
@@ -460,13 +459,14 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             context.setPreviousAttacks(previousAttacks);
         }
 
-        context.setVulnerabilityHistory(new ArrayList<>());
+        // AI Native: vulnerabilityHistory는 항상 빈 리스트이므로 설정 불필요
 
         return context;
     }
 
     /**
      * 유사 인시던트 찾기 (Vector-based with fallback)
+     * AI Native: eventType, targetResource 제거
      */
     private List<String> findSimilarIncidents(SecurityEvent event) {
         if (behaviorVectorService == null) {
@@ -474,14 +474,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         }
 
         try {
-            String eventType = event.getEventType() != null ? event.getEventType().toString() : "UNKNOWN";
             String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "unknown";
-            Optional<String> targetResource = eventEnricher.getTargetResource(event);
+            String userId = event.getUserId() != null ? event.getUserId() : "unknown";
 
-            String incidentQuery = String.format("security incident %s from %s targeting %s",
-                    eventType,
-                    sourceIp,
-                    targetResource.orElse("unknown"));
+            String incidentQuery = String.format("security incident from IP:%s user:%s",
+                    sourceIp, userId);
 
             List<Document> similarIncidents = behaviorVectorService.findSimilarBehaviors(
                     sourceIp,
@@ -524,8 +521,8 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     private List<String> findSimilarIncidentsFallback(SecurityEvent event) {
         List<String> incidents = new ArrayList<>();
 
-        // Null safety: event가 null이거나 eventType이 null인 경우 빈 리스트 반환
-        if (event == null || event.getEventType() == null) {
+        // Null safety: event가 null인 경우 빈 리스트 반환
+        if (event == null) {
             return incidents;
         }
 
@@ -533,7 +530,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             return incidents;
         }
 
-        String pattern = "incident:*:" + event.getEventType();
+        // AI Native: eventType 제거 - 사용자 ID 기반 검색
+        String userId = event.getUserId() != null ? event.getUserId() : "unknown";
+        String pattern = "incident:*:" + userId;
         int limit = 5;
 
         try {
@@ -552,8 +551,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 }
             }
         } catch (Exception e) {
-            log.debug("[Layer3] Failed to find similar incidents via SCAN for event type: {}",
-                    event.getEventType(), e);
+            log.debug("[Layer3] Failed to find similar incidents via SCAN for user: {}", userId, e);
         }
 
         return incidents;
@@ -1099,10 +1097,10 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         if (unifiedVectorService == null) return;
 
         try {
-            // 심층 분석 결과 문서 생성
+            // 심층 분석 결과 문서 생성 (AI Native: eventType 제거)
             String content = String.format(
-                    "Event: %s, Risk: %.2f, Action: %s, Classification: %s, MITRE: %s, Reasoning: %s",
-                    event.getEventType(),
+                    "User: %s, Risk: %.2f, Action: %s, Classification: %s, MITRE: %s, Reasoning: %s",
+                    event.getUserId() != null ? event.getUserId() : "unknown",
                     decision.getRiskScore(),
                     decision.getAction(),
                     response.getClassification(),
@@ -1125,10 +1123,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 metadata.put("userId", event.getUserId());
             }
 
-            // SecurityEvent 정보
-            if (event.getEventType() != null) {
-                metadata.put("eventType", event.getEventType().toString());
-            }
+            // SecurityEvent 정보 (AI Native: eventType 제거)
             if (event.getSourceIp() != null) {
                 metadata.put("sourceIp", event.getSourceIp());
             }
@@ -1208,9 +1203,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             if (event.getUserId() != null) {
                 threatMetadata.put("userId", event.getUserId());
             }
-            if (event.getEventType() != null) {
-                threatMetadata.put("eventType", event.getEventType().toString());
-            }
             if (event.getSourceIp() != null) {
                 threatMetadata.put("sourceIp", event.getSourceIp());
             }
@@ -1258,11 +1250,12 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             }
             threatMetadata.put("action", decision.getAction().toString());
 
-            // 위협 설명 (전문가 분석 포함)
+            // 위협 설명 (전문가 분석 포함) - AI Native: eventType 제거, 행동 패턴 중심
             String threatDescription = String.format(
-                "Layer3 Expert Threat Confirmation: User=%s, EventType=%s, IP=%s, RiskScore=%.2f, " +
+                "Layer3 Expert Threat: User=%s, IP=%s, Risk=%.2f, " +
                 "Classification=%s, Tactics=%s, Techniques=%s, IOC=%s, Action=%s, Reasoning=%s",
-                event.getUserId(), event.getEventType(), event.getSourceIp(),
+                event.getUserId() != null ? event.getUserId() : "unknown",
+                event.getSourceIp() != null ? event.getSourceIp() : "unknown",
                 decision.getRiskScore(),
                 response.getClassification(),
                 response.getTactics() != null ? response.getTactics() : "[]",

@@ -423,9 +423,8 @@ public class SecurityEventEnricher {
     public Map<String, Object> createEventContext(SecurityEvent event) {
         Map<String, Object> context = new HashMap<>();
         
-        // 기본 정보
+        // 기본 정보 (AI Native: eventType 제거 - 행동 패턴 중심 분석)
         context.put("eventId", event.getEventId());
-        context.put("eventType", event.getEventType());
         context.put("severity", event.getSeverity());
         context.put("timestamp", event.getTimestamp());
         
@@ -433,9 +432,7 @@ public class SecurityEventEnricher {
         if (event.getSourceIp() != null) {
             context.put("sourceIp", event.getSourceIp());
         }
-        if (event.getTargetIp() != null) {
-            context.put("targetIp", event.getTargetIp());
-        }
+        // AI Native v3.1: targetIp 필드 제거됨 - metadata로 이동 (네트워크 이벤트 전용)
         
         // 사용자 정보
         if (event.getUserId() != null) {
@@ -499,9 +496,9 @@ public class SecurityEventEnricher {
      */
     public String generateEventSummary(SecurityEvent event) {
         StringBuilder summary = new StringBuilder();
+        // AI Native: eventType 제거 - 행동 패턴 기반 요약
         summary.append("Event[").append(event.getEventId()).append("]: ");
-        summary.append(event.getEventType()).append(" ");
-        summary.append("(").append(event.getSeverity()).append(") ");
+        summary.append("Severity=").append(event.getSeverity()).append(" ");
         
         if (event.getUserId() != null) {
             summary.append("User:").append(event.getUserId()).append(" ");

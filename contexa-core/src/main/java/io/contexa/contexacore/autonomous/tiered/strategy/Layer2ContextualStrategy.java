@@ -258,13 +258,22 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         List<String> similarEvents = findSimilarEvents(event);
         analysis.setSimilarEvents(similarEvents);
 
-        if (baselineLearningService != null && userId != null) {
-            analysis.setBaselineContext(baselineLearningService.buildBaselinePromptContext(userId, event));
-            analysis.setBaselineEstablished(baselineLearningService.getBaseline(userId) != null);
-            log.debug("[Layer2] Baseline context generated for user {}", userId);
-        } else {
-            analysis.setBaselineContext(null);
+        // Zero Trust: 서비스 상태를 명시적으로 LLM에게 전달
+        if (baselineLearningService == null) {
+            analysis.setBaselineContext("[SERVICE_UNAVAILABLE] Baseline learning service not configured");
             analysis.setBaselineEstablished(false);
+        } else if (userId == null) {
+            analysis.setBaselineContext("[NO_USER_ID] Cannot retrieve baseline without user identification");
+            analysis.setBaselineEstablished(false);
+        } else {
+            String baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
+            if (baselineContext == null || baselineContext.isEmpty()) {
+                analysis.setBaselineContext("[NO_DATA] Baseline service returned empty response");
+            } else {
+                analysis.setBaselineContext(baselineContext);
+                log.debug("[Layer2] Baseline context generated for user {}", userId);
+            }
+            analysis.setBaselineEstablished(baselineLearningService.getBaseline(userId) != null);
         }
 
         return analysis;
@@ -279,7 +288,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             String userId = event.getUserId() != null ? event.getUserId() : "unknown";
             List<Document> similarBehaviors = behaviorVectorService.findSimilarBehaviors(
                     userId,
-                    event.getEventType() != null ? event.getEventType().toString() : "unknown",
+                    event.getDescription() != null ? event.getDescription() : "security event",
                     5
             );
 
@@ -305,7 +314,9 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             return similar;
         }
 
-        String pattern = "event:similar:" + event.getEventType() + ":*";
+        // AI Native: eventType 제거 - 사용자 ID 기반 검색
+        String userId = event.getUserId() != null ? event.getUserId() : "unknown";
+        String pattern = "event:similar:" + userId + ":*";
         int limit = 5;
 
         try {
@@ -331,6 +342,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
     /**
      * 벡터 스토어에서 관련 문서 검색 (확장된 RAG 검색)
+     * AI Native: eventType, targetResource 제거 - 행동 패턴 기반 검색
      */
     private List<Document> searchRelatedContext(SecurityEvent event) {
         if (unifiedVectorService == null) {
@@ -338,29 +350,33 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         }
 
         try {
-            String targetResource = eventEnricher.getTargetResource(event).orElse("unknown");
             String httpMethod = eventEnricher.getHttpMethod(event).orElse("unknown");
 
             // 확장된 검색 쿼리 - 행동 패턴 분석 관련 정보 포함
             StringBuilder queryBuilder = new StringBuilder();
-            queryBuilder.append(event.getEventType()).append(" ");
-            queryBuilder.append(targetResource).append(" ");
-            queryBuilder.append(httpMethod).append(" ");
 
-            // 사용자 행동 패턴 검색을 위한 컨텍스트 추가
+            // 사용자 행동 패턴 검색을 위한 컨텍스트
             if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
                 queryBuilder.append("user:").append(event.getUserId()).append(" ");
             }
+
+            // HTTP 메서드
+            queryBuilder.append(httpMethod).append(" ");
 
             // 세션 기반 행동 패턴 검색
             if (event.getSessionId() != null) {
                 queryBuilder.append("session ");
             }
 
-            // AI Native: getThreatType() deprecated 필드 사용 제거
-            // 위협 타입은 ThreatAssessment에서 LLM이 결정
+            // 소스 IP 기반 검색
+            if (event.getSourceIp() != null) {
+                queryBuilder.append("IP:").append(event.getSourceIp()).append(" ");
+            }
 
             String query = queryBuilder.toString().trim();
+            if (query.isEmpty()) {
+                query = "security behavior pattern";
+            }
 
             // 설정에서 유사도 임계값 가져오기
             double similarityThreshold = tieredStrategyProperties.getLayer2().getRag().getSimilarityThreshold();
@@ -574,16 +590,19 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
 
     /**
      * 세션 컨텍스트 업데이트
+     * AI Native: eventType, targetResource 제거
      */
     private void updateSessionContext(SecurityEvent event, SecurityDecision decision) {
         String sessionId = event.getSessionId();
         if (sessionId == null || redisTemplate == null) return;
 
         try {
+            // AI Native: 행동 기반 세션 기록 (eventType 제거)
             redisTemplate.opsForList().rightPush(
                     ZeroTrustRedisKeys.sessionActions(sessionId),
-                    String.format("%s:%s:%s", event.getEventType(),
-                            eventEnricher.getTargetResource(event).orElse("unknown"),
+                    String.format("%s:%s:%s",
+                            event.getDescription() != null ? event.getDescription() : "action",
+                            eventEnricher.getHttpMethod(event).orElse("unknown"),
                             decision.getAction())
             );
 
@@ -612,10 +631,10 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
         }
 
         try {
-            // 학습용 문서 생성
+            // 학습용 문서 생성 (AI Native: eventType 제거)
             String content = String.format(
-                    "Event: %s, Risk: %.2f, Action: %s, Pattern: %s, Reasoning: %s",
-                    event.getEventType(),
+                    "User: %s, Risk: %.2f, Action: %s, Pattern: %s, Reasoning: %s",
+                    event.getUserId() != null ? event.getUserId() : "unknown",
                     decision.getRiskScore(),
                     decision.getAction(),
                     decision.getThreatCategory(),
@@ -635,10 +654,7 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 metadata.put("userId", event.getUserId());
             }
 
-            // SecurityEvent 정보
-            if (event.getEventType() != null) {
-                metadata.put("eventType", event.getEventType().toString());
-            }
+            // SecurityEvent 정보 (AI Native: eventType 제거)
             if (event.getSourceIp() != null) {
                 metadata.put("sourceIp", event.getSourceIp());
             }
@@ -700,16 +716,13 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             }
 
             // 이벤트 컨텍스트 (Zero Trust 추적성)
-            // AI Native: null인 경우 필드 생략
+            // AI Native: null인 경우 필드 생략, eventType 제거
             if (event.getEventId() != null) {
                 threatMetadata.put("eventId", event.getEventId());
             }
             threatMetadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
             if (event.getUserId() != null) {
                 threatMetadata.put("userId", event.getUserId());
-            }
-            if (event.getEventType() != null) {
-                threatMetadata.put("eventType", event.getEventType().toString());
             }
             if (event.getSourceIp() != null) {
                 threatMetadata.put("sourceIp", event.getSourceIp());
@@ -723,11 +736,11 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
                 threatMetadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
             }
 
-            // 위협 설명 (AI 분석 결과 포함)
+            // 위협 설명 (AI 분석 결과 포함, AI Native: eventType 제거)
             String threatDescription = String.format(
-                "Layer2 Contextual Threat: User=%s, EventType=%s, IP=%s, RiskScore=%.2f, " +
+                "Layer2 Contextual Threat: User=%s, IP=%s, RiskScore=%.2f, " +
                 "ThreatCategory=%s, BehaviorPatterns=%s, Action=%s, Reasoning=%s",
-                event.getUserId(), event.getEventType(), event.getSourceIp(),
+                event.getUserId(), event.getSourceIp(),
                 decision.getRiskScore(), decision.getThreatCategory(),
                 decision.getBehaviorPatterns() != null ? decision.getBehaviorPatterns() : "[]",
                 decision.getAction(),
@@ -811,8 +824,9 @@ public class Layer2ContextualStrategy extends AbstractTieredStrategy {
             if (recentActions.size() > maxRecentActions) {
                 recentActions.remove(0);
             }
-            String targetResource = eventEnricher.getTargetResource(event).orElse("unknown");
-            recentActions.add(event.getEventType() + ":" + targetResource);
+            // AI Native: eventType, targetResource 제거 - 행동 기반 기록
+            String httpMethod = eventEnricher.getHttpMethod(event).orElse("unknown");
+            recentActions.add(httpMethod + ":" + (event.getDescription() != null ? event.getDescription() : "action"));
         }
 
         public long getSessionDuration() {

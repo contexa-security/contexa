@@ -6,7 +6,6 @@ import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.config.SecurityPlaneConfiguration;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.strategy.DynamicStrategySelector;
-import io.contexa.contexacore.autonomous.tiered.TieredEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.detection.MaliciousPatternDetector;
 import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
@@ -93,17 +92,12 @@ public class CoreAutonomousAutoConfiguration {
 
     // ========== Level 1: 독립적 서비스 (5개) ==========
 
-    /**
-     * 1-1. TieredEventProcessor - 계층적 이벤트 처리 프로세서
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public TieredEventProcessor tieredEventProcessor() {
-        return new TieredEventProcessor();
-    }
+    // AI Native v4.0.0: TieredEventProcessor 제거
+    // - LLM 분석 전 사전 필터링/분류는 AI Native 원칙 위반
+    // - 모든 이벤트를 동일 토픽으로 발행하고 LLM이 분류 결정
 
     /**
-     * 1-2. SecurityEventEnricher - 보안 이벤트 강화 유틸리티
+     * 1-1. SecurityEventEnricher - 보안 이벤트 강화 유틸리티
      */
     @Bean
     @ConditionalOnMissingBean

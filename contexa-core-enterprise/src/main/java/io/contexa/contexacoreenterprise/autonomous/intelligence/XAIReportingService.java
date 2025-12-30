@@ -377,7 +377,7 @@ public class XAIReportingService {
         Map<String, Double> features = new HashMap<>();
         
         // 기본 특징
-        features.put("event_type_risk", getEventTypeRisk(event.getEventType().name()));
+        features.put("source_risk", getSourceRisk(event.getSource() != null ? event.getSource().name() : "UNKNOWN"));
         features.put("severity_score", getSeverityScore(event.getSeverity().name()));
         features.put("time_of_day", getTimeScore(event.getTimestamp()));
         
@@ -817,9 +817,15 @@ public class XAIReportingService {
     
     // 헬퍼 메서드들
     
-    private double getEventTypeRisk(String eventType) {
-        // 실제로는 복잡한 계산
-        return eventType.contains("AUTH") ? 0.7 : 0.5;
+    private double getSourceRisk(String source) {
+        // AI Native v4.0.0: eventType 제거 - source 기반 위험도 계산
+        return switch (source) {
+            case "NETWORK" -> 0.8;
+            case "ENDPOINT" -> 0.7;
+            case "IAM" -> 0.6;
+            case "CLOUD" -> 0.5;
+            default -> 0.3;
+        };
     }
     
     /**
@@ -1004,7 +1010,7 @@ public class XAIReportingService {
         Map<String, Object> metadata = new HashMap<>();
         if (event != null) {
             metadata.put("eventId", event.getEventId());
-            metadata.put("eventType", event.getEventType());
+            metadata.put("severity", event.getSeverity());
         }
         if (assessment != null) {
             metadata.put("riskScore", assessment.riskScore());

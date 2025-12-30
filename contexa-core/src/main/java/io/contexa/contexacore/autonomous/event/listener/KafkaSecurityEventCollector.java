@@ -23,8 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.contexa.contexacore.autonomous.domain.SecurityEvent.EventType.ANOMALY_DETECTED;
-import static io.contexa.contexacore.autonomous.domain.SecurityEvent.EventType.PRIVILEGE_ESCALATION;
+// AI Native: EventType static imports 제거 - 행동 패턴 기반 분석으로 전환
 
 
 /**
@@ -115,8 +114,9 @@ public class KafkaSecurityEventCollector {
                 log.debug("[KafkaCollector] Event had no ID, generated: {}", event.getEventId());
             }
 
-            log.debug("[KafkaCollector] Parsed event - eventId: {}, type: {}, userId: {}",
-                event.getEventId(), event.getEventType(), event.getUserId());
+            // AI Native: eventType 제거
+            log.debug("[KafkaCollector] Parsed event - eventId: {}, severity: {}, userId: {}",
+                event.getEventId(), event.getSeverity(), event.getUserId());
 
             event.setSource(SecurityEvent.EventSource.KAFKA);
             event.addMetadata("kafka.topic", topic);
@@ -262,6 +262,8 @@ public class KafkaSecurityEventCollector {
 
             Map<String, Object> networkData = objectMapper.readValue(record.value(), Map.class);
 
+            // AI Native v3.1: targetIp, sourcePort, targetPort 필드 제거됨
+            // LLM 프롬프트에서 사용하지 않는 네트워크 정보는 metadata에 저장
             SecurityEvent event = SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .source(SecurityEvent.EventSource.FIREWALL)
@@ -269,12 +271,19 @@ public class KafkaSecurityEventCollector {
                 .timestamp(LocalDateTime.now())
                 .description((String) networkData.get("description"))
                 .sourceIp((String) networkData.get("src_ip"))
-                .targetIp((String) networkData.get("dst_ip"))
-                .sourcePort((Integer) networkData.get("src_port"))
-                .targetPort((Integer) networkData.get("dst_port"))
                 .protocol((String) networkData.get("protocol"))
                 .build();
 
+            // AI Native v3.1: 네트워크 이벤트 전용 정보는 metadata에 저장
+            if (networkData.get("dst_ip") != null) {
+                event.addMetadata("network.targetIp", networkData.get("dst_ip"));
+            }
+            if (networkData.get("src_port") != null) {
+                event.addMetadata("network.sourcePort", networkData.get("src_port"));
+            }
+            if (networkData.get("dst_port") != null) {
+                event.addMetadata("network.targetPort", networkData.get("dst_port"));
+            }
             event.addMetadata("kafka.key", record.key());
             event.addMetadata("kafka.timestamp", String.valueOf(record.timestamp()));
 
@@ -455,29 +464,24 @@ public class KafkaSecurityEventCollector {
         return objectMapper.readValue(json, SecurityEvent.class);
     }
     
+    /**
+     * AI Native v4.1.0: 하드코딩 임계값 제거 - LLM이 원시 데이터로 직접 판단
+     * 이전: priority <= 2/4/6/8 기반 Severity 결정
+     * 변경: 기본값 MEDIUM, priority는 metadata에 저장됨
+     */
     private SecurityEvent.Severity determineNetworkSeverity(Map<String, Object> data) {
-        Integer priority = (Integer) data.get("priority");
-        if (priority != null) {
-            if (priority <= 2) return SecurityEvent.Severity.CRITICAL;
-            if (priority <= 4) return SecurityEvent.Severity.HIGH;
-            if (priority <= 6) return SecurityEvent.Severity.MEDIUM;
-            if (priority <= 8) return SecurityEvent.Severity.LOW;
-        }
-        return SecurityEvent.Severity.INFO;
+        // AI Native: 원시 데이터(priority)는 metadata에 저장되어 LLM이 직접 판단
+        return SecurityEvent.Severity.MEDIUM;
     }
     
+    /**
+     * AI Native v4.1.0: 하드코딩 임계값 제거 - LLM이 원시 데이터로 직접 판단
+     * 이전: failCount > 5 / result == failed 기반 Severity 결정
+     * 변경: 기본값 MEDIUM, 원시 데이터는 metadata에 저장됨
+     */
     private SecurityEvent.Severity determineAuthSeverity(Map<String, Object> data) {
-        Integer failCount = (Integer) data.get("fail_count");
-        if (failCount != null && failCount > 5) {
-            return SecurityEvent.Severity.HIGH;
-        }
-        
-        String result = (String) data.get("result");
-        if ("failed".equalsIgnoreCase(result)) {
-            return SecurityEvent.Severity.MEDIUM;
-        }
-        
-        return SecurityEvent.Severity.LOW;
+        // AI Native: 원시 데이터(fail_count, result)는 metadata에 저장되어 LLM이 직접 판단
+        return SecurityEvent.Severity.MEDIUM;
     }
     
     private SecurityEvent.Severity mapSeverity(ThreatIndicator.Severity severity) {
@@ -613,33 +617,59 @@ public class KafkaSecurityEventCollector {
 
     /**
      * AuthorizationDecisionEvent를 SecurityEvent로 변환
+     *
+     * AI Native v3.1: HCADContext 세션 컨텍스트 필드 추가
+     * - isNewSession, isNewDevice, recentRequestCount
+     * - LLM 프롬프트에서 NOT_PROVIDED 방지
      */
     private SecurityEvent convertAuthorizationToSecurityEvent(AuthorizationDecisionEvent authzEvent) {
         SecurityEvent event = SecurityEvent.builder()
             .eventId(authzEvent.getEventId())
             .source(SecurityEvent.EventSource.IAM)
-            .severity(authzEvent.getResult() == AuthorizationDecisionEvent.AuthorizationResult.DENIED ?
-                SecurityEvent.Severity.MEDIUM : SecurityEvent.Severity.LOW)
+            // AI Native v4.1.0: 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
+            .severity(SecurityEvent.Severity.MEDIUM)
             .timestamp(LocalDateTime.ofInstant(authzEvent.getTimestamp(), java.time.ZoneId.systemDefault()))
             .description("Authorization decision: " + authzEvent.getResult())
             .userId(authzEvent.getUserId())
             .userName(authzEvent.getPrincipal())
             .sourceIp(authzEvent.getClientIp())
             .sessionId(authzEvent.getSessionId())
-            // AI Native: deprecated confidenceScore 제거
+            .userAgent(authzEvent.getUserAgent())
+            .protocol("HTTP")
             .build();
 
-        // 추가 메타데이터
+        // 메타데이터 복사 (kafka.*, authz.* 제외 - LLM 프롬프트에 불필요한 리소스 정보 방지)
+        // AI Native: 이상 탐지는 행동 패턴, 기준선, RAG, 컨텍스트 정보만 사용
+        // 리소스 정보는 LLM 판단에 포함하지 않음
         if (authzEvent.getMetadata() != null) {
-            authzEvent.getMetadata().forEach((key, value) -> event.addMetadata(key, String.valueOf(value)));
+            authzEvent.getMetadata().forEach((key, value) -> {
+                if (!key.startsWith("kafka.") && !key.startsWith("authz.")) {
+                    event.addMetadata(key, String.valueOf(value));
+                }
+            });
         }
-        event.addMetadata("authz.resource", authzEvent.getResource());
-        event.addMetadata("authz.action", authzEvent.getAction());
-        event.addMetadata("authz.result", authzEvent.getResult().name());
-        event.addMetadata("authz.reason", authzEvent.getReason());
-        // AI Native: trustScore를 metadata에 저장
+
+        // AI Native v4.1.0: 원시 데이터 저장 (LLM이 직접 판단)
+        if (authzEvent.getResult() != null) {
+            event.addMetadata("authz.result", authzEvent.getResult().name());
+        }
         if (authzEvent.getTrustScore() != null) {
             event.addMetadata("authz.trustScore", authzEvent.getTrustScore());
+        }
+        if (authzEvent.getRiskScore() != null) {
+            event.addMetadata("authz.riskScore", authzEvent.getRiskScore());
+        }
+
+        // AI Native v3.1: HCADContext 세션 컨텍스트 필드 추가
+        // LLM 프롬프트에서 NOT_PROVIDED 방지를 위해 metadata에 저장
+        if (authzEvent.getIsNewSession() != null) {
+            event.addMetadata("isNewSession", authzEvent.getIsNewSession());
+        }
+        if (authzEvent.getIsNewDevice() != null) {
+            event.addMetadata("isNewDevice", authzEvent.getIsNewDevice());
+        }
+        if (authzEvent.getRecentRequestCount() != null) {
+            event.addMetadata("recentRequestCount", authzEvent.getRecentRequestCount());
         }
 
         return event;
@@ -693,25 +723,25 @@ public class KafkaSecurityEventCollector {
         return event;
     }
 
+    /**
+     * AI Native v4.1.0: 하드코딩 임계값 제거 - LLM이 원시 데이터로 직접 판단
+     * 이전: trustScore >= 0.8/0.6/0.4 기반 Severity 결정
+     * 변경: 기본값 MEDIUM, trustScore는 metadata에 저장됨
+     */
     private SecurityEvent.Severity determineSeverityFromTrustScore(Double trustScore) {
-        if (trustScore == null) return SecurityEvent.Severity.MEDIUM;
-        if (trustScore >= 0.8) return SecurityEvent.Severity.LOW;
-        if (trustScore >= 0.6) return SecurityEvent.Severity.MEDIUM;
-        if (trustScore >= 0.4) return SecurityEvent.Severity.HIGH;
-        return SecurityEvent.Severity.CRITICAL;
+        // AI Native: trustScore는 metadata에 저장되어 LLM이 직접 판단
+        return SecurityEvent.Severity.MEDIUM;
     }
 
+    /**
+     * AI Native v4.1.0: 하드코딩 임계값 제거 - LLM이 원시 데이터로 직접 판단
+     * 이전: bruteForce/credentialStuffing, failureCount > 5/3 기반 Severity 결정
+     * 변경: 기본값 MEDIUM, 원시 데이터는 metadata에 저장됨
+     */
     private SecurityEvent.Severity determineSeverityFromAttack(AuthenticationFailureEvent authEvent) {
-        if (authEvent.isBruteForceDetected() || authEvent.isCredentialStuffingDetected()) {
-            return SecurityEvent.Severity.CRITICAL;
-        }
-        if (authEvent.getFailureCount() > 5) {
-            return SecurityEvent.Severity.HIGH;
-        }
-        if (authEvent.getFailureCount() > 3) {
-            return SecurityEvent.Severity.MEDIUM;
-        }
-        return SecurityEvent.Severity.LOW;
+        // AI Native: 원시 데이터(bruteForce, credentialStuffing, failureCount)는 metadata에 저장
+        // LLM이 직접 판단
+        return SecurityEvent.Severity.MEDIUM;
     }
 
     private SecurityEvent.Severity mapIncidentSeverity(SecurityIncidentEvent.IncidentSeverity severity) {

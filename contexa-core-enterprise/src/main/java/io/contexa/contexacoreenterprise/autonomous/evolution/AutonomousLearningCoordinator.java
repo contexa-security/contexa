@@ -728,13 +728,15 @@ public class AutonomousLearningCoordinator {
      */
     private void createSystemStateProposal(String type, Map<String, Object> systemState) {
         try {
+            // AI Native v4.0.0: eventType 제거 - source 기반
             SecurityEvent event = SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .eventType(SecurityEvent.EventType.SYSTEM_ALERT)
+                .source(SecurityEvent.EventSource.ENDPOINT)
                 .severity(SecurityEvent.Severity.HIGH)
                 .description("시스템 상태 이상: " + type)
                 .timestamp(LocalDateTime.now())
                 .build();
+            event.addMetadata("incidentType", "SYSTEM_ALERT");
             
             LearningMetadata metadata = LearningMetadata.builder()
                 .isLearnable(true)
@@ -875,8 +877,8 @@ public class AutonomousLearningCoordinator {
                 .learningType(LearningMetadata.LearningType.THREAT_RESPONSE)
                 .confidenceScore(event.getResult() != null ? 0.8 : 0.5)
                 .sourceLabId(event.isHotPath() ? "HOT_PATH" : "COLD_PATH")
-                .eventType(originalEvent.getEventType() != null ?
-                    originalEvent.getEventType().toString() : "UNKNOWN")
+                .eventType(originalEvent.getSeverity() != null ?
+                    originalEvent.getSeverity().toString() : "UNKNOWN")
                 .status(LearningMetadata.LearningStatus.PENDING)
                 .priority(event.isHighValueForLearning() ? 8 : 5)
                 .build();

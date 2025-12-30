@@ -71,7 +71,7 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
                 .indicators(convertToStringList(indicators))
                 .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED"))  // AI Native: LLM 분석 필요
                 .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
-                .metadata(createMetadata(event, similarPatterns))
+                // AI Native v3.1: metadata 필드 제거됨 - 죽은 필드
                 .action("ESCALATE")  // AI Native: LLM 분석 필요
                 .build();
 
@@ -128,7 +128,8 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
         Map<String, String> mapping = new HashMap<>();
         mapping.put("FRAMEWORK", "VECTOR_PATTERN_MATCHING");
         mapping.put("METHOD", "SIMILARITY_SEARCH");
-        mapping.put("EVENT_TYPE", event.getEventType().toString());
+        // AI Native v4.0.0: eventType 제거 - severity 기반
+        mapping.put("SEVERITY", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
         mapping.put("ALGORITHM", "COSINE_SIMILARITY");
         return mapping;
     }
@@ -151,9 +152,10 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
         return Double.NaN;
     }
     
+    // AI Native v4.0.0: EventType 기반 canEvaluate 제거 - Severity 기반으로 전환
     @Override
-    public boolean canEvaluate(SecurityEvent.EventType eventType) {
-        // Vector Store는 모든 이벤트 타입을 패턴 매칭으로 처리 가능
+    public boolean canEvaluate(SecurityEvent.Severity severity) {
+        // Vector Store는 모든 심각도의 이벤트를 패턴 매칭으로 처리 가능
         return unifiedVectorService != null;
     }
     
@@ -167,14 +169,17 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     private String buildQueryFromEvent(SecurityEvent event) {
         StringBuilder query = new StringBuilder();
         
-        query.append("event_type:").append(event.getEventType());
+        // AI Native v4.0.0: eventType 제거 - severity 및 source 기반
+        query.append("severity:").append(event.getSeverity() != null ? event.getSeverity() : "INFO");
         
         if (event.getSourceIp() != null) {
             query.append(" source_ip:").append(event.getSourceIp());
         }
         
-        if (event.getTargetResource() != null) {
-            query.append(" target:").append(event.getTargetResource());
+        // AI Native v4.0.0: targetResource 필드 제거 - metadata에서 조회
+        Object targetResource = event.getMetadata() != null ? event.getMetadata().get("targetResource") : null;
+        if (targetResource != null) {
+            query.append(" target:").append(targetResource);
         }
         
         if (event.getSeverity() != null) {
@@ -332,7 +337,8 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("strategy", getStrategyName());
         metadata.put("pattern_count", patterns.size());
-        metadata.put("event_type", event.getEventType().toString());
+        // AI Native v4.0.0: eventType 제거 - severity 기반
+        metadata.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
         metadata.put("evaluation_time", LocalDateTime.now().toString());
         
         if (!patterns.isEmpty()) {
@@ -369,7 +375,7 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
             .indicators(List.of("VECTORSTORE_UNAVAILABLE"))
             .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED"))
             .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
-            .metadata(Map.of("mode", "fallback", "reason", "vectorstore_unavailable"))
+            // AI Native v3.1: metadata 필드 제거됨 - 죽은 필드
             .action("ESCALATE")  // AI Native: LLM 분석 필요
             .build();
     }
@@ -385,7 +391,7 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
             .indicators(List.of("EVALUATION_ERROR"))
             .recommendedActions(List.of("LLM_ANALYSIS_REQUIRED", "MANUAL_REVIEW"))
             .confidence(Double.NaN)  // AI Native: LLM이 결정해야 함
-            .metadata(Map.of("error", error.getMessage(), "mode", "error"))
+            // AI Native v3.1: metadata 필드 제거됨 - 죽은 필드
             .action("ESCALATE")  // AI Native: LLM 분석 필요
             .build();
     }

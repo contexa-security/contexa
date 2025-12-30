@@ -279,8 +279,9 @@ public class CompositeSecurityEventPublisher implements SecurityEventPublisher {
     @Override
     public void publishSecurityEvent(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
-        log.debug("[CompositePublisher] START publishing security event - eventId={}, type={}, thread={}",
-            event.getEventId(), event.getEventType(), Thread.currentThread().getName());
+        // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
+        log.debug("[CompositePublisher] START publishing security event - eventId={}, severity={}, thread={}",
+            event.getEventId(), event.getSeverity(), Thread.currentThread().getName());
 
         try {
             // Kafka와 Redis에 병렬로 발행

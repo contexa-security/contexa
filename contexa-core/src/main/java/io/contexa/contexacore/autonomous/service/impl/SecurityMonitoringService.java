@@ -313,8 +313,9 @@ public class SecurityMonitoringService {
             eventCounter.incrementAndGet();
 
             // 5. 추가 처리 로직 (기존 로직 유지 가능)
-            logger.trace("Event processed successfully: eventId={}, type={}",
-                        deduplicatedEvent.getEventId(), deduplicatedEvent.getEventType());
+            // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
+            logger.trace("Event processed successfully: eventId={}, severity={}",
+                        deduplicatedEvent.getEventId(), deduplicatedEvent.getSeverity());
 
         } catch (Exception e) {
             logger.error("Error processing event", e);
@@ -365,15 +366,14 @@ public class SecurityMonitoringService {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
 
-            // 주요 필드를 기반으로 해시 생성
+            // 주요 필드를 기반으로 해시 생성 (AI Native v4.0.0: eventType 제거)
             StringBuilder sb = new StringBuilder();
-            sb.append(event.getEventType());
+            sb.append(event.getSeverity());
             sb.append("|");
             sb.append(event.getSourceIp() != null ? event.getSourceIp() : "null");
             sb.append("|");
             sb.append(event.getUserId() != null ? event.getUserId() : "null");
-            sb.append("|");
-            sb.append(event.getTargetIp() != null ? event.getTargetIp() : "null");
+            // AI Native v3.1: targetIp 필드 제거됨 - metadata로 이동 (네트워크 이벤트 전용)
             sb.append("|");
             sb.append(event.getSeverity());
 
@@ -416,8 +416,9 @@ public class SecurityMonitoringService {
                 return;
             }
 
-            logger.info("[MonitoringService] Received event from collector - eventId: {}, type: {}, queueSize: {}",
-                eventId, event.getEventType(), eventQueue.size());
+            // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
+            logger.info("[MonitoringService] Received event from collector - eventId: {}, severity: {}, queueSize: {}",
+                eventId, event.getSeverity(), eventQueue.size());
 
             try {
                 boolean offered = eventQueue.offer(event, 100, TimeUnit.MILLISECONDS);

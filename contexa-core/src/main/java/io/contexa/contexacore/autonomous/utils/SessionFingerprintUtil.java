@@ -56,8 +56,8 @@ public class SessionFingerprintUtil {
         int hourOfDay = event.getTimestamp().getHour();
         fingerprint.append("TH:").append(hourOfDay).append("|");
 
-        // 4. 이벤트 타입 패턴 (Event Pattern Fingerprint)
-        fingerprint.append("ET:").append(event.getEventType().toString()).append("|");
+        // 4. 이벤트 심각도 패턴 (AI Native v4.0.0: eventType 제거 - severity 기반)
+        fingerprint.append("SV:").append(event.getSeverity() != null ? event.getSeverity().toString() : "INFO").append("|");
 
         // 5. 메타데이터 지문 (Metadata Fingerprint)
         if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
@@ -65,10 +65,7 @@ public class SessionFingerprintUtil {
             fingerprint.append("MD:").append(metadataHash).append("|");
         }
 
-        // 6. 프로토콜 및 포트 정보
-        if (event.getSourcePort() != null) {
-            fingerprint.append("SP:").append(event.getSourcePort()).append("|");
-        }
+        // AI Native v3.1: sourcePort 필드 제거됨 - metadata로 이동 (네트워크 이벤트 전용)
 
         // 최종 지문 해시 생성
         String finalFingerprint = hashString(fingerprint.toString());

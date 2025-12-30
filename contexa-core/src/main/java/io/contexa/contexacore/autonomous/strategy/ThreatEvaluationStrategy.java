@@ -77,13 +77,13 @@ public interface ThreatEvaluationStrategy {
     }
     
     /**
-     * 특정 이벤트 타입 처리 가능 여부
+     * 특정 Severity 처리 가능 여부 (AI Native: eventType 제거)
      *
-     * @param eventType 이벤트 타입
+     * @param severity 이벤트 심각도
      * @return 처리 가능 여부
      */
-    default boolean canEvaluate(SecurityEvent.EventType eventType) {
-        return true; // 기본적으로 모든 타입 처리
+    default boolean canEvaluate(SecurityEvent.Severity severity) {
+        return true; // 기본적으로 모든 심각도 처리
     }
 
     /**

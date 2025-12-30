@@ -130,6 +130,14 @@ public class HCADAnalysisService {
         } catch (Exception e) {
             log.error("[HCADAnalysisService][AI Native] 분석 실패: request={}", request.getRequestURI(), e);
 
+            // Zero Trust v6.0: 예외 경로에서도 보수적인 context 설정
+            // 이전 문제: context가 null → isNewSession, isNewDevice, recentRequestCount 미설정
+            // 수정: 예외 시 보수적 기본값 (모두 신규/미확인 상태로 간주)
+            HCADContext errorContext = new HCADContext();
+            errorContext.setIsNewSession(true);      // 예외 시 신규 세션으로 간주 (보수적)
+            errorContext.setIsNewDevice(true);       // 예외 시 신규 디바이스로 간주 (보수적)
+            errorContext.setRecentRequestCount(0);   // 예외 시 요청 카운트 불명
+
             // AI Native: 에러 발생 시에도 규칙 기반 기본값 사용 안 함
             // 단순히 분석 실패 상태만 표시
             // Phase 17: 에러 시에도 action=null → EventTier.CRITICAL → 100% 발행
@@ -144,6 +152,7 @@ public class HCADAnalysisService {
                 .confidence(Double.NaN)
                 .threshold(0.0)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
+                .context(errorContext)  // Zero Trust v6.0: 예외 시에도 context 설정
                 .build();
         }
     }

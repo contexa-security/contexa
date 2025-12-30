@@ -110,7 +110,8 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     private List<ThreatEvaluationStrategy> filterApplicableStrategies(SecurityEvent event) {
         return availableStrategies.stream()
             .filter(ThreatEvaluationStrategy::isEnabled)
-            .filter(s -> s.canEvaluate(event.getEventType()))
+            // AI Native v4.0.0: eventType 제거 - severity 기반
+            .filter(s -> s.canEvaluate(event.getSeverity()))
             .sorted(Comparator.comparingInt(ThreatEvaluationStrategy::getPriority))
             .collect(Collectors.toList());
     }
@@ -220,7 +221,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
                 .collect(Collectors.toList()))
             .recommendedActions(recommendedActions)
             .confidence(confidence)
-            .metadata(metadata)
+            // AI Native v3.1: metadata 필드 제거됨 - 죽은 필드
             .action(consensusAction)  // AI Native: action 사용
             .build();
     }

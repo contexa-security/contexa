@@ -453,13 +453,15 @@ public class AITuningService {
      * 모델 ID 결정
      */
     private String determineModelId(SecurityEvent event) {
-        // 이벤트 타입별 모델 ID
-        String type = event.getEventType().name();
-        if (type.contains("AUTH")) return "auth_model";
-        if (type.contains("NETWORK")) return "network_model";
-        if (type.contains("FILE")) return "file_model";
-        if (type.contains("PROCESS")) return "process_model";
-        return "default_model";
+        // AI Native v4.0.0: eventType 제거 - source 기반 모델 ID 결정
+        String source = event.getSource() != null ? event.getSource().name() : "UNKNOWN";
+        return switch (source) {
+            case "IAM" -> "auth_model";
+            case "NETWORK" -> "network_model";
+            case "ENDPOINT" -> "file_model";
+            case "CLOUD" -> "cloud_model";
+            default -> "default_model";
+        };
     }
     
     /**
@@ -544,7 +546,7 @@ public class AITuningService {
     private void saveFalsePositivePattern(SecurityEvent event, UserFeedback feedback) {
         Map<String, Object> pattern = new HashMap<>();
         pattern.put("type", "FALSE_POSITIVE");
-        pattern.put("eventType", event.getEventType());
+        pattern.put("severity", event.getSeverity());
         pattern.put("features", extractFeatures(event));
         pattern.put("feedback", feedback);
         pattern.put("timestamp", LocalDateTime.now());
@@ -565,7 +567,7 @@ public class AITuningService {
     private void saveFalseNegativePattern(SecurityEvent event, ThreatIndicators indicators) {
         Map<String, Object> pattern = new HashMap<>();
         pattern.put("type", "FALSE_NEGATIVE");
-        pattern.put("eventType", event.getEventType());
+        pattern.put("severity", event.getSeverity());
         pattern.put("features", extractFeatures(event));
         pattern.put("indicators", indicators.toSummary());
         pattern.put("timestamp", LocalDateTime.now());
@@ -585,7 +587,6 @@ public class AITuningService {
      */
     private Map<String, Object> extractFeatures(SecurityEvent event) {
         Map<String, Object> features = new HashMap<>();
-        features.put("eventType", event.getEventType());
         features.put("severity", event.getSeverity());
         features.put("source", event.getSource());
         features.put("userId", event.getUserId());

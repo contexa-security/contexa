@@ -63,8 +63,9 @@ public class BaselineLearningService {
     @Value("${hcad.baseline.learning.alpha:0.1}")
     private double alpha = 0.1;
 
-    @Value("${hcad.baseline.learning.min-confidence:0.7}")
-    private double minConfidence = 0.7;
+    // AI Native v3.0: minConfidence 필드 제거 - Dead Code
+    // v3.4.0에서 confidence 임계값 검증 제거 (AI Native 원칙)
+    // shouldLearn(), shouldLearnFromSecurityEvent() 어디에서도 사용 안 함
 
     @Value("${hcad.baseline.learning.enabled:true}")
     private boolean learningEnabled = true;
@@ -253,13 +254,17 @@ public class BaselineLearningService {
                                                            SecurityDecision decision, SecurityEvent event) {
         // SecurityEvent에서 trustScore 대신 riskScore의 역수 사용 (1 - riskScore)
         // riskScore가 낮을수록 신뢰도가 높음
-        double currentTrustScore = 1.0 - decision.getRiskScore();
+        // AI Native v3.0: riskScore 범위 검증 - LLM 응답의 범위를 보장하지 않으므로 클램핑 적용
+        // riskScore가 0.0~1.0 범위를 벗어나면 trustScore가 음수 또는 1.0 초과 → Baseline 데이터 오염 방지
+        double rawTrustScore = 1.0 - decision.getRiskScore();
+        double currentTrustScore = Math.max(0.0, Math.min(1.0, rawTrustScore));
         double currentConfidence = decision.getConfidence();
 
         // SecurityEvent에서 Zero Trust 필수 데이터 직접 추출
         String currentIp = event != null ? event.getSourceIp() : null;
         Integer currentHour = extractHourFromSecurityEvent(event);
         String currentPath = extractPath(event);
+        String currentUserAgent = event != null ? event.getUserAgent() : null;
 
         if (current == null) {
             // 첫 학습: Zero Trust 필수 데이터 초기화
@@ -282,6 +287,11 @@ public class BaselineLearningService {
             if (currentPath != null) {
                 builder.frequentPaths(new String[]{currentPath});
             }
+            // AI Native v3.1: User-Agent 패턴 저장 - LLM 세션 하이재킹 탐지용
+            if (currentUserAgent != null && !currentUserAgent.isEmpty()) {
+                String truncatedUA = currentUserAgent.length() > 100 ? currentUserAgent.substring(0, 100) : currentUserAgent;
+                builder.normalUserAgents(new String[]{truncatedUA});
+            }
 
             return builder.build();
         }
@@ -301,6 +311,8 @@ public class BaselineLearningService {
         String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp);
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath);
+        // AI Native v3.1: User-Agent 패턴 업데이트 - LLM 세션 하이재킹 탐지용
+        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), currentUserAgent);
 
         return BaselineVector.builder()
             .userId(userId)
@@ -313,6 +325,7 @@ public class BaselineLearningService {
             .normalIpRanges(normalIpRanges)
             .normalAccessHours(normalAccessHours)
             .frequentPaths(frequentPaths)
+            .normalUserAgents(normalUserAgents)
             .build();
     }
 
@@ -349,13 +362,16 @@ public class BaselineLearningService {
     private BaselineVector updateWithEMA(BaselineVector current, String userId,
                                           SecurityDecision decision, HCADAnalysisResult analysisResult) {
         // Zero Trust: analysisResult가 null이면 기본값 0.5 (중립) 사용 - 최고 신뢰점수 부여 금지
-        double currentTrustScore = analysisResult != null ? analysisResult.getTrustScore() : 0.5;
+        // AI Native v3.0: trustScore 범위 검증 - LLM 응답의 범위를 보장하지 않으므로 클램핑 적용
+        double rawTrustScore = analysisResult != null ? analysisResult.getTrustScore() : 0.5;
+        double currentTrustScore = Math.max(0.0, Math.min(1.0, rawTrustScore));
         double currentConfidence = decision.getConfidence();
 
         // analysisResult에서 Zero Trust 필수 데이터 추출
         String currentIp = extractIpFromAnalysisResult(analysisResult);
         Integer currentHour = extractHourFromAnalysisResult(analysisResult);
         String currentPath = extractPathFromAnalysisResult(analysisResult);
+        String currentUserAgent = extractUserAgentFromAnalysisResult(analysisResult);
 
         if (current == null) {
             // 첫 학습: Zero Trust 필수 데이터 초기화
@@ -378,6 +394,11 @@ public class BaselineLearningService {
             if (currentPath != null) {
                 builder.frequentPaths(new String[]{currentPath});
             }
+            // AI Native v3.1: User-Agent 패턴 저장 - LLM 세션 하이재킹 탐지용
+            if (currentUserAgent != null && !currentUserAgent.isEmpty()) {
+                String truncatedUA = currentUserAgent.length() > 100 ? currentUserAgent.substring(0, 100) : currentUserAgent;
+                builder.normalUserAgents(new String[]{truncatedUA});
+            }
 
             return builder.build();
         }
@@ -397,6 +418,8 @@ public class BaselineLearningService {
         String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp);
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath);
+        // AI Native v3.1: User-Agent 패턴 업데이트 - LLM 세션 하이재킹 탐지용
+        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), currentUserAgent);
 
         return BaselineVector.builder()
             .userId(userId)
@@ -409,6 +432,7 @@ public class BaselineLearningService {
             .normalIpRanges(normalIpRanges)
             .normalAccessHours(normalAccessHours)
             .frequentPaths(frequentPaths)
+            .normalUserAgents(normalUserAgents)
             .build();
     }
 
@@ -459,6 +483,23 @@ public class BaselineLearningService {
             return null;
         }
         return context.getRequestPath();
+    }
+
+    /**
+     * analysisResult에서 User-Agent 추출 (AI Native v3.1)
+     *
+     * HCADAnalysisResult.getContext().getUserAgent() 사용
+     * LLM이 User-Agent 변경을 탐지하여 세션 하이재킹 여부 판단 가능
+     */
+    private String extractUserAgentFromAnalysisResult(HCADAnalysisResult analysisResult) {
+        if (analysisResult == null) {
+            return null;
+        }
+        io.contexa.contexacommon.hcad.domain.HCADContext context = analysisResult.getContext();
+        if (context == null) {
+            return null;
+        }
+        return context.getUserAgent();
     }
 
     /**
@@ -581,6 +622,48 @@ public class BaselineLearningService {
     }
 
     /**
+     * normalUserAgents 업데이트 (최대 5개 유지) - AI Native v3.1
+     *
+     * LLM이 User-Agent 변경을 탐지하여 세션 하이재킹 여부 판단 가능
+     */
+    private String[] updateNormalUserAgents(String[] current, String newUserAgent) {
+        if (newUserAgent == null || newUserAgent.isEmpty()) {
+            return current;
+        }
+
+        // User-Agent가 너무 길면 앞 100자만 저장 (Redis 용량 최적화)
+        if (newUserAgent.length() > 100) {
+            newUserAgent = newUserAgent.substring(0, 100);
+        }
+
+        if (current == null || current.length == 0) {
+            return new String[]{newUserAgent};
+        }
+
+        // 이미 존재하면 그대로 반환
+        for (String existing : current) {
+            if (newUserAgent.equals(existing)) {
+                return current;
+            }
+        }
+
+        // 최대 5개 유지
+        if (current.length >= 5) {
+            // 가장 오래된 것 제거하고 새로운 것 추가
+            String[] updated = new String[5];
+            System.arraycopy(current, 1, updated, 0, 4);
+            updated[4] = newUserAgent;
+            return updated;
+        }
+
+        // 새로운 것 추가
+        String[] updated = new String[current.length + 1];
+        System.arraycopy(current, 0, updated, 0, current.length);
+        updated[current.length] = newUserAgent;
+        return updated;
+    }
+
+    /**
      * Baseline 조회 (Zero Trust 필수 데이터 포함)
      *
      * 조회 필드:
@@ -616,6 +699,8 @@ public class BaselineLearningService {
                 .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
                 .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
                 .frequentPaths(parseStringArray(data.get("frequentPaths")))
+                // AI Native v3.1: User-Agent 패턴 조회 - LLM 세션 하이재킹 탐지용
+                .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
                 .build();
 
         } catch (Exception e) {
@@ -688,15 +773,20 @@ public class BaselineLearningService {
             if (baseline.getFrequentPaths() != null && baseline.getFrequentPaths().length > 0) {
                 data.put("frequentPaths", String.join(",", baseline.getFrequentPaths()));
             }
+            // AI Native v3.1: User-Agent 패턴 저장 - LLM 세션 하이재킹 탐지용
+            if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
+                data.put("normalUserAgents", String.join(",", baseline.getNormalUserAgents()));
+            }
 
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, BASELINE_TTL);
 
-            log.debug("[BaselineLearningService] Baseline 저장 완료: userId={}, normalIpRanges={}, normalAccessHours={}, frequentPaths={}",
+            log.debug("[BaselineLearningService] Baseline 저장 완료: userId={}, normalIpRanges={}, normalAccessHours={}, frequentPaths={}, normalUserAgents={}",
                 userId,
                 baseline.getNormalIpRanges() != null ? baseline.getNormalIpRanges().length : 0,
                 baseline.getNormalAccessHours() != null ? baseline.getNormalAccessHours().length : 0,
-                baseline.getFrequentPaths() != null ? baseline.getFrequentPaths().length : 0);
+                baseline.getFrequentPaths() != null ? baseline.getFrequentPaths().length : 0,
+                baseline.getNormalUserAgents() != null ? baseline.getNormalUserAgents().length : 0);
 
         } catch (Exception e) {
             log.error("[BaselineLearningService] Baseline 저장 실패: userId={}", userId, e);
@@ -824,7 +914,21 @@ public class BaselineLearningService {
             sb.append(String.format("  Current Path: %s\n", currentPath));
         }
 
-        // 4. 신뢰도 정보
+        // 4. User-Agent 패턴 - raw 데이터만 제공 (AI Native v3.1)
+        // LLM이 User-Agent 변경을 탐지하여 세션 하이재킹 여부 판단 가능
+        String[] normalUserAgents = baseline.getNormalUserAgents();
+        sb.append(String.format("  Normal User-Agents: %s\n",
+            normalUserAgents != null && normalUserAgents.length > 0
+                ? String.join(" | ", Arrays.copyOf(normalUserAgents, Math.min(3, normalUserAgents.length)))
+                : "none"));
+
+        String currentUserAgent = currentEvent != null ? currentEvent.getUserAgent() : null;
+        if (currentUserAgent != null && currentUserAgent.length() > 100) {
+            currentUserAgent = currentUserAgent.substring(0, 97) + "...";
+        }
+        sb.append(String.format("  Current User-Agent: %s\n", currentUserAgent != null ? currentUserAgent : "NOT_PROVIDED"));
+
+        // 5. 신뢰도 정보
         sb.append(String.format("  Baseline Confidence: %.2f (updates: %d)\n",
             baseline.getConfidence() != null ? baseline.getConfidence() : 0.0,
             baseline.getUpdateCount() != null ? baseline.getUpdateCount() : 0));
@@ -888,41 +992,30 @@ public class BaselineLearningService {
         }
         sb.append("\n");
 
-        // 고권한 계정 여부 확인
-        boolean isHighPrivilege = isHighPrivilegeUser(userId);
-        if (isHighPrivilege) {
-            sb.append("*** HIGH PRIVILEGE ACCOUNT DETECTED ***\n");
-            sb.append("User ID contains privileged keywords (admin/root/system/superuser)\n\n");
-        }
+        // Zero Trust v6.0: MANDATORY CONSTRAINT 추가
+        // AI Native 원칙과 Zero Trust 원칙의 균형:
+        // - 플랫폼이 판단하지 않지만, 검증 불가 상태에서 ALLOW는 보안 위협
+        // - LLM에게 "검증 불가 상황"에서의 행동 제약 제공
+        sb.append("=== MANDATORY CONSTRAINT ===\n");
+        sb.append("NO BASELINE = VERIFICATION IMPOSSIBLE\n");
+        sb.append("- You MUST NOT return action=A (ALLOW) for users without baseline\n");
+        sb.append("- Valid actions: C (CHALLENGE) or E (ESCALATE) only\n");
+        sb.append("- risk (r) MUST be >= 0.5 for unverified users\n");
+        sb.append("- confidence (c) MUST be <= 0.5 without baseline comparison\n\n");
 
-        sb.append("MANDATORY RESPONSE:\n");
-        if (isHighPrivilege) {
-            sb.append("- This is a HIGH PRIVILEGE account: action = CHALLENGE (MFA required)\n");
-        } else {
-            sb.append("- For regular users without baseline: action = ESCALATE (need Layer2 deep analysis)\n");
-        }
-        sb.append("- DO NOT return ALLOW without baseline verification data.\n");
-        sb.append("- If critical fields (IP, SessionId) are NOT_PROVIDED, strongly consider CHALLENGE.\n");
+        sb.append("RATIONALE:\n");
+        sb.append("- Absence of threat evidence is NOT evidence of safety\n");
+        sb.append("- First-time attackers have no history to compare\n");
+        sb.append("- Account takeover attackers may use legitimate credentials\n");
 
         return sb.toString();
     }
 
-    /**
-     * 고권한 계정 여부 판별
-     *
-     * @param userId 사용자 ID
-     * @return 고권한 계정이면 true
-     */
-    private boolean isHighPrivilegeUser(String userId) {
-        if (userId == null || userId.isEmpty()) {
-            return false;
-        }
-        String lowerUserId = userId.toLowerCase();
-        return lowerUserId.contains("admin") ||
-               lowerUserId.contains("root") ||
-               lowerUserId.contains("system") ||
-               lowerUserId.contains("superuser");
-    }
+    // AI Native v3.0: isHighPrivilegeUser() 메서드 제거
+    // 문제점: 실제 권한 체계와 무관한 문자열 contains 검사
+    // "adminSupport", "sysadmin_viewer" 같은 일반 사용자도 매칭
+    // 플랫폼이 하드코딩된 규칙으로 권한 판단 → AI Native 위반
+    // LLM에 userId만 제공하고 판단 위임해야 함
 
     /**
      * SecurityEvent에서 경로 추출 (raw 데이터 추출 유틸리티)
@@ -932,13 +1025,16 @@ public class BaselineLearningService {
             return null;
         }
 
-        // targetResource 필드 우선 사용
-        if (event.getTargetResource() != null && !event.getTargetResource().isEmpty()) {
-            return event.getTargetResource();
+        // AI Native v4.0.0: targetResource 필드 제거 - metadata에서 추출
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null && metadata.containsKey("targetResource")) {
+            Object targetResource = metadata.get("targetResource");
+            if (targetResource != null && !targetResource.toString().isEmpty()) {
+                return targetResource.toString();
+            }
         }
 
         // metadata에서 requestPath 추출
-        Map<String, Object> metadata = event.getMetadata();
         if (metadata != null && metadata.containsKey("requestPath")) {
             Object path = metadata.get("requestPath");
             if (path != null) {
@@ -949,28 +1045,5 @@ public class BaselineLearningService {
         return null;
     }
 
-    /**
-     * SecurityEvent에서 디바이스 ID 추출
-     */
-    private String extractDeviceId(SecurityEvent event) {
-        if (event == null) {
-            return null;
-        }
 
-        // metadata에서 deviceId 추출
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata != null && metadata.containsKey("deviceId")) {
-            Object deviceId = metadata.get("deviceId");
-            if (deviceId != null) {
-                return deviceId.toString();
-            }
-        }
-
-        // User-Agent 해시를 디바이스 ID로 사용 (fallback)
-        if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
-            return String.valueOf(event.getUserAgent().hashCode());
-        }
-
-        return null;
-    }
 }
