@@ -44,9 +44,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     
     @Override
     public Mono<String> execute(ExecutionContext context) {
-        log.debug("LLM 실행 시작 - RequestId: {}, TaskType: {}, SecurityTaskType: {}", 
+        // AI Native v4.2.0: null 체크 강화
+        if (context == null) {
+            return Mono.error(new IllegalArgumentException("ExecutionContext cannot be null"));
+        }
+        if (context.getPrompt() == null) {
+            return Mono.error(new IllegalArgumentException("Prompt cannot be null"));
+        }
+
+        log.debug("LLM 실행 시작 - RequestId: {}, TaskType: {}, SecurityTaskType: {}",
                 context.getRequestId(), context.getTaskType(), context.getSecurityTaskType());
-        
+
         return Mono.fromCallable(() -> {
             // 1. 모델 선택
             ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
@@ -106,8 +114,20 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             log.debug("LLM 실행 완료 - RequestId: {}, 모델: {}, 실행시간: {}ms, 응답 길이: {}",
                     context.getRequestId(), modelName, executionTime, response != null ? response.length() : 0);
 
+            // AI Native v4.2.0: null 응답 처리 - 빈 문자열 대신 명시적 마커 반환
+            if (response == null || response.isBlank()) {
+                log.warn("LLM 응답이 null 또는 빈 문자열 - RequestId: {}", context.getRequestId());
+                return "{}";  // 빈 JSON 반환 (파싱 가능)
+            }
+
             return response;
         })
+        // AI Native v4.2.0: 재시도 로직 추가 (일시적 오류 복구)
+        .retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
+            .filter(throwable -> throwable instanceof java.net.SocketTimeoutException
+                || throwable instanceof java.io.IOException)
+            .doBeforeRetry(retrySignal -> log.warn("LLM 재시도 #{} - RequestId: {}, 오류: {}",
+                retrySignal.totalRetries() + 1, context.getRequestId(), retrySignal.failure().getMessage())))
         .doOnError(error -> log.error("LLM 실행 실패 - RequestId: {}", context.getRequestId(), error));
     }
     
@@ -147,16 +167,24 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     
     @Override
     public <T> Mono<T> executeEntity(ExecutionContext context, Class<T> targetType) {
-        log.debug("LLM Entity 실행 - RequestId: {}, TargetType: {}", 
+        // AI Native v4.2.0: null 체크 강화
+        if (context == null || context.getPrompt() == null) {
+            return Mono.error(new IllegalArgumentException("ExecutionContext and Prompt cannot be null"));
+        }
+        if (targetType == null) {
+            return Mono.error(new IllegalArgumentException("Target type cannot be null"));
+        }
+
+        log.debug("LLM Entity 실행 - RequestId: {}, TargetType: {}",
                 context.getRequestId(), targetType.getSimpleName());
-        
+
         return Mono.fromCallable(() -> {
             // 1. 모델 선택
             ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
-            
+
             // 2. ChatClient 생성 (직접 구현)
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
-            
+
             // 3. Entity 변환 실행 - 올바른 Spring AI API 사용
             var promptSpec = chatClient.prompt(context.getPrompt());
             

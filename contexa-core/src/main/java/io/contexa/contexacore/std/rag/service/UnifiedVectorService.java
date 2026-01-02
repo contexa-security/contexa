@@ -164,8 +164,8 @@ public class UnifiedVectorService implements VectorOperations {
      */
     @Override
     public List<Document> searchSimilar(String query, Map<String, Object> filters) {
-        // 필터에서 documentType 추출하여 라우팅
-        String documentType = (String) filters.get("documentType");
+        // AI Native v4.2.0: NPE 방지 - filters null 체크 추가
+        String documentType = filters != null ? (String) filters.get("documentType") : null;
 
         log.debug("[UnifiedVectorService] Searching with filters: {}", filters);
 
@@ -177,7 +177,7 @@ public class UnifiedVectorService implements VectorOperations {
         }
 
         // documentType이 없으면 표준 서비스 사용
-        return standardService.searchSimilar(query, filters);
+        return standardService.searchSimilar(query, filters != null ? filters : Map.of());
     }
 
     /**

@@ -37,7 +37,11 @@
         TEST_PUBLIC: '/api/security-test/public/',
         TEST_NORMAL: '/api/security-test/normal/',
         TEST_SENSITIVE: '/api/security-test/sensitive/',
-        TEST_CRITICAL: '/api/security-test/critical/'
+        TEST_CRITICAL: '/api/security-test/critical/',
+        // Admin Override API (AI Native v3.5.0)
+        OVERRIDE_PENDING: '/api/admin/override/pending/current',
+        OVERRIDE_APPROVE: '/api/admin/override/approve',
+        OVERRIDE_REJECT: '/api/admin/override/reject'
     };
 
     /**
@@ -204,7 +208,10 @@
         analysisStatus: 'NOT_ANALYZED',
         isLoading: false,
         isTestRunning: false,
-        logEntries: []
+        logEntries: [],
+        // Admin Override (AI Native v3.5.0)
+        pendingRequest: null,
+        hasPendingRequest: false
     };
 
     // ============================================================================
@@ -258,7 +265,25 @@
 
             // 로그
             logContainer: document.getElementById('log-container'),
-            autoScrollCheckbox: document.getElementById('auto-scroll')
+            autoScrollCheckbox: document.getElementById('auto-scroll'),
+
+            // Admin Override (AI Native v3.5.0)
+            pendingStatus: document.getElementById('pending-status'),
+            pendingDetails: document.getElementById('pending-details'),
+            pendingRequestId: document.getElementById('pending-request-id'),
+            pendingUserId: document.getElementById('pending-user-id'),
+            pendingAction: document.getElementById('pending-action'),
+            pendingRiskScore: document.getElementById('pending-risk-score'),
+            pendingConfidence: document.getElementById('pending-confidence'),
+            pendingReasoning: document.getElementById('pending-reasoning'),
+            overrideForm: document.getElementById('override-form'),
+            overrideReason: document.getElementById('override-reason'),
+            baselineUpdateAllowed: document.getElementById('baseline-update-allowed'),
+            btnApprove: document.getElementById('btn-approve'),
+            btnReject: document.getElementById('btn-reject'),
+            btnRefreshPending: document.getElementById('btn-refresh-pending'),
+            overrideResult: document.getElementById('override-result'),
+            overrideResultContent: document.getElementById('override-result-content')
         };
     }
 
@@ -798,6 +823,207 @@
         log('INFO', '로그가 초기화되었습니다.');
     }
 
+    // ============================================================================
+    // Admin Override (AI Native v3.5.0)
+    // ============================================================================
+
+    /**
+     * 대기 중인 요청 조회
+     */
+    async function checkPendingRequest() {
+        log('INFO', '[Admin Override] 대기 중인 요청 확인 중...');
+
+        try {
+            const data = await request(API.OVERRIDE_PENDING);
+
+            state.hasPendingRequest = data.hasPending || false;
+            state.pendingRequest = data;
+
+            updatePendingDisplay();
+
+            if (state.hasPendingRequest) {
+                log('WARNING', `[Admin Override] 대기 중인 요청 발견: Action=${data.action}, Risk=${data.riskScore}`);
+            } else {
+                log('INFO', '[Admin Override] 대기 중인 요청 없음');
+            }
+
+        } catch (error) {
+            log('ERROR', `[Admin Override] 대기 요청 조회 실패: ${error.message}`);
+            state.hasPendingRequest = false;
+            state.pendingRequest = null;
+            updatePendingDisplay();
+        }
+    }
+
+    /**
+     * 대기 요청 표시 갱신
+     */
+    function updatePendingDisplay() {
+        if (!elements.pendingStatus) return;
+
+        if (!state.hasPendingRequest || !state.pendingRequest) {
+            elements.pendingStatus.textContent = '없음';
+            elements.pendingStatus.style.color = '#2e7d32';
+            if (elements.pendingDetails) elements.pendingDetails.style.display = 'none';
+            if (elements.overrideForm) elements.overrideForm.style.display = 'none';
+            if (elements.overrideResult) elements.overrideResult.style.display = 'none';
+            return;
+        }
+
+        const data = state.pendingRequest;
+
+        elements.pendingStatus.textContent = '있음 (관리자 검토 필요)';
+        elements.pendingStatus.style.color = '#c62828';
+
+        if (elements.pendingDetails) {
+            elements.pendingDetails.style.display = 'block';
+        }
+
+        if (elements.pendingRequestId) {
+            elements.pendingRequestId.textContent = data.requestId || '-';
+        }
+        if (elements.pendingUserId) {
+            elements.pendingUserId.textContent = data.userId || '-';
+        }
+        if (elements.pendingAction) {
+            elements.pendingAction.textContent = data.action || '-';
+            const actionInfo = ACTION_INFO[data.action] || {};
+            elements.pendingAction.className = `value action-badge ${actionInfo.badgeClass || ''}`;
+        }
+        if (elements.pendingRiskScore) {
+            elements.pendingRiskScore.textContent = (data.riskScore || 0).toFixed(2);
+        }
+        if (elements.pendingConfidence) {
+            elements.pendingConfidence.textContent = (data.confidence || 0).toFixed(2);
+        }
+        if (elements.pendingReasoning) {
+            elements.pendingReasoning.textContent = data.reasoning || '-';
+        }
+
+        if (elements.overrideForm) {
+            elements.overrideForm.style.display = 'block';
+        }
+    }
+
+    /**
+     * 요청 승인 처리
+     */
+    async function approveRequest() {
+        if (!state.pendingRequest) {
+            log('WARNING', '[Admin Override] 승인할 요청이 없습니다.');
+            return;
+        }
+
+        const reason = elements.overrideReason ? elements.overrideReason.value.trim() : '';
+        if (!reason) {
+            log('WARNING', '[Admin Override] 승인 사유를 입력하세요.');
+            alert('승인 사유를 입력하세요.');
+            return;
+        }
+
+        const baselineUpdateAllowed = elements.baselineUpdateAllowed ?
+            elements.baselineUpdateAllowed.checked : false;
+
+        const data = state.pendingRequest;
+        const requestBody = {
+            requestId: data.requestId,
+            userId: data.userId,
+            originalAction: data.action,
+            originalRiskScore: data.riskScore || 0,
+            originalConfidence: data.confidence || 0,
+            reason: reason,
+            baselineUpdateAllowed: baselineUpdateAllowed
+        };
+
+        log('INFO', `[Admin Override] 승인 처리 중... (baselineUpdateAllowed=${baselineUpdateAllowed})`);
+
+        try {
+            const result = await request(API.OVERRIDE_APPROVE, {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+
+            if (result.success) {
+                log('SUCCESS', `[Admin Override] 승인 완료: ${result.message}`);
+                showOverrideResult(result);
+
+                // 상태 갱신
+                state.hasPendingRequest = false;
+                state.pendingRequest = null;
+                updatePendingDisplay();
+
+                // Action 상태 갱신
+                await refreshActionStatus();
+            } else {
+                log('ERROR', `[Admin Override] 승인 실패: ${result.error}`);
+            }
+
+        } catch (error) {
+            log('ERROR', `[Admin Override] 승인 처리 오류: ${error.message}`);
+        }
+    }
+
+    /**
+     * 요청 거부 처리
+     */
+    async function rejectRequest() {
+        if (!state.pendingRequest) {
+            log('WARNING', '[Admin Override] 거부할 요청이 없습니다.');
+            return;
+        }
+
+        const reason = elements.overrideReason ? elements.overrideReason.value.trim() : '';
+        if (!reason) {
+            log('WARNING', '[Admin Override] 거부 사유를 입력하세요.');
+            alert('거부 사유를 입력하세요.');
+            return;
+        }
+
+        const data = state.pendingRequest;
+        const requestBody = {
+            requestId: data.requestId,
+            userId: data.userId,
+            originalAction: data.action,
+            originalRiskScore: data.riskScore || 0,
+            originalConfidence: data.confidence || 0,
+            reason: reason
+        };
+
+        log('INFO', '[Admin Override] 거부 처리 중...');
+
+        try {
+            const result = await request(API.OVERRIDE_REJECT, {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+
+            if (result.success) {
+                log('SUCCESS', `[Admin Override] 거부 완료: ${result.message}`);
+                showOverrideResult(result);
+
+                // 상태 갱신
+                state.hasPendingRequest = false;
+                state.pendingRequest = null;
+                updatePendingDisplay();
+            } else {
+                log('ERROR', `[Admin Override] 거부 실패: ${result.error}`);
+            }
+
+        } catch (error) {
+            log('ERROR', `[Admin Override] 거부 처리 오류: ${error.message}`);
+        }
+    }
+
+    /**
+     * Override 결과 표시
+     */
+    function showOverrideResult(result) {
+        if (elements.overrideResult && elements.overrideResultContent) {
+            elements.overrideResult.style.display = 'block';
+            elements.overrideResultContent.textContent = JSON.stringify(result, null, 2);
+        }
+    }
+
     /**
      * HTML 특수문자 이스케이프
      */
@@ -869,6 +1095,19 @@
             elements.btnClearLog.addEventListener('click', clearLog);
         }
 
+        // Admin Override 버튼 (AI Native v3.5.0)
+        if (elements.btnApprove) {
+            elements.btnApprove.addEventListener('click', approveRequest);
+        }
+
+        if (elements.btnReject) {
+            elements.btnReject.addEventListener('click', rejectRequest);
+        }
+
+        if (elements.btnRefreshPending) {
+            elements.btnRefreshPending.addEventListener('click', checkPendingRequest);
+        }
+
         // 키보드 단축키
         document.addEventListener('keydown', function(event) {
             // Ctrl + R: 상태 새로고침
@@ -908,6 +1147,9 @@
 
         // 초기 상태 조회
         refreshActionStatus();
+
+        // Admin Override 대기 요청 확인 (AI Native v3.5.0)
+        checkPendingRequest();
     }
 
     // DOM 로드 완료 시 초기화

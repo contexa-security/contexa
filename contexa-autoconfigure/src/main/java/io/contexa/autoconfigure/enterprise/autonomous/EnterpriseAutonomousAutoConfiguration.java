@@ -43,7 +43,7 @@ import io.contexa.contexacoreenterprise.autonomous.orchestrator.strategy.AwaitAp
 import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
 import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
-import io.contexa.contexacoreenterprise.autonomous.scheduler.VectorLearningScheduler;
+// AI Native v4.0: VectorLearningScheduler import 제거 (클래스 삭제됨)
 import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
 import io.contexa.contexacoreenterprise.autonomous.scheduler.StaticAnalysisScheduler;
 import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
@@ -58,7 +58,7 @@ import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationSer
 import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
+// AI Native v4.0: HCADVectorIntegrationService import 제거 (클래스 삭제됨)
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.opentelemetry.api.trace.Tracer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -100,8 +100,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
  * Level 8: Intermediate Services (3개)
  * - UnifiedNotificationService, PolicyProposalManagementService, ApprovalWorkflow
  *
- * Level 9: Service & Scheduler (2개)
- * - AsyncResultDeliveryService, VectorLearningScheduler
+ * Level 9: Service (1개)
+ * - AsyncResultDeliveryService
+ * (AI Native v4.0: VectorLearningScheduler 제거됨)
  *
  * 활성화 조건:
  * contexa:
@@ -612,25 +613,13 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    /**
-     * 9-2. VectorLearningScheduler - 벡터 학습 스케줄러
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
-    public VectorLearningScheduler vectorLearningScheduler(
-            @Autowired(required = false) HCADVectorIntegrationService hcadVectorService,
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
-        return new VectorLearningScheduler(hcadVectorService, redisTemplate);
-    }
+    // AI Native v4.0: VectorLearningScheduler 제거
+    // - HCADVectorIntegrationService와 함께 삭제
+    // - Cold Path ↔ Hot Path 동기화 불필요 (LLM이 직접 Redis에 저장)
+    // - 임베딩 캐시 정리는 Redis TTL로 자동 처리
 
     /**
-     * 9-3. PolicyChangeEventListener - 정책 변경 이벤트 리스너
+     * 9-2. PolicyChangeEventListener - 정책 변경 이벤트 리스너
      */
     @Bean
     @ConditionalOnMissingBean

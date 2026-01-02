@@ -1,11 +1,13 @@
 package io.contexa.contexacore.autonomous.service;
 
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -41,6 +43,7 @@ public class AdminOverrideRepository {
     private static final String KEY_PREFIX = "security:admin:override:";
     private static final String PENDING_PREFIX = "security:admin:override:pending:";
     private static final String USER_INDEX_PREFIX = "security:admin:override:user:";
+    private static final String EVENT_PREFIX = "security:admin:override:event:";
     private static final Duration TTL = Duration.ofDays(30);
     private static final Duration PENDING_TTL = Duration.ofDays(7);
 
@@ -121,6 +124,92 @@ public class AdminOverrideRepository {
 
         } catch (Exception e) {
             log.error("[AdminOverrideRepository] pending 저장 실패: requestId={}", requestId, e);
+        }
+    }
+
+    /**
+     * SecurityEvent 저장 (AI Native v3.5.0)
+     *
+     * BLOCK 판정 시 SecurityEvent를 함께 저장하여
+     * 관리자 승인 시 Baseline 학습에 활용합니다.
+     *
+     * @param requestId 요청 ID
+     * @param event SecurityEvent 객체
+     */
+    public void saveSecurityEvent(String requestId, SecurityEvent event) {
+        if (requestId == null || event == null) {
+            log.warn("[AdminOverrideRepository] null requestId 또는 event로 saveSecurityEvent 시도");
+            return;
+        }
+
+        String key = EVENT_PREFIX + requestId;
+        Map<String, Object> data = securityEventToMap(event);
+
+        try {
+            redisTemplate.opsForHash().putAll(key, data);
+            redisTemplate.expire(key, PENDING_TTL);
+
+            log.debug("[AdminOverrideRepository] SecurityEvent 저장 완료: requestId={}, eventId={}",
+                requestId, event.getEventId());
+
+        } catch (Exception e) {
+            log.error("[AdminOverrideRepository] SecurityEvent 저장 실패: requestId={}", requestId, e);
+        }
+    }
+
+    /**
+     * SecurityEvent 조회 (AI Native v3.5.0)
+     *
+     * 관리자 승인 시 저장된 SecurityEvent를 조회하여
+     * Baseline 학습에 활용합니다.
+     *
+     * @param requestId 요청 ID
+     * @return SecurityEvent 객체 (없으면 Optional.empty())
+     */
+    public Optional<SecurityEvent> findSecurityEvent(String requestId) {
+        if (requestId == null) {
+            return Optional.empty();
+        }
+
+        String key = EVENT_PREFIX + requestId;
+
+        try {
+            Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
+
+            if (data.isEmpty()) {
+                return Optional.empty();
+            }
+
+            return Optional.of(securityEventFromMap(data));
+
+        } catch (Exception e) {
+            log.error("[AdminOverrideRepository] SecurityEvent 조회 실패: requestId={}", requestId, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * SecurityEvent 삭제 (AI Native v3.5.0)
+     *
+     * 관리자 처리 완료 후 SecurityEvent 삭제
+     *
+     * @param requestId 요청 ID
+     */
+    public void deleteSecurityEvent(String requestId) {
+        if (requestId == null) {
+            return;
+        }
+
+        String key = EVENT_PREFIX + requestId;
+
+        try {
+            Boolean deleted = redisTemplate.delete(key);
+            if (Boolean.TRUE.equals(deleted)) {
+                log.debug("[AdminOverrideRepository] SecurityEvent 삭제 완료: requestId={}", requestId);
+            }
+
+        } catch (Exception e) {
+            log.error("[AdminOverrideRepository] SecurityEvent 삭제 실패: requestId={}", requestId, e);
         }
     }
 
@@ -302,5 +391,122 @@ public class AdminOverrideRepository {
             log.warn("[AdminOverrideRepository] double 파싱 실패: {}", value);
             return 0.0;
         }
+    }
+
+    /**
+     * SecurityEvent 객체를 Redis Hash용 Map으로 변환 (AI Native v3.5.0)
+     *
+     * SecurityEvent v3.0.0 필드 구조:
+     * - resourceType, resourceId, action 필드는 제거됨 (metadata로 이동)
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> securityEventToMap(SecurityEvent event) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("eventId", event.getEventId());
+        map.put("source", event.getSource() != null ? event.getSource().name() : null);
+        map.put("severity", event.getSeverity() != null ? event.getSeverity().name() : null);
+        map.put("userId", event.getUserId());
+        map.put("sourceIp", event.getSourceIp());
+        map.put("sessionId", event.getSessionId());
+        map.put("userAgent", event.getUserAgent());
+        map.put("userName", event.getUserName());
+        map.put("protocol", event.getProtocol());
+        map.put("blocked", String.valueOf(event.isBlocked()));
+        map.put("description", event.getDescription());
+        map.put("timestamp", event.getTimestamp() != null ? event.getTimestamp().toString() : null);
+
+        // metadata는 JSON 문자열로 저장
+        if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
+            try {
+                StringBuilder sb = new StringBuilder("{");
+                boolean first = true;
+                for (Map.Entry<String, Object> entry : event.getMetadata().entrySet()) {
+                    if (!first) sb.append(",");
+                    sb.append("\"").append(entry.getKey()).append("\":\"")
+                        .append(entry.getValue() != null ? entry.getValue().toString() : "").append("\"");
+                    first = false;
+                }
+                sb.append("}");
+                map.put("metadata", sb.toString());
+            } catch (Exception e) {
+                log.warn("[AdminOverrideRepository] metadata 변환 실패: {}", e.getMessage());
+            }
+        }
+
+        return map;
+    }
+
+    /**
+     * Redis Hash Map을 SecurityEvent 객체로 변환 (AI Native v3.5.0)
+     *
+     * SecurityEvent v3.0.0 필드 구조:
+     * - resourceType, resourceId, action 필드는 제거됨 (metadata로 이동)
+     */
+    private SecurityEvent securityEventFromMap(Map<Object, Object> data) {
+        SecurityEvent.SecurityEventBuilder builder = SecurityEvent.builder()
+            .eventId(getStringFromMap(data, "eventId"))
+            .userId(getStringFromMap(data, "userId"))
+            .sourceIp(getStringFromMap(data, "sourceIp"))
+            .sessionId(getStringFromMap(data, "sessionId"))
+            .userAgent(getStringFromMap(data, "userAgent"))
+            .userName(getStringFromMap(data, "userName"))
+            .protocol(getStringFromMap(data, "protocol"))
+            .blocked(parseBoolean(getStringFromMap(data, "blocked")))
+            .description(getStringFromMap(data, "description"));
+
+        // source 파싱
+        String sourceStr = getStringFromMap(data, "source");
+        if (sourceStr != null && !sourceStr.isEmpty()) {
+            try {
+                builder.source(SecurityEvent.EventSource.valueOf(sourceStr));
+            } catch (IllegalArgumentException e) {
+                log.warn("[AdminOverrideRepository] EventSource 파싱 실패: {}", sourceStr);
+            }
+        }
+
+        // severity 파싱
+        String severityStr = getStringFromMap(data, "severity");
+        if (severityStr != null && !severityStr.isEmpty()) {
+            try {
+                builder.severity(SecurityEvent.Severity.valueOf(severityStr));
+            } catch (IllegalArgumentException e) {
+                log.warn("[AdminOverrideRepository] Severity 파싱 실패: {}", severityStr);
+            }
+        }
+
+        // timestamp 파싱
+        String timestampStr = getStringFromMap(data, "timestamp");
+        if (timestampStr != null && !timestampStr.isEmpty()) {
+            try {
+                builder.timestamp(LocalDateTime.parse(timestampStr));
+            } catch (Exception e) {
+                log.warn("[AdminOverrideRepository] LocalDateTime 파싱 실패: {}", timestampStr);
+            }
+        }
+
+        // metadata 파싱 (간단한 JSON 파싱)
+        String metadataStr = getStringFromMap(data, "metadata");
+        if (metadataStr != null && !metadataStr.isEmpty() && metadataStr.startsWith("{")) {
+            try {
+                Map<String, Object> metadata = new HashMap<>();
+                String content = metadataStr.substring(1, metadataStr.length() - 1);
+                if (!content.isEmpty()) {
+                    String[] pairs = content.split(",");
+                    for (String pair : pairs) {
+                        String[] kv = pair.split(":", 2);
+                        if (kv.length == 2) {
+                            String key = kv[0].trim().replace("\"", "");
+                            String value = kv[1].trim().replace("\"", "");
+                            metadata.put(key, value);
+                        }
+                    }
+                }
+                builder.metadata(metadata);
+            } catch (Exception e) {
+                log.warn("[AdminOverrideRepository] metadata 파싱 실패: {}", e.getMessage());
+            }
+        }
+
+        return builder.build();
     }
 }

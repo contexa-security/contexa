@@ -2,17 +2,13 @@ package io.contexa.autoconfigure.core.hcad;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.properties.HcadProperties;
-import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
-import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
+// AI Native v4.0: Dead Code 제거
+// - EmbeddingService, HCADVectorIntegrationService 삭제
+// - BehaviorVectorService import 제거 (미사용)
 import io.contexa.contexacore.hcad.filter.HCADFilter;
-import io.contexa.contexacore.hcad.service.EmbeddingService;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
-import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
-import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -48,7 +44,8 @@ import org.springframework.data.redis.core.RedisTemplate;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties({ContexaProperties.class, HcadProperties.class, FeedbackIntegrationProperties.class})
+// AI Native v4.0: FeedbackIntegrationProperties 제거 (미사용)
+@EnableConfigurationProperties({ContexaProperties.class, HcadProperties.class})
 public class CoreHCADAutoConfiguration {
 
     public CoreHCADAutoConfiguration() {
@@ -57,15 +54,9 @@ public class CoreHCADAutoConfiguration {
 
     // ========== Level 1: 독립적 서비스 ==========
 
-    /**
-     * EmbeddingService - 임베딩 생성 및 캐싱 서비스
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public EmbeddingService embeddingService(
-            RedisTemplate<String, Object> redisTemplate) {
-        return new EmbeddingService(redisTemplate);
-    }
+    // AI Native v4.0: EmbeddingService 제거
+    // - LLM 분석은 텍스트 컨텍스트 기반 (임베딩 불필요)
+    // - Hot Path의 규칙 기반 유사도 비교 제거
 
     /**
      * HCADContextExtractor - HCAD 컨텍스트 추출 서비스
@@ -100,25 +91,11 @@ public class CoreHCADAutoConfiguration {
 
     // ========== Level 3: Level 2 의존 ==========
 
-    /**
-     * HCADVectorIntegrationService - HCAD와 Vector Store 통합 서비스
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public HCADVectorIntegrationService hcadVectorIntegrationService(
-            BehaviorVectorService behaviorVectorService,
-            UnifiedVectorService unifiedVectorService,
-            RedisTemplate<String, Object> redisTemplate,
-            FeedbackIntegrationProperties feedbackIntegrationProperties,
-            LayerFeedbackService layerFeedbackService,
-            EmbeddingService embeddingService) {
-        return new HCADVectorIntegrationService(
-            behaviorVectorService, unifiedVectorService, redisTemplate,
-            feedbackIntegrationProperties, layerFeedbackService, embeddingService
-        );
-    }
+    // AI Native v4.0: HCADVectorIntegrationService 제거
+    // - 임베딩 기반 유사도 비교는 LLM 분석에서 사용되지 않음
+    // - Cold Path ↔ Hot Path 동기화 불필요 (LLM이 직접 Redis에 저장)
 
-    // ========== Level 4: Level 3 의존 ==========
+    // ========== Level 4: HCADAnalysisService ==========
 
     /**
      * HCADAnalysisService - HCAD 분석 서비스

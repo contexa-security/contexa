@@ -761,3 +761,139 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* === Admin Override (AI Native v3.5.0) === */
+.admin-override {
+    border-left: 4px solid #7b1fa2;
+}
+
+.admin-override h2 {
+    color: #7b1fa2;
+}
+
+.override-status {
+    padding: 16px;
+    background: #f5f5f5;
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.override-status .status-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.override-status .status-row:last-child {
+    margin-bottom: 0;
+}
+
+.pending-info {
+    width: 100%;
+    padding: 16px;
+    background: #fff3e0;
+    border-radius: 8px;
+    border-left: 4px solid #f57c00;
+}
+
+.pending-info .info-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.pending-info .info-row:last-child {
+    margin-bottom: 0;
+}
+
+.pending-info .label {
+    min-width: 120px;
+    font-weight: 600;
+    color: #666;
+}
+
+.pending-info .value {
+    flex: 1;
+    color: #333;
+    word-break: break-word;
+}
+
+.override-form {
+    padding: 16px;
+    background: #fafafa;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.override-form .form-group {
+    margin-bottom: 16px;
+}
+
+.override-form .form-group:last-of-type {
+    margin-bottom: 20px;
+}
+
+.override-form label {
+    display: block;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.override-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+}
+
+.override-form textarea:focus {
+    outline: none;
+    border-color: #7b1fa2;
+    box-shadow: 0 0 0 3px rgba(123, 31, 162, 0.1);
+}
+
+.override-form input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.override-form .button-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-success {
+    background-color: #4caf50;
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #43a047;
+}
+
+.override-result {
+    margin-top: 16px;
+    padding: 16px;
+    background: #e8f5e9;
+    border-radius: 8px;
+    border: 1px solid #a5d6a7;
+}
+
+.override-result h4 {
+    color: #2e7d32;
+    margin-bottom: 12px;
+}
+
+.override-result pre {
+    background: white;
+    padding: 12px;
+    border-radius: 4px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    color: #333;
+}

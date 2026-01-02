@@ -116,10 +116,14 @@ public final class PromptTemplateUtils {
      * - 가장 중요한 필드(baseline)가 평가에서 누락
      *
      * Zero Trust v6.0 개선:
-     * - CRITICAL 필드: baseline, trustScore, userId, sourceIp, sessionId (5개)
+     * - CRITICAL 필드: baseline, userId, sourceIp, sessionId (4개)
      * - HIGH 필드: isNewSession, isNewDevice, recentRequestCount (3개)
-     * - 8개 필드 기준으로 정확한 점수 계산
+     * - 7개 필드 기준으로 정확한 점수 계산
      * - baseline 없으면 강제 경고 추가
+     *
+     * AI Native v4.3.0: trustScore를 CRITICAL 필드에서 제거
+     * - LLM은 riskScore만 반환하며 trustScore(=1-riskScore)는 역관계로 혼란 유발
+     * - trustScore는 내부 EMA 학습용으로만 사용
      *
      * @param event 보안 이벤트
      * @param baselineContext baseline 컨텍스트 (null이면 baseline 없음으로 판단)
@@ -145,13 +149,8 @@ public final class PromptTemplateUtils {
             criticalMissing.add("baseline");
         }
 
-        // trustScore
-        Map<String, Object> metadata = event.getMetadata();
-        if (metadata != null && metadata.containsKey("authz.trustScore")) {
-            criticalPresent.add("trustScore");
-        } else {
-            criticalMissing.add("trustScore");
-        }
+        // AI Native v4.3.0: trustScore 체크 제거
+        // LLM은 riskScore만 반환하며, trustScore는 내부 EMA 학습용으로만 사용
 
         // userId
         if (isValidData(event.getUserId())) {

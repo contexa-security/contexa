@@ -59,4 +59,7 @@ public class HttpRequestEvent {
     private Boolean isNewUser;             // 신규 사용자 여부 (이전 HCAD 분석 기록 없음)
     private Boolean isNewDevice;           // 신규 디바이스 여부
     private Integer recentRequestCount;    // 최근 5분간 요청 수
+
+    // AI Native v4.3.0: 인증 방법 (LLM 분석에 활용)
+    private String authMethod;             // PASSWORD, OAUTH2, JWT, MFA 등
 }

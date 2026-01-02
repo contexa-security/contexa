@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import java.time.Duration;
@@ -24,6 +25,13 @@ import java.util.concurrent.TimeUnit;
 public class HCADContextExtractor {
 
     private final RedisTemplate<String, Object> redisTemplate;
+
+    /**
+     * X-Simulated-User-Agent 헤더 활성화 여부 (테스트/개발 환경 전용)
+     * 프로덕션에서는 반드시 false로 설정
+     */
+    @Value("${contexa.hcad.enable-simulated-user-agent:false}")
+    private boolean enableSimulatedUserAgent;
 
     /**
      * 요청에서 HCAD 컨텍스트 추출
@@ -53,17 +61,22 @@ public class HCADContextExtractor {
             // 기본 정보 추출
             HCADContext context = new HCADContext();
             context.setUserId(userId);
-            context.setSessionId(sessionId);
+            context.setSessionId(sessionId != null ? sessionId : "unknown");
             context.setUsername(username);
             context.setRequestPath(request.getRequestURI());
             context.setHttpMethod(request.getMethod());
             context.setRemoteIp(clientIp);
-            // 테스트용 X-Simulated-User-Agent 헤더 우선 읽기 (브라우저 보안 정책으로 User-Agent 직접 수정 불가)
-            String userAgent = request.getHeader("X-Simulated-User-Agent");
-            if (userAgent == null || userAgent.isEmpty()) {
+            // X-Simulated-User-Agent 헤더 처리 (프로파일 기반 활성화)
+            String userAgent;
+            if (enableSimulatedUserAgent) {
+                userAgent = request.getHeader("X-Simulated-User-Agent");
+                if (userAgent == null || userAgent.isEmpty()) {
+                    userAgent = request.getHeader("User-Agent");
+                }
+            } else {
                 userAgent = request.getHeader("User-Agent");
             }
-            context.setUserAgent(userAgent);
+            context.setUserAgent(userAgent != null ? userAgent : "unknown");
             context.setReferer(request.getHeader("Referer"));
             context.setTimestamp(Instant.now());
 

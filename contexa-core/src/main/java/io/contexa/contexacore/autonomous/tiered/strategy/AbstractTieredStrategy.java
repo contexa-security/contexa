@@ -1,14 +1,11 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacore.autonomous.config.FeedbackConstants;
-import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
-import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
+// AI Native v4.0: HCADVectorIntegrationService import 제거 (클래스 삭제됨)
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Tiered Strategy 추상 기반 클래스
@@ -57,9 +54,55 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
 
         int startIndex = response.indexOf('{');
-        int endIndex = response.lastIndexOf('}');
+        if (startIndex == -1) {
+            return response;
+        }
 
-        if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+        // AI Native v4.2.0: 첫 번째 완전한 JSON 객체만 추출 (balanced braces)
+        // 다중 JSON이 있는 경우 첫 번째만 반환
+        int braceCount = 0;
+        int endIndex = -1;
+        boolean inString = false;
+        boolean escaped = false;
+
+        for (int i = startIndex; i < response.length(); i++) {
+            char c = response.charAt(i);
+
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+
+            if (!inString) {
+                if (c == '{') {
+                    braceCount++;
+                } else if (c == '}') {
+                    braceCount--;
+                    if (braceCount == 0) {
+                        endIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (endIndex != -1) {
+            return response.substring(startIndex, endIndex + 1);
+        }
+
+        // fallback: 기존 로직 (마지막 } 사용)
+        endIndex = response.lastIndexOf('}');
+        if (endIndex > startIndex) {
             return response.substring(startIndex, endIndex + 1);
         }
 

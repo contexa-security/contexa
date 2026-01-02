@@ -605,6 +605,11 @@ public class ZeroTrustEventListener {
         metadata.put("httpMethod", event.getHttpMethod());
         metadata.put("statusCode", event.getStatusCode());
 
+        // AI Native v4.3.0: 인증 방법 추가 (LLM 분석에 활용)
+        if (event.getAuthMethod() != null) {
+            metadata.put("authMethod", event.getAuthMethod());
+        }
+
         // 통합 AI 분석 결과
         if (event.getEventTier() != null) {
             metadata.put("eventTier", event.getEventTier().name());

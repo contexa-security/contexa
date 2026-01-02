@@ -1,11 +1,14 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
-import io.contexa.contexacore.hcad.service.HCADVectorIntegrationService;
+// AI Native v4.0: HCADVectorIntegrationService import 제거 (클래스 삭제됨)
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -21,6 +24,7 @@ import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
@@ -34,8 +38,10 @@ import org.springframework.security.web.savedrequest.SavedRequest;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * MFA 인증 성공 처리 핸들러 (OAuth2/JWT 토큰 기반)
@@ -52,6 +58,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private ApplicationEventPublisher eventPublisher;
     private RedisTemplate<String, Object> redisTemplate;
 
+    // AI Native v3.5.0: MFA 성공 시 Baseline 학습을 위한 서비스
+    private BaselineLearningService baselineLearningService;
+
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
                                                       MfaSessionRepository sessionRepository,
@@ -65,6 +74,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     @Override
     public void setApplicationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         this.eventPublisher = applicationEventPublisher;
+    }
+
+    /**
+     * AI Native v3.5.0: BaselineLearningService 선택적 주입
+     *
+     * MFA 성공 시 Baseline 학습을 위해 사용됩니다.
+     * 선택적 주입으로, 서비스가 없어도 MFA 처리는 정상 동작합니다.
+     */
+    @Autowired(required = false)
+    public void setBaselineLearningService(BaselineLearningService baselineLearningService) {
+        this.baselineLearningService = baselineLearningService;
     }
 
     /**
@@ -111,9 +131,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             log.debug("Set mfaSessionReleased flag for session: {}", factorContext.getMfaSessionId());
         }
 
-        // 4. AI Native: MFA 성공 시 action 초기화 (CHALLENGE 해제)
+        // 4. AI Native v3.5.0: MFA 성공 시 action 초기화 + Baseline 학습
         String userId = finalAuthentication.getName();
-        resetActionOnMfaSuccess(userId);
+        resetActionOnMfaSuccess(userId, request);
 
         // 4. 응답 데이터 구성
         Map<String, Object> responseData = buildResponseData(
@@ -464,35 +484,94 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     /**
-     * AI Native: MFA 성공 시 action을 ALLOW로 설정 (CHALLENGE 해제)
+     * AI Native v3.5.0: MFA 성공 시 ALLOW 설정 + Baseline 학습
      *
-     * CHALLENGE action으로 MFA가 요구되었던 사용자가 MFA를 성공적으로 완료하면
-     * Redis에서 action을 "ALLOW"로 설정하여 원래 권한 복원을 허용합니다.
+     * MFA 성공 = 정상 사용자 확인 = ALLOW 획득
+     * - 재분석 불필요 (LLM 호출 비용/시간 절약)
+     * - ALLOW 획득 지점에서 직접 Baseline 학습
      *
      * Phase 8 수정: action 삭제 대신 ALLOW 설정
      * - 기존 문제: action 삭제 시 PENDING_ANALYSIS 상태가 되어 사용자 영구 제한
      * - 해결: action을 "ALLOW"로 설정하여 ZeroTrustSecurityService에서 원래 권한 복원
      *
-     * Dual-Write 전략:
-     * - Primary: security:hcad:analysis:{userId} Hash의 action 필드를 "ALLOW"로 설정
-     * - Legacy: security:user:action:{userId} String을 "ALLOW"로 설정 (하위 호환성)
-     *
      * @param userId 사용자 ID
+     * @param request HttpServletRequest (Baseline 학습용 컨텍스트)
      */
-    private void resetActionOnMfaSuccess(String userId) {
+    private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {
         if (userId == null || userId.isBlank() || redisTemplate == null) {
             return;
         }
 
         try {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+
+            // 1. action을 ALLOW로 변경
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
 
-            log.info("[MFA][AI Native][Dual-Write] Action set to ALLOW for user: {} (CHALLENGE cleared, original authorities will be restored)",
+            // 2. TTL을 ALLOW의 TTL(1시간)로 갱신
+            redisTemplate.expire(analysisKey, Duration.ofHours(1));
+
+            // 3. Baseline 학습 수행 (ALLOW 획득 지점에서 직접 처리)
+            learnBaselineOnMfaSuccess(userId, request);
+
+            log.info("[MFA][AI Native v3.5.0] Action set to ALLOW with Baseline learning for user: {}",
                     userId);
 
         } catch (Exception e) {
             log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
+        }
+    }
+
+    /**
+     * MFA 성공 시 Baseline 학습
+     *
+     * AI Native v3.5.0: MFA 성공 = 정상 사용자 확인
+     * - LLM 재분석 없이 직접 Baseline 학습
+     * - SecurityDecision.ALLOW + SecurityEvent 생성하여 학습
+     *
+     * @param userId 사용자 ID
+     * @param request HttpServletRequest (컨텍스트 추출용)
+     */
+    private void learnBaselineOnMfaSuccess(String userId, HttpServletRequest request) {
+        if (baselineLearningService == null) {
+            log.debug("[MFA] BaselineLearningService not available, skipping baseline learning");
+            return;
+        }
+
+        try {
+            // SecurityDecision 생성 (MFA 성공 = ALLOW, 최고 신뢰도)
+            SecurityDecision decision = SecurityDecision.builder()
+                .action(SecurityDecision.Action.ALLOW)
+                .confidence(1.0)  // MFA 성공 = 최고 신뢰도
+                .riskScore(0.0)   // MFA 성공 = 최저 위험도
+                .reasoning("MFA authentication completed successfully")
+                .build();
+
+            // SecurityEvent 생성 (request에서 컨텍스트 추출)
+            SecurityEvent event = SecurityEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .source(SecurityEvent.EventSource.IAM)
+                .userId(userId)
+                .sourceIp(extractClientIp(request))
+                .sessionId(request.getSession(false) != null ?
+                    request.getSession(false).getId() : null)
+                .userAgent(request.getHeader("User-Agent"))
+                .timestamp(LocalDateTime.now())
+                .description("MFA authentication success - baseline learning")
+                .build();
+
+            // Baseline 학습 수행
+            boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
+
+            if (learned) {
+                log.info("[MFA][Baseline] Baseline learned on MFA success: userId={}", userId);
+            } else {
+                log.debug("[MFA][Baseline] Baseline learning skipped: userId={}", userId);
+            }
+
+        } catch (Exception e) {
+            log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
+            // Baseline 학습 실패해도 MFA 성공 처리는 계속 진행
         }
     }
 }

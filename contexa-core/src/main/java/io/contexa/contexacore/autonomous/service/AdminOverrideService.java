@@ -3,9 +3,12 @@ package io.contexa.contexacore.autonomous.service;
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,11 +42,14 @@ public class AdminOverrideService {
 
     private final AdminOverrideRepository repository;
     private final BaselineLearningService baselineLearningService;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     public AdminOverrideService(AdminOverrideRepository repository,
-                                 BaselineLearningService baselineLearningService) {
+                                 BaselineLearningService baselineLearningService,
+                                 RedisTemplate<String, Object> redisTemplate) {
         this.repository = repository;
         this.baselineLearningService = baselineLearningService;
+        this.redisTemplate = redisTemplate;
     }
 
     /**
@@ -107,6 +113,12 @@ public class AdminOverrideService {
         // 기준선 업데이트 트리거 (조건 충족 시)
         if (override.canUpdateBaseline() && originalEvent != null) {
             triggerBaselineUpdate(userId, originalEvent, override);
+        }
+
+        // AI Native v3.5.0: Redis analysis 키 업데이트
+        // MFA 성공 케이스와 동일하게 action을 ALLOW로 변경하고 TTL 갱신
+        if ("ALLOW".equalsIgnoreCase(overriddenAction) && userId != null) {
+            updateAnalysisAction(userId, "ALLOW");
         }
 
         log.info("[AdminOverrideService][AI Native] 관리자 승인 완료: " +
@@ -223,6 +235,42 @@ public class AdminOverrideService {
     }
 
     /**
+     * Redis analysis 키 업데이트
+     *
+     * AI Native v3.5.0: 관리자 승인 시 Redis analysis 키의 action을 변경하고 TTL 갱신
+     * MFA 성공 케이스와 동일한 패턴 적용
+     *
+     * 목적:
+     * - tryAcquireAnalysisLock()에서 BLOCK 감지로 인한 Kafka 차단 방지
+     * - 다음 요청부터 정상적인 ALLOW 처리 가능
+     *
+     * @param userId 사용자 ID
+     * @param action 변경할 action (ALLOW)
+     */
+    private void updateAnalysisAction(String userId, String action) {
+        if (userId == null || userId.isBlank() || redisTemplate == null) {
+            return;
+        }
+
+        try {
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+
+            // 1. action 필드 업데이트
+            redisTemplate.opsForHash().put(analysisKey, "action", action);
+
+            // 2. TTL을 ALLOW의 TTL(1시간)로 갱신
+            redisTemplate.expire(analysisKey, Duration.ofHours(1));
+
+            log.info("[AdminOverrideService][AI Native v3.5.0] Redis analysis 키 업데이트: " +
+                    "userId={}, action={}, TTL=1시간", userId, action);
+
+        } catch (Exception e) {
+            log.error("[AdminOverrideService] Redis analysis 키 업데이트 실패: userId={}", userId, e);
+            // 업데이트 실패해도 승인 처리는 계속 진행
+        }
+    }
+
+    /**
      * 관리자 개입 조회
      *
      * @param requestId 요청 ID
@@ -255,6 +303,24 @@ public class AdminOverrideService {
      */
     public void addToPendingReview(String requestId, String userId,
                                     double riskScore, double confidence, String reasoning) {
+        addToPendingReview(requestId, userId, riskScore, confidence, reasoning, null);
+    }
+
+    /**
+     * BLOCK 판정된 요청을 대기 목록에 추가 (SecurityEvent 포함)
+     *
+     * AI Native v3.5.0: SecurityEvent를 함께 저장하여 관리자 승인 시 Baseline 학습에 활용
+     *
+     * @param requestId 요청 ID
+     * @param userId 사용자 ID
+     * @param riskScore LLM riskScore
+     * @param confidence LLM confidence
+     * @param reasoning LLM 판단 근거
+     * @param event 원본 SecurityEvent (Baseline 학습용)
+     */
+    public void addToPendingReview(String requestId, String userId,
+                                    double riskScore, double confidence, String reasoning,
+                                    SecurityEvent event) {
         java.util.Map<String, Object> analysisData = new java.util.HashMap<>();
         analysisData.put("riskScore", riskScore);
         analysisData.put("confidence", confidence);
@@ -263,7 +329,38 @@ public class AdminOverrideService {
 
         repository.savePending(requestId, userId, analysisData);
 
+        // AI Native v3.5.0: SecurityEvent 저장 (Baseline 학습용)
+        if (event != null) {
+            repository.saveSecurityEvent(requestId, event);
+            log.debug("[AdminOverrideService][AI Native] SecurityEvent 저장 완료: requestId={}, eventId={}",
+                requestId, event.getEventId());
+        }
+
         log.debug("[AdminOverrideService] BLOCK 요청을 대기 목록에 추가: requestId={}, userId={}",
             requestId, userId);
+    }
+
+    /**
+     * 대기 중인 요청 정보 조회 (관리자 UI용)
+     *
+     * AI Native v3.5.0: 관리자 UI에서 대기 중인 요청 목록 표시
+     *
+     * @param requestId 요청 ID
+     * @return 대기 중인 요청 데이터 (없으면 Optional.empty())
+     */
+    public Optional<java.util.Map<Object, Object>> getPendingReview(String requestId) {
+        return repository.findPending(requestId);
+    }
+
+    /**
+     * 저장된 SecurityEvent 조회 (관리자 승인 시 사용)
+     *
+     * AI Native v3.5.0: 관리자 승인 시 Baseline 학습을 위해 SecurityEvent 조회
+     *
+     * @param requestId 요청 ID
+     * @return SecurityEvent 객체 (없으면 Optional.empty())
+     */
+    public Optional<SecurityEvent> getSecurityEvent(String requestId) {
+        return repository.findSecurityEvent(requestId);
     }
 }

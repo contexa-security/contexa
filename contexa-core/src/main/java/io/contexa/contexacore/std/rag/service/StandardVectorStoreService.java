@@ -201,15 +201,19 @@ public class StandardVectorStoreService implements VectorOperations {
     public List<Document> searchWithFilter(String query, Map<String, Object> filterCriteria) {
         FilterExpressionBuilder builder = new FilterExpressionBuilder();
         Filter.Expression filter = buildFilterExpression(builder, filterCriteria);
-        
-        // AI Native: similarityThreshold 제거 (LLM이 관련성 판단)
+
+        // AI Native v4.2.0: topK를 filterCriteria에서 가져오거나 설정값 사용
+        int topK = filterCriteria.containsKey("topK")
+            ? ((Number) filterCriteria.get("topK")).intValue()
+            : properties.getTopK();
+
         SearchRequest searchRequest = SearchRequest.builder()
             .query(query)
-            .topK(10)
-            .similarityThreshold(0.0)  // AI Native: 임계값 필터링 비활성화
+            .topK(topK)
+            .similarityThreshold(properties.getSimilarityThreshold())
             .filterExpression(filter)
             .build();
-        
+
         return similaritySearch(searchRequest);
     }
     
@@ -223,29 +227,26 @@ public class StandardVectorStoreService implements VectorOperations {
             String documentType) {
         
         FilterExpressionBuilder builder = new FilterExpressionBuilder();
-        
-        // 시간 범위 필터
-        Filter.Expression timeFilter = builder.and(
+
+        // AI Native v4.2.0: 시간 필터 Op 생성 (재사용 가능)
+        FilterExpressionBuilder.Op timeFilterOp = builder.and(
             builder.gte("timestamp", startTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
             builder.lte("timestamp", endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
-        ).build();
-        
-        // 문서 타입 필터 추가
+        );
+
+        // 문서 타입 필터 추가 - 기존 timeFilterOp 재사용
+        Filter.Expression timeFilter;
         if (documentType != null && !documentType.isEmpty()) {
-            timeFilter = builder.and(
-                builder.and(
-                    builder.gte("timestamp", startTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
-                    builder.lte("timestamp", endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
-                ),
-                builder.eq("documentType", documentType)
-            ).build();
+            timeFilter = builder.and(timeFilterOp, builder.eq("documentType", documentType)).build();
+        } else {
+            timeFilter = timeFilterOp.build();
         }
         
-        // AI Native: similarityThreshold 제거 (LLM이 관련성 판단)
+        // AI Native v4.2.0: topK 설정값 사용
         SearchRequest searchRequest = SearchRequest.builder()
             .query(query)
-            .topK(50)
-            .similarityThreshold(0.0)  // AI Native: 임계값 필터링 비활성화
+            .topK(properties.getTopK())
+            .similarityThreshold(properties.getSimilarityThreshold())
             .filterExpression(timeFilter)
             .build();
         
@@ -322,20 +323,22 @@ public class StandardVectorStoreService implements VectorOperations {
     }
     
     /**
-     * 메타데이터 강화
+     * 메타데이터 강화 (AI Native v4.2.0 - 예외 처리 추가)
      */
     private List<Document> enrichDocumentMetadata(List<Document> documents) {
         // 키워드 추출
         documents = keywordEnricher.apply(documents);
-        
-        // 요약 생성 (비동기 처리)
+
+        // 요약 생성 (비동기 처리, 개별 문서 실패 시 원본 반환)
         List<CompletableFuture<Document>> futures = documents.stream()
             .map(doc -> CompletableFuture.supplyAsync(() -> {
                 List<Document> enriched = summaryEnricher.apply(List.of(doc));
                 return enriched.isEmpty() ? doc : enriched.get(0);
-            }, executorService))
+            }, executorService)
+            // AI Native v4.2.0: 개별 문서 강화 실패 시 원본 문서 반환 (전체 실패 방지)
+            .exceptionally(ex -> doc))
             .collect(Collectors.toList());
-        
+
         return futures.stream()
             .map(CompletableFuture::join)
             .collect(Collectors.toList());
@@ -357,50 +360,67 @@ public class StandardVectorStoreService implements VectorOperations {
     }
     
     /**
-     * 필터 표현식 생성
+     * 필터 표현식 생성 (AI Native v4.2.0 - 다중 조건 AND 결합 구현)
      *
-     * 현재는 단일 필터 표현식만 지원합니다.
-     * 다중 필터 조건이 필요한 경우 SearchRequest.filterExpression에 직접
-     * FilterExpressionBuilder.and()를 사용하여 조건을 결합해야 합니다.
+     * 여러 필터 조건을 AND로 결합하여 정확한 검색 수행
+     * 예: {"documentType": "behavior", "userId": "john"} → documentType='behavior' AND userId='john'
      *
-     * TODO: 다중 조건 AND 결합 기능 구현 (현재는 첫 번째 조건만 사용)
+     * 참고: FilterExpressionBuilder API
+     * - builder.eq(), gte(), lte() 등은 Op 반환
+     * - builder.and(Op, Op)는 Ops 반환
+     * - .build()는 최종 Expression 반환
+     * - 이미 .build()된 Expression은 and()에 다시 넣을 수 없음
      */
+    @SuppressWarnings("unchecked")
     private Filter.Expression buildFilterExpression(
             FilterExpressionBuilder builder,
             Map<String, Object> criteria) {
 
-        List<Filter.Expression> expressions = new ArrayList<>();
+        // Op 목록을 수집 (Expression이 아닌 Op)
+        List<FilterExpressionBuilder.Op> ops = new ArrayList<>();
 
         for (Map.Entry<String, Object> entry : criteria.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
 
+            // topK는 필터가 아니므로 skip
+            if ("topK".equals(key)) {
+                continue;
+            }
+
             if (value instanceof String) {
-                expressions.add(builder.eq(key, value).build());
+                ops.add(builder.eq(key, value));
             } else if (value instanceof Number) {
-                expressions.add(builder.eq(key, value).build());
+                ops.add(builder.eq(key, value));
             } else if (value instanceof List) {
-                expressions.add(builder.in(key, (List<?>) value).build());
+                ops.add(builder.in(key, (List<?>) value));
             } else if (value instanceof Map) {
                 // 범위 쿼리 처리
                 Map<String, Object> rangeMap = (Map<String, Object>) value;
                 if (rangeMap.containsKey("gte") && rangeMap.containsKey("lte")) {
-                    expressions.add(builder.and(
+                    ops.add(builder.and(
                         builder.gte(key, rangeMap.get("gte")),
                         builder.lte(key, rangeMap.get("lte"))
-                    ).build());
+                    ));
                 }
             }
         }
 
-        if (expressions.isEmpty()) {
+        if (ops.isEmpty()) {
             return null;
         }
 
-        // 현재는 첫 번째 표현식만 반환 (단일 조건 지원)
-        // 다중 조건 사용 시 RagConfiguration이나 Retriever에서 직접
-        // FilterExpressionBuilder.and()를 사용하세요
-        return expressions.get(0);
+        // AI Native v4.2.0: 다중 조건 AND 결합 구현
+        if (ops.size() == 1) {
+            return ops.get(0).build();
+        }
+
+        // 여러 조건을 AND로 결합 (Op 단계에서 결합 후 최종 build)
+        FilterExpressionBuilder.Op combined = ops.get(0);
+        for (int i = 1; i < ops.size(); i++) {
+            combined = builder.and(combined, ops.get(i));
+        }
+        return combined.build();
     }
     
     /**
@@ -491,12 +511,12 @@ public class StandardVectorStoreService implements VectorOperations {
             );
             stats.put("totalDocuments", documentCount);
             
-            // 인덱스 크기
-            Long indexSize = jdbcTemplate.queryForObject(
+            // AI Native v4.2.0: 인덱스 크기 버그 수정 - 문자열 또는 바이트 값 저장
+            String indexSizeStr = jdbcTemplate.queryForObject(
                 "SELECT pg_size_pretty(pg_relation_size('embedding_hnsw_idx'))::text",
                 String.class
-            ) != null ? 0L : 0L;
-            stats.put("indexSize", indexSize);
+            );
+            stats.put("indexSize", indexSizeStr != null ? indexSizeStr : "0 bytes");
             
         } catch (Exception e) {
             // 통계 조회 실패는 무시

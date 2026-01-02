@@ -85,13 +85,17 @@ public class SecurityDecision {
     
     /**
      * Layer 1 추가 필드
+     *
+     * AI Native v4.3.0: 중복 필드 정리
+     * - layer(String) 제거 → processingLayer(int) 사용
+     * - modelUsed(String) 제거 → llmModel(String) 사용
      */
-    private Double embeddingSimilarity;       // 임베딩 유사도 (0.0 - 1.0)
-    private String matchedPattern;            // 매칭된 패턴
+    private Double embeddingSimilarity;       // 임베딩 유사도 (0.0 - 1.0) - Vector 검색 시 설정
+    private String matchedPattern;            // 매칭된 패턴 - 위협 패턴 매칭 시 설정
     private boolean knownThreat;              // 알려진 위협 여부
-    private String llmModel;                  // 사용된 LLM 모델
-    private String layer;                     // 처리 계층 정보 (Layer1, Layer2, Layer3)
-    private String modelUsed;                 // 사용된 모델명
+    private String llmModel;                  // 사용된 LLM 모델 (예: llama3.1:8b, claude-sonnet)
+    // AI Native v4.3.0: layer(String) 제거 - processingLayer(int)로 통일
+    // AI Native v4.3.0: modelUsed(String) 제거 - llmModel(String)로 통일
 
     /**
      * Layer 2 추가 필드

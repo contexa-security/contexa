@@ -27,10 +27,8 @@ import io.contexa.contexacore.autonomous.orchestrator.strategy.SoarOrchestration
 import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
 import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
-import io.contexa.contexacore.autonomous.notification.NotificationService;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.std.components.event.AuditLogger;
@@ -252,10 +250,9 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public ColdPathEventProcessor coldPathEventProcessor(
             RedisTemplate<String, Object> redisTemplate,
-            Layer1FastFilterStrategy layer1FastFilterStrategy,
-            Layer2ContextualStrategy layer2ContextualStrategy,
-            Layer3ExpertStrategy layer3ExpertStrategy) {
-        return new ColdPathEventProcessor(redisTemplate, layer1FastFilterStrategy, layer2ContextualStrategy, layer3ExpertStrategy);
+            Layer1ContextualStrategy contextualStrategy,
+            Layer2ExpertStrategy expertStrategy) {
+        return new ColdPathEventProcessor(redisTemplate, contextualStrategy, expertStrategy);
     }
 
     // ========== Audit & Authorization ==========

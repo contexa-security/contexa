@@ -4,21 +4,17 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -55,9 +51,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ColdPathEventProcessor implements IPathProcessor {
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final Layer1FastFilterStrategy layer1Strategy;
-    private final Layer2ContextualStrategy layer2Strategy;
-    private final Layer3ExpertStrategy layer3Strategy;
+    private final Layer1ContextualStrategy contextualStrategy;
+    private final Layer2ExpertStrategy expertStrategy;
 
     /**
      * AI Native: Baseline Learning Service (Optional)
@@ -103,10 +98,11 @@ public class ColdPathEventProcessor implements IPathProcessor {
      * - 0.3 ~ 0.7: Medium Risk (주의 필요)
      * - 0.7 ~ 1.0: High Risk (Cold Path AI 분석 필수)
      *
-     * 처리 경로:
-     * - Layer 1 (Fast Filter): riskScore < 0.3 - 98% 조기 종료
-     * - Layer 2 (Contextual): 0.3 <= riskScore < 0.7 - 1.8% 중간 분석
-     * - Layer 3 (Expert): riskScore >= 0.7 - 0.2% 상세 분석
+     * 처리 경로 (2-Tier 구조):
+     * - Layer 1 (Contextual): LLM 컨텍스트 분석 - 95% 케이스 처리
+     *   - shouldEscalate=false: Layer 1에서 최종 판정
+     *   - shouldEscalate=true: Layer 2로 에스컬레이션
+     * - Layer 2 (Expert): LLM 전문가 분석 - 5% 케이스 처리
      *
      * @param event 보안 이벤트
      * @param riskScore Comprehensive Risk Score (0.0 ~ 1.0)
@@ -146,7 +142,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.addAnalysisData("aiAssessment", analysisResult);
             // AI Native v3.1.0: threatLevel -> action
             result.addAnalysisData("action", analysisResult.getAction());
-            result.addAnalysisData("strategies", analysisResult.getStrategiesUsed());
 
             // 분석 레벨 기록 (항상 계층적 분석 사용)
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
@@ -196,18 +191,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
 
     /**
-     * MEDIUM FIX: 계층적 AI 분석 수행 (세션 지문 검증 통합)
+     * 계층적 AI 분석 수행 (2-Tier 구조)
      *
-     * 계층적 분석 전략:
-     * - HOT Path (similarity > 0.85): Layer 1에서 빠른 처리 (98% 케이스)
-     * - WARM Path (0.6 < similarity ≤ 0.85): Layer 2에서 상세 분석 (1.8% 케이스)
-     * - COLD Path (similarity ≤ 0.6): Layer 3에서 전문가 분석 (0.2% 케이스)
+     * 계층적 분석 전략 (AI Native):
+     * - Layer 1 (Contextual): LLM이 shouldEscalate로 에스컬레이션 필요 여부 결정
+     * - Layer 2 (Expert): Layer 1에서 에스컬레이션된 복잡한 케이스 처리
      *
-     * 추가 기능: 세션 지문 검증 통합 (performAIAnalysis()와 일관성)
-     * - 세션 관련 이벤트에 대한 지문 분석
-     * - 이상 징후 탐지 및 위험 점수 조정
-     *
-     * 메인 라우팅 시스템(RoutingDecisionHandler)과 완전히 동일한 임계값 사용
+     * 규칙 기반 분기 없음 - LLM이 모든 판단 수행
      *
      * @param event 보안 이벤트
      * @param riskScore 초기 위험도 점수 (0.0~1.0)
@@ -221,15 +211,14 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
         try {
             // AI Native: Layer1부터 시작 (LLM이 shouldEscalate로 상위 Layer 에스컬레이션 결정)
-            int startLayer = 1;
-            log.info("계층적 분석 시작 - riskScore: {}, startLayer: {}, eventId: {}",
-                    riskScore, startLayer, event.getEventId());
+            log.info("계층적 분석 시작 - riskScore: {}, eventId: {}",
+                    riskScore, event.getEventId());
 
-            // Layer 1: 초고속 필터링 (20-50ms) - HOT Path
-            if (startLayer <= 1 && layer1Strategy != null) {
-                log.debug("Layer 1 초고속 필터링 시작 - eventId: {}", event.getEventId());
+            ThreatAssessment layer1Assessment = null;
+            if (contextualStrategy != null) {
+                log.debug("Layer 1 컨텍스트 분석 시작 - eventId: {}", event.getEventId());
 
-                ThreatAssessment layer1Assessment = layer1Strategy.evaluate(event);
+                layer1Assessment = contextualStrategy.evaluate(event);
                 // AI Native v3.1.0: threatLevel -> action
                 log.info("Layer 1 평가: riskScore={}, confidence={}, action={}, shouldEscalate={}",
                         layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
@@ -250,54 +239,31 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
                     return result;
                 }
+
+                // AI Native v4.2.0: Layer1 결과를 event metadata에 저장 (Layer2에서 사용)
+                event.getMetadata().put("layer1Assessment", layer1Assessment);
+                log.debug("Layer 1 결과를 metadata에 저장 - Layer2로 전달");
             }
 
-            // Layer 2: 컨텍스트 분석 (100-300ms)
-            if (startLayer <= 2 && layer2Strategy != null) {
-                log.debug("Layer 2 컨텍스트 분석 시작 - eventId: {}", event.getEventId());
+            // Layer 2: 전문가 분석 (1-5초) - 가장 복잡한 5% 케이스
+            if (expertStrategy != null) {
+                log.debug("Layer 2 전문가 분석 시작 - eventId: {}", event.getEventId());
 
-                ThreatAssessment layer2Assessment = layer2Strategy.evaluate(event);
+                ThreatAssessment layer2Assessment = expertStrategy.evaluate(event);
                 // AI Native v3.1.0: threatLevel -> action
-                log.info("Layer 2 평가: riskScore={}, confidence={}, action={}, shouldEscalate={}",
+                log.info("Layer 2 평가: riskScore={}, confidence={}, action={}",
                         layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
-                        layer2Assessment.getAction(), layer2Assessment.isShouldEscalate());
+                        layer2Assessment.getAction());
 
-                // AI Native: LLM이 에스컬레이션 필요 여부를 직접 결정
-                // 규칙 기반 confidence 비교 완전 제거
-                if (!layer2Assessment.isShouldEscalate()) {
-                    result.setFinalScore(layer2Assessment.getRiskScore());
-                    result.setConfidence(layer2Assessment.getConfidence());
-                    result.addIndicators(layer2Assessment.getIndicators());
-                    result.addRecommendedActions(layer2Assessment.getRecommendedActions());
-                    result.setAnalysisDepth(2); // Layer2에서 종료
-                    result.setAction(layer2Assessment.getAction()); // AI Native: LLM action 직접 사용
+                result.setFinalScore(layer2Assessment.getRiskScore());
+                result.setConfidence(layer2Assessment.getConfidence());
+                result.addIndicators(layer2Assessment.getIndicators());
+                result.addRecommendedActions(layer2Assessment.getRecommendedActions());
+                result.setAnalysisDepth(2); // Layer2에서 종료
+                result.setAction(layer2Assessment.getAction()); // AI Native: LLM action 직접 사용
 
-                    log.info("Layer 2에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, action: {}, 시간: {}ms",
-                            layer2Assessment.getAction(), System.currentTimeMillis() - startTime);
-
-                    return result;
-                }
-            }
-
-            // Layer 3: 전문가 분석 (1-5초) - 가장 복잡한 0.2% 케이스
-            if (layer3Strategy != null) {
-                log.debug("Layer 3 전문가 분석 시작 - eventId: {}", event.getEventId());
-
-                ThreatAssessment layer3Assessment = layer3Strategy.evaluate(event);
-                // AI Native v3.1.0: threatLevel -> action
-                log.info("Layer 3 평가: riskScore={}, confidence={}, action={}",
-                        layer3Assessment.getRiskScore(), layer3Assessment.getConfidence(),
-                        layer3Assessment.getAction());
-
-                result.setFinalScore(layer3Assessment.getRiskScore());
-                result.setConfidence(layer3Assessment.getConfidence());
-                result.addIndicators(layer3Assessment.getIndicators());
-                result.addRecommendedActions(layer3Assessment.getRecommendedActions());
-                result.setAnalysisDepth(3); // Layer3에서 종료
-                result.setAction(layer3Assessment.getAction()); // AI Native: LLM action 직접 사용
-
-                log.info("Layer 3에서 최종 처리 완료 (0.2% 케이스) - action: {}, 시간: {}ms",
-                        layer3Assessment.getAction(), System.currentTimeMillis() - startTime);
+                log.info("Layer 2에서 최종 처리 완료 (5% 케이스) - action: {}, 시간: {}ms",
+                        layer2Assessment.getAction(), System.currentTimeMillis() - startTime);
 
                 return result;
             }
@@ -312,8 +278,8 @@ public class ColdPathEventProcessor implements IPathProcessor {
             // AI Native v3.1.0: LLM 분석 실패 시 ESCALATE 설정 (상위 레이어/인간 검토 필요)
             result.setAction("ESCALATE");
 
-            // AI Native: confidence -1.0으로 설정 (LLM 분석 불가 명시, JSON 직렬화 호환)
-            result.setConfidence(-1.0);
+            // AI Native: confidence NaN으로 설정 (LLM 분석 불가 명시)
+            result.setConfidence(Double.NaN);
             result.setAnalysisDepth(0);  // AI 분석 실패 표시
             return result;
         }
@@ -503,14 +469,17 @@ public class ColdPathEventProcessor implements IPathProcessor {
     
     /**
      * 위협 분석 결과 클래스
+     *
+     * AI Native v4.2.0: Dead Code 제거
+     * - assessments 필드 제거 (추가 코드 없음)
+     * - getStrategiesUsed() 제거 (항상 빈 리스트)
+     * - addIndicator(), addRecommendedAction() 제거 (호출처 없음)
      */
     @Getter @Setter
     public static class ThreatAnalysisResult {
         private double baseScore;
         private double finalScore;
-        // AI Native v3.1.0: threatLevel 필드 제거, action 필드로 완전 대체
         private double confidence;
-        private List<ThreatAssessment> assessments = new ArrayList<>();
         private Set<String> indicators = new HashSet<>();
         private Set<String> recommendedActions = new HashSet<>();
         private int analysisDepth = 0;
@@ -518,52 +487,18 @@ public class ColdPathEventProcessor implements IPathProcessor {
         // ALLOW, BLOCK, CHALLENGE, ESCALATE
         private String action;
 
-
         public List<String> getIndicators() { return new ArrayList<>(indicators); }
-        public void addIndicator(String indicator) { this.indicators.add(indicator); }
-        
-        public List<String> getStrategiesUsed() { 
-            return assessments.stream()
-                .map(ThreatAssessment::getEvaluator)
-                .distinct()
-                .toList();
-        }
-        
-        public int getAnalysisDepth() {
-            // analysisDepth가 명시적으로 설정되었으면 그 값 사용
-            if (analysisDepth > 0) return analysisDepth;
 
-            // 그렇지 않으면 assessments 크기로 결정 (하위 호환성)
-            if (assessments.size() >= 3) return 3;
-            if (assessments.size() >= 2) return 2;
-            if (!assessments.isEmpty()) return 1;
-            return 0;
-        }
         public void addIndicators(List<?> newIndicators) {
             if (newIndicators != null) {
                 newIndicators.forEach(i -> this.indicators.add(i.toString()));
             }
         }
-        
+
         public void addRecommendedActions(List<String> actions) {
             if (actions != null) {
                 this.recommendedActions.addAll(actions);
             }
-        }
-        
-        public void addRecommendedAction(String action) {
-            if (action != null) {
-                this.recommendedActions.add(action);
-            }
-        }
-
-        // ZeroTrustDecisionEngine에서 필요한 메소드들
-        public String getLayerExecuted() {
-            int depth = getAnalysisDepth();
-            if (depth >= 3) return "Layer3";
-            if (depth >= 2) return "Layer2";
-            if (depth >= 1) return "Layer1";
-            return "None";
         }
 
         /**
@@ -602,8 +537,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 .confidence(confidence)
                 .iocIndicators(new ArrayList<>(indicators))
                 .mitigationActions(new ArrayList<>(recommendedActions))
-                .reasoning(reasoningPrefix + getLayerExecuted())
-                .layer(getLayerExecuted())
+                .reasoning(reasoningPrefix)
                 .build();
         }
     }

@@ -61,6 +61,10 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
     @Value("${security.event.publishing.exclude-uris:/actuator,/health,/metrics}")
     private String[] excludeUris;
 
+    // D2: 테스트 헤더 허용 여부 (프로덕션에서는 false로 설정)
+    @Value("${security.allow-simulated-headers:false}")
+    private boolean allowSimulatedHeaders;
+
     // Enterprise metrics setter - optional
     // public void setMetricsCollector(Object metricsCollector) {
     //     this.metricsCollector = metricsCollector;
@@ -109,7 +113,7 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
             }
 
             if (eventPublishingEnabled || isAuthenticated) {
-                publishEventIfNeeded(request, response, auth);;
+//                publishEventIfNeeded(request, response, auth);;
             }
 
         }
@@ -214,7 +218,9 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
                 .isNewSession(isNewSession)
                 .isNewUser(isNewUser)
                 .isNewDevice(isNewDevice)
-                .recentRequestCount(recentRequestCount);
+                .recentRequestCount(recentRequestCount)
+                // AI Native v4.3.0: 인증 방법 추가 (LLM 분석에 활용)
+                .authMethod(extractAuthMethod(auth));
 
             HttpRequestEvent event = eventBuilder.build();
 
@@ -293,23 +299,70 @@ public class SecurityEventPublishingFilter extends OncePerRequestFilter {
     }
 
     /**
-     * User-Agent 추출 (테스트용 X-Simulated-User-Agent 헤더 우선)
+     * User-Agent 추출
      *
-     * 브라우저 보안 정책으로 User-Agent 헤더를 직접 수정할 수 없어서
-     * 테스트 환경에서는 X-Simulated-User-Agent 커스텀 헤더를 사용합니다.
+     * D2: 테스트 헤더(X-Simulated-User-Agent)는 프로덕션에서 차단
+     * - security.allow-simulated-headers=true 설정 시에만 시뮬레이션 헤더 허용
+     * - 프로덕션에서는 실제 User-Agent만 사용 (보안)
      *
      * @param request HTTP 요청
      * @return User-Agent 문자열 (curl, python-requests 등 봇 구별에 사용)
      */
     private String extractUserAgent(HttpServletRequest request) {
-        // 테스트용 X-Simulated-User-Agent 헤더 우선 읽기
-        String userAgent = request.getHeader("X-Simulated-User-Agent");
-        if (userAgent != null && !userAgent.isEmpty()) {
-            return userAgent;
+        // D2: 테스트 환경에서만 시뮬레이션 헤더 허용 (프로덕션 보안)
+        if (allowSimulatedHeaders) {
+            String simulated = request.getHeader("X-Simulated-User-Agent");
+            if (simulated != null && !simulated.isEmpty()) {
+                log.debug("[SecurityEventPublishingFilter] Using simulated User-Agent: {}", simulated);
+                return simulated;
+            }
         }
 
         // 실제 User-Agent 헤더 읽기
-        userAgent = request.getHeader("User-Agent");
+        String userAgent = request.getHeader("User-Agent");
         return userAgent != null ? userAgent : "unknown";
+    }
+
+    /**
+     * AI Native v4.3.0: 인증 방법 추출
+     *
+     * Authentication 객체의 타입에 따라 인증 방법을 결정합니다.
+     * LLM이 인증 방법을 참고하여 위험도를 판단하는 데 활용합니다.
+     *
+     * @param auth Authentication 객체
+     * @return 인증 방법 문자열 (PASSWORD, OAUTH2, JWT, MFA 등)
+     */
+    private String extractAuthMethod(Authentication auth) {
+        if (auth == null) {
+            return null;
+        }
+
+        String className = auth.getClass().getSimpleName();
+
+        // 일반적인 인증 토큰 타입에서 인증 방법 추출
+        if (className.contains("UsernamePassword")) {
+            return "PASSWORD";
+        }
+        if (className.contains("OAuth2")) {
+            return "OAUTH2";
+        }
+        if (className.contains("Jwt") || className.contains("JWT")) {
+            return "JWT";
+        }
+        if (className.contains("Mfa") || className.contains("MFA")) {
+            return "MFA";
+        }
+        if (className.contains("Remember")) {
+            return "REMEMBER_ME";
+        }
+        if (className.contains("Anonymous")) {
+            return "ANONYMOUS";
+        }
+        if (className.contains("PreAuthenticated")) {
+            return "PRE_AUTH";
+        }
+
+        // 알 수 없는 타입은 클래스명 반환
+        return className;
     }
 }

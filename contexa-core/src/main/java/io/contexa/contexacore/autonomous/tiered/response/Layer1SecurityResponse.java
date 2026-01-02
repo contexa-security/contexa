@@ -5,11 +5,14 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 
+import java.util.List;
+import java.util.Map;
+
 /**
- * Layer 1: 초고속 필터링 응답 모델
+ * Layer 2: 컨텍스트 분석 응답 모델
  *
  * Spring AI BeanOutputConverter를 위한 구조화된 응답
- * Layer 1에서 20-50ms 내에 처리되는 빠른 위협 필터링 결과
+ * Layer 2에서 100-300ms 내에 처리되는 컨텍스트 기반 위협 분석 결과
  */
 @Data
 @Builder
@@ -21,29 +24,33 @@ public class Layer1SecurityResponse {
 
     private Double confidence;
 
-    private String category;
-
     private String action;
 
     private String reasoning;
 
-    private Double embeddingSimilarity;
+    private List<String> behaviorPatterns;
 
-    private String matchedPattern;
+    private String threatCategory;
 
-    private Boolean knownThreat;
+    private List<String> mitigationActions;
+
+    private Map<String, Object> sessionAnalysis;
+
+    private List<String> relatedEvents;
+
+    private String recommendation;
 
     /**
-     * 축약 JSON 응답을 파싱하여 Layer1SecurityResponse 객체 생성
+     * 축약 JSON 응답을 파싱하여 Layer2SecurityResponse 객체 생성
      *
-     * 축약 형식: {"r":0.75,"c":0.85,"a":"E","d":"new IP from US"}
+     * 축약 형식: {"r":0.75,"c":0.85,"a":"E","d":"session anomaly detected"}
      * - r: riskScore
      * - c: confidence
-     * - a: A=ALLOW, B=BLOCK, C=CHALLENGE, E=ESCALATE (AI Native v3.3.0 4개 Action)
+     * - a: A=ALLOW, E=ESCALATE, B=BLOCK
      * - d: description (reasoning)
      *
      * @param json 축약 JSON 문자열
-     * @return Layer1SecurityResponse 객체
+     * @return Layer2SecurityResponse 객체
      */
     public static Layer1SecurityResponse fromCompactJson(String json) {
         if (json == null || json.isBlank()) {
@@ -94,6 +101,15 @@ public class Layer1SecurityResponse {
                 response.setReasoning(extractString(json, "\"reasoning\""));
             }
 
+            // threatCategory 추출 (축약: "t" 또는 전체명)
+            String threatCat = extractString(json, "\"t\"");
+            if (threatCat == null) {
+                threatCat = extractString(json, "\"threatCategory\"");
+            }
+            if (threatCat != null) {
+                response.setThreatCategory(threatCat);
+            }
+
         } catch (Exception e) {
             // 파싱 실패 시 null 반환
             return null;
@@ -103,20 +119,19 @@ public class Layer1SecurityResponse {
     }
 
     /**
-     * 축약 action 코드를 전체 action 문자열로 확장
+     * AI Native v3.3.0: 축약 action 코드를 전체 action 문자열로 확장
      *
-     * AI Native v3.3.0: 4개 Action 체계
-     * - A: ALLOW, B: BLOCK, C: CHALLENGE, E: ESCALATE
-     * - MONITOR/INVESTIGATE 제거됨
+     * 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
      */
     private static String expandAction(String shortAction) {
         if (shortAction == null) return null;
 
+        // AI Native v3.3.0: 4개 Action만 허용
         return switch (shortAction.toUpperCase().trim()) {
             case "A" -> "ALLOW";
+            case "E" -> "ESCALATE";
             case "B" -> "BLOCK";
             case "C" -> "CHALLENGE";
-            case "E" -> "ESCALATE";
             default -> shortAction;     // 이미 전체 문자열인 경우
         };
     }

@@ -2,29 +2,24 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
 import io.contexa.contexacore.autonomous.config.SecurityPlaneConfiguration;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
+import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.strategy.DynamicStrategySelector;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.detection.MaliciousPatternDetector;
-import io.contexa.contexacore.autonomous.tiered.feedback.LayerFeedbackService;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy;
-import io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
+import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.template.Layer1PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.template.Layer2PromptTemplate;
-import io.contexa.contexacore.autonomous.tiered.template.Layer3PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
-import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.repository.ThreatIndicatorRepository;
 import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
-import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -126,18 +121,6 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     /**
-     * 1-5. LayerFeedbackService - 계층별 피드백 서비스
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public LayerFeedbackService layerFeedbackService(
-            @Autowired(required = false) UnifiedVectorService unifiedVectorService,
-            RedisTemplate<String, Object> redisTemplate,
-            FeedbackIntegrationProperties feedbackIntegrationProperties) {
-        return new LayerFeedbackService(unifiedVectorService, redisTemplate, feedbackIntegrationProperties);
-    }
-
-    /**
      * 1-6. TieredStrategyProperties - Tiered 전략 설정 (Phase 4 추가)
      */
     @Bean
@@ -160,29 +143,15 @@ public class CoreAutonomousAutoConfiguration {
         return new AdminOverrideRepository(redisTemplate);
     }
 
-    // ========== Level 2: Level 1 의존 (5개) ==========
-
-    /**
-     * 2-1. Layer1PromptTemplate - Layer 1 프롬프트 템플릿
-     *
-     * AI Native v3.4.0: SecurityEventEnricher 의존성 제거 (미사용 코드 정리)
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public Layer1PromptTemplate layer1PromptTemplate(
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer1PromptTemplate(tieredStrategyProperties);
-    }
-
     /**
      * 2-2. Layer2PromptTemplate - Layer 2 프롬프트 템플릿
      */
     @Bean
     @ConditionalOnMissingBean
-    public Layer2PromptTemplate layer2PromptTemplate(
+    public Layer1PromptTemplate layer1PromptTemplate(
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer2PromptTemplate(securityEventEnricher, tieredStrategyProperties);
+        return new Layer1PromptTemplate(securityEventEnricher, tieredStrategyProperties);
     }
 
     /**
@@ -190,10 +159,10 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public Layer3PromptTemplate layer3PromptTemplate(
+    public Layer2PromptTemplate layer2PromptTemplate(
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer3PromptTemplate(securityEventEnricher, tieredStrategyProperties);
+        return new Layer2PromptTemplate(securityEventEnricher, tieredStrategyProperties);
     }
 
     /**
@@ -207,13 +176,18 @@ public class CoreAutonomousAutoConfiguration {
      * 기준선 오염 방지 메커니즘:
      * - 관리자 승인만으로는 기준선 업데이트되지 않음
      * - baselineUpdateAllowed=true를 명시적으로 설정해야 함
+     *
+     * AI Native v3.5.0 추가:
+     * - Redis analysis 키 업데이트 (MFA 성공 케이스와 동일 패턴)
+     * - ALLOW 승인 시 tryAcquireAnalysisLock() 차단 방지
      */
     @Bean
     @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
             AdminOverrideRepository adminOverrideRepository,
-            @Autowired(required = false) BaselineLearningService baselineLearningService) {
-        return new AdminOverrideService(adminOverrideRepository, baselineLearningService);
+            @Autowired(required = false) BaselineLearningService baselineLearningService,
+            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
+        return new AdminOverrideService(adminOverrideRepository, baselineLearningService, redisTemplate);
     }
 
     // ========== Level 3: 독립적/선택적 의존 (6개) ==========
@@ -313,59 +287,29 @@ public class CoreAutonomousAutoConfiguration {
         );
     }
 
-    // AI Native: AnomalyDetectionService 제거 (v3.1.0)
-    // - 핵심 기능(세션 하이재킹 감지)이 데드 코드 (getTrustScoreHistory() 항상 null 반환)
-    // - Z-Score 기반 직접 Severity 결정은 AI Native 원칙 위반
-    // - LLM이 HCADContext를 직접 분석하여 판단
-
-    // ========== Level 5: Level 4 의존 (5개) ==========
-
-    /**
-     * 5-1. Layer1FastFilterStrategy - Layer 1 초고속 필터링 전략
-     *
-     * AI Native 전환:
-     * - AdaptiveThresholdManager, HCADFeedbackOrchestrator 제거
-     * - LLM riskScore 기반 판단으로 전환
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.tiered.strategy.Layer1FastFilterStrategy layer1FastFilterStrategy(
-            @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
-            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
-            Layer1PromptTemplate layer1PromptTemplate,
-            @Autowired(required = false) BaselineLearningService baselineLearningService,
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer1FastFilterStrategy(
-            llmOrchestrator, unifiedVectorService, redisTemplate,
-            securityEventEnricher, layer1PromptTemplate,
-            baselineLearningService, tieredStrategyProperties
-        );
-    }
-
     /**
      * 5-2. Layer2ContextualStrategy - Layer 2 컨텍스트 기반 분석 전략
      *
      * AI Native 전환:
      * - AdaptiveThresholdManager, HCADFeedbackOrchestrator 제거
      * - LLM riskScore 기반 판단으로 전환
+     *
+     * AI Native v4.0: HCADVectorIntegrationService 파라미터 제거 (클래스 삭제됨)
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.tiered.strategy.Layer2ContextualStrategy layer2ContextualStrategy(
+    public Layer1ContextualStrategy contextualStrategy(
             @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
             @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
             @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
-            @Autowired(required = false) Layer2PromptTemplate layer2PromptTemplate,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
+            @Autowired(required = false) Layer1PromptTemplate layer1PromptTemplate,
             @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService,
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer2ContextualStrategy(
+        return new Layer1ContextualStrategy(
             llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
-            layer2PromptTemplate, behaviorVectorService, baselineLearningService, tieredStrategyProperties
+                layer1PromptTemplate, behaviorVectorService, baselineLearningService, tieredStrategyProperties
         );
     }
 
@@ -375,25 +319,27 @@ public class CoreAutonomousAutoConfiguration {
      * AI Native 전환:
      * - AdaptiveThresholdManager, HCADFeedbackOrchestrator 제거
      * - LLM riskScore 기반 판단으로 전환
+     *
+     * AI Native v4.0: 미사용 파라미터 제거
+     * - AILabFactory: 생성자에서 미사용
+     * - HCADVectorIntegrationService: 클래스 삭제됨
+     * - FeedbackIntegrationProperties: 생성자에서 미사용
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.tiered.strategy.Layer3ExpertStrategy layer3ExpertStrategy(
+    public Layer2ExpertStrategy expertStrategy(
             @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
-            @Autowired(required = false) io.contexa.contexacore.std.labs.AILabFactory labFactory,
             @Autowired(required = false) io.contexa.contexacore.soar.approval.ApprovalService approvalService,
             @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
-            @Autowired(required = false) Layer3PromptTemplate layer3PromptTemplate,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.HCADVectorIntegrationService hcadVectorService,
-            @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
-            io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties feedbackProperties,
+            @Autowired(required = false) Layer2PromptTemplate layer2PromptTemplate,
             @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
+            @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService,
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new Layer3ExpertStrategy(
+        return new Layer2ExpertStrategy(
             llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
-            layer3PromptTemplate, unifiedVectorService, behaviorVectorService,
+                layer2PromptTemplate, unifiedVectorService, behaviorVectorService,
             baselineLearningService, tieredStrategyProperties
         );
     }

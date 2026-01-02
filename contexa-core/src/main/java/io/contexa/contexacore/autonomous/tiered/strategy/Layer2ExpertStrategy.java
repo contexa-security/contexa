@@ -2,14 +2,13 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.config.FeedbackConstants;
-import io.contexa.contexacore.autonomous.config.FeedbackIntegrationProperties;
+// AI Native v4.2.0: FeedbackConstants, FeedbackIntegrationProperties import 삭제 (미사용)
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.response.Layer3SecurityResponse;
-import io.contexa.contexacore.autonomous.tiered.template.Layer3PromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.response.Layer2SecurityResponse;
+import io.contexa.contexacore.autonomous.tiered.template.Layer2PromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.SoarContext;
@@ -19,7 +18,6 @@ import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
-import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
@@ -32,8 +30,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -44,13 +40,13 @@ import java.util.stream.Collectors;
 
 @Slf4j
 
-public class Layer3ExpertStrategy extends AbstractTieredStrategy {
+public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     private final UnifiedLLMOrchestrator llmOrchestrator;
     private final ApprovalService approvalService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityEventEnricher eventEnricher;
-    private final Layer3PromptTemplate promptTemplate;
+    private final Layer2PromptTemplate promptTemplate;
 
     private final BehaviorVectorService behaviorVectorService;
     private final UnifiedVectorService unifiedVectorService;
@@ -58,30 +54,30 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     private final TieredStrategyProperties tieredStrategyProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${spring.ai.security.layer3.model:llama3.1:8b}")
+    @Value("${spring.ai.security.layer2.model:llama3.1:8b}")
     private String modelName;
 
-    @Value("${spring.ai.security.tiered.layer3.timeout-ms:30000}")
+    @Value("${spring.ai.security.tiered.layer2.timeout-ms:30000}")
     private long timeoutMs;
 
-    @Value("${spring.ai.security.tiered.layer3.enable-soar:false}")
+    @Value("${spring.ai.security.tiered.layer2.enable-soar:false}")
     private boolean enableSoar;
 
-    @Value("${spring.ai.security.tiered.layer3.rag.top-k:10}")
+    @Value("${spring.ai.security.tiered.layer2.rag.top-k:10}")
     private int ragTopK;
 
-    @Value("${spring.ai.security.tiered.layer3.rag.threat-actor-similarity-threshold:0.7}")
+    @Value("${spring.ai.security.tiered.layer2.rag.threat-actor-similarity-threshold:0.7}")
     private double ragThreatActorSimilarityThreshold;
 
-    @Value("${spring.ai.security.tiered.layer3.rag.campaign-similarity-threshold:0.65}")
+    @Value("${spring.ai.security.tiered.layer2.rag.campaign-similarity-threshold:0.65}")
     private double ragCampaignSimilarityThreshold;
 
     @Autowired
-    public Layer3ExpertStrategy(@Autowired(required = false) UnifiedLLMOrchestrator llmOrchestrator,
+    public Layer2ExpertStrategy(@Autowired(required = false) UnifiedLLMOrchestrator llmOrchestrator,
                                 @Autowired(required = false) ApprovalService approvalService,
                                 @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
                                 @Autowired(required = false) SecurityEventEnricher eventEnricher,
-                                @Autowired(required = false) Layer3PromptTemplate promptTemplate,
+                                @Autowired(required = false) Layer2PromptTemplate promptTemplate,
                                 @Autowired(required = false) UnifiedVectorService unifiedVectorService,
                                 @Autowired(required = false) BehaviorVectorService behaviorVectorService,
                                 @Autowired(required = false) BaselineLearningService baselineLearningService,
@@ -90,13 +86,13 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         this.approvalService = approvalService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer3PromptTemplate(eventEnricher, tieredStrategyProperties);
+        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer2PromptTemplate(eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
         this.tieredStrategyProperties = tieredStrategyProperties;
 
-        log.info("Layer 3 Expert Strategy initialized with UnifiedLLMOrchestrator");
+        log.info("Layer 2 Expert Strategy initialized with UnifiedLLMOrchestrator");
         log.info("  - Model: {}", modelName);
         log.info("  - Timeout: {}ms", timeoutMs);
         log.info("  - SOAR Integration: {}", enableSoar);
@@ -105,8 +101,10 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
-        log.warn("Layer 3 Expert Strategy evaluating event: {}", event.getEventId());
-        SecurityDecision layer2Decision = createDefaultLayer2Decision();
+        log.warn("Layer 2 Expert Strategy evaluating event: {}", event.getEventId());
+
+        // AI Native v4.2.0: event metadata에서 Layer2 결과 조회
+        SecurityDecision layer2Decision = extractLayer2Decision(event);
         SecurityDecision expertDecision = performDeepAnalysis(event, layer2Decision);
         String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "ESCALATE";
 
@@ -115,7 +113,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .confidence(expertDecision.getConfidence())
                 .indicators(expertDecision.getIocIndicators())
                 .recommendedActions(List.of(mapActionToRecommendation(expertDecision.getAction())))
-                .strategyName("Layer3-Expert")
+                .strategyName("Layer2-Expert")
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(false)  // Layer3는 최종 계층
                 .action(action)  // AI Native: LLM action 직접 저장
@@ -124,32 +122,33 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
     public SecurityDecision performDeepAnalysis(SecurityEvent event, SecurityDecision layer2Decision) {
         if (event == null) {
-            log.error("Layer 3 analysis failed: event is null");
+            log.error("Layer 2 analysis failed: event is null");
             return createFailsafeDecision(null, layer2Decision, System.currentTimeMillis());
         }
 
         if (layer2Decision == null) {
-            log.warn("Layer 3 analysis: layer2Decision is null, creating default");
+            log.warn("Layer 2 analysis: layer2Decision is null, creating default");
             layer2Decision = createDefaultLayer2Decision();
         }
 
         long startTime = System.currentTimeMillis();
 
         try {
-            log.warn("[Layer3] Expert Analysis initiated for critical event {}",
+            log.warn("[Layer2] Expert Analysis initiated for critical event {}",
                     event.getEventId() != null ? event.getEventId() : "unknown");
 
             ThreatIntelligence threatIntel = gatherThreatIntelligence(event);
             HistoricalContext historicalContext = analyzeHistoricalContext(event);
-            SecurityDecision layer1Decision = createDefaultLayer1Decision();
-            Layer3PromptTemplate.ThreatIntelligence threatIntelCtx = new Layer3PromptTemplate.ThreatIntelligence();
+            // AI Native v4.2.0: event metadata에서 Layer1 결과 조회
+            SecurityDecision layer1Decision = extractLayer1Decision(event);
+            Layer2PromptTemplate.ThreatIntelligence threatIntelCtx = new Layer2PromptTemplate.ThreatIntelligence();
             threatIntelCtx.setKnownActors(threatIntel.getKnownActors() != null ?
                     String.join(", ", threatIntel.getKnownActors()) : "");
             threatIntelCtx.setRelatedCampaigns(threatIntel.getRelatedCampaigns() != null ?
                     String.join(", ", threatIntel.getRelatedCampaigns()) : "");
             // AI Native: iocMatches 제거 - 항상 빈 리스트 (죽은 데이터)
 
-            Layer3PromptTemplate.HistoricalContext historicalCtx = new Layer3PromptTemplate.HistoricalContext();
+            Layer2PromptTemplate.HistoricalContext historicalCtx = new Layer2PromptTemplate.HistoricalContext();
             historicalCtx.setSimilarIncidents(historicalContext.getSimilarIncidents() != null ?
                     String.join(", ", historicalContext.getSimilarIncidents()) : "");
             historicalCtx.setPreviousAttacks(String.valueOf(historicalContext.getPreviousAttacks()));
@@ -167,20 +166,20 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 if (baselineContext == null || baselineContext.isEmpty()) {
                     baselineContext = "[NO_DATA] Baseline service returned empty response";
                 } else {
-                    log.debug("[Layer3] Baseline context generated for user {}", userId);
+                    log.debug("[Layer2] Baseline context generated for user {}", userId);
                 }
             }
 
-            // Priority 2: SystemContext 실제 데이터 연동 (하드코딩 제거)
-            Layer3PromptTemplate.SystemContext systemCtx = buildSystemContext(event, historicalContext);
+            // AI Native v4.2.0: SystemContext 제거 (모든 필드가 항상 null, 죽은 데이터)
+            // buildSystemContext() 호출 삭제 - metadata에 asset.criticality 등 설정 코드 없음
 
-            String promptText = promptTemplate.buildPrompt(event, layer1Decision, layer2Decision, threatIntelCtx, historicalCtx, systemCtx, baselineContext);
+            String promptText = promptTemplate.buildPrompt(event, layer1Decision, layer2Decision, threatIntelCtx, historicalCtx, baselineContext);
 
-            Layer3SecurityResponse response = null;
+            Layer2SecurityResponse response = null;
             if (llmOrchestrator != null) {
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
-                        .tier(3)
+                        .tier(2)
                         .preferredModel(modelName)
                         .securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
                         .timeoutMs((int)timeoutMs)
@@ -190,7 +189,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 String jsonResponse = llmOrchestrator.execute(context)
                         .timeout(Duration.ofMillis(timeoutMs))
                         .onErrorResume(Exception.class, e -> {
-                            log.warn("[Layer3][AI Native] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
+                            log.warn("[Layer2][AI Native] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
                             // AI Native: 에러 복구 시 classification null - 플랫폼이 분류하지 않음
                             return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"classification\":null,\"scenario\":\"LLM execution failed - failsafe blocking applied\"}");
                         })
@@ -234,9 +233,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
             // 12. 메트릭 업데이트
             expertDecision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
-            expertDecision.setProcessingLayer(3);
+            expertDecision.setProcessingLayer(2);
 
-            log.warn("Layer 3 Expert Analysis completed in {}ms - Final Risk: {}, Action: {}",
+            log.warn("Layer 2 Expert Analysis completed in {}ms - Final Risk: {}, Action: {}",
                     expertDecision.getProcessingTimeMs(),
                     expertDecision.getRiskScore(),
                     expertDecision.getAction() != null ? expertDecision.getAction() : "UNKNOWN");
@@ -244,7 +243,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             return expertDecision;
 
         } catch (Exception e) {
-            log.error("Layer 3 expert analysis failed for event {}",
+            log.error("Layer 2 expert analysis failed for event {}",
                     event != null && event.getEventId() != null ? event.getEventId() : "unknown", e);
             return createFailsafeDecision(event, layer2Decision, startTime);
         }
@@ -258,7 +257,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         return Mono.fromCallable(() -> performDeepAnalysis(event, layer2Decision))
                 .timeout(Duration.ofMillis(timeoutMs))
                 .onErrorResume(throwable -> {
-                    log.error("Layer 3 async analysis failed or timed out", throwable);
+                    log.error("Layer 2 async analysis failed or timed out", throwable);
                     return Mono.just(createFailsafeDecision(event, layer2Decision, System.currentTimeMillis()));
                 });
     }
@@ -269,7 +268,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         if (event == null) {
             intel.setKnownActors(new ArrayList<>());
             intel.setRelatedCampaigns(new ArrayList<>());
-            intel.setIocMatches(new ArrayList<>());
+            // AI Native v4.2.0: setIocMatches() 삭제 - iocMatches 필드 제거됨
             intel.setGeoLocation("Unknown");
             return intel;
         }
@@ -300,11 +299,11 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             intel.setGeoLocation(sourceIp != null ? "IP: " + sourceIp : "Unknown");
 
         } catch (Exception e) {
-            log.warn("[Layer3] Parallel threat intelligence gathering failed, using empty lists", e);
+            log.warn("[Layer2] Parallel threat intelligence gathering failed, using empty lists", e);
             // AI Native: 에러 마커 제거 - 빈 리스트로 전달, LLM이 직접 판단
             intel.setKnownActors(new ArrayList<>());
             intel.setRelatedCampaigns(new ArrayList<>());
-            intel.setIocMatches(new ArrayList<>());
+            // AI Native v4.2.0: setIocMatches() 삭제 - iocMatches 필드 제거됨
             intel.setGeoLocation(null);
         }
 
@@ -323,7 +322,18 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "";
                 String userId = event.getUserId() != null ? event.getUserId() : "";
 
-                String query = String.format("threat-actor IP:%s user:%s", sourceIp, userId);
+                // AI Native v4.2.0: description, targetResource 추가하여 RAG 검색 정확도 향상
+                StringBuilder queryBuilder = new StringBuilder();
+                String description = event.getDescription();
+                if (description != null && !description.isEmpty()) {
+                    queryBuilder.append(description).append(" ");
+                }
+                String targetResource = eventEnricher.getTargetResource(event).orElse(null);
+                if (targetResource != null && !targetResource.isEmpty()) {
+                    queryBuilder.append("target:").append(targetResource).append(" ");
+                }
+                queryBuilder.append("threat-actor IP:").append(sourceIp).append(" user:").append(userId);
+                String query = queryBuilder.toString();
 
                 // AI Native: RAG 검색 파라미터는 설정에서 주입 (하드코딩 금지)
                 org.springframework.ai.vectorstore.SearchRequest searchRequest =
@@ -337,7 +347,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
                 if (threatDocs != null && !threatDocs.isEmpty()) {
                     // 설정에서 위협 액터 제한 개수 가져오기
-                    int threatActorLimit = tieredStrategyProperties.getLayer3().getRag().getThreatActorLimit();
+                    int threatActorLimit = tieredStrategyProperties.getLayer2().getRag().getThreatActorLimit();
                     actors = threatDocs.stream()
                         .map(doc -> {
                             Map<String, Object> meta = doc.getMetadata();
@@ -371,7 +381,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     }
 
     private List<String> findKnownThreatActorsFallback(SecurityEvent event) {
-        log.warn("[Layer3][AI Native] Vector service unavailable, threat actor detection delegated to LLM");
+        log.warn("[Layer2][AI Native] Vector service unavailable, threat actor detection delegated to LLM");
         return new ArrayList<>();
     }
 
@@ -380,11 +390,21 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
         if (unifiedVectorService != null) {
             try {
-                // AI Native: eventType, targetResource 제거 - 행동 패턴 기반 검색
                 String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "";
                 String userId = event.getUserId() != null ? event.getUserId() : "";
 
-                String campaignQuery = String.format("campaign IP:%s user:%s", sourceIp, userId);
+                // AI Native v4.2.0: description, targetResource 추가하여 RAG 검색 정확도 향상
+                StringBuilder queryBuilder = new StringBuilder();
+                String description = event.getDescription();
+                if (description != null && !description.isEmpty()) {
+                    queryBuilder.append(description).append(" ");
+                }
+                String targetResource = eventEnricher.getTargetResource(event).orElse(null);
+                if (targetResource != null && !targetResource.isEmpty()) {
+                    queryBuilder.append("target:").append(targetResource).append(" ");
+                }
+                queryBuilder.append("campaign IP:").append(sourceIp).append(" user:").append(userId);
+                String campaignQuery = queryBuilder.toString();
 
                 // AI Native: RAG 검색 파라미터는 설정에서 주입 (하드코딩 금지)
                 org.springframework.ai.vectorstore.SearchRequest searchRequest =
@@ -398,7 +418,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
                 if (campaignDocs != null && !campaignDocs.isEmpty()) {
                     // 설정에서 캠페인 제한 개수 가져오기
-                    int campaignLimit = tieredStrategyProperties.getLayer3().getRag().getCampaignLimit();
+                    int campaignLimit = tieredStrategyProperties.getLayer2().getRag().getCampaignLimit();
                     campaigns = campaignDocs.stream()
                         .map(doc -> {
                             Map<String, Object> meta = doc.getMetadata();
@@ -440,7 +460,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         if (event == null) {
             context.setSimilarIncidents(new ArrayList<>());
             context.setPreviousAttacks(0);
-            context.setVulnerabilityHistory(new ArrayList<>());
+            // AI Native v4.2.0: setVulnerabilityHistory() 삭제 - vulnerabilityHistory 필드 제거됨
             return context;
         }
 
@@ -480,8 +500,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             String incidentQuery = String.format("security incident from IP:%s user:%s",
                     sourceIp, userId);
 
+            // AI Native v4.2.0: sourceIp → userId 수정 (findSimilarBehaviors 첫번째 파라미터는 userId)
             List<Document> similarIncidents = behaviorVectorService.findSimilarBehaviors(
-                    sourceIp,
+                    userId,
                     incidentQuery,
                     5
             );
@@ -551,7 +572,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 }
             }
         } catch (Exception e) {
-            log.debug("[Layer3] Failed to find similar incidents via SCAN for user: {}", userId, e);
+            log.debug("[Layer2] Failed to find similar incidents via SCAN for user: {}", userId, e);
         }
 
         return incidents;
@@ -583,20 +604,20 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         return 0;
     }
 
-    private Layer3SecurityResponse validateAndFixResponse(Layer3SecurityResponse response) {
+    private Layer2SecurityResponse validateAndFixResponse(Layer2SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
         }
 
         // AI Native: confidence가 null이면 NaN 사용 (강제 상향 금지)
         if (response.getConfidence() == null) {
-            log.warn("[Layer3][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)");
+            log.warn("[Layer2][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)");
             response.setConfidence(Double.NaN);
         }
 
         // AI Native: riskScore가 null이면 NaN 사용 (기본값 금지)
         if (response.getRiskScore() == null) {
-            log.warn("[Layer3][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)");
+            log.warn("[Layer2][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)");
             response.setRiskScore(Double.NaN);
         }
 
@@ -621,6 +642,94 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         return response;
     }
 
+    /**
+     * AI Native v4.2.0: event metadata에서 Layer1 분석 결과를 추출하여 SecurityDecision으로 변환
+     *
+     * ColdPathEventProcessor가 Layer1 분석 완료 후 event.metadata에 layer1Assessment를 저장합니다.
+     *
+     * @param event SecurityEvent (metadata에 layer1Assessment 포함)
+     * @return Layer1 분석 결과의 SecurityDecision (없으면 기본 ESCALATE 결정)
+     */
+    private SecurityDecision extractLayer1Decision(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            log.warn("[Layer2] event or metadata is null, using default Layer1 decision");
+            return createDefaultLayer1Decision();
+        }
+
+        Object layer1Result = event.getMetadata().get("layer1Assessment");
+        if (layer1Result == null) {
+            log.debug("[Layer2] No layer1Assessment in metadata, using default Layer1 decision");
+            return createDefaultLayer1Decision();
+        }
+
+        if (layer1Result instanceof ThreatAssessment layer1Assessment) {
+            log.info("[Layer2] Layer1 결과 수신 - riskScore: {}, confidence: {}, action: {}",
+                    layer1Assessment.getRiskScore(),
+                    layer1Assessment.getConfidence(),
+                    layer1Assessment.getAction());
+
+            SecurityDecision.Action action = mapStringToAction(layer1Assessment.getAction());
+
+            return SecurityDecision.builder()
+                    .action(action)
+                    .riskScore(layer1Assessment.getRiskScore())
+                    .confidence(layer1Assessment.getConfidence())
+                    .processingTimeMs(50L)
+                    .processingLayer(1)
+                    .reasoning("Layer1 분석 결과 전달됨")
+                    .iocIndicators(layer1Assessment.getIndicators() != null ?
+                            layer1Assessment.getIndicators() : new ArrayList<>())
+                    .build();
+        }
+
+        log.warn("[Layer2] layer1Assessment is not ThreatAssessment type: {}", layer1Result.getClass().getName());
+        return createDefaultLayer1Decision();
+    }
+
+    /**
+     * AI Native v4.2.0: event metadata에서 Layer2 분석 결과를 추출하여 SecurityDecision으로 변환
+     *
+     * ColdPathEventProcessor가 Layer2 분석 완료 후 event.metadata에 layer2Assessment를 저장합니다.
+     *
+     * @param event SecurityEvent (metadata에 layer2Assessment 포함)
+     * @return Layer2 분석 결과의 SecurityDecision (없으면 기본 ESCALATE 결정)
+     */
+    private SecurityDecision extractLayer2Decision(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            log.warn("[Layer2] event or metadata is null, using default Layer2 decision");
+            return createDefaultLayer2Decision();
+        }
+
+        Object layer2Result = event.getMetadata().get("layer2Assessment");
+        if (layer2Result == null) {
+            log.debug("[Layer2] No layer2Assessment in metadata, using default Layer2 decision");
+            return createDefaultLayer2Decision();
+        }
+
+        if (layer2Result instanceof ThreatAssessment layer2Assessment) {
+            log.info("[Layer2] Layer2 결과 수신 - riskScore: {}, confidence: {}, action: {}",
+                    layer2Assessment.getRiskScore(),
+                    layer2Assessment.getConfidence(),
+                    layer2Assessment.getAction());
+
+            SecurityDecision.Action action = mapStringToAction(layer2Assessment.getAction());
+
+            return SecurityDecision.builder()
+                    .action(action)
+                    .riskScore(layer2Assessment.getRiskScore())
+                    .confidence(layer2Assessment.getConfidence())
+                    .processingTimeMs(100L)
+                    .processingLayer(2)
+                    .reasoning("Layer2 분석 결과 전달됨")
+                    .iocIndicators(layer2Assessment.getIndicators() != null ?
+                            layer2Assessment.getIndicators() : new ArrayList<>())
+                    .build();
+        }
+
+        log.warn("[Layer2] layer2Assessment is not ThreatAssessment type: {}", layer2Result.getClass().getName());
+        return createDefaultLayer2Decision();
+    }
+
     private SecurityDecision createDefaultLayer1Decision() {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.ESCALATE)
@@ -640,7 +749,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    private SecurityDecision convertToSecurityDecision(Layer3SecurityResponse response,
+    private SecurityDecision convertToSecurityDecision(Layer2SecurityResponse response,
                                                        SecurityEvent event,
                                                        SecurityDecision layer2Decision) {
         // Null safety: response가 null인 경우 기본 응답 생성
@@ -663,7 +772,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .soarPlaybook(response.getPlaybookId())
                 .eventId(event != null ? event.getEventId() : "unknown")
                 .analysisTime(System.currentTimeMillis())
-                .processingLayer(3)
+                .processingLayer(2)
                 .llmModel(modelName)
                 .build();
 
@@ -683,21 +792,22 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         return decision;
     }
 
-    private Layer3SecurityResponse parseJsonResponse(String jsonResponse) {
+    private Layer2SecurityResponse parseJsonResponse(String jsonResponse) {
         try {
             String cleanedJson = extractJsonObject(jsonResponse);
             JsonNode jsonNode = objectMapper.readTree(cleanedJson);
 
             // Phase 12: 통일된 출력 형식 지원 (r/c/a/d + 하위호환)
+            // AI Native v4.2.0: null 값 체크 추가 (isNull())
             // 단축 필드(r,c,a,d) 우선, 없으면 긴 필드명(riskScore, confidence, action, reasoning)
-            Double riskScore = jsonNode.has("r") ? jsonNode.get("r").asDouble()
-                : (jsonNode.has("riskScore") ? jsonNode.get("riskScore").asDouble() : Double.NaN);
-            Double confidence = jsonNode.has("c") ? jsonNode.get("c").asDouble()
-                : (jsonNode.has("confidence") ? jsonNode.get("confidence").asDouble() : Double.NaN);
-            String action = jsonNode.has("a") ? expandAction(jsonNode.get("a").asText())
-                : (jsonNode.has("action") ? jsonNode.get("action").asText() : "ESCALATE");
-            String reasoning = jsonNode.has("d") ? jsonNode.get("d").asText()
-                : (jsonNode.has("reasoning") ? jsonNode.get("reasoning").asText() : "No reasoning");
+            Double riskScore = (jsonNode.has("r") && !jsonNode.get("r").isNull()) ? jsonNode.get("r").asDouble()
+                : ((jsonNode.has("riskScore") && !jsonNode.get("riskScore").isNull()) ? jsonNode.get("riskScore").asDouble() : Double.NaN);
+            Double confidence = (jsonNode.has("c") && !jsonNode.get("c").isNull()) ? jsonNode.get("c").asDouble()
+                : ((jsonNode.has("confidence") && !jsonNode.get("confidence").isNull()) ? jsonNode.get("confidence").asDouble() : Double.NaN);
+            String action = (jsonNode.has("a") && !jsonNode.get("a").isNull()) ? expandAction(jsonNode.get("a").asText())
+                : ((jsonNode.has("action") && !jsonNode.get("action").isNull()) ? jsonNode.get("action").asText() : "ESCALATE");
+            String reasoning = (jsonNode.has("d") && !jsonNode.get("d").isNull()) ? jsonNode.get("d").asText()
+                : ((jsonNode.has("reasoning") && !jsonNode.get("reasoning").isNull()) ? jsonNode.get("reasoning").asText() : "No reasoning");
 
             // Phase 4: "m" (MITRE ATT&CK) 필드 파싱 추가
             String mitreMapping = jsonNode.has("m") && !jsonNode.get("m").isNull()
@@ -747,7 +857,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             // Phase 4: recommendation을 "rec" 필드에서 파싱한 값으로 설정
             String finalRecommendation = recommendation != null ? recommendation : expertRecommendation;
 
-            Layer3SecurityResponse response = Layer3SecurityResponse.builder()
+            Layer2SecurityResponse response = Layer2SecurityResponse.builder()
                     .riskScore(riskScore)
                     .confidence(confidence)
                     .action(action)
@@ -774,9 +884,9 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         }
     }
 
-    private Layer3SecurityResponse createDefaultResponse() {
+    private Layer2SecurityResponse createDefaultResponse() {
         // AI Native: 기본값 "UNKNOWN" 제거, 플랫폼이 분류하지 않음
-        return Layer3SecurityResponse.builder()
+        return Layer2SecurityResponse.builder()
                 .riskScore(Double.NaN)  // AI Native: LLM 분석 미수행
                 .confidence(Double.NaN)  // AI Native: LLM 분석 미수행
                 .action("ESCALATE")
@@ -790,7 +900,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .businessImpact(null)
                 .playbookId("default-incident-response")
                 .requiresApproval(true)
-                .reasoning("Layer 3 LLM analysis unavailable")
+                .reasoning("Layer 2 LLM analysis unavailable")
                 .expertRecommendation(null)
                 .mitreMapping(new HashMap<>())
                 .build();
@@ -926,7 +1036,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                     .status(SecurityIncident.IncidentStatus.CONFIRMED)
                     .description(decision.getAttackScenario())
                     .sourceIp(event.getSourceIp())
-                    .detectedBy("Layer3ExpertSystem")
+                    .detectedBy("Layer2ExpertSystem")
                     .detectionSource("Expert AI Analysis")
                     .detectedAt(LocalDateTime.now())
                     .riskScore(decision.getRiskScore())
@@ -959,18 +1069,22 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
                 .confidence(Double.NaN)  // AI Native: LLM 분석 미수행
                 .analysisTime(startTime)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
-                .processingLayer(3)
+                .processingLayer(2)
                 .eventId(event != null ? event.getEventId() : "unknown")
-                .reasoning("[AI Native] Layer 3 LLM analysis failed - applying failsafe blocking")
+                .reasoning("[AI Native] Layer 2 LLM analysis failed - applying failsafe blocking")
                 .requiresApproval(true)
                 .expertRecommendation("Manual review required - LLM analysis failed")
                 .build();
     }
 
+    /**
+     * AI Native v4.2.0: iocMatches 필드 삭제
+     * - 프롬프트에 전달되지 않음 (getter 호출 없음)
+     * - Line 150, 297 주석: "AI Native: IOC는 LLM이 직접 분석"
+     */
     private static class ThreatIntelligence {
         private List<String> knownActors = new ArrayList<>();
         private List<String> relatedCampaigns = new ArrayList<>();
-        private List<String> iocMatches = new ArrayList<>();
         private String geoLocation;
 
         public List<String> getKnownActors() { return knownActors; }
@@ -979,18 +1093,19 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         public List<String> getRelatedCampaigns() { return relatedCampaigns; }
         public void setRelatedCampaigns(List<String> campaigns) { this.relatedCampaigns = campaigns; }
 
-        public List<String> getIocMatches() { return iocMatches; }
-        public void setIocMatches(List<String> iocs) { this.iocMatches = iocs; }
-
         // AI Native: "Unknown" 기본값 제거, null 그대로 반환
         public String getGeoLocation() { return geoLocation; }
         public void setGeoLocation(String location) { this.geoLocation = location; }
     }
 
+    /**
+     * AI Native v4.2.0: vulnerabilityHistory 필드 삭제
+     * - 프롬프트에 전달되지 않음 (getter 호출 없음)
+     * - Line 156, 462 주석: "AI Native: vulnerabilityHistory는 항상 빈 리스트"
+     */
     private static class HistoricalContext {
         private List<String> similarIncidents = new ArrayList<>();
         private int previousAttacks;
-        private List<String> vulnerabilityHistory = new ArrayList<>();
 
         // Getters and setters
         public List<String> getSimilarIncidents() { return similarIncidents; }
@@ -998,9 +1113,6 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
         public int getPreviousAttacks() { return previousAttacks; }
         public void setPreviousAttacks(int count) { this.previousAttacks = count; }
-
-        public List<String> getVulnerabilityHistory() { return vulnerabilityHistory; }
-        public void setVulnerabilityHistory(List<String> history) { this.vulnerabilityHistory = history; }
     }
 
     /**
@@ -1008,12 +1120,12 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
      */
     @Override
     protected String getLayerName() {
-        return "Layer3";
+        return "Layer2";
     }
 
     @Override
     public String getStrategyName() {
-        return "Layer3-Expert-Strategy";
+        return "Layer2-Expert-Strategy";
     }
 
     @Override
@@ -1034,7 +1146,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
     @Override
     public double calculateRiskScore(List<ThreatIndicator> indicators) {
         // AI Native: LLM이 직접 분석해야 함, 규칙 기반 계산 금지
-        log.warn("[Layer3][AI Native] calculateRiskScore called without LLM - returning NaN");
+        log.warn("[Layer2][AI Native] calculateRiskScore called without LLM - returning NaN");
         return Double.NaN;
     }
 
@@ -1050,50 +1162,15 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         };
     }
 
-    /**
-     * AI Native: SystemContext - metadata에 있는 실제 값만 전달
-     *
-     * 규칙 기반 추론 로직 완전 제거:
-     * - 플랫폼이 경로 패턴으로 분류하지 않음
-     * - metadata에 실제 값이 있으면 그대로 전달
-     * - 값이 없으면 null (프롬프트에서 생략)
-     * - LLM이 targetResource 경로를 보고 직접 판단
-     */
-    private Layer3PromptTemplate.SystemContext buildSystemContext(SecurityEvent event, HistoricalContext historicalContext) {
-        Layer3PromptTemplate.SystemContext systemCtx = new Layer3PromptTemplate.SystemContext();
-
-        Map<String, Object> metadata = event.getMetadata();
-
-        // AI Native: metadata에서 실제 값만 추출 (없으면 null)
-        if (metadata != null) {
-            Object criticality = metadata.get("asset.criticality");
-            if (criticality != null && !criticality.toString().isEmpty()) {
-                systemCtx.setAssetCriticality(criticality.toString());
-            }
-
-            Object sensitivity = metadata.get("data.sensitivity");
-            if (sensitivity != null && !sensitivity.toString().isEmpty()) {
-                systemCtx.setDataSensitivity(sensitivity.toString());
-            }
-
-            Object compliance = metadata.get("compliance.requirements");
-            if (compliance != null && !compliance.toString().isEmpty()) {
-                systemCtx.setComplianceRequirements(compliance.toString());
-            }
-
-            Object posture = metadata.get("security.posture");
-            if (posture != null && !posture.toString().isEmpty()) {
-                systemCtx.setSecurityPosture(posture.toString());
-            }
-        }
-
-        return systemCtx;
-    }
+    // AI Native v4.2.0: buildSystemContext() 메서드 삭제
+    // - asset.criticality, data.sensitivity, compliance.requirements, security.posture
+    //   모두 metadata에 설정 코드 없음 (항상 null, 죽은 데이터)
+    // - Layer3PromptTemplate.SystemContext 클래스도 삭제됨
 
     /**
      * 벡터 데이터베이스에 저장
      */
-    private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision, Layer3SecurityResponse response) {
+    private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision, Layer2SecurityResponse response) {
         if (unifiedVectorService == null) return;
 
         try {
@@ -1182,7 +1259,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
         }
     }
 
-    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, Layer3SecurityResponse response, String analysisContent) {
+    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, Layer2SecurityResponse response, String analysisContent) {
         try {
             Map<String, Object> threatMetadata = new HashMap<>();
 
@@ -1252,7 +1329,7 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
 
             // 위협 설명 (전문가 분석 포함) - AI Native: eventType 제거, 행동 패턴 중심
             String threatDescription = String.format(
-                "Layer3 Expert Threat: User=%s, IP=%s, Risk=%.2f, " +
+                "Layer2 Expert Threat: User=%s, IP=%s, Risk=%.2f, " +
                 "Classification=%s, Tactics=%s, Techniques=%s, IOC=%s, Action=%s, Reasoning=%s",
                 event.getUserId() != null ? event.getUserId() : "unknown",
                 event.getSourceIp() != null ? event.getSourceIp() : "unknown",
@@ -1268,15 +1345,15 @@ public class Layer3ExpertStrategy extends AbstractTieredStrategy {
             Document threatDoc = new Document(threatDescription, threatMetadata);
             unifiedVectorService.storeDocument(threatDoc);
 
-            log.info("[Layer3] 위협 패턴 저장 완료 (전문가 확정): userId={}, riskScore={}, classification={}, tactics={}",
+            log.info("[Layer2] 위협 패턴 저장 완료 (전문가 확정): userId={}, riskScore={}, classification={}, tactics={}",
                 event.getUserId(), decision.getRiskScore(), response.getClassification(),
                 response.getTactics() != null ? response.getTactics().size() : 0);
 
         } catch (Exception e) {
-            log.warn("[Layer3] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
+            log.warn("[Layer2] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
         }
     }
-    private String determineThreatType(Layer3SecurityResponse response) {
+    private String determineThreatType(Layer2SecurityResponse response) {
         // AI Native: LLM이 반환한 classification 그대로 사용
         if (response.getClassification() != null && !response.getClassification().isEmpty()) {
             return response.getClassification();

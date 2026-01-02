@@ -39,6 +39,10 @@ public class HCADAnalysisService {
     private final HCADContextExtractor contextExtractor;
     private RedisTemplate<String, Object> redisTemplate;
 
+    // D3: LLM 분석 결과 최대 유효 시간 (기본: 1시간)
+    @Value("${hcad.analysis.max-age-ms:3600000}")
+    private long analysisMaxAgeMs;
+
     // AI Native 전환: defaultThreshold 제거
     // - LLM이 isAnomaly를 직접 판단하여 Redis에 저장
     // - 임계값 기반 판단 로직 제거
@@ -122,7 +126,7 @@ public class HCADAnalysisService {
                 .anomalyScore(anomalyScore)
                 .action(action)  // AI Native: LLM이 결정한 action
                 .confidence(confidence)  // AI Native: LLM이 결정한 confidence
-                .threshold(0.0) // AI Native: 더 이상 사용되지 않음 (LLM이 action 직접 결정)
+                // AI Native v4.2.0: .threshold() 삭제 - 필드 제거됨
                 .processingTimeMs(processingTime)
                 .context(context)
                 .build();
@@ -150,7 +154,7 @@ public class HCADAnalysisService {
                 .anomalyScore(Double.NaN)
                 .action(null)  // Phase 17: 분석 실패 시 null → CRITICAL → 100% 발행
                 .confidence(Double.NaN)
-                .threshold(0.0)
+                // AI Native v4.2.0: .threshold() 삭제 - 필드 제거됨
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .context(errorContext)  // Zero Trust v6.0: 예외 시에도 context 설정
                 .build();
@@ -200,6 +204,22 @@ public class HCADAnalysisService {
             Map<Object, Object> analysis = redisTemplate.opsForHash().entries(analysisKey);
 
             if (analysis != null && !analysis.isEmpty()) {
+                // D3: 분석 결과 신선도 검증
+                boolean isStale = false;
+                if (analysis.containsKey("analyzedAt")) {
+                    long analyzedAt = parseLong(analysis.get("analyzedAt"));
+                    long ageMs = System.currentTimeMillis() - analyzedAt;
+                    if (ageMs > analysisMaxAgeMs) {
+                        isStale = true;
+                        log.warn("[HCADAnalysisService][D3] Stale LLM analysis detected: userId={}, age={}ms, maxAge={}ms",
+                            userId, ageMs, analysisMaxAgeMs);
+                    }
+                } else {
+                    // analyzedAt 필드 없음 - 레거시 데이터로 간주
+                    log.debug("[HCADAnalysisService][D3] No analyzedAt field, treating as legacy data: userId={}", userId);
+                }
+                result.put("isStale", isStale);
+
                 // AI Native: LLM이 저장한 값을 그대로 사용 (clamp 연산 제거)
                 if (analysis.containsKey("riskScore")) {
                     result.put("riskScore", parseDouble(analysis.get("riskScore")));
@@ -225,24 +245,13 @@ public class HCADAnalysisService {
                 }
 
                 if (log.isDebugEnabled()) {
-                    log.debug("[HCADAnalysisService][AI Native] LLM 분석 결과 조회: userId={}, action={}, riskScore={}, isAnomaly={}, confidence={}",
-                        userId, result.get("action"), result.get("riskScore"), result.get("isAnomaly"), result.get("confidence"));
-                }
-            } else {
-                // 기존 threat_score 키에서 riskScore만 조회 (하위 호환성)
-                String legacyKey = ZeroTrustRedisKeys.threatScore(userId);
-                Object legacyValue = redisTemplate.opsForValue().get(legacyKey);
-                if (legacyValue != null) {
-                    double riskScore = parseDouble(legacyValue);
-                    result.put("riskScore", riskScore);
-                    // AI Native: 하위 호환 모드에서도 규칙 기반 판단 없음
-                    // isAnomaly 등은 기본값 유지 (LLM이 판단하지 않았으므로)
-                    if (log.isDebugEnabled()) {
-                        log.debug("[HCADAnalysisService][AI Native] 레거시 threat_score 조회: userId={}, riskScore={}",
-                            userId, riskScore);
-                    }
+                    log.debug("[HCADAnalysisService][AI Native] LLM 분석 결과 조회: userId={}, action={}, riskScore={}, isAnomaly={}, confidence={}, isStale={}",
+                        userId, result.get("action"), result.get("riskScore"), result.get("isAnomaly"), result.get("confidence"), isStale);
                 }
             }
+            // Dead Code 제거 (AI Native v4.0): 레거시 threat_score 조회 fallback 삭제
+            // - AI Native에서는 hcadAnalysis 키만 사용
+            // - 레거시 키 호환성 유지 불필요 (LLM 분석 결과가 없으면 기본값 사용)
 
         } catch (Exception e) {
             log.error("[HCADAnalysisService][AI Native] Redis 조회 실패: userId={}", userId, e);
@@ -281,6 +290,23 @@ public class HCADAnalysisService {
         return false;
     }
 
+    /**
+     * D3: Object를 long으로 파싱 (analyzedAt 타임스탬프용)
+     */
+    private long parseLong(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Long.parseLong((String) value);
+            } catch (NumberFormatException e) {
+                return 0L;
+            }
+        }
+        return 0L;
+    }
+
     // AI Native 전환: determineThreatType(), buildThreatEvidence() 메서드 제거
     // - 위협 유형과 증거는 LLM이 직접 판단하여 Redis에 저장
     // - 규칙 기반 분류 로직 완전 제거
@@ -301,22 +327,8 @@ public class HCADAnalysisService {
         }
     }
 
-    /**
-     * 통계 업데이트 수행 (AI Native)
-     *
-     * AI Native 방식: 메트릭 수집은 Micrometer 기반으로 자동 처리
-     * 여기서는 디버그 로깅만 수행
-     *
-     * @param result HCAD 분석 결과
-     */
-    public void updateStatisticsIfNeeded(HCADAnalysisResult result) {
-        // AI Native: 메트릭은 Micrometer에서 자동 수집
-        // EvolutionMetricsCollector.recordHCADAnalysis() 호출됨
-        if (log.isDebugEnabled()) {
-            log.debug("[HCADAnalysisService][AI Native] 통계 업데이트 완료: userId={}, isAnomaly={}, riskScore={}",
-                result.getUserId(),
-                result.isAnomaly(),
-                String.format("%.3f", result.getAnomalyScore()));
-        }
-    }
+    // Dead Code 제거 (AI Native v4.0): updateStatisticsIfNeeded() 삭제
+    // - 외부 호출처 없음
+    // - 로깅만 수행, 실제 통계 업데이트 없음
+    // - 메트릭 수집은 Micrometer EvolutionMetricsCollector에서 자동 처리
 }

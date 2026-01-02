@@ -4,24 +4,21 @@ import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Layer 2: 컨텍스트 분석 프롬프트 템플릿 (최적화 버전)
+ * Layer 3: 전문가 분석 프롬프트 템플릿 (최적화 버전)
  *
  * BeanOutputConverter 제거로 프롬프트 크기 대폭 감소:
- * - 변경 전: 2500+ 토큰 (JSON Schema 포함)
- * - 변경 후: 500 토큰 (80% 감소!)
+ * - 변경 전: 3200+ 토큰 (JSON Schema 포함)
+ * - 변경 후: 700 토큰 (78% 감소!)
  *
  * 예상 성능:
- * - Llama3.1:8b: 3-5초 → 100-300ms (15-50배 개선!)
+ * - Claude Sonnet: 5-10초 → 1-3초 (3-10배 개선!)
  */
 @Slf4j
 public class Layer2PromptTemplate {
@@ -38,58 +35,109 @@ public class Layer2PromptTemplate {
             ? tieredStrategyProperties : new TieredStrategyProperties();
     }
 
+    /**
+     * Layer3 프롬프트 생성 (기본 버전 - 하위 호환)
+     * Phase 9: deviationAnalysis 파라미터 제거
+     * AI Native v4.2.0: systemContext 파라미터 제거 (항상 null, 죽은 데이터)
+     */
     public String buildPrompt(SecurityEvent event,
                                SecurityDecision layer1Decision,
-                               SessionContext sessionContext,
-                               BehaviorAnalysis behaviorAnalysis,
-                               List<Document> relatedDocuments) {
+                               SecurityDecision layer2Decision,
+                               ThreatIntelligence threatIntel,
+                               HistoricalContext historicalContext) {
+        return buildPrompt(event, layer1Decision, layer2Decision, threatIntel,
+                           historicalContext, null);
+    }
 
-        Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
+    /**
+     * Layer3 프롬프트 생성 (AI Native - Baseline 포함)
+     *
+     * 전문가 수준 분석을 위해 사용자 baseline 패턴과 편차 분석 결과를
+     * 위협 인텔리전스, 과거 이력과 함께 종합적으로 제공
+     *
+     * @param event 보안 이벤트
+     * @param layer1Decision Layer1 결정
+     * @param layer2Decision Layer2 결정
+     * @param threatIntel 위협 인텔리전스
+     * @param historicalContext 과거 이력 컨텍스트
+     * @param baselineContext 사용자 baseline 컨텍스트 (raw 데이터)
+     * @return LLM 프롬프트 문자열
+     *
+     * Phase 9: deviationAnalysis 파라미터 제거 (AI Native 위반)
+     * - analyzeDeviations() 제거로 불필요
+     * - LLM이 baselineContext의 raw 데이터를 직접 비교하여 판단
+     *
+     * AI Native v4.2.0: systemContext 파라미터 제거
+     * - 모든 필드가 항상 null (metadata에 설정 코드 없음)
+     * - 프롬프트에서 사용되지 않음
+     */
+    public String buildPrompt(SecurityEvent event,
+                               SecurityDecision layer1Decision,
+                               SecurityDecision layer2Decision,
+                               ThreatIntelligence threatIntel,
+                               HistoricalContext historicalContext,
+                               String baselineContext) {
         // Phase 4: getDecodedPayload() 사용 (Base64/URL 인코딩 자동 디코딩)
         Optional<String> decodedPayload = eventEnricher.getDecodedPayload(event);
 
-        // AI Native v4.1.0: Severity 변수 제거 - LLM이 원시 데이터로 직접 판단
-        String payloadSummary = summarizePayload(decodedPayload.orElse(null));
+        // AI Native v4.1.0: Severity 제거 - LLM이 원시 데이터로 직접 판단
+        // AI Native: null인 경우 프롬프트에서 생략
+        // AI Native v3.3.0: 프롬프트 인젝션 방어 적용
+        String userId = PromptTemplateUtils.sanitizeUserInput(event.getUserId());
+        String fullPayload = PromptTemplateUtils.sanitizeUserInput(decodedPayload.orElse("empty"));
 
         String networkSection = buildNetworkSection(event);
         // Phase 22: buildDataQualitySection() 사용 - 누락 필드 명시적 표시
         String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event);
 
-        // AI Native v4.0: Layer1 결과 핵심만 - NaN 체크 및 Fail-Safe Action 처리
-        // NaN 검증: LLM이 "Risk: NaN"을 이해하지 못하므로 명시적 라벨 사용
-        double l1RiskScore = layer1Decision.getRiskScore();
-        String riskStr = Double.isNaN(l1RiskScore) ? "[NOT_ANALYZED]" : String.format("%.1f", l1RiskScore);
+        // Threat Intelligence 핵심 (AI Native: null 체크)
+        StringBuilder threatBuilder = new StringBuilder();
+        // AI Native: reputationScore 제거 - 항상 0.0 (설정 코드 없음, 죽은 데이터)
+        // AI Native: iocMatches 제거 - 항상 빈 문자열 (죽은 데이터)
 
-        // Fail-Safe: Action이 null이면 ESCALATE로 강제 (안전 기본값)
-        SecurityDecision.Action l1Action = layer1Decision.getAction();
-        if (l1Action == null) {
-            l1Action = SecurityDecision.Action.ESCALATE;
-            log.warn("[Layer2] Layer1 action is null, defaulting to ESCALATE for safety");
+        // Truncation 정책 적용
+        TieredStrategyProperties.Truncation.Layer3Truncation layer3Truncation =
+            tieredStrategyProperties.getTruncation().getLayer3();
+
+        String knownActors = threatIntel.getKnownActors();
+        if (knownActors != null && !knownActors.isEmpty()) {
+            threatBuilder.append(" | Actors: ").append(knownActors.substring(0, Math.min(200, knownActors.length())));
         }
 
-        String layer1Summary = String.format("Risk: %s | Action: %s", riskStr, l1Action);
+        // relatedCampaigns 추가 (AI Native: null 체크)
+        String campaigns = threatIntel.getRelatedCampaigns();
+        if (campaigns != null && !campaigns.isEmpty()) {
+            int maxCampaigns = layer3Truncation.getCampaigns();
+            String campaignsSummary = campaigns.length() > maxCampaigns
+                ? campaigns.substring(0, maxCampaigns - 3) + "..." : campaigns;
+            threatBuilder.append("\nCampaigns: ").append(campaignsSummary);
+        }
+        String threatSummary = threatBuilder.toString();
 
-        // Session Context 핵심만 (AI Native: null 값 처리)
-        // AI Native v3.0: accessPattern 제거 - "AccessFrequency: N" 형식만 제공하여 혼란 유발
-        // AI Native v4.0: sessionDuration 제거 - isNewSession + recentRequestCount로 대체 가능한 중복 데이터
-        // recentActions가 실제 행동 정보 제공
-        String userId = sessionContext.getUserId();
-        StringBuilder sessionBuilder = new StringBuilder();
-        if (userId != null) sessionBuilder.append("User: ").append(userId);
-        String sessionSummary = sessionBuilder.toString();
+        // Historical Context (AI Native: null 체크)
+        StringBuilder historyBuilder = new StringBuilder();
 
-        // Behavior 핵심만 - Phase 9: deviationScore 제거 (AI Native 위반)
-        // AI Native 원칙: 플랫폼은 raw 데이터만 제공, LLM이 직접 판단
-        String behaviorSummary = String.format("Similar Events: %d",
-            behaviorAnalysis.getSimilarEvents().size());
+        String previousAttacks = historicalContext.getPreviousAttacks();
+        if (previousAttacks != null && !previousAttacks.isEmpty()) {
+            historyBuilder.append("Previous: ").append(previousAttacks.substring(0, Math.min(30, previousAttacks.length())));
+        }
+
+        String similarIncidents = historicalContext.getSimilarIncidents();
+        if (similarIncidents != null && !similarIncidents.isEmpty()) {
+            if (historyBuilder.length() > 0) historyBuilder.append(" | ");
+            historyBuilder.append("Similar: ").append(similarIncidents.substring(0, Math.min(30, similarIncidents.length())));
+        }
+
+        // AI Native: vulnerabilityHistory 제거 - 항상 빈 문자열 (죽은 데이터)
+        String historySummary = historyBuilder.toString();
+
+        // AI Native: SystemContext 제거 - asset.criticality, data.sensitivity,
+        // compliance.requirements, security.posture 모두 설정 코드 없음 (항상 null, 죽은 데이터)
 
         // AI Native v4.0: Baseline 컨텍스트 섹션 (항상 출력 - Zero Trust)
         // STATUS 라벨 추가: 상태 메시지와 실제 데이터를 명확히 구분하여 LLM 오인 방지
-        // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
-        // LLM이 직접 비교하여 ALLOW/BLOCK/ESCALATE 판단
         StringBuilder baselineSectionBuilder = new StringBuilder();
         baselineSectionBuilder.append("=== USER BEHAVIOR BASELINE ===\n");
-        String baselineContext = behaviorAnalysis.getBaselineContext();
         if (isValidBaseline(baselineContext)) {
             // 유효한 baseline 데이터 - sanitization 적용
             String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
@@ -99,58 +147,29 @@ public class Layer2PromptTemplate {
             // 상태 메시지 (SERVICE_UNAVAILABLE, NO_USER_ID, NO_DATA)
             baselineSectionBuilder.append("STATUS: ").append(baselineContext).append("\n");
             baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable");
-        } else if (behaviorAnalysis.isBaselineEstablished()) {
-            baselineSectionBuilder.append("STATUS: [NO_DATA] Baseline available but not loaded\n");
-            baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable");
         } else {
             baselineSectionBuilder.append("STATUS: [NEW_USER] No baseline established for this user\n");
             baselineSectionBuilder.append("IMPACT: Cannot compare against historical patterns");
         }
         String baselineSection = baselineSectionBuilder.toString();
 
-        // Related Documents - 최대 5개까지 사용, 각 300자 제한
-        // Phase 9: RAG 문서 메타데이터 포함 (유사도 점수, 문서 타입)
-        StringBuilder relatedContextBuilder = new StringBuilder();
-        int maxDocs = Math.min(5, relatedDocuments.size());
-        for (int i = 0; i < maxDocs; i++) {
-            Document doc = relatedDocuments.get(i);
-            String content = doc.getText();
-            if (content != null && !content.isBlank()) {
-                if (i > 0) {
-                    relatedContextBuilder.append("\n");
-                }
-
-                // 문서 메타데이터 추출 (Truncation 정책 적용)
-                String docMeta = buildDocumentMetadata(doc, i + 1);
-                int maxLength = tieredStrategyProperties.getTruncation().getLayer2().getRagDocument();
-                String truncatedContent = content.length() > maxLength
-                    ? content.substring(0, maxLength) + "..."
-                    : content;
-
-                relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
-            }
-        }
-        String relatedContext = relatedContextBuilder.length() > 0 ?
-            relatedContextBuilder.toString() : "No related context found";
-
-        // Phase 9: deviationSection 제거 (AI Native 위반)
-        // LLM이 baselineSection의 raw 데이터를 직접 비교하여 판단
-        // AI Native v3.3.0: 4개 Action (ALLOW/BLOCK/CHALLENGE/ESCALATE)
         // Phase 5: metadata에서 추출한 풍부한 컨텍스트 정보 제공
+        // AI Native v3.3.0: 4개 Action (ALLOW/BLOCK/CHALLENGE/ESCALATE)
         StringBuilder prompt = new StringBuilder();
-        prompt.append("Contextual security analysis. Analyze with session/behavior patterns and user baseline.\n\n");
+        prompt.append("Expert forensic security analysis with behavioral baseline comparison.\n\n");
 
-        // 1. 이벤트 기본 정보 (AI Native v4.1.0: Severity 제거, 원시 데이터 제공)
+        // 1. 이벤트 기본 정보 (AI Native: null 값 조건부 출력)
         prompt.append("=== EVENT ===\n");
         if (userId != null) {
             prompt.append("User: ").append(userId).append("\n");
         }
 
-        // AI Native: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
+        // AI Native v4.1.0: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
+        // AI Native v4.3.0: TrustScore 제거 - LLM은 riskScore만 반환하며
+        // TrustScore(=1-riskScore)는 역관계로 혼란 유발. EMA 학습에서만 내부 사용.
         Map<String, Object> metadata = event.getMetadata();
         if (metadata != null) {
             appendMetadataIfPresent(prompt, metadata, "auth.failure_count", "FailureCount");
-            appendMetadataIfPresent(prompt, metadata, "authz.trustScore", "TrustScore");
         }
 
         // 2. 네트워크 정보 (Zero Trust: 필수 출력)
@@ -158,63 +177,77 @@ public class Layer2PromptTemplate {
         prompt.append("\n=== NETWORK ===\n");
         prompt.append(networkSection).append("\n");
 
-        // 3. 페이로드 정보 (있는 경우만)
-        if (!"empty".equals(payloadSummary)) {
+        // 3. 페이로드 정보 (있는 경우만, Truncation 정책 적용)
+        if (!"empty".equals(fullPayload)) {
             prompt.append("\n=== PAYLOAD ===\n");
+            int maxPayload = layer3Truncation.getPayload();
+            String payloadSummary = fullPayload.length() > maxPayload
+                ? fullPayload.substring(0, maxPayload) + "..." : fullPayload;
             prompt.append(payloadSummary).append("\n");
         }
 
-        // 5. Layer1 분석 결과 (Truncation 정책 적용)
-        prompt.append("\n=== LAYER1 ANALYSIS ===\n");
-        prompt.append(layer1Summary).append("\n");
+        // AI Native v4.0: Layer1/Layer2 분석 결과 - NaN 체크 추가 (LLM 혼란 방지)
+        // NaN 검증: LLM이 "Risk=NaN"을 이해하지 못하므로 "[NOT_ANALYZED]" 라벨 사용
+        prompt.append("\n=== PREVIOUS LAYER ANALYSIS ===\n");
+
+        // Layer1 결과
+        double l1RiskScore = layer1Decision.getRiskScore();
+        String l1RiskStr = Double.isNaN(l1RiskScore) ? "[NOT_ANALYZED]" : String.format("%.2f", l1RiskScore);
+        prompt.append("Layer1: Risk=").append(l1RiskStr);
+        if (layer1Decision.getAction() != null) {
+            prompt.append(" | Action=").append(layer1Decision.getAction().toString());
+        }
+        Double l1Confidence = layer1Decision.getConfidence();
+        if (l1Confidence != null && !l1Confidence.isNaN()) {
+            prompt.append(" | Confidence=").append(String.format("%.2f", l1Confidence));
+        }
+        prompt.append("\n");
+        int maxReasoning = layer3Truncation.getReasoning();
         if (layer1Decision.getReasoning() != null && !layer1Decision.getReasoning().isEmpty()) {
             String reasoning = layer1Decision.getReasoning();
-            int maxReasoning = tieredStrategyProperties.getTruncation().getLayer2().getReasoning();
             if (reasoning.length() > maxReasoning) {
                 reasoning = reasoning.substring(0, maxReasoning - 3) + "...";
             }
-            prompt.append("Reason: ").append(reasoning).append("\n");
+            prompt.append("L1 Reason: ").append(reasoning).append("\n");
         }
 
-        // 6. 세션 컨텍스트 (Priority 1: authMethod, recentActions 추가)
-        prompt.append("\n=== SESSION ===\n");
-        prompt.append(sessionSummary).append("\n");
-        // authMethod 추가 (Priority 1 Critical)
-        String authMethod = sessionContext.getAuthMethod();
-        if (isValidData(authMethod)) {
-            prompt.append("AuthMethod: ").append(authMethod).append("\n");
+        // Layer2 결과
+        double l2RiskScore = layer2Decision.getRiskScore();
+        String l2RiskStr = Double.isNaN(l2RiskScore) ? "[NOT_ANALYZED]" : String.format("%.2f", l2RiskScore);
+        prompt.append("Layer2: Risk=").append(l2RiskStr);
+        if (layer2Decision.getAction() != null) {
+            prompt.append(" | Action=").append(layer2Decision.getAction().toString());
         }
-        // recentActions 추가 (Priority 1 Critical) - 최대 5개
-        List<String> recentActions = sessionContext.getRecentActions();
-        if (recentActions != null && !recentActions.isEmpty()) {
-            int maxActions = Math.min(5, recentActions.size());
-            String actionsStr = String.join(", ", recentActions.subList(
-                Math.max(0, recentActions.size() - maxActions), recentActions.size()));
-            prompt.append("RecentActions: [").append(actionsStr).append("]\n");
+        // AI Native v3.0: Layer2 confidence 추가 - LLM이 Layer2 판단의 신뢰도를 참고하여 최종 판단
+        Double l2Confidence = layer2Decision.getConfidence();
+        if (l2Confidence != null && !l2Confidence.isNaN()) {
+            prompt.append(" | Confidence=").append(String.format("%.2f", l2Confidence));
         }
-
-        // 7. 행동 분석 (Priority 1: similarEvents 상세 내용 추가)
-        prompt.append("\n=== BEHAVIOR ===\n");
-        prompt.append(behaviorSummary).append("\n");
-        // similarEvents 상세 내용 (Priority 1 Critical) - 최대 3개
-        List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
-        if (similarEvents != null && !similarEvents.isEmpty()) {
-            int maxEvents = Math.min(3, similarEvents.size());
-            prompt.append("SimilarEvents Detail:\n");
-            for (int i = 0; i < maxEvents; i++) {
-                prompt.append("  ").append(i + 1).append(". ").append(similarEvents.get(i)).append("\n");
+        if (layer2Decision.getThreatCategory() != null) {
+            prompt.append(" | Category=").append(layer2Decision.getThreatCategory());
+        }
+        prompt.append("\n");
+        if (layer2Decision.getReasoning() != null && !layer2Decision.getReasoning().isEmpty()) {
+            String reasoning = layer2Decision.getReasoning();
+            if (reasoning.length() > maxReasoning) {
+                reasoning = reasoning.substring(0, maxReasoning - 3) + "...";
             }
+            prompt.append("L2 Reason: ").append(reasoning).append("\n");
         }
 
-        // 8. 관련 문서 (RAG) - 항상 출력 (Zero Trust)
-        prompt.append("\n=== RELATED CONTEXT ===\n");
-        if (!"No related context found".equals(relatedContext) && !relatedContext.isEmpty()) {
-            // 유효한 RAG 문서 - sanitization 적용
-            String sanitizedContext = PromptTemplateUtils.sanitizeUserInput(relatedContext);
-            prompt.append(sanitizedContext).append("\n");
+        // 6. 위협 인텔리전스
+        prompt.append("\n=== THREAT INTELLIGENCE ===\n");
+        prompt.append(threatSummary).append("\n");
+
+        // 7. 과거 이력 - 항상 출력 (Zero Trust)
+        prompt.append("\n=== HISTORICAL CONTEXT ===\n");
+        if (!historySummary.isEmpty()) {
+            prompt.append(historySummary).append("\n");
         } else {
-            prompt.append("[NO_DATA] No related context found in vector store\n");
+            prompt.append("[NO_DATA] No historical context available for this event\n");
         }
+
+        // AI Native: SYSTEM CONTEXT 섹션 제거 - 모든 필드가 항상 null (죽은 데이터)
 
         // 9. 사용자 Baseline
         prompt.append("\n").append(baselineSection).append("\n");
@@ -231,94 +264,21 @@ public class Layer2PromptTemplate {
             A (ALLOW): Permit the request
             B (BLOCK): Deny the request
             C (CHALLENGE): Request additional verification (MFA)
-            E (ESCALATE): Forward to Layer 3 expert analysis
+            E (ESCALATE): Requires human security analyst review
 
             === RESPONSE FORMAT ===
-            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>"}
+            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>","m":"<MITRE>","rec":"<recommendation>","i":<boolean>}
 
             r: Your risk assessment (0=safe, 1=critical threat)
             c: Your confidence level (0=uncertain, 1=certain)
             a: Your action decision
-            d: Brief reasoning (max 30 tokens)
+            d: Detailed reasoning (max 50 tokens)
+            m: MITRE ATT&CK technique if applicable (e.g., T1078, T1566)
+            rec: Recommendation for SOC (max 20 tokens)
+            i: Create security incident (true if B selected)
             """);
 
         return prompt.toString();
-    }
-
-    /**
-     * RAG 문서 메타데이터 추출 (Phase 9)
-     *
-     * 문서 메타데이터를 [Doc1|sim=0.92|type=threat] 형식으로 반환
-     * - sim: 유사도 점수 (벡터 검색 결과)
-     * - type: 문서 타입 (threat, incident, behavior, policy 등)
-     *
-     * @param doc RAG 검색 결과 문서
-     * @param docIndex 문서 순번
-     * @return 메타데이터 포맷 문자열
-     */
-    private String buildDocumentMetadata(Document doc, int docIndex) {
-        StringBuilder meta = new StringBuilder();
-        meta.append("[Doc").append(docIndex);
-
-        // 유사도 점수 추출
-        if (doc.getMetadata() != null) {
-            // AI Native v5.0: VectorDocumentMetadata 표준 필드 사용
-            // 표준 필드명: "similarityScore" (VectorDocumentMetadata.java:72)
-            // VectorStore: PgVector (PostgreSQL + pgvector)
-            Object scoreObj = doc.getMetadata().get(VectorDocumentMetadata.SIMILARITY_SCORE);
-            // "score" 필드는 일부 프로세서에서 사용하므로 fallback 유지
-            if (scoreObj == null) {
-                scoreObj = doc.getMetadata().get("score");
-            }
-            // "distance"는 유사도와 역관계이므로 제거 (혼란 유발)
-
-            if (scoreObj instanceof Number) {
-                double score = ((Number) scoreObj).doubleValue();
-                meta.append("|sim=").append(String.format("%.2f", score));
-            }
-
-            // 문서 타입 추출
-            Object typeObj = doc.getMetadata().get("type");
-            if (typeObj == null) {
-                typeObj = doc.getMetadata().get("document_type");
-            }
-            if (typeObj == null) {
-                typeObj = doc.getMetadata().get("category");
-            }
-
-            if (typeObj != null) {
-                meta.append("|type=").append(typeObj.toString());
-            }
-
-            // 소스 정보 (있는 경우) - Truncation 정책 적용
-            Object sourceObj = doc.getMetadata().get("source");
-            if (sourceObj != null) {
-                String source = sourceObj.toString();
-                int maxSource = tieredStrategyProperties.getTruncation().getLayer2().getSource();
-                if (source.length() > maxSource) {
-                    source = source.substring(0, maxSource - 3) + "...";
-                }
-                meta.append("|src=").append(source);
-            }
-        }
-
-        meta.append("]");
-        return meta.toString();
-    }
-
-    /**
-     * Payload 요약 (Truncation 정책 적용)
-     * SQLi, XSS, Webshell 등 분석을 위해 페이로드 확장
-     */
-    private String summarizePayload(String payload) {
-        if (payload == null || payload.isEmpty()) {
-            return "empty";
-        }
-        int maxPayload = tieredStrategyProperties.getTruncation().getLayer2().getPayload();
-        if (payload.length() > maxPayload) {
-            return payload.substring(0, maxPayload) + "... (truncated)";
-        }
-        return payload;
     }
 
     /**
@@ -328,28 +288,33 @@ public class Layer2PromptTemplate {
      * - IP, SessionId는 검증 필수 필드
      * - 누락 시 NOT_PROVIDED [CRITICAL] 표시
      * - LLM이 데이터 부재를 인식하여 CHALLENGE/ESCALATE 판단
+     *
+     * AI Native v3.3.0: 프롬프트 인젝션 방어
+     * - 모든 사용자 입력값은 sanitizeUserInput()으로 새니타이징
      */
     private String buildNetworkSection(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
 
-        // IP (Zero Trust Critical)
+        // IP (Zero Trust Critical) - 프롬프트 인젝션 방어 적용
         if (isValidData(event.getSourceIp())) {
-            network.append("IP: ").append(event.getSourceIp()).append("\n");
+            String sanitizedIp = PromptTemplateUtils.sanitizeUserInput(event.getSourceIp());
+            network.append("IP: ").append(sanitizedIp).append("\n");
         } else {
             network.append("IP: NOT_PROVIDED [CRITICAL: Cannot verify origin]\n");
         }
 
-        // SessionId (Zero Trust Critical)
+        // SessionId (Zero Trust Critical) - 프롬프트 인젝션 방어 적용
         if (isValidData(event.getSessionId())) {
-            network.append("SessionId: ").append(event.getSessionId()).append("\n");
+            String sanitizedSessionId = PromptTemplateUtils.sanitizeUserInput(event.getSessionId());
+            network.append("SessionId: ").append(sanitizedSessionId).append("\n");
         } else {
             network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
         }
 
-        // UserAgent (선택)
+        // UserAgent (선택) - 프롬프트 인젝션 방어 적용
         if (isValidData(event.getUserAgent())) {
-            String ua = event.getUserAgent();
-            int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer2().getUserAgent();
+            String ua = PromptTemplateUtils.sanitizeUserInput(event.getUserAgent());
+            int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer3().getUserAgent();
             if (ua.length() > maxUserAgent) {
                 ua = ua.substring(0, maxUserAgent - 3) + "...";
             }
@@ -393,6 +358,25 @@ public class Layer2PromptTemplate {
     }
 
     /**
+     * AI Native v4.1.0: metadata에서 값을 추출하여 프롬프트에 추가
+     * Severity 대신 원시 메트릭을 LLM에게 제공
+     *
+     * @param sb 프롬프트 StringBuilder
+     * @param metadata 이벤트 메타데이터
+     * @param metadataKey metadata에서 조회할 키
+     * @param promptLabel 프롬프트에 표시할 라벨
+     */
+    private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
+        if (metadata == null) {
+            return;
+        }
+        Object value = metadata.get(metadataKey);
+        if (value != null) {
+            sb.append(promptLabel).append(": ").append(value).append("\n");
+        }
+    }
+
+    /**
      * Baseline 데이터가 유효한지 검사 (Zero Trust)
      *
      * 상태 메시지는 유효한 데이터가 아님:
@@ -423,93 +407,53 @@ public class Layer2PromptTemplate {
     }
 
     /**
-     * SessionContext - AI Native
+     * ThreatIntelligence - AI Native
      *
-     * AI Native 원칙: 기본값 "unknown" 제거
+     * AI Native 원칙: 기본값 "none" 제거
      * - 값이 없으면 null 반환
      * - 호출부에서 null 체크 후 프롬프트 생략
+     *
+     * AI Native v4.2.0: Dead Code 제거
+     * - iocMatches: 항상 빈 문자열 (Line 94 주석 참조)
+     * - reputationScore: 항상 0.0 (Line 93 주석 참조)
      */
-    public static class SessionContext {
-        private String sessionId;
-        private String userId;
-        private String authMethod;
-        private List<String> recentActions;
-        private long sessionDuration;
-        private String accessPattern;
+    public static class ThreatIntelligence {
+        private String knownActors;
+        private String relatedCampaigns;
 
         // AI Native: 기본값 없이 null 반환
-        public String getSessionId() { return sessionId; }
-        public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+        public String getKnownActors() { return knownActors; }
+        public void setKnownActors(String knownActors) { this.knownActors = knownActors; }
 
-        public String getUserId() { return userId; }
-        public void setUserId(String userId) { this.userId = userId; }
-
-        public String getAuthMethod() { return authMethod; }
-        public void setAuthMethod(String authMethod) { this.authMethod = authMethod; }
-
-        public List<String> getRecentActions() { return recentActions != null ? recentActions : List.of(); }
-        public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
-
-        public long getSessionDuration() { return sessionDuration; }
-        public void setSessionDuration(long sessionDuration) { this.sessionDuration = sessionDuration; }
-
-        public String getAccessPattern() { return accessPattern; }
-        public void setAccessPattern(String accessPattern) { this.accessPattern = accessPattern; }
+        public String getRelatedCampaigns() { return relatedCampaigns; }
+        public void setRelatedCampaigns(String relatedCampaigns) { this.relatedCampaigns = relatedCampaigns; }
     }
 
     /**
-     * 행동 분석 결과 - AI Native (v4.0)
+     * HistoricalContext - AI Native
      *
-     * Phase 8 리팩토링: 점수 기반 필드 제거
-     * - normalBehaviorScore 제거: 플랫폼 계산 점수 (AI Native 위반)
-     * - anomalyIndicators 제거: detectAnomalies() 제거로 미사용
-     * - temporalPattern 제거: analyzeTemporalPattern() 제거로 미사용
+     * AI Native 원칙: 기본값 "none" 제거
+     * - 값이 없으면 null 반환
+     * - 호출부에서 null 체크 후 프롬프트 생략
      *
-     * Phase 9 리팩토링: 추가 점수 기반 필드 제거
-     * - deviationAnalysis 제거: analyzeDeviations() 제거로 미사용
-     * - deviationScore 제거: calculateDeviationScore() 제거로 미사용
-     *
-     * AI Native 원칙: 플랫폼은 raw 데이터만 제공, LLM이 직접 판단
+     * AI Native v4.2.0: Dead Code 제거
+     * - vulnerabilityHistory: 항상 빈 리스트 (Line 129 주석 참조)
      */
-    public static class BehaviorAnalysis {
-        private List<String> similarEvents;
+    public static class HistoricalContext {
+        private String similarIncidents;
+        private String previousAttacks;
 
-        // AI Native (Phase 9): Baseline 상세 정보 필드
-        // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
-        private String baselineContext;
-        // baseline 존재 여부
-        private boolean baselineEstablished;
+        // AI Native: 기본값 없이 null 반환
+        public String getSimilarIncidents() { return similarIncidents; }
+        public void setSimilarIncidents(String similarIncidents) { this.similarIncidents = similarIncidents; }
 
-        public List<String> getSimilarEvents() { return similarEvents != null ? similarEvents : List.of(); }
-        public void setSimilarEvents(List<String> events) { this.similarEvents = events; }
-
-        // AI Native: Baseline 필드 Getter/Setter
-        public String getBaselineContext() { return baselineContext; }
-        public void setBaselineContext(String baselineContext) { this.baselineContext = baselineContext; }
-
-        public boolean isBaselineEstablished() { return baselineEstablished; }
-        public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
+        public String getPreviousAttacks() { return previousAttacks; }
+        public void setPreviousAttacks(String previousAttacks) { this.previousAttacks = previousAttacks; }
     }
 
-    /**
-     * AI Native v4.1.0: metadata에서 원시 메트릭을 프롬프트에 추가
-     *
-     * Severity 대신 원시 데이터를 제공하여 LLM이 직접 위험도를 판단하도록 함
-     * - failureCount, trustScore, riskScore 등 원시 값 제공
-     * - LLM이 컨텍스트를 고려하여 독립적으로 판단
-     *
-     * @param sb StringBuilder
-     * @param metadata 이벤트 메타데이터
-     * @param metadataKey metadata에서 조회할 키
-     * @param promptLabel 프롬프트에 표시할 라벨
-     */
-    private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
-        if (metadata == null) {
-            return;
-        }
-        Object value = metadata.get(metadataKey);
-        if (value != null) {
-            sb.append(promptLabel).append(": ").append(value).append("\n");
-        }
-    }
+    // AI Native v4.2.0: SystemContext 클래스 삭제
+    // - asset.criticality, data.sensitivity, compliance.requirements, security.posture
+    //   모두 metadata에 설정 코드 없음 (항상 null, 죽은 데이터)
+    // - buildPrompt()에서 프롬프트에 포함되지 않음 (Line 247 주석 참조)
+    // - LLM이 targetResource 경로를 보고 직접 판단
 }

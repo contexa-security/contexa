@@ -1,53 +1,45 @@
-# 3계층 LLM 시스템 설정
+# 2계층 LLM 시스템 설정 (2025-01 리팩토링)
 # TieredSecurityLLMConfiguration과 매칭되는 설정 파일
+#
+# 2-Tier 구조:
+# - Layer 1: Contextual Analysis (Llama3.1:8b) - 95% 케이스 처리
+# - Layer 2: Expert Analysis (Claude/GPT-4) - 5% 케이스 처리
 
 spring:
   ai:
     # 보안 계층 설정
     security:
-      # 간소화된 키 구조 (TieredSecurityLLMConfiguration과 일치)
+      # 2-Layer 구조 (2025-01 리팩토링)
       layer1:
-        model: tinyllama:latest  # 경량 LLM 모델 (TinyLlama, Phi-2 등)
+        model: llama3.1:8b  # Layer 1: 컨텍스트 분석
         backup:
-          model: phi3:mini  # Layer 1 백업 모델
+          model: mistral:7b  # Layer 1 백업 모델
       layer2:
-        model: llama3.1:8b  # 중급 LLM 모델
+        model: llama3.1:8b  # Layer 2: 전문가 분석 (Claude, GPT-4 등)
         backup:
-          model: mistral:7b  # Layer 2 백업 모델
-      layer3:
-        model: llama3.1:8b  # 고급 LLM 모델 (Claude, GPT-4, Mistral Large 등)
-        backup:
-          model: gpt-4  # Layer 3 백업 모델
+          model: gpt-4  # Layer 2 백업 모델
 
-      # 3계층 시스템 상세 설정 (기존 설정과 호환)
+      # 2계층 시스템 상세 설정
       tiered:
-        enabled: true  # 3계층 보안 시스템 활성화
+        enabled: true  # 2계층 보안 시스템 활성화
 
         # 처리 비율 설정 (합계 100%)
         traffic-distribution:
-          layer1-percentage: 98.0  # Layer 1이 처리하는 트래픽 비율
-          layer2-percentage: 1.8   # Layer 2가 처리하는 트래픽 비율
-          layer3-percentage: 0.2   # Layer 3가 처리하는 트래픽 비율
+          layer1-percentage: 95.0  # Layer 1이 처리하는 트래픽 비율
+          layer2-percentage: 5.0   # Layer 2가 처리하는 트래픽 비율
 
-        # Layer 1: 초고속 필터링 (TinyLlama)
+        # Layer 1: 컨텍스트 분석 (Llama3.1:8b)
         layer1:
           enabled: true
-          timeout-ms: 50    # 최대 처리 시간 (밀리초)
-          cache-ttl-seconds: 300  # 캐시 유지 시간
-          embedding-similarity-threshold: 0.85  # 임베딩 유사도 임계값
-
-        # Layer 2: 컨텍스트 분석 (Llama3.1:8b)
-        layer2:
-          enabled: true
-          timeout-ms: 300     # 최대 처리 시간 (밀리초)
+          timeout-ms: 10000   # 최대 처리 시간 (밀리초)
           context-window-minutes: 30  # 컨텍스트 윈도우 크기
           vector-search-limit: 10     # 벡터 검색 결과 제한
           behavior-baseline-days: 30  # 행동 기준선 기간
 
-        # Layer 3: 전문가 시스템 (Claude/GPT-4)
-        layer3:
+        # Layer 2: 전문가 시스템 (Claude/GPT-4)
+        layer2:
           enabled: true
-          timeout-ms: 5000     # 최대 처리 시간 (밀리초)
+          timeout-ms: 30000    # 최대 처리 시간 (밀리초)
           enable-soar: true    # SOAR 통합 활성화
           auto-execute-threshold: 9.5  # 자동 실행 임계값
 

@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -41,6 +42,9 @@ public class SecurityEventEnricher {
      * SecurityEvent에 메타데이터 추가
      */
     public void enrichEvent(SecurityEvent event, String key, Object value) {
+        if (event == null) {
+            return;
+        }
         if (event.getMetadata() == null) {
             event.setMetadata(new HashMap<>());
         }
@@ -106,9 +110,13 @@ public class SecurityEventEnricher {
     public Optional<String> getDecodedPayload(SecurityEvent event) {
         return getRequestPayload(event)
                 .map(payload -> {
+                    if (payload == null) {
+                        return null;
+                    }
                     String payloadStr = payload.toString();
                     return decodePayload(payloadStr);
-                });
+                })
+                .filter(Objects::nonNull);
     }
 
     /**

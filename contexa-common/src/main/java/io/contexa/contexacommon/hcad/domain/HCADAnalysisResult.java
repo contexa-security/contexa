@@ -45,9 +45,9 @@ public class HCADAnalysisResult {
     /** LLM이 결정한 confidence (0.0 ~ 1.0) */
     private final double confidence;
 
-    /** 사용된 임계값 (AI Native: 더 이상 사용되지 않음, 호환성 유지) */
-    @Deprecated
-    private final double threshold;
+    // AI Native v4.2.0: threshold 필드 삭제 (Dead Code)
+    // - LLM이 action을 직접 결정하므로 임계값 기반 판단 불필요
+    // - HCADAnalysisService에서 항상 0.0으로 설정 (의미 없는 값)
 
     /** 처리 시간 (ms) */
     private final long processingTimeMs;
