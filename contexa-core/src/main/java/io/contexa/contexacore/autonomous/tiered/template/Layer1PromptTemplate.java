@@ -51,21 +51,20 @@ public class Layer1PromptTemplate {
 
         String networkSection = buildNetworkSection(event);
         // Phase 22: buildDataQualitySection() 사용 - 누락 필드 명시적 표시
-        String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event);
+        // AI Native v6.0: baseline 포함 새 메서드 사용 (@Deprecated 메서드 대체)
+        String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event, behaviorAnalysis.getBaselineContext());
 
         // Session Context 핵심만 (AI Native: null 값 처리)
         // AI Native v3.0: accessPattern 제거 - "AccessFrequency: N" 형식만 제공하여 혼란 유발
         // AI Native v4.0: sessionDuration 제거 - isNewSession + recentRequestCount로 대체 가능한 중복 데이터
+        // AI Native v6.0: sessionSummary 제거 - userId가 EVENT 섹션에서 이미 출력되므로 중복
         // recentActions가 실제 행동 정보 제공
         String userId = sessionContext.getUserId();
-        StringBuilder sessionBuilder = new StringBuilder();
-        if (userId != null) sessionBuilder.append("User: ").append(userId);
-        String sessionSummary = sessionBuilder.toString();
 
         // Behavior 핵심만 - Phase 9: deviationScore 제거 (AI Native 위반)
         // AI Native 원칙: 플랫폼은 raw 데이터만 제공, LLM이 직접 판단
-        String behaviorSummary = String.format("Similar Events: %d",
-            behaviorAnalysis.getSimilarEvents().size());
+        // AI Native v6.0: behaviorSummary 제거 - "Similar Events: N" 단순 개수는 무의미
+        // similarEvents 상세 내용이 아래에서 직접 출력됨
 
         // AI Native v4.0: Baseline 컨텍스트 섹션 (항상 출력 - Zero Trust)
         // STATUS 라벨 추가: 상태 메시지와 실제 데이터를 명확히 구분하여 LLM 오인 방지
@@ -105,8 +104,9 @@ public class Layer1PromptTemplate {
                 }
 
                 // 문서 메타데이터 추출 (Truncation 정책 적용)
+                // AI Native v6.0: Layer1 설정 사용 (Layer2 → Layer1 수정)
                 String docMeta = buildDocumentMetadata(doc, i + 1);
-                int maxLength = tieredStrategyProperties.getTruncation().getLayer2().getRagDocument();
+                int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getRagDocument();
                 String truncatedContent = content.length() > maxLength
                     ? content.substring(0, maxLength) + "..."
                     : content;
@@ -125,9 +125,24 @@ public class Layer1PromptTemplate {
         prompt.append("Contextual security analysis. Analyze with session/behavior patterns and user baseline.\n\n");
 
         // 1. 이벤트 기본 정보 (AI Native v4.1.0: Severity 제거, 원시 데이터 제공)
+        // AI Native v6.0: 필수 필드 추가 - eventId, timestamp, description
         prompt.append("=== EVENT ===\n");
+        // EventId (이벤트 추적용)
+        if (isValidData(event.getEventId())) {
+            prompt.append("EventId: ").append(PromptTemplateUtils.sanitizeUserInput(event.getEventId())).append("\n");
+        }
+        // Timestamp (시간 패턴 분석용)
+        if (event.getTimestamp() != null) {
+            prompt.append("Timestamp: ").append(event.getTimestamp()).append("\n");
+        }
+        // AI Native v6.0: userId sanitization 적용 (프롬프트 인젝션 방어)
         if (userId != null) {
-            prompt.append("User: ").append(userId).append("\n");
+            prompt.append("User: ").append(PromptTemplateUtils.sanitizeUserInput(userId)).append("\n");
+        }
+        // Description (컨텍스트 이해용)
+        if (isValidData(event.getDescription())) {
+            String desc = PromptTemplateUtils.sanitizeAndTruncate(event.getDescription(), 200);
+            prompt.append("Description: ").append(desc).append("\n");
         }
 
         // AI Native: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
@@ -152,32 +167,39 @@ public class Layer1PromptTemplate {
         }
 
         // 4. 세션 컨텍스트 (Priority 1: authMethod, recentActions 추가)
+        // AI Native v6.0: sessionSummary 제거 - userId가 EVENT 섹션에서 이미 출력됨
         prompt.append("\n=== SESSION ===\n");
-        prompt.append(sessionSummary).append("\n");
-        // authMethod 추가 (Priority 1 Critical)
+        // authMethod 추가 (Priority 1 Critical) - AI Native v6.0: sanitization 적용
         String authMethod = sessionContext.getAuthMethod();
         if (isValidData(authMethod)) {
-            prompt.append("AuthMethod: ").append(authMethod).append("\n");
+            prompt.append("AuthMethod: ").append(PromptTemplateUtils.sanitizeUserInput(authMethod)).append("\n");
         }
         // recentActions 추가 (Priority 1 Critical) - 최대 5개
+        // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
         List<String> recentActions = sessionContext.getRecentActions();
         if (recentActions != null && !recentActions.isEmpty()) {
             int maxActions = Math.min(5, recentActions.size());
-            String actionsStr = String.join(", ", recentActions.subList(
-                Math.max(0, recentActions.size() - maxActions), recentActions.size()));
+            List<String> subList = recentActions.subList(
+                Math.max(0, recentActions.size() - maxActions), recentActions.size());
+            // 각 액션을 sanitize 후 결합
+            String actionsStr = subList.stream()
+                .map(PromptTemplateUtils::sanitizeUserInput)
+                .collect(java.util.stream.Collectors.joining(", "));
             prompt.append("RecentActions: [").append(actionsStr).append("]\n");
         }
 
         // 7. 행동 분석 (Priority 1: similarEvents 상세 내용 추가)
+        // AI Native v6.0: behaviorSummary 제거 - 단순 개수는 무의미, 상세 내용만 출력
         prompt.append("\n=== BEHAVIOR ===\n");
-        prompt.append(behaviorSummary).append("\n");
         // similarEvents 상세 내용 (Priority 1 Critical) - 최대 3개
+        // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
         List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
         if (similarEvents != null && !similarEvents.isEmpty()) {
             int maxEvents = Math.min(3, similarEvents.size());
             prompt.append("SimilarEvents Detail:\n");
             for (int i = 0; i < maxEvents; i++) {
-                prompt.append("  ").append(i + 1).append(". ").append(similarEvents.get(i)).append("\n");
+                String sanitizedEvent = PromptTemplateUtils.sanitizeUserInput(similarEvents.get(i));
+                prompt.append("  ").append(i + 1).append(". ").append(sanitizedEvent).append("\n");
             }
         }
 
@@ -199,22 +221,22 @@ public class Layer1PromptTemplate {
         prompt.append("\n=== DATA QUALITY ===\n");
         prompt.append(dataQualitySection);
 
-        // 12. 응답 형식 (AI Native v4.0.0 - 중립적 정보 제공, 유도 금지)
+        // 12. 응답 형식 (AI Native v6.0 - 풀네임 사용으로 LLM 혼란 방지)
         prompt.append("""
 
             === ACTIONS ===
             A (ALLOW): Permit the request
             B (BLOCK): Deny the request
             C (CHALLENGE): Request additional verification (MFA)
-            E (ESCALATE): Forward to Layer 3 expert analysis
+            E (ESCALATE): Forward to Layer 2 expert analysis
 
             === RESPONSE FORMAT ===
-            {"r":<0-1>,"c":<0-1>,"a":"A|B|C|E","d":"<reason>"}
+            {"riskScore":<0-1>,"confidence":<0-1>,"action":"A|B|C|E","reason":"<reason>"}
 
-            r: Your risk assessment (0=safe, 1=critical threat)
-            c: Your confidence level (0=uncertain, 1=certain)
-            a: Your action decision
-            d: Brief reasoning (max 30 tokens)
+            riskScore: Your risk assessment (0=safe, 1=critical threat)
+            confidence: Your confidence level (0=uncertain, 1=certain)
+            action: Your action decision
+            reason: Brief reasoning (max 30 tokens)
             """);
 
         return prompt.toString();
@@ -265,16 +287,9 @@ public class Layer1PromptTemplate {
                 meta.append("|type=").append(typeObj.toString());
             }
 
-            // 소스 정보 (있는 경우) - Truncation 정책 적용
-            Object sourceObj = doc.getMetadata().get("source");
-            if (sourceObj != null) {
-                String source = sourceObj.toString();
-                int maxSource = tieredStrategyProperties.getTruncation().getLayer2().getSource();
-                if (source.length() > maxSource) {
-                    source = source.substring(0, maxSource - 3) + "...";
-                }
-                meta.append("|src=").append(source);
-            }
+            // AI Native v5.1.0: source 메타데이터 출력 제거
+            // - 파일 경로는 LLM 보안 분석에 불필요
+            // - 유사도, 타입만으로 충분
         }
 
         meta.append("]");
@@ -289,7 +304,8 @@ public class Layer1PromptTemplate {
         if (payload == null || payload.isEmpty()) {
             return "empty";
         }
-        int maxPayload = tieredStrategyProperties.getTruncation().getLayer2().getPayload();
+        // AI Native v6.0: Layer1 설정 사용 (Layer2 → Layer1 수정)
+        int maxPayload = tieredStrategyProperties.getTruncation().getLayer1().getPayload();
         if (payload.length() > maxPayload) {
             return payload.substring(0, maxPayload) + "... (truncated)";
         }
@@ -307,28 +323,25 @@ public class Layer1PromptTemplate {
     private String buildNetworkSection(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
 
-        // IP (Zero Trust Critical)
-        if (isValidData(event.getSourceIp())) {
-            network.append("IP: ").append(event.getSourceIp()).append("\n");
-        } else {
-            network.append("IP: NOT_PROVIDED [CRITICAL: Cannot verify origin]\n");
-        }
+        // IP (Zero Trust Critical) - AI Native v6.0: IP 형식 검증 적용
+        // appendIpWithValidation(): 유효한 IP, 잘못된 형식, 값 없음을 명시적으로 구분
+        PromptTemplateUtils.appendIpWithValidation(network, event.getSourceIp());
 
-        // SessionId (Zero Trust Critical)
+        // SessionId (Zero Trust Critical) - AI Native v6.0: sanitization 적용
         if (isValidData(event.getSessionId())) {
-            network.append("SessionId: ").append(event.getSessionId()).append("\n");
+            String sanitizedSessionId = PromptTemplateUtils.sanitizeUserInput(event.getSessionId());
+            network.append("SessionId: ").append(sanitizedSessionId).append("\n");
         } else {
             network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
         }
 
-        // UserAgent (선택)
+        // UserAgent (선택) - AI Native v6.0: sanitization 적용
         if (isValidData(event.getUserAgent())) {
             String ua = event.getUserAgent();
-            int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer2().getUserAgent();
-            if (ua.length() > maxUserAgent) {
-                ua = ua.substring(0, maxUserAgent - 3) + "...";
-            }
-            network.append("UserAgent: ").append(ua).append("\n");
+            int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer1().getUserAgent();
+            // 프롬프트 인젝션 방어: sanitizeAndTruncate() 사용
+            String sanitizedUa = PromptTemplateUtils.sanitizeAndTruncate(ua, maxUserAgent);
+            network.append("UserAgent: ").append(sanitizedUa).append("\n");
         }
 
         return network.toString().trim();
@@ -389,7 +402,7 @@ public class Layer1PromptTemplate {
         private String userId;
         private String authMethod;
         private List<String> recentActions;
-        private long sessionDuration;
+        // AI Native v6.0: sessionDuration 제거 - Dead Code (프롬프트에서 미사용)
         // AI Native v4.2.0: accessPattern 삭제 - 프롬프트에서 미사용 (라인 73 주석 참조)
 
         // AI Native: 기본값 없이 null 반환
@@ -405,8 +418,7 @@ public class Layer1PromptTemplate {
         public List<String> getRecentActions() { return recentActions != null ? recentActions : List.of(); }
         public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
 
-        public long getSessionDuration() { return sessionDuration; }
-        public void setSessionDuration(long sessionDuration) { this.sessionDuration = sessionDuration; }
+        // AI Native v6.0: getSessionDuration(), setSessionDuration() 제거 - Dead Code
         // AI Native v4.2.0: getAccessPattern(), setAccessPattern() 삭제 - 프롬프트 미사용
     }
 

@@ -10,7 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Tiered Strategy 추상 기반 클래스
  *
- * Layer1/Layer2/Layer3 전략의 공통 기능을 제공합니다:
+ * AI Native v5.1.0: 2-Tier 구조 (Layer1 Contextual + Layer2 Expert)
+ * Layer1/Layer2 전략의 공통 기능을 제공합니다:
  * - Cold→Hot Path 동기화
  * - Hot Path 피드백
  * - 공통 유틸리티 메서드

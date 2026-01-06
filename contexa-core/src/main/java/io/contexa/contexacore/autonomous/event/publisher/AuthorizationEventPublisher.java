@@ -1,12 +1,12 @@
 package io.contexa.contexacore.autonomous.event.publisher;
 
 import io.contexa.contexacommon.domain.TrustAssessment;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.domain.AuditEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.ApplicationEventPublisher;
@@ -16,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.net.InetAddress;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -32,10 +33,20 @@ import java.util.UUID;
  * 발행된 이벤트는 ZeroTrustAuthenticationEventListener가 수신하여
  */
 @Slf4j
-@RequiredArgsConstructor
 public class AuthorizationEventPublisher {
 
     private final ApplicationEventPublisher eventPublisher;
+    private final TieredStrategyProperties tieredStrategyProperties;
+
+    /**
+     * 생성자 (D1: TieredStrategyProperties 주입 추가)
+     */
+    public AuthorizationEventPublisher(
+            ApplicationEventPublisher eventPublisher,
+            TieredStrategyProperties tieredStrategyProperties) {
+        this.eventPublisher = eventPublisher;
+        this.tieredStrategyProperties = tieredStrategyProperties;
+    }
 
     /**
      * 웹 요청에 대한 인가 결정 이벤트 발행 (동기 진입점)
@@ -51,7 +62,8 @@ public class AuthorizationEventPublisher {
 
         // 동기 컨텍스트에서 request 정보 추출 (핵심!)
         // @Async 비동기 스레드에서 request 객체 접근 시 IllegalStateException 방지
-        RequestInfo requestInfo = RequestInfo.from(request);
+        // D1: Security 설정을 전달하여 신뢰 프록시 기반 IP 검증 수행
+        RequestInfo requestInfo = RequestInfo.from(request, tieredStrategyProperties.getSecurity());
 
         // 이벤트 발행 플래그 설정 (동기 컨텍스트에서 수행)
         request.setAttribute("security.event.published", true);
@@ -146,11 +158,12 @@ public class AuthorizationEventPublisher {
             String denialReason) {
 
         // 동기 컨텍스트에서 RequestInfo 추출 (가능한 경우)
+        // D1: Security 설정을 전달하여 신뢰 프록시 기반 IP 검증 수행
         RequestInfo requestInfo = null;
         ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attrs != null) {
             HttpServletRequest request = attrs.getRequest();
-            requestInfo = RequestInfo.from(request);
+            requestInfo = RequestInfo.from(request, tieredStrategyProperties.getSecurity());
             // 이벤트 발행 플래그 설정 (동기 컨텍스트에서 수행)
             request.setAttribute("security.event.published", true);
         }
@@ -507,15 +520,17 @@ public class AuthorizationEventPublisher {
          * HttpServletRequest에서 RequestInfo 추출 (동기 컨텍스트에서 호출 필수)
          *
          * AI Native v3.1: HCADContext 필드 추출 추가
-         * - hcad.is_new_session: 새 세션 여부
-         * - hcad.is_new_device: 새 디바이스 여부
-         * - hcad.recent_request_count: 최근 요청 수
+         * D1: Security 설정 기반 신뢰 프록시 검증 추가
+         *
+         * @param request HTTP 요청
+         * @param security Security 설정 (신뢰 프록시 목록 포함)
+         * @return RequestInfo 불변 DTO
          */
-        public static RequestInfo from(HttpServletRequest request) {
+        public static RequestInfo from(HttpServletRequest request, TieredStrategyProperties.Security security) {
             return RequestInfo.builder()
                     .requestUri(request.getRequestURI())
                     .method(request.getMethod())
-                    .clientIp(extractClientIpStatic(request))
+                    .clientIp(extractClientIpStatic(request, security))
                     .userAgent(extractUserAgentStatic(request))
                     .sessionId(request.getSession(false) != null ?
                             request.getSession(false).getId() : null)
@@ -532,7 +547,64 @@ public class AuthorizationEventPublisher {
                     .build();
         }
 
-        private static String extractClientIpStatic(HttpServletRequest request) {
+        /**
+         * D1: Zero Trust IP 주소 검증
+         *
+         * X-Forwarded-For 스푸핑 방지를 위해 신뢰 프록시 기반 검증 수행.
+         * request.getRemoteAddr()가 신뢰 프록시 목록에 있을 때만 X-Forwarded-For 사용.
+         *
+         * @param request HTTP 요청
+         * @param security Security 설정 (null이면 기본 동작: X-Forwarded-For 무조건 신뢰)
+         * @return 검증된 클라이언트 IP
+         */
+        private static String extractClientIpStatic(HttpServletRequest request, TieredStrategyProperties.Security security) {
+            String remoteAddr = request.getRemoteAddr();
+
+            // Security 설정이 없거나 검증 비활성화면 기존 동작 유지 (개발 환경용)
+            if (security == null || !security.isTrustedProxyValidationEnabled()) {
+                return extractClientIpLegacy(request);
+            }
+
+            List<String> trustedProxies = security.getTrustedProxies();
+
+            // 신뢰 프록시 목록이 비어있으면 X-Forwarded-For 사용 안 함 (가장 안전)
+            if (trustedProxies == null || trustedProxies.isEmpty()) {
+                log.debug("[D1][Zero Trust] No trusted proxies configured, using remoteAddr: {}", remoteAddr);
+                return remoteAddr;
+            }
+
+            // remoteAddr이 신뢰 프록시 목록에 있는지 확인
+            if (isTrustedProxy(remoteAddr, trustedProxies)) {
+                // 신뢰 프록시에서 온 요청 → X-Forwarded-For 사용
+                String xForwardedFor = request.getHeader("X-Forwarded-For");
+                if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                    String clientIp = xForwardedFor.split(",")[0].trim();
+                    log.debug("[D1][Zero Trust] Trusted proxy {}, using X-Forwarded-For: {}", remoteAddr, clientIp);
+                    return clientIp;
+                }
+
+                String xRealIp = request.getHeader("X-Real-IP");
+                if (xRealIp != null && !xRealIp.isEmpty()) {
+                    log.debug("[D1][Zero Trust] Trusted proxy {}, using X-Real-IP: {}", remoteAddr, xRealIp);
+                    return xRealIp;
+                }
+            } else {
+                // 신뢰 프록시가 아닌 곳에서 온 요청 → remoteAddr 사용
+                // X-Forwarded-For가 있어도 무시 (스푸핑 방지)
+                String xForwardedFor = request.getHeader("X-Forwarded-For");
+                if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                    log.warn("[D1][Zero Trust] Untrusted source {} sent X-Forwarded-For header (ignored): {}",
+                            remoteAddr, xForwardedFor);
+                }
+            }
+
+            return remoteAddr;
+        }
+
+        /**
+         * 기존 IP 추출 로직 (레거시, 개발 환경용)
+         */
+        private static String extractClientIpLegacy(HttpServletRequest request) {
             String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
                 return xForwardedFor.split(",")[0].trim();
@@ -542,6 +614,99 @@ public class AuthorizationEventPublisher {
                 return xRealIp;
             }
             return request.getRemoteAddr();
+        }
+
+        /**
+         * IP가 신뢰 프록시 목록에 있는지 확인
+         *
+         * CIDR 표기법 지원 (예: "10.0.0.0/8", "192.168.0.0/16")
+         *
+         * @param ip 확인할 IP 주소
+         * @param trustedProxies 신뢰 프록시 목록 (IP 또는 CIDR)
+         * @return 신뢰 프록시면 true
+         */
+        private static boolean isTrustedProxy(String ip, List<String> trustedProxies) {
+            if (ip == null || trustedProxies == null) {
+                return false;
+            }
+
+            for (String trusted : trustedProxies) {
+                if (trusted == null || trusted.isEmpty()) {
+                    continue;
+                }
+
+                try {
+                    if (trusted.contains("/")) {
+                        // CIDR 표기법 (예: "10.0.0.0/8")
+                        if (isIpInCidr(ip, trusted)) {
+                            return true;
+                        }
+                    } else {
+                        // 단일 IP (정확히 일치)
+                        if (trusted.equals(ip)) {
+                            return true;
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("[D1] Invalid trusted proxy format: {}", trusted, e);
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * IP가 CIDR 범위 내에 있는지 확인
+         *
+         * @param ip IP 주소
+         * @param cidr CIDR 표기법 (예: "10.0.0.0/8")
+         * @return CIDR 범위 내면 true
+         */
+        private static boolean isIpInCidr(String ip, String cidr) {
+            try {
+                String[] parts = cidr.split("/");
+                if (parts.length != 2) {
+                    return false;
+                }
+
+                String networkAddress = parts[0];
+                int prefixLength = Integer.parseInt(parts[1]);
+
+                InetAddress inetIp = InetAddress.getByName(ip);
+                InetAddress inetNetwork = InetAddress.getByName(networkAddress);
+
+                byte[] ipBytes = inetIp.getAddress();
+                byte[] networkBytes = inetNetwork.getAddress();
+
+                // IPv4와 IPv6 호환성 확인
+                if (ipBytes.length != networkBytes.length) {
+                    return false;
+                }
+
+                // 네트워크 마스크 생성 및 비교
+                int fullBytes = prefixLength / 8;
+                int remainingBits = prefixLength % 8;
+
+                // 전체 바이트 비교
+                for (int i = 0; i < fullBytes; i++) {
+                    if (ipBytes[i] != networkBytes[i]) {
+                        return false;
+                    }
+                }
+
+                // 남은 비트 비교
+                if (remainingBits > 0 && fullBytes < ipBytes.length) {
+                    int mask = (0xFF << (8 - remainingBits)) & 0xFF;
+                    if ((ipBytes[fullBytes] & mask) != (networkBytes[fullBytes] & mask)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            } catch (Exception e) {
+                log.debug("[D1] CIDR check failed for ip={}, cidr={}: {}", ip, cidr, e.getMessage());
+                return false;
+            }
         }
 
         private static String extractUserAgentStatic(HttpServletRequest request) {

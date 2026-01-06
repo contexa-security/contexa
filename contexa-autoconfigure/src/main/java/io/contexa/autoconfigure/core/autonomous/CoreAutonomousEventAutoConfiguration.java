@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.authorization.RiskAssessment;
@@ -105,10 +106,19 @@ public class CoreAutonomousEventAutoConfiguration {
 
     // ========== Event Publishers ==========
 
+    /**
+     * AuthorizationEventPublisher - 인가 이벤트 발행자
+     *
+     * D1: TieredStrategyProperties 주입 추가
+     * - Security 설정에서 trustedProxies 목록 사용
+     * - X-Forwarded-For 스푸핑 방지
+     */
     @Bean
     @ConditionalOnMissingBean
-    public AuthorizationEventPublisher authorizationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-        return new AuthorizationEventPublisher(applicationEventPublisher);
+    public AuthorizationEventPublisher authorizationEventPublisher(
+            ApplicationEventPublisher applicationEventPublisher,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new AuthorizationEventPublisher(applicationEventPublisher, tieredStrategyProperties);
     }
 
     @Bean

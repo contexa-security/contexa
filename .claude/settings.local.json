@@ -60,7 +60,16 @@
       "Bash(cmd /c \"gradlew.bat clean compileJava --info 2>&1\")",
       "Bash(cmd /c \"gradlew.bat build -x test --continue 2>&1\")",
       "Bash(powershell -Command \".\\\\gradlew.bat :contexa-core:compileJava 2>&1\")",
-      "Bash(./gradlew.bat :contexa-core:compileJava:*)"
+      "Bash(./gradlew.bat :contexa-core:compileJava:*)",
+      "Bash(mvn.cmd compile:*)",
+      "Bash(./mvnw compile:*)",
+      "Bash(powershell.exe -Command \"cd d:\\\\projects\\\\contexa; mvn compile -pl contexa-core -q\")",
+      "Bash(powershell.exe -Command:*)",
+      "Bash(cmd.exe /c \"mvnw.cmd compile -pl contexa-core -q\")",
+      "Bash(cmd.exe /c \"mvnw.cmd compile -q\")",
+      "Bash(cmd.exe /c \"gradlew.bat compileJava -p contexa-core --quiet\")",
+      "Bash(cmd.exe /c \"cd /d d:\\\\projects\\\\contexa && gradlew.bat compileJava -p contexa-core --quiet\")",
+      "Bash(cmd.exe /c \"cd /d d:\\\\projects\\\\contexa && gradlew.bat compileJava --quiet\")"
     ],
     "deny": [],
     "ask": []

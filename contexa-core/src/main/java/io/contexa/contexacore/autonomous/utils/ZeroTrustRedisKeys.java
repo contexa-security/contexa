@@ -165,6 +165,45 @@ public class ZeroTrustRedisKeys {
         return String.format("security:blocked:users:%s", userId);
     }
 
+    /**
+     * 사용자 BLOCK 횟수 (AI Native v5.1.0)
+     *
+     * 플랫폼 명제: "인증된 사용자가 진짜인가?" 검증
+     * - IP 기반이 아닌 userId 기반으로 과거 이력 추적
+     * - 이 사용자가 과거에 몇 번 BLOCK 판정을 받았는지 기록
+     *
+     * Format: security:user:block:count:{userId}
+     * Type: Integer
+     * TTL: 30 days
+     *
+     * 사용처:
+     * - Layer2ExpertStrategy: HISTORICAL CONTEXT 구성
+     * - ColdPathEventProcessor: BLOCK 판정 시 증가
+     */
+    public static String userBlockCount(String userId) {
+        validateUserId(userId);
+        return String.format("%s:user:block:count:%s", NAMESPACE, userId);
+    }
+
+    /**
+     * 사용자 CHALLENGE 횟수 (AI Native v5.1.0)
+     *
+     * 플랫폼 명제: "인증된 사용자가 진짜인가?" 검증
+     * - 이 사용자가 과거에 몇 번 MFA 인증 요청을 받았는지 기록
+     *
+     * Format: security:user:challenge:count:{userId}
+     * Type: Integer
+     * TTL: 30 days
+     *
+     * 사용처:
+     * - Layer2ExpertStrategy: HISTORICAL CONTEXT 구성
+     * - MfaAuthenticationSuccessHandler: CHALLENGE 성공 시 증가
+     */
+    public static String userChallengeCount(String userId) {
+        validateUserId(userId);
+        return String.format("%s:user:challenge:count:%s", NAMESPACE, userId);
+    }
+
     // ============================================
     // THREAT INTELLIGENCE KEYS
     // ============================================

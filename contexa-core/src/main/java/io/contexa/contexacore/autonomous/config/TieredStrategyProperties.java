@@ -7,7 +7,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Tiered Strategy 설정 Properties
  *
- * Layer1/Layer2/Layer3 전략에서 사용하는 하드코딩된 값들을 설정으로 분리합니다.
+ * AI Native v5.1.0: 2-Tier 구조 (Layer1 Contextual + Layer2 Expert)
+ * Layer1/Layer2 전략에서 사용하는 하드코딩된 값들을 설정으로 분리합니다.
  * AI Native 원칙에 따라 플랫폼이 임계값을 강제하지 않으며,
  * 이 값들은 모니터링/로깅/캐시 관리 목적으로만 사용됩니다.
  *
@@ -21,23 +22,61 @@ public class TieredStrategyProperties {
 
     private Layer1 layer1 = new Layer1();
     private Layer2 layer2 = new Layer2();
-    private Layer3 layer3 = new Layer3();
+    // AI Native v5.1.0: layer3 필드 삭제 - 시스템은 2-Tier 구조
     private Truncation truncation = new Truncation();
+    private Security security = new Security();
+
+    /**
+     * Zero Trust 보안 설정 (D1: IP 주소 검증)
+     *
+     * X-Forwarded-For 헤더 스푸핑 방지를 위한 신뢰 프록시 목록.
+     * 이 목록에 있는 IP에서 온 요청만 X-Forwarded-For 헤더를 신뢰합니다.
+     *
+     * 문제:
+     * - X-Forwarded-For는 클라이언트가 임의로 설정 가능
+     * - 프록시 체인 검증 없이 첫 번째 IP를 신뢰하면 스푸핑 가능
+     *
+     * 해결:
+     * - request.getRemoteAddr()가 trustedProxies에 있을 때만 X-Forwarded-For 사용
+     * - 그 외에는 request.getRemoteAddr() 직접 사용
+     */
+    @Data
+    public static class Security {
+        /**
+         * 신뢰할 수 있는 프록시 IP 목록
+         *
+         * 예: ["127.0.0.1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+         * - 로드 밸런서, 리버스 프록시, API Gateway 등
+         * - CIDR 표기법 지원 (예: "10.0.0.0/8")
+         *
+         * 빈 목록이면 X-Forwarded-For를 사용하지 않음 (가장 안전)
+         */
+        private java.util.List<String> trustedProxies = java.util.Collections.emptyList();
+
+        /**
+         * 신뢰 프록시 검증 활성화 여부
+         *
+         * - true (기본값): trustedProxies 목록 기반 검증 수행
+         * - false: 기존 동작 유지 (X-Forwarded-For 무조건 신뢰) - 개발 환경용
+         *
+         * 프로덕션에서는 반드시 true로 설정해야 합니다.
+         */
+        private boolean trustedProxyValidationEnabled = true;
+    }
 
     /**
      * Truncation 정책 설정 (Phase 2-6)
      *
      * LLM 분석에 영향을 주는 데이터 잘림 정책입니다.
-     * Layer별로 성능과 정확도의 균형을 고려하여 설정합니다.
+     * AI Native v5.1.0: 2-Tier 구조 (Layer1 + Layer2)
      * - Layer1: 성능 우선 (짧은 길이)
-     * - Layer2: 균형
-     * - Layer3: 정확도 우선 (긴 길이)
+     * - Layer2: 균형 (전문가 분석)
      */
     @Data
     public static class Truncation {
         private Layer1Truncation layer1 = new Layer1Truncation();
         private Layer2Truncation layer2 = new Layer2Truncation();
-        private Layer3Truncation layer3 = new Layer3Truncation();
+        // AI Native v5.1.0: layer3 삭제 - 시스템은 2-Tier 구조
 
         @Data
         public static class Layer1Truncation {
@@ -45,6 +84,8 @@ public class TieredStrategyProperties {
             private int payload = 200;
             private int authzReason = 80;
             private int baselineContext = 150;
+            private int ragDocument = 300;  // RAG 문서 내용 길이 제한
+            // AI Native v5.1.0: source 필드 삭제 - 파일 경로는 LLM 보안 분석에 불필요
         }
 
         @Data
@@ -53,19 +94,10 @@ public class TieredStrategyProperties {
             private int payload = 1000;
             private int ragDocument = 500;
             private int reasoning = 100;
-            private int source = 50;
+            // AI Native v5.1.0: source 필드 삭제 - 파일 경로는 LLM 보안 분석에 불필요
         }
 
-        @Data
-        public static class Layer3Truncation {
-            private int userAgent = 200;
-            private int payload = 500;
-            private int iocMatches = 256;
-            private int campaigns = 100;
-            private int vulnerabilities = 150;
-            private int reasoning = 100;
-            private int compliance = 100;
-        }
+        // AI Native v5.1.0: Layer3Truncation 삭제 - 시스템은 2-Tier 구조
     }
 
     @Data
@@ -210,42 +242,15 @@ public class TieredStrategyProperties {
              */
             private double similarityThreshold = 0.0;
 
-            /**
-             * 위협 액터 검색 결과 최대 개수
-             * findKnownThreatActors()에서 사용
-             */
-            private int threatActorLimit = 5;
-
-            /**
-             * 캠페인 검색 결과 최대 개수
-             * identifyRelatedCampaigns()에서 사용
-             */
-            private int campaignLimit = 5;
+            // AI Native v5.1.0: threatActorLimit, campaignLimit 삭제
+            // - findKnownThreatActors(), identifyRelatedCampaigns() 메서드 제거됨
+            // - 플랫폼 핵심: "인증된 사용자가 진짜인가?" 검증
+            // - 익명 공격자 탐지 (APT, 캠페인)는 플랫폼 역할이 아님
         }
     }
 
-    @Data
-    public static class Layer3 {
-        private Rag rag = new Rag();
-
-        @Data
-        public static class Rag {
-            /**
-             * 위협 액터 검색 결과 최대 개수
-             * findKnownThreatActors()에서 사용
-             */
-            private int threatActorLimit = 5;
-
-            /**
-             * 캠페인 검색 결과 최대 개수
-             * identifyRelatedCampaigns()에서 사용
-             */
-            private int campaignLimit = 5;
-
-            // 기존 @Value로 설정된 값들은 유지 (중복 방지)
-            // spring.ai.security.tiered.layer3.rag.top-k
-            // spring.ai.security.tiered.layer3.rag.threat-actor-similarity-threshold
-            // spring.ai.security.tiered.layer3.rag.campaign-similarity-threshold
-        }
-    }
+    // AI Native v5.1.0: Layer3 클래스 삭제
+    // - 시스템은 현재 2-Tier 구조: Layer1 Contextual + Layer2 Expert
+    // - Layer3ExpertStrategy, Layer3PromptTemplate 존재하지 않음
+    // - 이 클래스는 데드 코드였음
 }

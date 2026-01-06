@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 /**
  * PromptTemplate 공통 유틸리티 클래스
  *
- * Layer1/Layer2/Layer3 PromptTemplate에서 중복되는 메서드들을 통합합니다.
+ * AI Native v5.1.0: 2-Tier 구조 (Layer1 Contextual + Layer2 Expert)
+ * Layer1/Layer2 PromptTemplate에서 중복되는 메서드들을 통합합니다.
  * - 데이터 유효성 검사
  * - metadata 추출
  * - 데이터 품질 계산
@@ -174,6 +175,7 @@ public final class PromptTemplateUtils {
         }
 
         // 2. HIGH 필드 평가 (중요하지만 필수 아님)
+        Map<String, Object> metadata = event.getMetadata();
         if (metadata == null || !metadata.containsKey("isNewSession")) {
             highMissing.add("isNewSession");
         }

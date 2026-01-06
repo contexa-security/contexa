@@ -34,9 +34,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -260,25 +258,18 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
 
         // SECONDARY SOURCE: Redis (보강만, 실패해도 무시)
-        // H1: Redis 타임아웃 적용 - 무한 대기 방지
+        // AI Native v6.0: CompletableFuture 제거 - Redis 클라이언트 레벨 타임아웃 사용
+        // spring.data.redis.timeout 설정으로 타임아웃 관리
         if (sessionId != null && redisTemplate != null) {
-            long redisTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getRedisMs();
             try {
-                CompletableFuture<List<String>> future = CompletableFuture.supplyAsync(() -> {
-                    @SuppressWarnings("unchecked")
-                    List<String> actions = (List<String>) (List<?>) redisTemplate.opsForList()
-                            .range(ZeroTrustRedisKeys.sessionActions(sessionId), -10, -1);
-                    return actions;
-                });
-                List<String> recentActions = future.get(redisTimeoutMs, TimeUnit.MILLISECONDS);
+                @SuppressWarnings("unchecked")
+                List<String> recentActions = (List<String>) (List<?>) redisTemplate.opsForList()
+                        .range(ZeroTrustRedisKeys.sessionActions(sessionId), -10, -1);
                 if (recentActions != null && !recentActions.isEmpty()) {
                     context.setRecentActions(recentActions);
                 }
-            } catch (TimeoutException e) {
-                log.warn("[Layer1] Redis session actions timeout ({}ms) for session {}",
-                    redisTimeoutMs, sessionId);
             } catch (Exception e) {
-                log.debug("Redis enrichment failed: {}", e.getMessage());
+                log.debug("[Layer1] Redis enrichment failed: {}", e.getMessage());
             }
         }
 
@@ -319,13 +310,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 "This should not happen in authenticated platform. Recommend ESCALATE.");
             analysis.setBaselineEstablished(false);
         } else {
-            // AI Native v4.3.0: Baseline 서비스 타임아웃 적용
-            long baselineTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getBaselineMs();
+            // AI Native v6.0: CompletableFuture 제거 - 직접 호출
+            // Baseline 서비스의 내부 타임아웃 설정에 의존
             try {
-                CompletableFuture<String> future = CompletableFuture.supplyAsync(() ->
-                    baselineLearningService.buildBaselinePromptContext(userId, event)
-                );
-                String baselineContext = future.get(baselineTimeoutMs, TimeUnit.MILLISECONDS);
+                String baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
 
                 if (baselineContext == null || baselineContext.isEmpty()) {
                     analysis.setBaselineContext("[NO_DATA] Baseline service returned empty response");
@@ -334,17 +322,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     log.debug("[Layer1] Baseline context generated for user {}", userId);
                 }
 
-                // Baseline 존재 여부 확인 (별도 타임아웃 적용)
-                CompletableFuture<Boolean> baselineExistsFuture = CompletableFuture.supplyAsync(() ->
-                    baselineLearningService.getBaseline(userId) != null
-                );
-                analysis.setBaselineEstablished(baselineExistsFuture.get(baselineTimeoutMs, TimeUnit.MILLISECONDS));
+                // Baseline 존재 여부 확인
+                analysis.setBaselineEstablished(baselineLearningService.getBaseline(userId) != null);
 
-            } catch (TimeoutException e) {
-                log.warn("[Layer1][AI Native v4.3.0] Baseline service timeout ({}ms) for user {}",
-                    baselineTimeoutMs, userId);
-                analysis.setBaselineContext("[SERVICE_TIMEOUT] Baseline service did not respond in time");
-                analysis.setBaselineEstablished(false);
             } catch (Exception e) {
                 log.warn("[Layer1] Baseline service error for user {}: {}", userId, e.getMessage());
                 analysis.setBaselineContext("[SERVICE_ERROR] Baseline service error: " + e.getMessage());
@@ -461,8 +441,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             return Collections.emptyList();
         }
 
-        long vectorSearchTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getVectorSearchMs();
-
         try {
             // M3: AI Native - "unknown" 하드코딩 제거
             String httpMethod = eventEnricher.getHttpMethod(event).orElse(null);
@@ -518,22 +496,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     .filterExpression(documentTypeFilter)
                     .build();
 
-            // AI Native v4.3.0: 벡터 검색 타임아웃 적용
-            CompletableFuture<List<Document>> future = CompletableFuture.supplyAsync(() ->
-                unifiedVectorService.searchSimilar(searchRequest)
-            );
-
-            List<Document> documents = future.get(vectorSearchTimeoutMs, TimeUnit.MILLISECONDS);
+            // AI Native v6.0: CompletableFuture 제거 - 직접 호출
+            // VectorStore 클라이언트의 내부 타임아웃 설정에 의존
+            List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
 
             log.debug("RAG behavioral context search: {} documents found for event {}",
                 documents != null ? documents.size() : 0, event.getEventId());
 
             return documents != null ? documents : Collections.emptyList();
 
-        } catch (TimeoutException e) {
-            log.warn("[Layer1][AI Native v4.3.0] Vector search timeout ({}ms) for event {}",
-                vectorSearchTimeoutMs, event.getEventId());
-            return Collections.emptyList();
         } catch (Exception e) {
             log.debug("Vector store context search failed", e);
             return Collections.emptyList();
@@ -549,7 +520,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setUserId(sessionContext.getUserId());
         ctx.setAuthMethod(sessionContext.getAuthMethod());
         ctx.setRecentActions(sessionContext.getRecentActions());
-        ctx.setSessionDuration(sessionContext.getSessionDuration());
+        // AI Native v6.0: setSessionDuration() 호출 삭제 - Dead Code (프롬프트 미사용)
         // AI Native v4.2.0: setAccessPattern() 호출 삭제 - 프롬프트 미사용
         return ctx;
     }
