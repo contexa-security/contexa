@@ -137,9 +137,16 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             // AI Native v5.0.0: Layer1 컨텍스트 수집 (동일 원본 데이터)
             // Layer2도 원본 데이터를 직접 분석하여 독립적인 검증 수행
-            SessionContext sessionContext = buildSessionContext(event);
-            BehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatterns(event);
+            BaseSessionContext sessionContext = buildSessionContext(event);
+            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatterns(event);
             List<Document> relatedDocuments = searchRelatedContext(event);
+
+            // AI Native v6.0: Zero Trust - 세션 하이재킹 탐지
+            boolean sessionContextChanged = detectSessionContextChange(event, sessionContext);
+            if (sessionContextChanged) {
+                log.warn("[Layer2][Zero Trust] Session hijacking suspected for event {}: IP or User-Agent changed",
+                    event.getEventId());
+            }
 
             // Layer2 전용 컨텍스트 수집
             // v5.1.0: gatherThreatIntelligence() 제거 - 익명 공격자 탐지용 (플랫폼 역할 아님)
@@ -165,6 +172,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             Layer2SecurityResponse response = null;
             if (llmOrchestrator != null) {
+                // AI Native v6.0: temperature=0.0 for deterministic output (consistent LLM responses)
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(2)
@@ -172,6 +180,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         .securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
                         .timeoutMs((int)timeoutMs)
                         .requestId(event.getEventId())
+                        .temperature(0.0)
+                        .topP(1.0)  // 결정적 출력을 위한 top-p 파라미터
                         .build();
 
                 String jsonResponse = llmOrchestrator.execute(context)
@@ -388,28 +398,33 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
      * AI Native v5.0.0: 세션 컨텍스트 구축 (Layer1과 동일 패턴)
      * Layer2도 원본 데이터를 직접 분석하여 독립적인 검증 수행
      * PRIMARY: SecurityEvent -> SECONDARY: Redis (보강)
+     *
+     * AI Native v6.0: Zero Trust 세션 하이재킹 탐지 추가
      */
-    private SessionContext buildSessionContext(SecurityEvent event) {
+    private BaseSessionContext buildSessionContext(SecurityEvent event) {
         String sessionId = event.getSessionId();
 
         // PRIMARY SOURCE: SecurityEvent
-        SessionContext context = new SessionContext();
+        // AI Native v6.0: BaseSessionContext 직접 사용 (중복 클래스 제거)
+        BaseSessionContext context = new BaseSessionContext();
         context.setSessionId(sessionId);
         context.setUserId(event.getUserId());
         context.setIpAddress(event.getSourceIp());
         context.setStartTime(LocalDateTime.now());
 
-        // authMethod 및 recentRequestCount 추출 (metadata)
+        // AI Native v6.0: authMethod 필드 제거 - AuthorizationDecisionEvent에 해당 필드 없음
+        // recentRequestCount 추출 (metadata)
         if (event.getMetadata() != null) {
-            Object authMethodObj = event.getMetadata().get("authMethod");
-            if (authMethodObj != null) {
-                context.setAuthMethod(authMethodObj.toString());
-            }
-
             Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
             if (recentRequestCountObj instanceof Number) {
                 context.setAccessFrequency(((Number) recentRequestCountObj).intValue());
             }
+        }
+
+        // AI Native v6.0: User-Agent 설정 (세션 하이재킹 탐지용)
+        // SecurityEvent.userAgent 필드에서 직접 가져옴 (metadata 아님)
+        if (event.getUserAgent() != null) {
+            context.setUserAgent(event.getUserAgent());
         }
 
         // SECONDARY SOURCE: Redis (보강만, 실패해도 무시)
@@ -430,46 +445,45 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v5.0.0: 행동 패턴 분석 (Layer1과 동일 패턴)
-     * Layer2도 원본 데이터를 직접 분석하여 독립적인 검증 수행
+     * AI Native v6.0: Zero Trust 세션 컨텍스트 변경 감지 (세션 하이재킹 탐지)
+     *
+     * AbstractTieredStrategy의 공통 메서드를 호출하여 중복 제거
+     *
+     * @param event 현재 SecurityEvent
+     * @param currentContext 현재 세션 컨텍스트
+     * @return 컨텍스트 변경 시 true (세션 하이재킹 가능성)
      */
-    private BehaviorAnalysis analyzeBehaviorPatterns(SecurityEvent event) {
-        BehaviorAnalysis analysis = new BehaviorAnalysis();
-        String userId = event.getUserId();
-
-        // 유사 이벤트 조회 (유지 - raw 데이터)
-        List<String> similarEvents = findSimilarEventsForBehavior(event);
-        analysis.setSimilarEvents(similarEvents);
-
-        // Zero Trust: 서비스 상태를 명시적으로 LLM에게 전달
-        if (baselineLearningService == null) {
-            analysis.setBaselineContext("[SERVICE_UNAVAILABLE] Baseline learning service not configured");
-            analysis.setBaselineEstablished(false);
-        } else if (userId == null) {
-            log.error("[Layer2][SYSTEM_ERROR] userId is null - authentication system failure");
-            analysis.setBaselineContext("[SYSTEM_ERROR] Authentication failure - userId unavailable");
-            analysis.setBaselineEstablished(false);
-        } else {
-            try {
-                String baselineContext = baselineLearningService.buildBaselinePromptContext(userId, event);
-
-                if (baselineContext == null || baselineContext.isEmpty()) {
-                    analysis.setBaselineContext("[NO_DATA] Baseline service returned empty response");
-                } else {
-                    analysis.setBaselineContext(baselineContext);
-                    log.debug("[Layer2] Baseline context generated for user {}", userId);
-                }
-
-                analysis.setBaselineEstablished(baselineLearningService.getBaseline(userId) != null);
-
-            } catch (Exception e) {
-                log.warn("[Layer2] Baseline service error for user {}: {}", userId, e.getMessage());
-                analysis.setBaselineContext("[SERVICE_ERROR] Baseline service error: " + e.getMessage());
-                analysis.setBaselineEstablished(false);
-            }
+    private boolean detectSessionContextChange(SecurityEvent event, BaseSessionContext currentContext) {
+        if (event == null || currentContext == null) {
+            return false;
         }
 
-        return analysis;
+        // AbstractTieredStrategy의 공통 메서드 호출
+        return isSessionContextChangedFromRedis(
+            event.getSessionId(),
+            currentContext.getIpAddress(),
+            currentContext.getUserAgent(),
+            redisTemplate
+        );
+    }
+
+    /**
+     * AbstractTieredStrategy 추상 메서드 구현
+     * Layer2 유사 이벤트 검색 (벡터 서비스, 폴백 없음)
+     */
+    @Override
+    protected List<String> findSimilarEventsForLayer(SecurityEvent event) {
+        return findSimilarEventsForBehavior(event);
+    }
+
+    /**
+     * AI Native v6.0: 행동 패턴 분석 (AbstractTieredStrategy 공통 메서드 호출)
+     * Layer2도 원본 데이터를 직접 분석하여 독립적인 검증 수행
+     * - 중복 코드 제거, 공통 로직 재사용
+     * - Zero Trust / AI Native 원칙 유지
+     */
+    private BaseBehaviorAnalysis analyzeBehaviorPatterns(SecurityEvent event) {
+        return analyzeBehaviorPatternsBase(event, baselineLearningService);
     }
 
     /**
@@ -516,82 +530,20 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v5.0.0: 벡터 스토어에서 관련 문서 검색 (Layer1과 동일 패턴)
+     * AI Native v6.0: 벡터 스토어에서 관련 문서 검색 (AbstractTieredStrategy 공통 메서드 호출)
      * Layer2도 원본 RAG 데이터를 직접 검색하여 독립적인 분석 수행
+     * - 중복 코드 제거, 공통 로직 재사용
+     * - AI Native / Zero Trust 원칙 유지
      */
     private List<Document> searchRelatedContext(SecurityEvent event) {
-        if (unifiedVectorService == null) {
-            return Collections.emptyList();
-        }
-
-        try {
-            String httpMethod = eventEnricher.getHttpMethod(event).orElse(null);
-
-            StringBuilder queryBuilder = new StringBuilder();
-
-            // 1. 이벤트 설명 (가장 중요한 검색 키워드)
-            if (event.getDescription() != null && !event.getDescription().isEmpty()) {
-                queryBuilder.append(event.getDescription()).append(" ");
-            }
-
-            // 2. 요청 경로 (targetResource)
-            String targetResource = eventEnricher.getTargetResource(event).orElse(null);
-            if (targetResource != null && !targetResource.isEmpty()) {
-                queryBuilder.append(targetResource).append(" ");
-            }
-
-            // 3. HTTP 메서드
-            if (httpMethod != null && !"unknown".equalsIgnoreCase(httpMethod)) {
-                queryBuilder.append(httpMethod).append(" ");
-            }
-
-            // 4. 사용자 ID
-            if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
-                queryBuilder.append("user:").append(event.getUserId()).append(" ");
-            }
-
-            // 5. 소스 IP
-            if (event.getSourceIp() != null) {
-                queryBuilder.append("IP:").append(event.getSourceIp()).append(" ");
-            }
-
-            String query = queryBuilder.toString().trim();
-            if (query.isEmpty()) {
-                log.debug("[Layer2][AI Native] Empty query, skipping vector search for event {}",
-                    event.getEventId());
-                return Collections.emptyList();
-            }
-
-            double similarityThreshold = tieredStrategyProperties.getLayer2().getRag().getSimilarityThreshold();
-
-            String documentTypeFilter = String.format("documentType == '%s'",
-                VectorDocumentType.BEHAVIOR.getValue());
-
-            org.springframework.ai.vectorstore.SearchRequest searchRequest =
-                org.springframework.ai.vectorstore.SearchRequest.builder()
-                    .query(query)
-                    .topK(ragTopK)
-                    .similarityThreshold(similarityThreshold)
-                    .filterExpression(documentTypeFilter)
-                    .build();
-
-            List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
-
-            log.debug("[Layer2] RAG behavioral context search: {} documents found for event {}",
-                documents != null ? documents.size() : 0, event.getEventId());
-
-            return documents != null ? documents : Collections.emptyList();
-
-        } catch (Exception e) {
-            log.debug("[Layer2] Vector store context search failed", e);
-            return Collections.emptyList();
-        }
+        double similarityThreshold = tieredStrategyProperties.getLayer2().getRag().getSimilarityThreshold();
+        return searchRelatedContextBase(event, unifiedVectorService, eventEnricher, ragTopK, similarityThreshold);
     }
 
     /**
      * AI Native v5.0.0: SessionContext를 Layer2PromptTemplate.SessionContext로 변환
      */
-    private Layer2PromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
+    private Layer2PromptTemplate.SessionContext convertToTemplateSessionContext(BaseSessionContext sessionContext) {
         Layer2PromptTemplate.SessionContext ctx = new Layer2PromptTemplate.SessionContext();
         ctx.setSessionId(sessionContext.getSessionId());
         ctx.setUserId(sessionContext.getUserId());
@@ -603,7 +555,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     /**
      * AI Native v5.0.0: BehaviorAnalysis를 Layer2PromptTemplate.BehaviorAnalysis로 변환
      */
-    private Layer2PromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(BehaviorAnalysis behaviorAnalysis) {
+    private Layer2PromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(BaseBehaviorAnalysis behaviorAnalysis) {
         Layer2PromptTemplate.BehaviorAnalysis ctx = new Layer2PromptTemplate.BehaviorAnalysis();
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
@@ -704,17 +656,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             return createDefaultResponse();
         }
 
-        // AI Native: confidence가 null이면 NaN 사용 (강제 상향 금지)
-        if (response.getConfidence() == null) {
-            log.warn("[Layer2][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)");
-            response.setConfidence(Double.NaN);
-        }
-
-        // AI Native: riskScore가 null이면 NaN 사용 (기본값 금지)
-        if (response.getRiskScore() == null) {
-            log.warn("[Layer2][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)");
-            response.setRiskScore(Double.NaN);
-        }
+        // AI Native v6.0: AbstractTieredStrategy.validateResponseBase() 공통 메서드 활용
+        // - 중복 코드 제거, AI Native 원칙 일관성 유지
+        // - null인 경우 NaN으로 변환 (플랫폼이 임의 값 설정 금지)
+        double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
+        response.setRiskScore(validated[0]);
+        response.setConfidence(validated[1]);
 
         // v5.1.0: tactics, techniques, iocIndicators 검증 코드 삭제
         // - Layer2SecurityResponse에서 해당 필드들 제거됨
@@ -1143,68 +1090,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         public void setPreviousChallenges(int count) { this.previousChallenges = count; }
     }
 
-    /**
-     * AI Native v5.0.0: 세션 컨텍스트 (Layer1과 동일 구조)
-     * Layer2도 원본 데이터를 직접 분석하여 독립적인 검증 수행
-     */
-    private class SessionContext {
-        private String sessionId;
-        private String userId;
-        private String authMethod;
-        private LocalDateTime startTime;
-        private String ipAddress;
-        private List<String> recentActions = new ArrayList<>();
-        private int accessFrequency = 0;
-
-        public boolean isValid() {
-            return startTime != null;
-        }
-
-        public long getSessionDuration() {
-            if (startTime == null) return 0;
-            return Duration.between(startTime, LocalDateTime.now()).toMinutes();
-        }
-
-        public String getSessionId() { return sessionId; }
-        public void setSessionId(String sessionId) { this.sessionId = sessionId; }
-
-        public String getUserId() { return userId; }
-        public void setUserId(String userId) { this.userId = userId; }
-
-        public String getAuthMethod() { return authMethod; }
-        public void setAuthMethod(String authMethod) { this.authMethod = authMethod; }
-
-        public LocalDateTime getStartTime() { return startTime; }
-        public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
-
-        public String getIpAddress() { return ipAddress; }
-        public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
-
-        public List<String> getRecentActions() { return recentActions; }
-        public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
-
-        public int getAccessFrequency() { return accessFrequency; }
-        public void setAccessFrequency(int accessFrequency) { this.accessFrequency = accessFrequency; }
-    }
-
-    /**
-     * AI Native v5.0.0: 행동 분석 (Layer1과 동일 구조)
-     * Layer2도 원본 데이터를 직접 분석하여 독립적인 검증 수행
-     */
-    private static class BehaviorAnalysis {
-        private List<String> similarEvents = new ArrayList<>();
-        private String baselineContext;
-        private boolean baselineEstablished;
-
-        public List<String> getSimilarEvents() { return similarEvents; }
-        public void setSimilarEvents(List<String> events) { this.similarEvents = events; }
-
-        public String getBaselineContext() { return baselineContext; }
-        public void setBaselineContext(String baselineContext) { this.baselineContext = baselineContext; }
-
-        public boolean isBaselineEstablished() { return baselineEstablished; }
-        public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
-    }
+    // AI Native v6.0: SessionContext 클래스 삭제 - AbstractTieredStrategy.BaseSessionContext 사용
+    // AI Native v6.0: BehaviorAnalysis 클래스 삭제 - AbstractTieredStrategy.BaseBehaviorAnalysis 사용
 
     /**
      * AbstractTieredStrategy의 getLayerName() 구현
@@ -1336,41 +1223,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
      */
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, Layer2SecurityResponse response, String analysisContent) {
         try {
-            Map<String, Object> threatMetadata = new HashMap<>();
+            // AI Native v6.0: AbstractTieredStrategy.buildBaseMetadata() 공통 메서드 활용
+            Map<String, Object> threatMetadata = buildBaseMetadata(event, decision, VectorDocumentType.THREAT.getValue());
 
-            // 위협 전용 documentType
-            threatMetadata.put("documentType", VectorDocumentType.THREAT.getValue());
-            double riskScore = decision.getRiskScore();
-            if (!Double.isNaN(riskScore)) {
-                threatMetadata.put("riskScore", riskScore);
-            }
-
-            // 기본 정보
-            if (event.getEventId() != null) {
-                threatMetadata.put("eventId", event.getEventId());
-            }
-            threatMetadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            if (event.getUserId() != null) {
-                threatMetadata.put("userId", event.getUserId());
-            }
-            if (event.getSourceIp() != null) {
-                threatMetadata.put("sourceIp", event.getSourceIp());
-            }
-            if (event.getSessionId() != null) {
-                threatMetadata.put("sessionId", event.getSessionId());
-            }
-
-            // v5.1.0: MITRE 정보 (mitre 필드 사용)
+            // v5.1.0: MITRE 정보 (Layer2 특화 필드)
             if (response.getMitre() != null && !response.getMitre().isEmpty()) {
                 threatMetadata.put("mitreTactic", response.getMitre());
             }
-
-            // LLM 결정 정보
-            double confidence = decision.getConfidence();
-            if (!Double.isNaN(confidence)) {
-                threatMetadata.put("confidence", confidence);
-            }
-            threatMetadata.put("action", decision.getAction().toString());
 
             // v5.1.0: 위협 설명 (간소화)
             String threatDescription = String.format(

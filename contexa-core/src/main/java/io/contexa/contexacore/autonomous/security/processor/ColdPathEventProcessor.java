@@ -146,23 +146,28 @@ public class ColdPathEventProcessor implements IPathProcessor {
             // 분석 레벨 기록 (항상 계층적 분석 사용)
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
 
-            // 비동기로 감사 필수 데이터만 기록 + Baseline 학습
+            // AI Native v6.0: Race Condition 방지를 위한 동기/비동기 분리
             final String finalUserId = userId;
             final SecurityEvent finalEvent = event;
             final ThreatAnalysisResult finalAnalysisResult = analysisResult;
 
-            CompletableFuture.runAsync(() -> {
-                // AI Native: LLM 분석 결과를 Redis에 저장 (security:hcad:analysis)
-                // 다음 요청에서 HCADAnalysisService와 ZeroTrustSecurityService가 조회
+            // 동기: Redis 분석 결과 저장 (중요 데이터 - 일관성 보장 필수)
+            // 다음 요청에서 HCADAnalysisService와 ZeroTrustSecurityService가 조회
+            try {
                 saveAnalysisToRedis(finalUserId, finalAnalysisResult);
+            } catch (Exception ex) {
+                log.error("[ColdPath][CRITICAL] Redis 분석 결과 저장 실패 (동기): userId={}, eventId={}",
+                    userId, event.getEventId(), ex);
+                // Redis 저장 실패는 결과에 영향 없음 (다음 요청에서 재분석됨)
+            }
 
-                // AI Native: Baseline Learning
-                // LLM이 ALLOW + confidence >= 0.7 판정한 정상 요청을 학습
-                // 다음 요청의 Layer1 프롬프트에서 비교 기준선으로 제공
+            // 비동기: Baseline 학습 (비-치명적)
+            // LLM이 ALLOW + confidence >= 0.7 판정한 정상 요청을 학습
+            // 실패해도 시스템 동작에 영향 없음
+            CompletableFuture.runAsync(() -> {
                 learnFromAnalysisResult(finalUserId, finalEvent, finalAnalysisResult);
             }).exceptionally(ex -> {
-                log.error("Failed to save analysis to Redis: userId={}, eventId={}",
-                    userId, event.getEventId(), ex);
+                log.error("[ColdPath] Baseline 학습 실패 (비-치명적): userId={}", finalUserId, ex);
                 return null;
             });
             

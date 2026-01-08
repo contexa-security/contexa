@@ -42,24 +42,29 @@ public class Layer1PromptTemplate {
                                BehaviorAnalysis behaviorAnalysis,
                                List<Document> relatedDocuments) {
 
-        Optional<String> httpMethod = eventEnricher.getHttpMethod(event);
+        // AI Native v6.0: httpMethod Dead Code 제거
+        // - 선언 후 프롬프트에서 미사용 (Phase 2 Dead Code 제거)
         // Phase 4: getDecodedPayload() 사용 (Base64/URL 인코딩 자동 디코딩)
         Optional<String> decodedPayload = eventEnricher.getDecodedPayload(event);
 
         // AI Native v4.1.0: Severity 변수 제거 - LLM이 원시 데이터로 직접 판단
-        String payloadSummary = summarizePayload(decodedPayload.orElse(null));
+        // AI Native v6.0: Optional 패턴으로 변경 - 마법 문자열 "empty" 제거
+        Optional<String> payloadSummary = summarizePayload(decodedPayload.orElse(null));
 
         String networkSection = buildNetworkSection(event);
         // Phase 22: buildDataQualitySection() 사용 - 누락 필드 명시적 표시
         // AI Native v6.0: baseline 포함 새 메서드 사용 (@Deprecated 메서드 대체)
-        String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event, behaviorAnalysis.getBaselineContext());
+        // AI Native v6.0 NULL 안전성: behaviorAnalysis null 체크
+        String baselineContextForQuality = (behaviorAnalysis != null) ? behaviorAnalysis.getBaselineContext() : null;
+        String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event, baselineContextForQuality);
 
         // Session Context 핵심만 (AI Native: null 값 처리)
         // AI Native v3.0: accessPattern 제거 - "AccessFrequency: N" 형식만 제공하여 혼란 유발
         // AI Native v4.0: sessionDuration 제거 - isNewSession + recentRequestCount로 대체 가능한 중복 데이터
         // AI Native v6.0: sessionSummary 제거 - userId가 EVENT 섹션에서 이미 출력되므로 중복
         // recentActions가 실제 행동 정보 제공
-        String userId = sessionContext.getUserId();
+        // AI Native v6.0 NULL 안전성: sessionContext null 체크
+        String userId = (sessionContext != null) ? sessionContext.getUserId() : null;
 
         // Behavior 핵심만 - Phase 9: deviationScore 제거 (AI Native 위반)
         // AI Native 원칙: 플랫폼은 raw 데이터만 제공, LLM이 직접 판단
@@ -70,31 +75,42 @@ public class Layer1PromptTemplate {
         // STATUS 라벨 추가: 상태 메시지와 실제 데이터를 명확히 구분하여 LLM 오인 방지
         // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
         // LLM이 직접 비교하여 ALLOW/BLOCK/ESCALATE 판단
+        // AI Native v6.0: 섹션명 통일 - USER BEHAVIOR BASELINE → BASELINE (Layer2와 동일)
         StringBuilder baselineSectionBuilder = new StringBuilder();
-        baselineSectionBuilder.append("=== USER BEHAVIOR BASELINE ===\n");
-        String baselineContext = behaviorAnalysis.getBaselineContext();
-        if (isValidBaseline(baselineContext)) {
-            // 유효한 baseline 데이터 - sanitization 적용
-            String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
-            baselineSectionBuilder.append("STATUS: Available\n");
-            baselineSectionBuilder.append(sanitizedBaseline);
-        } else if (baselineContext != null && baselineContext.startsWith("[")) {
-            // 상태 메시지 (SERVICE_UNAVAILABLE, NO_USER_ID, NO_DATA)
-            baselineSectionBuilder.append("STATUS: ").append(baselineContext).append("\n");
-            baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable");
-        } else if (behaviorAnalysis.isBaselineEstablished()) {
-            baselineSectionBuilder.append("STATUS: [NO_DATA] Baseline available but not loaded\n");
-            baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable");
+        baselineSectionBuilder.append("=== BASELINE ===\n");
+        // AI Native v6.0 NULL 안전성: behaviorAnalysis null 체크
+        // - behaviorAnalysis가 null인 경우: 분석 시스템 오류 또는 초기화 실패
+        // - 명확한 상태 메시지로 LLM에게 데이터 부재 전달
+        if (behaviorAnalysis == null) {
+            baselineSectionBuilder.append("STATUS: [NO_DATA] Behavior analysis unavailable\n");
+            baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable - ESCALATE recommended\n");
         } else {
-            baselineSectionBuilder.append("STATUS: [NEW_USER] No baseline established for this user\n");
-            baselineSectionBuilder.append("IMPACT: Cannot compare against historical patterns");
+            String baselineContext = behaviorAnalysis.getBaselineContext();
+            if (isValidBaseline(baselineContext)) {
+                // 유효한 baseline 데이터 - sanitization 적용
+                String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
+                baselineSectionBuilder.append("STATUS: Available\n");
+                baselineSectionBuilder.append(sanitizedBaseline).append("\n");
+            } else if (baselineContext != null && baselineContext.startsWith("[")) {
+                // 상태 메시지 (SERVICE_UNAVAILABLE, NO_USER_ID, NO_DATA)
+                baselineSectionBuilder.append("STATUS: ").append(baselineContext).append("\n");
+                baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable\n");
+            } else if (behaviorAnalysis.isBaselineEstablished()) {
+                baselineSectionBuilder.append("STATUS: [NO_DATA] Baseline available but not loaded\n");
+                baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable\n");
+            } else {
+                // 신규 사용자: baseline이 아직 확립되지 않음 (정상 상황)
+                baselineSectionBuilder.append("STATUS: [NEW_USER] No baseline established for this user\n");
+                baselineSectionBuilder.append("IMPACT: Cannot compare against historical patterns\n");
+            }
         }
         String baselineSection = baselineSectionBuilder.toString();
 
         // Related Documents - 최대 5개까지 사용, 각 300자 제한
         // Phase 9: RAG 문서 메타데이터 포함 (유사도 점수, 문서 타입)
+        // AI Native v6.0 NULL 안전성: relatedDocuments null 체크
         StringBuilder relatedContextBuilder = new StringBuilder();
-        int maxDocs = Math.min(5, relatedDocuments.size());
+        int maxDocs = (relatedDocuments != null) ? Math.min(5, relatedDocuments.size()) : 0;
         for (int i = 0; i < maxDocs; i++) {
             Document doc = relatedDocuments.get(i);
             String content = doc.getText();
@@ -114,8 +130,10 @@ public class Layer1PromptTemplate {
                 relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
             }
         }
-        String relatedContext = relatedContextBuilder.length() > 0 ?
-            relatedContextBuilder.toString() : "No related context found";
+        // AI Native v6.0: 마법 문자열 "No related context found" 제거
+        // boolean으로 데이터 존재 여부 판단, 문자열 비교 제거
+        boolean hasRelatedDocs = relatedContextBuilder.length() > 0;
+        String relatedContext = hasRelatedDocs ? relatedContextBuilder.toString() : null;
 
         // Phase 9: deviationSection 제거 (AI Native 위반)
         // LLM이 baselineSection의 raw 데이터를 직접 비교하여 판단
@@ -161,51 +179,70 @@ public class Layer1PromptTemplate {
         prompt.append(networkSection).append("\n");
 
         // 3. 페이로드 정보 (있는 경우만)
-        if (!"empty".equals(payloadSummary)) {
+        // AI Native v6.0: Optional 패턴 - 마법 문자열 비교 제거
+        if (payloadSummary.isPresent()) {
             prompt.append("\n=== PAYLOAD ===\n");
-            prompt.append(payloadSummary).append("\n");
+            prompt.append(payloadSummary.get()).append("\n");
         }
 
         // 4. 세션 컨텍스트 (Priority 1: authMethod, recentActions 추가)
         // AI Native v6.0: sessionSummary 제거 - userId가 EVENT 섹션에서 이미 출력됨
         prompt.append("\n=== SESSION ===\n");
-        // authMethod 추가 (Priority 1 Critical) - AI Native v6.0: sanitization 적용
-        String authMethod = sessionContext.getAuthMethod();
-        if (isValidData(authMethod)) {
-            prompt.append("AuthMethod: ").append(PromptTemplateUtils.sanitizeUserInput(authMethod)).append("\n");
-        }
-        // recentActions 추가 (Priority 1 Critical) - 최대 5개
-        // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
-        List<String> recentActions = sessionContext.getRecentActions();
-        if (recentActions != null && !recentActions.isEmpty()) {
-            int maxActions = Math.min(5, recentActions.size());
-            List<String> subList = recentActions.subList(
-                Math.max(0, recentActions.size() - maxActions), recentActions.size());
-            // 각 액션을 sanitize 후 결합
-            String actionsStr = subList.stream()
-                .map(PromptTemplateUtils::sanitizeUserInput)
-                .collect(java.util.stream.Collectors.joining(", "));
-            prompt.append("RecentActions: [").append(actionsStr).append("]\n");
+        // AI Native v6.0 NULL 안전성: sessionContext null 체크
+        // - sessionContext가 null인 경우: 세션 정보 수집 실패 또는 시스템 오류
+        // - 명확한 상태 메시지로 LLM에게 데이터 부재 전달
+        if (sessionContext != null) {
+            // authMethod 추가 (Priority 1 Critical) - AI Native v6.0: sanitization 적용
+            String authMethod = sessionContext.getAuthMethod();
+            if (isValidData(authMethod)) {
+                prompt.append("AuthMethod: ").append(PromptTemplateUtils.sanitizeUserInput(authMethod)).append("\n");
+            }
+            // recentActions 추가 (Priority 1 Critical) - 최대 5개
+            // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
+            List<String> recentActions = sessionContext.getRecentActions();
+            if (recentActions != null && !recentActions.isEmpty()) {
+                int maxActions = Math.min(5, recentActions.size());
+                List<String> subList = recentActions.subList(
+                    Math.max(0, recentActions.size() - maxActions), recentActions.size());
+                // 각 액션을 sanitize 후 결합
+                String actionsStr = subList.stream()
+                    .map(PromptTemplateUtils::sanitizeUserInput)
+                    .collect(java.util.stream.Collectors.joining(", "));
+                prompt.append("RecentActions: [").append(actionsStr).append("]\n");
+            }
+        } else {
+            prompt.append("[NO_DATA] Session context unavailable\n");
         }
 
         // 7. 행동 분석 (Priority 1: similarEvents 상세 내용 추가)
         // AI Native v6.0: behaviorSummary 제거 - 단순 개수는 무의미, 상세 내용만 출력
         prompt.append("\n=== BEHAVIOR ===\n");
-        // similarEvents 상세 내용 (Priority 1 Critical) - 최대 3개
-        // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
-        List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
-        if (similarEvents != null && !similarEvents.isEmpty()) {
-            int maxEvents = Math.min(3, similarEvents.size());
-            prompt.append("SimilarEvents Detail:\n");
-            for (int i = 0; i < maxEvents; i++) {
-                String sanitizedEvent = PromptTemplateUtils.sanitizeUserInput(similarEvents.get(i));
-                prompt.append("  ").append(i + 1).append(". ").append(sanitizedEvent).append("\n");
+        // AI Native v6.0 NULL 안전성: behaviorAnalysis null 체크
+        // - behaviorAnalysis가 null인 경우: 행동 분석 시스템 오류 또는 초기화 실패
+        // - 명확한 상태 메시지로 LLM에게 데이터 부재 전달
+        if (behaviorAnalysis != null) {
+            // similarEvents 상세 내용 (Priority 1 Critical) - 최대 3개
+            // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
+            List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
+            if (similarEvents != null && !similarEvents.isEmpty()) {
+                int maxEvents = Math.min(3, similarEvents.size());
+                prompt.append("SimilarEvents Detail:\n");
+                for (int i = 0; i < maxEvents; i++) {
+                    String sanitizedEvent = PromptTemplateUtils.sanitizeUserInput(similarEvents.get(i));
+                    prompt.append("  ").append(i + 1).append(". ").append(sanitizedEvent).append("\n");
+                }
+            } else {
+                // AI Native v6.0: similarEvents 없을 때 명시적 상태 메시지
+                prompt.append("[NO_DATA] No similar events found\n");
             }
+        } else {
+            prompt.append("[NO_DATA] Behavior analysis unavailable\n");
         }
 
         // 8. 관련 문서 (RAG) - 항상 출력 (Zero Trust)
+        // AI Native v6.0: boolean 패턴 - 마법 문자열 비교 제거
         prompt.append("\n=== RELATED CONTEXT ===\n");
-        if (!"No related context found".equals(relatedContext) && !relatedContext.isEmpty()) {
+        if (hasRelatedDocs) {
             // 유효한 RAG 문서 - sanitization 적용
             String sanitizedContext = PromptTemplateUtils.sanitizeUserInput(relatedContext);
             prompt.append(sanitizedContext).append("\n");
@@ -222,21 +259,27 @@ public class Layer1PromptTemplate {
         prompt.append(dataQualitySection);
 
         // 12. 응답 형식 (AI Native v6.0 - 풀네임 사용으로 LLM 혼란 방지)
+        // AI Native v6.0: A/B/C/E 약어 → ALLOW/BLOCK/CHALLENGE/ESCALATE 풀네임으로 통일
+        // - 파싱 로직 단순화
+        // - LLM 혼동 방지
+        // - Layer1/Layer2 응답 형식 일관성 확보
         prompt.append("""
 
             === ACTIONS ===
-            A (ALLOW): Permit the request
-            B (BLOCK): Deny the request
-            C (CHALLENGE): Request additional verification (MFA)
-            E (ESCALATE): Forward to Layer 2 expert analysis
+            ALLOW: Permit the request
+            BLOCK: Deny the request
+            CHALLENGE: Request additional verification (MFA)
+            ESCALATE: Forward to Layer 2 expert analysis
 
             === RESPONSE FORMAT ===
-            {"riskScore":<0-1>,"confidence":<0-1>,"action":"A|B|C|E","reason":"<reason>"}
+            {"riskScore":<0-1>,"confidence":<0-1>,"action":"ALLOW|BLOCK|CHALLENGE|ESCALATE","reason":"<reason>"}
 
-            riskScore: Your risk assessment (0=safe, 1=critical threat)
-            confidence: Your confidence level (0=uncertain, 1=certain)
-            action: Your action decision
+            riskScore: [REQUIRED] Your risk assessment (0=safe, 1=critical threat) - MUST be a number
+            confidence: [REQUIRED] Your confidence level (0=uncertain, 1=certain) - MUST be a number
+            action: [REQUIRED] Your action decision - MUST be one of: ALLOW, BLOCK, CHALLENGE, ESCALATE (NEVER null)
             reason: Brief reasoning (max 30 tokens)
+
+            CRITICAL: You MUST always provide riskScore, confidence, and action. Never omit any required field.
             """);
 
         return prompt.toString();
@@ -299,17 +342,25 @@ public class Layer1PromptTemplate {
     /**
      * Payload 요약 (Truncation 정책 적용)
      * SQLi, XSS, Webshell 등 분석을 위해 페이로드 확장
+     *
+     * AI Native v6.0: Optional<String> 반환으로 변경
+     * - 마법 문자열 "empty" 제거
+     * - null/empty는 Optional.empty() 반환
+     * - 호출부에서 isPresent()로 체크
+     *
+     * @param payload 원본 페이로드
+     * @return 페이로드가 있으면 Optional.of(summary), 없으면 Optional.empty()
      */
-    private String summarizePayload(String payload) {
+    private Optional<String> summarizePayload(String payload) {
         if (payload == null || payload.isEmpty()) {
-            return "empty";
+            return Optional.empty();
         }
         // AI Native v6.0: Layer1 설정 사용 (Layer2 → Layer1 수정)
         int maxPayload = tieredStrategyProperties.getTruncation().getLayer1().getPayload();
         if (payload.length() > maxPayload) {
-            return payload.substring(0, maxPayload) + "... (truncated)";
+            return Optional.of(payload.substring(0, maxPayload) + "... (truncated)");
         }
-        return payload;
+        return Optional.of(payload);
     }
 
     /**

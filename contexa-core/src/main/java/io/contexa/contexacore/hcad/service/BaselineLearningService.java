@@ -666,6 +666,10 @@ public class BaselineLearningService {
     /**
      * Baseline 조회 (Zero Trust 필수 데이터 포함)
      *
+     * AI Native v6.0: 신규 사용자 Cold Start 문제 해결
+     * - 사용자 Baseline이 없으면 조직 Baseline으로 폴백
+     * - 조직 Baseline도 없으면 null 반환 (기존 동작)
+     *
      * 조회 필드:
      * - userId, avgTrustScore, avgRequestCount, updateCount, confidence, lastUpdated
      * - normalIpRanges: 정상 IP 대역 (CSV -> String[] 변환)
@@ -673,13 +677,51 @@ public class BaselineLearningService {
      * - frequentPaths: 자주 접근하는 경로 (CSV -> String[] 변환)
      *
      * @param userId 사용자 ID
-     * @return BaselineVector (없으면 null)
+     * @return BaselineVector (없으면 조직 Baseline, 그것도 없으면 null)
      */
     public BaselineVector getBaseline(String userId) {
         if (redisTemplate == null || userId == null) {
             return null;
         }
 
+        // 1. 사용자 Baseline 조회 시도
+        BaselineVector userBaseline = getUserBaseline(userId);
+        if (userBaseline != null) {
+            return userBaseline;
+        }
+
+        // 2. 신규 사용자: 조직 Baseline으로 폴백
+        String organizationId = extractOrganizationId(userId);
+        if (organizationId != null) {
+            log.info("[BaselineLearningService] 신규 사용자 {}, 조직 Baseline 사용: {}", userId, organizationId);
+            BaselineVector orgBaseline = getOrganizationBaseline(organizationId);
+            if (orgBaseline != null) {
+                // 조직 Baseline에 사용자 ID 설정하여 반환
+                return BaselineVector.builder()
+                    .userId(userId)
+                    .avgTrustScore(orgBaseline.getAvgTrustScore())
+                    .avgRequestCount(orgBaseline.getAvgRequestCount())
+                    .updateCount(0L)  // 신규 사용자는 0
+                    .confidence(orgBaseline.getConfidence() * 0.7)  // 조직 Baseline은 신뢰도 30% 감소
+                    .lastUpdated(orgBaseline.getLastUpdated())
+                    .normalIpRanges(orgBaseline.getNormalIpRanges())
+                    .normalAccessHours(orgBaseline.getNormalAccessHours())
+                    .frequentPaths(orgBaseline.getFrequentPaths())
+                    .normalUserAgents(null)  // User-Agent는 사용자별 고유
+                    .build();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 사용자별 Baseline 조회 (내부용)
+     *
+     * @param userId 사용자 ID
+     * @return BaselineVector (없으면 null)
+     */
+    private BaselineVector getUserBaseline(String userId) {
         try {
             String key = BASELINE_KEY_PREFIX + userId;
             Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
@@ -704,9 +746,103 @@ public class BaselineLearningService {
                 .build();
 
         } catch (Exception e) {
-            log.error("[BaselineLearningService] Baseline 조회 실패: userId={}", userId, e);
+            log.error("[BaselineLearningService] 사용자 Baseline 조회 실패: userId={}", userId, e);
             return null;
         }
+    }
+
+    /**
+     * 조직 Baseline 조회
+     *
+     * AI Native v6.0: 신규 사용자 Cold Start 문제 해결
+     * - 조직 전체 사용자의 평균 Baseline
+     * - Redis Key: security:hcad:baseline:org:{organizationId}
+     *
+     * @param organizationId 조직 ID
+     * @return 조직 Baseline (없으면 null)
+     */
+    public BaselineVector getOrganizationBaseline(String organizationId) {
+        if (redisTemplate == null || organizationId == null) {
+            return null;
+        }
+
+        try {
+            String key = BASELINE_KEY_PREFIX + "org:" + organizationId;
+            Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
+
+            if (data == null || data.isEmpty()) {
+                log.debug("[BaselineLearningService] 조직 Baseline 없음: {}", organizationId);
+                return null;
+            }
+
+            return BaselineVector.builder()
+                .userId("org:" + organizationId)
+                .avgTrustScore(parseDouble(data.get("avgTrustScore")))
+                .avgRequestCount(parseLong(data.get("avgRequestCount")))
+                .updateCount(parseLong(data.get("updateCount")))
+                .confidence(parseDouble(data.get("confidence")))
+                .lastUpdated(parseInstant(data.get("lastUpdated")))
+                .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
+                .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
+                .frequentPaths(parseStringArray(data.get("frequentPaths")))
+                .build();
+
+        } catch (Exception e) {
+            log.error("[BaselineLearningService] 조직 Baseline 조회 실패: organizationId={}", organizationId, e);
+            return null;
+        }
+    }
+
+    /**
+     * 사용자 ID에서 조직 ID 추출
+     *
+     * 추출 규칙:
+     * - userId 형식: {organizationId}_{username} 또는 {organizationId}@{domain}
+     * - 예: "acme_john", "acme@company.com" -> "acme"
+     * - 분리자가 없으면 기본 조직 "default" 반환
+     *
+     * @param userId 사용자 ID
+     * @return 조직 ID
+     */
+    private String extractOrganizationId(String userId) {
+        if (userId == null || userId.isEmpty()) {
+            return null;
+        }
+
+        // 언더스코어 분리자
+        int underscoreIndex = userId.indexOf('_');
+        if (underscoreIndex > 0) {
+            return userId.substring(0, underscoreIndex);
+        }
+
+        // @ 분리자 (이메일 형식)
+        int atIndex = userId.indexOf('@');
+        if (atIndex > 0) {
+            return userId.substring(0, atIndex);
+        }
+
+        // 분리자가 없으면 기본 조직
+        return "default";
+    }
+
+    /**
+     * Adaptive Alpha 계산
+     *
+     * AI Native v6.0: 학습 횟수 기반 동적 Alpha 조정
+     * - 신규 사용자: 빠른 학습 (alpha=0.3)
+     * - 중간 단계: 중간 학습 (alpha=0.2)
+     * - 안정 단계: 기본 학습 (alpha=0.1)
+     *
+     * @param current 현재 Baseline
+     * @return 적응형 alpha 값
+     */
+    private double calculateAdaptiveAlpha(BaselineVector current) {
+        if (current == null || current.getUpdateCount() < 5) {
+            return 0.3;  // 신규 사용자: 빠른 학습
+        } else if (current.getUpdateCount() < 20) {
+            return 0.2;  // 중간 단계
+        }
+        return alpha;  // 기본값 0.1
     }
 
     /**
@@ -1006,7 +1142,15 @@ public class BaselineLearningService {
         sb.append("RATIONALE:\n");
         sb.append("- Absence of threat evidence is NOT evidence of safety\n");
         sb.append("- First-time attackers have no history to compare\n");
-        sb.append("- Account takeover attackers may use legitimate credentials\n");
+        sb.append("- Account takeover attackers may use legitimate credentials\n\n");
+
+        // AI Native v6.0: HTTP 메서드 기반 위험도 분류 제거
+        // - @Protectable 어노테이션이 붙은 모든 리소스는 보호 대상
+        // - GET 요청이라도 고객 데이터 유출이면 고위험
+        // - 신규 사용자에 대해서는 Zero Trust 원칙 적용: CHALLENGE 또는 ESCALATE 권장
+        sb.append("=== @PROTECTABLE RESOURCE ===\n");
+        sb.append("This resource is marked as @Protectable - security-critical.\n");
+        sb.append("For new users without baseline: CHALLENGE or ESCALATE recommended.\n\n");
 
         return sb.toString();
     }

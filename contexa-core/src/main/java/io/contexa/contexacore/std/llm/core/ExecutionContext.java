@@ -57,6 +57,7 @@ public class ExecutionContext {
     // 옵션
     private ChatOptions chatOptions;
     private Double temperature;
+    private Double topP;  // 결정적 출력을 위한 top-p 파라미터 (1.0 = 결정적)
     private Integer maxTokens;
     
     // 메타데이터
