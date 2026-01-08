@@ -28,7 +28,7 @@ public class SecurityEventEnricher {
     
     // 메타데이터 키 상수
     public static final String TARGET_RESOURCE = "targetResource";
-    public static final String HTTP_METHOD = "httpMethod";
+    // AI Native v6.0: HTTP_METHOD 상수 제거 - LLM 분석에 불필요
     public static final String REQUEST_PAYLOAD = "requestPayload";
     public static final String USER_BEHAVIOR = "userBehavior";
     public static final String PATTERN_SCORE = "patternScore";
@@ -65,20 +65,10 @@ public class SecurityEventEnricher {
         return getMetadataValue(event, TARGET_RESOURCE, String.class);
     }
     
-    /**
-     * HTTP 메서드 설정
-     */
-    public void setHttpMethod(SecurityEvent event, String method) {
-        enrichEvent(event, HTTP_METHOD, method);
-    }
-    
-    /**
-     * HTTP 메서드 조회
-     */
-    public Optional<String> getHttpMethod(SecurityEvent event) {
-        return getMetadataValue(event, HTTP_METHOD, String.class);
-    }
-    
+    // AI Native v6.0: httpMethod 관련 메서드 제거 - LLM 분석에 불필요
+    // setHttpMethod(), getHttpMethod() Dead Code
+    // Description/경로에서 요청 성격 유추 가능
+
     /**
      * 요청 페이로드 설정
      */
@@ -454,8 +444,8 @@ public class SecurityEventEnricher {
         // ThreatAssessment 또는 SecurityDecision에서 관리
         
         // 메타데이터에서 추가 정보
+        // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요
         getTargetResource(event).ifPresent(resource -> context.put("targetResource", resource));
-        getHttpMethod(event).ifPresent(method -> context.put("httpMethod", method));
         getPatternScore(event).ifPresent(score -> context.put("patternScore", score));
         
         return context;
@@ -516,14 +506,12 @@ public class SecurityEventEnricher {
             summary.append("From:").append(event.getSourceIp()).append(" ");
         }
         
-        getTargetResource(event).ifPresent(resource -> 
+        getTargetResource(event).ifPresent(resource ->
             summary.append("Target:").append(resource).append(" ")
         );
-        
-        getHttpMethod(event).ifPresent(method -> 
-            summary.append("Method:").append(method).append(" ")
-        );
-        
+
+        // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요
+
         return summary.toString().trim();
     }
 }

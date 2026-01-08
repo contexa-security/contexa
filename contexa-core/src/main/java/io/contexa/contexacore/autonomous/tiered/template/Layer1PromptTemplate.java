@@ -95,6 +95,12 @@ public class Layer1PromptTemplate {
                 // 상태 메시지 (SERVICE_UNAVAILABLE, NO_USER_ID, NO_DATA)
                 baselineSectionBuilder.append("STATUS: ").append(baselineContext).append("\n");
                 baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable\n");
+            } else if (baselineContext != null &&
+                       (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
+                // AI Native v6.0: CRITICAL 경고 메시지 - 신규 사용자 또는 baseline 없음
+                baselineSectionBuilder.append("STATUS: [NEW_USER] No baseline established\n");
+                String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
+                baselineSectionBuilder.append(sanitizedBaseline).append("\n");
             } else if (behaviorAnalysis.isBaselineEstablished()) {
                 baselineSectionBuilder.append("STATUS: [NO_DATA] Baseline available but not loaded\n");
                 baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable\n");
@@ -209,6 +215,29 @@ public class Layer1PromptTemplate {
                     .map(PromptTemplateUtils::sanitizeUserInput)
                     .collect(java.util.stream.Collectors.joining(", "));
                 prompt.append("RecentActions: [").append(actionsStr).append("]\n");
+            }
+            // AI Native v6.0: Zero Trust Critical - isNewUser, isNewSession, isNewDevice 추가
+            // 신규 사용자/세션/디바이스 여부는 LLM 위험 판단의 핵심 신호
+            // 키: ZeroTrustEventListener.java:645-651에서 "isNewUser", "isNewSession", "isNewDevice"로 저장
+            Object sessionMetadataObj = event.getMetadata();
+            if (sessionMetadataObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sessionMetadata = (Map<String, Object>) sessionMetadataObj;
+                // isNewUser: 신규 사용자 여부 (Baseline 없음 = 행동 패턴 비교 불가)
+                Object isNewUserObj = sessionMetadata.get("isNewUser");
+                if (isNewUserObj != null) {
+                    prompt.append("IsNewUser: ").append(isNewUserObj).append("\n");
+                }
+                // isNewSession: 신규 세션 여부 (세션 하이재킹 탐지 핵심)
+                Object isNewSessionObj = sessionMetadata.get("isNewSession");
+                if (isNewSessionObj != null) {
+                    prompt.append("IsNewSession: ").append(isNewSessionObj).append("\n");
+                }
+                // isNewDevice: 신규 디바이스 여부 (계정 탈취 탐지 핵심)
+                Object isNewDeviceObj = sessionMetadata.get("isNewDevice");
+                if (isNewDeviceObj != null) {
+                    prompt.append("IsNewDevice: ").append(isNewDeviceObj).append("\n");
+                }
             }
         } else {
             prompt.append("[NO_DATA] Session context unavailable\n");
@@ -432,9 +461,11 @@ public class Layer1PromptTemplate {
             baseline.startsWith("[NO_DATA]")) {
             return false;
         }
-        // Zero Trust: CRITICAL 경고가 포함된 신규 사용자 메시지는 반드시 출력
-        if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE")) {
-            return true;
+        // AI Native v6.0: CRITICAL 경고나 NO USER BASELINE 메시지는 유효한 baseline이 아님
+        // 이 메시지들은 별도의 조건문에서 처리되어 프롬프트에 출력됨
+        if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE") ||
+            baseline.contains("[NEW_USER]")) {
+            return false;
         }
         return !baseline.equalsIgnoreCase("Not available")
             && !baseline.equalsIgnoreCase("none")

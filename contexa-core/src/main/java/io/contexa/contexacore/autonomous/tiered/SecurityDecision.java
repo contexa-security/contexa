@@ -89,10 +89,12 @@ public class SecurityDecision {
      * AI Native v4.3.0: 중복 필드 정리
      * - layer(String) 제거 → processingLayer(int) 사용
      * - modelUsed(String) 제거 → llmModel(String) 사용
+     *
+     * AI Native v6.0: Dead Fields 제거
+     * - embeddingSimilarity: 값 설정 코드 없음 (제거)
+     * - matchedPattern: 값 설정 코드 없음 (제거)
+     * - knownThreat: 값 설정 코드 없음 (제거)
      */
-    private Double embeddingSimilarity;       // 임베딩 유사도 (0.0 - 1.0) - Vector 검색 시 설정
-    private String matchedPattern;            // 매칭된 패턴 - 위협 패턴 매칭 시 설정
-    private boolean knownThreat;              // 알려진 위협 여부
     private String llmModel;                  // 사용된 LLM 모델 (예: llama3.1:8b, claude-sonnet)
     // AI Native v4.3.0: layer(String) 제거 - processingLayer(int)로 통일
     // AI Native v4.3.0: modelUsed(String) 제거 - llmModel(String)로 통일
@@ -108,9 +110,12 @@ public class SecurityDecision {
     
     /**
      * Layer 3 추가 필드
+     *
+     * AI Native v6.0: Dead Fields 정리
+     * - businessImpact: 값 설정 코드 없음 (제거)
+     * - attackScenario, soarPlaybook: Layer2ExpertStrategy에서 getter 호출 (유지)
      */
     private String attackScenario;                 // 공격 시나리오 설명
-    private String businessImpact;                 // 비즈니스 영향
     private List<String> iocIndicators;            // IOC (Indicators of Compromise)
     private Map<String, String> mitreMapping;      // MITRE ATT&CK 매핑
     private String soarPlaybook;                   // SOAR 플레이북
@@ -119,11 +124,13 @@ public class SecurityDecision {
     
     /**
      * 메타데이터
+     *
+     * AI Native v6.0: Dead Fields 제거
+     * - analysisMetadata: 값 설정 코드 없음 (제거)
      */
     private String eventId;                        // 원본 이벤트 ID
     private String analysisId;                     // 분석 ID
     private Map<String, Object> metadata;          // 추가 메타데이터
-    private Map<String, Object> analysisMetadata;  // 분석 메타데이터
     
     /**
      * AI Native 헬퍼 메서드

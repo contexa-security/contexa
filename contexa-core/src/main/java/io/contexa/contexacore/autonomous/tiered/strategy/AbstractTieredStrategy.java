@@ -175,24 +175,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         };
     }
 
-    /**
-     * 유효한 action인지 검증 (AI Native v3.3.0 - 4개 Action)
-     *
-     * 유효 Action: ALLOW(A), BLOCK(B), CHALLENGE(C), ESCALATE(E)
-     *
-     * @param action 검증할 action 문자열
-     * @return 유효하면 true
-     */
-    protected boolean isValidAction(String action) {
-        if (action == null || action.trim().isEmpty()) {
-            return false;
-        }
-        String upperAction = action.toUpperCase().trim();
-        return "ALLOW".equals(upperAction) || "A".equals(upperAction) ||
-               "BLOCK".equals(upperAction) || "B".equals(upperAction) ||
-               "CHALLENGE".equals(upperAction) || "C".equals(upperAction) ||
-               "ESCALATE".equals(upperAction) || "E".equals(upperAction);
-    }
+    // AI Native v6.0: isValidAction() 메서드 삭제 (Dead Code)
+    // - Layer1/Layer2에서 호출되지 않음
+    // - mapStringToAction()이 유효하지 않은 action을 ESCALATE로 변환하므로 별도 검증 불필요
 
     // ========================================================================
     // AI Native v6.0: 공통 응답 검증 및 메타데이터 메서드
@@ -273,79 +258,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return metadata;
     }
 
-    // ========================================================================
-    // AI Native v6.0: 공통 세션 컨텍스트 구축 메서드
-    // ========================================================================
-
-    /**
-     * 기본 세션 컨텍스트 구축 (캐시 없이)
-     *
-     * PRIMARY SOURCE: SecurityEvent에서 직접 데이터 추출
-     * - sessionId, userId, sourceIp: event에서 직접
-     * - startTime: 서버 타임스탬프 (Zero Trust: 클라이언트 시간 불신)
-     * - authMethod, recentRequestCount: metadata에서 추출
-     *
-     * @param event SecurityEvent
-     * @return 초기화된 BaseSessionContext
-     */
-    protected BaseSessionContext buildBaseSessionContext(SecurityEvent event) {
-        BaseSessionContext context = new BaseSessionContext();
-
-        // PRIMARY SOURCE: SecurityEvent
-        context.setSessionId(event.getSessionId());
-        context.setUserId(event.getUserId());
-        context.setIpAddress(event.getSourceIp());
-        // Zero Trust: 서버 타임스탬프만 사용 (클라이언트 시간 조작 방지)
-        context.setStartTime(LocalDateTime.now());
-
-        // AI Native v6.0: authMethod 필드 제거 - AuthorizationDecisionEvent에 해당 필드 없음
-        // recentRequestCount 및 User-Agent 추출 (metadata)
-        if (event.getMetadata() != null) {
-            // metadata.recentRequestCount를 accessFrequency로 사용
-            // HCADFilter에서 Redis 기반으로 정확하게 추적한 값
-            Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
-            if (recentRequestCountObj instanceof Number) {
-                context.setAccessFrequency(((Number) recentRequestCountObj).intValue());
-            }
-        }
-
-        // AI Native v6.0: User-Agent 설정 (세션 하이재킹 탐지용)
-        // SecurityEvent.userAgent 필드에서 직접 가져옴 (metadata 아님)
-        if (event.getUserAgent() != null) {
-            context.setUserAgent(event.getUserAgent());
-        }
-
-        return context;
-    }
-
-    /**
-     * Redis에서 세션 컨텍스트 보강
-     *
-     * SECONDARY SOURCE: Redis에서 recentActions 조회
-     * - 실패해도 무시 (보강용)
-     * - spring.data.redis.timeout 설정으로 타임아웃 관리
-     *
-     * @param context 보강할 BaseSessionContext
-     * @param sessionId 세션 ID
-     * @param redisTemplate RedisTemplate 인스턴스
-     */
-    @SuppressWarnings("unchecked")
-    protected void enrichSessionContextFromRedis(BaseSessionContext context, String sessionId,
-                                                  RedisTemplate<String, Object> redisTemplate) {
-        if (sessionId == null || redisTemplate == null) {
-            return;
-        }
-
-        try {
-            List<String> recentActions = (List<String>) (List<?>) redisTemplate.opsForList()
-                    .range(ZeroTrustRedisKeys.sessionActions(sessionId), -10, -1);
-            if (recentActions != null && !recentActions.isEmpty()) {
-                context.setRecentActions(recentActions);
-            }
-        } catch (Exception e) {
-            log.debug("[{}] Redis enrichment failed: {}", getLayerName(), e.getMessage());
-        }
-    }
+    // AI Native v6.0: buildBaseSessionContext(), enrichSessionContextFromRedis() 메서드 삭제 (Dead Code)
+    // - Layer1/Layer2에서 호출되지 않음
+    // - 각 Layer가 자체 buildSessionContext() 구현 사용:
+    //   - Layer1: Caffeine 캐시 + addEvent() 호출 + 캐시 저장
+    //   - Layer2: 캐시 없이 매번 새로 구축 + Redis 직접 보강
+    // - 공통화 시도했으나 Layer별 특화 로직이 많아 통합 불가
 
     // ========================================================================
     // AI Native v6.0: 공통 행동 분석 메서드
@@ -535,20 +453,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return true;
     }
 
-    /**
-     * Zero Trust: IP 주소 변경만 감지 (레거시 호환)
-     *
-     * @param cachedIp 캐시된 IP 주소
-     * @param eventIp 현재 이벤트 IP 주소
-     * @return IP 변경 시 true
-     */
-    protected boolean isIpChanged(String cachedIp, String eventIp) {
-        if (cachedIp != null && eventIp != null && !cachedIp.equals(eventIp)) {
-            log.warn("[{}][Zero Trust] IP changed: {} -> {}", getLayerName(), cachedIp, eventIp);
-            return true;
-        }
-        return false;
-    }
+    // AI Native v6.0: isIpChanged() 메서드 삭제 (Dead Code)
+    // - Layer1/Layer2에서 호출되지 않음
+    // - isSessionContextChanged()가 IP + User-Agent 둘 다 검사하므로 별도 IP-only 메서드 불필요
 
     /**
      * AI Native v6.0: Redis 기반 세션 컨텍스트 변경 감지 (세션 하이재킹 탐지)
@@ -639,9 +546,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
 
         try {
-            // AI Native: "unknown" 하드코딩 제거
-            String httpMethod = eventEnricher.getHttpMethod(event).orElse(null);
-
             // 검색 쿼리 빌드
             StringBuilder queryBuilder = new StringBuilder();
 
@@ -656,17 +560,14 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 queryBuilder.append(targetResource).append(" ");
             }
 
-            // 3. HTTP 메서드 (null/"unknown" 제외)
-            if (httpMethod != null && !"unknown".equalsIgnoreCase(httpMethod)) {
-                queryBuilder.append(httpMethod).append(" ");
-            }
+            // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요 (Description/경로에서 유추 가능)
 
-            // 4. 사용자 ID (보조 정보)
+            // 3. 사용자 ID (보조 정보)
             if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
                 queryBuilder.append("user:").append(event.getUserId()).append(" ");
             }
 
-            // 5. 소스 IP (보조 정보)
+            // 4. 소스 IP (보조 정보)
             if (event.getSourceIp() != null) {
                 queryBuilder.append("IP:").append(event.getSourceIp()).append(" ");
             }

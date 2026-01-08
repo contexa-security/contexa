@@ -89,6 +89,9 @@ public class AuthorizationDecisionEvent {
     @JsonProperty("is_new_session")
     private Boolean isNewSession;
 
+    @JsonProperty("is_new_user")
+    private Boolean isNewUser;
+
     @JsonProperty("is_new_device")
     private Boolean isNewDevice;
 

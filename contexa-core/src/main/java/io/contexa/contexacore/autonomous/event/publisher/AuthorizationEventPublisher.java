@@ -125,6 +125,7 @@ public class AuthorizationEventPublisher {
             // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
             // LLM 프롬프트에서 NOT_PROVIDED 방지
             builder.isNewSession(requestInfo.getIsNewSession())
+                    .isNewUser(requestInfo.getIsNewUser())
                     .isNewDevice(requestInfo.getIsNewDevice())
                     .recentRequestCount(requestInfo.getRecentRequestCount());
 
@@ -238,6 +239,7 @@ public class AuthorizationEventPublisher {
                 // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
                 // LLM 프롬프트에서 NOT_PROVIDED 방지
                 builder.isNewSession(requestInfo.getIsNewSession())
+                        .isNewUser(requestInfo.getIsNewUser())
                         .isNewDevice(requestInfo.getIsNewDevice())
                         .recentRequestCount(requestInfo.getRecentRequestCount());
             }
@@ -513,6 +515,7 @@ public class AuthorizationEventPublisher {
         // AI Native v3.1: HCADContext 세션 컨텍스트 필드
         // HCADFilter에서 설정한 request attribute 값
         private final Boolean isNewSession;
+        private final Boolean isNewUser;
         private final Boolean isNewDevice;
         private final Integer recentRequestCount;
 
@@ -542,6 +545,7 @@ public class AuthorizationEventPublisher {
                     .secure(request.isSecure())
                     // AI Native v3.1: HCADContext 필드 추출 (HCADFilter에서 설정)
                     .isNewSession((Boolean) request.getAttribute("hcad.is_new_session"))
+                    .isNewUser((Boolean) request.getAttribute("hcad.is_new_user"))
                     .isNewDevice((Boolean) request.getAttribute("hcad.is_new_device"))
                     .recentRequestCount((Integer) request.getAttribute("hcad.recent_request_count"))
                     .build();

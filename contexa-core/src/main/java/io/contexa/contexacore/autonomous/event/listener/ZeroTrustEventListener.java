@@ -342,7 +342,7 @@ public class ZeroTrustEventListener {
     private void enrichSecurityEvent(SecurityEvent event, AuthenticationSuccessEvent authEvent) {
         // SecurityEventEnricher를 사용하여 추가 컨텍스트 정보 추가
         eventEnricher.setTargetResource(event, "/authentication/success");
-        eventEnricher.setHttpMethod(event, "POST");
+        // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요
         
         // 사용자 행동 패턴 정보
         Map<String, Object> userBehavior = new HashMap<>();

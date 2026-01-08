@@ -33,15 +33,16 @@ public class ThreatAssessment {
     private String eventId;
 
     private double riskScore;
-    private String threatType;
+    // AI Native v6.0: Dead Fields 정리
+    // - threatType: setter 호출 코드 없음 (제거)
+    // - description: AuditingHandler에서 setter 호출 (유지)
     private String description;
     private String evaluator;
     private LocalDateTime assessedAt;
-    
+
     // 추가 평가 정보
     private List<String> indicators;
-    private List<String> tactics;
-    private List<String> techniques;
+    // AI Native v6.0: tactics, techniques 제거 - setter 호출 코드 없음
     // AI Native v3.1: metadata 제거 - 죽은 필드 (설정 코드 없음)
     
     // 권장 조치
@@ -62,10 +63,9 @@ public class ThreatAssessment {
     @Builder.Default
     private boolean shouldEscalate = false;
     
-    // 추가 필드들
-    @Builder.Default
-    private Map<String, String> frameworkMapping = new HashMap<>();
-    private LocalDateTime timestamp;
+    // AI Native v6.0: Dead Fields 제거
+    // - frameworkMapping: 빈 Map 초기화만 있고 데이터 추가 없음 (제거)
+    // - timestamp: assessedAt와 중복 (제거)
 
     // AI Native v3.1: 죽은 필드 제거
     // - patterns: 설정 코드 없음, 외부 호출 없음

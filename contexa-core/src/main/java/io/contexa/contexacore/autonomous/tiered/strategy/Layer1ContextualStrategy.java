@@ -245,9 +245,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         // M1: Zero Trust - 서버 타임스탬프만 사용 (클라이언트 시간 조작 방지)
         context.setStartTime(LocalDateTime.now());
 
-        // AI Native v6.0: authMethod 필드 제거 - AuthorizationDecisionEvent에 해당 필드 없음
-        // recentRequestCount 추출 (metadata)
+        // AI Native v6.0: metadata에서 authMethod, recentRequestCount 추출
+        // ZeroTrustEventListener.java:610에서 "authMethod" 키로 저장됨
         if (event.getMetadata() != null) {
+            // authMethod 추출 (Zero Trust: 인증 방식은 위험 판단의 핵심 정보)
+            Object authMethodObj = event.getMetadata().get("authMethod");
+            if (authMethodObj instanceof String) {
+                context.setAuthMethod((String) authMethodObj);
+            }
             // AI Native v4.3.0: metadata.recentRequestCount를 accessFrequency로 사용
             // HCADFilter에서 Redis 기반으로 정확하게 추적한 값이므로 SessionContext 내부 카운터보다 신뢰도 높음
             Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
@@ -511,8 +516,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 }
             }
 
-            String reasoning = (jsonNode.has("reasoning") && !jsonNode.get("reasoning").isNull())
-                    ? jsonNode.get("reasoning").asText() : "No reasoning provided";
+            // AI Native v6.0: LLM이 "reasoning" 또는 "reason" 필드로 반환할 수 있음
+            String reasoning;
+            if (jsonNode.has("reasoning") && !jsonNode.get("reasoning").isNull()) {
+                reasoning = jsonNode.get("reasoning").asText();
+            } else if (jsonNode.has("reason") && !jsonNode.get("reason").isNull()) {
+                reasoning = jsonNode.get("reason").asText();  // fallback: reason 필드
+            } else {
+                reasoning = "No reasoning provided";
+            }
             // AI Native: threatCategory는 LLM이 분류, 없으면 null 유지
             // 플랫폼이 기본값이나 마커를 생성하지 않음
             String threatCategory = (jsonNode.has("threatCategory") && !jsonNode.get("threatCategory").isNull()
@@ -618,12 +630,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (sessionId == null || redisTemplate == null) return;
 
         try {
-            // AI Native: 행동 기반 세션 기록 (eventType 제거)
+            // AI Native v6.0: 행동 기반 세션 기록 (httpMethod 제거 - LLM 분석에 불필요)
             redisTemplate.opsForList().rightPush(
                     ZeroTrustRedisKeys.sessionActions(sessionId),
-                    String.format("%s:%s:%s",
+                    String.format("%s:%s",
                             event.getDescription() != null ? event.getDescription() : "action",
-                            eventEnricher.getHttpMethod(event).orElse("unknown"),
                             decision.getAction())
             );
 
@@ -819,9 +830,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             if (recentActions.size() > maxRecentActions) {
                 recentActions.remove(0);
             }
-            // AI Native: eventType, targetResource 제거 - 행동 기반 기록
-            String httpMethod = eventEnricher.getHttpMethod(event).orElse("unknown");
-            recentActions.add(httpMethod + ":" + (event.getDescription() != null ? event.getDescription() : "action"));
+            // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요 (Description에서 유추 가능)
+            recentActions.add(event.getDescription() != null ? event.getDescription() : "action");
         }
     }
 
