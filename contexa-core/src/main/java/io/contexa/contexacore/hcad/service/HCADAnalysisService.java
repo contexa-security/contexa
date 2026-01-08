@@ -139,6 +139,7 @@ public class HCADAnalysisService {
             // 수정: 예외 시 보수적 기본값 (모두 신규/미확인 상태로 간주)
             HCADContext errorContext = new HCADContext();
             errorContext.setIsNewSession(true);      // 예외 시 신규 세션으로 간주 (보수적)
+            errorContext.setNewUser(true);           // 예외 시 신규 사용자로 간주 (보수적)
             errorContext.setIsNewDevice(true);       // 예외 시 신규 디바이스로 간주 (보수적)
             errorContext.setRecentRequestCount(0);   // 예외 시 요청 카운트 불명
 

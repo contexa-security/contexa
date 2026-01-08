@@ -277,6 +277,21 @@ public class ZeroTrustEventListener {
         metadata.put("authz.granted", authEvent.isGranted());
         metadata.put("reason", authEvent.getReason());
 
+        // AI Native v6.0: Zero Trust 핵심 신호 - 이벤트 필드에서 metadata로 복사
+        // AuthorizationDecisionEvent의 isNew* 필드는 metadata가 아닌 별도 필드이므로 명시적 복사 필요
+        if (authEvent.getIsNewSession() != null) {
+            metadata.put("isNewSession", authEvent.getIsNewSession());
+        }
+        if (authEvent.getIsNewUser() != null) {
+            metadata.put("isNewUser", authEvent.getIsNewUser());
+        }
+        if (authEvent.getIsNewDevice() != null) {
+            metadata.put("isNewDevice", authEvent.getIsNewDevice());
+        }
+        if (authEvent.getRecentRequestCount() != null) {
+            metadata.put("recentRequestCount", authEvent.getRecentRequestCount());
+        }
+
         if (authEvent.getMetadata() != null) {
             metadata.putAll(authEvent.getMetadata());
         }

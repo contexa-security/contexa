@@ -99,7 +99,7 @@ public class HCADContextExtractor {
 
         } catch (Exception e) {
             log.error("[HCAD] 컨텍스트 추출 실패", e);
-            // 최소한의 컨텍스트 반환
+            // 최소한의 컨텍스트 반환 (Zero Trust: 예외 시 보수적 기본값)
             return HCADContext.builder()
                 .userId(authentication != null ? extractUserId(authentication) : "unknown")
                 .sessionId(request.getRequestedSessionId())
@@ -107,6 +107,9 @@ public class HCADContextExtractor {
                 .httpMethod(request.getMethod())
                 .remoteIp(request.getRemoteAddr())
                 .timestamp(Instant.now())
+                .isNewSession(true)      // 예외 시 신규 세션으로 간주 (보수적)
+                .isNewUser(true)         // 예외 시 신규 사용자로 간주 (보수적)
+                .isNewDevice(true)       // 예외 시 신규 디바이스로 간주 (보수적)
                 .build();
         }
     }
