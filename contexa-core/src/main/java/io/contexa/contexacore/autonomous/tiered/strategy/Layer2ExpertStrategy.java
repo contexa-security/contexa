@@ -2,13 +2,15 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 // AI Native v4.2.0: FeedbackConstants, FeedbackIntegrationProperties import 삭제 (미사용)
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.response.Layer2SecurityResponse;
-import io.contexa.contexacore.autonomous.tiered.template.Layer2PromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.response.SecurityResponse;
+import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.SoarContext;
@@ -46,13 +48,33 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private final ApprovalService approvalService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityEventEnricher eventEnricher;
-    private final Layer2PromptTemplate promptTemplate;
+    private final SecurityPromptTemplate promptTemplate;
 
     private final BehaviorVectorService behaviorVectorService;
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
     private final TieredStrategyProperties tieredStrategyProperties;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // AI Native v6.6: L1→L2 프롬프트 컨텍스트 캐시 (동일 요청 내 재사용)
+    // Redis 불필요: 동일 JVM 프로세스 내에서 에스컬레이션되므로 메모리 캐시 사용
+    private static final Cache<String, SecurityPromptTemplate.SessionContext> SESSION_CONTEXT_CACHE =
+        Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
+            .build();
+
+    private static final Cache<String, SecurityPromptTemplate.BehaviorAnalysis> BEHAVIOR_ANALYSIS_CACHE =
+        Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
+            .build();
+
+    private static final Cache<String, List<Document>> RAG_DOCUMENTS_CACHE =
+        Caffeine.newBuilder()
+            .maximumSize(500)
+            .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
+            .build();
 
     @Value("${spring.ai.security.layer2.model:llama3.1:8b}")
     private String modelName;
@@ -74,7 +96,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 @Autowired(required = false) ApprovalService approvalService,
                                 @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
                                 @Autowired(required = false) SecurityEventEnricher eventEnricher,
-                                @Autowired(required = false) Layer2PromptTemplate promptTemplate,
+                                @Autowired(required = false) SecurityPromptTemplate promptTemplate,
                                 @Autowired(required = false) UnifiedVectorService unifiedVectorService,
                                 @Autowired(required = false) BehaviorVectorService behaviorVectorService,
                                 @Autowired(required = false) BaselineLearningService baselineLearningService,
@@ -83,7 +105,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         this.approvalService = approvalService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer2PromptTemplate(eventEnricher, tieredStrategyProperties);
+        this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
@@ -118,6 +140,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
+    /**
+     * AI Native v6.6: 전문가 분석 수행
+     *
+     * L1 = L2 원칙: 동일한 프롬프트 템플릿 사용, 차이점은 LLM 모델만
+     * 캐싱: L1에서 수집한 컨텍스트 데이터를 재사용하여 성능 최적화
+     */
     public SecurityDecision performDeepAnalysis(SecurityEvent event, SecurityDecision layer2Decision) {
         if (event == null) {
             log.error("Layer 2 analysis failed: event is null");
@@ -135,42 +163,16 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             log.warn("[Layer2] Expert Analysis initiated for critical event {}",
                     event.getEventId() != null ? event.getEventId() : "unknown");
 
-            // AI Native v5.0.0: Layer1 컨텍스트 수집 (동일 원본 데이터)
-            // Layer2도 원본 데이터를 직접 분석하여 독립적인 검증 수행
-            BaseSessionContext sessionContext = buildSessionContext(event);
-            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatterns(event);
-            List<Document> relatedDocuments = searchRelatedContext(event);
+            // AI Native v6.6: L1에서 캐싱된 컨텍스트 데이터 재사용
+            // L1과 L2는 동일한 프롬프트 데이터를 사용하므로 중복 수집 불필요
+            SecurityPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
+            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event);
+            List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
 
-            // AI Native v6.0: Zero Trust - 세션 하이재킹 탐지
-            boolean sessionContextChanged = detectSessionContextChange(event, sessionContext);
-            if (sessionContextChanged) {
-                log.warn("[Layer2][Zero Trust] Session hijacking suspected for event {}: IP or User-Agent changed",
-                    event.getEventId());
-            }
+            // AI Native v6.6: 통합 프롬프트 구성 (L1 = L2 동일)
+            String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
-            // Layer2 전용 컨텍스트 수집
-            // v5.1.0: gatherThreatIntelligence() 제거 - 익명 공격자 탐지용 (플랫폼 역할 아님)
-            HistoricalContext historicalContext = analyzeHistoricalContext(event);
-
-            // Layer1 결과 추출 (참고용)
-            SecurityDecision layer1Decision = extractLayer1Decision(event);
-
-            // AI Native v5.1.0: 변환 메서드 사용 (threatIntel 제거)
-            Layer2PromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
-            Layer2PromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis);
-            Layer2PromptTemplate.HistoricalContext historicalCtx = convertToTemplateHistoricalContext(historicalContext);
-
-            // AI Native v5.1.0: 프롬프트 구성 (threatIntel, layer2Decision 파라미터 제거)
-            String promptText = promptTemplate.buildPrompt(
-                event,
-                sessionCtx,           // Layer1 컨텍스트
-                behaviorCtx,          // Layer1 컨텍스트
-                relatedDocuments,     // Layer1 컨텍스트
-                historicalCtx,        // Layer2 전용
-                layer1Decision        // 참고용
-            );
-
-            Layer2SecurityResponse response = null;
+            SecurityResponse response = null;
             if (llmOrchestrator != null) {
                 // AI Native v6.0: temperature=0.0 for deterministic output (consistent LLM responses)
                 ExecutionContext context = ExecutionContext.builder()
@@ -188,8 +190,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         .timeout(Duration.ofMillis(timeoutMs))
                         .onErrorResume(Exception.class, e -> {
                             log.warn("[Layer2][AI Native] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
-                            // AI Native: 에러 복구 시 classification null - 플랫폼이 분류하지 않음
-                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"classification\":null,\"scenario\":\"LLM execution failed - failsafe blocking applied\"}");
+                            // AI Native v6.6: 통합 응답 형식
+                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\"}");
                         })
                         .block();
 
@@ -199,7 +201,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 response = createDefaultResponse();
             }
 
-            SecurityDecision expertDecision = convertToSecurityDecision(response, event, layer2Decision);
+            SecurityDecision expertDecision = convertToSecurityDecision(response, event);
 
             // SOAR 플레이북 실행 (설정에서 활성화된 경우)
             if (enableSoar && expertDecision.getAction() == SecurityDecision.Action.BLOCK) {
@@ -540,45 +542,106 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return searchRelatedContextBase(event, unifiedVectorService, eventEnricher, ragTopK, similarityThreshold);
     }
 
-    /**
-     * AI Native v5.0.0: SessionContext를 Layer2PromptTemplate.SessionContext로 변환
-     */
-    private Layer2PromptTemplate.SessionContext convertToTemplateSessionContext(BaseSessionContext sessionContext) {
-        Layer2PromptTemplate.SessionContext ctx = new Layer2PromptTemplate.SessionContext();
-        ctx.setSessionId(sessionContext.getSessionId());
-        ctx.setUserId(sessionContext.getUserId());
-        ctx.setAuthMethod(sessionContext.getAuthMethod());
-        ctx.setRecentActions(sessionContext.getRecentActions());
-        return ctx;
-    }
+    // AI Native v6.6: 변환 메서드 삭제
+    // L1 = L2 원칙: 동일한 SecurityPromptTemplate 사용
+    // Layer2PromptTemplate.SessionContext, BehaviorAnalysis, HistoricalContext 제거
 
     /**
-     * AI Native v5.0.0: BehaviorAnalysis를 Layer2PromptTemplate.BehaviorAnalysis로 변환
-     */
-    private Layer2PromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(BaseBehaviorAnalysis behaviorAnalysis) {
-        Layer2PromptTemplate.BehaviorAnalysis ctx = new Layer2PromptTemplate.BehaviorAnalysis();
-        ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
-        ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
-        ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
-        return ctx;
-    }
-
-    // v5.1.0: convertToTemplateThreatIntel() 메서드 삭제
-    // - ThreatIntelligence 관련 코드 전체 제거로 인해 불필요
-    // - 플랫폼 핵심: "인증된 사용자가 진짜인가?" 검증
-
-    /**
-     * AI Native v5.0.0: HistoricalContext를 Layer2PromptTemplate.HistoricalContext로 변환
-     * List<String> -> List<String> 타입 유지 (프롬프트 템플릿에서 직접 처리)
+     * AI Native v6.6: 캐싱된 세션 컨텍스트 조회 또는 새로 빌드
      *
-     * AI Native v5.1.0: previousChallenges 필드 추가 (userId 기반)
+     * Caffeine 캐시 사용: 동일 JVM 프로세스 내에서 L1→L2 에스컬레이션되므로
+     * Redis보다 메모리 캐시가 더 효율적
      */
-    private Layer2PromptTemplate.HistoricalContext convertToTemplateHistoricalContext(HistoricalContext historicalContext) {
-        Layer2PromptTemplate.HistoricalContext ctx = new Layer2PromptTemplate.HistoricalContext();
-        ctx.setSimilarIncidents(historicalContext.getSimilarIncidents());
-        ctx.setPreviousAttacks(historicalContext.getPreviousAttacks());
-        ctx.setPreviousChallenges(historicalContext.getPreviousChallenges());
+    private SecurityPromptTemplate.SessionContext getCachedOrBuildSessionContext(SecurityEvent event) {
+        String eventId = event.getEventId();
+
+        // 1. Caffeine 캐시에서 조회
+        SecurityPromptTemplate.SessionContext cached = SESSION_CONTEXT_CACHE.getIfPresent(eventId);
+        if (cached != null) {
+            log.debug("[Layer2] Caffeine 캐싱된 SessionContext 사용: eventId={}", eventId);
+            return cached;
+        }
+
+        // 2. 캐시 미스 - 새로 빌드
+        log.debug("[Layer2] SessionContext 캐시 미스, 새로 빌드: eventId={}", eventId);
+        BaseSessionContext baseCtx = buildSessionContext(event);
+
+        SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
+        ctx.setSessionId(baseCtx.getSessionId());
+        ctx.setUserId(baseCtx.getUserId());
+        ctx.setAuthMethod(baseCtx.getAuthMethod());
+        ctx.setRecentActions(baseCtx.getRecentActions());
+
         return ctx;
+    }
+
+    /**
+     * AI Native v6.6: 캐싱된 행동 분석 조회 또는 새로 빌드
+     *
+     * Caffeine 캐시 사용
+     */
+    private SecurityPromptTemplate.BehaviorAnalysis getCachedOrBuildBehaviorAnalysis(SecurityEvent event) {
+        String eventId = event.getEventId();
+
+        // 1. Caffeine 캐시에서 조회
+        SecurityPromptTemplate.BehaviorAnalysis cached = BEHAVIOR_ANALYSIS_CACHE.getIfPresent(eventId);
+        if (cached != null) {
+            log.debug("[Layer2] Caffeine 캐싱된 BehaviorAnalysis 사용: eventId={}", eventId);
+            return cached;
+        }
+
+        // 2. 캐시 미스 - 새로 빌드
+        log.debug("[Layer2] BehaviorAnalysis 캐시 미스, 새로 빌드: eventId={}", eventId);
+        BaseBehaviorAnalysis baseAnalysis = analyzeBehaviorPatterns(event);
+
+        SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
+        ctx.setSimilarEvents(baseAnalysis.getSimilarEvents());
+        ctx.setBaselineContext(baseAnalysis.getBaselineContext());
+        ctx.setBaselineEstablished(baseAnalysis.isBaselineEstablished());
+
+        return ctx;
+    }
+
+    /**
+     * AI Native v6.6: 캐싱된 RAG 문서 조회 또는 새로 검색
+     *
+     * Caffeine 캐시 사용
+     */
+    private List<Document> getCachedOrSearchRelatedContext(SecurityEvent event) {
+        String eventId = event.getEventId();
+
+        // 1. Caffeine 캐시에서 조회
+        List<Document> cached = RAG_DOCUMENTS_CACHE.getIfPresent(eventId);
+        if (cached != null) {
+            log.debug("[Layer2] Caffeine 캐싱된 RAG 문서 사용: eventId={}, count={}", eventId, cached.size());
+            return cached;
+        }
+
+        // 2. 캐시 미스 - 새로 검색
+        log.debug("[Layer2] RAG 캐시 미스, 새로 검색: eventId={}", eventId);
+        return searchRelatedContext(event);
+    }
+
+    /**
+     * AI Native v6.6: L1에서 컨텍스트 데이터를 캐시에 저장
+     *
+     * Layer1ContextualStrategy에서 호출하여 L2에서 재사용할 수 있도록 캐싱
+     */
+    public static void cachePromptContext(String eventId,
+                                          SecurityPromptTemplate.SessionContext sessionCtx,
+                                          SecurityPromptTemplate.BehaviorAnalysis behaviorCtx,
+                                          List<Document> ragDocuments) {
+        if (eventId == null) return;
+
+        if (sessionCtx != null) {
+            SESSION_CONTEXT_CACHE.put(eventId, sessionCtx);
+        }
+        if (behaviorCtx != null) {
+            BEHAVIOR_ANALYSIS_CACHE.put(eventId, behaviorCtx);
+        }
+        if (ragDocuments != null && !ragDocuments.isEmpty()) {
+            RAG_DOCUMENTS_CACHE.put(eventId, ragDocuments);
+        }
     }
 
     /**
@@ -647,11 +710,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v5.1.0: 응답 검증 (삭제된 필드 참조 제거)
-     * Layer2SecurityResponse에는 6개 필드만 존재:
-     * riskScore, confidence, action, reasoning, mitre, recommendation
+     * AI Native v6.6: 응답 검증 (통합 응답 형식)
+     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
      */
-    private Layer2SecurityResponse validateAndFixResponse(Layer2SecurityResponse response) {
+    private SecurityResponse validateAndFixResponse(SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
         }
@@ -662,10 +724,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
         response.setRiskScore(validated[0]);
         response.setConfidence(validated[1]);
-
-        // v5.1.0: tactics, techniques, iocIndicators 검증 코드 삭제
-        // - Layer2SecurityResponse에서 해당 필드들 제거됨
-        // - LLM 응답에서 해당 필드 요청하지 않음
 
         return response;
     }
@@ -778,13 +836,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v5.1.0: Layer2SecurityResponse를 SecurityDecision으로 변환
-     * 삭제된 필드 참조 제거 (scenario, businessImpact, expertRecommendation, 등)
-     * Layer2SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre, recommendation
+     * AI Native v6.6: SecurityResponse를 SecurityDecision으로 변환
+     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
      */
-    private SecurityDecision convertToSecurityDecision(Layer2SecurityResponse response,
-                                                       SecurityEvent event,
-                                                       SecurityDecision layer2Decision) {
+    private SecurityDecision convertToSecurityDecision(SecurityResponse response, SecurityEvent event) {
         // Null safety: response가 null인 경우 기본 응답 생성
         if (response == null) {
             response = createDefaultResponse();
@@ -792,97 +847,54 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
         SecurityDecision.Action action = mapStringToAction(response.getAction());
 
-        // AI Native v5.1.0: LLM 응답 그대로 사용
-        // 삭제된 필드: scenario, businessImpact, expertRecommendation, requiresApproval, playbookId
+        // AI Native v6.6: LLM 응답 그대로 사용 (통합 응답 형식)
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
                 .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
                 .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
                 .reasoning(response.getReasoning())
-                .expertRecommendation(response.getRecommendation())  // recommendation -> expertRecommendation
                 .eventId(event != null ? event.getEventId() : "unknown")
                 .analysisTime(System.currentTimeMillis())
                 .processingLayer(2)
                 .llmModel(modelName)
                 .build();
 
-        // AI Native v5.1.0: MITRE 매핑 (mitre 필드 사용)
+        // AI Native v6.6: MITRE 매핑 (mitre 필드 사용)
         if (response.getMitre() != null && !response.getMitre().isEmpty()) {
             Map<String, String> mitreMapping = new HashMap<>();
             mitreMapping.put(response.getMitre(), response.getMitre());
             decision.setMitreMapping(mitreMapping);
         }
 
-        // v5.1.0: tactics, iocIndicators 관련 코드 삭제 (필드 제거됨)
-
         return decision;
     }
 
     /**
-     * AI Native v5.1.0: LLM JSON 응답 파싱 (간소화)
-     * Layer2SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre, recommendation
-     * 삭제된 필드 파싱 코드 제거 (classification, scenario, tactics, techniques 등)
+     * AI Native v6.6: LLM JSON 응답 파싱 (통합 응답 형식)
+     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
      */
-    private Layer2SecurityResponse parseJsonResponse(String jsonResponse) {
-        try {
-            String cleanedJson = extractJsonObject(jsonResponse);
-            JsonNode jsonNode = objectMapper.readTree(cleanedJson);
-
-            // AI Native v5.0.0: 풀네임 우선 (riskScore, confidence, action, reasoning)
-            // 하위호환을 위해 약어(r,c,a,d)도 지원
-            Double riskScore = (jsonNode.has("riskScore") && !jsonNode.get("riskScore").isNull()) ? jsonNode.get("riskScore").asDouble()
-                : ((jsonNode.has("r") && !jsonNode.get("r").isNull()) ? jsonNode.get("r").asDouble() : Double.NaN);
-            Double confidence = (jsonNode.has("confidence") && !jsonNode.get("confidence").isNull()) ? jsonNode.get("confidence").asDouble()
-                : ((jsonNode.has("c") && !jsonNode.get("c").isNull()) ? jsonNode.get("c").asDouble() : Double.NaN);
-            String action = (jsonNode.has("action") && !jsonNode.get("action").isNull()) ? jsonNode.get("action").asText()
-                : ((jsonNode.has("a") && !jsonNode.get("a").isNull()) ? expandAction(jsonNode.get("a").asText()) : "ESCALATE");
-            String reasoning = (jsonNode.has("reasoning") && !jsonNode.get("reasoning").isNull()) ? jsonNode.get("reasoning").asText()
-                : ((jsonNode.has("d") && !jsonNode.get("d").isNull()) ? jsonNode.get("d").asText() : "No reasoning");
-
-            // AI Native v5.0.0: MITRE ATT&CK 필드 파싱 (mitre 우선, m 하위호환)
-            String mitre = (jsonNode.has("mitre") && !jsonNode.get("mitre").isNull())
-                ? jsonNode.get("mitre").asText()
-                : ((jsonNode.has("m") && !jsonNode.get("m").isNull()) ? jsonNode.get("m").asText() : null);
-
-            // AI Native v5.0.0: recommendation 필드 파싱 (recommendation 우선, rec 하위호환)
-            String recommendation = (jsonNode.has("recommendation") && !jsonNode.get("recommendation").isNull())
-                ? jsonNode.get("recommendation").asText()
-                : ((jsonNode.has("rec") && !jsonNode.get("rec").isNull()) ? jsonNode.get("rec").asText() : null);
-
-            // v5.1.0: 삭제된 필드 파싱 코드 제거
-            // - classification, scenario, threatActor, expertRecommendation: 프롬프트에서 요청 안함
-            // - tactics, techniques, iocIndicators: 배열 필드 제거됨
-            // - createIncident: 미사용
-
-            Layer2SecurityResponse response = Layer2SecurityResponse.builder()
-                    .riskScore(riskScore)
-                    .confidence(confidence)
-                    .action(action)
-                    .reasoning(reasoning)
-                    .mitre(mitre)
-                    .recommendation(recommendation)
-                    .build();
-
-            return validateAndFixResponse(response);
-
-        } catch (Exception e) {
-            log.error("Failed to parse JSON response from Layer2 LLM: {}", jsonResponse, e);
+    private SecurityResponse parseJsonResponse(String jsonResponse) {
+        // AI Native v6.6: SecurityResponse.fromJson() 통합 파싱 메서드 사용
+        SecurityResponse response = SecurityResponse.fromJson(jsonResponse);
+        if (response == null) {
+            log.error("Failed to parse JSON response from Layer2 LLM: {}", jsonResponse);
             return createDefaultResponse();
         }
+        return validateAndFixResponse(response);
     }
 
     /**
-     * AI Native v5.1.0: 기본 응답 생성 (간소화)
-     * Layer2SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre, recommendation
+     * AI Native v6.6: 기본 응답 생성 (통합 응답 형식)
+     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
      */
-    private Layer2SecurityResponse createDefaultResponse() {
-        return Layer2SecurityResponse.builder()
+    private SecurityResponse createDefaultResponse() {
+        return SecurityResponse.builder()
                 .riskScore(Double.NaN)  // AI Native: LLM 분석 미수행
                 .confidence(Double.NaN)  // AI Native: LLM 분석 미수행
+                .confidenceReasoning(null)  // AI Native v6.3: 분석 미수행
                 .action("ESCALATE")
                 .reasoning("Layer 2 LLM analysis unavailable")
                 .mitre(null)
-                .recommendation(null)
                 .build();
     }
 
@@ -1146,10 +1158,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     // - Layer2PromptTemplate.SystemContext 클래스도 삭제됨
 
     /**
-     * AI Native v5.1.0: 벡터 데이터베이스에 저장 (간소화)
-     * Layer2SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre, recommendation
+     * AI Native v6.6: 벡터 데이터베이스에 저장 (통합 응답 형식)
+     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
      */
-    private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision, Layer2SecurityResponse response) {
+    private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision, SecurityResponse response) {
         if (unifiedVectorService == null) return;
 
         try {
@@ -1218,10 +1230,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v5.1.0: 위협 문서 저장 (간소화)
-     * Layer2SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre, recommendation
+     * AI Native v6.6: 위협 문서 저장 (통합 응답 형식)
+     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
      */
-    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, Layer2SecurityResponse response, String analysisContent) {
+    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, SecurityResponse response, String analysisContent) {
         try {
             // AI Native v6.0: AbstractTieredStrategy.buildBaseMetadata() 공통 메서드 활용
             Map<String, Object> threatMetadata = buildBaseMetadata(event, decision, VectorDocumentType.THREAT.getValue());

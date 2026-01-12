@@ -175,21 +175,36 @@ public class StandardVectorStoreService implements VectorOperations {
     
     /**
      * 고급 문서 검색 (Spring AI 표준 API)
-     * 
+     *
      * SearchRequest를 사용하여 필터, 유사도 임계값, topK 등을 지정할 수 있습니다.
+     *
+     * AI Native v6.3: Spring AI Document.getScore()를 metadata에 추가
+     * - Spring AI PgVectorStore는 Document.getScore()로 similarity score 제공
+     * - 프롬프트 구성에서 "similarityScore" 키로 접근하므로 metadata에 복사
      */
     public List<Document> similaritySearch(SearchRequest searchRequest) {
         long startTime = System.currentTimeMillis();
-        
+
         // VectorStore의 표준 검색 API 사용
         List<Document> results = vectorStore.similaritySearch(searchRequest);
-        
+
+        // AI Native v6.3: Document.getScore()를 metadata에 추가
+        // Spring AI는 score를 Document 객체의 score 필드로 반환
+        // 프롬프트 구성 코드에서 metadata.get("similarityScore")로 접근하므로 복사 필요
+        for (Document doc : results) {
+            Double score = doc.getScore();
+            if (score != null) {
+                doc.getMetadata().put("similarityScore", score);
+                doc.getMetadata().put("score", score);  // 호환성을 위한 추가 키
+            }
+        }
+
         // 메트릭 업데이트
         long duration = System.currentTimeMillis() - startTime;
         metrics.put("lastSearchDuration", duration);
-        metrics.put("totalSearches", 
+        metrics.put("totalSearches",
             metrics.getOrDefault("totalSearches", 0L) + 1);
-        
+
         return results;
     }
     

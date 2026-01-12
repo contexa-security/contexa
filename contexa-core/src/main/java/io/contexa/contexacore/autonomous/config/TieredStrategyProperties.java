@@ -244,6 +244,46 @@ public class TieredStrategyProperties {
         private Session session = new Session();
         private Rag rag = new Rag();
         private Cache cache = new Cache();
+        private Prompt prompt = new Prompt();
+
+        /**
+         * AI Native v6.3: Layer2 프롬프트 구성 설정
+         *
+         * Layer2PromptTemplate에서 사용하는 제한값들을 설정으로 분리합니다.
+         * Layer1과 동일한 패턴으로 하드코딩된 값들을 외부 설정으로 관리합니다.
+         */
+        @Data
+        public static class Prompt {
+            /**
+             * 프롬프트에 포함할 유사 이벤트 최대 수
+             * BehaviorAnalysis.similarEvents에서 추출
+             */
+            private int maxSimilarEvents = 3;
+
+            /**
+             * 프롬프트에 포함할 RAG 문서 최대 수
+             * relatedDocuments에서 추출
+             */
+            private int maxRagDocuments = 5;
+
+            /**
+             * 이벤트 설명(description) 최대 길이
+             * SecurityEvent.description truncation
+             */
+            private int maxDescriptionLength = 200;
+
+            /**
+             * 프롬프트에 포함할 최근 액션 수
+             * SessionContext.recentActions에서 추출
+             */
+            private int maxRecentActions = 5;
+
+            /**
+             * 유사 인시던트 최대 수
+             * HistoricalContext.similarIncidents에서 추출
+             */
+            private int maxSimilarIncidents = 3;
+        }
 
         @Data
         public static class Session {

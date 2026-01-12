@@ -84,7 +84,26 @@ public class ZeroTrustRedisKeys {
         validateUserId(userId);
         return String.format("%s:user:sessions:%s", NAMESPACE, userId);
     }
-    
+
+    /**
+     * AI Native v6.4: 사용자 알려진 디바이스 Set
+     *
+     * 사용자가 이전에 사용한 디바이스 핑거프린트(User-Agent) 목록
+     * IsNewDevice 판단에 사용: 이 Set에 있으면 기존 디바이스
+     *
+     * Format: security:user:devices:{userId}
+     * Type: Set (User-Agent 문자열)
+     * TTL: 30 days
+     * Max Size: 10 (오래된 디바이스 자동 제거)
+     *
+     * 사용처:
+     * - HCADContextExtractor: IsNewDevice 판단 및 새 디바이스 등록
+     */
+    public static String userDevices(String userId) {
+        validateUserId(userId);
+        return String.format("%s:user:devices:%s", NAMESPACE, userId);
+    }
+
     // AI Native: userBehavior() 제거 (v3.1.0) - 미사용
     // AI Native: userThreats() 제거 (v3.1.0) - 미사용
 

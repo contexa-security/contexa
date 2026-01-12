@@ -7,8 +7,8 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.response.Layer1SecurityResponse;
-import io.contexa.contexacore.autonomous.tiered.template.Layer1PromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.response.SecurityResponse;
+import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
@@ -44,7 +44,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final UnifiedLLMOrchestrator llmOrchestrator;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityEventEnricher eventEnricher;
-    private final Layer1PromptTemplate promptTemplate;
+    private final SecurityPromptTemplate promptTemplate;
     private final BehaviorVectorService behaviorVectorService;
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
@@ -66,7 +66,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) UnifiedVectorService unifiedVectorService,
                                     @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
                                     @Autowired(required = false) SecurityEventEnricher eventEnricher,
-                                    @Autowired(required = false) Layer1PromptTemplate promptTemplate,
+                                    @Autowired(required = false) SecurityPromptTemplate promptTemplate,
                                     @Autowired(required = false) BehaviorVectorService behaviorVectorService,
                                     @Autowired(required = false) BaselineLearningService baselineLearningService,
                                     @Autowired TieredStrategyProperties tieredStrategyProperties) {
@@ -74,7 +74,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.unifiedVectorService = unifiedVectorService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new Layer1PromptTemplate(eventEnricher, tieredStrategyProperties);
+        this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.baselineLearningService = baselineLearningService;
         this.tieredStrategyProperties = tieredStrategyProperties;
@@ -134,15 +134,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             List<Document> relatedDocuments = searchRelatedContext(event);
 
             // 4. PromptTemplate을 통한 프롬프트 구성
-            Layer1PromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
-            Layer1PromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis);
+            SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
+            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis);
 
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
             // AI Native v4.3.0: 설정에서 타임아웃 가져오기
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
-            Layer1SecurityResponse response = null;
+            SecurityResponse response = null;
             if (llmOrchestrator != null) {
                 // AI Native v6.0: temperature=0.0 for deterministic output (consistent LLM responses)
                 ExecutionContext context = ExecutionContext.builder()
@@ -172,6 +172,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             // 5. 응답을 SecurityDecision 으로 변환
             SecurityDecision decision = convertToSecurityDecision(response, event);
+
+            // AI Native v6.6: ESCALATE 시 L2를 위한 컨텍스트 캐싱
+            // L1과 L2는 동일한 프롬프트 데이터를 사용하므로 중복 수집 방지
+            if (decision.getAction() == SecurityDecision.Action.ESCALATE) {
+                Layer2ExpertStrategy.cachePromptContext(
+                    event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
+                log.debug("[Layer1] ESCALATE - L2를 위한 컨텍스트 캐싱 완료: eventId={}", event.getEventId());
+            }
 
             // 6. 메타데이터 추가
             enrichDecisionWithContext(decision, sessionContext, behaviorAnalysis);
@@ -421,8 +429,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     /**
      * SessionContext 변환
      */
-    private Layer1PromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
-        Layer1PromptTemplate.SessionContext ctx = new Layer1PromptTemplate.SessionContext();
+    private SecurityPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
+        SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
         ctx.setSessionId(sessionContext.getSessionId());
         ctx.setUserId(sessionContext.getUserId());
         ctx.setAuthMethod(sessionContext.getAuthMethod());
@@ -432,8 +440,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return ctx;
     }
 
-    private Layer1PromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(BaseBehaviorAnalysis behaviorAnalysis) {
-        Layer1PromptTemplate.BehaviorAnalysis ctx = new Layer1PromptTemplate.BehaviorAnalysis();
+    private SecurityPromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(BaseBehaviorAnalysis behaviorAnalysis) {
+        SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
 
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
@@ -443,9 +451,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * Layer1SecurityResponse를 SecurityDecision으로 변환
+     * AI Native v6.6: SecurityResponse를 SecurityDecision으로 변환
+     *
+     * 통합된 응답 형식 (5필드):
+     * - riskScore, confidence, action, reasoning, mitre
+     * - threatCategory, mitigationActions 등은 제거됨 (프롬프트 미요청)
      */
-    private SecurityDecision convertToSecurityDecision(Layer1SecurityResponse response,
+    private SecurityDecision convertToSecurityDecision(SecurityResponse response,
                                                        SecurityEvent event) {
         SecurityDecision.Action action = mapStringToAction(response.getAction());
 
@@ -454,131 +466,60 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .action(action)
                 .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
                 .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
-                .threatCategory(response.getThreatCategory())
-                .mitigationActions(response.getMitigationActions())
                 .reasoning(response.getReasoning())
                 .eventId(event.getEventId())
                 .analysisTime(System.currentTimeMillis())
                 .build();
 
-        if (response.getBehaviorPatterns() != null) {
-            decision.setBehaviorPatterns(response.getBehaviorPatterns());
-        }
-        if (response.getSessionAnalysis() != null) {
-            decision.setSessionContext(response.getSessionAnalysis());
+        // AI Native v6.6: mitre 필드를 threatCategory로 매핑 (호환성 유지)
+        if (response.getMitre() != null && !response.getMitre().isBlank()) {
+            decision.setThreatCategory(response.getMitre());
         }
 
         return decision;
     }
 
-    private Layer1SecurityResponse parseJsonResponse(String jsonResponse) {
+    /**
+     * AI Native v6.6: JSON 응답 파싱
+     *
+     * SecurityResponse.fromJson()을 사용하여 축약/전체 JSON 모두 지원
+     * - 축약 형식: {"r":0.75,"c":0.85,"a":"E","d":"..."}
+     * - 전체 형식: {"riskScore":0.75,"confidence":0.85,"action":"ESCALATE","reasoning":"..."}
+     */
+    private SecurityResponse parseJsonResponse(String jsonResponse) {
         try {
             // JSON 문자열에서 {}만 추출
             String cleanedJson = extractJsonObject(jsonResponse);
 
-            // 1단계: 축약 JSON 파싱 우선 시도 (프롬프트 최적화 후 표준 형식)
-            Layer1SecurityResponse compactResponse = Layer1SecurityResponse.fromCompactJson(cleanedJson);
-            if (isValidResponse(compactResponse)) {
-                log.debug("Layer1 compact JSON parsing successful: {}", cleanedJson);
-                // 컬렉션 필드 초기화 (축약 형식에서는 생략됨)
-                if (compactResponse.getMitigationActions() == null) {
-                    compactResponse.setMitigationActions(new ArrayList<>());
-                }
-                if (compactResponse.getBehaviorPatterns() == null) {
-                    compactResponse.setBehaviorPatterns(new ArrayList<>());
-                }
-                if (compactResponse.getSessionAnalysis() == null) {
-                    compactResponse.setSessionAnalysis(new HashMap<>());
-                }
-                if (compactResponse.getRelatedEvents() == null) {
-                    compactResponse.setRelatedEvents(new ArrayList<>());
-                }
-                return validateAndFixResponse(compactResponse);
+            // SecurityResponse.fromJson()으로 파싱 (축약/전체 모두 지원)
+            SecurityResponse response = SecurityResponse.fromJson(cleanedJson);
+
+            if (response != null && response.isValid()) {
+                log.debug("[Layer1] JSON 파싱 성공: {}", cleanedJson);
+                return validateAndFixResponse(response);
             }
 
-            log.debug("Layer1 compact parsing failed, falling back to Jackson: {}", cleanedJson);
-            JsonNode jsonNode = objectMapper.readTree(cleanedJson);
-            Double riskScore = jsonNode.has("riskScore") && !jsonNode.get("riskScore").isNull()
-                    ? jsonNode.get("riskScore").asDouble() : null;
-            Double confidence = jsonNode.has("confidence") && !jsonNode.get("confidence").isNull()
-                    ? jsonNode.get("confidence").asDouble() : null;
-            // AI Native v4.2.0: null 값이 "null" 문자열로 변환되는 것 방지
-            String action = (jsonNode.has("action") && !jsonNode.get("action").isNull())
-                    ? jsonNode.get("action").asText() : null;
-
-            // AI Native v6.0: action null 시 ESCALATE (규칙 기반 추론 제거)
-            // LLM이 action을 반환하지 않으면 안전하게 상위 계층으로 에스컬레이션
-            if (action == null) {
-                action = "ESCALATE";
-                log.warn("[Layer1][Fallback] action 누락, ESCALATE로 설정");
-                if (confidence != null) {
-                    confidence = confidence * 0.7;  // 30% 페널티
-                }
-            }
-
-            // AI Native v6.0: LLM이 "reasoning" 또는 "reason" 필드로 반환할 수 있음
-            String reasoning;
-            if (jsonNode.has("reasoning") && !jsonNode.get("reasoning").isNull()) {
-                reasoning = jsonNode.get("reasoning").asText();
-            } else if (jsonNode.has("reason") && !jsonNode.get("reason").isNull()) {
-                reasoning = jsonNode.get("reason").asText();  // fallback: reason 필드
-            } else {
-                reasoning = "No reasoning provided";
-            }
-            // AI Native: threatCategory는 LLM이 분류, 없으면 null 유지
-            // 플랫폼이 기본값이나 마커를 생성하지 않음
-            String threatCategory = (jsonNode.has("threatCategory") && !jsonNode.get("threatCategory").isNull()
-                    && !jsonNode.get("threatCategory").asText().isBlank())
-                    ? jsonNode.get("threatCategory").asText() : null;
-
-            List<String> mitigationActions = new ArrayList<>();
-            if (jsonNode.has("mitigationActions") && jsonNode.get("mitigationActions").isArray()) {
-                jsonNode.get("mitigationActions").forEach(node -> mitigationActions.add(node.asText()));
-            }
-
-            // Response 객체 생성
-            Layer1SecurityResponse response = Layer1SecurityResponse.builder()
-                    .riskScore(riskScore)
-                    .confidence(confidence)
-                    .action(action)
-                    .reasoning(reasoning)
-                    .threatCategory(threatCategory)
-                    .mitigationActions(mitigationActions)
-                    .behaviorPatterns(new ArrayList<>())
-                    .sessionAnalysis(new HashMap<>())
-                    .relatedEvents(new ArrayList<>())
-                    .build();
-
-            // 검증 및 수정
-            return validateAndFixResponse(response);
+            log.warn("[Layer1] JSON 파싱 실패, 기본 응답 반환: {}", cleanedJson);
+            return createDefaultResponse();
 
         } catch (Exception e) {
-            log.error("Failed to parse JSON response from Layer2 LLM: {}", jsonResponse, e);
+            log.error("[Layer1] JSON 응답 파싱 실패: {}", jsonResponse, e);
             return createDefaultResponse();
         }
     }
 
     /**
-     * Response 객체 유효성 검사
-     * riskScore 또는 confidence가 설정되어 있으면 유효한 응답으로 판단
+     * AI Native v6.6: 기본 응답 생성
+     *
+     * LLM 분석 불가 시 ESCALATE로 상위 Layer에 위임
      */
-    private boolean isValidResponse(Layer1SecurityResponse response) {
-        if (response == null) return false;
-        return response.getRiskScore() != null || response.getConfidence() != null;
-    }
-
-    private Layer1SecurityResponse createDefaultResponse() {
-        return Layer1SecurityResponse.builder()
-                .riskScore(Double.NaN)
-                .confidence(Double.NaN)
-                .action("ESCALATE")  // AI Native: 분석 불가 시 상위 Layer로 에스컬레이션
-                .reasoning("Layer 1 LLM analysis unavailable - escalating to Layer 1")
-                .threatCategory(null)  // AI Native: 플랫폼이 분류하지 않음
-                .behaviorPatterns(new ArrayList<>())
-                .mitigationActions(new ArrayList<>())
-                .sessionAnalysis(new HashMap<>())
-                .relatedEvents(new ArrayList<>())
-                .recommendation("ESCALATE")
+    private SecurityResponse createDefaultResponse() {
+        return SecurityResponse.builder()
+                .riskScore(null)  // AI Native: NaN 대신 null (fromJson 호환성)
+                .confidence(null)
+                .action("ESCALATE")
+                .reasoning("[AI Native] Layer 1 LLM analysis unavailable - escalating to Layer 2")
+                .mitre(null)
                 .build();
     }
 
@@ -837,7 +778,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    private Layer1SecurityResponse validateAndFixResponse(Layer1SecurityResponse response) {
+    /**
+     * AI Native v6.6: 응답 검증 및 수정
+     *
+     * 통합된 SecurityResponse 형식 검증
+     */
+    private SecurityResponse validateAndFixResponse(SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
         }
@@ -849,12 +795,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         response.setRiskScore(validated[0]);
         response.setConfidence(validated[1]);
 
-        // AI Native: threatCategory가 null이면 null 유지 (플랫폼 분류 금지)
-        // 마커 생성도 AI Native 위반이므로 null 그대로 유지
-
-        // mitigationActions 검증
-        if (response.getMitigationActions() == null) {
-            response.setMitigationActions(new ArrayList<>());
+        // AI Native v6.6: action이 null이면 ESCALATE로 설정
+        if (response.getAction() == null || response.getAction().isBlank()) {
+            response.setAction("ESCALATE");
+            log.warn("[Layer1][Fallback] action 누락, ESCALATE로 설정");
         }
 
         return response;

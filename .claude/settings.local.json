@@ -73,7 +73,10 @@
       "Bash(.gradlew :contexa-core:compileJava --no-daemon -q)",
       "Bash(.gradlew.bat :contexa-core:compileJava)",
       "Bash(.\\\\gradlew.bat :contexa-core:compileJava:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(.gradlew.bat :contexa-core:compileJava --quiet)",
+      "Bash(find-object:*)",
+      "Bash(Select-String \"Layer\")"
     ],
     "deny": [],
     "ask": []

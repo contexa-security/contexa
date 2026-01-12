@@ -193,6 +193,10 @@ public class HCADContextExtractor {
 
     /**
      * 세션 관련 정보 추가
+     *
+     * AI Native v6.4: IsNewDevice 로직 변경
+     * - 기존: sessionId 기반 → 새 세션이면 항상 새 디바이스로 판단 (오류)
+     * - 변경: userId 기반 → 사용자가 이전에 사용한 디바이스인지 확인
      */
     private void enrichWithSessionInfo(HCADContext context,
                                       String userId, String sessionId) {
@@ -201,24 +205,21 @@ public class HCADContextExtractor {
             String sessionKey = ZeroTrustRedisKeys.sessionMetadata(sessionId);
             Map<Object, Object> sessionInfo = redisTemplate.opsForHash().entries(sessionKey);
 
-            if (sessionInfo != null && !sessionInfo.isEmpty()) {
-                // 기존 세션
-                context.setIsNewSession(false);
+            // IsNewSession 판단 (기존 로직 유지)
+            boolean isNewSession = (sessionInfo == null || sessionInfo.isEmpty());
+            context.setIsNewSession(isNewSession);
 
-                // 이전 디바이스 정보와 비교
-                String lastDevice = (String) sessionInfo.get("device");
-                String currentDevice = context.getUserAgent();
-                context.setIsNewDevice(!currentDevice.equals(lastDevice));
+            // AI Native v6.4: IsNewDevice 판단 (userId 기반으로 변경)
+            // 새 세션이어도 같은 디바이스면 IsNewDevice=false
+            String currentDevice = context.getUserAgent();
+            boolean isNewDevice = checkAndRegisterDevice(userId, currentDevice);
+            context.setIsNewDevice(isNewDevice);
 
-            } else {
-                // 새 세션
-                context.setIsNewSession(true);
-                context.setIsNewDevice(true);
-
-                // 세션 정보 저장
+            // 세션 정보 저장 (새 세션인 경우)
+            if (isNewSession) {
                 Map<String, Object> newSessionInfo = new HashMap<>();
                 newSessionInfo.put("userId", userId);
-                newSessionInfo.put("device", context.getUserAgent());
+                newSessionInfo.put("device", currentDevice);
                 newSessionInfo.put("createdAt", Instant.now().toString());
                 redisTemplate.opsForHash().putAll(sessionKey, newSessionInfo);
                 redisTemplate.expire(sessionKey, Duration.ofHours(24));
@@ -228,6 +229,54 @@ public class HCADContextExtractor {
             log.debug("[HCAD] 세션 정보 추출 실패", e);
             context.setIsNewSession(true);
             context.setIsNewDevice(true);
+        }
+    }
+
+    /**
+     * AI Native v6.4: 디바이스 확인 및 등록 (userId 기반)
+     *
+     * 사용자가 이전에 사용한 디바이스인지 확인하고, 새 디바이스면 등록합니다.
+     * - 기존 디바이스: Redis Set에 User-Agent가 존재 → IsNewDevice=false
+     * - 새 디바이스: Redis Set에 User-Agent가 없음 → IsNewDevice=true, Set에 추가
+     *
+     * @param userId 사용자 ID
+     * @param currentDevice 현재 User-Agent
+     * @return true면 새 디바이스, false면 기존 디바이스
+     */
+    private boolean checkAndRegisterDevice(String userId, String currentDevice) {
+        if (userId == null || currentDevice == null || currentDevice.isEmpty()) {
+            return true;  // 정보 부족 시 새 디바이스로 판단
+        }
+
+        try {
+            String deviceKey = ZeroTrustRedisKeys.userDevices(userId);
+
+            // 기존 디바이스 목록에서 확인
+            Boolean isMember = redisTemplate.opsForSet().isMember(deviceKey, currentDevice);
+
+            if (Boolean.TRUE.equals(isMember)) {
+                // 기존 디바이스
+                return false;
+            } else {
+                // 새 디바이스 - Set에 추가
+                redisTemplate.opsForSet().add(deviceKey, currentDevice);
+                redisTemplate.expire(deviceKey, Duration.ofDays(30));
+
+                // 최대 10개 유지 (오래된 디바이스 정리)
+                Long size = redisTemplate.opsForSet().size(deviceKey);
+                if (size != null && size > 10) {
+                    // Set에서 랜덤하게 1개 제거 (현재 디바이스 제외)
+                    Object oldDevice = redisTemplate.opsForSet().randomMember(deviceKey);
+                    if (oldDevice != null && !oldDevice.equals(currentDevice)) {
+                        redisTemplate.opsForSet().remove(deviceKey, oldDevice);
+                    }
+                }
+
+                return true;
+            }
+        } catch (Exception e) {
+            log.debug("[HCAD] 디바이스 확인 실패", e);
+            return true;  // 오류 시 새 디바이스로 판단 (Zero Trust)
         }
     }
 
