@@ -279,6 +279,22 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ColdPathEventProcessor(redisTemplate, contextualStrategy, expertStrategy);
     }
 
+    // ========== Post Processor ==========
+
+    /**
+     * SecurityDecisionPostProcessor - AI Native v6.8
+     *
+     * Layer1ContextualStrategy와 ZeroTrustEventListener에서 공통으로 사용하는
+     * 세션 컨텍스트 업데이트 및 벡터 스토어 저장 로직을 통합합니다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityDecisionPostProcessor securityDecisionPostProcessor(
+            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
+            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService) {
+        return new SecurityDecisionPostProcessor(redisTemplate, unifiedVectorService);
+    }
+
     // ========== Audit & Authorization ==========
 
     @Bean

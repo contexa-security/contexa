@@ -588,7 +588,7 @@ public class ZeroTrustSecurityService {
                 return;
             }
 
-            UserDto userDto = (UserDto) authentication.getPrincipal();
+            UnifiedCustomUserDetails userDto = (UnifiedCustomUserDetails) authentication.getPrincipal();
 
             // 이벤트 빌더 생성
             AuthenticationSuccessEvent.AuthenticationSuccessEventBuilder builder =

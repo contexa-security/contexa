@@ -7,9 +7,7 @@ import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -36,16 +34,14 @@ import java.util.Map;
  * @since AI Native v6.8
  */
 @Slf4j
-@Service
 public class SecurityDecisionPostProcessor {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final UnifiedVectorService unifiedVectorService;
 
-    @Autowired
     public SecurityDecisionPostProcessor(
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) UnifiedVectorService unifiedVectorService) {
+            RedisTemplate<String, Object> redisTemplate,
+            UnifiedVectorService unifiedVectorService) {
         this.redisTemplate = redisTemplate;
         this.unifiedVectorService = unifiedVectorService;
     }
