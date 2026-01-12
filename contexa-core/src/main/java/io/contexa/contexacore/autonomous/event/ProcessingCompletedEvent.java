@@ -36,7 +36,7 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
      * @param originalEvent 원본 보안 이벤트
      * @param result 처리 결과 (위협 레벨, 추천 액션, 분석 데이터 등)
      * @param mode 처리 모드 (REALTIME_BLOCK, PASS_THROUGH, AI_ANALYSIS 등)
-     * @param layer 처리 계층 (LAYER1, LAYER2, LAYER3)
+     * @param layer 처리 계층 (LAYER1, LAYER2) - 2-Tier 시스템
      * @param processingTimeMs 처리 시간(밀리초) - 성능 학습용
      * @param accuracy 사후 검증 점수 (0.0~1.0) - 향후 피드백 루프용, 현재는 0.0 기본값
      */
@@ -153,12 +153,11 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
     }
 
     /**
-     * 처리 계층 열거형
+     * 처리 계층 열거형 (2-Tier 시스템)
      */
     public enum ProcessingLayer {
-        LAYER1("Layer1 - Fast Filter (~50ms)"),
-        LAYER2("Layer2 - Contextual Analysis (~300ms)"),
-        LAYER3("Layer3 - Expert Analysis (~5s)"),
+        LAYER1("Layer1 - Fast Filter, Local Model (~100ms)"),
+        LAYER2("Layer2 - Expert Analysis, High-Performance Model (~5s)"),
         UNKNOWN("Unknown Layer");
 
         private final String description;
@@ -172,16 +171,15 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
         }
 
         /**
-         * aiAnalysisLevel을 ProcessingLayer로 변환
+         * aiAnalysisLevel을 ProcessingLayer로 변환 (2-Tier 시스템)
          *
-         * @param level AI 분석 레벨 (1, 2, 3)
+         * @param level AI 분석 레벨 (1, 2)
          * @return 대응하는 ProcessingLayer
          */
         public static ProcessingLayer fromLevel(int level) {
             switch (level) {
                 case 1: return LAYER1;
                 case 2: return LAYER2;
-                case 3: return LAYER3;
                 default: return UNKNOWN;
             }
         }

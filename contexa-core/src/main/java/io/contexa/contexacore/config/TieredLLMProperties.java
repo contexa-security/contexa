@@ -13,37 +13,42 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 3계층 LLM 시스템 설정 프로퍼티
+ * 2-Tier LLM 시스템 설정 프로퍼티
  * application-llm.yml의 설정을 매핑
+ *
+ * AI Native v6.7: L1 = L2 프롬프트, 차이점은 LLM 모델만
+ * - Layer1: 경량 로컬 모델 (95% 트래픽)
+ * - Layer2: 고성능 클라우드 모델 (5% 트래픽, ESCALATE 시)
  */
 @Slf4j
 @Data
 @ConfigurationProperties(prefix = "spring.ai.security")
 public class TieredLLMProperties {
 
+    // 기본 모델 상수
+    public static final String DEFAULT_LAYER1_MODEL = "llama3.1:8b";
+    public static final String DEFAULT_LAYER2_MODEL = "exaone3.5:latest";
+
     @Autowired(required = false)
     private ModelProviderProperties modelProviderProperties;
 
     /**
-     * Layer 1 모델 설정
+     * Layer 1 모델 설정 (경량 로컬 모델)
+     * 기본값: llama3.1:8b
      */
     @NestedConfigurationProperty
     private LayerConfig layer1 = new LayerConfig();
 
     /**
-     * Layer 2 모델 설정
+     * Layer 2 모델 설정 (고성능 클라우드 모델)
+     * 기본값: claude-3-5-sonnet-20241022
      */
     @NestedConfigurationProperty
     private LayerConfig layer2 = new LayerConfig();
 
-    /**
-     * Layer 3 모델 설정
-     */
-    @NestedConfigurationProperty
-    private LayerConfig layer3 = new LayerConfig();
 
     /**
-     * 3계층 시스템 상세 설정
+     * 2-Tier 시스템 상세 설정
      */
     @NestedConfigurationProperty
     private TieredConfig tiered = new TieredConfig();
@@ -80,7 +85,7 @@ public class TieredLLMProperties {
     }
 
     /**
-     * 3계층 시스템 상세 설정
+     * 2-Tier 시스템 상세 설정
      */
     @Data
     public static class TieredConfig {
@@ -104,11 +109,6 @@ public class TieredLLMProperties {
         @NestedConfigurationProperty
         private LayerDetails layer2 = new LayerDetails();
 
-        /**
-         * Layer 3 상세 설정
-         */
-        @NestedConfigurationProperty
-        private LayerDetails layer3 = new LayerDetails();
 
         /**
          * 적응형 라우팅 설정
@@ -118,9 +118,8 @@ public class TieredLLMProperties {
 
         @Data
         public static class TrafficDistribution {
-            private double layer1Percentage = 98.0;
-            private double layer2Percentage = 1.8;
-            private double layer3Percentage = 0.2;
+            private double layer1Percentage = 95.0;
+            private double layer2Percentage = 5.0;
         }
 
         @Data
@@ -136,13 +135,12 @@ public class TieredLLMProperties {
             private Double autoExecuteThreshold;
 
             /**
-             * 기본 Temperature 값 반환 (계층별 차등)
+             * 기본 Temperature 값 반환 (2-Tier 시스템)
              */
             public Double getDefaultTemperature(int tier) {
                 return switch (tier) {
-                    case 1 -> 0.3;  // 낮은 창의성, 빠른 응답
-                    case 2 -> 0.5;  // 중간 창의성
-                    case 3 -> 0.7;  // 높은 창의성, 깊은 분석
+                    case 1 -> 0.3;  // Layer 1: 경량 모델 (낮은 창의성, 빠른 응답)
+                    case 2 -> 0.7;  // Layer 2: 고성능 모델 (높은 창의성, 심층 분석)
                     default -> 0.5;
                 };
             }
@@ -166,7 +164,6 @@ public class TieredLLMProperties {
         String modelName = switch (tier) {
             case 1 -> layer1 != null ? layer1.getModel() : null;
             case 2 -> layer2 != null ? layer2.getModel() : null;
-            case 3 -> layer3 != null ? layer3.getModel() : null;
             default -> layer1 != null ? layer1.getModel() : null; // 기본값은 Layer 1
         };
 
@@ -188,7 +185,6 @@ public class TieredLLMProperties {
         LayerConfig config = switch (tier) {
             case 1 -> layer1;
             case 2 -> layer2;
-            case 3 -> layer3;
             default -> null;
         };
 
@@ -213,7 +209,6 @@ public class TieredLLMProperties {
         Integer timeout = switch (tier) {
             case 1 -> tiered.getLayer1().getTimeoutMs();
             case 2 -> tiered.getLayer2().getTimeoutMs();
-            case 3 -> tiered.getLayer3().getTimeoutMs();
             default -> 1000; // 기본값 1초
         };
 
@@ -241,7 +236,6 @@ public class TieredLLMProperties {
         Double temperature = switch (tier) {
             case 1 -> tiered.getLayer1().getDefaultTemperature(1);
             case 2 -> tiered.getLayer2().getDefaultTemperature(2);
-            case 3 -> tiered.getLayer3().getDefaultTemperature(3);
             default -> 0.5;
         };
 
@@ -295,11 +289,11 @@ public class TieredLLMProperties {
     }
 
     /**
-     * Tier 값 유효성 검증
+     * Tier 값 유효성 검증 (2-Tier 시스템)
      */
     private void validateTier(int tier) {
-        if (tier < 1 || tier > 3) {
-            throw new ModelSelectionException("유효하지 않은 tier 값: " + tier + " (1-3 사이여야 함)", tier);
+        if (tier < 1 || tier > 2) {
+            throw new ModelSelectionException("유효하지 않은 tier 값: " + tier + " (1-2 사이여야 함)", tier);
         }
     }
 
@@ -316,17 +310,16 @@ public class TieredLLMProperties {
             }
         }
 
-        // 폴백: 하드코딩된 기본값
+        // 폴백: 하드코딩된 기본값 (2-Tier 시스템)
         return switch (tier) {
-            case 1 -> 100;     // Layer 1: 초고속
-            case 2 -> 500;    // Layer 2: 균형
-            case 3 -> 5000;   // Layer 3: 심층 분석
-            default -> 1000;  // 기본값
+            case 1 -> 100;     // Layer 1: 경량 모델 (빠른 응답)
+            case 2 -> 5000;    // Layer 2: 고성능 모델 (심층 분석)
+            default -> 1000;   // 기본값
         };
     }
 
     /**
-     * Tier별 기본 Temperature 값
+     * Tier별 기본 Temperature 값 (2-Tier 시스템)
      */
     private Double getDefaultTemperatureForTier(int tier) {
         // ModelProviderProperties에서 기본값 가져오기 시도
@@ -338,21 +331,23 @@ public class TieredLLMProperties {
             }
         }
 
-        // 폴백: 하드코딩된 기본값
+        // 폴백: 하드코딩된 기본값 (2-Tier 시스템)
         return switch (tier) {
-            case 1 -> 0.3;    // Layer 1: 낮은 창의성, 빠른 응답
-            case 2 -> 0.5;    // Layer 2: 중간 창의성
-            case 3 -> 0.7;    // Layer 3: 높은 창의성, 깊은 분석
+            case 1 -> 0.3;    // Layer 1: 경량 모델 (낮은 창의성, 빠른 응답)
+            case 2 -> 0.7;    // Layer 2: 고성능 모델 (높은 창의성, 심층 분석)
             default -> 0.5;   // 기본값
         };
     }
 
     /**
-     * 설정 초기화 후 유효성 검증
+     * 설정 초기화 후 유효성 검증 및 기본값 적용 (2-Tier 시스템)
      */
     @PostConstruct
     public void validateConfiguration() {
-        log.info("3계층 LLM 시스템 설정 검증 시작");
+        log.info("2-Tier LLM 시스템 설정 검증 시작");
+
+        // 기본값 적용
+        applyDefaultModels();
 
         // 실제 로드된 설정값들 디버그 출력
         log.info("=== 실제 로드된 설정값 디버그 ===");
@@ -360,20 +355,41 @@ public class TieredLLMProperties {
         log.info("layer1.model: {}", layer1 != null ? layer1.getModel() : "null");
         log.info("layer2: {}", layer2);
         log.info("layer2.model: {}", layer2 != null ? layer2.getModel() : "null");
-        log.info("layer3: {}", layer3);
-        log.info("layer3.model: {}", layer3 != null ? layer3.getModel() : "null");
         log.info("tiered: {}", tiered);
         log.info("================================");
 
-        // 필수 모델 설정 확인
+        // 필수 모델 설정 확인 (2-Tier)
         validateLayerConfig(1, layer1);
         validateLayerConfig(2, layer2);
-        validateLayerConfig(3, layer3);
 
         // 트래픽 분배 비율 검증
         validateTrafficDistribution();
 
-        log.info("3계층 LLM 시스템 설정 검증 완료");
+        log.info("2-Tier LLM 시스템 설정 검증 완료");
+    }
+
+    /**
+     * 기본 모델 설정 적용
+     * application.yml에서 설정하지 않은 경우 기본값 사용
+     */
+    private void applyDefaultModels() {
+        // Layer 1 기본값 적용
+        if (layer1 == null) {
+            layer1 = new LayerConfig();
+        }
+        if (layer1.getModel() == null || layer1.getModel().trim().isEmpty()) {
+            layer1.setModel(DEFAULT_LAYER1_MODEL);
+            log.info("Layer 1 기본 모델 적용: {}", DEFAULT_LAYER1_MODEL);
+        }
+
+        // Layer 2 기본값 적용
+        if (layer2 == null) {
+            layer2 = new LayerConfig();
+        }
+        if (layer2.getModel() == null || layer2.getModel().trim().isEmpty()) {
+            layer2.setModel(DEFAULT_LAYER2_MODEL);
+            log.info("Layer 2 기본 모델 적용: {}", DEFAULT_LAYER2_MODEL);
+        }
     }
 
     /**
@@ -396,26 +412,23 @@ public class TieredLLMProperties {
     }
 
     /**
-     * 트래픽 분배 비율 검증
+     * 트래픽 분배 비율 검증 (2-Tier 시스템)
      */
     private void validateTrafficDistribution() {
         if (tiered == null || tiered.getTrafficDistribution() == null) {
-            log.warn("트래픽 분배 설정이 없습니다. 기본값 사용");
+            log.warn("트래픽 분배 설정이 없습니다. 기본값 사용 (Layer1=95%, Layer2=5%)");
             return;
         }
 
         TieredConfig.TrafficDistribution dist = tiered.getTrafficDistribution();
-        double total = dist.getLayer1Percentage() +
-                      dist.getLayer2Percentage() +
-                      dist.getLayer3Percentage();
+        double total = dist.getLayer1Percentage() + dist.getLayer2Percentage();
 
         if (Math.abs(total - 100.0) > 0.01) {
             log.warn("트래픽 분배 비율 합계가 100%가 아닙니다: {}%", total);
         }
 
-        log.info("트래픽 분배 비율: Layer1={}%, Layer2={}%, Layer3={}%",
+        log.info("트래픽 분배 비율: Layer1={}%, Layer2={}%",
                 dist.getLayer1Percentage(),
-                dist.getLayer2Percentage(),
-                dist.getLayer3Percentage());
+                dist.getLayer2Percentage());
     }
 }

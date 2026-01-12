@@ -157,42 +157,44 @@ public class TieredSecurityLLMConfiguration {
     }
     
     /**
-     * Layer 3: Claude Opus (전문가 분석 - 1-5초)
+     * Anthropic Claude 모델 (Layer 2 클라우드 백업 옵션)
+     * 사용자가 spring.ai.security.layer2.model 설정으로 오버라이드 가능
      */
     @Bean(name = "claudeOpusChatModel")
     @ConditionalOnMissingBean(name = "claudeOpusChatModel")
     public ChatModel claudeOpusChatModel(
             @Autowired(required = false) AnthropicChatModel anthropicChatModel,
-            @Value("${spring.ai.security.layer3.model:${spring.ai.security.tiered.layer3.model:llama3.1:8b}}") String modelName) {
+            @Value("${spring.ai.security.layer2.backup.model:claude-3-5-sonnet-20241022}") String modelName) {
 
-        log.info("Layer 3 Claude Opus ChatModel 구성 - Model: {}", modelName);
+        log.info("Claude ChatModel 구성 (Layer 2 백업) - Model: {}", modelName);
 
         if (anthropicChatModel != null) {
-            log.info("  ✓ Anthropic ChatModel 사용");
+            log.info("  - Anthropic ChatModel 사용 가능");
             return anthropicChatModel;
         }
 
-        log.warn("  ⚠ Anthropic ChatModel을 찾을 수 없습니다. API 키 확인 필요");
+        log.warn("  - Anthropic ChatModel을 찾을 수 없습니다. API 키 확인 필요");
         return null;
     }
-    
+
     /**
-     * Layer 3 대체: GPT-4 (전문가 분석 - 1-5초)
+     * OpenAI GPT 모델 (Layer 2 클라우드 백업 옵션)
+     * 사용자가 spring.ai.security.layer2.backup.model 설정으로 오버라이드 가능
      */
     @Bean(name = "gpt4ChatModel")
     @ConditionalOnMissingBean(name = "gpt4ChatModel")
     public ChatModel gpt4ChatModel(
             @Autowired(required = false) OpenAiChatModel openAiChatModel,
-            @Value("${spring.ai.security.layer3.backup.model:gpt-4}") String modelName) {
+            @Value("${spring.ai.security.layer2.backup.model:gpt-4o}") String modelName) {
 
-        log.info("Layer 3 GPT-4 ChatModel 구성 - Model: {}", modelName);
+        log.info("GPT ChatModel 구성 (Layer 2 백업) - Model: {}", modelName);
 
         if (openAiChatModel != null) {
-            log.info("  ✓ OpenAI ChatModel 사용");
+            log.info("  - OpenAI ChatModel 사용 가능");
             return openAiChatModel;
         }
 
-        log.warn("  ⚠ OpenAI ChatModel을 찾을 수 없습니다. API 키 확인 필요");
+        log.warn("  - OpenAI ChatModel을 찾을 수 없습니다. API 키 확인 필요");
         return null;
     }
 

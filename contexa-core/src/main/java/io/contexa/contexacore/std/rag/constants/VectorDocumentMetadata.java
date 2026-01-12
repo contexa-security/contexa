@@ -118,10 +118,7 @@ public final class VectorDocumentMetadata {
      */
     public static final String TYPE_LAYER2_FEEDBACK = "layer2_feedback";
 
-    /**
-     * Layer3 피드백 문서 타입
-     */
-    public static final String TYPE_LAYER3_FEEDBACK = "layer3_feedback";
+    // AI Native v6.7: Layer3 제거됨 - 2-Tier 시스템
 
     // ==================== Behavior Lab 전용 ====================
 
@@ -286,8 +283,8 @@ public final class VectorDocumentMetadata {
      * @return Layer 피드백 타입이면 true
      */
     public static boolean isLayerFeedbackType(String documentType) {
+        // 2-Tier 시스템: Layer1, Layer2만 지원
         return TYPE_LAYER1_FEEDBACK.equals(documentType) ||
-               TYPE_LAYER2_FEEDBACK.equals(documentType) ||
-               TYPE_LAYER3_FEEDBACK.equals(documentType);
+               TYPE_LAYER2_FEEDBACK.equals(documentType);
     }
 }

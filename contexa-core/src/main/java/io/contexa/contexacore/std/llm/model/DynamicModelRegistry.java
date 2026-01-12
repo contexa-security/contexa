@@ -110,23 +110,19 @@ public class DynamicModelRegistry {
     private void loadModelsFromConfiguration() {
         log.info("설정 파일에서 모델 정의 로드");
 
-        // Layer 1 모델
+        // Layer 1 모델 (경량 로컬 모델)
         registerModelFromConfig(1, tieredLLMProperties.getLayer1().getModel());
         if (tieredLLMProperties.getLayer1().hasBackupModel()) {
             registerModelFromConfig(1, tieredLLMProperties.getLayer1().getBackup().getModel());
         }
 
-        // Layer 2 모델
+        // Layer 2 모델 (고성능 모델)
         registerModelFromConfig(2, tieredLLMProperties.getLayer2().getModel());
         if (tieredLLMProperties.getLayer2().hasBackupModel()) {
             registerModelFromConfig(2, tieredLLMProperties.getLayer2().getBackup().getModel());
         }
 
-        // Layer 3 모델
-        registerModelFromConfig(3, tieredLLMProperties.getLayer3().getModel());
-        if (tieredLLMProperties.getLayer3().hasBackupModel()) {
-            registerModelFromConfig(3, tieredLLMProperties.getLayer3().getBackup().getModel());
-        }
+        // 2-Tier 시스템: Layer 3 제거됨
     }
 
     /**
@@ -285,16 +281,14 @@ public class DynamicModelRegistry {
     }
 
     /**
-     * 기본값으로부터 Tier 추론
+     * 기본값으로부터 Tier 추론 (2-Tier 시스템)
      */
     private int inferTierFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
-        // 성능 점수와 대기시간을 기준으로 Tier 추론
+        // 성능 점수와 대기시간을 기준으로 Tier 추론 (2-Tier)
         if (tierDefaults.getPerformanceScore() >= 90.0 && tierDefaults.getLatencyMs() <= 100) {
-            return 1;
-        } else if (tierDefaults.getPerformanceScore() >= 70.0 && tierDefaults.getLatencyMs() <= 1000) {
-            return 2;
+            return 1;  // Layer 1: 경량 모델
         } else {
-            return 3;
+            return 2;  // Layer 2: 고성능 모델
         }
     }
 

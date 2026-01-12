@@ -18,12 +18,11 @@ public class SecurityColdPathProperties {
     private ConfidenceSettings confidence = new ConfidenceSettings();
 
     /**
-     * 신뢰도 설정
+     * 신뢰도 설정 (2-Tier 시스템)
      */
     @Data
     public static class ConfidenceSettings {
         private double layer1Base = 0.5;
-        private double layer2Base = 0.6;
-        private double layer3Base = 0.7;
+        private double layer2Base = 0.7;  // Layer 2가 최상위 계층 (2-Tier 시스템)
     }
 }

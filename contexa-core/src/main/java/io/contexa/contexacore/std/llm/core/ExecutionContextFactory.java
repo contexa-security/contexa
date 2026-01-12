@@ -36,7 +36,7 @@ public class ExecutionContextFactory {
                 .temperature(temperature)
                 .advisorEnabled(true);
 
-        // 분석 수준별 추가 설정
+        // 분석 수준별 추가 설정 (2-Tier 시스템)
         switch (level) {
             case QUICK -> {
                 builder.requireFastResponse(true)
@@ -46,8 +46,9 @@ public class ExecutionContextFactory {
                 builder.preferLocalModel(true);
             }
             case DEEP -> {
+                // Layer 2 고성능 모델 사용 (2-Tier 시스템)
                 builder.preferCloudModel(tieredLLMProperties.isCloudModel(modelName))
-                       .toolExecutionEnabled(tieredLLMProperties.getTiered().getLayer3().isEnableSoar());
+                       .toolExecutionEnabled(tieredLLMProperties.getTiered().getLayer2().isEnableSoar());
             }
         }
 
@@ -71,26 +72,24 @@ public class ExecutionContextFactory {
                 .temperature(temperature)
                 .advisorEnabled(true);
 
-        // 계층별 추가 설정
+        // 계층별 추가 설정 (2-Tier 시스템)
         switch (tier) {
             case 1 -> {
+                // Layer 1: 경량 모델 - 빠른 응답, 위협 필터링
                 builder.securityTaskType(ExecutionContext.SecurityTaskType.THREAT_FILTERING)
                        .requireFastResponse(true)
                        .preferLocalModel(tieredLLMProperties.isOllamaModel(modelName));
             }
             case 2 -> {
-                builder.securityTaskType(ExecutionContext.SecurityTaskType.CONTEXTUAL_ANALYSIS)
-                       .preferLocalModel(tieredLLMProperties.isOllamaModel(modelName));
-            }
-            case 3 -> {
+                // Layer 2: 고성능 모델 - 심층 분석, 전문가 조사
                 builder.securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
                        .preferCloudModel(tieredLLMProperties.isCloudModel(modelName))
-                       .toolExecutionEnabled(tieredLLMProperties.getTiered().getLayer3().isEnableSoar());
+                       .toolExecutionEnabled(tieredLLMProperties.getTiered().getLayer2().isEnableSoar());
             }
             default -> {
-                // 유효하지 않은 tier인 경우 기본값 사용
-                builder.tier(2)
-                       .preferredModel(tieredLLMProperties.getModelNameForTier(2));
+                // 유효하지 않은 tier인 경우 기본값 사용 (Layer 1)
+                builder.tier(1)
+                       .preferredModel(tieredLLMProperties.getModelNameForTier(1));
             }
         }
 
