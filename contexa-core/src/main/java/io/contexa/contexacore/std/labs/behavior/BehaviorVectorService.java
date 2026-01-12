@@ -356,8 +356,14 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             metadata.put("riskScore", response.getBehavioralRiskScore());
             metadata.put("behaviorAnomalyScore", context.getBehaviorAnomalyScore());
 
-            // 위협 분류
-            metadata.put("threatType", determineThreatType(context));
+            // AI Native v6.1: 위협 분류 - anomalyIndicators 원시 데이터 저장
+            // determineThreatType() 제거 - 플랫폼이 위협 유형을 결정하면 AI Native 위반
+            // LLM이 나중에 anomalyIndicators를 참조하여 직접 판단
+            List<String> indicators = context.getAnomalyIndicators();
+            String rawThreatIndicators = (indicators != null && !indicators.isEmpty())
+                ? String.join(",", indicators)
+                : "none";
+            metadata.put("threatIndicators", rawThreatIndicators); // threatType → threatIndicators (원시)
             metadata.put("riskCategory", context.getRiskCategory() != null ? context.getRiskCategory() : "UNKNOWN");
             metadata.put("patternType", determinePatternType(context));
 
@@ -390,50 +396,28 @@ public class BehaviorVectorService extends AbstractVectorLabService {
 
             storeDocument(threatDoc);
 
-            log.info("[ThreatPattern] 위협 패턴 저장 완료: userId={}, riskScore={}, threatType={}",
-                context.getUserId(), response.getBehavioralRiskScore(), metadata.get("threatType"));
+            // AI Native v6.1: threatType → threatIndicators 로그 변경
+            log.info("[ThreatPattern] 위협 패턴 저장 완료: userId={}, riskScore={}, indicators={}",
+                context.getUserId(), response.getBehavioralRiskScore(), metadata.get("threatIndicators"));
 
         } catch (Exception e) {
             log.error("[ThreatPattern] 위협 패턴 저장 실패: userId={}", context.getUserId(), e);
         }
     }
 
-    /**
-     * 위협 유형 결정
-     */
+    // AI Native v6.1: determineThreatType() 제거
+    // 문제점: LLM이 생성한 anomalyIndicators를 플랫폼이 다시 해석하여 threatType 결정
+    // AI Native 위반: 플랫폼이 위협 유형을 판단하면 안 됨
+    // 대안: anomalyIndicators 원시 데이터를 직접 저장하여 LLM이 참조하도록 함
+    // 호환성 유지를 위해 deprecated 처리 (기존 호출부 점진적 마이그레이션)
+    @Deprecated(since = "6.1.0", forRemoval = true)
     private String determineThreatType(BehavioralAnalysisContext context) {
-        if (context.getAnomalyIndicators() != null) {
-            Set<String> indicators = new HashSet<>(context.getAnomalyIndicators());
-
-            if (indicators.contains("brute_force") || indicators.contains("repeated_failed_login")) {
-                return "BRUTE_FORCE";
-            }
-            if (indicators.contains("session_hijacking") || indicators.contains("token_reuse")) {
-                return "SESSION_HIJACKING";
-            }
-            if (indicators.contains("data_exfiltration") || indicators.contains("bulk_access")) {
-                return "DATA_EXFILTRATION";
-            }
-            if (indicators.contains("privilege_escalation")) {
-                return "PRIVILEGE_ESCALATION";
-            }
-            if (indicators.contains("sql_injection") || indicators.contains("xss")) {
-                return "INJECTION_ATTACK";
-            }
+        // AI Native: anomalyIndicators 첫 번째 값 반환 (규칙 기반 분류 제거)
+        List<String> indicators = context.getAnomalyIndicators();
+        if (indicators != null && !indicators.isEmpty()) {
+            return indicators.get(0).toUpperCase(); // LLM이 생성한 값 그대로 반환
         }
-
-        // 활동 기반 분류
-        String activity = context.getCurrentActivity();
-        if (activity != null) {
-            if (activity.contains("admin") || activity.contains("config")) {
-                return "UNAUTHORIZED_ACCESS";
-            }
-            if (activity.contains("download") || activity.contains("export")) {
-                return "DATA_EXFILTRATION";
-            }
-        }
-
-        return "UNKNOWN_THREAT";
+        return "UNKNOWN";
     }
 
     /**
@@ -454,6 +438,10 @@ public class BehaviorVectorService extends AbstractVectorLabService {
 
     /**
      * IOC 지표 추출
+     *
+     * AI Native v6.1: isSuspiciousUserAgent() 조건 제거
+     * - 모든 User-Agent를 IOC에 포함 (LLM이 의심 여부 판단)
+     * - 플랫폼이 "의심스러운 UA"를 판단하면 AI Native 위반
      */
     private List<String> extractIocIndicators(BehavioralAnalysisContext context) {
         List<String> indicators = new ArrayList<>();
@@ -462,7 +450,9 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             indicators.add("ip:" + context.getRemoteIp());
         }
 
-        if (context.getUserAgent() != null && isSuspiciousUserAgent(context.getUserAgent())) {
+        // AI Native v6.1: 모든 User-Agent를 IOC에 포함
+        // isSuspiciousUserAgent() 조건 제거 - LLM이 판단하도록 위임
+        if (context.getUserAgent() != null && !context.getUserAgent().isEmpty()) {
             indicators.add("ua:" + context.getUserAgent());
         }
 
@@ -473,34 +463,41 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         return indicators;
     }
 
-    /**
-     * 의심스러운 User-Agent 판별
-     */
+    // AI Native v6.1: isSuspiciousUserAgent() 제거
+    // 문제점: 플랫폼이 하드코딩된 규칙으로 "의심스러운 UA" 판단
+    // - "curl", "python" = 정상적인 자동화 도구도 사용
+    // - "bot" = 검색 엔진 봇도 차단 (False Positive)
+    // AI Native 원칙: User-Agent 원시 데이터를 LLM에 제공하여 판단 위임
+    // 호환성 유지를 위해 deprecated 처리 (항상 false 반환)
+    @Deprecated(since = "6.1.0", forRemoval = true)
     private boolean isSuspiciousUserAgent(String userAgent) {
-        String ua = userAgent.toLowerCase();
-        return ua.contains("curl") || ua.contains("wget") || ua.contains("python") ||
-               ua.contains("bot") || ua.contains("scanner") || ua.contains("sqlmap") ||
-               ua.contains("nikto") || ua.contains("nmap");
+        // AI Native: 플랫폼이 판단하지 않음 - 항상 false 반환
+        // User-Agent 원시 데이터는 extractIocIndicators()에서 모두 저장됨
+        return false;
     }
 
     /**
      * 위협 설명 생성
+     *
+     * AI Native v6.1: determineThreatType() 호출 제거
+     * - 위협유형 대신 anomalyIndicators 원시 데이터 출력
+     * - LLM이 저장된 데이터를 참조할 때 직접 해석
      */
     private String buildThreatDescription(BehavioralAnalysisContext context, BehavioralAnalysisResponse response) {
-        // 이상 지표 문자열 생성
+        // 이상 지표 문자열 생성 (원시 데이터)
         String anomalyStr = context.getAnomalyIndicators() != null && !context.getAnomalyIndicators().isEmpty()
             ? String.join(", ", context.getAnomalyIndicators())
             : "none";
 
+        // AI Native v6.1: 위협유형 → 이상지표로 변경
         return String.format(
             "고위험 행동 탐지: 사용자=%s, 활동=%s, IP=%s, 위험도=%.2f, " +
-            "위협유형=%s, 지표=%s, 분석요약=%s",
+            "이상지표=%s, 분석요약=%s",
             context.getUserId(),
             context.getCurrentActivity(),
             context.getRemoteIp(),
             response.getBehavioralRiskScore(),
-            determineThreatType(context),
-            anomalyStr,
+            anomalyStr, // determineThreatType() 대신 anomalyIndicators 직접 사용
             response.getSummary() != null ? response.getSummary() : "none"
         );
     }

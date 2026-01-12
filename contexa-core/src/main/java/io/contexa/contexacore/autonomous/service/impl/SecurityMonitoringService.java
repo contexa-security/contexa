@@ -175,26 +175,32 @@ public class SecurityMonitoringService {
     }
 
     /**
-     * 이벤트 전처리 (정규화, 중복 제거, 보강)
+     * 이벤트 전처리 (정규화, 중복 제거)
+     *
+     * AI Native v5.1.0: enrichEvent 호출 제거
+     * - processingTimestamp, monitoringServiceProcessed 필드는 LLM 분석에서 미사용
+     * - 불필요한 메타데이터 보강 제거로 처리 효율성 향상
+     *
      * @param event 원시 이벤트
      * @return 전처리된 이벤트 (필터링된 경우 null)
      */
     private SecurityEvent preprocessEvent(SecurityEvent event) {
         try {
+            // 1. 정규화 (JSON 역직렬화 경로 방어)
             SecurityEvent normalizedEvent = eventNormalizer.process(event);
             if (normalizedEvent == null) {
                 logger.debug("Event filtered during normalization");
                 return null;
             }
 
+            // 2. 중복 제거 (LLM 비용 최적화 핵심)
             SecurityEvent deduplicatedEvent = eventDeduplicator.process(normalizedEvent);
             if (deduplicatedEvent == null) {
                 logger.debug("Duplicate event filtered: {}", normalizedEvent.getEventId());
                 return null;
             }
 
-            eventEnricher.enrichEvent(deduplicatedEvent, "processingTimestamp", LocalDateTime.now());
-            eventEnricher.enrichEvent(deduplicatedEvent, "monitoringServiceProcessed", true);
+            // AI Native v5.1.0: enrichEvent 호출 제거 - LLM에서 미사용 필드
 
             eventCounter.incrementAndGet();
 

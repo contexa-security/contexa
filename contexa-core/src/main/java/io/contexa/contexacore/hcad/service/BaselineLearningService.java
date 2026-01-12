@@ -1064,6 +1064,13 @@ public class BaselineLearningService {
         }
         sb.append(String.format("  Current User-Agent: %s\n", currentUserAgent != null ? currentUserAgent : "NOT_PROVIDED"));
 
+        // AI Native v6.1: OS 변경 감지 (세션 하이재킹 탐지)
+        // 플랫폼은 OS 변경 사실만 제공, LLM이 위협 여부 판단
+        String osChangeWarning = detectOSChange(normalUserAgents, currentUserAgent);
+        if (osChangeWarning != null) {
+            sb.append(osChangeWarning);
+        }
+
         // 5. 신뢰도 정보
         sb.append(String.format("  Baseline Confidence: %.2f (updates: %d)\n",
             baseline.getConfidence() != null ? baseline.getConfidence() : 0.0,
@@ -1192,5 +1199,116 @@ public class BaselineLearningService {
         return null;
     }
 
+    /**
+     * User-Agent 문자열에서 OS 정보 추출 (AI Native v6.1)
+     *
+     * 세션 하이재킹 탐지를 위한 raw 데이터 파싱:
+     * - Windows, Android, iOS, macOS, Linux 등 OS 식별
+     * - LLM에 OS 정보를 제공하여 OS 변경 여부 판단 위임
+     *
+     * AI Native 원칙 준수:
+     * - 플랫폼은 OS 정보 추출만 수행 (데이터 파싱)
+     * - 판단은 LLM에 위임 (OS 변경 = 위협 여부는 LLM이 결정)
+     *
+     * @param userAgent User-Agent 문자열
+     * @return OS 이름 (Unknown if not detected)
+     */
+    private String extractOS(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return "Unknown";
+        }
+
+        String ua = userAgent.toLowerCase();
+
+        // Windows 계열
+        if (ua.contains("windows nt") || ua.contains("windows phone")) {
+            return "Windows";
+        }
+
+        // Android (iOS/macOS보다 먼저 체크 - Android는 Linux 기반이므로)
+        if (ua.contains("android")) {
+            return "Android";
+        }
+
+        // iOS 계열 (iPhone, iPad, iPod)
+        if (ua.contains("iphone") || ua.contains("ipad") || ua.contains("ipod")) {
+            return "iOS";
+        }
+
+        // macOS (Mac OS X)
+        if (ua.contains("mac os x") || ua.contains("macintosh")) {
+            return "macOS";
+        }
+
+        // Linux (Android 제외)
+        if (ua.contains("linux") && !ua.contains("android")) {
+            return "Linux";
+        }
+
+        // Chrome OS
+        if (ua.contains("cros")) {
+            return "ChromeOS";
+        }
+
+        return "Unknown";
+    }
+
+    /**
+     * OS 변경 감지 및 경고 메시지 생성 (AI Native v6.1)
+     *
+     * 세션 하이재킹 탐지:
+     * - 동일 세션에서 OS가 변경되면 세션 토큰 탈취 가능성
+     * - Windows -> Android 같은 크로스 플랫폼 변경은 강력한 위협 신호
+     *
+     * AI Native 원칙 준수:
+     * - 플랫폼은 OS 변경 감지 사실만 제공
+     * - LLM이 컨텍스트(시간, 위치 등)를 고려하여 위협 여부 판단
+     *
+     * @param normalUserAgents 기준선의 정상 User-Agent 목록
+     * @param currentUserAgent 현재 요청의 User-Agent
+     * @return OS 변경 경고 메시지 (변경 없으면 null)
+     */
+    private String detectOSChange(String[] normalUserAgents, String currentUserAgent) {
+        if (normalUserAgents == null || normalUserAgents.length == 0 || currentUserAgent == null) {
+            return null;
+        }
+
+        String currentOS = extractOS(currentUserAgent);
+        if ("Unknown".equals(currentOS)) {
+            return null; // OS 식별 불가 시 경고 생략
+        }
+
+        // 기준선의 모든 User-Agent에서 OS 추출
+        for (String normalUA : normalUserAgents) {
+            String normalOS = extractOS(normalUA);
+            if (!"Unknown".equals(normalOS) && !normalOS.equals(currentOS)) {
+                // OS 변경 감지!
+                StringBuilder warning = new StringBuilder();
+                warning.append("\n=== SESSION HIJACKING WARNING ===\n");
+                warning.append("OS CHANGED from baseline!\n");
+                warning.append(String.format("  Previous OS: %s\n", normalOS));
+                warning.append(String.format("  Current OS: %s\n", currentOS));
+                warning.append("  Previous UA: ").append(truncateUA(normalUA)).append("\n");
+                warning.append("  Current UA: ").append(truncateUA(currentUserAgent)).append("\n");
+                warning.append("\nCRITICAL INDICATOR:\n");
+                warning.append("- Same session with different OS is a strong indicator of session hijacking\n");
+                warning.append("- Legitimate users do NOT change operating systems mid-session\n");
+                warning.append("- Recommended action: CHALLENGE or BLOCK\n");
+                return warning.toString();
+            }
+        }
+
+        return null; // OS 변경 없음
+    }
+
+    /**
+     * User-Agent 문자열 truncate (로그/프롬프트용)
+     */
+    private String truncateUA(String userAgent) {
+        if (userAgent == null) {
+            return "N/A";
+        }
+        return userAgent.length() > 80 ? userAgent.substring(0, 77) + "..." : userAgent;
+    }
 
 }

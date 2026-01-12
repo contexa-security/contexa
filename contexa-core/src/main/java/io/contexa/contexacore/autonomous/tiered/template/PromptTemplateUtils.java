@@ -175,20 +175,29 @@ public final class PromptTemplateUtils {
         }
 
         // 2. HIGH 필드 평가 (중요하지만 필수 아님)
+        // AI Native v6.2: highPresent 리스트 추가로 점수 계산 직관화
+        java.util.List<String> highPresent = new java.util.ArrayList<>();
         Map<String, Object> metadata = event.getMetadata();
-        if (metadata == null || !metadata.containsKey("isNewSession")) {
+        if (metadata != null && metadata.containsKey("isNewSession")) {
+            highPresent.add("isNewSession");
+        } else {
             highMissing.add("isNewSession");
         }
-        if (metadata == null || !metadata.containsKey("isNewDevice")) {
+        if (metadata != null && metadata.containsKey("isNewDevice")) {
+            highPresent.add("isNewDevice");
+        } else {
             highMissing.add("isNewDevice");
         }
-        if (metadata == null || !metadata.containsKey("recentRequestCount")) {
+        if (metadata != null && metadata.containsKey("recentRequestCount")) {
+            highPresent.add("recentRequestCount");
+        } else {
             highMissing.add("recentRequestCount");
         }
 
-        // 3. 점수 계산 (CRITICAL 5개 + HIGH 3개 = 8개 기준)
-        int score = criticalPresent.size() + (3 - highMissing.size());
-        int maxScore = 8;
+        // 3. 점수 계산 (CRITICAL 4개 + HIGH 3개 = 7개 기준)
+        // AI Native v6.2: 직관적인 점수 계산 (있는 필드 수 합계)
+        int score = criticalPresent.size() + highPresent.size();
+        int maxScore = 7;
 
         // 4. 결과 출력
         result.append(String.format("Decision Data: %d/%d fields available\n", score, maxScore));
@@ -200,12 +209,14 @@ public final class PromptTemplateUtils {
             result.append(String.format("HIGH MISSING: %s\n", String.join(", ", highMissing)));
         }
 
-        // 5. baseline 없으면 강제 경고 (Zero Trust v6.0 핵심)
+        // 5. baseline 없으면 Zero Trust 정보 제공 (v6.2: 중립화)
+        // AI Native v6.2: "NOT recommended" 제거 - LLM이 자체 판단하도록
+        // Zero Trust 논리적 사실만 전달: "Baseline 없이 검증 불가능"
         if (!hasBaseline) {
-            result.append("\n=== WARNING: NO BASELINE DATA ===\n");
-            result.append("- Cannot verify if behavior is normal\n");
-            result.append("- ALLOW decision is NOT recommended\n");
-            result.append("- Suggested action: CHALLENGE or ESCALATE\n");
+            result.append("\n=== ZERO TRUST: NO BASELINE DATA ===\n");
+            result.append("- Verification not possible: No historical behavior data to compare\n");
+            result.append("- Zero Trust principle: 'Never Trust, Always Verify'\n");
+            result.append("- Without baseline, user behavior cannot be validated\n");
         }
 
         return result.toString();

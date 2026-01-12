@@ -330,12 +330,13 @@ public class HCADContextExtractor {
             Boolean hasMfa = redisTemplate.hasKey(mfaKey);
             context.setHasValidMFA(hasMfa);
 
-            // AI Native v6.0: Zero Trust - 신규 사용자이면 isNewSession, isNewDevice도 true로 강제
-            // Baseline 없는 신규 사용자가 isNewSession=false로 표시되면 LLM이 잘못 판단할 수 있음
+            // AI Native v6.1: Zero Trust - 신규 사용자라도 실제 세션/디바이스 정보를 LLM에 제공
+            // 강제 설정 제거 - LLM이 원시 데이터를 기반으로 판단
+            // isNewUser=true이지만 isNewSession=false인 경우 = 세션 하이재킹 가능성
+            // LLM이 이 모순적 상황을 감지하고 적절히 판단하도록 함
             if (Boolean.TRUE.equals(context.getIsNewUser())) {
-                context.setIsNewSession(true);
-                context.setIsNewDevice(true);
-                log.debug("[HCAD][AI Native][Zero Trust] New user detected, forcing isNewSession=true, isNewDevice=true");
+                log.debug("[HCAD][AI Native][Zero Trust] New user detected: userId={}, isNewSession={}, isNewDevice={}",
+                    userId, context.getIsNewSession(), context.getIsNewDevice());
             }
 
         } catch (Exception e) {

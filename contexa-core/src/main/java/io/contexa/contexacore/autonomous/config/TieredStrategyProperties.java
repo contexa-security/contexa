@@ -107,6 +107,40 @@ public class TieredStrategyProperties {
         private Session session = new Session();
         private Cache cache = new Cache();
         private Timeout timeout = new Timeout();
+        private Prompt prompt = new Prompt();
+
+        /**
+         * AI Native v6.1: 프롬프트 구성 설정
+         *
+         * Layer1PromptTemplate에서 사용하는 제한값들을 설정으로 분리합니다.
+         * 하드코딩된 값들을 외부 설정으로 관리하여 유연성을 확보합니다.
+         */
+        @Data
+        public static class Prompt {
+            /**
+             * 프롬프트에 포함할 유사 이벤트 최대 수
+             * BehaviorAnalysis.similarEvents에서 추출
+             */
+            private int maxSimilarEvents = 3;
+
+            /**
+             * 프롬프트에 포함할 RAG 문서 최대 수
+             * relatedDocuments에서 추출
+             */
+            private int maxRagDocuments = 5;
+
+            /**
+             * 이벤트 설명(description) 최대 길이
+             * SecurityEvent.description truncation
+             */
+            private int maxDescriptionLength = 200;
+
+            /**
+             * 프롬프트에 포함할 최근 액션 수
+             * SessionContext.recentActions에서 추출
+             */
+            private int maxRecentActions = 5;
+        }
 
         /**
          * AI Native v4.3.0: 타임아웃 설정
@@ -133,7 +167,7 @@ public class TieredStrategyProperties {
             /**
              * LLM 호출 타임아웃 (ms)
              */
-            private long llmMs = 10000;
+            private long llmMs = 30000;
 
             /**
              * 벡터 검색 타임아웃 (ms)

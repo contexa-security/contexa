@@ -71,52 +71,39 @@ public class Layer1PromptTemplate {
         // AI Native v6.0: behaviorSummary 제거 - "Similar Events: N" 단순 개수는 무의미
         // similarEvents 상세 내용이 아래에서 직접 출력됨
 
-        // AI Native v4.0: Baseline 컨텍스트 섹션 (항상 출력 - Zero Trust)
-        // STATUS 라벨 추가: 상태 메시지와 실제 데이터를 명확히 구분하여 LLM 오인 방지
-        // buildBaselinePromptContext()가 raw 데이터 제공 (Normal IPs, Current IP, Hours 등)
-        // LLM이 직접 비교하여 ALLOW/BLOCK/ESCALATE 판단
-        // AI Native v6.0: 섹션명 통일 - USER BEHAVIOR BASELINE → BASELINE (Layer2와 동일)
+        // AI Native v6.2: BaselineStatus enum 적용으로 로직 단순화
+        // 기존 7가지 경우의 수를 명확한 enum으로 통합
+        // STATUS 라벨과 IMPACT 메시지가 enum에서 제공됨
+        String baselineContext = (behaviorAnalysis != null) ? behaviorAnalysis.getBaselineContext() : null;
+        BaselineStatus baselineStatus = determineBaselineStatus(behaviorAnalysis, baselineContext);
+
+        // Baseline 섹션 구성 - enum 기반
         StringBuilder baselineSectionBuilder = new StringBuilder();
         baselineSectionBuilder.append("=== BASELINE ===\n");
-        // AI Native v6.0 NULL 안전성: behaviorAnalysis null 체크
-        // - behaviorAnalysis가 null인 경우: 분석 시스템 오류 또는 초기화 실패
-        // - 명확한 상태 메시지로 LLM에게 데이터 부재 전달
-        if (behaviorAnalysis == null) {
-            baselineSectionBuilder.append("STATUS: [NO_DATA] Behavior analysis unavailable\n");
-            baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable - ESCALATE recommended\n");
+        baselineSectionBuilder.append("STATUS: ").append(baselineStatus.getStatusLabel()).append("\n");
+
+        if (baselineStatus == BaselineStatus.ESTABLISHED && baselineContext != null) {
+            // 유효한 baseline 데이터 - sanitization 적용
+            String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
+            baselineSectionBuilder.append(sanitizedBaseline).append("\n");
+        } else if (baselineStatus == BaselineStatus.NEW_USER && baselineContext != null
+                   && (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
+            // 신규 사용자지만 Zero Trust 경고 메시지가 있는 경우 함께 출력
+            String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
+            baselineSectionBuilder.append(sanitizedBaseline).append("\n");
         } else {
-            String baselineContext = behaviorAnalysis.getBaselineContext();
-            if (isValidBaseline(baselineContext)) {
-                // 유효한 baseline 데이터 - sanitization 적용
-                String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
-                baselineSectionBuilder.append("STATUS: Available\n");
-                baselineSectionBuilder.append(sanitizedBaseline).append("\n");
-            } else if (baselineContext != null && baselineContext.startsWith("[")) {
-                // 상태 메시지 (SERVICE_UNAVAILABLE, NO_USER_ID, NO_DATA)
-                baselineSectionBuilder.append("STATUS: ").append(baselineContext).append("\n");
-                baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable\n");
-            } else if (baselineContext != null &&
-                       (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
-                // AI Native v6.0: CRITICAL 경고 메시지 - 신규 사용자 또는 baseline 없음
-                baselineSectionBuilder.append("STATUS: [NEW_USER] No baseline established\n");
-                String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
-                baselineSectionBuilder.append(sanitizedBaseline).append("\n");
-            } else if (behaviorAnalysis.isBaselineEstablished()) {
-                baselineSectionBuilder.append("STATUS: [NO_DATA] Baseline available but not loaded\n");
-                baselineSectionBuilder.append("IMPACT: Anomaly detection unavailable\n");
-            } else {
-                // 신규 사용자: baseline이 아직 확립되지 않음 (정상 상황)
-                baselineSectionBuilder.append("STATUS: [NEW_USER] No baseline established for this user\n");
-                baselineSectionBuilder.append("IMPACT: Cannot compare against historical patterns\n");
-            }
+            // 그 외 상태: IMPACT 메시지 출력
+            baselineSectionBuilder.append("IMPACT: ").append(baselineStatus.getImpactDescription()).append("\n");
         }
         String baselineSection = baselineSectionBuilder.toString();
 
-        // Related Documents - 최대 5개까지 사용, 각 300자 제한
+        // Related Documents - 설정에서 최대 개수 읽기, 각 문서 길이는 truncation 설정 사용
         // Phase 9: RAG 문서 메타데이터 포함 (유사도 점수, 문서 타입)
+        // AI Native v6.1: 하드코딩 5 → 설정값 사용
         // AI Native v6.0 NULL 안전성: relatedDocuments null 체크
         StringBuilder relatedContextBuilder = new StringBuilder();
-        int maxDocs = (relatedDocuments != null) ? Math.min(5, relatedDocuments.size()) : 0;
+        int maxRagDocs = tieredStrategyProperties.getLayer1().getPrompt().getMaxRagDocuments();
+        int maxDocs = (relatedDocuments != null) ? Math.min(maxRagDocs, relatedDocuments.size()) : 0;
         for (int i = 0; i < maxDocs; i++) {
             Document doc = relatedDocuments.get(i);
             String content = doc.getText();
@@ -164,8 +151,10 @@ public class Layer1PromptTemplate {
             prompt.append("User: ").append(PromptTemplateUtils.sanitizeUserInput(userId)).append("\n");
         }
         // Description (컨텍스트 이해용)
+        // AI Native v6.1: 하드코딩 200 → 설정값 사용
         if (isValidData(event.getDescription())) {
-            String desc = PromptTemplateUtils.sanitizeAndTruncate(event.getDescription(), 200);
+            int maxDescLen = tieredStrategyProperties.getLayer1().getPrompt().getMaxDescriptionLength();
+            String desc = PromptTemplateUtils.sanitizeAndTruncate(event.getDescription(), maxDescLen);
             prompt.append("Description: ").append(desc).append("\n");
         }
 
@@ -200,7 +189,9 @@ public class Layer1PromptTemplate {
         if (sessionContext != null) {
             List<String> recentActions = sessionContext.getRecentActions();
             if (recentActions != null && !recentActions.isEmpty()) {
-                int maxActions = Math.min(5, recentActions.size());
+                // AI Native v6.1: 하드코딩 5 → 설정값 사용
+                int maxRecentActions = tieredStrategyProperties.getLayer1().getPrompt().getMaxRecentActions();
+                int maxActions = Math.min(maxRecentActions, recentActions.size());
                 List<String> subList = recentActions.subList(
                     Math.max(0, recentActions.size() - maxActions), recentActions.size());
                 // 각 액션을 sanitize 후 결합
@@ -212,9 +203,11 @@ public class Layer1PromptTemplate {
             // AI Native v6.0 Critical: authMethod 출력 추가
             // - 인증 방식(PASSWORD, MFA, SSO 등)은 LLM 신뢰도 판단의 핵심
             // - Zero Trust 원칙: 인증 강도에 따라 위험 평가 차등 적용
+            // AI Native v6.1: sanitization 적용 (프롬프트 인젝션 방어)
             String authMethod = sessionContext.getAuthMethod();
             if (authMethod != null && !authMethod.isEmpty()) {
-                prompt.append("AuthMethod: ").append(authMethod).append("\n");
+                String sanitizedAuthMethod = PromptTemplateUtils.sanitizeUserInput(authMethod);
+                prompt.append("AuthMethod: ").append(sanitizedAuthMethod).append("\n");
             }
             // AI Native v6.0: Zero Trust Critical - isNewUser, isNewSession, isNewDevice 추가
             // 신규 사용자/세션/디바이스 여부는 LLM 위험 판단의 핵심 신호
@@ -250,11 +243,13 @@ public class Layer1PromptTemplate {
         // - behaviorAnalysis가 null인 경우: 행동 분석 시스템 오류 또는 초기화 실패
         // - 명확한 상태 메시지로 LLM에게 데이터 부재 전달
         if (behaviorAnalysis != null) {
-            // similarEvents 상세 내용 (Priority 1 Critical) - 최대 3개
+            // similarEvents 상세 내용 (Priority 1 Critical)
+            // AI Native v6.1: 하드코딩 3 → 설정값 사용
             // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
             List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
             if (similarEvents != null && !similarEvents.isEmpty()) {
-                int maxEvents = Math.min(3, similarEvents.size());
+                int maxSimilarEvents = tieredStrategyProperties.getLayer1().getPrompt().getMaxSimilarEvents();
+                int maxEvents = Math.min(maxSimilarEvents, similarEvents.size());
                 prompt.append("SimilarEvents Detail:\n");
                 for (int i = 0; i < maxEvents; i++) {
                     String sanitizedEvent = PromptTemplateUtils.sanitizeUserInput(similarEvents.get(i));
@@ -456,6 +451,57 @@ public class Layer1PromptTemplate {
     // - getStringFromMetadata(): 호출부 없음
     // - extractSimpleClassName(): 호출부 없음
     // - calculateDataQuality(): buildDataQualitySection()으로 대체됨
+
+    /**
+     * AI Native v6.2: Baseline 상태 결정 (enum 기반)
+     *
+     * 기존 복잡한 조건문 로직을 명확한 enum 반환으로 단순화.
+     * 상호 배타적인 상태를 보장하여 프롬프트 출력의 일관성 확보.
+     *
+     * @param behaviorAnalysis 행동 분석 결과 (null 가능)
+     * @param baselineContext baseline 컨텍스트 문자열 (null 가능)
+     * @return 결정된 BaselineStatus
+     */
+    private BaselineStatus determineBaselineStatus(BehaviorAnalysis behaviorAnalysis, String baselineContext) {
+        // 1. BehaviorAnalysis 자체가 null
+        if (behaviorAnalysis == null) {
+            return BaselineStatus.ANALYSIS_UNAVAILABLE;
+        }
+
+        // 2. 유효한 baseline 데이터
+        if (isValidBaseline(baselineContext)) {
+            return BaselineStatus.ESTABLISHED;
+        }
+
+        // 3. 상태 메시지로 시작하는 경우 (SERVICE_UNAVAILABLE, NO_USER_ID, NO_DATA)
+        if (baselineContext != null && baselineContext.startsWith("[")) {
+            if (baselineContext.startsWith("[SERVICE_UNAVAILABLE]")) {
+                return BaselineStatus.SERVICE_UNAVAILABLE;
+            }
+            if (baselineContext.startsWith("[NO_USER_ID]")) {
+                return BaselineStatus.MISSING_USER_ID;
+            }
+            if (baselineContext.startsWith("[NO_DATA]")) {
+                return BaselineStatus.NOT_LOADED;
+            }
+            // 기타 상태 메시지는 NEW_USER로 처리
+            return BaselineStatus.NEW_USER;
+        }
+
+        // 4. CRITICAL 경고 또는 NO USER BASELINE 메시지
+        if (baselineContext != null &&
+            (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
+            return BaselineStatus.NEW_USER;
+        }
+
+        // 5. Baseline이 존재하지만 로드되지 않음
+        if (behaviorAnalysis.isBaselineEstablished()) {
+            return BaselineStatus.NOT_LOADED;
+        }
+
+        // 6. 기본값: 신규 사용자
+        return BaselineStatus.NEW_USER;
+    }
 
     /**
      * Baseline 데이터가 유효한지 검사 (Zero Trust)

@@ -32,6 +32,7 @@ import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrateg
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -74,7 +75,7 @@ import java.util.List;
     havingValue = "true",
     matchIfMissing = true
 )
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({ContexaProperties.class, SecurityPlaneProperties.class})
 public class CoreAutonomousEventAutoConfiguration {
 
     // ========== Event Listeners ==========
@@ -200,8 +201,8 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public EventDeduplicator eventDeduplicator() {
-        return new EventDeduplicator();
+    public EventDeduplicator eventDeduplicator(SecurityPlaneProperties securityPlaneProperties) {
+        return new EventDeduplicator(securityPlaneProperties);
     }
 
     @Bean
