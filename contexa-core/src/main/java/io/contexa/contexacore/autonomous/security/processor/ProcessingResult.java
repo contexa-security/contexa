@@ -95,10 +95,9 @@ public class ProcessingResult {
     private boolean aiAnalysisPerformed;
     
     /**
-     * AI 분석 레벨 (Cold Path)
-     * 1: Layer1 (50ms)
-     * 2: Layer2 (300ms)  
-     * 3: Layer3 (5s)
+     * AI 분석 레벨 (Cold Path, 2-Tier 시스템)
+     * 1: Layer1 - 경량 로컬 모델, 빠른 응답 (~100ms)
+     * 2: Layer2 - 고성능 모델, 심층 분석 (~5s)
      */
     private int aiAnalysisLevel;
     

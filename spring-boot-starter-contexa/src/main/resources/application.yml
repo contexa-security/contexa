@@ -45,14 +45,14 @@ spring:
           model: text-embedding-3-small
 
     # TieredLLMProperties 매핑 (contexa-core/config/TieredLLMProperties.java)
-    # AI Native 2계층 LLM 시스템 설정 (2025-01 리팩토링)
-    # - Layer 1: Contextual Analysis (Llama3.1:8b, 95% 케이스)
-    # - Layer 2: Expert Analysis (Claude/GPT-4, 5% 케이스)
+    # AI Native v6.7 2-Tier LLM 시스템 (2026-01 리팩토링)
+    # - Layer 1: 경량 로컬 모델 (llama3.1:8b, 95% 트래픽)
+    # - Layer 2: 고성능 모델 (exaone3.5:latest, 5% 트래픽, ESCALATE)
     security:
       layer1:
-        model: exaone3.5  # Layer 1: 컨텍스트 분석
+        model: llama3.1:8b  # Layer 1: 경량 로컬 모델
       layer2:
-        model: exaone3.5  # Layer 2: 전문가 분석
+        model: exaone3.5:latest  # Layer 2: 고성능 모델
       tiered:
         enabled: true
         traffic-distribution:
