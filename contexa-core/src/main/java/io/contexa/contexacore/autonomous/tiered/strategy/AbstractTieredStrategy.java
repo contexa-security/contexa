@@ -225,7 +225,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
         // 필수 공통 metadata
         metadata.put("documentType", documentType);
-        metadata.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        // AI Native v6.0 Critical: 이벤트 발생 시간 사용 (저장 시간 X)
+        // - RAG 검색 시 시간 패턴 분석을 위해 이벤트 실제 발생 시간 필요
+        // - 저장 시간 사용 시 과거 이벤트가 "방금 발생"으로 잘못 인식됨
+        String eventTimestamp = event.getTimestamp() != null
+            ? event.getTimestamp().toString()
+            : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        metadata.put("timestamp", eventTimestamp);
 
         // SecurityEvent 정보 - AI Native: null인 경우 필드 생략
         if (event.getEventId() != null) {
@@ -242,12 +248,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
 
         // SecurityDecision 정보 - AI Native: NaN인 경우 필드 생략
+        // AI Native v6.0: action 필드 제거 (ALLOW만 저장하므로 항상 ALLOW - 무의미)
         double riskScore = decision.getRiskScore();
         double confidence = decision.getConfidence();
         if (!Double.isNaN(riskScore)) {
             metadata.put("riskScore", riskScore);
         }
-        metadata.put("action", decision.getAction() != null ? decision.getAction().toString() : "ESCALATE");
         if (!Double.isNaN(confidence)) {
             metadata.put("confidence", confidence);
         }

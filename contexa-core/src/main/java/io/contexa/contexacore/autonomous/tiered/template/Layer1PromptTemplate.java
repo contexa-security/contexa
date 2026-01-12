@@ -198,13 +198,6 @@ public class Layer1PromptTemplate {
         // - sessionContext가 null인 경우: 세션 정보 수집 실패 또는 시스템 오류
         // - 명확한 상태 메시지로 LLM에게 데이터 부재 전달
         if (sessionContext != null) {
-            // authMethod 추가 (Priority 1 Critical) - AI Native v6.0: sanitization 적용
-            String authMethod = sessionContext.getAuthMethod();
-            if (isValidData(authMethod)) {
-                prompt.append("AuthMethod: ").append(PromptTemplateUtils.sanitizeUserInput(authMethod)).append("\n");
-            }
-            // recentActions 추가 (Priority 1 Critical) - 최대 5개
-            // AI Native v6.0: sanitization 적용 (프롬프트 인젝션 방어)
             List<String> recentActions = sessionContext.getRecentActions();
             if (recentActions != null && !recentActions.isEmpty()) {
                 int maxActions = Math.min(5, recentActions.size());
@@ -216,13 +209,20 @@ public class Layer1PromptTemplate {
                     .collect(java.util.stream.Collectors.joining(", "));
                 prompt.append("RecentActions: [").append(actionsStr).append("]\n");
             }
+            // AI Native v6.0 Critical: authMethod 출력 추가
+            // - 인증 방식(PASSWORD, MFA, SSO 등)은 LLM 신뢰도 판단의 핵심
+            // - Zero Trust 원칙: 인증 강도에 따라 위험 평가 차등 적용
+            String authMethod = sessionContext.getAuthMethod();
+            if (authMethod != null && !authMethod.isEmpty()) {
+                prompt.append("AuthMethod: ").append(authMethod).append("\n");
+            }
             // AI Native v6.0: Zero Trust Critical - isNewUser, isNewSession, isNewDevice 추가
             // 신규 사용자/세션/디바이스 여부는 LLM 위험 판단의 핵심 신호
             // 키: ZeroTrustEventListener.java:645-651에서 "isNewUser", "isNewSession", "isNewDevice"로 저장
-            Object sessionMetadataObj = event.getMetadata();
+            Map<String, Object> sessionMetadataObj = event.getMetadata();
             if (sessionMetadataObj instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> sessionMetadata = (Map<String, Object>) sessionMetadataObj;
+                Map<String, Object> sessionMetadata;
+                sessionMetadata = sessionMetadataObj;
                 // isNewUser: 신규 사용자 여부 (Baseline 없음 = 행동 패턴 비교 불가)
                 Object isNewUserObj = sessionMetadata.get("isNewUser");
                 if (isNewUserObj != null) {
@@ -329,39 +329,56 @@ public class Layer1PromptTemplate {
         StringBuilder meta = new StringBuilder();
         meta.append("[Doc").append(docIndex);
 
-        // 유사도 점수 추출
-        if (doc.getMetadata() != null) {
-            // AI Native v5.0: VectorDocumentMetadata 표준 필드 사용
-            // 표준 필드명: "similarityScore" (VectorDocumentMetadata.java:72)
-            // VectorStore: PgVector (PostgreSQL + pgvector)
-            Object scoreObj = doc.getMetadata().get(VectorDocumentMetadata.SIMILARITY_SCORE);
-            // "score" 필드는 일부 프로세서에서 사용하므로 fallback 유지
+        Map<String, Object> metadata = doc.getMetadata();
+        if (metadata != null) {
+            // 1. 유사도 점수 (Vector Store에서 추가)
+            Object scoreObj = metadata.get(VectorDocumentMetadata.SIMILARITY_SCORE);
             if (scoreObj == null) {
-                scoreObj = doc.getMetadata().get("score");
+                scoreObj = metadata.get("score");
             }
-            // "distance"는 유사도와 역관계이므로 제거 (혼란 유발)
-
             if (scoreObj instanceof Number) {
-                double score = ((Number) scoreObj).doubleValue();
-                meta.append("|sim=").append(String.format("%.2f", score));
+                meta.append("|sim=").append(String.format("%.2f", ((Number) scoreObj).doubleValue()));
             }
 
-            // 문서 타입 추출
-            Object typeObj = doc.getMetadata().get("type");
+            // 2. 문서 타입 (저장 시 "documentType" 키 사용)
+            // AI Native v6.0: 키 불일치 수정 - documentType을 우선 검색
+            Object typeObj = metadata.get("documentType");
             if (typeObj == null) {
-                typeObj = doc.getMetadata().get("document_type");
+                typeObj = metadata.get("type");
             }
-            if (typeObj == null) {
-                typeObj = doc.getMetadata().get("category");
-            }
-
             if (typeObj != null) {
                 meta.append("|type=").append(typeObj.toString());
             }
 
-            // AI Native v5.1.0: source 메타데이터 출력 제거
-            // - 파일 경로는 LLM 보안 분석에 불필요
-            // - 유사도, 타입만으로 충분
+            // 3. 저장된 중요 Metadata 출력 (LLM 분석에 필수)
+            // AI Native v6.0: 저장된 userId, riskScore, sourceIp, timestamp를 출력
+            // 이 정보가 있어야 LLM이 과거 이벤트 컨텍스트를 이해할 수 있음
+            Object userId = metadata.get("userId");
+            if (userId != null) {
+                meta.append("|user=").append(userId);
+            }
+
+            Object riskScore = metadata.get("riskScore");
+            if (riskScore instanceof Number) {
+                meta.append("|risk=").append(String.format("%.2f", ((Number) riskScore).doubleValue()));
+            }
+
+            // AI Native v6.0: confidence 출력 추가
+            // - 과거 분석의 신뢰도를 LLM이 참조하여 유사 상황 판단에 활용
+            Object confidence = metadata.get("confidence");
+            if (confidence instanceof Number) {
+                meta.append("|conf=").append(String.format("%.2f", ((Number) confidence).doubleValue()));
+            }
+
+            Object sourceIp = metadata.get("sourceIp");
+            if (sourceIp != null) {
+                meta.append("|ip=").append(sourceIp);
+            }
+
+            Object timestamp = metadata.get("timestamp");
+            if (timestamp != null) {
+                meta.append("|time=").append(timestamp);
+            }
         }
 
         meta.append("]");

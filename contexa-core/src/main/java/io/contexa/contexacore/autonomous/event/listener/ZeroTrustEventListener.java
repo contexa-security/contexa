@@ -279,15 +279,10 @@ public class ZeroTrustEventListener {
 
         // AI Native v6.0: Zero Trust 핵심 신호 - 이벤트 필드에서 metadata로 복사
         // AuthorizationDecisionEvent의 isNew* 필드는 metadata가 아닌 별도 필드이므로 명시적 복사 필요
-        if (authEvent.getIsNewSession() != null) {
-            metadata.put("isNewSession", authEvent.getIsNewSession());
-        }
-        if (authEvent.getIsNewUser() != null) {
-            metadata.put("isNewUser", authEvent.getIsNewUser());
-        }
-        if (authEvent.getIsNewDevice() != null) {
-            metadata.put("isNewDevice", authEvent.getIsNewDevice());
-        }
+        // null일 경우 보수적 기본값 true 사용 (Zero Trust: 신규 사용자로 간주하여 더 엄격하게 검증)
+        metadata.put("isNewSession", authEvent.getIsNewSession() != null ? authEvent.getIsNewSession() : true);
+        metadata.put("isNewUser", authEvent.getIsNewUser() != null ? authEvent.getIsNewUser() : true);
+        metadata.put("isNewDevice", authEvent.getIsNewDevice() != null ? authEvent.getIsNewDevice() : true);
         if (authEvent.getRecentRequestCount() != null) {
             metadata.put("recentRequestCount", authEvent.getRecentRequestCount());
         }
@@ -656,15 +651,10 @@ public class ZeroTrustEventListener {
         }
 
         // Phase 9: 세션/사용자 컨텍스트 정보 추가 (Layer1 프롬프트 강화용)
-        if (event.getIsNewSession() != null) {
-            metadata.put("isNewSession", event.getIsNewSession());
-        }
-        if (event.getIsNewUser() != null) {
-            metadata.put("isNewUser", event.getIsNewUser());
-        }
-        if (event.getIsNewDevice() != null) {
-            metadata.put("isNewDevice", event.getIsNewDevice());
-        }
+        // null일 경우 보수적 기본값 true 사용 (Zero Trust: 신규 사용자로 간주하여 더 엄격하게 검증)
+        metadata.put("isNewSession", event.getIsNewSession() != null ? event.getIsNewSession() : true);
+        metadata.put("isNewUser", event.getIsNewUser() != null ? event.getIsNewUser() : true);
+        metadata.put("isNewDevice", event.getIsNewDevice() != null ? event.getIsNewDevice() : true);
         if (event.getRecentRequestCount() != null) {
             metadata.put("recentRequestCount", event.getRecentRequestCount());
         }

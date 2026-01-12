@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
@@ -29,8 +30,9 @@ public class IamSecurityCoreAutoConfiguration {
             RedisTemplate<String, Object> redisTemplate,
             ThreatScoreOrchestrator threatScoreOrchestrator,
             RedisAtomicOperations redisAtomicOperations,
-            ObjectMapper objectMapper) {
-        return new ZeroTrustSecurityService(redisTemplate, threatScoreOrchestrator, redisAtomicOperations, objectMapper);
+            ObjectMapper objectMapper,
+            BaselineLearningService baselineLearningService) {
+        return new ZeroTrustSecurityService(redisTemplate, threatScoreOrchestrator, redisAtomicOperations, objectMapper, baselineLearningService);
     }
 
     @Bean

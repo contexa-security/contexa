@@ -673,11 +673,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         try {
             SecurityDecision.Action action = decision.getAction();
 
-            // AI Native v6.0: 모든 판정에 대해 행동 패턴 저장 (Vector Store 초기 데이터 확보)
-            // ALLOW/CHALLENGE 판정도 정상 행동 패턴으로 학습에 활용
-            if (action == SecurityDecision.Action.ALLOW ||
-                action == SecurityDecision.Action.CHALLENGE ||
-                action == SecurityDecision.Action.ESCALATE) {
+            // AI Native v6.0: ALLOW만 저장 (Baseline 학습과 일관성 유지)
+            // CHALLENGE/ESCALATE 저장 시 RAG 오염 발생 - 부정적 컨텍스트가 LLM에 전달됨
+            if (action == SecurityDecision.Action.ALLOW) {
                 storeBehaviorDocument(event, decision);
             }
 
@@ -723,15 +721,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     /**
      * 행동 패턴 컨텐츠 생성
+     *
+     * AI Native v6.0: ALLOW만 저장하므로 불필요한 필드 제거
+     * - action: 항상 ALLOW (무의미)
+     * - threatCategory: ALLOW에서는 항상 null
+     * - description: 어떤 행동인지 (유사 행동 매칭 필수)
      */
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         return String.format(
-                "User: %s, Risk: %.2f, Action: %s, Pattern: %s, Reasoning: %s",
+                "User: %s, Risk: %.2f, Description: %s, Reasoning: %s",
                 event.getUserId() != null ? event.getUserId() : "unknown",
                 decision.getRiskScore(),
-                decision.getAction(),
-                decision.getThreatCategory(),
-                decision.getReasoning()
+                event.getDescription() != null ? event.getDescription() : "unknown",
+                decision.getReasoning() != null ? decision.getReasoning() : "No reasoning provided"
         );
     }
 

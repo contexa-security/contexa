@@ -244,7 +244,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
                 if (auth != null && trustResolver.isAuthenticated(auth)) {
                     // 인증된 사용자 - userId 기반 Zero Trust
                     String userId = auth.getName();
-                    zeroTrustSecurityService.applyZeroTrustToContext(context, userId, sessionId);
+                    zeroTrustSecurityService.applyZeroTrustToContext(context, userId, sessionId, request);
                 }
                 // AI Native: 익명 사용자 Zero Trust 제거 - 인증된 사용자만 처리
 

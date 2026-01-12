@@ -1134,10 +1134,13 @@ public class BaselineLearningService {
         // - LLM에게 "검증 불가 상황"에서의 행동 제약 제공
         sb.append("=== MANDATORY CONSTRAINT ===\n");
         sb.append("NO BASELINE = VERIFICATION IMPOSSIBLE\n");
-        sb.append("- You MUST NOT return action=A (ALLOW) for users without baseline\n");
-        sb.append("- Valid actions: C (CHALLENGE) or E (ESCALATE) only\n");
-        sb.append("- risk (r) MUST be >= 0.5 for unverified users\n");
-        sb.append("- confidence (c) MUST be <= 0.5 without baseline comparison\n\n");
+        // AI Native v6.0: 축약형(A,C,E) → 풀네임(ALLOW,CHALLENGE,ESCALATE)으로 통일
+        // - Layer1PromptTemplate ACTIONS 섹션과 일관성 유지
+        // - LLM 혼란 방지 및 파싱 정확도 향상
+        sb.append("- You MUST NOT return action=ALLOW for users without baseline\n");
+        sb.append("- Valid actions: CHALLENGE or ESCALATE only\n");
+        sb.append("- riskScore MUST be >= 0.5 for unverified users\n");
+        sb.append("- confidence MUST be <= 0.5 without baseline comparison\n\n");
 
         sb.append("RATIONALE:\n");
         sb.append("- Absence of threat evidence is NOT evidence of safety\n");

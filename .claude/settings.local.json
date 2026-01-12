@@ -69,7 +69,10 @@
       "Bash(cmd.exe /c \"mvnw.cmd compile -q\")",
       "Bash(cmd.exe /c \"gradlew.bat compileJava -p contexa-core --quiet\")",
       "Bash(cmd.exe /c \"cd /d d:\\\\projects\\\\contexa && gradlew.bat compileJava -p contexa-core --quiet\")",
-      "Bash(cmd.exe /c \"cd /d d:\\\\projects\\\\contexa && gradlew.bat compileJava --quiet\")"
+      "Bash(cmd.exe /c \"cd /d d:\\\\projects\\\\contexa && gradlew.bat compileJava --quiet\")",
+      "Bash(.gradlew :contexa-core:compileJava --no-daemon -q)",
+      "Bash(.gradlew.bat :contexa-core:compileJava)",
+      "Bash(.\\\\gradlew.bat :contexa-core:compileJava:*)"
     ],
     "deny": [],
     "ask": []

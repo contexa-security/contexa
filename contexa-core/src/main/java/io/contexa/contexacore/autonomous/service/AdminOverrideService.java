@@ -258,11 +258,11 @@ public class AdminOverrideService {
             // 1. action 필드 업데이트
             redisTemplate.opsForHash().put(analysisKey, "action", action);
 
-            // 2. TTL을 ALLOW의 TTL(1시간)로 갱신
-            redisTemplate.expire(analysisKey, Duration.ofHours(1));
+            // 2. TTL을 ALLOW의 TTL(30초)로 갱신
+            redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
 
             log.info("[AdminOverrideService][AI Native v3.5.0] Redis analysis 키 업데이트: " +
-                    "userId={}, action={}, TTL=1시간", userId, action);
+                    "userId={}, action={}, TTL=30초", userId, action);
 
         } catch (Exception e) {
             log.error("[AdminOverrideService] Redis analysis 키 업데이트 실패: userId={}", userId, e);

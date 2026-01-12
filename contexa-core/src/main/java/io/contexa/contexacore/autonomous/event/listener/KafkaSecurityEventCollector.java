@@ -668,6 +668,9 @@ public class KafkaSecurityEventCollector {
         if (authzEvent.getIsNewDevice() != null) {
             event.addMetadata("isNewDevice", authzEvent.getIsNewDevice());
         }
+        if (authzEvent.getIsNewUser() != null) {
+            event.addMetadata("isNewUser", authzEvent.getIsNewUser());
+        }
         if (authzEvent.getRecentRequestCount() != null) {
             event.addMetadata("recentRequestCount", authzEvent.getRecentRequestCount());
         }

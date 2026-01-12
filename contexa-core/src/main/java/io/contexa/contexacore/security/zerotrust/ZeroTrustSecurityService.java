@@ -1,10 +1,14 @@
 package io.contexa.contexacore.security.zerotrust;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +50,7 @@ public class ZeroTrustSecurityService {
     private final ThreatScoreOrchestrator threatScoreOrchestrator;
     private final RedisAtomicOperations redisAtomicOperations;
     private final ObjectMapper objectMapper;
+    private final BaselineLearningService baselineLearningService;
 
     @Value("${zerotrust.enabled:true}")
     private boolean zeroTrustEnabled;
@@ -62,11 +67,12 @@ public class ZeroTrustSecurityService {
     /**
      * SecurityContext에 Zero Trust 기능 적용 (인증된 사용자)
      *
-     * @param context SecurityContext
-     * @param userId 사용자 ID
+     * @param context   SecurityContext
+     * @param userId    사용자 ID
      * @param sessionId 세션 ID (옵션)
+     * @param request
      */
-    public void applyZeroTrustToContext(SecurityContext context, String userId, String sessionId) {
+    public void applyZeroTrustToContext(SecurityContext context, String userId, String sessionId, HttpServletRequest request) {
         if (!zeroTrustEnabled || context == null || userId == null) {
             return;
         }
@@ -93,7 +99,7 @@ public class ZeroTrustSecurityService {
             }
 
             // 5. AI Native: action 기반 동적 권한 조정
-            adjustAuthoritiesByAction(context, action, userId);
+            adjustAuthoritiesByAction(context, action, userId, request);
 
             // 6. 컨텍스트 메타데이터 설정
             setZeroTrustMetadata(context, trustScore, threatScore, userContext, action);
@@ -247,7 +253,7 @@ public class ZeroTrustSecurityService {
 
     /**
      * AI Native v3.3.0: action 기반 권한 동적 조정
-     *
+     * <p>
      * Zero Trust 원칙에 따른 권한 조정 전략 (4개 Action):
      * - ALLOW: 기존 권한 유지 (LLM이 안전하다고 판단)
      * - BLOCK: 모든 권한 제거, ROLE_BLOCKED만 부여 (극고위험군)
@@ -256,10 +262,11 @@ public class ZeroTrustSecurityService {
      * - PENDING_ANALYSIS: 기존 권한 제거, ROLE_PENDING_ANALYSIS (분석 완료 전 제한)
      *
      * @param context SecurityContext
-     * @param action LLM이 결정한 action (ALLOW, BLOCK, CHALLENGE, ESCALATE)
-     * @param userId 사용자 ID
+     * @param action  LLM이 결정한 action (ALLOW, BLOCK, CHALLENGE, ESCALATE)
+     * @param userId  사용자 ID
+     * @param request
      */
-    private void adjustAuthoritiesByAction(SecurityContext context, String action, String userId) {
+    private void adjustAuthoritiesByAction(SecurityContext context, String action, String userId, HttpServletRequest request) {
         Authentication auth = context.getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             return;
@@ -291,8 +298,7 @@ public class ZeroTrustSecurityService {
             case "CHALLENGE" -> {
                 // 고위험군 - MFA 필요 (관리자/특권 권한 제거)
                 // MFA 완료 후 원래 권한으로 복원됨 (다음 요청에서 action=ALLOW)
-                String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-                redisTemplate.opsForHash().put(analysisKey, "action", "PENDING_ANALYSIS");
+                learnBaselineOnMfaSuccess(userId, request);
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
                 log.info("[ZeroTrust][AI Native] MFA CHALLENGE required (HIGH RISK): {}", userId);
             }
@@ -492,5 +498,69 @@ public class ZeroTrustSecurityService {
 
         public String getDescription() { return description; }
         public double getWeight() { return weight; }
+    }
+
+    private void learnBaselineOnMfaSuccess(String userId, HttpServletRequest request) {
+        if (baselineLearningService == null) {
+            log.debug("[MFA] BaselineLearningService not available, skipping baseline learning");
+            return;
+        }
+
+        String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+
+        // 1. action을 ALLOW로 변경
+        redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
+
+        // 2. TTL을 ALLOW의 TTL(1시간)로 갱신
+        redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
+
+        try {
+            // SecurityDecision 생성 (MFA 성공 = ALLOW, 최고 신뢰도)
+            SecurityDecision decision = SecurityDecision.builder()
+                    .action(SecurityDecision.Action.ALLOW)
+                    .confidence(1.0)  // MFA 성공 = 최고 신뢰도
+                    .riskScore(0.0)   // MFA 성공 = 최저 위험도
+                    .reasoning("MFA authentication completed successfully")
+                    .build();
+
+            // SecurityEvent 생성 (request에서 컨텍스트 추출)
+            SecurityEvent event = SecurityEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .source(SecurityEvent.EventSource.IAM)
+                    .userId(userId)
+                    .sourceIp(extractClientIp(request))
+                    .sessionId(request.getSession(false) != null ?
+                            request.getSession(false).getId() : null)
+                    .userAgent(request.getHeader("User-Agent"))
+                    .timestamp(LocalDateTime.now())
+                    .description("MFA authentication success - baseline learning")
+                    .build();
+
+            // Baseline 학습 수행
+            boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
+
+            if (learned) {
+                log.info("[MFA][Baseline] Baseline learned on MFA success: userId={}", userId);
+            } else {
+                log.debug("[MFA][Baseline] Baseline learning skipped: userId={}", userId);
+            }
+
+        } catch (Exception e) {
+            log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
+            // Baseline 학습 실패해도 MFA 성공 처리는 계속 진행
+        }
+    }
+    protected String extractClientIp(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            return xRealIp;
+        }
+
+        return request.getRemoteAddr();
     }
 }

@@ -336,12 +336,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
             // - BLOCK: TTL 없음 (관리자 해제 필요)
             // - ESCALATE: 5분 (상위 검토 후 자동 복구)
             // - CHALLENGE: 30분 (MFA 성공 시 즉시 해제)
-            // - ALLOW: 1시간 (캐시)
+            // - ALLOW: 30초 (캐시)
             Duration ttl = switch (action.toUpperCase()) {
                 case "BLOCK" -> null;  // TTL 없음 - 관리자 해제 필요
                 case "ESCALATE" -> Duration.ofMinutes(5);
                 case "CHALLENGE" -> Duration.ofMinutes(30);
-                default -> Duration.ofHours(1);  // ALLOW
+                default -> Duration.ofSeconds(30);  // ALLOW
             };
 
             // 1. Primary: security:hcad:analysis:{userId} (Hash - 전체 필드)
@@ -363,7 +363,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     userId, action,
                     String.format("%.3f", analysisResult.getFinalScore()),
                     String.format("%.3f", analysisResult.getConfidence()),
-                    ttl != null ? ttl.toMinutes() + "m" : "permanent");
+                    ttl != null ? ttl.toSeconds() + "s" : "permanent");
 
             // AI Native v3.4.0: BLOCK 판정 시 관리자 검토 대기열에 추가
             if ("BLOCK".equalsIgnoreCase(action) && adminOverrideService != null) {

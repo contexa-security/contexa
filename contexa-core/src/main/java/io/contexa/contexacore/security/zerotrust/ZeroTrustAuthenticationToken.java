@@ -35,7 +35,6 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
         this.trustScore = trustScore;
         this.threatScore = threatScore;
         this.lastEvaluated = LocalDateTime.now();
-        this.trustTier = calculateTrustTier(threatScore);
     }
 
     /**
@@ -52,29 +51,9 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
         this.userContext = userContext;
         this.sessionId = sessionId;
         this.lastEvaluated = LocalDateTime.now();
-        this.trustTier = calculateTrustTier(threatScore);
     }
 
-    /**
-     * Trust Tier 계산
-     */
-    private ZeroTrustSecurityService.TrustTier calculateTrustTier(double threatScore) {
-        if (threatScore >= 0.9) {
-            return ZeroTrustSecurityService.TrustTier.UNTRUSTED;
-        } else if (threatScore >= 0.7) {
-            return ZeroTrustSecurityService.TrustTier.LOW;
-        } else if (threatScore >= 0.5) {
-            return ZeroTrustSecurityService.TrustTier.MEDIUM;
-        } else if (threatScore >= 0.3) {
-            return ZeroTrustSecurityService.TrustTier.HIGH;
-        } else {
-            return ZeroTrustSecurityService.TrustTier.FULL;
-        }
-    }
-
-    public double getTrustScore() {
-        return trustScore;
-    }
+    public double getTrustScore() {return trustScore;}
 
     public void setTrustScore(double trustScore) {
         this.trustScore = trustScore;
@@ -84,10 +63,7 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
         return threatScore;
     }
 
-    public void setThreatScore(double threatScore) {
-        this.threatScore = threatScore;
-        this.trustTier = calculateTrustTier(threatScore);
-    }
+    public void setThreatScore(double threatScore) {this.threatScore = threatScore;}
 
     public UserSecurityContext getUserContext() {
         return userContext;
@@ -111,14 +87,6 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
 
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
-    }
-
-    /**
-     * Trust Tier 조회 (AI Native: isHighRisk() 대체)
-     * 고위험 판단: trustTier == LOW || trustTier == UNTRUSTED
-     */
-    public ZeroTrustSecurityService.TrustTier getTrustTier() {
-        return trustTier;
     }
 
     @Override

@@ -140,7 +140,7 @@ public class ZeroTrustRedisKeys {
      *   - threatEvidence: 위협 증거 문자열
      *   - updatedAt: ISO-8601 타임스탬프
      *
-     * TTL: Action별 상이 (BLOCK: 영구, INVESTIGATE: 5분, MONITOR: 10분, ALLOW: 1시간)
+     * TTL: Action별 상이 (BLOCK: 영구, ESCALATE: 5분, CHALLENGE: 30분, ALLOW: 30초)
      *
      * 사용처:
      * - ColdPathEventProcessor: 저장 (Dual-Write)
