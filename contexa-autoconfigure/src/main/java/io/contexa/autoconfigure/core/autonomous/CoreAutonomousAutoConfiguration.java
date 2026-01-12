@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.detection.MaliciousPatternDetector;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
+import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -296,10 +297,12 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) SecurityPromptTemplate securityPromptTemplate,
             @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
             @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService,
+            @Autowired(required = false) SecurityDecisionPostProcessor securityDecisionPostProcessor,
             @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
             llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
-            securityPromptTemplate, behaviorVectorService, baselineLearningService, tieredStrategyProperties
+            securityPromptTemplate, behaviorVectorService, baselineLearningService,
+            securityDecisionPostProcessor, tieredStrategyProperties
         );
     }
 

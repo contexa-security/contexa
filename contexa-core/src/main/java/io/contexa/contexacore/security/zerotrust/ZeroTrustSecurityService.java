@@ -1,8 +1,10 @@
 package io.contexa.contexacore.security.zerotrust;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
+import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -12,13 +14,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -51,6 +56,7 @@ public class ZeroTrustSecurityService {
     private final RedisAtomicOperations redisAtomicOperations;
     private final ObjectMapper objectMapper;
     private final BaselineLearningService baselineLearningService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${zerotrust.enabled:true}")
     private boolean zeroTrustEnabled;
@@ -298,7 +304,8 @@ public class ZeroTrustSecurityService {
             case "CHALLENGE" -> {
                 // 고위험군 - MFA 필요 (관리자/특권 권한 제거)
                 // MFA 완료 후 원래 권한으로 복원됨 (다음 요청에서 action=ALLOW)
-                learnBaselineOnMfaSuccess(userId, request);
+                resetActionOnMfaSuccess(userId, request);
+                publishAuthenticationSuccessEvent(request, SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication());
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
                 log.info("[ZeroTrust][AI Native] MFA CHALLENGE required (HIGH RISK): {}", userId);
             }
@@ -500,22 +507,44 @@ public class ZeroTrustSecurityService {
         public double getWeight() { return weight; }
     }
 
+    private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {
+        if (userId == null || userId.isBlank() || redisTemplate == null) {
+            return;
+        }
+
+        try {
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+
+            // 1. previousAction 저장 (LLM CHALLENGE MFA 구분용 - AI Native v6.8)
+            // - previousAction이 "CHALLENGE"이면 LLM CHALLENGE MFA
+            // - 그 외(null, "ALLOW")면 일반 MFA (정책 기반)
+            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
+            redisTemplate.opsForHash().put(analysisKey, "previousAction",
+                    previousAction != null ? previousAction.toString() : "NONE");
+
+            // 2. action을 ALLOW로 변경
+            redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
+
+            // 3. TTL을 ALLOW의 TTL(1시간)로 갱신
+            redisTemplate.expire(analysisKey, Duration.ofHours(1));
+
+            // 4. Baseline 학습 수행 (ALLOW 획득 지점에서 직접 처리)
+            learnBaselineOnMfaSuccess(userId, request);
+
+            log.info("[MFA][AI Native v6.8] Action set to ALLOW with previousAction={} for user: {}",
+                    previousAction, userId);
+
+        } catch (Exception e) {
+            log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
+        }
+    }
+
     private void learnBaselineOnMfaSuccess(String userId, HttpServletRequest request) {
         if (baselineLearningService == null) {
             log.debug("[MFA] BaselineLearningService not available, skipping baseline learning");
             return;
         }
-
-        String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-
-        // 1. action을 ALLOW로 변경
-        redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
-
-        // 2. TTL을 ALLOW의 TTL(1시간)로 갱신
-        redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
-
         try {
-            // SecurityDecision 생성 (MFA 성공 = ALLOW, 최고 신뢰도)
             SecurityDecision decision = SecurityDecision.builder()
                     .action(SecurityDecision.Action.ALLOW)
                     .confidence(1.0)  // MFA 성공 = 최고 신뢰도
@@ -548,6 +577,46 @@ public class ZeroTrustSecurityService {
         } catch (Exception e) {
             log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
             // Baseline 학습 실패해도 MFA 성공 처리는 계속 진행
+        }
+    }
+
+    private void publishAuthenticationSuccessEvent(HttpServletRequest request,
+                                                   Authentication authentication) {
+        try {
+            if (eventPublisher == null) {
+                log.debug("ApplicationEventPublisher not available, skipping event publication");
+                return;
+            }
+
+            UserDto userDto = (UserDto) authentication.getPrincipal();
+
+            // 이벤트 빌더 생성
+            AuthenticationSuccessEvent.AuthenticationSuccessEventBuilder builder =
+                    AuthenticationSuccessEvent.builder()
+                            .eventId(java.util.UUID.randomUUID().toString())
+                            .userId(userDto.getUsername())  // Zero Trust를 위한 사용자 식별자 (username)
+                            .username(userDto.getUsername())
+                            .sessionId(request.getSession(false) != null ? request.getSession().getId() : null)
+                            .eventTimestamp(java.time.LocalDateTime.now())
+                            .sourceIp(extractClientIp(request))
+                            .userAgent(request.getHeader("User-Agent"))
+                            .authenticationType("MFA");
+
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("requestPath", request.getRequestURI());
+            metadata.put("httpMethod", request.getMethod());
+            builder.metadata(metadata);
+
+            // 이벤트 발행
+            AuthenticationSuccessEvent event = builder.build();
+            eventPublisher.publishEvent(event);
+
+            log.debug("Published authentication success event for user: {}, eventId: {}",
+                    userDto.getUsername(), event.getEventId());
+
+        } catch (Exception e) {
+            // 이벤트 발행 실패가 인증 프로세스를 중단시키지 않도록 예외 처리
+            log.error("Failed to publish authentication success event", e);
         }
     }
     protected String extractClientIp(HttpServletRequest request) {

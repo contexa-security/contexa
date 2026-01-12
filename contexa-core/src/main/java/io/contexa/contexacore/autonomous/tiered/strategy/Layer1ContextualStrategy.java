@@ -8,9 +8,9 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.response.SecurityResponse;
+import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -49,6 +49,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
     private final TieredStrategyProperties tieredStrategyProperties;
+    private final SecurityDecisionPostProcessor postProcessor;
     private final Cache<String, SessionContext> sessionContextCache;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -69,6 +70,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     @Autowired(required = false) SecurityPromptTemplate promptTemplate,
                                     @Autowired(required = false) BehaviorVectorService behaviorVectorService,
                                     @Autowired(required = false) BaselineLearningService baselineLearningService,
+                                    @Autowired(required = false) SecurityDecisionPostProcessor postProcessor,
                                     @Autowired TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.unifiedVectorService = unifiedVectorService;
@@ -77,6 +79,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.baselineLearningService = baselineLearningService;
+        this.postProcessor = postProcessor;
         this.tieredStrategyProperties = tieredStrategyProperties;
 
         // Phase 2-5: 메모리 누수 수정 - Caffeine TTL 캐시로 교체
@@ -186,11 +189,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
-            // 7. 세션 컨텍스트 업데이트
-            updateSessionContext(event, decision);
+            // 7. 세션 컨텍스트 업데이트 (AI Native v6.8: 공통 서비스 사용)
+            if (postProcessor != null) {
+                postProcessor.updateSessionContext(event, decision);
+            }
 
-            // 8. 벡터 스토어에 저장 (학습용)
-            storeInVectorDatabase(event, decision);
+            // 8. 벡터 스토어에 저장 (학습용) (AI Native v6.8: 공통 서비스 사용)
+            if (postProcessor != null) {
+                postProcessor.storeInVectorDatabase(event, decision);
+            }
 
             log.info("Layer 1 analysis completed in {}ms - Risk: {}, Action: {}",
                     decision.getProcessingTimeMs(), decision.getRiskScore(), decision.getAction());
@@ -562,154 +569,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    /**
-     * 세션 컨텍스트 업데이트
-     * AI Native: eventType, targetResource 제거
-     */
-    private void updateSessionContext(SecurityEvent event, SecurityDecision decision) {
-        String sessionId = event.getSessionId();
-        if (sessionId == null || redisTemplate == null) return;
-
-        try {
-            // AI Native v6.0: 행동 기반 세션 기록 (httpMethod 제거 - LLM 분석에 불필요)
-            redisTemplate.opsForList().rightPush(
-                    ZeroTrustRedisKeys.sessionActions(sessionId),
-                    String.format("%s:%s",
-                            event.getDescription() != null ? event.getDescription() : "action",
-                            decision.getAction())
-            );
-
-            // v3.1.0: MITIGATE -> BLOCK으로 통합됨
-            SecurityDecision.Action sessionAction = decision.getAction();
-            if (sessionAction == SecurityDecision.Action.BLOCK) {
-                redisTemplate.opsForValue().set(
-                        ZeroTrustRedisKeys.sessionRisk(sessionId),
-                        decision.getRiskScore(),
-                        Duration.ofHours(1)
-                );
-            }
-
-        } catch (Exception e) {
-            log.debug("Failed to update session context", e);
-        }
-    }
-
-    /**
-     * Vector Store 저장 조정자
-     *
-     * AI Native v6.0: 모든 판정에 대해 행동 패턴 저장
-     * - ALLOW/CHALLENGE: 정상 행동 패턴 학습용 BEHAVIOR 문서 저장
-     * - BLOCK: 위협 패턴 학습용 THREAT 문서 추가 저장
-     * - ESCALATE: 분석 불가 상태 기록
-     */
-    private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision) {
-        if (unifiedVectorService == null) return;
-
-        double confidence = decision.getConfidence();
-        if (Double.isNaN(confidence)) {
-            log.debug("Skipping vector storage: confidence not available for event {}", event.getEventId());
-            return;
-        }
-
-        try {
-            SecurityDecision.Action action = decision.getAction();
-
-            // AI Native v6.0: ALLOW만 저장 (Baseline 학습과 일관성 유지)
-            // CHALLENGE/ESCALATE 저장 시 RAG 오염 발생 - 부정적 컨텍스트가 LLM에 전달됨
-            if (action == SecurityDecision.Action.ALLOW) {
-                storeBehaviorDocument(event, decision);
-            }
-
-            // BLOCK 판정: 위협 패턴으로 저장
-            if (action == SecurityDecision.Action.BLOCK) {
-                storeBehaviorDocument(event, decision);
-                String content = buildBehaviorContent(event, decision);
-                storeThreatDocument(event, decision, content);
-            }
-
-        } catch (Exception e) {
-            log.debug("Failed to store in vector database (via cache layer)", e);
-        }
-    }
-
-    /**
-     * 행동 패턴 문서 저장
-     *
-     * AI Native v6.0: ALLOW/CHALLENGE 판정도 Vector Store에 저장하여
-     * 첫 요청 시 비어있는 Vector Store 문제 해결
-     *
-     * @param event 보안 이벤트
-     * @param decision LLM이 내린 보안 결정
-     */
-    private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
-        try {
-            String content = buildBehaviorContent(event, decision);
-
-            // AI Native v6.0: AbstractTieredStrategy.buildBaseMetadata() 공통 메서드 활용
-            // - 중복 코드 제거, AI Native 원칙 일관성 유지
-            Map<String, Object> metadata = buildBaseMetadata(event, decision, VectorDocumentType.BEHAVIOR.getValue());
-
-            Document document = new Document(content, metadata);
-            unifiedVectorService.storeDocument(document);
-
-            log.debug("[Layer1] 행동 패턴 저장 완료: userId={}, action={}, riskScore={}",
-                event.getUserId(), decision.getAction(), decision.getRiskScore());
-
-        } catch (Exception e) {
-            log.debug("[Layer1] 행동 패턴 저장 실패: eventId={}", event.getEventId(), e);
-        }
-    }
-
-    /**
-     * 행동 패턴 컨텐츠 생성
-     *
-     * AI Native v6.0: ALLOW만 저장하므로 불필요한 필드 제거
-     * - action: 항상 ALLOW (무의미)
-     * - threatCategory: ALLOW에서는 항상 null
-     * - description: 어떤 행동인지 (유사 행동 매칭 필수)
-     */
-    private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
-        return String.format(
-                "User: %s, Risk: %.2f, Description: %s, Reasoning: %s",
-                event.getUserId() != null ? event.getUserId() : "unknown",
-                decision.getRiskScore(),
-                event.getDescription() != null ? event.getDescription() : "unknown",
-                decision.getReasoning() != null ? decision.getReasoning() : "No reasoning provided"
-        );
-    }
-
-    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, String analysisContent) {
-        try {
-            // AI Native v6.0: AbstractTieredStrategy.buildBaseMetadata() 공통 메서드 활용
-            Map<String, Object> threatMetadata = buildBaseMetadata(event, decision, VectorDocumentType.THREAT.getValue());
-
-            // Layer1 특화 정보: 행동 패턴 (LLM 분석 결과)
-            if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
-                threatMetadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
-            }
-
-            // 위협 설명 (AI 분석 결과 포함, AI Native: eventType 제거)
-            String threatDescription = String.format(
-                "Layer1 Contextual Threat: User=%s, IP=%s, RiskScore=%.2f, " +
-                "ThreatCategory=%s, BehaviorPatterns=%s, Action=%s, Reasoning=%s",
-                event.getUserId(), event.getSourceIp(),
-                decision.getRiskScore(), decision.getThreatCategory(),
-                decision.getBehaviorPatterns() != null ? decision.getBehaviorPatterns() : "[]",
-                decision.getAction(),
-                decision.getReasoning() != null ? decision.getReasoning().substring(0, Math.min(100, decision.getReasoning().length())) : ""
-            );
-
-            Document threatDoc = new Document(threatDescription, threatMetadata);
-            unifiedVectorService.storeDocument(threatDoc);
-
-            log.info("[Layer1] 위협 패턴 저장 완료: userId={}, riskScore={}, threatCategory={}, behaviorPatterns={}",
-                event.getUserId(), decision.getRiskScore(), decision.getThreatCategory(),
-                decision.getBehaviorPatterns() != null ? decision.getBehaviorPatterns().size() : 0);
-
-        } catch (Exception e) {
-            log.warn("[Layer1] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
-        }
-    }
+    // AI Native v6.8: updateSessionContext(), storeInVectorDatabase() 메서드 삭제
+    // - SecurityDecisionPostProcessor 서비스로 이동
+    // - 코드 중복 제거, ZeroTrustEventListener와 일관성 유지
     @Override
     protected String getLayerName() {
         return "Layer1";

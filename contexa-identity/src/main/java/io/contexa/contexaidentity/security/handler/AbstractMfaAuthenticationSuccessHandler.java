@@ -505,17 +505,24 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         try {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
 
-            // 1. action을 ALLOW로 변경
+            // 1. previousAction 저장 (LLM CHALLENGE MFA 구분용 - AI Native v6.8)
+            // - previousAction이 "CHALLENGE"이면 LLM CHALLENGE MFA
+            // - 그 외(null, "ALLOW")면 일반 MFA (정책 기반)
+            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
+            redisTemplate.opsForHash().put(analysisKey, "previousAction",
+                previousAction != null ? previousAction.toString() : "NONE");
+
+            // 2. action을 ALLOW로 변경
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
 
-            // 2. TTL을 ALLOW의 TTL(1시간)로 갱신
+            // 3. TTL을 ALLOW의 TTL(1시간)로 갱신
             redisTemplate.expire(analysisKey, Duration.ofHours(1));
 
-            // 3. Baseline 학습 수행 (ALLOW 획득 지점에서 직접 처리)
+            // 4. Baseline 학습 수행 (ALLOW 획득 지점에서 직접 처리)
             learnBaselineOnMfaSuccess(userId, request);
 
-            log.info("[MFA][AI Native v3.5.0] Action set to ALLOW with Baseline learning for user: {}",
-                    userId);
+            log.info("[MFA][AI Native v6.8] Action set to ALLOW with previousAction={} for user: {}",
+                    previousAction, userId);
 
         } catch (Exception e) {
             log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);

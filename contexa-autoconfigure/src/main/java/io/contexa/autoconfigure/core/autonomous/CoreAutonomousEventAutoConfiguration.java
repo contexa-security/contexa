@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFil
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.RedisSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
+import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.event.monitoring.DeadLetterQueueMonitor;
 import io.contexa.contexacore.autonomous.event.monitoring.RedisMemoryMonitor;
 import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
@@ -101,8 +102,9 @@ public class CoreAutonomousEventAutoConfiguration {
     public ZeroTrustEventListener zeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             SecurityEventEnricher securityEventEnricher,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, securityEventEnricher, redisTemplate);
+            RedisTemplate<String, Object> redisTemplate,
+            SecurityDecisionPostProcessor securityDecisionPostProcessor) {
+        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, securityEventEnricher, redisTemplate, securityDecisionPostProcessor);
     }
 
     // ========== Event Publishers ==========

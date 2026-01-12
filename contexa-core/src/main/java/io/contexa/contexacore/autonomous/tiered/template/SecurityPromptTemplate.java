@@ -150,8 +150,14 @@ public class SecurityPromptTemplate {
         String relatedContext = hasRelatedDocs ? relatedContextBuilder.toString() : null;
 
         // 프롬프트 구성
+        // AI Native v6.7: JSON 전용 응답 강제 - 시스템 역할 명시
         StringBuilder prompt = new StringBuilder();
-        prompt.append("Contextual security analysis. Analyze with session/behavior patterns and user baseline.\n\n");
+        prompt.append("""
+            You are a security analyst AI. Analyze the security event below and respond with ONLY a JSON object.
+            DO NOT include any explanation, markdown, or text before/after the JSON.
+            Your response must be a single valid JSON object starting with { and ending with }.
+
+            """);
 
         // 1. 이벤트 기본 정보
         prompt.append("=== EVENT ===\n");
@@ -264,26 +270,30 @@ public class SecurityPromptTemplate {
         prompt.append(dataQualitySection);
 
         // 9. 응답 형식 (통일된 5필드)
-        // AI Native v6.6: recommendation 필드 제거 (action과 중복)
+        // AI Native v6.7: JSON 전용 응답 강제
         prompt.append("""
 
-            === ACTIONS ===
-            ALLOW: Permit the request - ONLY when baseline is ESTABLISHED and patterns match
-            BLOCK: Deny the request - Strong evidence of malicious activity
-            CHALLENGE: Request additional verification (MFA) - Suspicious but not conclusive
-            ESCALATE: Forward to Layer 2 expert analysis - Complex or ambiguous situation
+            === RESPONSE INSTRUCTIONS ===
+            IMPORTANT: Respond with ONLY a single JSON object. No explanation, no markdown, no text before or after.
 
-            === RESPONSE FORMAT ===
-            {"riskScore":<0-1>,"confidence":<0-1>,"confidenceReasoning":"<why this confidence>","action":"ALLOW|BLOCK|CHALLENGE|ESCALATE","reasoning":"<reason>","mitre":"<MITRE>"}
+            ACTIONS:
+            - ALLOW: Permit (ONLY when baseline ESTABLISHED and patterns match)
+            - BLOCK: Deny (strong malicious evidence)
+            - CHALLENGE: Request MFA (suspicious but inconclusive)
+            - ESCALATE: Forward to Layer 2 (complex/ambiguous)
 
-            riskScore: [REQUIRED] Your risk assessment (0=safe, 1=critical threat) - MUST be a number
-            confidence: [REQUIRED] Your confidence level (0=uncertain, 1=certain) - MUST be a number
-            confidenceReasoning: [REQUIRED] Explain WHY you chose this confidence value (e.g., "High confidence due to matching baseline patterns" or "Low confidence due to missing historical data")
-            action: [REQUIRED] Your action decision - MUST be one of: ALLOW, BLOCK, CHALLENGE, ESCALATE (NEVER null)
-            reasoning: Brief reasoning for the action (max 30 tokens)
-            mitre: [RECOMMENDED] MITRE ATT&CK technique ID if threat detected (e.g., T1078, T1550)
+            REQUIRED JSON FORMAT (respond with ONLY this, nothing else):
+            {"riskScore":0.5,"confidence":0.5,"confidenceReasoning":"reason for confidence","action":"CHALLENGE","reasoning":"reason for action","mitre":"T1078"}
 
-            CRITICAL: You MUST always provide riskScore, confidence, confidenceReasoning, and action. Never omit any required field.
+            FIELD RULES:
+            - riskScore: number 0-1 (0=safe, 1=critical)
+            - confidence: number 0-1 (0=uncertain, 1=certain)
+            - confidenceReasoning: string (why this confidence)
+            - action: string (ALLOW|BLOCK|CHALLENGE|ESCALATE)
+            - reasoning: string (max 30 tokens)
+            - mitre: string or null (MITRE ATT&CK ID if threat detected)
+
+            OUTPUT ONLY THE JSON. NO OTHER TEXT.
             """);
 
         return prompt.toString();

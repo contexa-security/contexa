@@ -7,7 +7,10 @@ import io.contexa.contexacore.autonomous.event.domain.HttpRequestEvent;
 import io.contexa.contexacore.autonomous.event.domain.ThreatDetectionEvent;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.decision.EventTier;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
@@ -39,6 +42,7 @@ public class ZeroTrustEventListener {
     private final KafkaSecurityEventPublisher kafkaSecurityEventPublisher;
     private final SecurityEventEnricher eventEnricher;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final SecurityDecisionPostProcessor postProcessor;
 
     // AI Native 비동기 구조 최적화 (Phase 3):
     // ANALYSIS_LOCK_TTL 제거 - AuthorizationEventPublisher로 이동
@@ -46,10 +50,12 @@ public class ZeroTrustEventListener {
     public ZeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             SecurityEventEnricher eventEnricher,
-            RedisTemplate<String, Object> redisTemplate) {
+            RedisTemplate<String, Object> redisTemplate,
+            SecurityDecisionPostProcessor postProcessor) {
         this.kafkaSecurityEventPublisher = kafkaSecurityEventPublisher;
         this.eventEnricher = eventEnricher;
         this.redisTemplate = redisTemplate;
+        this.postProcessor = postProcessor;
     }
     
     @Value("${security.zerotrust.enabled:true}")
@@ -95,10 +101,24 @@ public class ZeroTrustEventListener {
                     duration, event.getUsername());
             }
 
-            // 높은 위험도의 경우 즉시 세션 컨텍스트 소급
-            if (event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.HIGH ||
-                event.calculateRiskLevel() == AuthenticationSuccessEvent.RiskLevel.CRITICAL) {
-                publishSessionContextRetrospectively(event);
+            // AI Native v6.8: LLM CHALLENGE MFA 성공 시에만 세션/벡터 업데이트
+            // - 일반 MFA (정책 기반): 업데이트 생략 (RAG Pollution 방지)
+            // - LLM CHALLENGE MFA: 업데이트 수행 (검증 완료된 패턴 학습)
+            if (isLlmChallengeMfa(event)) {
+                // SecurityDecisionPostProcessor를 통해 Layer1과 동일한 로직 사용
+                SecurityEvent securityEvent = convertToSecurityEvent(event);
+                SecurityDecision decision = createMfaSuccessDecision(event);
+
+                if (postProcessor != null) {
+                    postProcessor.updateSessionContext(securityEvent, decision);
+                    postProcessor.storeInVectorDatabase(securityEvent, decision);
+                }
+
+                log.info("[ZeroTrustEventListener][AI Native v6.8] LLM CHALLENGE MFA 성공 - 세션/벡터 업데이트 완료: userId={}",
+                    event.getUserId());
+            } else {
+                log.debug("[ZeroTrustEventListener] 일반 MFA 또는 비-MFA 인증 - 세션/벡터 업데이트 생략: userId={}",
+                    event.getUserId());
             }
 
         } catch (Exception e) {
@@ -247,47 +267,11 @@ public class ZeroTrustEventListener {
     }
     
     
-    /**
-     * 세션 컨텍스트 소급 발행
-     * 
-     * 이상 징후 발견시 해당 세션의 모든 이벤트를 소급하여 분석
-     */
-    private void publishSessionContextRetrospectively(AuthenticationSuccessEvent authEvent) {
-        try {
-            log.warn("High risk authentication detected for user: {}, publishing session context", 
-                    authEvent.getUsername());
-            
-            // 세션 컨텍스트 이벤트 생성
-            SecurityEvent contextEvent = new SecurityEvent();
-            contextEvent.setEventId(UUID.randomUUID().toString());
-            // AI Native v4.0.0: eventType 제거 - severity, source로 분류
-            contextEvent.setSource(SecurityEvent.EventSource.IAM);
-            contextEvent.setTimestamp(LocalDateTime.now());
-            // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
-            contextEvent.setSeverity(SecurityEvent.Severity.MEDIUM);
-            
-            // 사용자 정보
-            contextEvent.setUserId(authEvent.getUserId());
-            contextEvent.setUserName(authEvent.getUsername());
-            contextEvent.setSessionId(authEvent.getSessionId());
-            
-            // 세션 전체 컨텍스트
-            Map<String, Object> fullContext = new HashMap<>();
-            fullContext.put("originalEventId", authEvent.getEventId());
-            fullContext.put("sessionContext", authEvent.getSessionContext());
-            fullContext.put("riskIndicators", authEvent.getRiskIndicators());
-            fullContext.put("anomalyDetected", authEvent.isAnomalyDetected());
-            fullContext.put("trustScore", authEvent.getTrustScore());
-            contextEvent.setMetadata(fullContext);
+    // AI Native v6.8: publishSessionContextRetrospectively() 메서드 제거
+    // - 근거 없는 임의 규칙 (HIGH/CRITICAL riskLevel 기반)
+    // - riskLevel은 LLM이 설정해야 하는데, 인증 성공 시점에서 LLM 판단 없음
+    // - AI Native 원칙 위반: 플랫폼이 임의로 "위험도 높으면 세션 컨텍스트 발행" 규칙 설정
 
-            // 우선순위 높게 발행
-            kafkaSecurityEventPublisher.publishSecurityEvent(contextEvent);
-            
-        } catch (Exception e) {
-            log.error("Failed to publish session context retrospectively", e);
-        }
-    }
-    
     /**
      * AI Native v4.1.0: 샘플링 제거 - 모든 이벤트 LLM 분석
      *
@@ -559,5 +543,72 @@ public class ZeroTrustEventListener {
             // 추가 컨텍스트 정보 보강
         }
     }
+
+    // ========================================================================
+    // AI Native v6.8: LLM CHALLENGE MFA 전용 메서드
+    // ========================================================================
+
+    /**
+     * LLM CHALLENGE MFA 여부 확인
+     *
+     * Redis에 저장된 previousAction을 확인하여 MFA 유형을 구분합니다:
+     * - previousAction == "CHALLENGE": LLM이 위험 평가 후 CHALLENGE 판정 -> MFA 검증 -> ALLOW
+     * - previousAction == null 또는 "ALLOW": 정책 기반 일반 MFA (관리자 페이지, 민감 작업 등)
+     *
+     * @param event 인증 성공 이벤트
+     * @return LLM CHALLENGE MFA인 경우 true
+     */
+    private boolean isLlmChallengeMfa(AuthenticationSuccessEvent event) {
+        String userId = event.getUserId();
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+
+        try {
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "previousAction");
+
+            boolean isChallenge = "CHALLENGE".equals(String.valueOf(previousAction));
+
+            if (isChallenge) {
+                // previousAction 정리 (재사용 방지)
+                redisTemplate.opsForHash().delete(analysisKey, "previousAction");
+                log.debug("[ZeroTrustEventListener] LLM CHALLENGE MFA 확인 - previousAction 정리 완료: userId={}", userId);
+            }
+
+            return isChallenge;
+
+        } catch (Exception e) {
+            log.debug("[ZeroTrustEventListener] previousAction 확인 실패 - 안전하게 업데이트 생략: userId={}", userId, e);
+            return false;  // 확인 실패 시 안전하게 업데이트 생략
+        }
+    }
+
+    /**
+     * MFA 성공 시 SecurityDecision 생성
+     *
+     * AI Native v6.8: SecurityDecisionPostProcessor와 호환되는 SecurityDecision 객체를 생성합니다.
+     * MFA 성공은 검증 완료 상태이므로:
+     * - action: ALLOW (검증 완료)
+     * - riskScore: 0.0 (MFA로 위험 해소)
+     * - confidence: 1.0 (MFA 검증 확신)
+     *
+     * @param event 인증 성공 이벤트
+     * @return SecurityDecision
+     */
+    private SecurityDecision createMfaSuccessDecision(AuthenticationSuccessEvent event) {
+        return SecurityDecision.builder()
+                .action(SecurityDecision.Action.ALLOW)
+                .riskScore(0.0)
+                .confidence(1.0)
+                .reasoning("MFA verification completed successfully")
+                .eventId(event.getEventId())
+                .analysisTime(System.currentTimeMillis())
+                .build();
+    }
+
+    // AI Native v6.8: updateSessionContextOnAuthSuccess(), storeInVectorDatabaseOnAuthSuccess() 메서드 삭제
+    // - SecurityDecisionPostProcessor 서비스로 이동
+    // - Layer1ContextualStrategy와 동일한 로직 사용으로 중복 제거
 
 }
