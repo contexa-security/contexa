@@ -3,26 +3,20 @@ package io.contexa.contexacore.autonomous.event.listener;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationFailureEvent;
-import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
 import io.contexa.contexacore.autonomous.event.domain.HttpRequestEvent;
 import io.contexa.contexacore.autonomous.event.domain.ThreatDetectionEvent;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.decision.EventTier;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 
 import static io.contexa.contexacore.autonomous.event.decision.EventTier.BENIGN;
 import static io.contexa.contexacore.autonomous.event.domain.ThreatDetectionEvent.ThreatLevel.*;
@@ -46,11 +40,8 @@ public class ZeroTrustEventListener {
     private final SecurityEventEnricher eventEnricher;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    /**
-     * Phase 14: 분석 락 TTL (30초)
-     * 동시 @Protectable 접근 시 중복 LLM 분석 방지
-     */
-    private static final Duration ANALYSIS_LOCK_TTL = Duration.ofSeconds(30);
+    // AI Native 비동기 구조 최적화 (Phase 3):
+    // ANALYSIS_LOCK_TTL 제거 - AuthorizationEventPublisher로 이동
 
     public ZeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
@@ -144,89 +135,9 @@ public class ZeroTrustEventListener {
         }
     }
     
-    /**
-     * 권한 결정 이벤트 처리
-     *
-     * Phase 14: Redis SETNX 패턴으로 동시 LLM 분석 방지
-     * 동일 사용자에 대해 여러 @Protectable 리소스 동시 접근 시
-     * 첫 번째 요청만 LLM 분석을 트리거하고 나머지는 스킵
-     */
-    @EventListener
-    public void handleAuthorizationDecision(AuthorizationDecisionEvent event) {
-        long startTime = System.currentTimeMillis();
-        try {
-            if (!zeroTrustEnabled) {
-                return;
-            }
-
-            String userId = event.getUserId();
-
-            log.info("[ZeroTrustEventListener] Authorization decision event - user: {}, resource: {}, granted: {}",
-                    userId, event.getResource(), event.isGranted());
-
-            // Phase 14: Redis SETNX 패턴으로 중복 LLM 분석 방지
-            if (userId != null && !userId.isEmpty() && !"anonymous".equals(userId)) {
-                if (!tryAcquireAnalysisLock(userId)) {
-                    log.debug("[ZeroTrustEventListener] Phase 14: LLM 분석 스킵 (이미 분석 중) - userId: {}, resource: {}",
-                            userId, event.getResource());
-                    return;
-                }
-            }
-
-            // 이벤트 발행 (특화 메서드 사용 - 권한 부여/거부 패턴 분석 및 계층화 처리)
-            kafkaSecurityEventPublisher.publishAuthorizationEvent(event);
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.debug("[ZeroTrustEventListener] Authorization event queued - EventID: {}, duration: {}ms",
-                event.getEventId(), duration);
-
-        } catch (Exception e) {
-            long duration = System.currentTimeMillis() - startTime;
-            log.error("[ZeroTrustEventListener] Failed to process authorization decision event - duration: {}ms", duration, e);
-        }
-    }
-
-    /**
-     * Phase 14: LLM 분석 락 획득 시도
-     *
-     * Redis SETNX 패턴으로 동시 분석 방지
-     * - 락 획득 성공: true 반환 (분석 진행)
-     * - 락 획득 실패: false 반환 (분석 스킵 - 이미 다른 요청이 분석 중)
-     *
-     * @param userId 사용자 ID
-     * @return 락 획득 성공 여부
-     */
-    private boolean tryAcquireAnalysisLock(String userId) {
-        try {
-            // 캐시된 분석 결과가 유효한지 먼저 확인
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object existingAction = redisTemplate.opsForHash().get(analysisKey, "action");
-            if (existingAction != null && !"PENDING_ANALYSIS".equals(existingAction.toString())) {
-                // 이미 유효한 분석 결과 있음 - 재분석 불필요
-                log.debug("[ZeroTrustEventListener] Phase 14: 유효한 분석 결과 존재 - userId: {}, action: {}",
-                        userId, existingAction);
-                return false;
-            }
-
-            // SETNX로 분석 락 획득 시도
-            String lockKey = ZeroTrustRedisKeys.analysisLock(userId);
-            Boolean acquired = redisTemplate.opsForValue()
-                    .setIfAbsent(lockKey, "1", ANALYSIS_LOCK_TTL);
-
-            if (Boolean.TRUE.equals(acquired)) {
-                log.debug("[ZeroTrustEventListener] Phase 14: 분석 락 획득 성공 - userId: {}", userId);
-                return true;
-            } else {
-                log.debug("[ZeroTrustEventListener] Phase 14: 분석 락 획득 실패 (이미 분석 중) - userId: {}", userId);
-                return false;
-            }
-
-        } catch (Exception e) {
-            log.warn("[ZeroTrustEventListener] Phase 14: 분석 락 확인 실패 - userId: {}, 분석 진행", userId, e);
-            // Redis 오류 시 안전하게 분석 진행 (fail-open)
-            return true;
-        }
-    }
+    // AI Native 비동기 구조 최적화 (Phase 3):
+    // handleAuthorizationDecision() 제거 - AuthorizationEventPublisher에서 Kafka로 직접 전송
+    // tryAcquireAnalysisLock() 제거 - AuthorizationEventPublisher.shouldPublishForAnalysis()로 이동
     
     /**
      * AuthenticationFailureEvent를 SecurityEvent로 변환
@@ -253,48 +164,10 @@ public class ZeroTrustEventListener {
         return event;
     }
     
-    /**
-     * AuthorizationDecisionEvent를 SecurityEvent로 변환
-     */
-    private SecurityEvent convertAuthDecisionToSecurityEvent(AuthorizationDecisionEvent authEvent) {
-        SecurityEvent event = new SecurityEvent();
-        event.setEventId(authEvent.getEventId() != null ? authEvent.getEventId() : UUID.randomUUID().toString());
-        // AI Native v4.0.0: eventType 제거 - severity, source로 분류
-        event.setSource(SecurityEvent.EventSource.IAM);
-        event.setUserId(authEvent.getUserId());
-        event.setUserName(authEvent.getUserId());
-        event.setTimestamp(authEvent.getTimestamp() != null ?
-                          LocalDateTime.ofInstant(authEvent.getTimestamp(), ZoneId.systemDefault()) :
-                          LocalDateTime.now());
-        event.setSourceIp(authEvent.getClientIp());
-        // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
-        event.setSeverity(SecurityEvent.Severity.MEDIUM);
+    // AI Native 비동기 구조 최적화 (Phase 3):
+    // convertAuthDecisionToSecurityEvent() 제거 - AuthorizationEventPublisher에서 Kafka로 직접 전송
+    // handleAuthorizationDecision()이 제거되면서 더 이상 사용되지 않음
 
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("resource", authEvent.getResource());
-        metadata.put("action", authEvent.getAction());
-        // AI Native: 원시 데이터 제공 (LLM이 granted 값을 보고 직접 판단)
-        metadata.put("authz.granted", authEvent.isGranted());
-        metadata.put("reason", authEvent.getReason());
-
-        // AI Native v6.0: Zero Trust 핵심 신호 - 이벤트 필드에서 metadata로 복사
-        // AuthorizationDecisionEvent의 isNew* 필드는 metadata가 아닌 별도 필드이므로 명시적 복사 필요
-        // null일 경우 보수적 기본값 true 사용 (Zero Trust: 신규 사용자로 간주하여 더 엄격하게 검증)
-        metadata.put("isNewSession", authEvent.getIsNewSession() != null ? authEvent.getIsNewSession() : true);
-        metadata.put("isNewUser", authEvent.getIsNewUser() != null ? authEvent.getIsNewUser() : true);
-        metadata.put("isNewDevice", authEvent.getIsNewDevice() != null ? authEvent.getIsNewDevice() : true);
-        if (authEvent.getRecentRequestCount() != null) {
-            metadata.put("recentRequestCount", authEvent.getRecentRequestCount());
-        }
-
-        if (authEvent.getMetadata() != null) {
-            metadata.putAll(authEvent.getMetadata());
-        }
-        event.setMetadata(metadata);
-
-        return event;
-    }
-    
     /**
      * AuthenticationSuccessEvent를 SecurityEvent로 변환
      */

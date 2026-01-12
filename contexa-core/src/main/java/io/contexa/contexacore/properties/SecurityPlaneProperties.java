@@ -42,6 +42,15 @@ public class SecurityPlaneProperties {
     private RedisSettings redis = new RedisSettings();
 
     /**
+     * LLM 분석 Executor 설정
+     *
+     * AI Native v5.0.0: B2B Login Storm 대응
+     * 동시 접속이 수천 명이어도 설정된 스레드 수만큼만 LLM API 호출하여 시스템 안정성 보장
+     */
+    @NestedConfigurationProperty
+    private LlmExecutorSettings llmExecutor = new LlmExecutorSettings();
+
+    /**
      * 에이전트 설정
      *
      * AI Native v3.3.0: 점수 기반 임계값 제거
@@ -128,5 +137,37 @@ public class SecurityPlaneProperties {
             private String threatAlerts = "security:threats";
             private String incidents = "security:incidents";
         }
+    }
+
+    /**
+     * LLM 분석 Executor 설정
+     *
+     * AI Native v5.0.0: LLM 분석 Throttling
+     * - 동시 접속이 수천 명이어도 설정된 스레드 수만큼만 순차 처리
+     * - CallerRunsPolicy: 큐 초과 시 호출 스레드에서 직접 실행 (백프레셔)
+     *
+     * 확장 가이드: 인스턴스 수 * corePoolSize = 전체 LLM 처리량
+     * 예: 3개 인스턴스 * 10 스레드 = 동시 30개 LLM 분석
+     */
+    @Data
+    public static class LlmExecutorSettings {
+        /**
+         * LLM 분석 동시 처리 스레드 수
+         * 기본값: 10 (고정 풀 권장)
+         */
+        private int corePoolSize = 10;
+
+        /**
+         * 최대 스레드 수
+         * 기본값: 10 (고정 풀 권장, corePoolSize와 동일하게 설정)
+         */
+        private int maxPoolSize = 10;
+
+        /**
+         * 대기 큐 크기
+         * 기본값: 1000 (Consumer Lag 대응)
+         * 큐 초과 시 CallerRunsPolicy 적용
+         */
+        private int queueCapacity = 1000;
     }
 }

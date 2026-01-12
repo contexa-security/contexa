@@ -128,12 +128,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final AtomicLong createdIncidents = new AtomicLong(0);
     private final AtomicLong executedActions = new AtomicLong(0);
     private final Map<String, IncidentHandler> activeIncidentHandlers = Collections.synchronizedMap(new WeakHashMap<>());
-    private ScheduledExecutorService backgroundExecutor;
-    private CompletableFuture<Void> backgroundTask;
+    private ScheduledExecutorService scheduler;
     
     @PostConstruct
     public void initialize() {
-        log.info("Initializing Security Plane Agent: {}", agentName);
+        log.info("Initializing Security Plane Agent: {} (AI Native v5.0.0)", agentName);
 
         // 감사 추적 시스템 초기화
         if (auditLogger != null) {
@@ -142,13 +141,48 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
 
         currentState = AgentState.INITIALIZING;
-        backgroundExecutor = Executors.newScheduledThreadPool(2, r -> {
-            Thread t = new Thread(r, agentName + "-Background");
+
+        // AI Native v5.0.0: 배치 프로세서 콜백 등록
+        // SecurityMonitoringService가 Kafka 배치를 수신하면 이 콜백을 호출
+        securityMonitor.setBatchProcessor(this::processBatch);
+
+        // 스케줄러 초기화 (정리 작업 및 헬스 체크용)
+        scheduler = Executors.newScheduledThreadPool(2, r -> {
+            Thread t = new Thread(r, agentName + "-Scheduler");
             t.setDaemon(true);
             return t;
         });
 
-        log.info("Security Plane Agent {} initialized successfully", agentName);
+        log.info("Security Plane Agent {} initialized successfully with batch processor callback", agentName);
+    }
+
+    /**
+     * AI Native v5.0.0: Kafka 배치 이벤트 처리 콜백
+     * SecurityMonitoringService의 DirectBatchListener에서 호출
+     *
+     * @param events 전처리된 이벤트 배치 (최대 10개)
+     */
+    private void processBatch(List<SecurityEvent> events) {
+        if (!running.get()) {
+            log.warn("[SecurityPlaneAgent] Agent not running, dropping {} events", events.size());
+            return;
+        }
+
+        log.debug("[SecurityPlaneAgent] Processing batch of {} events", events.size());
+
+        for (SecurityEvent event : events) {
+            // LLM Executor에 제출 (비동기)
+            llmAnalysisExecutor.execute(() -> {
+                try {
+                    processSecurityEvent(event);
+                    processedEvents.incrementAndGet();
+                } catch (Exception e) {
+                    log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
+                }
+            });
+        }
+
+        log.debug("[SecurityPlaneAgent] Dispatched {} events to LLM analysis executor", events.size());
     }
     
     @Override
@@ -164,26 +198,27 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     
     /**
      * Start the agent
+     *
+     * AI Native v5.0.0: 배경 폴링 루프 제거 -> 콜백 기반 처리로 전환
+     * - startBackgroundMonitoring() 제거
+     * - SecurityMonitoringService가 Kafka 배치를 수신하면 processBatch() 콜백 호출
      */
     @Override
     public void start() {
         if (running.compareAndSet(false, true)) {
-            log.info("Starting Security Plane Agent {}", agentName);
+            log.info("Starting Security Plane Agent {} (AI Native v5.0.0 - callback mode)", agentName);
             currentState = AgentState.RUNNING;
-            
+
             Map<String, Object> config = createMonitoringConfig();
             securityMonitor.startMonitoring(agentName, config);
-            
-            // Start continuous background monitoring
-            startBackgroundMonitoring();
-            
-            // Schedule periodic cleanup of incident handlers
-            backgroundExecutor.scheduleWithFixedDelay(
+
+            // 스케줄 작업만 유지 (정리 및 헬스 체크)
+            scheduler.scheduleWithFixedDelay(
                 this::cleanupIncidentHandlers,
                 5, 5, TimeUnit.MINUTES
             );
-            
-            log.info("Security Plane Agent {} is now running with continuous background monitoring", agentName);
+
+            log.info("Security Plane Agent {} is now running in callback mode", agentName);
         } else {
             log.warn("Agent {} is already running", agentName);
         }
@@ -191,35 +226,36 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     
     /**
      * Stop the agent
+     *
+     * AI Native v5.0.0: 배경 폴링 루프 제거 -> 콜백 기반 처리
+     * - stopBackgroundMonitoring() 제거
+     * - scheduler만 종료
      */
     @Override
     public void stop() {
         if (running.compareAndSet(true, false)) {
             log.info("Stopping Security Plane Agent {}", agentName);
             currentState = AgentState.STOPPING;
-            
-            // Stop background monitoring
-            stopBackgroundMonitoring();
-            
+
             // Stop monitoring
             securityMonitor.stopMonitoring(agentName);
-            
+
             // Wait for active handlers to complete
             waitForActiveHandlers();
-            
-            // Shutdown background executor
-            if (backgroundExecutor != null) {
-                backgroundExecutor.shutdown();
+
+            // Shutdown scheduler
+            if (scheduler != null) {
+                scheduler.shutdown();
                 try {
-                    if (!backgroundExecutor.awaitTermination(30, TimeUnit.SECONDS)) {
-                        backgroundExecutor.shutdownNow();
+                    if (!scheduler.awaitTermination(30, TimeUnit.SECONDS)) {
+                        scheduler.shutdownNow();
                     }
                 } catch (InterruptedException e) {
-                    backgroundExecutor.shutdownNow();
+                    scheduler.shutdownNow();
                     Thread.currentThread().interrupt();
                 }
             }
-            
+
             currentState = AgentState.STOPPED;
             log.info("Security Plane Agent {} has stopped", agentName);
         }
@@ -1185,79 +1221,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Qualifier("llmAnalysisExecutor")
     private Executor llmAnalysisExecutor;
 
-    /**
-     * 백그라운드 모니터링 시작 - 진정한 24/7 실행 (Parallel Processing)
-     */
-    private void startBackgroundMonitoring() {
-        if (backgroundTask != null && !backgroundTask.isDone()) {
-            log.warn("Background monitoring already running for agent {}", agentName);
-            return;
-        }
+    // AI Native v5.0.0: startBackgroundMonitoring(), stopBackgroundMonitoring() 제거
+    // Kafka Batch Listener -> processBatch() 콜백 방식으로 전환
 
-        // 메인 루프는 별도 스레드(backgroundExecutor)에서 실행하여 메인 스레드 차단 방지
-        backgroundTask = CompletableFuture.runAsync(() -> {
-            log.info("Starting continuous background monitoring for agent {}", agentName);
-
-            while (running.get()) {
-                try {
-                    // 큐에서 이벤트를 가져옴 (10개씩)
-                    List<SecurityEvent> events = securityMonitor.pollEventsFromQueue(10, 100);
-
-                    if (!events.isEmpty()) {
-                        log.debug("[SecurityPlaneAgent] Dispaching {} events to workers", events.size());
-
-                        for (SecurityEvent event : events) {
-                            // 각 이벤트를 LLM 분석 전용 Executor에 직접 제출 (Fire-and-forget)
-                            // CompletableFuture로 감싸지 않고 Executor 인터페이스 직접 사용
-                            llmAnalysisExecutor.execute(() -> {
-                                try {
-                                    processSecurityEvent(event);
-                                } catch (Exception e) {
-                                    log.error("Error processing event {} in worker thread", event.getEventId(), e);
-                                }
-                            });
-                        }
-                        
-                        // 통계 업데이트
-                        processedEvents.addAndGet(events.size());
-                    }
-
-                } catch (Exception e) {
-                    log.error("Error in background monitoring for agent {}", agentName, e);
-                    handleMonitoringError(e);
-                }
-            }
-            
-            log.info("Background monitoring stopped for agent {}", agentName);
-        }, backgroundExecutor);
-    }
-    
-    // shutdownWorkerPool 제거: Bean으로 관리되는 Executor는 Spring이 종료 관리함
-
-    // getThreatScoreFromRedis() 제거: Dead Code - 호출하는 곳 없음
-
-    /**
-     * 백그라운드 모니터링 중지
-     */
-    private void stopBackgroundMonitoring() {
-        if (backgroundTask != null) {
-            log.info("Stopping background monitoring for agent {}", agentName);
-            // AI Native: cancel 전에 먼저 정상 종료 대기 시도
-            try {
-                backgroundTask.get(5, TimeUnit.SECONDS);
-                log.info("Background monitoring task completed normally for agent {}", agentName);
-            } catch (java.util.concurrent.TimeoutException e) {
-                log.warn("Background task timeout, forcing cancel for agent {}", agentName);
-                backgroundTask.cancel(true);
-            } catch (java.util.concurrent.CancellationException e) {
-                log.info("Background task was already cancelled for agent {}", agentName);
-            } catch (Exception e) {
-                log.warn("Background monitoring task error for agent {}: {}", agentName, e.getMessage());
-                backgroundTask.cancel(true);
-            }
-        }
-    }
-    
 
     /**
      * 인시던트 핸들러 정리 - 메모리 누수 방지

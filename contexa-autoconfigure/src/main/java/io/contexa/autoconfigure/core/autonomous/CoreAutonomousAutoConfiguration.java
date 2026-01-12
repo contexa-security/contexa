@@ -261,6 +261,10 @@ public class CoreAutonomousAutoConfiguration {
 
     /**
      * 4-1. SecurityMonitoringService - 보안 모니터링 서비스
+     *
+     * AI Native v5.0.0: 비동기 구조 최적화
+     * - BlockingQueue 제거 (Kafka Batch Listener로 대체)
+     * - queueSize, dedupWindowMinutes 파라미터 제거
      */
     @Bean
     @ConditionalOnMissingBean
@@ -273,17 +277,14 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) io.contexa.contexacore.autonomous.processor.EventNormalizer eventNormalizer,
             @Autowired(required = false) io.contexa.contexacore.autonomous.processor.EventDeduplicator eventDeduplicator,
             @Autowired(required = false) SecurityEventEnricher eventEnricher,
-            @Value("${security.plane.monitor.queue-size:10000}") int queueSize,
             @Value("${security.plane.monitor.worker-threads:5}") int workerThreads,
             @Value("${security.plane.monitor.correlation-window-minutes:10}") int correlationWindowMinutes,
             @Value("${security.plane.monitor.threat-threshold:0.7}") double threatThreshold,
-            @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation,
-            @Value("${security.plane.monitor.dedup-window-minutes:5}") int dedupWindowMinutes) {
+            @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation) {
         return new SecurityMonitoringService(
             kafkaCollector, redisCollector, securityIncidentRepository, indicatorRepository,
             evaluationStrategies, eventNormalizer, eventDeduplicator, eventEnricher,
-            queueSize, workerThreads, correlationWindowMinutes, threatThreshold,
-            autoIncidentCreation, dedupWindowMinutes
+            workerThreads, correlationWindowMinutes, threatThreshold, autoIncidentCreation
         );
     }
 

@@ -4,19 +4,21 @@ import io.contexa.contexacommon.domain.TrustAssessment;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.domain.AuditEvent;
 import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.net.InetAddress;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -25,34 +27,61 @@ import java.util.UUID;
 
 /**
  * 통합 인가 이벤트 발행자
- * 
- * 모든 인가 관련 이벤트를 Spring Events로 발행합니다.
+ *
+ * AI Native 비동기 구조 최적화 (Phase 2):
+ * - Spring Event 제거 -> Kafka 직접 전송
+ * - @Async 제거 -> kafkaTemplate.send()가 이미 비동기
+ * - Phase 14 Redis 락 체크 통합 (중복 LLM 분석 방지)
+ *
+ * 인가 결정 이벤트를 Kafka로 직접 발행합니다.
  * - CustomDynamicAuthorizationManager: 웹 요청 인가
  * - AuthorizationManagerMethodInterceptor: @Protectable 메서드 인가
- * 
- * 발행된 이벤트는 ZeroTrustAuthenticationEventListener가 수신하여
  */
 @Slf4j
 public class AuthorizationEventPublisher {
 
-    private final ApplicationEventPublisher eventPublisher;
+    private final KafkaSecurityEventPublisher kafkaPublisher;
     private final TieredStrategyProperties tieredStrategyProperties;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     /**
-     * 생성자 (D1: TieredStrategyProperties 주입 추가)
+     * Phase 14: 분석 락 TTL (30초)
+     * 동시 @Protectable 접근 시 중복 LLM 분석 방지
+     */
+    private static final Duration ANALYSIS_LOCK_TTL = Duration.ofSeconds(30);
+
+    // AuditEvent 발행용 (기존 호환성 유지)
+    private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * 생성자 (AI Native 비동기 구조 최적화)
+     *
+     * @param kafkaPublisher Kafka 이벤트 발행자
+     * @param tieredStrategyProperties Tiered 전략 설정
+     * @param redisTemplate Redis 템플릿 (Phase 14 락용)
+     * @param eventPublisher Spring Event 발행자 (AuditEvent용, 레거시 호환)
      */
     public AuthorizationEventPublisher(
-            ApplicationEventPublisher eventPublisher,
-            TieredStrategyProperties tieredStrategyProperties) {
-        this.eventPublisher = eventPublisher;
+            KafkaSecurityEventPublisher kafkaPublisher,
+            TieredStrategyProperties tieredStrategyProperties,
+            RedisTemplate<String, Object> redisTemplate,
+            ApplicationEventPublisher eventPublisher) {
+        this.kafkaPublisher = kafkaPublisher;
         this.tieredStrategyProperties = tieredStrategyProperties;
+        this.redisTemplate = redisTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
-     * 웹 요청에 대한 인가 결정 이벤트 발행 (동기 진입점)
+     * 웹 요청에 대한 인가 결정 이벤트 발행
      *
-     * 동기 컨텍스트에서 request 정보를 먼저 추출한 후 비동기 처리.
-     * Tomcat request 객체 재활용(recycle) 문제 방지.
+     * AI Native 비동기 구조 최적화 (Phase 2):
+     * - @Async 제거: kafkaTemplate.send()가 이미 비동기 (fire-and-forget)
+     * - Spring Event 제거: Kafka 직접 전송
+     * - Phase 14 Redis 락 체크 통합: 중복 LLM 분석 방지
+     *
+     * 동기 컨텍스트에서 request 정보 추출 후 Kafka로 직접 전송.
+     * 사용자에게 즉시 응답 반환 (Zero Trust 핵심 원칙)
      */
     public void publishWebAuthorizationDecision(
             Authentication authentication,
@@ -60,97 +89,161 @@ public class AuthorizationEventPublisher {
             AuthorizationDecision decision,
             TrustAssessment trustAssessment) {
 
-        // 동기 컨텍스트에서 request 정보 추출 (핵심!)
-        // @Async 비동기 스레드에서 request 객체 접근 시 IllegalStateException 방지
-        // D1: Security 설정을 전달하여 신뢰 프록시 기반 IP 검증 수행
-        RequestInfo requestInfo = RequestInfo.from(request, tieredStrategyProperties.getSecurity());
+        long startTime = System.currentTimeMillis();
 
-        // 이벤트 발행 플래그 설정 (동기 컨텍스트에서 수행)
-        request.setAttribute("security.event.published", true);
+        try {
+            // 1. 동기: RequestInfo 추출 (Tomcat request 재활용 방지)
+            RequestInfo requestInfo = RequestInfo.from(request, tieredStrategyProperties.getSecurity());
 
-        // 추출된 정보로 비동기 처리
-        publishWebAuthorizationDecisionAsyncInternal(authentication, requestInfo, decision, trustAssessment);
+            // 2. 이벤트 발행 플래그 설정 (중복 발행 방지)
+            request.setAttribute("security.event.published", true);
+
+            // 3. Phase 14: Redis 락 체크 (중복 LLM 분석 방지)
+            String userId = authentication != null ? authentication.getName() : null;
+            if (!shouldPublishForAnalysis(userId)) {
+                log.debug("[AuthorizationEventPublisher] Phase 14: LLM 분석 스킵 (이미 분석 중/유효한 결과 존재) - userId: {}, resource: {}",
+                        userId, requestInfo.getRequestUri());
+                return;
+            }
+
+            // 4. 동기: AuthorizationDecisionEvent 생성
+            AuthorizationDecisionEvent event = buildAuthorizationEvent(
+                    authentication, requestInfo, decision, trustAssessment, "WEB_REQUEST");
+
+            // 5. 비동기: Kafka 직접 전송 (fire-and-forget)
+            kafkaPublisher.publishAuthorizationEvent(event);
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.debug("[AuthorizationEventPublisher] Web authorization event queued - eventId: {}, resource: {}, result: {}, duration: {}ms",
+                    event.getEventId(), event.getResource(), event.getResult(), duration);
+
+            // 성능 경고 (10ms 초과 시)
+            if (duration > 10) {
+                log.warn("[AuthorizationEventPublisher] Event processing exceeded 10ms threshold: {}ms for resource: {}",
+                        duration, requestInfo.getRequestUri());
+            }
+
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("[AuthorizationEventPublisher] Failed to publish web authorization event - duration: {}ms", duration, e);
+            // 인가 결정 자체는 성공했으므로 예외를 전파하지 않음
+        }
     }
 
     /**
-     * 내부 비동기 처리 메서드 (RequestInfo 사용)
+     * Phase 14: LLM 분석 발행 여부 결정
      *
-     * HttpServletRequest 대신 불변 RequestInfo DTO를 받아 처리.
-     * Tomcat request 객체 재활용 문제 완전 방지.
+     * Redis SETNX 패턴으로 중복 LLM 분석 방지:
+     * - 유효한 분석 결과 존재 시: false (발행 스킵)
+     * - 분석 락 획득 실패 시: false (이미 다른 요청이 분석 중)
+     * - 분석 락 획득 성공 시: true (발행 진행)
+     *
+     * @param userId 사용자 ID (null이면 항상 true)
+     * @return 발행 여부
      */
-    @Async("securityEventExecutor")
-    void publishWebAuthorizationDecisionAsyncInternal(
+    private boolean shouldPublishForAnalysis(String userId) {
+        if (userId == null || userId.isEmpty() || "anonymous".equals(userId)) {
+            return true;  // 익명 사용자는 항상 분석
+        }
+
+        try {
+            // 캐시된 유효한 분석 결과 확인
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Object existingAction = redisTemplate.opsForHash().get(analysisKey, "action");
+            if (existingAction != null && !"PENDING_ANALYSIS".equals(existingAction.toString())) {
+                // 이미 유효한 분석 결과 있음 - 재분석 불필요
+                log.debug("[AuthorizationEventPublisher] Phase 14: 유효한 분석 결과 존재 - userId: {}, action: {}",
+                        userId, existingAction);
+                return false;
+            }
+
+            // SETNX로 분석 락 획득 시도
+            String lockKey = ZeroTrustRedisKeys.analysisLock(userId);
+            Boolean acquired = redisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, "1", ANALYSIS_LOCK_TTL);
+
+            if (Boolean.TRUE.equals(acquired)) {
+                log.debug("[AuthorizationEventPublisher] Phase 14: 분석 락 획득 성공 - userId: {}", userId);
+                return true;
+            } else {
+                log.debug("[AuthorizationEventPublisher] Phase 14: 분석 락 획득 실패 (이미 분석 중) - userId: {}", userId);
+                return false;
+            }
+
+        } catch (Exception e) {
+            log.warn("[AuthorizationEventPublisher] Phase 14: 분석 락 확인 실패 - userId: {}, 분석 진행", userId, e);
+            // Redis 오류 시 안전하게 분석 진행 (fail-open)
+            return true;
+        }
+    }
+
+    /**
+     * AuthorizationDecisionEvent 빌드
+     */
+    private AuthorizationDecisionEvent buildAuthorizationEvent(
             Authentication authentication,
             RequestInfo requestInfo,
             AuthorizationDecision decision,
-            TrustAssessment trustAssessment) {
+            TrustAssessment trustAssessment,
+            String eventType) {
 
-        try {
-            AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder =
-                    AuthorizationDecisionEvent.builder();
+        AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder =
+                AuthorizationDecisionEvent.builder();
 
-            // 기본 정보 설정 (RequestInfo에서 추출)
-            String userName = authentication != null ? authentication.getName() : null;
-            builder.eventId(UUID.randomUUID().toString())
-                    .timestamp(Instant.now())
-                    .eventType("WEB_REQUEST")
-                    .principal(userName != null ? userName : "anonymous")
-                    .userId(userName)
-                    .resource(requestInfo.getRequestUri())
-                    .action(requestInfo.getMethod())
-                    .httpMethod(requestInfo.getMethod())
-                    .result(decision.isGranted() ?
-                            AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
-                            AuthorizationDecisionEvent.AuthorizationResult.DENIED)
-                    .clientIp(requestInfo.getClientIp())
-                    .userAgent(requestInfo.getUserAgent())
-                    .sessionId(requestInfo.getSessionId())
-                    .requestId(requestInfo.getRequestId());
+        // 기본 정보 설정
+        String userName = authentication != null ? authentication.getName() : null;
+        builder.eventId(UUID.randomUUID().toString())
+                .timestamp(Instant.now())
+                .eventType(eventType)
+                .principal(userName != null ? userName : "anonymous")
+                .userId(userName)
+                .resource(requestInfo.getRequestUri())
+                .action(requestInfo.getMethod())
+                .httpMethod(requestInfo.getMethod())
+                .result(decision.isGranted() ?
+                        AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
+                        AuthorizationDecisionEvent.AuthorizationResult.DENIED)
+                .clientIp(requestInfo.getClientIp())
+                .userAgent(requestInfo.getUserAgent())
+                .sessionId(requestInfo.getSessionId())
+                .requestId(requestInfo.getRequestId());
 
-            // 사용자 정보 추가
-            if (authentication != null && authentication.getPrincipal() != null) {
-                builder.userId(authentication.getName());
-                builder.organizationId(extractOrganizationId(authentication));
-            }
-
-            // AI 평가 정보 추가
-            if (trustAssessment != null) {
-                addAIAssessment(builder, trustAssessment);
-            }
-
-            // 결정 이유 추출
-            String reason = extractDecisionReason(decision, trustAssessment);
-            builder.reason(reason);
-
-            // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
-            // LLM 프롬프트에서 NOT_PROVIDED 방지
-            builder.isNewSession(requestInfo.getIsNewSession())
-                    .isNewUser(requestInfo.getIsNewUser())
-                    .isNewDevice(requestInfo.getIsNewDevice())
-                    .recentRequestCount(requestInfo.getRecentRequestCount());
-
-            // 메타데이터 추가 (RequestInfo 사용)
-            Map<String, Object> metadata = extractWebMetadata(requestInfo, authentication);
-            builder.metadata(metadata);
-
-            // 이벤트 발행
-            AuthorizationDecisionEvent event = builder.build();
-            eventPublisher.publishEvent(event);
-
-            log.debug("Web authorization event published: eventId={}, resource={}, result={}",
-                    event.getEventId(), event.getResource(), event.getResult());
-
-        } catch (Exception e) {
-            log.error("Failed to publish web authorization event", e);
+        // 사용자 정보 추가
+        if (authentication != null && authentication.getPrincipal() != null) {
+            builder.userId(authentication.getName());
+            builder.organizationId(extractOrganizationId(authentication));
         }
+
+        // AI 평가 정보 추가
+        if (trustAssessment != null) {
+            addAIAssessment(builder, trustAssessment);
+        }
+
+        // 결정 이유 추출
+        String reason = extractDecisionReason(decision, trustAssessment);
+        builder.reason(reason);
+
+        // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
+        builder.isNewSession(requestInfo.getIsNewSession())
+                .isNewUser(requestInfo.getIsNewUser())
+                .isNewDevice(requestInfo.getIsNewDevice())
+                .recentRequestCount(requestInfo.getRecentRequestCount());
+
+        // 메타데이터 추가
+        Map<String, Object> metadata = extractWebMetadata(requestInfo, authentication);
+        builder.metadata(metadata);
+
+        return builder.build();
     }
     
     /**
-     * @Protectable 메서드에 대한 인가 결정 이벤트 발행 (동기 진입점)
+     * @Protectable 메서드에 대한 인가 결정 이벤트 발행
      * AuthorizationManagerMethodInterceptor에서 호출
      *
-     * 동기 컨텍스트에서 RequestInfo를 먼저 추출한 후 비동기 처리.
-     * Tomcat request 객체 재활용(recycle) 문제 방지.
+     * AI Native 비동기 구조 최적화 (Phase 2):
+     * - @Async 제거: kafkaTemplate.send()가 이미 비동기
+     * - Spring Event 제거: Kafka 직접 전송
+     * - Phase 14 Redis 락 체크 통합
      */
     public void publishMethodAuthorizationDecisionAsync(
             MethodInvocation methodInvocation,
@@ -158,115 +251,128 @@ public class AuthorizationEventPublisher {
             boolean granted,
             String denialReason) {
 
-        // 동기 컨텍스트에서 RequestInfo 추출 (가능한 경우)
-        // D1: Security 설정을 전달하여 신뢰 프록시 기반 IP 검증 수행
-        RequestInfo requestInfo = null;
-        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attrs != null) {
-            HttpServletRequest request = attrs.getRequest();
-            requestInfo = RequestInfo.from(request, tieredStrategyProperties.getSecurity());
-            // 이벤트 발행 플래그 설정 (동기 컨텍스트에서 수행)
-            request.setAttribute("security.event.published", true);
-        }
+        long startTime = System.currentTimeMillis();
 
-        // 추출된 정보로 비동기 처리
-        publishMethodAuthorizationDecisionAsyncInternal(
-                methodInvocation, authentication, granted, denialReason, requestInfo);
+        try {
+            // 1. 동기: RequestInfo 추출 (가능한 경우)
+            RequestInfo requestInfo = null;
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                HttpServletRequest request = attrs.getRequest();
+                requestInfo = RequestInfo.from(request, tieredStrategyProperties.getSecurity());
+                request.setAttribute("security.event.published", true);
+            }
+
+            // 2. Phase 14: Redis 락 체크 (중복 LLM 분석 방지)
+            String userId = authentication != null ? authentication.getName() : null;
+            if (!shouldPublishForAnalysis(userId)) {
+                String resource = methodInvocation.getMethod().getDeclaringClass().getSimpleName() +
+                        "." + methodInvocation.getMethod().getName();
+                log.debug("[AuthorizationEventPublisher] Phase 14: LLM 분석 스킵 (이미 분석 중/유효한 결과 존재) - userId: {}, resource: {}",
+                        userId, resource);
+                return;
+            }
+
+            // 3. 동기: AuthorizationDecisionEvent 생성
+            AuthorizationDecisionEvent event = buildMethodAuthorizationEvent(
+                    methodInvocation, authentication, granted, denialReason, requestInfo);
+
+            // 4. 비동기: Kafka 직접 전송 (fire-and-forget)
+            kafkaPublisher.publishAuthorizationEvent(event);
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.debug("[AuthorizationEventPublisher] Method authorization event queued - eventId: {}, resource: {}, granted: {}, duration: {}ms",
+                    event.getEventId(), event.getResource(), granted, duration);
+
+            // 성능 경고 (10ms 초과 시)
+            if (duration > 10) {
+                log.warn("[AuthorizationEventPublisher] Event processing exceeded 10ms threshold: {}ms for method: {}",
+                        duration, event.getResource());
+            }
+
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("[AuthorizationEventPublisher] Failed to publish method authorization event - duration: {}ms", duration, e);
+        }
     }
 
     /**
-     * @Protectable 메서드 인가 이벤트 발행 (내부 비동기 처리)
-     *
-     * RequestInfo를 사용하여 비동기 스레드에서 안전하게 처리.
+     * Method AuthorizationDecisionEvent 빌드
      */
-    @Async("securityEventExecutor")
-    void publishMethodAuthorizationDecisionAsyncInternal(
+    private AuthorizationDecisionEvent buildMethodAuthorizationEvent(
             MethodInvocation methodInvocation,
             Authentication authentication,
             boolean granted,
             String denialReason,
             RequestInfo requestInfo) {
 
-        try {
-            String resource = methodInvocation.getMethod().getDeclaringClass().getSimpleName() +
-                    "." + methodInvocation.getMethod().getName();
+        String resource = methodInvocation.getMethod().getDeclaringClass().getSimpleName() +
+                "." + methodInvocation.getMethod().getName();
 
-            AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder =
-                    AuthorizationDecisionEvent.builder();
+        AuthorizationDecisionEvent.AuthorizationDecisionEventBuilder builder =
+                AuthorizationDecisionEvent.builder();
 
-            // 기본 정보 설정
-            String userName = authentication != null ? authentication.getName() : null;
-            builder.eventId(UUID.randomUUID().toString())
-                    .timestamp(Instant.now())
-                    .eventType("PROTECTABLE_METHOD")
-                    .principal(userName != null ? userName : "anonymous")
-                    .userId(userName)
-                    .resource(resource)
-                    .action("EXECUTE")
-                    .result(granted ?
-                            AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
-                            AuthorizationDecisionEvent.AuthorizationResult.DENIED)
-                    .reason(denialReason);
+        // 기본 정보 설정
+        String userName = authentication != null ? authentication.getName() : null;
+        builder.eventId(UUID.randomUUID().toString())
+                .timestamp(Instant.now())
+                .eventType("PROTECTABLE_METHOD")
+                .principal(userName != null ? userName : "anonymous")
+                .userId(userName)
+                .resource(resource)
+                .action("EXECUTE")
+                .result(granted ?
+                        AuthorizationDecisionEvent.AuthorizationResult.ALLOWED :
+                        AuthorizationDecisionEvent.AuthorizationResult.DENIED)
+                .reason(denialReason);
 
-            // 사용자 정보 (조직 ID 및 추가 정보)
-            if (authentication != null) {
-                builder.organizationId(extractOrganizationId(authentication));
+        // 사용자 정보 (조직 ID 및 추가 정보)
+        if (authentication != null) {
+            builder.organizationId(extractOrganizationId(authentication));
 
-                // Trust Score 추출
-                if (authentication.getDetails() instanceof TrustAssessment) {
-                    TrustAssessment assessment = (TrustAssessment) authentication.getDetails();
-                    builder.trustScore(assessment.score());
-                    addAIAssessment(builder, assessment);
-                } else {
-                    // Zero Trust v6.0: TrustAssessment 없을 때 기본 trustScore 설정
-                    // 기본값 0.7 = 1.0 - threatScore(0.3) (ZeroTrustSecurityService 기본값)
-                    // 이전 문제: trustScore 미설정 → LLM이 신뢰도 판단 불가
-                    builder.trustScore(0.7);
-                }
+            // Trust Score 추출
+            if (authentication.getDetails() instanceof TrustAssessment) {
+                TrustAssessment assessment = (TrustAssessment) authentication.getDetails();
+                builder.trustScore(assessment.score());
+                addAIAssessment(builder, assessment);
             } else {
-                // Zero Trust v6.0: 인증 정보 없으면 낮은 trustScore 설정
-                // 인증되지 않은 요청은 신뢰도가 낮음
-                builder.trustScore(0.5);
+                builder.trustScore(0.7);
             }
-
-            // HTTP 요청 정보 추가 (RequestInfo 사용, null 가능)
-            if (requestInfo != null) {
-                builder.clientIp(requestInfo.getClientIp())
-                        .sessionId(requestInfo.getSessionId())
-                        .userAgent(requestInfo.getUserAgent())
-                        .httpMethod(requestInfo.getMethod());
-
-                // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
-                // LLM 프롬프트에서 NOT_PROVIDED 방지
-                builder.isNewSession(requestInfo.getIsNewSession())
-                        .isNewUser(requestInfo.getIsNewUser())
-                        .isNewDevice(requestInfo.getIsNewDevice())
-                        .recentRequestCount(requestInfo.getRecentRequestCount());
-            }
-
-            // 메타데이터 추가
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("methodClass", methodInvocation.getMethod().getDeclaringClass().getName());
-            metadata.put("methodName", methodInvocation.getMethod().getName());
-            metadata.put("parameterTypes", methodInvocation.getMethod().getParameterTypes());
-            builder.metadata(metadata);
-
-            // 이벤트 발행
-            AuthorizationDecisionEvent event = builder.build();
-            eventPublisher.publishEvent(event);
-
-            log.debug("Method authorization event published: eventId={}, resource={}, granted={}",
-                    event.getEventId(), resource, granted);
-
-        } catch (Exception e) {
-            log.error("Failed to publish method authorization event", e);
+        } else {
+            builder.trustScore(0.5);
         }
+
+        // HTTP 요청 정보 추가 (RequestInfo 사용, null 가능)
+        if (requestInfo != null) {
+            builder.clientIp(requestInfo.getClientIp())
+                    .sessionId(requestInfo.getSessionId())
+                    .userAgent(requestInfo.getUserAgent())
+                    .httpMethod(requestInfo.getMethod());
+
+            // AI Native v3.1: HCADContext 세션 컨텍스트 필드 설정
+            builder.isNewSession(requestInfo.getIsNewSession())
+                    .isNewUser(requestInfo.getIsNewUser())
+                    .isNewDevice(requestInfo.getIsNewDevice())
+                    .recentRequestCount(requestInfo.getRecentRequestCount());
+        }
+
+        // 메타데이터 추가
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("methodClass", methodInvocation.getMethod().getDeclaringClass().getName());
+        metadata.put("methodName", methodInvocation.getMethod().getName());
+        metadata.put("parameterTypes", methodInvocation.getMethod().getParameterTypes());
+        builder.metadata(metadata);
+
+        return builder.build();
     }
     
     /**
      * 감사 이벤트 발행
+     *
+     * AI Native 비동기 구조 최적화 (Phase 2):
+     * - @Async 제거 (감사 이벤트는 동기로 처리해도 무방)
+     * - Spring Event는 유지 (감사 로그 시스템과의 호환성)
      */
-    @Async("securityEventExecutor")
     public void publishAuditEvent(
             String principal,
             String resource,
@@ -275,7 +381,7 @@ public class AuthorizationEventPublisher {
             String clientIp,
             String sessionId,
             Map<String, Object> details) {
-        
+
         try {
             AuditEvent auditEvent = AuditEvent.builder()
                 .eventId(UUID.randomUUID().toString())
@@ -289,12 +395,12 @@ public class AuthorizationEventPublisher {
                 .sessionId(sessionId)
                 .details(details)
                 .build();
-            
+
             eventPublisher.publishEvent(auditEvent);
-            
-            log.trace("Audit event published: eventId={}, principal={}, action={}", 
+
+            log.trace("Audit event published: eventId={}, principal={}, action={}",
                 auditEvent.getEventId(), principal, action);
-                
+
         } catch (Exception e) {
             log.error("Failed to publish audit event", e);
         }

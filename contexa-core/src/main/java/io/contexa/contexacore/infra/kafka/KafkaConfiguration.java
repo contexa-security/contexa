@@ -135,36 +135,40 @@ public class KafkaConfiguration {
 
     /**
      * 배치 처리용 Kafka Listener Container Factory
-     * 보안 이벤트 대량 처리용
+     * 보안 이벤트 배치 처리용 (BlockingQueue 대체)
      *
-     * MANUAL ACK 모드로 변경
-     * - BATCH 모드는 자동 ACK이지만 예외 발생 시 ACK 안됨
-     * - MANUAL 모드로 명시적 ACK 호출하여 확실한 메시지 삭제 보장
+     * AI Native 비동기 구조 최적화 (Phase 1):
+     * - 기존 BlockingQueue(10개, 100ms) 배치 처리를 Kafka Batch Listener로 대체
+     * - max-poll-records: 10 (기존 배치 크기 유지)
+     * - fetch-min-bytes: 1 (즉시 처리 - 최소 1바이트)
+     * - fetch-max-wait: 100ms (기존 타임아웃 유지)
+     *
+     * MANUAL_IMMEDIATE ACK 모드:
+     * - acknowledge() 호출 시 즉시 동기 커밋
+     * - 메시지 손실 방지 (배치 전체 처리 후 ACK)
      */
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> batchKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
 
-        factory.setConsumerFactory(consumerFactory());
-        factory.setConcurrency(concurrency);
-
         // 배치 리스너 활성화
         factory.setBatchListener(true);
+        factory.setConcurrency(concurrency);
 
-        // 배치 처리 설정 - MANUAL_IMMEDIATE로 변경 (즉시 동기 커밋)
+        // 배치 처리 설정 - MANUAL_IMMEDIATE로 즉시 동기 커밋
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.getContainerProperties().setPollTimeout(3000);
 
-        // 에러 핸들러 설정 (배치 처리 실패시 3회 재시도)
+        // 에러 핸들러 설정 (배치 처리 실패시 3회 재시도, 2초 간격)
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(2000L, 3));
         factory.setCommonErrorHandler(errorHandler);
 
-        // 배치 처리 관련 추가 설정
+        // 배치 처리 Consumer 설정 (BlockingQueue 대체)
         Map<String, Object> props = new HashMap<>(consumerConfigs());
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollRecords);
-        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1024);
-        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 200);
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);       // 기존 배치 크기 유지
+        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1);         // 즉시 처리 (최소 1바이트)
+        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 100);     // 기존 타임아웃 유지 (100ms)
 
         ConsumerFactory<String, String> batchConsumerFactory =
             new DefaultKafkaConsumerFactory<>(props);

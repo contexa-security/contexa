@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.RedisSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
 import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -21,21 +22,28 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
-
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.util.stream.Collectors;
 
 /**
  * 보안 모니터링 서비스 구현
  *
- * Observer 패턴을 사용하여 보안 이벤트를 실시간으로 모니터링하고
- * 위협을 평가하여 인시던트를 생성합니다.
+ * AI Native v5.0.0: 비동기 구조 최적화
+ * - BlockingQueue 제거 -> Kafka Batch Listener로 대체
+ * - 콜백 기반 배치 처리 (SecurityEventBatchProcessor)
+ * - 이벤트 전처리 후 Agent로 직접 전달
  */
 public class SecurityMonitoringService {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityMonitoringService.class);
+
+    /**
+     * 배치 이벤트 처리 콜백 인터페이스
+     * SecurityPlaneAgent가 구현하여 배치 이벤트를 수신
+     */
+    @FunctionalInterface
+    public interface SecurityEventBatchProcessor {
+        void processBatch(List<SecurityEvent> events);
+    }
 
     private final KafkaSecurityEventCollector kafkaCollector;
     private final RedisSecurityEventCollector redisCollector;
@@ -47,15 +55,13 @@ public class SecurityMonitoringService {
     private final SecurityEventEnricher eventEnricher;
     private final Map<String, MonitoringSession> activeSessions;
     private final Map<String, SecurityIncident> activeIncidents;
-    private final BlockingQueue<SecurityEvent> eventQueue;
-    private final ExecutorService executorService;
     private final ScheduledExecutorService scheduler;
-    private final int workerThreads;
     private volatile boolean running;
     private final AtomicLong eventCounter;
     private final AtomicLong incidentCounter;
-    private final Cache<String, Long> eventDeduplicationCache;
-    private final int dedupWindowMinutes;
+
+    // AI Native v5.0.0: 콜백 기반 배치 처리
+    private volatile SecurityEventBatchProcessor batchProcessor;
 
     public SecurityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
@@ -66,12 +72,10 @@ public class SecurityMonitoringService {
             EventNormalizer eventNormalizer,
             EventDeduplicator eventDeduplicator,
             SecurityEventEnricher eventEnricher,
-            @Value("${security.plane.monitor.queue-size:10000}") int queueSize,
             @Value("${security.plane.monitor.worker-threads:5}") int workerThreads,
             @Value("${security.plane.monitor.correlation-window-minutes:10}") int correlationWindowMinutes,
             @Value("${security.plane.monitor.threat-threshold:0.7}") double threatThreshold,
-            @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation,
-            @Value("${security.plane.monitor.dedup-window-minutes:5}") int dedupWindowMinutes) {
+            @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation) {
         this.kafkaCollector = kafkaCollector;
         this.redisCollector = redisCollector;
         this.securityIncidentRepository = securityIncidentRepository;
@@ -79,59 +83,33 @@ public class SecurityMonitoringService {
         this.eventNormalizer = eventNormalizer;
         this.eventDeduplicator = eventDeduplicator;
         this.eventEnricher = eventEnricher;
-        this.workerThreads = workerThreads;
         this.eventListeners = new CopyOnWriteArrayList<>();
         this.activeSessions = new ConcurrentHashMap<>();
         this.activeIncidents = new ConcurrentHashMap<>();
-        this.eventQueue = new LinkedBlockingQueue<>(queueSize);
-        this.executorService = Executors.newFixedThreadPool(workerThreads);
         this.scheduler = Executors.newScheduledThreadPool(2);
         this.running = true;
         this.eventCounter = new AtomicLong(0);
         this.incidentCounter = new AtomicLong(0);
-        this.dedupWindowMinutes = dedupWindowMinutes;
-
-        // 중복 제거를 위한 캐시 초기화 (TTL 설정)
-        this.eventDeduplicationCache = CacheBuilder.newBuilder()
-                .maximumSize(10000)
-                .expireAfterWrite(dedupWindowMinutes, TimeUnit.MINUTES)
-                .build();
-    }
-
-    // eventId 기반 중복 필터 (1시간 TTL)
-    private final ConcurrentHashMap<String, Long> processedEvents = new ConcurrentHashMap<>();
-    private static final long DEDUP_TTL_MS = 3600_000; // 1시간
-
-    @PostConstruct
-    public void initialize() {
-        logger.info("Initializing Security Monitoring Service");
-
-        // Kafka만 사용하여 이중 수집 방지
-        kafkaCollector.registerListener(new CollectorEventListener());
-        // Redis Collector 등록 제거 - Kafka 단일 채널 사용으로 이중 수집 방지
-        logger.info("Redis Collector registration skipped - using Kafka single channel to prevent duplicate collection");
-
-        loadActiveIncidents();
-
-        // 중복 필터 정리 스케줄러 (1시간마다)
-        scheduler.scheduleAtFixedRate(this::cleanupDedupFilter, 1, 1, TimeUnit.HOURS);
     }
 
     /**
-     * 중복 필터 정리 (만료된 항목 제거)
+     * 배치 프로세서 설정 (SecurityPlaneAgent가 호출)
+     * @param processor 배치 이벤트를 처리할 콜백
      */
-    private void cleanupDedupFilter() {
-        long now = System.currentTimeMillis();
-        int removed = 0;
-        for (Map.Entry<String, Long> entry : processedEvents.entrySet()) {
-            if (now - entry.getValue() > DEDUP_TTL_MS) {
-                processedEvents.remove(entry.getKey());
-                removed++;
-            }
-        }
-        if (removed > 0) {
-            logger.debug("Cleaned up {} expired entries from dedup filter", removed);
-        }
+    public void setBatchProcessor(SecurityEventBatchProcessor processor) {
+        this.batchProcessor = processor;
+        logger.info("[SecurityMonitoringService] Batch processor registered");
+    }
+
+    @PostConstruct
+    public void initialize() {
+        logger.info("Initializing Security Monitoring Service (AI Native v5.0.0)");
+
+        // AI Native v5.0.0: DirectBatchListener 등록 (Kafka Batch 이벤트 직접 수신)
+        kafkaCollector.registerListener(new DirectBatchListener());
+        logger.info("DirectBatchListener registered - using Kafka batch mode for event processing");
+
+        loadActiveIncidents();
     }
 
     @PreDestroy
@@ -139,18 +117,13 @@ public class SecurityMonitoringService {
         logger.info("Shutting down Security Monitoring Service");
         running = false;
 
-        executorService.shutdown();
         scheduler.shutdown();
 
         try {
-            if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
-                executorService.shutdownNow();
-            }
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
             }
         } catch (InterruptedException e) {
-            executorService.shutdownNow();
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
@@ -202,33 +175,10 @@ public class SecurityMonitoringService {
     }
 
     /**
-     * 큐에서 이벤트를 가져오는 메서드 (중복 처리 방지)
+     * 이벤트 전처리 (정규화, 중복 제거, 보강)
+     * @param event 원시 이벤트
+     * @return 전처리된 이벤트 (필터링된 경우 null)
      */
-    public List<SecurityEvent> pollEventsFromQueue(int limit, long timeoutMs) {
-        List<SecurityEvent> processedEvents = new ArrayList<>();
-        long endTime = System.currentTimeMillis() + timeoutMs;
-
-        while (processedEvents.size() < limit && System.currentTimeMillis() < endTime) {
-            try {
-                long remainingTime = endTime - System.currentTimeMillis();
-                if (remainingTime <= 0) break;
-
-                SecurityEvent rawEvent = eventQueue.poll(Math.min(remainingTime, 100), TimeUnit.MILLISECONDS);
-                if (rawEvent != null) {
-                    SecurityEvent processed = preprocessEvent(rawEvent);
-                    if (processed != null) {
-                        processedEvents.add(processed);
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-
-        return processedEvents;
-    }
-
     private SecurityEvent preprocessEvent(SecurityEvent event) {
         try {
             SecurityEvent normalizedEvent = eventNormalizer.process(event);
@@ -262,134 +212,15 @@ public class SecurityMonitoringService {
         stats.put("total_incidents", incidentCounter.get());
         stats.put("active_sessions", activeSessions.size());
         stats.put("active_incidents", activeIncidents.size());
-        stats.put("queue_size", eventQueue.size());
         stats.put("event_listeners", eventListeners.size());
         stats.put("evaluation_strategies", evaluationStrategies.size());
+        stats.put("batch_processor_registered", batchProcessor != null);
 
         // Add collector statistics
         stats.put("kafka_stats", kafkaCollector.getStatistics());
         stats.put("redis_stats", redisCollector.getStatistics());
 
         return stats;
-    }
-
-    private void eventProcessingWorker() {
-        while (running) {
-            try {
-                SecurityEvent event = eventQueue.poll(1, TimeUnit.SECONDS);
-                if (event != null) {
-                    processEvent(event);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            } catch (Exception e) {
-                logger.error("Error processing event", e);
-            }
-        }
-    }
-
-    private void processEvent(SecurityEvent event) {
-        try {
-            // 1. 이벤트 정규화 (EventNormalizer 사용)
-            SecurityEvent normalizedEvent = eventNormalizer.process(event);
-            if (normalizedEvent == null) {
-                logger.debug("Event filtered during normalization");
-                return;
-            }
-            
-            // 2. 이벤트 중복 제거 (EventDeduplicator 사용)
-            SecurityEvent deduplicatedEvent = eventDeduplicator.process(normalizedEvent);
-            if (deduplicatedEvent == null) {
-                logger.debug("Duplicate event filtered: {}", normalizedEvent.getEventId());
-                return;
-            }
-            
-            // 3. 이벤트 보강 (SecurityEventEnricher 사용)
-            eventEnricher.enrichEvent(deduplicatedEvent, "processingTimestamp", LocalDateTime.now());
-            eventEnricher.enrichEvent(deduplicatedEvent, "monitoringServiceProcessed", true);
-
-            // 4. 이벤트 카운터 증가
-            eventCounter.incrementAndGet();
-
-            // 5. 추가 처리 로직 (기존 로직 유지 가능)
-            // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
-            logger.trace("Event processed successfully: eventId={}, severity={}",
-                        deduplicatedEvent.getEventId(), deduplicatedEvent.getSeverity());
-
-        } catch (Exception e) {
-            logger.error("Error processing event", e);
-        }
-    }
-
-    /**
-     * 이벤트 중복 체크 - 이벤트 ID와 해시 기반 중복 제거
-     * @deprecated EventDeduplicator로 대체됨
-     */
-    @Deprecated
-    private boolean isDuplicateEvent(SecurityEvent event) {
-        // 이벤트 ID가 있으면 ID로 체크
-        if (event.getEventId() != null && !event.getEventId().isEmpty()) {
-            Long existingTimestamp = eventDeduplicationCache.getIfPresent(event.getEventId());
-            if (existingTimestamp != null) {
-                logger.debug("Duplicate event detected by ID: {}", event.getEventId());
-                return true;
-            }
-            eventDeduplicationCache.put(event.getEventId(), System.currentTimeMillis());
-        }
-
-        // 이벤트 내용 해시로 중복 체크
-        String eventHash = calculateEventHash(event);
-        if (eventHash != null) {
-            Long existingTimestamp = eventDeduplicationCache.getIfPresent(eventHash);
-            if (existingTimestamp != null) {
-                // 같은 내용의 이벤트가 짧은 시간 내에 반복되면 중복
-                long timeDiff = System.currentTimeMillis() - existingTimestamp;
-                if (timeDiff < TimeUnit.MINUTES.toMillis(dedupWindowMinutes)) {
-                    logger.debug("Duplicate event detected by hash: {} ({}ms apart)",
-                            eventHash, timeDiff);
-                    return true;
-                }
-            }
-            eventDeduplicationCache.put(eventHash, System.currentTimeMillis());
-        }
-
-        return false;
-    }
-
-    /**
-     * 이벤트 해시 계산 - 주요 필드를 기반으로 고유 해시 생성
-     * @deprecated EventDeduplicator로 대체됨
-     */
-    @Deprecated
-    private String calculateEventHash(SecurityEvent event) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-
-            // 주요 필드를 기반으로 해시 생성 (AI Native v4.0.0: eventType 제거)
-            StringBuilder sb = new StringBuilder();
-            sb.append(event.getSeverity());
-            sb.append("|");
-            sb.append(event.getSourceIp() != null ? event.getSourceIp() : "null");
-            sb.append("|");
-            sb.append(event.getUserId() != null ? event.getUserId() : "null");
-            // AI Native v3.1: targetIp 필드 제거됨 - metadata로 이동 (네트워크 이벤트 전용)
-            sb.append("|");
-            sb.append(event.getSeverity());
-
-            // 시간은 분 단위로만 포함 (초 단위 반복 방지)
-            if (event.getTimestamp() != null) {
-                sb.append("|");
-                sb.append(event.getTimestamp().getMinute());
-            }
-
-            byte[] hashBytes = md.digest(sb.toString().getBytes());
-            return Base64.getEncoder().encodeToString(hashBytes);
-
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("Failed to calculate event hash", e);
-            return null;
-        }
     }
 
     private void loadActiveIncidents() {
@@ -401,53 +232,69 @@ public class SecurityMonitoringService {
     }
 
     /**
-     * Event listener for collectors
+     * AI Native v5.0.0: Kafka 배치 이벤트를 직접 수신하여 Agent로 전달
+     * - BlockingQueue 제거 -> 콜백 기반 직접 전달
+     * - 전처리 (정규화, 중복 제거, 보강) 후 배치 프로세서 호출
      */
-    private class CollectorEventListener implements SecurityEventListener {
-        @Override
-        public void onSecurityEvent(SecurityEvent event) {
-            String eventId = event.getEventId();
+    private class DirectBatchListener implements BatchSecurityEventListener {
 
-            // eventId 기반 중복 체크
-            Long timestamp = processedEvents.get(eventId);
-            if (timestamp != null && (System.currentTimeMillis() - timestamp) < DEDUP_TTL_MS) {
-                logger.debug("[MonitoringService] Duplicate event ignored - eventId: {}, age: {}ms",
-                    eventId, System.currentTimeMillis() - timestamp);
+        @Override
+        public void onBatchEvents(List<SecurityEvent> events) {
+            if (events == null || events.isEmpty()) {
                 return;
             }
 
-            // AI Native v4.0.0: eventType 제거 - severity 기반 로깅
-            logger.info("[MonitoringService] Received event from collector - eventId: {}, severity: {}, queueSize: {}",
-                eventId, event.getSeverity(), eventQueue.size());
+            logger.debug("[DirectBatchListener] Received batch of {} events", events.size());
 
-            try {
-                boolean offered = eventQueue.offer(event, 100, TimeUnit.MILLISECONDS);
-                if (offered) {
-                    // 이벤트 처리 성공 시 중복 필터에 등록
-                    processedEvents.put(eventId, System.currentTimeMillis());
+            // 전처리 후 유효한 이벤트만 필터링
+            List<SecurityEvent> processedList = events.stream()
+                    .map(DirectBatchListener.this::preprocessEventSafe)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
 
-                    logger.info("[MonitoringService] Event queued successfully - eventId: {}, newQueueSize: {}",
-                        eventId, eventQueue.size());
-                } else {
-                    // 큐 추가 실패 시 예외 발생 - 상위 호출자에게 전파되어 ACK 방지
-                    String errorMsg = String.format(
-                        "Failed to queue event (timeout or queue full) - eventId: %s, queueSize: %d, queueCapacity: %d",
-                        event.getEventId(), eventQueue.size(), eventQueue.remainingCapacity());
-                    logger.error("[MonitoringService] {}", errorMsg);
-                    throw new RuntimeException(errorMsg);
+            if (processedList.isEmpty()) {
+                logger.debug("[DirectBatchListener] All events filtered during preprocessing");
+                return;
+            }
+
+            // 배치 프로세서(SecurityPlaneAgent)로 직접 전달
+            if (batchProcessor != null) {
+                try {
+                    batchProcessor.processBatch(processedList);
+                    logger.debug("[DirectBatchListener] Batch of {} events forwarded to processor",
+                            processedList.size());
+                } catch (Exception e) {
+                    logger.error("[DirectBatchListener] Failed to process batch", e);
+                    throw new RuntimeException("Batch processing failed", e);
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.error("[MonitoringService] Interrupted while queuing event - eventId: {}",
-                    event.getEventId(), e);
-                // 인터럽트 예외를 RuntimeException으로 래핑하여 재발생
-                throw new RuntimeException("Interrupted while queuing event: " + event.getEventId(), e);
+            } else {
+                logger.warn("[DirectBatchListener] No batch processor registered, {} events dropped",
+                        processedList.size());
             }
         }
 
         @Override
+        public void onSecurityEvent(SecurityEvent event) {
+            // 단일 이벤트는 배치로 래핑하여 처리
+            onBatchEvents(List.of(event));
+        }
+
+        @Override
         public String getListenerName() {
-            return "MonitoringServiceListener";
+            return "DirectBatchListener";
+        }
+
+        /**
+         * 이벤트 전처리 (예외 안전)
+         */
+        private SecurityEvent preprocessEventSafe(SecurityEvent event) {
+            try {
+                return preprocessEvent(event);
+            } catch (Exception e) {
+                logger.error("[DirectBatchListener] Error preprocessing event: {}",
+                        event.getEventId(), e);
+                return null;
+            }
         }
     }
 

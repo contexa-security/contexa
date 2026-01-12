@@ -84,80 +84,165 @@ public class KafkaSecurityEventCollector {
     }
     
     /**
-     * 일반 보안 이벤트 수신
+     * 일반 보안 이벤트 수신 (배치 모드)
      *
-     * containerFactory 명시 - MANUAL ACK 모드 사용
-     * ACK 전 검증: 처리 성공 여부 명시적 확인
+     * AI Native 비동기 구조 최적화 (Phase 4):
+     * - BlockingQueue 대체: Kafka Batch Listener로 직접 배치 수신
+     * - max-poll-records: 10 (기존 배치 크기 유지)
+     * - fetch-max-wait: 100ms (기존 타임아웃 유지)
+     *
+     * batchKafkaListenerContainerFactory 사용:
+     * - 배치 단위 수신 및 처리
+     * - MANUAL_IMMEDIATE ACK (배치 전체 처리 후 즉시 동기 커밋)
      */
     @KafkaListener(
         topics = "${security.plane.kafka.topics.security-events:security-events}",
         groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
-        containerFactory = "kafkaListenerContainerFactory"
+        containerFactory = "batchKafkaListenerContainerFactory"
     )
-    public void consumeSecurityEvent(
-        @Payload String message,
-        @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-        @Header(KafkaHeaders.OFFSET) long offset,
-        Acknowledgment acknowledgment
-    ) {
-        long startTime = System.currentTimeMillis();
-        log.debug("[KafkaCollector] RECEIVED event from topic '{}' - partition: {}, offset: {}, thread: {}",
-            topic, partition, offset, Thread.currentThread().getName());
-
-        try {
-            SecurityEvent event = parseSecurityEvent(message);
-
-            // eventId가 없으면 생성
-            if (event.getEventId() == null) {
-                event.setEventId(UUID.randomUUID().toString());
-                log.debug("[KafkaCollector] Event had no ID, generated: {}", event.getEventId());
-            }
-
-            // AI Native: eventType 제거
-            log.debug("[KafkaCollector] Parsed event - eventId: {}, severity: {}, userId: {}",
-                event.getEventId(), event.getSeverity(), event.getUserId());
-
-            event.setSource(SecurityEvent.EventSource.KAFKA);
-            event.addMetadata("kafka.topic", topic);
-            event.addMetadata("kafka.partition", String.valueOf(partition));
-            event.addMetadata("kafka.offset", String.valueOf(offset));
-
-            log.debug("[KafkaCollector] Processing event - eventId: {}", event.getEventId());
-
-            processEvent(event);
-
-            long count = eventCount.incrementAndGet();
-            long duration = System.currentTimeMillis() - startTime;
-
-            log.debug("[KafkaCollector] PROCESSED event successfully - eventId: {}, totalCount: {}, duration: {}ms",
-                event.getEventId(), count, duration);
-
-            // 처리 성공 시만 ACK
+    public void consumeSecurityEventBatch(
+        List<ConsumerRecord<String, String>> records,
+        Acknowledgment acknowledgment) {
+        if (records.isEmpty()) {
             if (acknowledgment != null) {
                 acknowledgment.acknowledge();
-                log.debug("[KafkaCollector] Message ACKed - topic: {}, partition: {}, offset: {}",
-                    topic, partition, offset);
             }
+            return;
+        }
 
-        } catch (Exception e) {
-            long errorCnt = errorCount.incrementAndGet();
-            log.error("[KafkaCollector] ERROR processing event - message: {}, errorCount: {}, error: {}",
-                message, errorCnt, e.getMessage(), e);
+        long startTime = System.currentTimeMillis();
+        int batchSize = records.size();
+        log.debug("[KafkaCollector] RECEIVED batch of {} events from security-events topic, thread: {}",
+            batchSize, Thread.currentThread().getName());
 
-            // 처리 실패 시 DLQ 로 전송 시도
+        List<SecurityEvent> events = new ArrayList<>();
+        List<ConsumerRecord<String, String>> failedRecords = new ArrayList<>();
+
+        // 1. 배치 내 모든 메시지 파싱
+        for (ConsumerRecord<String, String> record : records) {
             try {
-                sendToDeadLetterQueue(message, topic, partition, offset, e);
+                SecurityEvent event = parseSecurityEvent(record.value());
 
-                // DLQ 전송 성공 시만 ACK (재처리 방지)
-                if (acknowledgment != null) {
-                    acknowledgment.acknowledge();
-                    log.warn("[KafkaCollector] Failed message sent to DLQ and ACKed - offset: {}", offset);
+                if (event.getEventId() == null) {
+                    event.setEventId(UUID.randomUUID().toString());
                 }
-            } catch (Exception dlqError) {
-                log.error("[KafkaCollector] Failed to send to DLQ - offset: {}", offset, dlqError);
-                // DLQ 실패 시 ACK 하지 않음 → 재처리됨
-                log.warn("[KafkaCollector] Message will be reprocessed - offset: {}", offset);
+
+                event.setSource(SecurityEvent.EventSource.KAFKA);
+                event.addMetadata("kafka.topic", record.topic());
+                event.addMetadata("kafka.partition", String.valueOf(record.partition()));
+                event.addMetadata("kafka.offset", String.valueOf(record.offset()));
+
+                events.add(event);
+
+            } catch (Exception e) {
+                log.error("[KafkaCollector] Failed to parse event from offset {}: {}",
+                    record.offset(), e.getMessage());
+                failedRecords.add(record);
+                errorCount.incrementAndGet();
+            }
+        }
+
+        // 2. 배치 단위로 리스너 호출
+        if (!events.isEmpty()) {
+            try {
+                processBatch(events);
+                eventCount.addAndGet(events.size());
+
+                log.debug("[KafkaCollector] PROCESSED batch of {} events successfully",
+                    events.size());
+
+            } catch (Exception e) {
+                log.error("[KafkaCollector] ERROR processing batch of {} events: {}",
+                    events.size(), e.getMessage(), e);
+
+                // 배치 처리 실패 시 개별 처리 시도
+                for (SecurityEvent event : events) {
+                    try {
+                        processEvent(event);
+                        eventCount.incrementAndGet();
+                    } catch (Exception ex) {
+                        log.error("[KafkaCollector] Individual event processing failed: {}",
+                            event.getEventId(), ex);
+                        errorCount.incrementAndGet();
+                    }
+                }
+            }
+        }
+
+        // 3. 파싱 실패한 메시지는 DLQ로 전송
+        for (ConsumerRecord<String, String> failedRecord : failedRecords) {
+            try {
+                sendToDeadLetterQueue(failedRecord.value(), failedRecord.topic(),
+                    failedRecord.partition(), failedRecord.offset(),
+                    new RuntimeException("Failed to parse security event"));
+            } catch (Exception e) {
+                log.error("[KafkaCollector] Failed to send to DLQ - offset: {}", failedRecord.offset(), e);
+            }
+        }
+
+        // 4. 배치 전체 ACK (메시지 손실 방지)
+        if (acknowledgment != null) {
+            acknowledgment.acknowledge();
+            log.debug("[KafkaCollector] Batch ACKed - size: {}, failed: {}",
+                batchSize, failedRecords.size());
+        }
+
+        long duration = System.currentTimeMillis() - startTime;
+        log.debug("[KafkaCollector] Batch processing completed - size: {}, duration: {}ms, avgPerEvent: {}ms",
+            batchSize, duration, batchSize > 0 ? duration / batchSize : 0);
+
+        // 성능 경고 (배치당 500ms 초과 시)
+        if (duration > 500) {
+            log.warn("[KafkaCollector] Batch processing exceeded 500ms threshold: {}ms for {} events",
+                duration, batchSize);
+        }
+    }
+
+    /**
+     * 배치 이벤트 처리 - 리스너에 배치 전달
+     *
+     * AI Native 비동기 구조 최적화 (Phase 4):
+     * - 캐시 업데이트는 배치 단위로 수행
+     * - 리스너에 배치 전체 전달 (onBatchEvents)
+     */
+    private void processBatch(List<SecurityEvent> events) {
+        // 캐시 업데이트 (배치 단위)
+        for (SecurityEvent event : events) {
+            if (event.getEventId() != null) {
+                eventCache.put(event.getEventId(), event);
+            }
+        }
+
+        // 캐시 크기 제한
+        if (eventCache.size() > 10000) {
+            eventCache.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue(
+                    Comparator.comparing(SecurityEvent::getTimestamp)))
+                .limit(1000)
+                .map(Map.Entry::getKey)
+                .forEach(eventCache::remove);
+        }
+
+        // 리스너에 배치 전달
+        if (!listeners.isEmpty()) {
+            for (SecurityEventListener listener : listeners) {
+                try {
+                    log.debug("[KafkaCollector] Calling listener {} for batch of {} events",
+                        listener.getListenerName(), events.size());
+
+                    listener.onBatchEvents(events);
+
+                    log.debug("[KafkaCollector] Listener {} processed batch successfully",
+                        listener.getListenerName());
+
+                } catch (Exception e) {
+                    log.error("[KafkaCollector] Listener {} failed to process batch: {}",
+                        listener.getListenerName(), e.getMessage(), e);
+
+                    throw new RuntimeException(
+                        String.format("Listener %s failed to process batch of %d events",
+                            listener.getListenerName(), events.size()), e);
+                }
             }
         }
     }

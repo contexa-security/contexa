@@ -60,8 +60,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
         try {
             String key = generateKey(event.getPrincipal(), event.getSessionId());
             
-            CompletableFuture<SendResult<String, Object>> future = 
-                kafkaTemplate.send(authorizationTopic, key, event);
+            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(authorizationTopic, key, event);
                 
             future.whenComplete((result, ex) -> {
                 if (ex == null) {

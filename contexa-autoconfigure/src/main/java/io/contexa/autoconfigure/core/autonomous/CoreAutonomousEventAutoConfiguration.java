@@ -109,16 +109,27 @@ public class CoreAutonomousEventAutoConfiguration {
     /**
      * AuthorizationEventPublisher - 인가 이벤트 발행자
      *
-     * D1: TieredStrategyProperties 주입 추가
+     * AI Native 비동기 구조 최적화 (Phase 2):
+     * - Spring Event 제거 -> Kafka 직접 전송
+     * - @Async 제거 -> kafkaTemplate.send()가 이미 비동기
+     * - Phase 14 Redis 락 체크 통합 (중복 LLM 분석 방지)
+     *
+     * D1: TieredStrategyProperties 주입
      * - Security 설정에서 trustedProxies 목록 사용
      * - X-Forwarded-For 스푸핑 방지
      */
     @Bean
     @ConditionalOnMissingBean
     public AuthorizationEventPublisher authorizationEventPublisher(
-            ApplicationEventPublisher applicationEventPublisher,
-            TieredStrategyProperties tieredStrategyProperties) {
-        return new AuthorizationEventPublisher(applicationEventPublisher, tieredStrategyProperties);
+            KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
+            TieredStrategyProperties tieredStrategyProperties,
+            RedisTemplate<String, Object> redisTemplate,
+            ApplicationEventPublisher applicationEventPublisher) {
+        return new AuthorizationEventPublisher(
+                kafkaSecurityEventPublisher,
+                tieredStrategyProperties,
+                redisTemplate,
+                applicationEventPublisher);
     }
 
     @Bean
