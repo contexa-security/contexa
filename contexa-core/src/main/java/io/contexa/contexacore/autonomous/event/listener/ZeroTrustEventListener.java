@@ -89,21 +89,12 @@ public class ZeroTrustEventListener {
             // 이벤트 발행 (특화 메서드 사용 - 계층화된 토픽 분리 및 우선순위 처리)
             log.info("[ZeroTrustEventListener] Publishing authentication success event - EventID: {}, User: {}, SessionId: {}, Risk: {}",
                     event.getEventId(), event.getUsername(), event.getSessionId(), event.calculateRiskLevel());
-            kafkaSecurityEventPublisher.publishAuthenticationSuccess(event);
+//            kafkaSecurityEventPublisher.publishAuthenticationSuccess(event);
 
             long duration = System.currentTimeMillis() - startTime;
             log.debug("[ZeroTrustEventListener] Event queued for Kafka successfully - EventID: {}, duration: {}ms",
                 event.getEventId(), duration);
 
-            // 성능 경고 (10ms 초과 시)
-            if (duration > 10) {
-                log.warn("[ZeroTrustEventListener] Event processing exceeded 10ms threshold: {}ms for user: {}",
-                    duration, event.getUsername());
-            }
-
-            // AI Native v6.8: LLM CHALLENGE MFA 성공 시에만 세션/벡터 업데이트
-            // - 일반 MFA (정책 기반): 업데이트 생략 (RAG Pollution 방지)
-            // - LLM CHALLENGE MFA: 업데이트 수행 (검증 완료된 패턴 학습)
             if (isLlmChallengeMfa(event)) {
                 // SecurityDecisionPostProcessor를 통해 Layer1과 동일한 로직 사용
                 SecurityEvent securityEvent = convertToSecurityEvent(event);
@@ -568,15 +559,19 @@ public class ZeroTrustEventListener {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "previousAction");
 
-            boolean isChallenge = "CHALLENGE".equals(String.valueOf(previousAction));
+            // AI Native v7.0: LLM이 CHALLENGE 또는 ESCALATE 반환 후 MFA 성공한 경우
+            // 두 경우 모두 MFA 인증으로 신원 확인됨 → baseline/RAG 학습 필요
+            String actionStr = String.valueOf(previousAction);
+            boolean isLlmAction = "CHALLENGE".equals(actionStr) || "ESCALATE".equals(actionStr);
 
-            if (isChallenge) {
+            if (isLlmAction) {
                 // previousAction 정리 (재사용 방지)
                 redisTemplate.opsForHash().delete(analysisKey, "previousAction");
-                log.debug("[ZeroTrustEventListener] LLM CHALLENGE MFA 확인 - previousAction 정리 완료: userId={}", userId);
+                log.debug("[ZeroTrustEventListener] LLM {} MFA 확인 - previousAction 정리 완료: userId={}",
+                    actionStr, userId);
             }
 
-            return isChallenge;
+            return isLlmAction;
 
         } catch (Exception e) {
             log.debug("[ZeroTrustEventListener] previousAction 확인 실패 - 안전하게 업데이트 생략: userId={}", userId, e);

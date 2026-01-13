@@ -302,8 +302,7 @@ public class ZeroTrustSecurityService {
                 log.warn("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
             case "CHALLENGE" -> {
-                // 고위험군 - MFA 필요 (관리자/특권 권한 제거)
-                // MFA 완료 후 원래 권한으로 복원됨 (다음 요청에서 action=ALLOW)
+                // 원할한 테스트를 위해 여기에서 액션 업데이트 및 기준선 저장,이벤트를 발행한다.(ZeroTrustEventListener 의 handleAuthenticationSuccess 참고)
                 resetActionOnMfaSuccess(userId, request);
                 publishAuthenticationSuccessEvent(request, SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication());
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));

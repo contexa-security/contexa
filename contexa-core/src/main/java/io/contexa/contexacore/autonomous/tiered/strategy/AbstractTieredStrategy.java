@@ -247,12 +247,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             metadata.put("sessionId", event.getSessionId());
         }
 
-        // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
-        // LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
-        // action만 저장하여 다음 분석에서 과거 결정 참조
-        if (decision.getAction() != null) {
-            metadata.put("action", decision.getAction().name());
-        }
+        // AI Native v7.0: action, riskScore, confidence 모두 제거 (순환 로직 방지)
+        // LLM 결과(action 포함)가 다음 분석에 영향을 미치면 독립적 분석 불가
+        // action 저장 제거: 이전 BLOCK/ALLOW가 다음 판단에 편향을 줄 수 있음
+        // threatCategory만 유지 (위협 유형 분류는 참조용으로 허용)
         if (decision.getThreatCategory() != null) {
             metadata.put("threatCategory", decision.getThreatCategory());
         }

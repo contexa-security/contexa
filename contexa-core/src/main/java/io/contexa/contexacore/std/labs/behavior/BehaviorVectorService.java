@@ -21,7 +21,6 @@ import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.regex.Pattern;
 
 /**
  * 행동 분석 전용 벡터 저장소 서비스
@@ -48,18 +47,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
-    // 활동 타입 분류를 위한 패턴
-    private static final Map<String, Pattern> ACTIVITY_PATTERNS = Map.of(
-        "LOGIN", Pattern.compile("login|authenticate|signin", Pattern.CASE_INSENSITIVE),
-        "LOGOUT", Pattern.compile("logout|signout", Pattern.CASE_INSENSITIVE),
-        "CREATE", Pattern.compile("create|insert|생성", Pattern.CASE_INSENSITIVE),
-        "READ", Pattern.compile("read|select|view|조회", Pattern.CASE_INSENSITIVE),
-        "UPDATE", Pattern.compile("update|modify|수정", Pattern.CASE_INSENSITIVE),
-        "DELETE", Pattern.compile("delete|remove|삭제", Pattern.CASE_INSENSITIVE),
-        "EXPORT", Pattern.compile("export|download", Pattern.CASE_INSENSITIVE),
-        "ADMIN_ACTION", Pattern.compile("admin|configure|관리", Pattern.CASE_INSENSITIVE),
-        "ACCESS_DENIED", Pattern.compile("denied|forbidden", Pattern.CASE_INSENSITIVE)
-    );
     
     @Autowired
     public BehaviorVectorService(StandardVectorStoreService standardVectorStoreService,
@@ -81,49 +68,73 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         return VectorDocumentType.BEHAVIOR.getValue();
     }
     
+    /**
+     * AI Native v7.0: 메타데이터 강화 단순화
+     * - 플랫폼 판단 필드 제거 (activityType, riskKeywords, behaviorSignature 등)
+     * - 사실 데이터만 저장 (hour, dayOfWeek, isWeekend, networkSegment)
+     * - 판단/분류는 LLM에 위임
+     */
     @Override
     protected Document enrichLabSpecificMetadata(Document document) {
         Map<String, Object> metadata = new HashMap<>(document.getMetadata());
-        
+
         try {
-            // 1. 활동 타입 분류
-            String activityType = classifyActivityType(document.getText());
-            metadata.put("activityType", activityType);
-            
-            // 2. 위험 키워드 분석
-            Set<String> riskKeywords = analyzeRiskKeywords(document.getText());
-            if (!riskKeywords.isEmpty()) {
-                metadata.put("riskKeywords", new ArrayList<>(riskKeywords));
-                metadata.put("hasRiskKeywords", true);
-            } else {
-                metadata.put("hasRiskKeywords", false);
-            }
-            
-            // 3. 시간 기반 특성 분석
-            enrichTimeBasedFeatures(metadata);
-            
-            // 4. 사용자 컨텍스트 강화
-            enrichUserContext(metadata);
-            
-            // 5. 네트워크 컨텍스트 분석
-            enrichNetworkContext(metadata);
-            
-            // 6. 행동 패턴 시그니처 생성
-            String behaviorSignature = generateBehaviorSignature(metadata);
-            metadata.put("behaviorSignature", behaviorSignature);
-            
-            // 7. 문서 버전 정보
-            metadata.put("enrichmentVersion", "2.0");
-            metadata.put("enrichedByService", "BehaviorVectorService");
-            
+            // AI Native v7.0: 사실 데이터만 저장, 판단/분류는 LLM에 위임
+
+            // 1. 시간 사실 데이터만 추가
+            enrichTimeFactsOnly(metadata);
+
+            // 2. 네트워크 사실 데이터만 추가
+            enrichNetworkFactsOnly(metadata);
+
+            // AI Native v7.0: 다음 필드들 제거 (플랫폼 판단 = 순환 로직 위험)
+            // - activityType: 규칙 기반 분류 제거
+            // - riskKeywords, hasRiskKeywords: 하드코딩 키워드 제거
+            // - estimatedRoles, hasAdminRole: 플랫폼 추정 제거
+            // - ipType, isInternalNetwork: 플랫폼 판단 제거
+            // - isBusinessHours, isUnusualTime, timeSlot: 플랫폼 판단 제거
+            // - behaviorSignature: 플랫폼 생성 제거
+            // - enrichmentVersion, enrichedByService: 불필요 메타 제거
+
             return new Document(document.getText(), metadata);
-            
+
         } catch (Exception e) {
             log.error("[BehaviorVectorService] 메타데이터 강화 실패", e);
-            // 오류 발생 시 기본 메타데이터라도 반환
-            metadata.put("enrichmentError", e.getMessage());
             return new Document(document.getText(), metadata);
         }
+    }
+
+    /**
+     * AI Native v7.0: 시간 사실 데이터만 추가
+     * - 플랫폼 판단(isBusinessHours, isUnusualTime, timeSlot) 제거
+     * - LLM이 hour, dayOfWeek, isWeekend를 보고 직접 판단
+     */
+    private void enrichTimeFactsOnly(Map<String, Object> metadata) {
+        LocalDateTime now = LocalDateTime.now();
+
+        metadata.put("hour", now.getHour());
+        metadata.put("dayOfWeek", now.getDayOfWeek().toString());
+        metadata.put("isWeekend", now.getDayOfWeek().getValue() >= 6);
+
+        // AI Native v7.0: isBusinessHours, isUnusualTime, timeSlot 제거
+        // LLM이 hour, dayOfWeek, isWeekend 사실 데이터를 보고 직접 판단
+    }
+
+    /**
+     * AI Native v7.0: 네트워크 사실 데이터만 추가
+     * - 플랫폼 판단(ipType, isInternalNetwork) 제거
+     * - LLM이 networkSegment를 보고 직접 판단
+     */
+    private void enrichNetworkFactsOnly(Map<String, Object> metadata) {
+        String ipAddress = (String) metadata.get("remoteIp");
+        if (ipAddress != null && ipAddress.contains(".")) {
+            int lastDot = ipAddress.lastIndexOf(".");
+            if (lastDot > 0) {
+                metadata.put("networkSegment", ipAddress.substring(0, lastDot));
+            }
+        }
+        // AI Native v7.0: ipType, isInternalNetwork 제거
+        // LLM이 networkSegment 사실 데이터를 보고 직접 판단
     }
     
     @Override
@@ -270,15 +281,11 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 }
             }
 
-            // 위험 지표
-            metadata.put("behaviorAnomalyScore", context.getBehaviorAnomalyScore());
-            if (context.getAnomalyIndicators() != null && !context.getAnomalyIndicators().isEmpty()) {
-                metadata.put("anomalyIndicators", context.getAnomalyIndicators());
-            }
-            metadata.put("hasRiskyPattern", context.isHasRiskyPattern());
-            if (context.getRiskCategory() != null) {
-                metadata.put("riskCategory", context.getRiskCategory());
-            }
+            // AI Native v7.0: LLM 결과/플랫폼 판단 필드 제거
+            // - behaviorAnomalyScore: LLM이 계산한 점수 (순환 로직 위험)
+            // - anomalyIndicators: LLM이 생성한 이상 지표 (순환 로직 위험)
+            // - hasRiskyPattern: 플랫폼 판단 (AI Native 위반)
+            // - riskCategory: 플랫폼 판단 (AI Native 위반)
 
             // 컨텍스트 정보
             if (context.getAccessContext() != null) {
@@ -302,30 +309,29 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 }
             }
 
-            // 행동 텍스트 생성 (시퀀스 패턴 포함)
-            String behaviorText;
-            if (context.getSequencePattern() != null && !"NO_SEQUENCE".equals(context.getSequencePattern())) {
-                behaviorText = String.format(
-                    "사용자 %s가 %s에서 행동 시퀀스 [%s]를 수행. 현재 활동: %s, 이상 점수: %.2f, 시간: %s",
-                    context.getUserId() != null ? context.getUserId() : "unknown",
-                    context.getRemoteIp() != null ? context.getRemoteIp() : "unknown",
-                    context.getSequencePattern(),
-                    context.getCurrentActivity() != null ? context.getCurrentActivity() : "unknown",
-                    context.getBehaviorAnomalyScore(),
-                    LocalDateTime.now()
-                );
-            } else {
-                behaviorText = String.format(
-                    "사용자 %s가 %s에서 %s 활동을 수행했습니다. 이상 점수: %.2f, 시간: %s",
-                    context.getUserId() != null ? context.getUserId() : "unknown",
-                    context.getRemoteIp() != null ? context.getRemoteIp() : "unknown",
-                    context.getCurrentActivity() != null ? context.getCurrentActivity() : "unknown",
-                    context.getBehaviorAnomalyScore(),
-                    LocalDateTime.now()
-                );
-            }
+            // AI Native v7.0: 행동 텍스트 생성 (사실 데이터만 포함)
+            // - "unknown" 폴백 제거: null이면 필드 자체 생략
+            // - behaviorAnomalyScore 제거: LLM 결과 = 순환 로직 위험
+            StringBuilder behaviorText = new StringBuilder();
 
-            Document behaviorDoc = new Document(behaviorText, metadata);
+            if (context.getUserId() != null) {
+                behaviorText.append("User: ").append(context.getUserId());
+            }
+            if (context.getRemoteIp() != null) {
+                if (behaviorText.length() > 0) behaviorText.append(", ");
+                behaviorText.append("IP: ").append(context.getRemoteIp());
+            }
+            if (context.getCurrentActivity() != null) {
+                if (behaviorText.length() > 0) behaviorText.append(", ");
+                behaviorText.append("Activity: ").append(context.getCurrentActivity());
+            }
+            if (context.getSequencePattern() != null && !"NO_SEQUENCE".equals(context.getSequencePattern())) {
+                if (behaviorText.length() > 0) behaviorText.append(", ");
+                behaviorText.append("Sequence: ").append(context.getSequencePattern());
+            }
+            // AI Native v7.0: behaviorAnomalyScore 제거 (LLM 결과 = 순환 로직)
+
+            Document behaviorDoc = new Document(behaviorText.toString(), metadata);
             storeDocument(behaviorDoc);
 
             log.debug("[BehaviorVectorService] 행동 패턴 저장 완료: 사용자={}, 시퀀스={}",
@@ -350,21 +356,20 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         try {
             Map<String, Object> metadata = new HashMap<>();
 
-            // 위협 타입 메타데이터
-            metadata.put("documentType", "threat");  // 위협 패턴으로 분류
+            // AI Native v7.0: 위협 타입 메타데이터 (사실 데이터만)
+            metadata.put("documentType", "threat");
             metadata.put("threatConfirmed", true);
-            metadata.put("riskScore", response.getBehavioralRiskScore());
-            metadata.put("behaviorAnomalyScore", context.getBehaviorAnomalyScore());
+            // AI Native v7.0: riskScore, behaviorAnomalyScore 제거 (LLM 결과 = 순환 로직)
+            // AI Native v7.0: riskCategory 제거 (플랫폼 판단 = AI Native 위반)
 
             // AI Native v6.1: 위협 분류 - anomalyIndicators 원시 데이터 저장
             // determineThreatType() 제거 - 플랫폼이 위협 유형을 결정하면 AI Native 위반
             // LLM이 나중에 anomalyIndicators를 참조하여 직접 판단
             List<String> indicators = context.getAnomalyIndicators();
-            String rawThreatIndicators = (indicators != null && !indicators.isEmpty())
-                ? String.join(",", indicators)
-                : "none";
-            metadata.put("threatIndicators", rawThreatIndicators); // threatType → threatIndicators (원시)
-            metadata.put("riskCategory", context.getRiskCategory() != null ? context.getRiskCategory() : "UNKNOWN");
+            if (indicators != null && !indicators.isEmpty()) {
+                metadata.put("threatIndicators", String.join(",", indicators));
+            }
+            // AI Native v7.0: "none" 기본값 제거 - null이면 필드 자체 생략
             metadata.put("patternType", determinePatternType(context));
 
             // MITRE ATT&CK 매핑
@@ -376,11 +381,19 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 metadata.put("iocIndicators", String.join(",", iocIndicators));
             }
 
-            // 컨텍스트 정보
-            metadata.put("userId", context.getUserId());
-            metadata.put("currentActivity", context.getCurrentActivity());
-            metadata.put("remoteIp", context.getRemoteIp() != null ? context.getRemoteIp() : "unknown");
-            metadata.put("userAgent", context.getUserAgent() != null ? context.getUserAgent() : "unknown");
+            // AI Native v7.0: 컨텍스트 정보 (사실 데이터만, "unknown" 폴백 제거)
+            if (context.getUserId() != null) {
+                metadata.put("userId", context.getUserId());
+            }
+            if (context.getCurrentActivity() != null) {
+                metadata.put("currentActivity", context.getCurrentActivity());
+            }
+            if (context.getRemoteIp() != null) {
+                metadata.put("remoteIp", context.getRemoteIp());
+            }
+            if (context.getUserAgent() != null) {
+                metadata.put("userAgent", context.getUserAgent());
+            }
             metadata.put("isNewDevice", context.isNewDevice());
             metadata.put("isNewLocation", context.isNewLocation());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
@@ -396,9 +409,9 @@ public class BehaviorVectorService extends AbstractVectorLabService {
 
             storeDocument(threatDoc);
 
-            // AI Native v6.1: threatType → threatIndicators 로그 변경
-            log.info("[ThreatPattern] 위협 패턴 저장 완료: userId={}, riskScore={}, indicators={}",
-                context.getUserId(), response.getBehavioralRiskScore(), metadata.get("threatIndicators"));
+            // AI Native v7.0: 로그에서 riskScore 제거 (LLM 결과 = 순환 로직)
+            log.info("[ThreatPattern] 위협 패턴 저장 완료: userId={}, indicators={}",
+                context.getUserId(), metadata.get("threatIndicators"));
 
         } catch (Exception e) {
             log.error("[ThreatPattern] 위협 패턴 저장 실패: userId={}", context.getUserId(), e);
@@ -479,27 +492,28 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     /**
      * 위협 설명 생성
      *
-     * AI Native v6.1: determineThreatType() 호출 제거
-     * - 위협유형 대신 anomalyIndicators 원시 데이터 출력
-     * - LLM이 저장된 데이터를 참조할 때 직접 해석
+     * AI Native v7.0: LLM 결과(riskScore, summary) 제거
+     * - 이전 LLM 분석 결과가 embedding에 포함되면 순환 로직 위험
+     * - 사실 데이터만 포함 (userId, currentActivity, remoteIp, anomalyIndicators)
+     * - "none" 기본값 제거 - null이면 필드 자체 생략
      */
     private String buildThreatDescription(BehavioralAnalysisContext context, BehavioralAnalysisResponse response) {
-        // 이상 지표 문자열 생성 (원시 데이터)
-        String anomalyStr = context.getAnomalyIndicators() != null && !context.getAnomalyIndicators().isEmpty()
-            ? String.join(", ", context.getAnomalyIndicators())
-            : "none";
-
-        // AI Native v6.1: 위협유형 → 이상지표로 변경
-        return String.format(
-            "고위험 행동 탐지: 사용자=%s, 활동=%s, IP=%s, 위험도=%.2f, " +
-            "이상지표=%s, 분석요약=%s",
-            context.getUserId(),
-            context.getCurrentActivity(),
-            context.getRemoteIp(),
-            response.getBehavioralRiskScore(),
-            anomalyStr, // determineThreatType() 대신 anomalyIndicators 직접 사용
-            response.getSummary() != null ? response.getSummary() : "none"
-        );
+        // AI Native v7.0: 사실 데이터만 포함, LLM 결과 제거
+        StringBuilder desc = new StringBuilder("Threat:");
+        if (context.getUserId() != null) {
+            desc.append(" User=").append(context.getUserId());
+        }
+        if (context.getCurrentActivity() != null) {
+            desc.append(", Activity=").append(context.getCurrentActivity());
+        }
+        if (context.getRemoteIp() != null) {
+            desc.append(", IP=").append(context.getRemoteIp());
+        }
+        if (context.getAnomalyIndicators() != null && !context.getAnomalyIndicators().isEmpty()) {
+            desc.append(", Indicators=").append(String.join(",", context.getAnomalyIndicators()));
+        }
+        // AI Native v7.0: riskScore, summary 제거 (LLM 결과 = 순환 로직)
+        return desc.toString();
     }
 
     /**
@@ -523,54 +537,52 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     /**
      * 분석 결과를 벡터 저장소에 저장
      *
+     * AI Native v7.0: LLM 결과(riskScore, riskLevel, summary) 제거
+     * - 이전 LLM 분석 결과가 다음 분석에 영향을 미치면 순환 로직 위험
+     * - 사실 데이터만 저장 (userId, analysisId, timestamp, organizationId)
+     * - "unknown" 폴백 제거 - null이면 필드 자체 생략
+     *
      * @param context 행동 분석 컨텍스트
      * @param response 분석 결과
      */
     public void storeAnalysisResult(BehavioralAnalysisContext context, BehavioralAnalysisResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("userId", context.getUserId() != null ? context.getUserId() : "unknown");
-            metadata.put("analysisId", response.getAnalysisId() != null ? response.getAnalysisId() : UUID.randomUUID().toString());
-            metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
-            metadata.put("riskScore", response.getBehavioralRiskScore());
 
-            if (response.getRiskLevel() != null) {
-                metadata.put("riskLevel", response.getRiskLevel().toString());
+            // AI Native v7.0: "unknown" 폴백 제거 - null이면 필드 자체 생략
+            if (context.getUserId() != null) {
+                metadata.put("userId", context.getUserId());
             }
+            if (response.getAnalysisId() != null) {
+                metadata.put("analysisId", response.getAnalysisId());
+            } else {
+                metadata.put("analysisId", UUID.randomUUID().toString());
+            }
+            metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
+
+            // AI Native v7.0: riskScore, riskLevel 제거 (LLM 결과 = 순환 로직)
+
             if (context.getOrganizationId() != null) {
                 metadata.put("organizationId", context.getOrganizationId());
             }
 
             metadata.put("documentType", "behavior_analysis");
-            // AI Native: isAnomaly는 LLM이 결정 (riskThreshold 규칙 제거)
-            // LLM이 반환한 anomalies 리스트를 기반으로 판단
-            boolean isAnomaly = response.getAnomalies() != null && !response.getAnomalies().isEmpty();
-            metadata.put("isAnomaly", isAnomaly);
 
-            // 이상 징후 정보 추가
-            if (response.getAnomalies() != null && !response.getAnomalies().isEmpty()) {
-                List<String> anomalyTypes = response.getAnomalies().stream()
-                    .map(anomaly -> anomaly.getType())
-                    .filter(type -> type != null)
-                    .toList();
-                if (!anomalyTypes.isEmpty()) {
-                    metadata.put("anomalyTypes", anomalyTypes);
-                }
+            // AI Native v7.0: embedding 텍스트에서 LLM 결과 제거 (사실 데이터만)
+            StringBuilder analysisText = new StringBuilder("Analysis:");
+            if (context.getUserId() != null) {
+                analysisText.append(" User=").append(context.getUserId());
             }
+            if (context.getOrganizationId() != null) {
+                analysisText.append(", Org=").append(context.getOrganizationId());
+            }
+            // AI Native v7.0: riskScore, riskLevel, summary 제거 (LLM 결과 = 순환 로직)
 
-            String analysisText = String.format(
-                "사용자 %s의 행동 분석 결과: 위험도 %.1f (%s) - %s",
-                context.getUserId() != null ? context.getUserId() : "unknown",
-                response.getBehavioralRiskScore(),
-                response.getRiskLevel() != null ? response.getRiskLevel() : "UNKNOWN",
-                response.getSummary() != null ? response.getSummary() : ""
-            );
-            
-            Document analysisDoc = new Document(analysisText, metadata);
+            Document analysisDoc = new Document(analysisText.toString(), metadata);
             storeDocument(analysisDoc);
-            
+
             log.debug("[BehaviorVectorService] 분석 결과 저장 완료: 분석ID={}", response.getAnalysisId());
-            
+
         } catch (Exception e) {
             log.error("[BehaviorVectorService] 분석 결과 저장 실패", e);
             throw new VectorStoreException("분석 결과 저장 실패: " + e.getMessage(), e);
@@ -686,137 +698,11 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         return behaviorETLPipeline.executePipeline(dataSource, sourceType);
     }
     
-    /**
-     * 활동 타입 분류
-     */
-    private String classifyActivityType(String content) {
-        if (content == null) return "UNKNOWN";
-        
-        for (Map.Entry<String, Pattern> entry : ACTIVITY_PATTERNS.entrySet()) {
-            if (entry.getValue().matcher(content).find()) {
-                return entry.getKey();
-            }
-        }
-        
-        return "OTHER";
-    }
     
-    /**
-     * 위험 키워드 분석
-     */
-    private Set<String> analyzeRiskKeywords(String content) {
-        Set<String> riskKeywords = new HashSet<>();
-        
-        if (content == null) return riskKeywords;
-        
-        String lowerContent = content.toLowerCase();
-        
-        // 위험 키워드 목록
-        Set<String> keywords = Set.of(
-            "delete", "remove", "drop", "truncate", "admin", "root", "sudo",
-            "password", "credential", "secret", "token", "key", "certificate",
-            "export", "download", "transfer", "copy", "backup", "restore"
-        );
-        
-        for (String keyword : keywords) {
-            if (lowerContent.contains(keyword)) {
-                riskKeywords.add(keyword);
-            }
-        }
-        
-        return riskKeywords;
-    }
     
-    /**
-     * 시간 기반 특성 강화
-     */
-    private void enrichTimeBasedFeatures(Map<String, Object> metadata) {
-        LocalDateTime now = LocalDateTime.now();
-        
-        // 시간대 정보
-        int hour = now.getHour();
-        metadata.put("hour", hour);
-        metadata.put("dayOfWeek", now.getDayOfWeek().toString());
-        metadata.put("isWeekend", now.getDayOfWeek().getValue() >= 6);
-        
-        // 업무 시간 여부
-        boolean isBusinessHours = hour >= 9 && hour < 18 && now.getDayOfWeek().getValue() <= 5;
-        metadata.put("isBusinessHours", isBusinessHours);
-        
-        // 비정상 시간대 여부
-        boolean isUnusualTime = hour >= 22 || hour < 6 || now.getDayOfWeek().getValue() >= 6;
-        metadata.put("isUnusualTime", isUnusualTime);
-        
-        // 시간 구간 분류
-        String timeSlot;
-        if (hour >= 6 && hour < 9) timeSlot = "EARLY_MORNING";
-        else if (hour >= 9 && hour < 12) timeSlot = "MORNING";
-        else if (hour >= 12 && hour < 14) timeSlot = "LUNCH";
-        else if (hour >= 14 && hour < 18) timeSlot = "AFTERNOON";
-        else if (hour >= 18 && hour < 22) timeSlot = "EVENING";
-        else timeSlot = "NIGHT";
-        
-        metadata.put("timeSlot", timeSlot);
-    }
     
-    /**
-     * 사용자 컨텍스트 강화
-     */
-    private void enrichUserContext(Map<String, Object> metadata) {
-        String userId = (String) metadata.get("userId");
-        if (userId != null) {
-            // 간단한 사용자 역할 추정 (실제로는 DB에서 조회)
-            List<String> estimatedRoles = estimateUserRoles(userId);
-            if (!estimatedRoles.isEmpty()) {
-                metadata.put("estimatedRoles", estimatedRoles);
-                metadata.put("hasAdminRole", estimatedRoles.stream()
-                    .anyMatch(role -> role.contains("ADMIN") || role.contains("ROOT")));
-            }
-        }
-    }
     
-    /**
-     * 네트워크 컨텍스트 강화
-     */
-    private void enrichNetworkContext(Map<String, Object> metadata) {
-        String ipAddress = (String) metadata.get("remoteIp");
-        if (ipAddress != null) {
-            // IP 주소 타입 분류
-            if (isInternalNetwork(ipAddress)) {
-                metadata.put("ipType", "INTERNAL");
-                metadata.put("isInternalNetwork", true);
-            } else {
-                metadata.put("ipType", "EXTERNAL");
-                metadata.put("isInternalNetwork", false);
-            }
-            
-            // 네트워크 세그먼트
-            metadata.put("networkSegment", ipAddress.substring(0, ipAddress.lastIndexOf(".")));
-        }
-    }
     
-    /**
-     * 행동 패턴 시그니처 생성
-     */
-    private String generateBehaviorSignature(Map<String, Object> metadata) {
-        StringBuilder signature = new StringBuilder();
-        
-        signature.append(metadata.getOrDefault("activityType", "UNKNOWN"));
-        signature.append("-");
-        signature.append(metadata.getOrDefault("timeSlot", "UNKNOWN"));
-        signature.append("-");
-        signature.append(metadata.getOrDefault("ipType", "UNKNOWN"));
-        
-        if (Boolean.TRUE.equals(metadata.get("hasRiskKeywords"))) {
-            signature.append("-RISK");
-        }
-        
-        if (Boolean.TRUE.equals(metadata.get("isUnusualTime"))) {
-            signature.append("-UNUSUAL");
-        }
-        
-        return signature.toString();
-    }
     
     /**
      * 감사 로그를 문서로 변환
@@ -854,26 +740,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                lowerText.contains("secret");
     }
     
-    /**
-     * 사용자 역할 추정
-     */
-    private List<String> estimateUserRoles(String userId) {
-        // 실제로는 IAM 시스템에서 조회해야 함
-        if (userId.contains("admin")) {
-            return List.of("ADMIN", "USER");
-        }
-        return List.of("USER");
-    }
-    
-    /**
-     * 내부 네트워크 여부 확인
-     */
-    private boolean isInternalNetwork(String ipAddress) {
-        return ipAddress.startsWith("10.") || 
-               ipAddress.startsWith("192.168.") ||
-               ipAddress.startsWith("172.16.") || 
-               ipAddress.startsWith("127.");
-    }
     
     /**
      * 행동 컨텍스트를 벡터 저장소에 저장

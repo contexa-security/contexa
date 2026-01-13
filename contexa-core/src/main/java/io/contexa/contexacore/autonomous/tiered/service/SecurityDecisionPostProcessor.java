@@ -189,13 +189,11 @@ public class SecurityDecisionPostProcessor {
             content.append("Hour: ").append(event.getTimestamp().getHour());
         }
 
-        // Action (결정 결과 - 다음 분석에서 과거 결정 참조용)
-        if (decision.getAction() != null) {
-            if (content.length() > 0) content.append(", ");
-            content.append("Action: ").append(decision.getAction());
-        }
+        // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직 위험)
+        // - 이전 BLOCK/ALLOW가 embedding에 포함되면 다음 판단에 편향을 줄 수 있음
+        // - 이전: content.append("Action: ").append(decision.getAction());
 
-        // AI Native v6.7: riskScore, reasoning 제거 (순환 로직 방지)
+        // AI Native v7.0: riskScore, reasoning, action 모두 제거 (순환 로직 방지)
         // - 이전 LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
         // - "No reasoning provided" 같은 기본값도 RAG 오염 유발
 
@@ -231,9 +229,9 @@ public class SecurityDecisionPostProcessor {
      *
      * Layer1ContextualStrategy.storeThreatDocument()와 동일한 로직입니다.
      *
-     * AI Native v6.7: 순환 로직 방지
-     * - RiskScore, Reasoning 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
-     * - 사실 데이터(User, IP, ThreatCategory, Action)만 저장
+     * AI Native v7.0: 순환 로직 방지
+     * - RiskScore, Reasoning, Action 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
+     * - 사실 데이터(User, IP, ThreatCategory)만 저장
      */
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, String analysisContent) {
         try {
@@ -244,7 +242,7 @@ public class SecurityDecisionPostProcessor {
                 threatMetadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
             }
 
-            // AI Native v6.7: 위협 설명 - 사실 데이터만 포함, LLM 결과(RiskScore, Reasoning) 제거
+            // AI Native v7.0: 위협 설명 - 사실 데이터만 포함, LLM 결과(RiskScore, Reasoning, Action) 제거
             StringBuilder threatDesc = new StringBuilder("Contextual Threat:");
 
             if (event.getUserId() != null) {
@@ -259,16 +257,15 @@ public class SecurityDecisionPostProcessor {
             if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
                 threatDesc.append(", BehaviorPatterns=").append(decision.getBehaviorPatterns());
             }
-            if (decision.getAction() != null) {
-                threatDesc.append(", Action=").append(decision.getAction());
-            }
-            // AI Native v6.7: RiskScore, Reasoning 제거 (순환 로직 방지)
+            // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직)
+            // 이전: threatDesc.append(", Action=").append(decision.getAction());
+            // AI Native v7.0: RiskScore, Reasoning, Action 모두 제거 (순환 로직 방지)
 
             Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
             unifiedVectorService.storeDocument(threatDoc);
 
-            log.info("[SecurityDecisionPostProcessor] 위협 패턴 저장 완료: userId={}, threatCategory={}, action={}",
-                event.getUserId(), decision.getThreatCategory(), decision.getAction());
+            log.info("[SecurityDecisionPostProcessor] 위협 패턴 저장 완료: userId={}, threatCategory={}",
+                event.getUserId(), decision.getThreatCategory());
 
         } catch (Exception e) {
             log.warn("[SecurityDecisionPostProcessor] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
@@ -280,10 +277,10 @@ public class SecurityDecisionPostProcessor {
      *
      * AbstractTieredStrategy.buildBaseMetadata()와 동일한 로직입니다.
      *
-     * AI Native v6.7: 순환 로직 방지
-     * - riskScore, confidence 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
+     * AI Native v7.0: 순환 로직 방지
+     * - riskScore, confidence, action 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
      * - null인 경우 필드 생략 (LLM이 "unknown"을 실제 값으로 오해 방지)
-     * - 사실 데이터(eventId, userId, sourceIp, sessionId, action)만 저장
+     * - 사실 데이터(eventId, userId, sourceIp, sessionId)만 저장
      */
     private Map<String, Object> buildBaseMetadata(SecurityEvent event, SecurityDecision decision, String documentType) {
         Map<String, Object> metadata = new HashMap<>();
@@ -310,12 +307,10 @@ public class SecurityDecisionPostProcessor {
             metadata.put("sessionId", event.getSessionId());
         }
 
-        // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
-        // LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
-        // 대신 action(결정 결과)만 저장하여 다음 분석에서 과거 결정 참조
-        if (decision.getAction() != null) {
-            metadata.put("action", decision.getAction().name());
-        }
+        // AI Native v7.0: action, riskScore, confidence 모두 제거 (순환 로직 방지)
+        // LLM 결과(action 포함)가 다음 분석에 영향을 미치면 독립적 분석 불가
+        // action 저장 제거: 이전 BLOCK/ALLOW가 다음 판단에 편향을 줄 수 있음
+        // threatCategory만 유지 (위협 유형 분류는 참조용으로 허용)
         if (decision.getThreatCategory() != null) {
             metadata.put("threatCategory", decision.getThreatCategory());
         }

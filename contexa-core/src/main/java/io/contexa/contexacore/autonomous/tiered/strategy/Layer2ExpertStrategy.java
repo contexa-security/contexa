@@ -1217,8 +1217,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         try {
             // AI Native v6.8: 순환 로직 방지
             // - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
+            // AI Native v7.0: embedding 텍스트 생성 (사실 데이터만 포함)
             // - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
-            // - 사실 데이터만 포함 (userId, sourceIp, action, MITRE)
+            // - action 제거 - LLM 결과가 embedding에 포함되면 순환 로직 위험
+            // - 사실 데이터만 포함 (userId, sourceIp, MITRE)
             StringBuilder content = new StringBuilder();
             if (event.getUserId() != null) {
                 content.append("User: ").append(event.getUserId());
@@ -1227,15 +1229,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 if (content.length() > 0) content.append(", ");
                 content.append("IP: ").append(event.getSourceIp());
             }
-            if (decision.getAction() != null) {
-                if (content.length() > 0) content.append(", ");
-                content.append("Action: ").append(decision.getAction());
-            }
+            // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직 위험)
+            // 이전: content.append("Action: ").append(decision.getAction());
             if (response.getMitre() != null && !response.getMitre().isEmpty()) {
                 if (content.length() > 0) content.append(", ");
                 content.append("MITRE: ").append(response.getMitre());
             }
-            // AI Native v6.8: riskScore, reasoning 제거 (순환 로직 방지)
+            // AI Native v7.0: riskScore, reasoning, action 모두 제거 (순환 로직 방지)
 
             // Spring AI Document는 null 값을 허용하지 않으므로 기본값 설정 필수
             Map<String, Object> metadata = new HashMap<>();
@@ -1258,10 +1258,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 metadata.put("sessionId", event.getSessionId());
             }
 
-            // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
-            // LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
-            // action만 저장하여 다음 분석에서 과거 결정 참조
-            metadata.put("action", decision.getAction() != null ? decision.getAction().name() : "ESCALATE");
+            // AI Native v7.0: action, riskScore, confidence 모두 제거 (순환 로직 방지)
+            // LLM 결과(action 포함)가 다음 분석에 영향을 미치면 독립적 분석 불가
+            // action 저장 제거: 이전 BLOCK/ALLOW가 다음 판단에 편향을 줄 수 있음
+            // threatCategory만 유지 (위협 유형 분류는 참조용으로 허용)
             if (decision.getThreatCategory() != null) {
                 metadata.put("threatCategory", decision.getThreatCategory());
             }
@@ -1286,11 +1286,11 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v6.8: 위협 문서 저장 (순환 로직 방지)
+     * AI Native v7.0: 위협 문서 저장 (순환 로직 방지)
      *
-     * - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
+     * - LLM 결과(riskScore, reasoning, action) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
      * - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
-     * - 사실 데이터만 포함 (userId, sourceIp, action, MITRE)
+     * - 사실 데이터만 포함 (userId, sourceIp, MITRE)
      */
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, SecurityResponse response, String analysisContent) {
         try {
@@ -1302,7 +1302,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 threatMetadata.put("mitreTactic", response.getMitre());
             }
 
-            // AI Native v6.8: 위협 설명 - 사실 데이터만 포함, LLM 결과(riskScore, reasoning) 제거
+            // AI Native v7.0: 위협 설명 - 사실 데이터만 포함, LLM 결과(riskScore, reasoning, action) 제거
             StringBuilder threatDesc = new StringBuilder("Layer2 Expert Threat:");
             if (event.getUserId() != null) {
                 threatDesc.append(" User=").append(event.getUserId());
@@ -1313,16 +1313,15 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             if (response.getMitre() != null && !response.getMitre().isEmpty()) {
                 threatDesc.append(", MITRE=").append(response.getMitre());
             }
-            if (decision.getAction() != null) {
-                threatDesc.append(", Action=").append(decision.getAction());
-            }
-            // AI Native v6.8: riskScore, reasoning 제거 (순환 로직 방지)
+            // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직)
+            // 이전: threatDesc.append(", Action=").append(decision.getAction());
+            // AI Native v7.0: riskScore, reasoning, action 모두 제거 (순환 로직 방지)
 
             Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
             unifiedVectorService.storeDocument(threatDoc);
 
-            log.info("[Layer2] 위협 패턴 저장 완료: userId={}, mitre={}, action={}",
-                event.getUserId(), response.getMitre(), decision.getAction());
+            log.info("[Layer2] 위협 패턴 저장 완료: userId={}, mitre={}",
+                event.getUserId(), response.getMitre());
 
         } catch (Exception e) {
             log.warn("[Layer2] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
