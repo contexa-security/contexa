@@ -1,5 +1,6 @@
 package io.contexa.contexacore.hcad.service;
 
+import io.contexa.contexacommon.hcad.domain.BaselineMatchStatus;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;

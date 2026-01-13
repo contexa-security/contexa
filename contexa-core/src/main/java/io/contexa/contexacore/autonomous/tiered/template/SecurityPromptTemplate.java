@@ -12,26 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * AI Native v6.6: 통합 보안 프롬프트 템플릿
- *
- * Layer1과 Layer2를 위한 단일 프롬프트 템플릿입니다.
- * L1 = L2 원칙: 프롬프트와 응답 형식이 완전히 동일하며, 차이점은 LLM 모델만 다릅니다.
- *
- * 핵심 원칙:
- * - 동일한 프롬프트 → 동일한 응답 형식 (5필드)
- * - LLM 모델이 판단 품질 결정 (layer1.model vs layer2.model)
- * - AI Native: 플랫폼은 raw 데이터만 제공, LLM이 판단
- * - Zero Trust: Baseline 없이 ALLOW 불가
- *
- * 통합으로 제거된 항목:
- * - USER HISTORY 섹션 (순환 논리, LLM 편향 유발)
- * - PREVIOUS LAYER 섹션 (프롬프트 통일로 불필요)
- * - recommendation 필드 (action과 중복)
- * - HistoricalContext 클래스 (USER HISTORY 제거로 불필요)
- *
- * @since AI Native v6.6
- */
+
 @Slf4j
 public class SecurityPromptTemplate {
 
