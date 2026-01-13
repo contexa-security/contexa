@@ -164,12 +164,22 @@ public class SecurityDecisionPostProcessor {
      * - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
      * - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
      * - 사실 데이터만 포함 (userId, IP, path, hour)
+     *
+     * AI Native v7.2: eventId, timestamp 추가
+     * - 동일한 userId/IP/Path/Hour 요청도 고유한 embedding을 갖도록 함
+     * - 벡터 검색에서 누적 데이터가 반환되도록 함
      */
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder content = new StringBuilder();
 
+        // AI Native v7.2: eventId 추가 (고유 식별자 - 각 문서가 다른 embedding을 갖도록)
+        if (event.getEventId() != null) {
+            content.append("EventId: ").append(event.getEventId());
+        }
+
         // 사용자 ID (null이면 생략)
         if (event.getUserId() != null) {
+            if (content.length() > 0) content.append(", ");
             content.append("User: ").append(event.getUserId());
         }
 
@@ -193,10 +203,11 @@ public class SecurityDecisionPostProcessor {
             content.append("Method: ").append(method);
         }
 
-        // 시간 (사실 데이터)
+        // AI Native v7.2: timestamp 추가 (고유성 보장)
         if (event.getTimestamp() != null) {
             if (content.length() > 0) content.append(", ");
-            content.append("Hour: ").append(event.getTimestamp().getHour());
+            content.append("Timestamp: ").append(event.getTimestamp().toString());
+            content.append(", Hour: ").append(event.getTimestamp().getHour());
         }
 
         // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직 위험)

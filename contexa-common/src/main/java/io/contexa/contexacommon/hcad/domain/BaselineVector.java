@@ -24,12 +24,11 @@ import java.time.Instant;
  * - normalAccessHours: 정상 접근 시간대 (현재 시간과 비교)
  * - frequentPaths: 자주 접근하는 경로 (현재 경로와 비교)
  * - normalUserAgents: 정상 User-Agent (세션 하이재킹 탐지)
- * - learningMaturity: 기준선 학습 성숙도 (학습 정도 표시)
  * - updateCount: 업데이트 횟수 (학습 정도 표시)
  *
- * v6.5 변경: confidence -> learningMaturity
- * - LLM 분석 결과의 confidence와 혼동 방지
- * - 기준선 학습 정도를 나타내는 지표임을 명확히
+ * v7.2 변경: learningMaturity 필드 제거
+ * - LLM 분석에 불필요한 내부 메트릭
+ * - updateCount만으로 학습 정도 충분히 표현 가능
  *
  * @author contexa
  * @since 3.1.0
@@ -55,9 +54,7 @@ public class BaselineVector implements Serializable {
     // ========== 학습 메타데이터 (LLM 컨텍스트) ==========
     @Builder.Default
     private Long updateCount = 0L;           // 업데이트 횟수 - LLM에 학습 정도 제공
-    @Builder.Default
-    private Double learningMaturity = 0.0;   // 기준선 학습 성숙도 (0.0 ~ 1.0) - v6.5: confidence에서 이름 변경
-                                             // LLM 분석 결과의 confidence와 혼동 방지
+    // AI Native v7.2: learningMaturity 필드 제거 - LLM 분석에 불필요한 내부 메트릭
 
     // ========== EMA 학습 내부 필드 ==========
     private Instant lastUpdated;          // 마지막 업데이트 시간

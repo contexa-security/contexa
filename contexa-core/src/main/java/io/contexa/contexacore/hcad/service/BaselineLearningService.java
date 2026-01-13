@@ -46,7 +46,8 @@ import java.util.Map;
  *
  * Redis 저장 스키마:
  * - Key: security:hcad:baseline:{userId}
- * - Fields: avgTrustScore, avgRequestCount, updateCount, learningMaturity, lastUpdated
+ * - Fields: avgTrustScore, avgRequestCount, updateCount, lastUpdated
+ * - AI Native v7.2: learningMaturity 필드 제거 - updateCount만으로 학습 정도 표현
  *
  * @author contexa
  * @since 3.0.0
@@ -268,12 +269,12 @@ public class BaselineLearningService {
 
         if (current == null) {
             // 첫 학습: Zero Trust 필수 데이터 초기화
+            // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
             BaselineVector.BaselineVectorBuilder builder = BaselineVector.builder()
                 .userId(userId)
                 .avgTrustScore(currentTrustScore)
                 .avgRequestCount(1L)
                 .updateCount(1L)
-                .learningMaturity(currentConfidence * 0.1)  // 첫 학습은 성숙도 낮게
                 .lastUpdated(Instant.now());
 
             // Zero Trust 필수 데이터 초기화
@@ -287,10 +288,23 @@ public class BaselineLearningService {
             if (currentPath != null) {
                 builder.frequentPaths(new String[]{currentPath});
             }
-            // AI Native v3.1: User-Agent 패턴 저장 - LLM 세션 하이재킹 탐지용
+            // AI Native v7.1: User-Agent 시그니처 정규화 저장 (SecurityEvent 기반 첫 학습)
+            // 원본 전체 저장 대신 시그니처만 저장 (비교 일관성 확보)
+            // 기존: 원본 "Mozilla/5.0 ... Chrome/120.0.0.0" 저장
+            // 변경: 시그니처 "Chrome/120 (Windows)" 저장
             if (currentUserAgent != null && !currentUserAgent.isEmpty()) {
-                String truncatedUA = currentUserAgent.length() > 100 ? currentUserAgent.substring(0, 100) : currentUserAgent;
-                builder.normalUserAgents(new String[]{truncatedUA});
+                String uaSignature = extractUASignature(currentUserAgent);
+                if (uaSignature != null && !uaSignature.equals("unknown") &&
+                    !uaSignature.equals("unknown (unknown)")) {
+                    builder.normalUserAgents(new String[]{uaSignature});
+                    log.debug("[Baseline] SecurityEvent 첫 학습 - UA 시그니처 저장: {}", uaSignature);
+                } else {
+                    // 파싱 실패 시 원본 저장 (fallback)
+                    String truncatedUA = currentUserAgent.length() > 100
+                        ? currentUserAgent.substring(0, 100) : currentUserAgent;
+                    builder.normalUserAgents(new String[]{truncatedUA});
+                    log.warn("[Baseline] SecurityEvent 첫 학습 - UA 파싱 실패, 원본 저장: {}", truncatedUA);
+                }
             }
 
             return builder.build();
@@ -299,10 +313,6 @@ public class BaselineLearningService {
         // EMA 적용
         double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
         double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
-
-        // 신뢰도 증가 (최대 1.0)
-        double oldConfidence = current.getLearningMaturity() != null ? current.getLearningMaturity() : 0.1;
-        double newConfidence = Math.min(1.0, oldConfidence + 0.01);
 
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
         long oldRequestCount = current.getAvgRequestCount() != null ? current.getAvgRequestCount() : 0L;
@@ -314,12 +324,12 @@ public class BaselineLearningService {
         // AI Native v3.1: User-Agent 패턴 업데이트 - LLM 세션 하이재킹 탐지용
         String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), currentUserAgent);
 
+        // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
         return BaselineVector.builder()
             .userId(userId)
             .avgTrustScore(newTrustScore)
             .avgRequestCount(oldRequestCount + 1)
             .updateCount(oldUpdateCount + 1)
-            .learningMaturity(newConfidence)
             .lastUpdated(Instant.now())
             // Zero Trust 필수 데이터
             .normalIpRanges(normalIpRanges)
@@ -375,12 +385,12 @@ public class BaselineLearningService {
 
         if (current == null) {
             // 첫 학습: Zero Trust 필수 데이터 초기화
+            // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
             BaselineVector.BaselineVectorBuilder builder = BaselineVector.builder()
                 .userId(userId)
                 .avgTrustScore(currentTrustScore)
                 .avgRequestCount(1L)
                 .updateCount(1L)
-                .learningMaturity(currentConfidence * 0.1)  // 첫 학습은 성숙도 낮게
                 .lastUpdated(Instant.now());
 
             // Zero Trust 필수 데이터 초기화
@@ -394,10 +404,23 @@ public class BaselineLearningService {
             if (currentPath != null) {
                 builder.frequentPaths(new String[]{currentPath});
             }
-            // AI Native v3.1: User-Agent 패턴 저장 - LLM 세션 하이재킹 탐지용
+            // AI Native v7.1: User-Agent 시그니처 정규화 저장 (HCADAnalysisResult 기반 첫 학습)
+            // 원본 전체 저장 대신 시그니처만 저장 (비교 일관성 확보)
+            // 기존: 원본 "Mozilla/5.0 ... Chrome/120.0.0.0" 저장
+            // 변경: 시그니처 "Chrome/120 (Windows)" 저장
             if (currentUserAgent != null && !currentUserAgent.isEmpty()) {
-                String truncatedUA = currentUserAgent.length() > 100 ? currentUserAgent.substring(0, 100) : currentUserAgent;
-                builder.normalUserAgents(new String[]{truncatedUA});
+                String uaSignature = extractUASignature(currentUserAgent);
+                if (uaSignature != null && !uaSignature.equals("unknown") &&
+                    !uaSignature.equals("unknown (unknown)")) {
+                    builder.normalUserAgents(new String[]{uaSignature});
+                    log.debug("[Baseline] HCAD 첫 학습 - UA 시그니처 저장: {}", uaSignature);
+                } else {
+                    // 파싱 실패 시 원본 저장 (fallback)
+                    String truncatedUA = currentUserAgent.length() > 100
+                        ? currentUserAgent.substring(0, 100) : currentUserAgent;
+                    builder.normalUserAgents(new String[]{truncatedUA});
+                    log.warn("[Baseline] HCAD 첫 학습 - UA 파싱 실패, 원본 저장: {}", truncatedUA);
+                }
             }
 
             return builder.build();
@@ -406,10 +429,6 @@ public class BaselineLearningService {
         // EMA 적용
         double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
         double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
-
-        // 신뢰도 증가 (최대 1.0)
-        double oldConfidence = current.getLearningMaturity() != null ? current.getLearningMaturity() : 0.1;
-        double newConfidence = Math.min(1.0, oldConfidence + 0.01);
 
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
         long oldRequestCount = current.getAvgRequestCount() != null ? current.getAvgRequestCount() : 0L;
@@ -421,12 +440,12 @@ public class BaselineLearningService {
         // AI Native v3.1: User-Agent 패턴 업데이트 - LLM 세션 하이재킹 탐지용
         String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), currentUserAgent);
 
+        // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
         return BaselineVector.builder()
             .userId(userId)
             .avgTrustScore(newTrustScore)
             .avgRequestCount(oldRequestCount + 1)
             .updateCount(oldUpdateCount + 1)
-            .learningMaturity(newConfidence)
             .lastUpdated(Instant.now())
             // Zero Trust 필수 데이터
             .normalIpRanges(normalIpRanges)
@@ -809,12 +828,12 @@ public class BaselineLearningService {
             BaselineVector orgBaseline = getOrganizationBaseline(organizationId);
             if (orgBaseline != null) {
                 // 조직 Baseline에 사용자 ID 설정하여 반환
+                // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
                 return BaselineVector.builder()
                     .userId(userId)
                     .avgTrustScore(orgBaseline.getAvgTrustScore())
                     .avgRequestCount(orgBaseline.getAvgRequestCount())
                     .updateCount(0L)  // 신규 사용자는 0
-                    .learningMaturity(orgBaseline.getLearningMaturity() * 0.7)  // 조직 Baseline은 성숙도 30% 감소
                     .lastUpdated(orgBaseline.getLastUpdated())
                     .normalIpRanges(orgBaseline.getNormalIpRanges())
                     .normalAccessHours(orgBaseline.getNormalAccessHours())
@@ -842,18 +861,12 @@ public class BaselineLearningService {
                 return null;
             }
 
-            // AI Native v6.5: learningMaturity (기존 confidence 호환)
-            Double maturity = parseDouble(data.get("learningMaturity"));
-            if (maturity == 0.0 && data.get("confidence") != null) {
-                maturity = parseDouble(data.get("confidence"));  // 기존 데이터 호환
-            }
-
+            // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
             return BaselineVector.builder()
                 .userId(userId)
                 .avgTrustScore(parseDouble(data.get("avgTrustScore")))
                 .avgRequestCount(parseLong(data.get("avgRequestCount")))
                 .updateCount(parseLong(data.get("updateCount")))
-                .learningMaturity(maturity)
                 .lastUpdated(parseInstant(data.get("lastUpdated")))
                 // Zero Trust 필수 데이터 조회
                 .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
@@ -893,18 +906,12 @@ public class BaselineLearningService {
                 return null;
             }
 
-            // AI Native v6.5: learningMaturity (기존 confidence 호환)
-            Double maturity = parseDouble(data.get("learningMaturity"));
-            if (maturity == 0.0 && data.get("confidence") != null) {
-                maturity = parseDouble(data.get("confidence"));  // 기존 데이터 호환
-            }
-
+            // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
             return BaselineVector.builder()
                 .userId("org:" + organizationId)
                 .avgTrustScore(parseDouble(data.get("avgTrustScore")))
                 .avgRequestCount(parseLong(data.get("avgRequestCount")))
                 .updateCount(parseLong(data.get("updateCount")))
-                .learningMaturity(maturity)
                 .lastUpdated(parseInstant(data.get("lastUpdated")))
                 .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
                 .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
@@ -1017,8 +1024,7 @@ public class BaselineLearningService {
             data.put("avgTrustScore", baseline.getAvgTrustScore());
             data.put("avgRequestCount", baseline.getAvgRequestCount());
             data.put("updateCount", baseline.getUpdateCount());
-            // AI Native v6.5: confidence → learningMaturity 변경
-            data.put("learningMaturity", baseline.getLearningMaturity());
+            // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
             data.put("lastUpdated", baseline.getLastUpdated() != null ?
                 baseline.getLastUpdated().toString() : Instant.now().toString());
 
@@ -1187,11 +1193,22 @@ public class BaselineLearningService {
         sb.append(String.format("Overall: %d%% match (%d/%d criteria)\n\n",
             matchPercentage, matchCount, totalCriteria));
 
-        // 5. RECOMMENDATION (AI Native: 강제가 아닌 제안)
+        // 5. RECOMMENDATION (AI Native v7.1: 구체적인 가이드라인)
+        // LLM이 모호한 권고를 받으면 보수적으로 CHALLENGE 선택 → 영구 CHALLENGE 루프 발생
+        // 따라서 명확한 조건별 권고 제공
         if (!ipMatch) {
             sb.append("RECOMMENDATION: IP mismatch requires verification (CHALLENGE recommended)\n");
         } else if (matchCount == totalCriteria) {
-            sb.append("RECOMMENDATION: All criteria matched (ALLOW possible if no other risk indicators)\n");
+            sb.append("RECOMMENDATION: All criteria matched (ALLOW recommended)\n");
+        } else if (ipMatch && hourMatch && "PARTIAL".equals(uaMatchStatus)) {
+            // AI Native v7.1: UA PARTIAL은 브라우저 자동 업데이트로 인해 정상
+            // 영구 CHALLENGE 루프 방지: IP + Hour MATCH면 ALLOW 가능
+            sb.append("RECOMMENDATION: IP and Hour match, UA version difference is normal ");
+            sb.append("(browser auto-update). ALLOW possible.\n");
+        } else if (ipMatch && hourMatch) {
+            sb.append("RECOMMENDATION: IP and Hour match (ALLOW possible)\n");
+        } else if (ipMatch) {
+            sb.append("RECOMMENDATION: IP match but Hour mismatch, evaluate based on context\n");
         } else {
             sb.append("RECOMMENDATION: Partial match, evaluate based on context\n");
         }
@@ -1548,19 +1565,40 @@ public class BaselineLearningService {
     }
 
     /**
-     * User-Agent에서 브라우저 버전 추출 (메이저 버전만)
+     * AI Native v7.1: User-Agent에서 브라우저 버전 추출 (메이저 버전만)
+     *
+     * 기존 버그 수정:
+     * - dotIdx > 0 조건이 잘못됨 (dotIdx > start 이어야 함)
+     * - end가 start보다 작은 경우 처리 누락
+     * - 빈 문자열 반환 방지
+     *
+     * 수정 후:
+     * - while 루프로 숫자만 추출 (첫 번째 . 또는 공백까지)
+     * - 예: "Chrome/120.0.0.0" -> "Chrome/120"
+     *
+     * @param userAgent User-Agent 문자열
+     * @param prefix 브라우저 prefix (예: "Chrome/")
+     * @return 브라우저명/메이저버전 (예: "Chrome/120") 또는 "unknown"
      */
     private String extractBrowserVersion(String userAgent, String prefix) {
         int idx = userAgent.indexOf(prefix);
         if (idx == -1) return "unknown";
 
         int start = idx + prefix.length();
-        int dotIdx = userAgent.indexOf(".", start);
-        int spaceIdx = userAgent.indexOf(" ", start);
-        int end = Math.min(
-            dotIdx > 0 ? dotIdx : userAgent.length(),
-            spaceIdx > 0 ? spaceIdx : userAgent.length()
-        );
+        if (start >= userAgent.length()) return "unknown";
+
+        // AI Native v7.1: 메이저 버전만 추출 (첫 번째 . 또는 공백까지)
+        int end = start;
+        while (end < userAgent.length()) {
+            char c = userAgent.charAt(end);
+            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
+                break;
+            }
+            end++;
+        }
+
+        // 버전 문자열이 비어있으면 "unknown"
+        if (end == start) return "unknown";
 
         String version = userAgent.substring(start, end);
         String browserName = prefix.replace("/", "");

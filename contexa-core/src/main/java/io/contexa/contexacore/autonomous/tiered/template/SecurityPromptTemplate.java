@@ -270,31 +270,50 @@ public class SecurityPromptTemplate {
         prompt.append(dataQualitySection);
 
         // 9. 응답 형식 (통일된 5필드)
-        // AI Native v7.0: JSON 전용 응답 강제 + 다양한 응답 예시
+        // AI Native v7.1: JSON 전용 응답 강제 + ALLOW 판정 기준 명확화
+        // 영구 CHALLENGE 루프 방지: UA PARTIAL은 ALLOW 가능 명시
         prompt.append("""
 
             === RESPONSE INSTRUCTIONS ===
             IMPORTANT: Respond with ONLY a single JSON object. No explanation, no markdown, no text before or after.
 
             ACTIONS:
-            - ALLOW: Permit (ONLY when baseline ESTABLISHED and patterns match)
-            - BLOCK: Deny (strong malicious evidence)
-            - CHALLENGE: Request MFA (suspicious but inconclusive)
-            - ESCALATE: Forward to Layer 2 (complex/ambiguous)
+            - ALLOW: Permit when baseline ESTABLISHED and core patterns match:
+              Required: IP: MATCH
+              Required: Hour: MATCH (or within +-2 hours of normal range)
+              Optional: UA: MATCH or PARTIAL is acceptable
+              IMPORTANT: UA PARTIAL (browser version difference) is NORMAL due to auto-updates.
+              If IP: MATCH and Hour: MATCH, you SHOULD choose ALLOW even if UA: PARTIAL.
+
+            - BLOCK: Deny (strong malicious evidence, clear threat indicators)
+
+            - CHALLENGE: Request MFA when:
+              1. New user without baseline
+              2. IP: MISMATCH (different network)
+              3. Hour: outside normal range AND other suspicious indicators
+
+            - ESCALATE: Forward to Layer 2 when:
+              1. Complex/ambiguous requiring expert review
+              2. Situation matches logical criteria but feels contextually suspicious
+              3. Implies a pattern not covered by above rules
+              Note: Use ESCALATE when rules say ALLOW but something feels wrong
 
             EXAMPLE RESPONSES (choose based on your analysis):
 
-            1. ALLOW (baseline matches, trusted):
-            {"riskScore":0.1,"confidence":0.9,"confidenceReasoning":"baseline established, all patterns match","action":"ALLOW","reasoning":"trusted user with consistent behavior","mitre":null}
+            1. ALLOW (IP and Hour match, UA version difference is normal):
+            {"riskScore":0.2,"confidence":0.85,"confidenceReasoning":"IP and Hour match baseline, UA version difference is normal (browser auto-update)","action":"ALLOW","reasoning":"trusted user with consistent core patterns","mitre":null}
 
-            2. CHALLENGE (new user, inconclusive):
+            2. CHALLENGE (new user without baseline):
             {"riskScore":0.6,"confidence":0.4,"confidenceReasoning":"no baseline, cannot verify identity","action":"CHALLENGE","reasoning":"require MFA to establish trust","mitre":null}
 
-            3. BLOCK (clear threat):
+            3. CHALLENGE (IP mismatch):
+            {"riskScore":0.65,"confidence":0.6,"confidenceReasoning":"IP does not match baseline, network location changed","action":"CHALLENGE","reasoning":"verify identity from new network","mitre":null}
+
+            4. BLOCK (clear threat):
             {"riskScore":0.9,"confidence":0.85,"confidenceReasoning":"strong malicious indicators","action":"BLOCK","reasoning":"credential stuffing attempt detected","mitre":"T1078"}
 
-            4. ESCALATE (complex case):
-            {"riskScore":0.5,"confidence":0.3,"confidenceReasoning":"ambiguous signals require expert review","action":"ESCALATE","reasoning":"unusual pattern needs deeper analysis","mitre":null}
+            5. ESCALATE (rules match but contextually suspicious):
+            {"riskScore":0.45,"confidence":0.4,"confidenceReasoning":"IP and Hour match but access pattern feels unusual - rapid sequential requests to sensitive endpoints","action":"ESCALATE","reasoning":"rules say ALLOW but behavior pattern warrants expert review","mitre":null}
 
             FIELD RULES:
             - riskScore: number 0-1 (0=safe, 1=critical)
