@@ -96,7 +96,6 @@ public class HCADBaselineController {
                 Map<String, Object> response = new HashMap<>();
                 response.put("userId", baseline.getUserId());
                 response.put("updateCount", baseline.getUpdateCount());
-                response.put("confidence", baseline.getConfidence());
                 response.put("lastUpdated", baseline.getLastUpdated());
                 response.put("avgRequestCount", baseline.getAvgRequestCount());
                 response.put("avgTrustScore", baseline.getAvgTrustScore());
@@ -105,9 +104,6 @@ public class HCADBaselineController {
                 response.put("normalAccessHours", baseline.getNormalAccessHours());
                 response.put("frequentPaths", baseline.getFrequentPaths());
                 response.put("normalUserAgents", baseline.getNormalUserAgents());
-
-                log.debug("[HCADBaselineController] Baseline 조회 성공: userId={}, updateCount={}, confidence={}",
-                    userId, baseline.getUpdateCount(), baseline.getConfidence());
 
                 return ResponseEntity.ok(response);
             } else {
@@ -151,7 +147,6 @@ public class HCADBaselineController {
                         Map<String, Object> item = new HashMap<>();
                         item.put("userId", baseline.getUserId());
                         item.put("updateCount", baseline.getUpdateCount());
-                        item.put("confidence", baseline.getConfidence());
                         item.put("lastUpdated", baseline.getLastUpdated());
                         item.put("avgTrustScore", baseline.getAvgTrustScore());
 

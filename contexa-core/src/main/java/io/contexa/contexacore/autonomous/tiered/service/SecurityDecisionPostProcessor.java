@@ -157,22 +157,83 @@ public class SecurityDecisionPostProcessor {
     /**
      * 행동 패턴 컨텐츠 생성
      *
-     * Layer1ContextualStrategy.buildBehaviorContent()와 동일한 로직입니다.
+     * AI Native v6.7: 순환 로직 방지
+     * - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
+     * - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
+     * - 사실 데이터만 포함 (userId, IP, path, hour)
      */
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
-        return String.format(
-                "User: %s, Risk: %.2f, Description: %s, Reasoning: %s",
-                event.getUserId() != null ? event.getUserId() : "unknown",
-                decision.getRiskScore(),
-                event.getDescription() != null ? event.getDescription() : "unknown",
-                decision.getReasoning() != null ? decision.getReasoning() : "No reasoning provided"
-        );
+        StringBuilder content = new StringBuilder();
+
+        // 사용자 ID (null이면 생략)
+        if (event.getUserId() != null) {
+            content.append("User: ").append(event.getUserId());
+        }
+
+        // IP (사실 데이터)
+        if (event.getSourceIp() != null) {
+            if (content.length() > 0) content.append(", ");
+            content.append("IP: ").append(event.getSourceIp());
+        }
+
+        // 경로 추출 (사실 데이터)
+        String path = extractPath(event);
+        if (path != null) {
+            if (content.length() > 0) content.append(", ");
+            content.append("Path: ").append(path);
+        }
+
+        // 시간 (사실 데이터)
+        if (event.getTimestamp() != null) {
+            if (content.length() > 0) content.append(", ");
+            content.append("Hour: ").append(event.getTimestamp().getHour());
+        }
+
+        // Action (결정 결과 - 다음 분석에서 과거 결정 참조용)
+        if (decision.getAction() != null) {
+            if (content.length() > 0) content.append(", ");
+            content.append("Action: ").append(decision.getAction());
+        }
+
+        // AI Native v6.7: riskScore, reasoning 제거 (순환 로직 방지)
+        // - 이전 LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
+        // - "No reasoning provided" 같은 기본값도 RAG 오염 유발
+
+        return content.toString();
+    }
+
+    /**
+     * 이벤트에서 경로 추출
+     *
+     * AI Native v6.8: 실제 metadata 키에 맞게 수정
+     * - "requestUri": ZeroTrustEventListener에서 설정됨
+     * - "fullPath": HCADContextExtractor에서 설정됨
+     * - "path": 설정되는 곳 없음 (제거)
+     */
+    private String extractPath(SecurityEvent event) {
+        if (event.getMetadata() != null) {
+            // ZeroTrustEventListener에서 설정
+            Object uri = event.getMetadata().get("requestUri");
+            if (uri != null) {
+                return uri.toString();
+            }
+            // HCADContextExtractor에서 설정
+            Object fullPath = event.getMetadata().get("fullPath");
+            if (fullPath != null) {
+                return fullPath.toString();
+            }
+        }
+        return null;
     }
 
     /**
      * 위협 문서 저장
      *
      * Layer1ContextualStrategy.storeThreatDocument()와 동일한 로직입니다.
+     *
+     * AI Native v6.7: 순환 로직 방지
+     * - RiskScore, Reasoning 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
+     * - 사실 데이터(User, IP, ThreatCategory, Action)만 저장
      */
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, String analysisContent) {
         try {
@@ -183,22 +244,31 @@ public class SecurityDecisionPostProcessor {
                 threatMetadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
             }
 
-            // 위협 설명
-            String threatDescription = String.format(
-                "Contextual Threat: User=%s, IP=%s, RiskScore=%.2f, " +
-                "ThreatCategory=%s, BehaviorPatterns=%s, Action=%s, Reasoning=%s",
-                event.getUserId(), event.getSourceIp(),
-                decision.getRiskScore(), decision.getThreatCategory(),
-                decision.getBehaviorPatterns() != null ? decision.getBehaviorPatterns() : "[]",
-                decision.getAction(),
-                decision.getReasoning() != null ? decision.getReasoning().substring(0, Math.min(100, decision.getReasoning().length())) : ""
-            );
+            // AI Native v6.7: 위협 설명 - 사실 데이터만 포함, LLM 결과(RiskScore, Reasoning) 제거
+            StringBuilder threatDesc = new StringBuilder("Contextual Threat:");
 
-            Document threatDoc = new Document(threatDescription, threatMetadata);
+            if (event.getUserId() != null) {
+                threatDesc.append(" User=").append(event.getUserId());
+            }
+            if (event.getSourceIp() != null) {
+                threatDesc.append(", IP=").append(event.getSourceIp());
+            }
+            if (decision.getThreatCategory() != null) {
+                threatDesc.append(", ThreatCategory=").append(decision.getThreatCategory());
+            }
+            if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
+                threatDesc.append(", BehaviorPatterns=").append(decision.getBehaviorPatterns());
+            }
+            if (decision.getAction() != null) {
+                threatDesc.append(", Action=").append(decision.getAction());
+            }
+            // AI Native v6.7: RiskScore, Reasoning 제거 (순환 로직 방지)
+
+            Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
             unifiedVectorService.storeDocument(threatDoc);
 
-            log.info("[SecurityDecisionPostProcessor] 위협 패턴 저장 완료: userId={}, riskScore={}, threatCategory={}",
-                event.getUserId(), decision.getRiskScore(), decision.getThreatCategory());
+            log.info("[SecurityDecisionPostProcessor] 위협 패턴 저장 완료: userId={}, threatCategory={}, action={}",
+                event.getUserId(), decision.getThreatCategory(), decision.getAction());
 
         } catch (Exception e) {
             log.warn("[SecurityDecisionPostProcessor] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
@@ -210,9 +280,10 @@ public class SecurityDecisionPostProcessor {
      *
      * AbstractTieredStrategy.buildBaseMetadata()와 동일한 로직입니다.
      *
-     * AI Native 원칙:
+     * AI Native v6.7: 순환 로직 방지
+     * - riskScore, confidence 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
      * - null인 경우 필드 생략 (LLM이 "unknown"을 실제 값으로 오해 방지)
-     * - NaN인 경우 필드 생략 (LLM이 -1.0을 낮은 값으로 오해 방지)
+     * - 사실 데이터(eventId, userId, sourceIp, sessionId, action)만 저장
      */
     private Map<String, Object> buildBaseMetadata(SecurityEvent event, SecurityDecision decision, String documentType) {
         Map<String, Object> metadata = new HashMap<>();
@@ -239,17 +310,20 @@ public class SecurityDecisionPostProcessor {
             metadata.put("sessionId", event.getSessionId());
         }
 
-        // SecurityDecision 정보 - AI Native: NaN인 경우 필드 생략
-        double riskScore = decision.getRiskScore();
-        double confidence = decision.getConfidence();
-        if (!Double.isNaN(riskScore)) {
-            metadata.put("riskScore", riskScore);
-        }
-        if (!Double.isNaN(confidence)) {
-            metadata.put("confidence", confidence);
+        // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
+        // LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
+        // 대신 action(결정 결과)만 저장하여 다음 분석에서 과거 결정 참조
+        if (decision.getAction() != null) {
+            metadata.put("action", decision.getAction().name());
         }
         if (decision.getThreatCategory() != null) {
             metadata.put("threatCategory", decision.getThreatCategory());
+        }
+
+        // AI Native v6.8: 실제 metadata 키 사용 (requestUri)
+        String requestUri = extractPath(event);
+        if (requestUri != null) {
+            metadata.put("requestUri", requestUri);
         }
 
         return metadata;

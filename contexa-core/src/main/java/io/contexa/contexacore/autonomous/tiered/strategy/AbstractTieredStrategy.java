@@ -247,15 +247,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             metadata.put("sessionId", event.getSessionId());
         }
 
-        // SecurityDecision 정보 - AI Native: NaN인 경우 필드 생략
-        // AI Native v6.0: action 필드 제거 (ALLOW만 저장하므로 항상 ALLOW - 무의미)
-        double riskScore = decision.getRiskScore();
-        double confidence = decision.getConfidence();
-        if (!Double.isNaN(riskScore)) {
-            metadata.put("riskScore", riskScore);
-        }
-        if (!Double.isNaN(confidence)) {
-            metadata.put("confidence", confidence);
+        // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
+        // LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
+        // action만 저장하여 다음 분석에서 과거 결정 참조
+        if (decision.getAction() != null) {
+            metadata.put("action", decision.getAction().name());
         }
         if (decision.getThreatCategory() != null) {
             metadata.put("threatCategory", decision.getThreatCategory());

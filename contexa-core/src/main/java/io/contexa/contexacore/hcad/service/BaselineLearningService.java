@@ -1151,7 +1151,11 @@ public class BaselineLearningService {
             normalIps != null && normalIps.length > 0 ? String.join(", ", normalIps) : "none"));
 
         String currentIp = currentEvent != null ? currentEvent.getSourceIp() : "unknown";
-        sb.append(String.format("  Current IP: %s\n", currentIp));
+        // AI Native v6.5: 프롬프트 출력 시에도 IP 정규화 (baseline과 동일한 형식)
+        // - baseline 학습 시 extractIpRange()로 정규화되므로, 비교를 위해 현재 IP도 동일하게 정규화
+        // - 예: 0:0:0:0:0:0:0:1 → loopback, 192.168.1.100 → 192.168.1
+        String normalizedCurrentIp = extractIpRange(currentIp);
+        sb.append(String.format("  Current IP: %s\n", normalizedCurrentIp != null ? normalizedCurrentIp : currentIp));
 
         // 2. 시간 패턴 - raw 데이터만 제공
         Integer[] normalHours = baseline.getNormalAccessHours();
@@ -1175,19 +1179,24 @@ public class BaselineLearningService {
             sb.append(String.format("  Current Path: %s\n", currentPath));
         }
 
-        // 4. User-Agent 패턴 - raw 데이터만 제공 (AI Native v3.1)
-        // LLM이 User-Agent 변경을 탐지하여 세션 하이재킹 여부 판단 가능
+        // 4. User-Agent 패턴 - AI Native v6.6: 핵심 정보만 추출
+        // LLM이 쉽게 비교할 수 있도록 브라우저명, 버전, OS만 제공
+        // 예: "Chrome/143 (Windows)", "Firefox/120 (Linux)"
         String[] normalUserAgents = baseline.getNormalUserAgents();
-        sb.append(String.format("  Normal User-Agents: %s\n",
-            normalUserAgents != null && normalUserAgents.length > 0
-                ? String.join(" | ", Arrays.copyOf(normalUserAgents, Math.min(3, normalUserAgents.length)))
-                : "none"));
+        if (normalUserAgents != null && normalUserAgents.length > 0) {
+            String[] signatures = Arrays.stream(normalUserAgents)
+                .limit(3)
+                .map(this::extractUASignature)
+                .distinct()
+                .toArray(String[]::new);
+            sb.append(String.format("  Normal UA Signatures: %s\n", String.join(", ", signatures)));
+        } else {
+            sb.append("  Normal UA Signatures: none\n");
+        }
 
         String currentUserAgent = currentEvent != null ? currentEvent.getUserAgent() : null;
-        if (currentUserAgent != null && currentUserAgent.length() > 100) {
-            currentUserAgent = currentUserAgent.substring(0, 97) + "...";
-        }
-        sb.append(String.format("  Current User-Agent: %s\n", currentUserAgent != null ? currentUserAgent : "NOT_PROVIDED"));
+        String currentUASignature = extractUASignature(currentUserAgent);
+        sb.append(String.format("  Current UA Signature: %s\n", currentUASignature));
 
         // AI Native v6.1: OS 변경 감지 (세션 하이재킹 탐지)
         // 플랫폼은 OS 변경 사실만 제공, LLM이 위협 여부 판단
@@ -1433,6 +1442,72 @@ public class BaselineLearningService {
             return "N/A";
         }
         return userAgent.length() > 80 ? userAgent.substring(0, 77) + "..." : userAgent;
+    }
+
+    /**
+     * AI Native v6.6: User-Agent에서 핵심 정보만 추출
+     *
+     * LLM이 쉽게 비교할 수 있도록 브라우저명, 메이저 버전, OS만 추출
+     * 예: "Chrome/143 (Windows)", "Firefox/120 (Linux)"
+     *
+     * @param userAgent 전체 User-Agent 문자열
+     * @return 핵심 정보만 포함한 시그니처
+     */
+    private String extractUASignature(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return "unknown";
+        }
+
+        String browser = "unknown";
+        String os = "unknown";
+
+        // 브라우저 및 버전 추출 (메이저 버전만)
+        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
+            browser = extractBrowserVersion(userAgent, "Chrome/");
+        } else if (userAgent.contains("Edg/")) {
+            browser = extractBrowserVersion(userAgent, "Edg/");
+            browser = browser.replace("Edg", "Edge");
+        } else if (userAgent.contains("Firefox/")) {
+            browser = extractBrowserVersion(userAgent, "Firefox/");
+        } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome")) {
+            browser = extractBrowserVersion(userAgent, "Version/");
+            browser = browser.replace("Version", "Safari");
+        }
+
+        // OS 추출
+        if (userAgent.contains("Windows")) {
+            os = "Windows";
+        } else if (userAgent.contains("Mac OS")) {
+            os = "Mac";
+        } else if (userAgent.contains("Linux") && !userAgent.contains("Android")) {
+            os = "Linux";
+        } else if (userAgent.contains("Android")) {
+            os = "Android";
+        } else if (userAgent.contains("iPhone") || userAgent.contains("iPad")) {
+            os = "iOS";
+        }
+
+        return browser + " (" + os + ")";
+    }
+
+    /**
+     * User-Agent에서 브라우저 버전 추출 (메이저 버전만)
+     */
+    private String extractBrowserVersion(String userAgent, String prefix) {
+        int idx = userAgent.indexOf(prefix);
+        if (idx == -1) return "unknown";
+
+        int start = idx + prefix.length();
+        int dotIdx = userAgent.indexOf(".", start);
+        int spaceIdx = userAgent.indexOf(" ", start);
+        int end = Math.min(
+            dotIdx > 0 ? dotIdx : userAgent.length(),
+            spaceIdx > 0 ? spaceIdx : userAgent.length()
+        );
+
+        String version = userAgent.substring(start, end);
+        String browserName = prefix.replace("/", "");
+        return browserName + "/" + version;
     }
 
 }

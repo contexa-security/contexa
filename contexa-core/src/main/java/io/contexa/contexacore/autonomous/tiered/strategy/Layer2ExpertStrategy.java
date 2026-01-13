@@ -312,16 +312,26 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         }
 
         try {
-            String sourceIp = event.getSourceIp() != null ? event.getSourceIp() : "unknown";
-            String userId = event.getUserId() != null ? event.getUserId() : "unknown";
+            // AI Native v6.8: "unknown" 기본값 제거 - 벡터 임베딩 오염 방지
+            // null인 경우 쿼리에서 해당 필드 생략
+            StringBuilder incidentQuery = new StringBuilder("security incident");
+            if (event.getSourceIp() != null) {
+                incidentQuery.append(" from IP:").append(event.getSourceIp());
+            }
+            String userId = event.getUserId();
+            if (userId != null) {
+                incidentQuery.append(" user:").append(userId);
+            }
 
-            String incidentQuery = String.format("security incident from IP:%s user:%s",
-                    sourceIp, userId);
+            // userId가 null이면 검색 불가 - fallback 사용
+            if (userId == null) {
+                return findSimilarIncidentsFallback(event);
+            }
 
             // AI Native v4.2.0: sourceIp → userId 수정 (findSimilarBehaviors 첫번째 파라미터는 userId)
             List<Document> similarIncidents = behaviorVectorService.findSimilarBehaviors(
                     userId,
-                    incidentQuery,
+                    incidentQuery.toString(),
                     5
             );
 
@@ -369,8 +379,11 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             return incidents;
         }
 
-        // AI Native: eventType 제거 - 사용자 ID 기반 검색
-        String userId = event.getUserId() != null ? event.getUserId() : "unknown";
+        // AI Native v6.8: "unknown" 기본값 제거 - userId가 null이면 검색 불가
+        String userId = event.getUserId();
+        if (userId == null) {
+            return incidents;
+        }
         String pattern = "incident:*:" + userId;
         int limit = 5;
 
@@ -515,13 +528,50 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                     5
             );
 
+            // AI Native v6.8: Action, MatchedBy 추가
+            final String currentIp = event.getSourceIp();
+            final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
+            final String currentPath = event.getMetadata() != null ?
+                    (String) event.getMetadata().get("requestUri") : null;
+
             return similarBehaviors.stream()
                     .map(doc -> {
                         Map<String, Object> meta = doc.getMetadata();
-                        return String.format("EventID:%s, Time:%s, Score:%.2f",
-                                meta.get("eventId"),
-                                meta.get("timestamp"),
-                                meta.getOrDefault("similarityScore", 0.0));
+
+                        // Similarity 계산 (0.0-1.0 -> %)
+                        double score = 0.0;
+                        Object scoreObj = meta.get("similarityScore");
+                        if (scoreObj instanceof Number) {
+                            score = ((Number) scoreObj).doubleValue();
+                        }
+                        int similarityPct = (int) (score * 100);
+
+                        // Action (과거 결정)
+                        String action = meta.get("action") != null ? meta.get("action").toString() : "N/A";
+
+                        // MatchedBy 계산 (어떤 속성이 일치하는지)
+                        List<String> matched = new ArrayList<>();
+                        if (currentIp != null && currentIp.equals(meta.get("sourceIp"))) {
+                            matched.add("IP");
+                        }
+                        if (currentHour != null && meta.get("timestamp") != null) {
+                            String ts = meta.get("timestamp").toString();
+                            if (ts.contains("T") && ts.length() > 13) {
+                                try {
+                                    int docHour = Integer.parseInt(ts.substring(11, 13));
+                                    if (currentHour == docHour) {
+                                        matched.add("Hour");
+                                    }
+                                } catch (NumberFormatException ignored) {}
+                            }
+                        }
+                        if (currentPath != null && currentPath.equals(meta.get("requestUri"))) {
+                            matched.add("Path");
+                        }
+                        String matchedBy = matched.isEmpty() ? "Vector" : String.join(",", matched);
+
+                        return String.format("EventID:%s, Similarity:%d%%, Action:%s, MatchedBy:[%s]",
+                                meta.get("eventId"), similarityPct, action, matchedBy);
                     })
                     .collect(Collectors.toList());
 
@@ -1165,15 +1215,27 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         if (unifiedVectorService == null) return;
 
         try {
-            // v5.1.0: 삭제된 필드 참조 제거 (classification, tactics 등)
-            String content = String.format(
-                    "User: %s, Risk: %.2f, Action: %s, MITRE: %s, Reasoning: %s",
-                    event.getUserId() != null ? event.getUserId() : "unknown",
-                    decision.getRiskScore(),
-                    decision.getAction(),
-                    response.getMitre() != null ? response.getMitre() : "",
-                    decision.getReasoning()
-            );
+            // AI Native v6.8: 순환 로직 방지
+            // - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
+            // - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
+            // - 사실 데이터만 포함 (userId, sourceIp, action, MITRE)
+            StringBuilder content = new StringBuilder();
+            if (event.getUserId() != null) {
+                content.append("User: ").append(event.getUserId());
+            }
+            if (event.getSourceIp() != null) {
+                if (content.length() > 0) content.append(", ");
+                content.append("IP: ").append(event.getSourceIp());
+            }
+            if (decision.getAction() != null) {
+                if (content.length() > 0) content.append(", ");
+                content.append("Action: ").append(decision.getAction());
+            }
+            if (response.getMitre() != null && !response.getMitre().isEmpty()) {
+                if (content.length() > 0) content.append(", ");
+                content.append("MITRE: ").append(response.getMitre());
+            }
+            // AI Native v6.8: riskScore, reasoning 제거 (순환 로직 방지)
 
             // Spring AI Document는 null 값을 허용하지 않으므로 기본값 설정 필수
             Map<String, Object> metadata = new HashMap<>();
@@ -1196,16 +1258,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 metadata.put("sessionId", event.getSessionId());
             }
 
-            // SecurityDecision 정보
-            double metaRiskScore = decision.getRiskScore();
-            double metaConfidence = decision.getConfidence();
-            if (!Double.isNaN(metaRiskScore)) {
-                metadata.put("riskScore", metaRiskScore);
-            }
-            metadata.put("action", decision.getAction() != null ? decision.getAction().toString() : "ESCALATE");
-            if (!Double.isNaN(metaConfidence)) {
-                metadata.put("confidence", metaConfidence);
-            }
+            // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
+            // LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
+            // action만 저장하여 다음 분석에서 과거 결정 참조
+            metadata.put("action", decision.getAction() != null ? decision.getAction().name() : "ESCALATE");
             if (decision.getThreatCategory() != null) {
                 metadata.put("threatCategory", decision.getThreatCategory());
             }
@@ -1215,13 +1271,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 metadata.put("mitreTactic", response.getMitre());
             }
 
-            Document document = new Document(content, metadata);
+            Document document = new Document(content.toString(), metadata);
             unifiedVectorService.storeDocument(document);
 
             // v3.1.0: MITIGATE -> BLOCK으로 통합됨
             SecurityDecision.Action storeAction = decision.getAction();
             if (storeAction == SecurityDecision.Action.BLOCK) {
-                storeThreatDocument(event, decision, response, content);
+                storeThreatDocument(event, decision, response, content.toString());
             }
 
         } catch (Exception e) {
@@ -1230,8 +1286,11 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v6.6: 위협 문서 저장 (통합 응답 형식)
-     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
+     * AI Native v6.8: 위협 문서 저장 (순환 로직 방지)
+     *
+     * - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
+     * - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
+     * - 사실 데이터만 포함 (userId, sourceIp, action, MITRE)
      */
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, SecurityResponse response, String analysisContent) {
         try {
@@ -1243,22 +1302,27 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 threatMetadata.put("mitreTactic", response.getMitre());
             }
 
-            // v5.1.0: 위협 설명 (간소화)
-            String threatDescription = String.format(
-                "Layer2 Expert Threat: User=%s, IP=%s, Risk=%.2f, MITRE=%s, Action=%s, Reasoning=%s",
-                event.getUserId() != null ? event.getUserId() : "unknown",
-                event.getSourceIp() != null ? event.getSourceIp() : "unknown",
-                decision.getRiskScore(),
-                response.getMitre() != null ? response.getMitre() : "",
-                decision.getAction(),
-                decision.getReasoning() != null ? decision.getReasoning().substring(0, Math.min(150, decision.getReasoning().length())) : ""
-            );
+            // AI Native v6.8: 위협 설명 - 사실 데이터만 포함, LLM 결과(riskScore, reasoning) 제거
+            StringBuilder threatDesc = new StringBuilder("Layer2 Expert Threat:");
+            if (event.getUserId() != null) {
+                threatDesc.append(" User=").append(event.getUserId());
+            }
+            if (event.getSourceIp() != null) {
+                threatDesc.append(", IP=").append(event.getSourceIp());
+            }
+            if (response.getMitre() != null && !response.getMitre().isEmpty()) {
+                threatDesc.append(", MITRE=").append(response.getMitre());
+            }
+            if (decision.getAction() != null) {
+                threatDesc.append(", Action=").append(decision.getAction());
+            }
+            // AI Native v6.8: riskScore, reasoning 제거 (순환 로직 방지)
 
-            Document threatDoc = new Document(threatDescription, threatMetadata);
+            Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
             unifiedVectorService.storeDocument(threatDoc);
 
-            log.info("[Layer2] 위협 패턴 저장 완료: userId={}, riskScore={}, mitre={}",
-                event.getUserId(), decision.getRiskScore(), response.getMitre());
+            log.info("[Layer2] 위협 패턴 저장 완료: userId={}, mitre={}, action={}",
+                event.getUserId(), response.getMitre(), decision.getAction());
 
         } catch (Exception e) {
             log.warn("[Layer2] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);

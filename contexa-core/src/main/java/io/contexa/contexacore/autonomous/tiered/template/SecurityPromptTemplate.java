@@ -191,17 +191,20 @@ public class SecurityPromptTemplate {
         // 4. 세션 컨텍스트
         prompt.append("\n=== SESSION ===\n");
         if (sessionContext != null) {
-            List<String> recentActions = sessionContext.getRecentActions();
-            if (recentActions != null && !recentActions.isEmpty()) {
-                int maxRecentActions = tieredStrategyProperties.getLayer1().getPrompt().getMaxRecentActions();
-                int maxActions = Math.min(maxRecentActions, recentActions.size());
-                List<String> subList = recentActions.subList(
-                    Math.max(0, recentActions.size() - maxActions), recentActions.size());
-                String actionsStr = subList.stream()
-                    .map(PromptTemplateUtils::sanitizeUserInput)
-                    .collect(java.util.stream.Collectors.joining(", "));
-                prompt.append("RecentActions: [").append(actionsStr).append("]\n");
+            // AI Native v6.6: SESSION 의미화 - LLM에 유용한 컨텍스트 제공
+            Integer sessionAge = sessionContext.getSessionAgeMinutes();
+            if (sessionAge != null) {
+                prompt.append("SessionAge: ").append(sessionAge).append(" minutes\n");
             }
+            Integer requestCount = sessionContext.getRequestCount();
+            if (requestCount != null && requestCount > 0) {
+                prompt.append("RequestCount: ").append(requestCount).append("\n");
+            }
+
+            // AI Native v6.6: RecentActions 출력 제거
+            // - "Authorization decision: ALLOWED" 같은 무의미한 Spring Security 메시지
+            // - LLM 분석에 도움이 되지 않음, 토큰만 낭비
+
             // AI Native v6.0 Critical: authMethod 출력 추가
             String authMethod = sessionContext.getAuthMethod();
             if (authMethod != null && !authMethod.isEmpty()) {
@@ -380,30 +383,44 @@ public class SecurityPromptTemplate {
                 meta.append("|type=").append(typeObj.toString());
             }
 
-            // 3. 저장된 중요 Metadata 출력 (LLM 분석에 필수)
+            // 3. 저장된 중요 Metadata 출력 (사실 데이터만)
+            // AI Native v6.7: 순환 로직 방지 - LLM 결과(riskScore, confidence) 제거
+            // LLM이 이전 자신의 분석 결과에 편향되는 것을 방지
             Object userId = metadata.get("userId");
             if (userId != null) {
                 meta.append("|user=").append(userId);
             }
 
-            Object riskScore = metadata.get("riskScore");
-            if (riskScore instanceof Number) {
-                meta.append("|risk=").append(String.format("%.2f", ((Number) riskScore).doubleValue()));
+            // AI Native v6.7: action 추가 (과거 결정 표시)
+            Object action = metadata.get("action");
+            if (action != null) {
+                meta.append("|action=").append(action);
             }
 
-            Object confidence = metadata.get("confidence");
-            if (confidence instanceof Number) {
-                meta.append("|conf=").append(String.format("%.2f", ((Number) confidence).doubleValue()));
-            }
+            // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
+            // 이전 LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
 
             Object sourceIp = metadata.get("sourceIp");
             if (sourceIp != null) {
                 meta.append("|ip=").append(sourceIp);
             }
 
+            // AI Native v6.7: hour 추가 (시간대 비교 용이)
             Object timestamp = metadata.get("timestamp");
             if (timestamp != null) {
-                meta.append("|time=").append(timestamp);
+                // 시간만 추출하여 표시 (전체 타임스탬프는 불필요하게 길음)
+                String timeStr = timestamp.toString();
+                if (timeStr.contains("T") && timeStr.length() > 13) {
+                    meta.append("|hour=").append(timeStr.substring(11, 13));
+                } else {
+                    meta.append("|time=").append(timeStr);
+                }
+            }
+
+            // AI Native v6.8: 실제 metadata 키 사용 (requestUri는 ZeroTrustEventListener에서 설정됨)
+            Object requestUri = metadata.get("requestUri");
+            if (requestUri != null) {
+                meta.append("|path=").append(requestUri);
             }
         }
 
@@ -556,6 +573,10 @@ public class SecurityPromptTemplate {
         private String authMethod;
         private List<String> recentActions;
 
+        // AI Native v6.6: SESSION 의미화 - LLM에 유용한 컨텍스트 제공
+        private Integer sessionAgeMinutes;    // 세션 시작 후 경과 시간 (분)
+        private Integer requestCount;         // 현재 세션의 요청 횟수
+
         public String getSessionId() { return sessionId; }
         public void setSessionId(String sessionId) { this.sessionId = sessionId; }
 
@@ -567,6 +588,13 @@ public class SecurityPromptTemplate {
 
         public List<String> getRecentActions() { return recentActions != null ? recentActions : List.of(); }
         public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
+
+        // AI Native v6.6: SESSION 의미화 getter/setter
+        public Integer getSessionAgeMinutes() { return sessionAgeMinutes; }
+        public void setSessionAgeMinutes(Integer sessionAgeMinutes) { this.sessionAgeMinutes = sessionAgeMinutes; }
+
+        public Integer getRequestCount() { return requestCount; }
+        public void setRequestCount(Integer requestCount) { this.requestCount = requestCount; }
     }
 
     /**

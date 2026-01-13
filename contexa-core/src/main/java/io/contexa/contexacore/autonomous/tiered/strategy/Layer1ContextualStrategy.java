@@ -353,13 +353,50 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     5
             );
 
+            // AI Native v6.8: Action, MatchedBy 추가
+            final String currentIp = event.getSourceIp();
+            final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
+            final String currentPath = event.getMetadata() != null ?
+                    (String) event.getMetadata().get("requestUri") : null;
+
             return similarBehaviors.stream()
                     .map(doc -> {
                         Map<String, Object> meta = doc.getMetadata();
-                        return String.format("EventID:%s, Time:%s, Score:%.2f",
-                                meta.get("eventId"),
-                                meta.get("timestamp"),
-                                meta.getOrDefault("similarityScore", 0.0));
+
+                        // Similarity 계산 (0.0-1.0 -> %)
+                        double score = 0.0;
+                        Object scoreObj = meta.get("similarityScore");
+                        if (scoreObj instanceof Number) {
+                            score = ((Number) scoreObj).doubleValue();
+                        }
+                        int similarityPct = (int) (score * 100);
+
+                        // Action (과거 결정)
+                        String action = meta.get("action") != null ? meta.get("action").toString() : "N/A";
+
+                        // MatchedBy 계산 (어떤 속성이 일치하는지)
+                        List<String> matched = new ArrayList<>();
+                        if (currentIp != null && currentIp.equals(meta.get("sourceIp"))) {
+                            matched.add("IP");
+                        }
+                        if (currentHour != null && meta.get("timestamp") != null) {
+                            String ts = meta.get("timestamp").toString();
+                            if (ts.contains("T") && ts.length() > 13) {
+                                try {
+                                    int docHour = Integer.parseInt(ts.substring(11, 13));
+                                    if (currentHour == docHour) {
+                                        matched.add("Hour");
+                                    }
+                                } catch (NumberFormatException ignored) {}
+                            }
+                        }
+                        if (currentPath != null && currentPath.equals(meta.get("requestUri"))) {
+                            matched.add("Path");
+                        }
+                        String matchedBy = matched.isEmpty() ? "Vector" : String.join(",", matched);
+
+                        return String.format("EventID:%s, Similarity:%d%%, Action:%s, MatchedBy:[%s]",
+                                meta.get("eventId"), similarityPct, action, matchedBy);
                     })
                     .collect(Collectors.toList());
 
@@ -435,6 +472,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     /**
      * SessionContext 변환
+     *
+     * AI Native v6.6: SESSION 의미화
+     * - sessionAgeMinutes: 세션 시작 후 경과 시간 (분)
+     * - requestCount: 현재 세션의 요청 횟수
      */
     private SecurityPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
         SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
@@ -442,8 +483,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setUserId(sessionContext.getUserId());
         ctx.setAuthMethod(sessionContext.getAuthMethod());
         ctx.setRecentActions(sessionContext.getRecentActions());
-        // AI Native v6.0: setSessionDuration() 호출 삭제 - Dead Code (프롬프트 미사용)
-        // AI Native v4.2.0: setAccessPattern() 호출 삭제 - 프롬프트 미사용
+
+        // AI Native v6.6: SESSION 의미화 - LLM에 유용한 컨텍스트 제공
+        // 세션 경과 시간 계산
+        if (sessionContext.getStartTime() != null) {
+            long minutes = java.time.Duration.between(
+                sessionContext.getStartTime(),
+                java.time.LocalDateTime.now()
+            ).toMinutes();
+            ctx.setSessionAgeMinutes((int) Math.max(0, minutes));
+        }
+        // 요청 횟수
+        ctx.setRequestCount(sessionContext.getAccessFrequency());
+
         return ctx;
     }
 
