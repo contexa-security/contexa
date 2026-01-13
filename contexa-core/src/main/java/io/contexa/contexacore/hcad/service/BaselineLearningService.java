@@ -46,7 +46,7 @@ import java.util.Map;
  *
  * Redis 저장 스키마:
  * - Key: security:hcad:baseline:{userId}
- * - Fields: avgTrustScore, avgRequestCount, updateCount, confidence, lastUpdated
+ * - Fields: avgTrustScore, avgRequestCount, updateCount, learningMaturity, lastUpdated
  *
  * @author contexa
  * @since 3.0.0
@@ -273,7 +273,7 @@ public class BaselineLearningService {
                 .avgTrustScore(currentTrustScore)
                 .avgRequestCount(1L)
                 .updateCount(1L)
-                .confidence(currentConfidence * 0.1)  // 첫 학습은 신뢰도 낮게
+                .learningMaturity(currentConfidence * 0.1)  // 첫 학습은 성숙도 낮게
                 .lastUpdated(Instant.now());
 
             // Zero Trust 필수 데이터 초기화
@@ -301,7 +301,7 @@ public class BaselineLearningService {
         double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
 
         // 신뢰도 증가 (최대 1.0)
-        double oldConfidence = current.getConfidence() != null ? current.getConfidence() : 0.1;
+        double oldConfidence = current.getLearningMaturity() != null ? current.getLearningMaturity() : 0.1;
         double newConfidence = Math.min(1.0, oldConfidence + 0.01);
 
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
@@ -319,7 +319,7 @@ public class BaselineLearningService {
             .avgTrustScore(newTrustScore)
             .avgRequestCount(oldRequestCount + 1)
             .updateCount(oldUpdateCount + 1)
-            .confidence(newConfidence)
+            .learningMaturity(newConfidence)
             .lastUpdated(Instant.now())
             // Zero Trust 필수 데이터
             .normalIpRanges(normalIpRanges)
@@ -380,7 +380,7 @@ public class BaselineLearningService {
                 .avgTrustScore(currentTrustScore)
                 .avgRequestCount(1L)
                 .updateCount(1L)
-                .confidence(currentConfidence * 0.1)  // 첫 학습은 신뢰도 낮게
+                .learningMaturity(currentConfidence * 0.1)  // 첫 학습은 성숙도 낮게
                 .lastUpdated(Instant.now());
 
             // Zero Trust 필수 데이터 초기화
@@ -408,7 +408,7 @@ public class BaselineLearningService {
         double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
 
         // 신뢰도 증가 (최대 1.0)
-        double oldConfidence = current.getConfidence() != null ? current.getConfidence() : 0.1;
+        double oldConfidence = current.getLearningMaturity() != null ? current.getLearningMaturity() : 0.1;
         double newConfidence = Math.min(1.0, oldConfidence + 0.01);
 
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
@@ -426,7 +426,7 @@ public class BaselineLearningService {
             .avgTrustScore(newTrustScore)
             .avgRequestCount(oldRequestCount + 1)
             .updateCount(oldUpdateCount + 1)
-            .confidence(newConfidence)
+            .learningMaturity(newConfidence)
             .lastUpdated(Instant.now())
             // Zero Trust 필수 데이터
             .normalIpRanges(normalIpRanges)
@@ -503,17 +503,129 @@ public class BaselineLearningService {
     }
 
     /**
-     * IP 주소에서 C 클래스 대역 추출 (예: 192.168.1.100 -> 192.168.1)
+     * IP 주소에서 범위 추출 (AI Native v6.5)
+     *
+     * IPv4: C 클래스 대역 추출 (예: 192.168.1.100 -> 192.168.1)
+     * IPv6: Loopback 정규화 및 /64 prefix 추출
+     * Loopback: 127.0.0.1, ::1, 0:0:0:0:0:0:0:1 모두 "loopback"으로 통일
+     *
+     * @param ip IP 주소 문자열
+     * @return IP 범위 또는 정규화된 값
      */
     private String extractIpRange(String ip) {
         if (ip == null || ip.isEmpty()) {
             return null;
         }
+
+        // Loopback 주소 정규화 (IPv4/IPv6 모두 처리)
+        if (isLoopback(ip)) {
+            return "loopback";
+        }
+
+        // IPv6 처리 (콜론 포함)
+        if (ip.contains(":")) {
+            return normalizeIPv6Range(ip);
+        }
+
+        // IPv4: C 클래스 대역 추출
         int lastDot = ip.lastIndexOf('.');
         if (lastDot > 0) {
             return ip.substring(0, lastDot);
         }
         return ip;
+    }
+
+    /**
+     * Loopback 주소 여부 확인 (AI Native v6.5)
+     *
+     * @param ip IP 주소 문자열
+     * @return true면 loopback 주소
+     */
+    private boolean isLoopback(String ip) {
+        if (ip == null) {
+            return false;
+        }
+        // IPv4 loopback
+        if ("127.0.0.1".equals(ip) || ip.startsWith("127.")) {
+            return true;
+        }
+        // IPv6 loopback (다양한 표기)
+        if ("::1".equals(ip) ||
+            "0:0:0:0:0:0:0:1".equals(ip) ||
+            "0000:0000:0000:0000:0000:0000:0000:0001".equals(ip)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * IPv6 주소 범위 정규화 (AI Native v6.5)
+     *
+     * /64 prefix 기준으로 범위 추출 (처음 4개 세그먼트)
+     * 예: 2001:0db8:85a3:0000:0000:8a2e:0370:7334 -> 2001:db8:85a3:0
+     *
+     * @param ipv6 IPv6 주소 문자열
+     * @return 정규화된 /64 범위
+     */
+    private String normalizeIPv6Range(String ipv6) {
+        if (ipv6 == null || ipv6.isEmpty()) {
+            return null;
+        }
+
+        // :: 확장 처리
+        String expanded = expandIPv6(ipv6);
+        String[] segments = expanded.split(":");
+
+        // /64 prefix (처음 4개 세그먼트)
+        if (segments.length >= 4) {
+            return String.format("%s:%s:%s:%s",
+                normalizeIPv6Segment(segments[0]),
+                normalizeIPv6Segment(segments[1]),
+                normalizeIPv6Segment(segments[2]),
+                normalizeIPv6Segment(segments[3]));
+        }
+        return ipv6;
+    }
+
+    /**
+     * IPv6 :: 축약 확장
+     */
+    private String expandIPv6(String ipv6) {
+        if (!ipv6.contains("::")) {
+            return ipv6;
+        }
+        String[] parts = ipv6.split("::", 2);
+        String[] leftSegments = parts[0].isEmpty() ? new String[0] : parts[0].split(":");
+        String[] rightSegments = parts.length > 1 && !parts[1].isEmpty() ? parts[1].split(":") : new String[0];
+
+        int missingSegments = 8 - leftSegments.length - rightSegments.length;
+        StringBuilder expanded = new StringBuilder();
+
+        for (String seg : leftSegments) {
+            if (expanded.length() > 0) expanded.append(":");
+            expanded.append(seg);
+        }
+        for (int i = 0; i < missingSegments; i++) {
+            if (expanded.length() > 0) expanded.append(":");
+            expanded.append("0");
+        }
+        for (String seg : rightSegments) {
+            if (expanded.length() > 0) expanded.append(":");
+            expanded.append(seg);
+        }
+        return expanded.toString();
+    }
+
+    /**
+     * IPv6 세그먼트 정규화 (선행 0 제거)
+     */
+    private String normalizeIPv6Segment(String segment) {
+        if (segment == null || segment.isEmpty()) {
+            return "0";
+        }
+        // 선행 0 제거
+        String normalized = segment.replaceFirst("^0+", "");
+        return normalized.isEmpty() ? "0" : normalized;
     }
 
     /**
@@ -702,7 +814,7 @@ public class BaselineLearningService {
                     .avgTrustScore(orgBaseline.getAvgTrustScore())
                     .avgRequestCount(orgBaseline.getAvgRequestCount())
                     .updateCount(0L)  // 신규 사용자는 0
-                    .confidence(orgBaseline.getConfidence() * 0.7)  // 조직 Baseline은 신뢰도 30% 감소
+                    .learningMaturity(orgBaseline.getLearningMaturity() * 0.7)  // 조직 Baseline은 성숙도 30% 감소
                     .lastUpdated(orgBaseline.getLastUpdated())
                     .normalIpRanges(orgBaseline.getNormalIpRanges())
                     .normalAccessHours(orgBaseline.getNormalAccessHours())
@@ -730,12 +842,18 @@ public class BaselineLearningService {
                 return null;
             }
 
+            // AI Native v6.5: learningMaturity (기존 confidence 호환)
+            Double maturity = parseDouble(data.get("learningMaturity"));
+            if (maturity == 0.0 && data.get("confidence") != null) {
+                maturity = parseDouble(data.get("confidence"));  // 기존 데이터 호환
+            }
+
             return BaselineVector.builder()
                 .userId(userId)
                 .avgTrustScore(parseDouble(data.get("avgTrustScore")))
                 .avgRequestCount(parseLong(data.get("avgRequestCount")))
                 .updateCount(parseLong(data.get("updateCount")))
-                .confidence(parseDouble(data.get("confidence")))
+                .learningMaturity(maturity)
                 .lastUpdated(parseInstant(data.get("lastUpdated")))
                 // Zero Trust 필수 데이터 조회
                 .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
@@ -775,12 +893,18 @@ public class BaselineLearningService {
                 return null;
             }
 
+            // AI Native v6.5: learningMaturity (기존 confidence 호환)
+            Double maturity = parseDouble(data.get("learningMaturity"));
+            if (maturity == 0.0 && data.get("confidence") != null) {
+                maturity = parseDouble(data.get("confidence"));  // 기존 데이터 호환
+            }
+
             return BaselineVector.builder()
                 .userId("org:" + organizationId)
                 .avgTrustScore(parseDouble(data.get("avgTrustScore")))
                 .avgRequestCount(parseLong(data.get("avgRequestCount")))
                 .updateCount(parseLong(data.get("updateCount")))
-                .confidence(parseDouble(data.get("confidence")))
+                .learningMaturity(maturity)
                 .lastUpdated(parseInstant(data.get("lastUpdated")))
                 .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
                 .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
@@ -893,7 +1017,8 @@ public class BaselineLearningService {
             data.put("avgTrustScore", baseline.getAvgTrustScore());
             data.put("avgRequestCount", baseline.getAvgRequestCount());
             data.put("updateCount", baseline.getUpdateCount());
-            data.put("confidence", baseline.getConfidence());
+            // AI Native v6.5: confidence → learningMaturity 변경
+            data.put("learningMaturity", baseline.getLearningMaturity());
             data.put("lastUpdated", baseline.getLastUpdated() != null ?
                 baseline.getLastUpdated().toString() : Instant.now().toString());
 
@@ -1071,10 +1196,9 @@ public class BaselineLearningService {
             sb.append(osChangeWarning);
         }
 
-        // 5. 신뢰도 정보
-        sb.append(String.format("  Baseline Confidence: %.2f (updates: %d)\n",
-            baseline.getConfidence() != null ? baseline.getConfidence() : 0.0,
-            baseline.getUpdateCount() != null ? baseline.getUpdateCount() : 0));
+        // AI Native v6.5: learningMaturity 프롬프트 출력 제거
+        // - LLM 분석에 불필요한 데이터
+        // - 핵심 비교 데이터(IP, 시간, 경로, UA)만 제공
 
         return sb.toString();
     }

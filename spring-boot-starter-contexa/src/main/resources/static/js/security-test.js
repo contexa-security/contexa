@@ -576,7 +576,7 @@
             log('STEP', `${logPrefix} [대기] LLM 분석 완료 대기 (${ANALYSIS_WAIT_TIME/1000}초)...`);
             log('INFO', `${logPrefix} ColdPathEventProcessor -> Layer1/2/3 분석 -> Redis 저장`);
 
-            await sleep(ANALYSIS_WAIT_TIME);
+            /*await sleep(ANALYSIS_WAIT_TIME);
 
             // 분석 결과 조회
             log('INFO', `${logPrefix} 분석 결과 조회 중...`);
@@ -620,7 +620,7 @@
                 log('ERROR', `${logPrefix} 오류 - ${error.message}`);
             }
 
-            console.error(`Test ${type} error:`, error);
+            console.error(`Test ${type} error:`, error);*/
         } finally {
             log('STEP', `========== 테스트 완료 ==========`);
             state.isTestRunning = false;

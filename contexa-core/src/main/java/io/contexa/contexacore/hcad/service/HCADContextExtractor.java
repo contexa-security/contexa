@@ -342,17 +342,21 @@ public class HCADContextExtractor {
     private void enrichWithSecurityInfo(HCADContext context,
                                        String userId, Authentication authentication) {
         try {
-            // AI Native: 신규 사용자 판별 (이전 HCAD 분석 기록 확인)
-            // LLM 분석 결과가 Redis에 저장되어 있으면 기존 사용자
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Boolean hasAnalysis = redisTemplate.hasKey(analysisKey);
-            context.setNewUser(!Boolean.TRUE.equals(hasAnalysis));
+            // AI Native v6.5: 신규 사용자 판별 (영구 등록 키 확인)
+            // 첫 요청 시 등록 키 생성, 이후 모든 요청에서 isNewUser = false
+            // 기존 방식 문제: HCAD 분석 결과(TTL 30초)로 판단하면 매번 신규 사용자 됨
+            String registeredKey = ZeroTrustRedisKeys.userRegistered(userId);
+            Boolean isRegistered = redisTemplate.hasKey(registeredKey);
 
-            // 신규 사용자는 Cold Path에서 LLM 분석 후 자동으로 기록됨
-            if (Boolean.TRUE.equals(hasAnalysis)) {
-                log.debug("[HCAD][AI Native] Known user (has analysis): {}", userId);
+            if (!isRegistered) {
+                // 신규 사용자: 등록 키 생성 (영구 저장, TTL 없음)
+                redisTemplate.opsForValue().set(registeredKey, "true");
+                context.setNewUser(true);
+                log.info("[HCAD][AI Native] New user registered: {}", userId);
             } else {
-                log.debug("[HCAD][AI Native] New user (no analysis yet): {}", userId);
+                // 기존 사용자
+                context.setNewUser(false);
+                log.debug("[HCAD][AI Native] Known user: {}", userId);
             }
 
             // AI Native: 신뢰 점수를 그대로 조회 (기본값 규칙 제거)

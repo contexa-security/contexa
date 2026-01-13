@@ -49,7 +49,6 @@ public class SecurityDecisionPostProcessor {
     /**
      * 세션 컨텍스트 업데이트
      *
-     * Layer1ContextualStrategy.updateSessionContext()와 동일한 로직입니다.
      * 세션 액션 히스토리에 행동 기록을 추가하고, BLOCK 시 위험 점수를 저장합니다.
      *
      * @param event SecurityEvent

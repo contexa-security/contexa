@@ -87,14 +87,12 @@ public class SecurityPromptTemplate {
         StringBuilder baselineSectionBuilder = new StringBuilder();
         baselineSectionBuilder.append("=== BASELINE ===\n");
 
-        // AI Native v6.6: confidence 값 포함하여 상태 표시 (Layer2에서 가져옴)
-        Double baselineConfidence = (behaviorAnalysis != null) ? behaviorAnalysis.getBaselineConfidence() : null;
+        // AI Native v6.5: learningMaturity 프롬프트 출력 제거
+        // - LLM 분석에 불필요한 메타데이터
+        // - 핵심 비교 데이터(IP, 시간, 경로, UA)만 제공
 
         if (baselineStatus == BaselineStatus.ESTABLISHED) {
-            String statusWithConfidence = baselineConfidence != null
-                ? String.format("Available (confidence=%.2f)", baselineConfidence)
-                : "Available";
-            baselineSectionBuilder.append("STATUS: ").append(statusWithConfidence).append("\n");
+            baselineSectionBuilder.append("STATUS: Available\n");
 
             if (baselineContext != null) {
                 String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
@@ -170,11 +168,9 @@ public class SecurityPromptTemplate {
         if (userId != null) {
             prompt.append("User: ").append(PromptTemplateUtils.sanitizeUserInput(userId)).append("\n");
         }
-        if (isValidData(event.getDescription())) {
-            int maxDescLen = tieredStrategyProperties.getLayer1().getPrompt().getMaxDescriptionLength();
-            String desc = PromptTemplateUtils.sanitizeAndTruncate(event.getDescription(), maxDescLen);
-            prompt.append("Description: ").append(desc).append("\n");
-        }
+        // AI Native v6.5: Description 필드 제거
+        // - "Authorization decision: ALLOWED" 같은 무의미한 값이 LLM 분석을 방해
+        // - LLM에 필요한 데이터만 제공하여 분석 품질 향상
 
         // AI Native: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
         Map<String, Object> metadataObj = event.getMetadata();
@@ -594,8 +590,9 @@ public class SecurityPromptTemplate {
         private Boolean isNewSession;
         private Boolean isNewDevice;
 
-        // Baseline 성숙도 (학습 횟수 기반)
-        private Double baselineConfidence;
+        // AI Native v6.5: baselineConfidence 필드 제거
+        // - LLM 분석에 불필요한 메타데이터
+        // - 핵심 비교 데이터(IP, 시간, 경로, UA)만 제공
 
         // 세션 하이재킹 탐지용 OS 정보
         private String previousUserAgentOS;
@@ -620,9 +617,7 @@ public class SecurityPromptTemplate {
         public Boolean getIsNewDevice() { return isNewDevice; }
         public void setIsNewDevice(Boolean isNewDevice) { this.isNewDevice = isNewDevice; }
 
-        // Baseline 성숙도 getter/setter
-        public Double getBaselineConfidence() { return baselineConfidence; }
-        public void setBaselineConfidence(Double baselineConfidence) { this.baselineConfidence = baselineConfidence; }
+        // AI Native v6.5: baselineConfidence getter/setter 제거
 
         // 세션 하이재킹 탐지용 OS getter/setter
         public String getPreviousUserAgentOS() { return previousUserAgentOS; }

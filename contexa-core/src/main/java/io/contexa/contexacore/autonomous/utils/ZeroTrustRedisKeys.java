@@ -104,6 +104,28 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:user:devices:%s", NAMESPACE, userId);
     }
 
+    /**
+     * AI Native v6.5: 사용자 등록 상태 (IsNewUser 판단용)
+     *
+     * 사용자가 시스템에 최초 등록되었는지 여부를 저장
+     * IsNewUser 판단: 이 키가 존재하면 기존 사용자 (isNewUser = false)
+     *
+     * Format: security:user:registered:{userId}
+     * Type: String ("true")
+     * TTL: 없음 (영구 저장)
+     *
+     * 사용처:
+     * - HCADContextExtractor: IsNewUser 판단 및 첫 요청 시 등록
+     *
+     * 중요:
+     * - HCAD 분석 결과 키(hcadAnalysis)와 별개로 관리
+     * - 분석 결과는 TTL이 있지만, 등록 상태는 영구 저장
+     */
+    public static String userRegistered(String userId) {
+        validateUserId(userId);
+        return String.format("%s:user:registered:%s", NAMESPACE, userId);
+    }
+
     // AI Native: userBehavior() 제거 (v3.1.0) - 미사용
     // AI Native: userThreats() 제거 (v3.1.0) - 미사용
 
