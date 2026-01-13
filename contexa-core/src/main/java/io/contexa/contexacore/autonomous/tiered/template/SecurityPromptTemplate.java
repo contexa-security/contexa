@@ -282,15 +282,20 @@ public class SecurityPromptTemplate {
               Required: IP: MATCH
               Required: Hour: MATCH (or within +-2 hours of normal range)
               Optional: UA: MATCH or PARTIAL is acceptable
-              IMPORTANT: UA PARTIAL (browser version difference) is NORMAL due to auto-updates.
-              If IP: MATCH and Hour: MATCH, you SHOULD choose ALLOW even if UA: PARTIAL.
+              IMPORTANT (AI Native v7.3 - OS Change Detection):
+              - UA PARTIAL (same browser, same OS, different version) is NORMAL due to auto-updates.
+                If IP: MATCH and Hour: MATCH and UA: PARTIAL, ALLOW is acceptable.
+              - UA MISMATCH (different OS like Windows to Android) is SUSPICIOUS.
+                OS change indicates possible session hijacking or account takeover.
+                If UA: MISMATCH even with IP/Hour match, CHALLENGE is recommended.
 
             - BLOCK: Deny (strong malicious evidence, clear threat indicators)
 
             - CHALLENGE: Request MFA when:
               1. New user without baseline
               2. IP: MISMATCH (different network)
-              3. Hour: outside normal range AND other suspicious indicators
+              3. UA: MISMATCH (OS/device change even with IP/Hour match)
+              4. Hour: outside normal range AND other suspicious indicators
 
             - ESCALATE: Forward to Layer 2 when:
               1. Complex/ambiguous requiring expert review

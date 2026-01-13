@@ -1193,7 +1193,7 @@ public class BaselineLearningService {
         sb.append(String.format("Overall: %d%% match (%d/%d criteria)\n\n",
             matchPercentage, matchCount, totalCriteria));
 
-        // 5. RECOMMENDATION (AI Native v7.1: 구체적인 가이드라인)
+        // 5. RECOMMENDATION (AI Native v7.3: OS 변경 감지 추가)
         // LLM이 모호한 권고를 받으면 보수적으로 CHALLENGE 선택 → 영구 CHALLENGE 루프 발생
         // 따라서 명확한 조건별 권고 제공
         if (!ipMatch) {
@@ -1205,6 +1205,11 @@ public class BaselineLearningService {
             // 영구 CHALLENGE 루프 방지: IP + Hour MATCH면 ALLOW 가능
             sb.append("RECOMMENDATION: IP and Hour match, UA version difference is normal ");
             sb.append("(browser auto-update). ALLOW possible.\n");
+        } else if (ipMatch && hourMatch && "MISMATCH".equals(uaMatchStatus)) {
+            // AI Native v7.3: OS/디바이스 변경 감지 - 계정 탈취 의심
+            // Windows → Android, Mac → iOS 등 OS 변경은 세션 하이재킹 가능성
+            sb.append("RECOMMENDATION: IP and Hour match but UA shows different OS/device. ");
+            sb.append("Possible session hijacking or device change. CHALLENGE recommended.\n");
         } else if (ipMatch && hourMatch) {
             sb.append("RECOMMENDATION: IP and Hour match (ALLOW possible)\n");
         } else if (ipMatch) {
@@ -1258,7 +1263,17 @@ public class BaselineLearningService {
     }
 
     /**
-     * AI Native v7.0: UserAgent 일치 상태 판단
+     * AI Native v7.3: UserAgent 일치 상태 판단 (OS 변경 감지 추가)
+     *
+     * v7.3 보안 개선:
+     * - 기존: 브라우저명만 비교 → OS 변경 미감지 → 계정 탈취 공격 허용
+     * - 변경: 브라우저명 + OS 분리 비교 → OS 변경 시 MISMATCH 반환
+     *
+     * 판정 기준:
+     * - MATCH: 브라우저명 + 버전 + OS 모두 일치
+     * - PARTIAL: 브라우저명 + OS 일치, 버전만 다름 (자동 업데이트로 정상)
+     * - MISMATCH: OS가 다름 (Windows → Android = 디바이스 변경 = 의심)
+     * - UNKNOWN: UA 정보 없거나 파싱 불가
      *
      * @param normalUserAgents Baseline UA 목록
      * @param currentUserAgent 현재 UA
@@ -1277,11 +1292,28 @@ public class BaselineLearningService {
             if (normalSig != null && currentSig.equals(normalSig)) {
                 return "MATCH";
             }
-            // 같은 브라우저, 다른 버전이면 PARTIAL
-            String[] currentParts = currentSig.split("/");
-            String[] normalParts = normalSig != null ? normalSig.split("/") : new String[0];
-            if (currentParts.length > 0 && normalParts.length > 0 &&
-                currentParts[0].equals(normalParts[0])) {
+
+            // AI Native v7.3: 브라우저 + OS 분리 비교
+            String currentBrowser = extractBrowserFromSignature(currentSig);  // "Chrome/120"
+            String currentOS = extractOSFromSignature(currentSig);            // "Windows" 또는 "Android"
+            String normalBrowser = extractBrowserFromSignature(normalSig);    // "Chrome/143"
+            String normalOS = extractOSFromSignature(normalSig);              // "Windows"
+
+            // 브라우저명 추출 (버전 제외)
+            String currentBrowserName = currentBrowser != null && currentBrowser.contains("/")
+                ? currentBrowser.split("/")[0] : currentBrowser;
+            String normalBrowserName = normalBrowser != null && normalBrowser.contains("/")
+                ? normalBrowser.split("/")[0] : normalBrowser;
+
+            // 같은 브라우저인 경우
+            if (currentBrowserName != null && currentBrowserName.equals(normalBrowserName)) {
+                // OS가 다르면 MISMATCH (디바이스 변경 = 계정 탈취 의심)
+                // 예: Windows → Android, Mac → iOS 등
+                if (currentOS != null && normalOS != null && !currentOS.equals(normalOS)) {
+                    log.debug("[Baseline] UA OS 불일치 감지: current={}, baseline={}", currentOS, normalOS);
+                    return "MISMATCH";  // v7.3: OS 변경은 PARTIAL이 아닌 MISMATCH
+                }
+                // OS 동일, 버전만 다르면 PARTIAL (브라우저 자동 업데이트로 정상)
                 return "PARTIAL";
             }
         }
@@ -1603,6 +1635,47 @@ public class BaselineLearningService {
         String version = userAgent.substring(start, end);
         String browserName = prefix.replace("/", "");
         return browserName + "/" + version;
+    }
+
+    /**
+     * AI Native v7.3: UA 시그니처에서 브라우저명/버전 추출
+     *
+     * 시그니처 형식: "Chrome/120 (Windows)"
+     * 반환값: "Chrome/120"
+     *
+     * @param signature UA 시그니처 (extractUASignature() 반환값)
+     * @return 브라우저/버전 또는 null
+     */
+    private String extractBrowserFromSignature(String signature) {
+        if (signature == null) return null;
+        int spaceIdx = signature.indexOf(" ");
+        if (spaceIdx > 0) {
+            return signature.substring(0, spaceIdx);
+        }
+        return signature;
+    }
+
+    /**
+     * AI Native v7.3: UA 시그니처에서 OS 추출
+     *
+     * 시그니처 형식: "Chrome/120 (Windows)" 또는 "Chrome/120 (Android)"
+     * 반환값: "Windows" 또는 "Android"
+     *
+     * 보안 목적:
+     * - Windows → Android 변경 감지 (디바이스 변경 = 계정 탈취 의심)
+     * - Mac → iOS 변경 감지 (동일 생태계지만 디바이스 변경)
+     *
+     * @param signature UA 시그니처 (extractUASignature() 반환값)
+     * @return OS 또는 null
+     */
+    private String extractOSFromSignature(String signature) {
+        if (signature == null) return null;
+        int openParen = signature.indexOf("(");
+        int closeParen = signature.indexOf(")");
+        if (openParen > 0 && closeParen > openParen) {
+            return signature.substring(openParen + 1, closeParen);
+        }
+        return null;
     }
 
 }
