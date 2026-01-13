@@ -526,7 +526,7 @@ public class ZeroTrustSecurityService {
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
 
             // 3. TTL을 ALLOW의 TTL(1시간)로 갱신
-            redisTemplate.expire(analysisKey, Duration.ofHours(1));
+            redisTemplate.expire(analysisKey, Duration.ofSeconds(20));
 
             // 4. Baseline 학습 수행 (ALLOW 획득 지점에서 직접 처리)
             learnBaselineOnMfaSuccess(userId, request);
