@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -33,8 +34,11 @@ public class IamSecurityCoreAutoConfiguration {
             RedisAtomicOperations redisAtomicOperations,
             ObjectMapper objectMapper,
             BaselineLearningService baselineLearningService,
-            ApplicationEventPublisher eventPublisher) {
-        return new ZeroTrustSecurityService(redisTemplate, threatScoreOrchestrator, redisAtomicOperations, objectMapper, baselineLearningService, eventPublisher);
+            ApplicationEventPublisher eventPublisher,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new ZeroTrustSecurityService(redisTemplate,
+                threatScoreOrchestrator, redisAtomicOperations,
+                objectMapper, baselineLearningService, eventPublisher, tieredStrategyProperties);
     }
 
     @Bean
