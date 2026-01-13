@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
+import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -25,6 +26,7 @@ import org.springframework.security.core.context.SecurityContext;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.net.InetAddress;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -57,6 +59,7 @@ public class ZeroTrustSecurityService {
     private final ObjectMapper objectMapper;
     private final BaselineLearningService baselineLearningService;
     private final ApplicationEventPublisher eventPublisher;
+    private final TieredStrategyProperties tieredStrategyProperties;
 
     @Value("${zerotrust.enabled:true}")
     private boolean zeroTrustEnabled;
@@ -618,17 +621,162 @@ public class ZeroTrustSecurityService {
             log.error("Failed to publish authentication success event", e);
         }
     }
+    /**
+     * AI Native v7.0: IP 추출 로직 일관성 확보
+     *
+     * AuthorizationEventPublisher.extractClientIpStatic()과 동일한 로직 사용.
+     * trustedProxies 검증을 통해 X-Forwarded-For 스푸핑 방지.
+     *
+     * 문제:
+     * - 기존: X-Forwarded-For 무조건 신뢰 → 192.168.1.100 저장
+     * - 실제 요청: remoteAddr = 0:0:0:0:0:0:0:1 (localhost IPv6)
+     * - Baseline IP와 현재 IP 불일치 발생
+     *
+     * 해결:
+     * - trustedProxies 검증 수행
+     * - remoteAddr가 trustedProxies에 있을 때만 X-Forwarded-For 사용
+     */
     protected String extractClientIp(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+
+        // TieredStrategyProperties.Security 설정 확인
+        TieredStrategyProperties.Security security = (tieredStrategyProperties != null)
+                ? tieredStrategyProperties.getSecurity() : null;
+
+        // Security 설정이 없거나 검증 비활성화면 기존 동작 유지 (개발 환경용)
+        if (security == null || !security.isTrustedProxyValidationEnabled()) {
+            return extractClientIpLegacy(request);
+        }
+
+        List<String> trustedProxies = security.getTrustedProxies();
+
+        // 신뢰 프록시 목록이 비어있으면 X-Forwarded-For 사용 안 함 (가장 안전)
+        if (trustedProxies == null || trustedProxies.isEmpty()) {
+            log.debug("[ZeroTrust][IP] No trusted proxies configured, using remoteAddr: {}", remoteAddr);
+            return remoteAddr;
+        }
+
+        // remoteAddr이 신뢰 프록시 목록에 있는지 확인
+        if (isTrustedProxy(remoteAddr, trustedProxies)) {
+            // 신뢰 프록시에서 온 요청 → X-Forwarded-For 사용
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                String clientIp = xForwardedFor.split(",")[0].trim();
+                log.debug("[ZeroTrust][IP] Trusted proxy {}, using X-Forwarded-For: {}", remoteAddr, clientIp);
+                return clientIp;
+            }
+
+            String xRealIp = request.getHeader("X-Real-IP");
+            if (xRealIp != null && !xRealIp.isEmpty()) {
+                log.debug("[ZeroTrust][IP] Trusted proxy {}, using X-Real-IP: {}", remoteAddr, xRealIp);
+                return xRealIp;
+            }
+        } else {
+            // 신뢰 프록시가 아닌 곳에서 온 요청 → remoteAddr 사용
+            // X-Forwarded-For가 있어도 무시 (스푸핑 방지)
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                log.warn("[ZeroTrust][IP] Untrusted source {} sent X-Forwarded-For header (ignored): {}",
+                        remoteAddr, xForwardedFor);
+            }
+        }
+
+        return remoteAddr;
+    }
+
+    /**
+     * 기존 IP 추출 로직 (레거시, 개발 환경용)
+     */
+    private String extractClientIpLegacy(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
             return xForwardedFor.split(",")[0].trim();
         }
-
         String xRealIp = request.getHeader("X-Real-IP");
         if (xRealIp != null && !xRealIp.isEmpty()) {
             return xRealIp;
         }
-
         return request.getRemoteAddr();
+    }
+
+    /**
+     * IP가 신뢰 프록시 목록에 있는지 확인
+     *
+     * CIDR 표기법 지원 (예: "10.0.0.0/8", "192.168.0.0/16")
+     */
+    private boolean isTrustedProxy(String ip, List<String> trustedProxies) {
+        if (ip == null || trustedProxies == null) {
+            return false;
+        }
+
+        for (String trusted : trustedProxies) {
+            if (trusted == null || trusted.isEmpty()) {
+                continue;
+            }
+
+            try {
+                if (trusted.contains("/")) {
+                    // CIDR 표기법 (예: "10.0.0.0/8")
+                    if (isIpInCidr(ip, trusted)) {
+                        return true;
+                    }
+                } else {
+                    // 단일 IP (정확히 일치)
+                    if (trusted.equals(ip)) {
+                        return true;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[ZeroTrust][IP] Invalid trusted proxy format: {}", trusted, e);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * IP가 CIDR 범위 내에 있는지 확인
+     */
+    private boolean isIpInCidr(String ip, String cidr) {
+        try {
+            String[] parts = cidr.split("/");
+            if (parts.length != 2) {
+                return false;
+            }
+
+            String networkAddress = parts[0];
+            int prefixLength = Integer.parseInt(parts[1]);
+
+            InetAddress inetIp = InetAddress.getByName(ip);
+            InetAddress inetNetwork = InetAddress.getByName(networkAddress);
+
+            byte[] ipBytes = inetIp.getAddress();
+            byte[] networkBytes = inetNetwork.getAddress();
+
+            if (ipBytes.length != networkBytes.length) {
+                return false;
+            }
+
+            int fullBytes = prefixLength / 8;
+            int remainingBits = prefixLength % 8;
+
+            for (int i = 0; i < fullBytes; i++) {
+                if (ipBytes[i] != networkBytes[i]) {
+                    return false;
+                }
+            }
+
+            if (remainingBits > 0 && fullBytes < ipBytes.length) {
+                int mask = (0xFF << (8 - remainingBits)) & 0xFF;
+                if ((ipBytes[fullBytes] & mask) != (networkBytes[fullBytes] & mask)) {
+                    return false;
+                }
+            }
+
+            return true;
+        } catch (Exception e) {
+            log.debug("[ZeroTrust][IP] CIDR check failed for {} in {}", ip, cidr, e);
+            return false;
+        }
     }
 }

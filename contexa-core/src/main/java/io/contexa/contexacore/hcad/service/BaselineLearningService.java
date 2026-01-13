@@ -1143,73 +1143,132 @@ public class BaselineLearningService {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("User Baseline (compare with current request):\n");
+        // AI Native v7.0: MATCH/MISMATCH 형식으로 변경
+        // LLM이 직접 비교할 필요 없이 즉시 판단 가능
+        sb.append("=== BASELINE COMPARISON ===\n");
 
-        // 1. IP 패턴 - raw 데이터만 제공
+        // 1. IP 비교 - MATCH/MISMATCH 명시
         String[] normalIps = baseline.getNormalIpRanges();
-        sb.append(String.format("  Normal IPs: %s\n",
+        String currentIp = currentEvent != null ? currentEvent.getSourceIp() : "unknown";
+        String normalizedCurrentIp = extractIpRange(currentIp);
+        boolean ipMatch = isIpMatch(normalIps, normalizedCurrentIp);
+        sb.append(String.format("IP: %s (Current: %s, Baseline: %s)\n",
+            ipMatch ? "MATCH" : "MISMATCH",
+            normalizedCurrentIp != null ? normalizedCurrentIp : currentIp,
             normalIps != null && normalIps.length > 0 ? String.join(", ", normalIps) : "none"));
 
-        String currentIp = currentEvent != null ? currentEvent.getSourceIp() : "unknown";
-        // AI Native v6.5: 프롬프트 출력 시에도 IP 정규화 (baseline과 동일한 형식)
-        // - baseline 학습 시 extractIpRange()로 정규화되므로, 비교를 위해 현재 IP도 동일하게 정규화
-        // - 예: 0:0:0:0:0:0:0:1 → loopback, 192.168.1.100 → 192.168.1
-        String normalizedCurrentIp = extractIpRange(currentIp);
-        sb.append(String.format("  Current IP: %s\n", normalizedCurrentIp != null ? normalizedCurrentIp : currentIp));
-
-        // 2. 시간 패턴 - raw 데이터만 제공
+        // 2. Hour 비교 - MATCH/MISMATCH 명시
         Integer[] normalHours = baseline.getNormalAccessHours();
-        sb.append(String.format("  Normal Hours: %s\n",
-            normalHours != null && normalHours.length > 0 ? Arrays.toString(normalHours) : "none"));
-
         int currentHour = currentEvent != null && currentEvent.getTimestamp() != null
             ? currentEvent.getTimestamp().getHour() : -1;
-        sb.append(String.format("  Current Hour: %d\n", currentHour));
+        boolean hourMatch = isHourMatch(normalHours, currentHour);
+        sb.append(String.format("Hour: %s (Current: %d, Baseline: %s)\n",
+            hourMatch ? "MATCH" : "MISMATCH",
+            currentHour,
+            normalHours != null && normalHours.length > 0 ? Arrays.toString(normalHours) : "none"));
 
-        // 3. 경로 패턴 - raw 데이터만 제공
-        String[] frequentPaths = baseline.getFrequentPaths();
-        if (frequentPaths != null && frequentPaths.length > 0) {
-            int maxPaths = Math.min(3, frequentPaths.length);
-            sb.append(String.format("  Frequent Paths: %s\n",
-                String.join(", ", Arrays.copyOf(frequentPaths, maxPaths))));
-        }
-
-        String currentPath = extractPath(currentEvent);
-        if (currentPath != null) {
-            sb.append(String.format("  Current Path: %s\n", currentPath));
-        }
-
-        // 4. User-Agent 패턴 - AI Native v6.6: 핵심 정보만 추출
-        // LLM이 쉽게 비교할 수 있도록 브라우저명, 버전, OS만 제공
-        // 예: "Chrome/143 (Windows)", "Firefox/120 (Linux)"
+        // 3. UA 비교 - MATCH/PARTIAL/MISMATCH 명시
         String[] normalUserAgents = baseline.getNormalUserAgents();
-        if (normalUserAgents != null && normalUserAgents.length > 0) {
-            String[] signatures = Arrays.stream(normalUserAgents)
-                .limit(3)
-                .map(this::extractUASignature)
-                .distinct()
-                .toArray(String[]::new);
-            sb.append(String.format("  Normal UA Signatures: %s\n", String.join(", ", signatures)));
-        } else {
-            sb.append("  Normal UA Signatures: none\n");
-        }
-
         String currentUserAgent = currentEvent != null ? currentEvent.getUserAgent() : null;
+        String uaMatchStatus = getUAMatchStatus(normalUserAgents, currentUserAgent);
         String currentUASignature = extractUASignature(currentUserAgent);
-        sb.append(String.format("  Current UA Signature: %s\n", currentUASignature));
+        String baselineUASignature = normalUserAgents != null && normalUserAgents.length > 0
+            ? extractUASignature(normalUserAgents[0]) : "none";
+        sb.append(String.format("UA: %s (Current: %s, Baseline: %s)\n",
+            uaMatchStatus,
+            currentUASignature,
+            baselineUASignature));
 
-        // AI Native v6.1: OS 변경 감지 (세션 하이재킹 탐지)
-        // 플랫폼은 OS 변경 사실만 제공, LLM이 위협 여부 판단
-        String osChangeWarning = detectOSChange(normalUserAgents, currentUserAgent);
-        if (osChangeWarning != null) {
-            sb.append(osChangeWarning);
+        // 4. Overall 매칭 점수 (AI Native: 정보 제공, 판단은 LLM)
+        int matchCount = (ipMatch ? 1 : 0) + (hourMatch ? 1 : 0) +
+                         ("MATCH".equals(uaMatchStatus) ? 1 : 0);
+        int totalCriteria = 3;
+        int matchPercentage = (matchCount * 100) / totalCriteria;
+        sb.append(String.format("Overall: %d%% match (%d/%d criteria)\n\n",
+            matchPercentage, matchCount, totalCriteria));
+
+        // 5. RECOMMENDATION (AI Native: 강제가 아닌 제안)
+        if (!ipMatch) {
+            sb.append("RECOMMENDATION: IP mismatch requires verification (CHALLENGE recommended)\n");
+        } else if (matchCount == totalCriteria) {
+            sb.append("RECOMMENDATION: All criteria matched (ALLOW possible if no other risk indicators)\n");
+        } else {
+            sb.append("RECOMMENDATION: Partial match, evaluate based on context\n");
         }
-
-        // AI Native v6.5: learningMaturity 프롬프트 출력 제거
-        // - LLM 분석에 불필요한 데이터
-        // - 핵심 비교 데이터(IP, 시간, 경로, UA)만 제공
 
         return sb.toString();
+    }
+
+    /**
+     * AI Native v7.0: IP 일치 여부 판단
+     *
+     * @param normalIps Baseline IP 목록
+     * @param currentIp 현재 IP (정규화됨)
+     * @return 일치 여부
+     */
+    private boolean isIpMatch(String[] normalIps, String currentIp) {
+        if (normalIps == null || normalIps.length == 0 || currentIp == null) {
+            return false;
+        }
+        // AI Native v7.0: equals만 사용 (startsWith 버그 수정)
+        // extractIpRange()가 이미 정규화하므로 정확히 일치해야 함
+        // 버그: "192.168.10".startsWith("192.168.1") = true
+        for (String normalIp : normalIps) {
+            if (normalIp != null && normalIp.equals(currentIp)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * AI Native v7.0: Hour 일치 여부 판단
+     *
+     * @param normalHours Baseline 시간 목록
+     * @param currentHour 현재 시간
+     * @return 일치 여부
+     */
+    private boolean isHourMatch(Integer[] normalHours, int currentHour) {
+        if (normalHours == null || normalHours.length == 0 || currentHour < 0) {
+            return false;
+        }
+        for (Integer normalHour : normalHours) {
+            if (normalHour != null && normalHour == currentHour) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * AI Native v7.0: UserAgent 일치 상태 판단
+     *
+     * @param normalUserAgents Baseline UA 목록
+     * @param currentUserAgent 현재 UA
+     * @return MATCH, PARTIAL, MISMATCH, UNKNOWN
+     */
+    private String getUAMatchStatus(String[] normalUserAgents, String currentUserAgent) {
+        if (normalUserAgents == null || normalUserAgents.length == 0 || currentUserAgent == null) {
+            return "UNKNOWN";
+        }
+        String currentSig = extractUASignature(currentUserAgent);
+        if (currentSig == null || currentSig.equals("unknown") || currentSig.equals("unknown (unknown)")) {
+            return "UNKNOWN";
+        }
+        for (String normalUA : normalUserAgents) {
+            String normalSig = extractUASignature(normalUA);
+            if (normalSig != null && currentSig.equals(normalSig)) {
+                return "MATCH";
+            }
+            // 같은 브라우저, 다른 버전이면 PARTIAL
+            String[] currentParts = currentSig.split("/");
+            String[] normalParts = normalSig != null ? normalSig.split("/") : new String[0];
+            if (currentParts.length > 0 && normalParts.length > 0 &&
+                currentParts[0].equals(normalParts[0])) {
+                return "PARTIAL";
+            }
+        }
+        return "MISMATCH";
     }
 
     // Phase 9: analyzeDeviations() 제거 - AI Native 위반 (규칙 기반 점수 계산)
@@ -1247,24 +1306,22 @@ public class BaselineLearningService {
         sb.append("- You CANNOT compare against historical patterns\n");
         sb.append("- This could be a first-time attacker\n\n");
 
-        // 현재 요청 정보 제공 (LLM 분석용)
+        // AI Native v7.0: LLM 분석에 필요한 데이터만 제공
+        // - SessionId, 전체 Timestamp 제거 (LLM 판단에 불필요)
+        // - IP, Hour, UA만 제공 (Baseline 비교에 사용되는 핵심 데이터)
         sb.append("Current Request Context:\n");
         if (currentEvent != null) {
             String sourceIp = currentEvent.getSourceIp();
-            sb.append(String.format("  IP: %s\n", sourceIp != null ? sourceIp : "NOT_PROVIDED"));
-
-            String sessionId = currentEvent.getSessionId();
-            sb.append(String.format("  SessionId: %s\n", sessionId != null ? sessionId : "NOT_PROVIDED"));
-
-            String userAgent = currentEvent.getUserAgent();
-            if (userAgent != null && userAgent.length() > 100) {
-                userAgent = userAgent.substring(0, 97) + "...";
-            }
-            sb.append(String.format("  UserAgent: %s\n", userAgent != null ? userAgent : "NOT_PROVIDED"));
+            String normalizedIp = extractIpRange(sourceIp);
+            sb.append(String.format("  IP: %s\n", normalizedIp != null ? normalizedIp : "NOT_PROVIDED"));
 
             if (currentEvent.getTimestamp() != null) {
-                sb.append(String.format("  Timestamp: %s\n", currentEvent.getTimestamp()));
+                sb.append(String.format("  Hour: %d\n", currentEvent.getTimestamp().getHour()));
             }
+
+            String userAgent = currentEvent.getUserAgent();
+            String uaSignature = extractUASignature(userAgent);
+            sb.append(String.format("  UA: %s\n", uaSignature));
         }
         sb.append("\n");
 

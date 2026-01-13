@@ -212,7 +212,8 @@ public class SecurityPromptTemplate {
                 prompt.append("AuthMethod: ").append(sanitizedAuthMethod).append("\n");
             }
             // Zero Trust 신호 출력 (isNewUser, isNewSession, isNewDevice)
-            appendZeroTrustSignals(prompt, event, behaviorAnalysis);
+            // AI Native v7.0: LLM 분석 시점 기준 - Baseline 없으면 모두 true
+            appendZeroTrustSignals(prompt, event, behaviorAnalysis, baselineStatus);
         } else {
             prompt.append("[NO_DATA] Session context unavailable\n");
         }
@@ -269,7 +270,7 @@ public class SecurityPromptTemplate {
         prompt.append(dataQualitySection);
 
         // 9. 응답 형식 (통일된 5필드)
-        // AI Native v6.7: JSON 전용 응답 강제
+        // AI Native v7.0: JSON 전용 응답 강제 + 다양한 응답 예시
         prompt.append("""
 
             === RESPONSE INSTRUCTIONS ===
@@ -281,8 +282,19 @@ public class SecurityPromptTemplate {
             - CHALLENGE: Request MFA (suspicious but inconclusive)
             - ESCALATE: Forward to Layer 2 (complex/ambiguous)
 
-            REQUIRED JSON FORMAT (respond with ONLY this, nothing else):
-            {"riskScore":0.5,"confidence":0.5,"confidenceReasoning":"reason for confidence","action":"CHALLENGE","reasoning":"reason for action","mitre":"T1078"}
+            EXAMPLE RESPONSES (choose based on your analysis):
+
+            1. ALLOW (baseline matches, trusted):
+            {"riskScore":0.1,"confidence":0.9,"confidenceReasoning":"baseline established, all patterns match","action":"ALLOW","reasoning":"trusted user with consistent behavior","mitre":null}
+
+            2. CHALLENGE (new user, inconclusive):
+            {"riskScore":0.6,"confidence":0.4,"confidenceReasoning":"no baseline, cannot verify identity","action":"CHALLENGE","reasoning":"require MFA to establish trust","mitre":null}
+
+            3. BLOCK (clear threat):
+            {"riskScore":0.9,"confidence":0.85,"confidenceReasoning":"strong malicious indicators","action":"BLOCK","reasoning":"credential stuffing attempt detected","mitre":"T1078"}
+
+            4. ESCALATE (complex case):
+            {"riskScore":0.5,"confidence":0.3,"confidenceReasoning":"ambiguous signals require expert review","action":"ESCALATE","reasoning":"unusual pattern needs deeper analysis","mitre":null}
 
             FIELD RULES:
             - riskScore: number 0-1 (0=safe, 1=critical)
@@ -301,51 +313,86 @@ public class SecurityPromptTemplate {
     /**
      * Zero Trust 신호 출력 (isNewUser, isNewSession, isNewDevice)
      *
-     * BehaviorAnalysis와 event metadata에서 Zero Trust 신호를 가져옵니다.
-     * AI Native v6.6: Layer1과 Layer2 통합으로 양쪽 소스에서 데이터 수집
+     * AI Native v7.0: 각 신호를 독립적으로 판단
+     *
+     * 핵심 변경:
+     * - IsNewUser: Baseline 존재 여부로 판단 (LLM 분석 시점 기준)
+     * - IsNewSession: HCAD 시점 값 사용 (세션 기반, Redis 세션 키 존재 여부)
+     * - IsNewDevice: HCAD 시점 값 사용 (디바이스 기반, Redis 디바이스 Set 존재 여부)
+     *
+     * 이유:
+     * - IsNewUser: HCAD에서 false라도 Baseline 없으면 LLM 분석 시점에서 "새 사용자"
+     * - IsNewSession: 세션 기반이라 HCAD 값 그대로 사용 가능
+     * - IsNewDevice: 디바이스 기반이라 HCAD 값 그대로 사용 가능
+     *
+     * 예시:
+     * - 새 사용자 + 같은 세션에서 여러 요청 → IsNewUser: true, IsNewSession: false
+     * - 기존 사용자 + 새 디바이스 → IsNewUser: false, IsNewDevice: true
      */
-    private void appendZeroTrustSignals(StringBuilder prompt, SecurityEvent event, BehaviorAnalysis behaviorAnalysis) {
-        // 1. BehaviorAnalysis에서 Zero Trust 신호 가져오기 (Layer2 방식)
-        if (behaviorAnalysis != null) {
-            Boolean isNewUser = behaviorAnalysis.getIsNewUser();
-            Boolean isNewSession = behaviorAnalysis.getIsNewSession();
-            Boolean isNewDevice = behaviorAnalysis.getIsNewDevice();
+    private void appendZeroTrustSignals(StringBuilder prompt, SecurityEvent event,
+                                        BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
+        // AI Native v7.0: 각 신호 독립 판단
 
-            if (isNewUser != null) {
-                prompt.append("IsNewUser: ").append(isNewUser).append("\n");
-            }
-            if (isNewSession != null) {
-                prompt.append("IsNewSession: ").append(isNewSession).append("\n");
-            }
-            if (isNewDevice != null) {
-                prompt.append("IsNewDevice: ").append(isNewDevice).append("\n");
-            }
+        // 1. IsNewUser: Baseline 존재 여부로 판단 (LLM 분석 시점 기준)
+        // HCAD에서 false라도 Baseline 없으면 실질적으로 "새 사용자"
+        boolean isNewUserForLlm = (baselineStatus != BaselineStatus.ESTABLISHED);
+        prompt.append("IsNewUser: ").append(isNewUserForLlm);
+        if (isNewUserForLlm) {
+            prompt.append(" (no baseline established)");
+        }
+        prompt.append("\n");
 
-            // BehaviorAnalysis에 값이 있으면 사용
-            if (isNewUser != null || isNewSession != null || isNewDevice != null) {
-                return;
-            }
+        // 2. IsNewSession: HCAD 시점 값 사용 (세션 기반)
+        Boolean isNewSession = getIsNewSession(behaviorAnalysis, event);
+        if (isNewSession != null) {
+            prompt.append("IsNewSession: ").append(isNewSession).append("\n");
         }
 
-        // 2. event.metadata에서 Zero Trust 신호 가져오기 (Layer1 방식)
+        // 3. IsNewDevice: HCAD 시점 값 사용 (디바이스 기반)
+        Boolean isNewDevice = getIsNewDevice(behaviorAnalysis, event);
+        if (isNewDevice != null) {
+            prompt.append("IsNewDevice: ").append(isNewDevice).append("\n");
+        }
+    }
+
+    /**
+     * IsNewSession 값 추출 (BehaviorAnalysis 또는 metadata)
+     */
+    private Boolean getIsNewSession(BehaviorAnalysis behaviorAnalysis, SecurityEvent event) {
+        if (behaviorAnalysis != null && behaviorAnalysis.getIsNewSession() != null) {
+            return behaviorAnalysis.getIsNewSession();
+        }
+
         Object metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) metadataObj;
-
-            Object isNewUserObj = metadata.get("isNewUser");
-            if (isNewUserObj != null) {
-                prompt.append("IsNewUser: ").append(isNewUserObj).append("\n");
-            }
-            Object isNewSessionObj = metadata.get("isNewSession");
-            if (isNewSessionObj != null) {
-                prompt.append("IsNewSession: ").append(isNewSessionObj).append("\n");
-            }
-            Object isNewDeviceObj = metadata.get("isNewDevice");
-            if (isNewDeviceObj != null) {
-                prompt.append("IsNewDevice: ").append(isNewDeviceObj).append("\n");
+            Object value = metadata.get("isNewSession");
+            if (value instanceof Boolean) {
+                return (Boolean) value;
             }
         }
+        return null;
+    }
+
+    /**
+     * IsNewDevice 값 추출 (BehaviorAnalysis 또는 metadata)
+     */
+    private Boolean getIsNewDevice(BehaviorAnalysis behaviorAnalysis, SecurityEvent event) {
+        if (behaviorAnalysis != null && behaviorAnalysis.getIsNewDevice() != null) {
+            return behaviorAnalysis.getIsNewDevice();
+        }
+
+        Object metadataObj = event.getMetadata();
+        if (metadataObj instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) metadataObj;
+            Object value = metadata.get("isNewDevice");
+            if (value instanceof Boolean) {
+                return (Boolean) value;
+            }
+        }
+        return null;
     }
 
     /**
@@ -391,11 +438,10 @@ public class SecurityPromptTemplate {
                 meta.append("|user=").append(userId);
             }
 
-            // AI Native v6.7: action 추가 (과거 결정 표시)
-            Object action = metadata.get("action");
-            if (action != null) {
-                meta.append("|action=").append(action);
-            }
+            // AI Native v7.0: action 출력 제거 (순환 로직 방지)
+            // - 저장 단계에서 action 제거됨 (SecurityDecisionPostProcessor, Layer2ExpertStrategy)
+            // - 기존 벡터 데이터에 action이 남아있어도 프롬프트에 출력하지 않음
+            // - LLM이 이전 결정에 편향되지 않고 독립적으로 판단
 
             // AI Native v6.7: riskScore, confidence 제거 (순환 로직 방지)
             // 이전 LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가

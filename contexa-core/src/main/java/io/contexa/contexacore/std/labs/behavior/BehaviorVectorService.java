@@ -201,7 +201,10 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     public void storeBehavior(BehavioralAnalysisContext context) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("userId", context.getUserId() != null ? context.getUserId() : "unknown");
+            // AI Native v7.0: "unknown" 폴백 제거 - null이면 필드 자체 생략
+            if (context.getUserId() != null) {
+                metadata.put("userId", context.getUserId());
+            }
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
 
             // 기본 활동 정보
@@ -362,18 +365,14 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             // AI Native v7.0: riskScore, behaviorAnomalyScore 제거 (LLM 결과 = 순환 로직)
             // AI Native v7.0: riskCategory 제거 (플랫폼 판단 = AI Native 위반)
 
-            // AI Native v6.1: 위협 분류 - anomalyIndicators 원시 데이터 저장
-            // determineThreatType() 제거 - 플랫폼이 위협 유형을 결정하면 AI Native 위반
-            // LLM이 나중에 anomalyIndicators를 참조하여 직접 판단
+            // AI Native v7.0: 위협 분류 - anomalyIndicators 원시 데이터만 저장
+            // patternType, mitreTactic 제거 - 플랫폼이 판단하면 AI Native 위반
+            // LLM이 anomalyIndicators를 참조하여 직접 판단
             List<String> indicators = context.getAnomalyIndicators();
             if (indicators != null && !indicators.isEmpty()) {
                 metadata.put("threatIndicators", String.join(",", indicators));
             }
-            // AI Native v7.0: "none" 기본값 제거 - null이면 필드 자체 생략
-            metadata.put("patternType", determinePatternType(context));
-
-            // MITRE ATT&CK 매핑
-            metadata.put("mitreTactic", mapToMitreTactic(context));
+            // AI Native v7.0: patternType, mitreTactic 제거 (플랫폼 판단 = AI Native 위반)
 
             // IOC 지표 추출
             List<String> iocIndicators = extractIocIndicators(context);
@@ -418,36 +417,13 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         }
     }
 
-    // AI Native v6.1: determineThreatType() 제거
-    // 문제점: LLM이 생성한 anomalyIndicators를 플랫폼이 다시 해석하여 threatType 결정
-    // AI Native 위반: 플랫폼이 위협 유형을 판단하면 안 됨
-    // 대안: anomalyIndicators 원시 데이터를 직접 저장하여 LLM이 참조하도록 함
-    // 호환성 유지를 위해 deprecated 처리 (기존 호출부 점진적 마이그레이션)
-    @Deprecated(since = "6.1.0", forRemoval = true)
-    private String determineThreatType(BehavioralAnalysisContext context) {
-        // AI Native: anomalyIndicators 첫 번째 값 반환 (규칙 기반 분류 제거)
-        List<String> indicators = context.getAnomalyIndicators();
-        if (indicators != null && !indicators.isEmpty()) {
-            return indicators.get(0).toUpperCase(); // LLM이 생성한 값 그대로 반환
-        }
-        return "UNKNOWN";
-    }
+    // AI Native v7.0: determineThreatType() 삭제
+    // 플랫폼이 위협 유형을 결정하면 AI Native 위반
+    // LLM이 anomalyIndicators 원시 데이터를 보고 직접 판단
 
-    /**
-     * MITRE ATT&CK 전술 매핑
-     */
-    private String mapToMitreTactic(BehavioralAnalysisContext context) {
-        String threatType = determineThreatType(context);
-        return switch (threatType) {
-            case "BRUTE_FORCE" -> "TA0006:CredentialAccess";
-            case "SESSION_HIJACKING" -> "TA0006:CredentialAccess";
-            case "DATA_EXFILTRATION" -> "TA0010:Exfiltration";
-            case "PRIVILEGE_ESCALATION" -> "TA0004:PrivilegeEscalation";
-            case "INJECTION_ATTACK" -> "TA0001:InitialAccess";
-            case "UNAUTHORIZED_ACCESS" -> "TA0005:DefenseEvasion";
-            default -> "TA0043:Reconnaissance";
-        };
-    }
+    // AI Native v7.0: mapToMitreTactic() 삭제
+    // 플랫폼이 MITRE ATT&CK 전술을 매핑하면 AI Native 위반
+    // LLM이 사실 데이터를 보고 MITRE 전술을 직접 판단
 
     /**
      * IOC 지표 추출
@@ -476,18 +452,9 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         return indicators;
     }
 
-    // AI Native v6.1: isSuspiciousUserAgent() 제거
-    // 문제점: 플랫폼이 하드코딩된 규칙으로 "의심스러운 UA" 판단
-    // - "curl", "python" = 정상적인 자동화 도구도 사용
-    // - "bot" = 검색 엔진 봇도 차단 (False Positive)
-    // AI Native 원칙: User-Agent 원시 데이터를 LLM에 제공하여 판단 위임
-    // 호환성 유지를 위해 deprecated 처리 (항상 false 반환)
-    @Deprecated(since = "6.1.0", forRemoval = true)
-    private boolean isSuspiciousUserAgent(String userAgent) {
-        // AI Native: 플랫폼이 판단하지 않음 - 항상 false 반환
-        // User-Agent 원시 데이터는 extractIocIndicators()에서 모두 저장됨
-        return false;
-    }
+    // AI Native v7.0: isSuspiciousUserAgent() 삭제
+    // 플랫폼이 User-Agent를 판단하면 AI Native 위반
+    // LLM이 User-Agent 원시 데이터를 보고 직접 판단
 
     /**
      * 위협 설명 생성
@@ -516,23 +483,9 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         return desc.toString();
     }
 
-    /**
-     * 패턴 유형 결정
-     */
-    private String determinePatternType(BehavioralAnalysisContext context) {
-        if (context.isNewDevice() && context.isNewLocation()) {
-            return "impossible_travel";
-        }
-        if (context.getActivityVelocity() > 100.0) {
-            return "bot_attack";
-        }
-        if (context.getAnomalyIndicators() != null &&
-            (context.getAnomalyIndicators().contains("brute_force") ||
-             context.getAnomalyIndicators().contains("repeated_failed_login"))) {
-            return "brute_force";
-        }
-        return "suspicious_behavior";
-    }
+    // AI Native v7.0: determinePatternType() 삭제
+    // 플랫폼이 패턴 유형(impossible_travel, bot_attack 등)을 결정하면 AI Native 위반
+    // LLM이 사실 데이터(isNewDevice, isNewLocation, activityVelocity)를 보고 직접 판단
 
     /**
      * 분석 결과를 벡터 저장소에 저장

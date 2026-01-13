@@ -105,15 +105,18 @@ public class SecurityDecisionPostProcessor {
             return;
         }
 
-        double confidence = decision.getConfidence();
-        if (Double.isNaN(confidence)) {
-            log.debug("[SecurityDecisionPostProcessor] confidence 없음, 벡터 저장 생략: eventId={}",
-                event.getEventId());
-            return;
-        }
-
         try {
             SecurityDecision.Action action = decision.getAction();
+
+            // AI Native v7.0: confidence NaN 처리 개선
+            // 기존: NaN이면 저장 스킵 → ALLOW도 저장 안 됨 → Baseline 구축 불가
+            // 변경: NaN이어도 ALLOW/BLOCK은 저장 (confidence 0.5 기본값 사용)
+            double confidence = decision.getConfidence();
+            if (Double.isNaN(confidence)) {
+                log.debug("[SecurityDecisionPostProcessor] confidence NaN, 기본값 0.5 사용: eventId={}",
+                    event.getEventId());
+                // decision 객체의 confidence를 직접 수정하지 않고, 저장 시에만 0.5 사용
+            }
 
             // AI Native v6.0: ALLOW만 저장 (Baseline 학습과 일관성 유지)
             // CHALLENGE/ESCALATE 저장 시 RAG 오염 발생 - 부정적 컨텍스트가 LLM에 전달됨
@@ -183,6 +186,13 @@ public class SecurityDecisionPostProcessor {
             content.append("Path: ").append(path);
         }
 
+        // AI Native v7.0: HTTP Method 추가 (사실 데이터)
+        String method = extractHttpMethod(event);
+        if (method != null) {
+            if (content.length() > 0) content.append(", ");
+            content.append("Method: ").append(method);
+        }
+
         // 시간 (사실 데이터)
         if (event.getTimestamp() != null) {
             if (content.length() > 0) content.append(", ");
@@ -191,13 +201,27 @@ public class SecurityDecisionPostProcessor {
 
         // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직 위험)
         // - 이전 BLOCK/ALLOW가 embedding에 포함되면 다음 판단에 편향을 줄 수 있음
-        // - 이전: content.append("Action: ").append(decision.getAction());
-
-        // AI Native v7.0: riskScore, reasoning, action 모두 제거 (순환 로직 방지)
-        // - 이전 LLM 결과가 다음 분석에 영향을 미치면 독립적 분석 불가
-        // - "No reasoning provided" 같은 기본값도 RAG 오염 유발
 
         return content.toString();
+    }
+
+    /**
+     * HTTP Method 추출
+     *
+     * AI Native v7.0: metadata에서 httpMethod 추출
+     * ZeroTrustEventListener에서 metadata.put("httpMethod", event.getHttpMethod())로 설정됨
+     */
+    private String extractHttpMethod(SecurityEvent event) {
+        Object metadataObj = event.getMetadata();
+        if (metadataObj instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) metadataObj;
+            Object method = metadata.get("httpMethod");
+            if (method != null) {
+                return method.toString();
+            }
+        }
+        return null;
     }
 
     /**

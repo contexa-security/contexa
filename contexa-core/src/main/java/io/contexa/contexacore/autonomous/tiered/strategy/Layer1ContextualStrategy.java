@@ -353,7 +353,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     5
             );
 
-            // AI Native v6.8: Action, MatchedBy 추가
+            // AI Native v7.0: IP/Hour 명확한 MATCH/MISMATCH 표시, Path 추가
             final String currentIp = event.getSourceIp();
             final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
             final String currentPath = event.getMetadata() != null ?
@@ -371,32 +371,47 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         }
                         int similarityPct = (int) (score * 100);
 
-                        // Action (과거 결정)
-                        String action = meta.get("action") != null ? meta.get("action").toString() : "N/A";
+                        // AI Native v7.0: Path 추출
+                        String docPath = meta.get("requestUri") != null ?
+                                meta.get("requestUri").toString() : "N/A";
 
-                        // MatchedBy 계산 (어떤 속성이 일치하는지)
-                        List<String> matched = new ArrayList<>();
-                        if (currentIp != null && currentIp.equals(meta.get("sourceIp"))) {
-                            matched.add("IP");
+                        // AI Native v7.0: IP MATCH/MISMATCH 명시
+                        String ipMatch;
+                        Object docIp = meta.get("sourceIp");
+                        if (docIp == null) {
+                            ipMatch = "N/A";
+                        } else if (currentIp != null && currentIp.equals(docIp.toString())) {
+                            ipMatch = "MATCH";
+                        } else {
+                            ipMatch = "MISMATCH";
                         }
+
+                        // AI Native v7.0: Hour MATCH/MISMATCH 명시
+                        String hourMatch = "N/A";
                         if (currentHour != null && meta.get("timestamp") != null) {
                             String ts = meta.get("timestamp").toString();
                             if (ts.contains("T") && ts.length() > 13) {
                                 try {
                                     int docHour = Integer.parseInt(ts.substring(11, 13));
-                                    if (currentHour == docHour) {
-                                        matched.add("Hour");
-                                    }
-                                } catch (NumberFormatException ignored) {}
+                                    hourMatch = (currentHour == docHour) ? "MATCH" : "MISMATCH";
+                                } catch (NumberFormatException ignored) {
+                                    hourMatch = "N/A";
+                                }
                             }
                         }
-                        if (currentPath != null && currentPath.equals(meta.get("requestUri"))) {
-                            matched.add("Path");
-                        }
-                        String matchedBy = matched.isEmpty() ? "Vector" : String.join(",", matched);
 
-                        return String.format("EventID:%s, Similarity:%d%%, Action:%s, MatchedBy:[%s]",
-                                meta.get("eventId"), similarityPct, action, matchedBy);
+                        // AI Native v7.0: Path MATCH/MISMATCH 명시
+                        String pathMatch;
+                        if (docPath.equals("N/A")) {
+                            pathMatch = "N/A";
+                        } else if (currentPath != null && currentPath.equals(docPath)) {
+                            pathMatch = "MATCH";
+                        } else {
+                            pathMatch = "MISMATCH";
+                        }
+
+                        return String.format("EventID:%s, Similarity:%d%%, Path:%s, IP:%s, Hour:%s, PathMatch:%s",
+                                meta.get("eventId"), similarityPct, docPath, ipMatch, hourMatch, pathMatch);
                     })
                     .collect(Collectors.toList());
 
