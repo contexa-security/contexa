@@ -273,34 +273,54 @@ public class SecurityPromptTemplate {
         prompt.append(dataQualitySection);
 
         // 9. 응답 형식 (통일된 5필드)
-        // AI Native v8.0 (Guarded AI Architecture):
-        // - 조건-액션 매핑 제거: LLM이 규칙 실행기가 아닌 맥락 분석가로 동작
-        // - GUARDRAILS: 환각 방지, 프롬프트 인젝션 방어용 최소 규칙만 유지
-        // - CONTEXTUAL ANALYSIS: Related Context 기반 자율 판단 강화
+        // AI Native v8.5 (Guarded AI Architecture):
+        // - GUARDRAILS를 ALLOW/CHALLENGE/BLOCK/ESCALATE 4개 섹션으로 분리
+        // - CHALLENGE: 의심스러우나 MFA로 검증 가능한 상황 (New User, IP 변경, OS 변경)
+        // - BLOCK: 공격 증거 또는 다중 불일치 상황 (>3 MFA 실패, 3요소 모두 불일치)
+        // - CHALLENGE vs BLOCK 구분 가이드라인 추가
         prompt.append("""
 
-            === DECISION FRAMEWORK (AI Native v8.1 - Optimized) ===
-            RESPONSE FORMAT: SINGLE JSON OBJECT. NO MARKDOWN.
+            === DECISION FRAMEWORK (AI Native v8.5) ===
 
-            GUARDRAILS (CRITICAL):
-            1. New User (No Baseline) -> CHALLENGE
-            2. Confidence < 0.4 -> ESCALATE
-            3. Confidence range: 0.3-0.95
+            REQUIRED JSON FORMAT (5 fields):
+            {
+              "riskScore": <number 0.0-1.0>,
+              "confidence": <number 0.3-0.95>,
+              "action": "<ALLOW|CHALLENGE|BLOCK|ESCALATE>",
+              "reasoning": "<specific observation, max 30 tokens>",
+              "mitre": "<T1078|T1110|T1185|none>"
+            }
 
-            ANALYSIS LOGIC:
-            - CONTEXT: Combine Baseline + Related Docs + Resource Sensitivity
-            - IP/UA MISMATCH != BLOCK (Check Related Docs for travel/device patterns)
-            - ALL MATCH != ALLOW (Check Related Docs for hidden anomalies)
+            GUARDRAILS (MANDATORY - No exceptions):
 
-            ACTIONS: ALLOW | CHALLENGE (MFA) | BLOCK | ESCALATE
+            [ALLOW conditions]
+            1. IP MATCH + Hour MATCH + UA PARTIAL (browser version only) + IsNewUser=false -> ALLOW
 
-            EXAMPLES (one per action):
-            1. ALLOW: {"riskScore":0.2,"confidence":0.85,"action":"ALLOW","reasoning":"Baseline match + context confirms pattern"}
-            2. CHALLENGE: {"riskScore":0.6,"confidence":0.5,"action":"CHALLENGE","reasoning":"New user or device change detected"}
-            3. BLOCK: {"riskScore":0.95,"confidence":0.9,"action":"BLOCK","reasoning":"5 failed MFAs + credential stuffing pattern in docs"}
-            4. ESCALATE: {"riskScore":0.6,"confidence":0.3,"action":"ESCALATE","reasoning":"Conflicting signals, human review needed"}
+            [CHALLENGE conditions - Suspicious but MFA verifiable]
+            2. New User (No Baseline) -> CHALLENGE
+            3. IP MISMATCH + UA MATCH + No travel pattern in RELATED CONTEXT -> CHALLENGE
+            4. UA MISMATCH (OS change) + No multi-device pattern in RELATED CONTEXT -> CHALLENGE
 
-            OUTPUT JSON ONLY.
+            [BLOCK conditions - Attack evidence or multiple mismatches]
+            5. RELATED CONTEXT shows attack pattern (>3 failed MFA in 1 hour) -> BLOCK
+            6. IP MISMATCH + Hour MISMATCH + UA MISMATCH + No pattern in RELATED CONTEXT -> BLOCK
+
+            [ESCALATE conditions]
+            7. Confidence < 0.4 -> ESCALATE
+            8. Confidence range: 0.3-0.95
+
+            CHALLENGE vs BLOCK:
+            - Both block access initially
+            - CHALLENGE: Allows MFA verification (suspicious but recoverable)
+            - BLOCK: Denies access completely (attack evidence detected)
+
+            REASONING RULES:
+            - Reference SPECIFIC observations from BASELINE or RELATED CONTEXT
+            - Do NOT use generic phrases like "New user or device change"
+            - If IsNewUser=false, reasoning MUST NOT mention "new user"
+            - If BLOCK, must cite attack evidence from RELATED CONTEXT
+
+            OUTPUT: Single-line JSON only. No markdown. No extra text.
             """);
 
         return prompt.toString();
