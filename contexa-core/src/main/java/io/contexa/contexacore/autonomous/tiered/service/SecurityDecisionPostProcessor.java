@@ -356,6 +356,61 @@ public class SecurityDecisionPostProcessor {
             metadata.put("requestUri", requestUri);
         }
 
+        // AI Native v7.3: userAgent 정보 추가 (디바이스 패턴 분석용)
+        // AbstractTieredStrategy.buildBaseMetadata()와 동일하게 userAgent/userAgentOS 저장
+        // RELATED CONTEXT에서 모든 문서에 |os= 필드가 일관되게 포함되도록 함
+        if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
+            metadata.put("userAgent", event.getUserAgent());
+            String userAgentOS = extractOSFromUserAgent(event.getUserAgent());
+            if (userAgentOS != null) {
+                metadata.put("userAgentOS", userAgentOS);
+            }
+        }
+
         return metadata;
+    }
+
+    /**
+     * User-Agent에서 OS 정보 추출 (AI Native v7.3)
+     *
+     * AbstractTieredStrategy.extractOSFromUserAgent()와 동일한 로직입니다.
+     * RELATED CONTEXT의 |os= 필드 일관성을 위해 동일한 추출 로직 적용
+     *
+     * @param userAgent User-Agent 문자열
+     * @return OS 이름 (Android, iOS, Windows, Mac, ChromeOS, Linux, Mobile, Desktop 또는 null)
+     */
+    private String extractOSFromUserAgent(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return null;
+        }
+
+        // 모바일 OS 우선 검사 (Android가 Linux를 포함하므로)
+        if (userAgent.contains("Android")) {
+            return "Android";
+        }
+        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iOS")) {
+            return "iOS";
+        }
+
+        // 데스크톱 OS
+        if (userAgent.contains("Windows NT") || userAgent.contains("Windows")) {
+            return "Windows";
+        }
+        if (userAgent.contains("Mac OS X") || userAgent.contains("Macintosh")) {
+            return "Mac";
+        }
+        if (userAgent.contains("CrOS")) {
+            return "ChromeOS";
+        }
+        if (userAgent.contains("Linux")) {
+            return "Linux";
+        }
+
+        // 일반 모바일/데스크톱 구분
+        if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
+            return "Mobile";
+        }
+
+        return "Desktop";
     }
 }

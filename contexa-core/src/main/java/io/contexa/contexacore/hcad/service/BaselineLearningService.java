@@ -323,7 +323,14 @@ public class BaselineLearningService {
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath);
         // AI Native v3.1: User-Agent 패턴 업데이트 - LLM 세션 하이재킹 탐지용
-        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), currentUserAgent);
+        // AI Native v7.3: UA 시그니처 정규화 추가 - 첫 학습과 업데이트 간 일관성 확보
+        // 문제: 첫 학습 시 시그니처("Chrome/120 (Windows)")로 저장하지만 업데이트 시 원본 UA로 비교하면 불일치 발생
+        // 해결: 업데이트 시에도 동일한 extractUASignature() 적용하여 시그니처 단위로 비교
+        String normalizedUA = extractUASignature(currentUserAgent);
+        String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
+                              !normalizedUA.equals("unknown (unknown)"))
+                             ? normalizedUA : currentUserAgent;
+        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate);
 
         // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
         return BaselineVector.builder()
@@ -439,7 +446,14 @@ public class BaselineLearningService {
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath);
         // AI Native v3.1: User-Agent 패턴 업데이트 - LLM 세션 하이재킹 탐지용
-        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), currentUserAgent);
+        // AI Native v7.3: UA 시그니처 정규화 추가 - 첫 학습과 업데이트 간 일관성 확보
+        // 문제: 첫 학습 시 시그니처("Chrome/120 (Windows)")로 저장하지만 업데이트 시 원본 UA로 비교하면 불일치 발생
+        // 해결: 업데이트 시에도 동일한 extractUASignature() 적용하여 시그니처 단위로 비교
+        String normalizedUA = extractUASignature(currentUserAgent);
+        String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
+                              !normalizedUA.equals("unknown (unknown)"))
+                             ? normalizedUA : currentUserAgent;
+        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate);
 
         // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
         return BaselineVector.builder()
