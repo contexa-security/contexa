@@ -287,20 +287,15 @@ public class ZeroTrustSecurityService {
 
         switch (action) {
             case "ALLOW" -> {
-                // 정상 - 원래 권한 복원 (LLM이 안전하다고 판단)
-                // MFA 완료 등으로 CHALLENGE → ALLOW 전환 시 originalAuthorities 사용
                 Object principal = auth.getPrincipal();
                 if (principal instanceof UnifiedCustomUserDetails userDetails) {
-                    // UnifiedCustomUserDetails에서 originalAuthorities 복원
                     adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
                     log.debug("[ZeroTrust][AI Native] Original authorities restored for user: {}", userId);
                 } else {
-                    // 폴백: 현재 권한 유지
                     adjustedAuthorities.addAll(currentAuthorities);
                 }
             }
             case "BLOCK" -> {
-                // 극고위험군 - 모든 권한 제거, 즉시 차단
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
                 log.warn("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
@@ -312,15 +307,10 @@ public class ZeroTrustSecurityService {
                 log.info("[ZeroTrust][AI Native] MFA CHALLENGE required (HIGH RISK): {}", userId);
             }
             case "ESCALATE" -> {
-                // 불확실 - 검토 필요 (관리자/특권 권한 제거)
-                // 보안 담당자 승인 후 원래 권한으로 복원됨 (action=ALLOW로 변경)
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));
                 log.warn("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
             }
             case "PENDING_ANALYSIS" -> {
-                // Zero Trust 핵심 원칙: 분석 미완료 상태 - 기본 권한만 유지
-                // LLM 분석 전/실패/TTL 만료 시 적용
-                // 분석 완료 후 원래 권한으로 복원됨 (action=ALLOW로 변경)
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
                 log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited access: {}", userId);
             }

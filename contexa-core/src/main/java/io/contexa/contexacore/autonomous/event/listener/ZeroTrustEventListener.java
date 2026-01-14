@@ -24,36 +24,18 @@ import java.util.*;
 import static io.contexa.contexacore.autonomous.event.decision.EventTier.BENIGN;
 import static io.contexa.contexacore.autonomous.event.domain.ThreatDetectionEvent.ThreatLevel.*;
 
-/**
- * Zero Trust 이벤트 리스너 (통합)
- *
- * Spring ApplicationEvent로 발행된 모든 Zero Trust 관련 이벤트를 수신하여
- * SecurityEvent로 변환 후 Kafka/Redis로 발행합니다.
- *
- * 처리하는 이벤트:
- * - AuthenticationSuccessEvent: 인증 성공
- * - AuthenticationFailureEvent: 인증 실패
- * - AuthorizationDecisionEvent: 권한 결정
- * - HttpRequestEvent: HTTP 요청 (NEW)
- */
 @Slf4j
 public class ZeroTrustEventListener {
 
     private final KafkaSecurityEventPublisher kafkaSecurityEventPublisher;
-    private final SecurityEventEnricher eventEnricher;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityDecisionPostProcessor postProcessor;
 
-    // AI Native 비동기 구조 최적화 (Phase 3):
-    // ANALYSIS_LOCK_TTL 제거 - AuthorizationEventPublisher로 이동
-
     public ZeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
-            SecurityEventEnricher eventEnricher,
             RedisTemplate<String, Object> redisTemplate,
             SecurityDecisionPostProcessor postProcessor) {
         this.kafkaSecurityEventPublisher = kafkaSecurityEventPublisher;
-        this.eventEnricher = eventEnricher;
         this.redisTemplate = redisTemplate;
         this.postProcessor = postProcessor;
     }
@@ -65,12 +47,6 @@ public class ZeroTrustEventListener {
     private double samplingRate;
     
     
-    /**
-     * 인증 성공 이벤트 처리
-     *
-     * Kafka 전송이 비동기이므로 @Async 제거하여 단순화
-     * 로그인 응답 시간에 미치는 영향: ~1-2ms (Kafka 큐잉 시간)
-     */
     @EventListener
     public void handleAuthenticationSuccess(AuthenticationSuccessEvent event) {
         long startTime = System.currentTimeMillis();
@@ -80,23 +56,7 @@ public class ZeroTrustEventListener {
                 return;
             }
 
-            // 샘플링 적용 (부하 관리)
-            if (!shouldProcessEvent(event)) {
-                log.debug("Event filtered by sampling for user: {}", event.getUsername());
-                return;
-            }
-
-            // 이벤트 발행 (특화 메서드 사용 - 계층화된 토픽 분리 및 우선순위 처리)
-            log.info("[ZeroTrustEventListener] Publishing authentication success event - EventID: {}, User: {}, SessionId: {}, Risk: {}",
-                    event.getEventId(), event.getUsername(), event.getSessionId(), event.calculateRiskLevel());
-//            kafkaSecurityEventPublisher.publishAuthenticationSuccess(event);
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.debug("[ZeroTrustEventListener] Event queued for Kafka successfully - EventID: {}, duration: {}ms",
-                event.getEventId(), duration);
-
             if (isLlmChallengeMfa(event)) {
-                // SecurityDecisionPostProcessor를 통해 Layer1과 동일한 로직 사용
                 SecurityEvent securityEvent = convertToSecurityEvent(event);
                 SecurityDecision decision = createMfaSuccessDecision(event);
 
@@ -104,18 +64,22 @@ public class ZeroTrustEventListener {
                     postProcessor.updateSessionContext(securityEvent, decision);
                     postProcessor.storeInVectorDatabase(securityEvent, decision);
                 }
-
-                log.info("[ZeroTrustEventListener][AI Native v6.8] LLM CHALLENGE MFA 성공 - 세션/벡터 업데이트 완료: userId={}",
-                    event.getUserId());
-            } else {
-                log.debug("[ZeroTrustEventListener] 일반 MFA 또는 비-MFA 인증 - 세션/벡터 업데이트 생략: userId={}",
-                    event.getUserId());
+                return;
             }
+
+            log.info("[ZeroTrustEventListener] Publishing authentication success event - EventID: {}, User: {}, SessionId: {}, Risk: {}",
+                    event.getEventId(), event.getUsername(), event.getSessionId(), event.calculateRiskLevel());
+            kafkaSecurityEventPublisher.publishAuthenticationSuccess(event);
+
+            long duration = System.currentTimeMillis() - startTime;
+            log.debug("[ZeroTrustEventListener] Event queued for Kafka successfully - EventID: {}, duration: {}ms",
+                event.getEventId(), duration);
+
+
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("[ZeroTrustEventListener] Failed to process authentication success event - duration: {}ms", duration, e);
-            // 인증 성공은 계속 진행 (Zero Trust 이벤트만 유실)
         }
     }
     
@@ -133,7 +97,6 @@ public class ZeroTrustEventListener {
             log.info("[ZeroTrustEventListener] Authentication failure event received - user: {}, attempts: {}",
                     event.getUsername(), event.getFailureCount());
 
-            // 이벤트 발행 (특화 메서드 사용 - 브루트포스/크리덴셜 스터핑 감지 및 즉시 처리)
             kafkaSecurityEventPublisher.publishAuthenticationFailure(event);
 
             long duration = System.currentTimeMillis() - startTime;
@@ -146,39 +109,6 @@ public class ZeroTrustEventListener {
         }
     }
     
-    // AI Native 비동기 구조 최적화 (Phase 3):
-    // handleAuthorizationDecision() 제거 - AuthorizationEventPublisher에서 Kafka로 직접 전송
-    // tryAcquireAnalysisLock() 제거 - AuthorizationEventPublisher.shouldPublishForAnalysis()로 이동
-    
-    /**
-     * AuthenticationFailureEvent를 SecurityEvent로 변환
-     */
-    private SecurityEvent convertAuthFailureToSecurityEvent(AuthenticationFailureEvent authEvent) {
-        SecurityEvent event = new SecurityEvent();
-        event.setEventId(authEvent.getEventId());
-        // AI Native v4.0.0: eventType 제거 - severity, source로 분류
-        event.setSource(SecurityEvent.EventSource.IAM);
-        event.setUserId(authEvent.getUsername());
-        event.setUserName(authEvent.getUsername());
-        event.setTimestamp(authEvent.getEventTimestamp());
-        event.setSourceIp(authEvent.getSourceIp());
-        // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
-        event.setSeverity(SecurityEvent.Severity.MEDIUM);
-
-        Map<String, Object> metadata = new HashMap<>();
-        // AI Native: 원시 데이터 제공 (LLM이 직접 위험도 평가)
-        metadata.put("auth.failure_count", authEvent.getFailureCount());
-        metadata.put("failureReason", authEvent.getFailureReason());
-
-        event.setMetadata(metadata);
-
-        return event;
-    }
-    
-    // AI Native 비동기 구조 최적화 (Phase 3):
-    // convertAuthDecisionToSecurityEvent() 제거 - AuthorizationEventPublisher에서 Kafka로 직접 전송
-    // handleAuthorizationDecision()이 제거되면서 더 이상 사용되지 않음
-
     /**
      * AuthenticationSuccessEvent를 SecurityEvent로 변환
      */
@@ -230,325 +160,6 @@ public class ZeroTrustEventListener {
         return event;
     }
     
-    /**
-     * SecurityEvent 메타데이터 보강
-     */
-    private void enrichSecurityEvent(SecurityEvent event, AuthenticationSuccessEvent authEvent) {
-        // SecurityEventEnricher를 사용하여 추가 컨텍스트 정보 추가
-        eventEnricher.setTargetResource(event, "/authentication/success");
-        // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요
-        
-        // 사용자 행동 패턴 정보
-        Map<String, Object> userBehavior = new HashMap<>();
-        userBehavior.put("lastLoginTime", authEvent.getLastLoginTime());
-        userBehavior.put("previousSessionId", authEvent.getPreviousSessionId());
-        userBehavior.put("deviceId", authEvent.getDeviceId());
-        eventEnricher.setUserBehavior(event, userBehavior);
-        
-        // 패턴 점수 계산
-        double patternScore = calculatePatternScore(authEvent);
-        eventEnricher.setPatternScore(event, patternScore);
-        
-        // 위험 지표 설정
-        Map<String, Object> riskIndicators = new HashMap<>();
-        riskIndicators.put("riskLevel", authEvent.calculateRiskLevel().toString());
-        riskIndicators.put("anomalyDetected", authEvent.isAnomalyDetected());
-        riskIndicators.put("trustScore", authEvent.getTrustScore());
-        eventEnricher.setRiskIndicators(event, riskIndicators);
-    }
-    
-    
-    // AI Native v6.8: publishSessionContextRetrospectively() 메서드 제거
-    // - 근거 없는 임의 규칙 (HIGH/CRITICAL riskLevel 기반)
-    // - riskLevel은 LLM이 설정해야 하는데, 인증 성공 시점에서 LLM 판단 없음
-    // - AI Native 원칙 위반: 플랫폼이 임의로 "위험도 높으면 세션 컨텍스트 발행" 규칙 설정
-
-    /**
-     * AI Native v4.1.0: 샘플링 제거 - 모든 이벤트 LLM 분석
-     *
-     * 이전: Risk Level, 이상 징후에 따른 조건부 샘플링
-     * 변경: 모든 이벤트 100% LLM 분석 (필터링 없음)
-     *
-     * LLM이 원시 데이터를 보고 직접 위험도 판단
-     */
-    private boolean shouldProcessEvent(AuthenticationSuccessEvent event) {
-        // AI Native: 모든 이벤트 처리 - LLM이 판단
-        return true;
-    }
-    
-    /**
-     * 패턴 점수 계산
-     */
-    private double calculatePatternScore(AuthenticationSuccessEvent event) {
-        double score = 0.5; // 기본 점수
-        
-        // 신뢰 점수 반영
-        if (event.getTrustScore() != null) {
-            score = event.getTrustScore();
-        }
-        
-        // MFA 완료시 점수 증가
-        if (event.isMfaCompleted()) {
-            score += 0.2;
-        }
-        
-        // 이상 징후 발견시 점수 감소
-        if (event.isAnomalyDetected()) {
-            score -= 0.4;
-        }
-        
-        return Math.max(0.0, Math.min(1.0, score));
-    }
-    
-    /**
-     * 위험 수준을 Severity로 매핑
-     */
-    private SecurityEvent.Severity mapRiskLevelToSeverity(AuthenticationSuccessEvent.RiskLevel riskLevel) {
-        return switch (riskLevel) {
-            case CRITICAL -> SecurityEvent.Severity.CRITICAL;
-            case HIGH -> SecurityEvent.Severity.HIGH;
-            case MEDIUM -> SecurityEvent.Severity.MEDIUM;
-            case LOW -> SecurityEvent.Severity.LOW;
-            case MINIMAL -> SecurityEvent.Severity.INFO;
-            case UNKNOWN -> SecurityEvent.Severity.MEDIUM;
-        };
-    }
-
-    /**
-     * HTTP 요청 이벤트 처리 (조건부 발행)
-     *
-     * SecurityEventPublishingFilter가 샘플링한 이벤트 중에서
-     * 실제 이상 징후가 있거나 CRITICAL/HIGH 위협만 Kafka/Redis로 발행합니다.
-     *
-     * 정상 요청 (BENIGN 샘플링)은 Session Context만 업데이트하고 발행하지 않아
-     * 최종 발행 볼륨을 전체 요청의 1~5%로 감소시킵니다.
-     */
-    @EventListener
-    @Async
-    public void handleHttpRequest(HttpRequestEvent event) {
-        long startTime = System.currentTimeMillis();
-        try {
-            if (!zeroTrustEnabled) {
-                return;
-            }
-
-            log.debug("[ZeroTrustEventListener] HTTP request event received - userId: {}, uri: {}, tier: {}, risk: {}",
-                    event.getUserId(), event.getRequestUri(),
-                    event.getEventTier(), event.getRiskScore());
-
-            // 1. Session Context 업데이트 (모든 샘플링된 이벤트)
-            updateSessionContext(event);
-
-            // AI Native v4.1.0: 조건부 발행 제거 - 모든 이벤트 LLM 분석
-            // 이전: EventTier/RiskScore 기반 조건부 발행 (CRITICAL/HIGH만)
-            // 변경: 모든 이벤트 100% 발행 - LLM이 위험도 직접 판단
-            boolean shouldPublish = true;
-            String publishReason = "AI Native: All events forwarded for LLM analysis";
-
-            // 3. 위협 레벨에 따라 적절한 메서드 사용
-            if (event.getEventTier() == EventTier.CRITICAL) {
-                // CRITICAL 위협 → publishThreatDetection 사용 (긴급 처리)
-                ThreatDetectionEvent threatEvent = convertToThreatDetectionEvent(event, publishReason);
-                kafkaSecurityEventPublisher.publishThreatDetection(threatEvent);
-
-                log.warn("[ZeroTrustEventListener] CRITICAL threat published - EventID: {}, UserId: {}, Reason: {}",
-                        threatEvent.getEventId(), event.getUserId(), publishReason);
-            } else {
-                // HIGH/MEDIUM → publishSecurityEvent 사용
-                SecurityEvent securityEvent = convertHttpRequestToSecurityEvent(event);
-                enrichSecurityEvent(securityEvent, event);
-                kafkaSecurityEventPublisher.publishSecurityEvent(securityEvent);
-
-                log.info("[ZeroTrustEventListener] Security event published - EventID: {}, UserId: {}, Tier: {}, Reason: {}",
-                        securityEvent.getEventId(), event.getUserId(), event.getEventTier(), publishReason);
-            }
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.debug("[ZeroTrustEventListener] HTTP request event processed - duration: {}ms", duration);
-
-        } catch (Exception e) {
-            long duration = System.currentTimeMillis() - startTime;
-            log.error("[ZeroTrustEventListener] Failed to process HTTP request event - duration: {}ms", duration, e);
-        }
-    }
-
-    /**
-     * Session Context 업데이트
-     * 정상 요청도 샘플링되므로 모든 샘플링 이벤트로 세션 컨텍스트를 구축합니다.
-     */
-    private void updateSessionContext(HttpRequestEvent event) {
-        try {
-            // Session Context Retrospective 구축
-            // 여기서는 간단히 로깅만 하지만, 실제로는 세션 히스토리를 업데이트합니다
-            log.trace("[ZeroTrustEventListener] SessionContext updated for user: {}", event.getUserId());
-
-            // TODO: 실제 SessionContext 업데이트 로직 구현
-            // - 세션별 요청 히스토리 추가
-            // - 행동 패턴 분석
-            // - 피드백 루프 연결 (정상 패턴 학습)
-        } catch (Exception e) {
-            log.warn("[ZeroTrustEventListener] Failed to update session context: {}", e.getMessage());
-        }
-    }
-
-    /**
-     * HttpRequestEvent를 ThreatDetectionEvent로 변환 (CRITICAL 위협용)
-     */
-    private ThreatDetectionEvent convertToThreatDetectionEvent(HttpRequestEvent event, String reason) {
-        // 메타데이터 구성
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("userId", event.getUserId());
-        metadata.put("sourceIp", event.getSourceIp());
-        metadata.put("requestUri", event.getRequestUri());
-        metadata.put("httpMethod", event.getHttpMethod());
-        metadata.put("eventTier", event.getEventTier().name());
-        metadata.put("reason", reason);
-
-        if (event.getRiskScore() != null) {
-            metadata.put("riskScore", event.getRiskScore());
-        }
-
-        if (event.getTrustScore() != null) {
-            metadata.put("trustScore", event.getTrustScore());
-        }
-
-        // ThreatDetectionEvent 빌드
-        return ThreatDetectionEvent.builder()
-                .eventId(event.getEventId())
-                .timestamp(event.getEventTimestamp().atZone(ZoneId.systemDefault()).toInstant())
-                .threatType("HTTP_REQUEST_ANOMALY")
-                .threatLevel(CRITICAL)
-                .detectionSource("HCAD_FILTER")
-                .confidenceScore(event.getRiskScore())
-                .metadata(metadata)
-                .build();
-    }
-
-    /**
-     * HttpRequestEvent를 SecurityEvent로 변환 (통합 버전)
-     *
-     * AI 분석 결과를 SecurityEvent 메타데이터에 포함:
-     * - HCAD 유사도 (AI 계산 결과)
-     * - eventTier (Risk Score 기반 위험도 등급)
-     * - riskScore (통합 위험도 점수)
-     * - trustScore (인증 사용자 신뢰 점수)
-     * - ipThreatScore (익명 사용자 IP 위협 점수)
-     */
-    private SecurityEvent convertHttpRequestToSecurityEvent(HttpRequestEvent event) {
-        SecurityEvent secEvent = new SecurityEvent();
-        secEvent.setEventId(event.getEventId());
-        secEvent.setSource(SecurityEvent.EventSource.IAM);
-        secEvent.setTimestamp(event.getEventTimestamp());
-
-        // 사용자 정보
-        secEvent.setUserId(event.getUserId());
-        secEvent.setSourceIp(event.getSourceIp());
-        secEvent.setUserAgent(event.getUserAgent());  // User-Agent 전달 (봇/정상 사용자 구별용)
-
-        // AI Native v4.0.0: eventType 제거 - severity, source로 분류
-        // 이벤트 source는 IAM으로 설정
-        secEvent.setSource(SecurityEvent.EventSource.IAM);
-
-        if (event.getUserId() != null && event.getUserId().startsWith("anonymous:")) {
-            secEvent.setUserName("anonymous");
-        } else {
-            if (event.getAuthentication() != null) {
-                secEvent.setUserName(event.getAuthentication().getName());
-            }
-        }
-
-        // 메타데이터
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("requestUri", event.getRequestUri());
-        metadata.put("httpMethod", event.getHttpMethod());
-        metadata.put("statusCode", event.getStatusCode());
-
-        // AI Native v4.3.0: 인증 방법 추가 (LLM 분석에 활용)
-        if (event.getAuthMethod() != null) {
-            metadata.put("authMethod", event.getAuthMethod());
-        }
-
-        // 통합 AI 분석 결과
-        if (event.getEventTier() != null) {
-            metadata.put("eventTier", event.getEventTier().name());
-            metadata.put("tierSamplingRate", event.getEventTier().getBaseSamplingRate());
-        }
-
-        if (event.getRiskScore() != null) {
-            metadata.put("riskScore", event.getRiskScore());
-        }
-
-        if (event.isAnonymous()) {
-            metadata.put("isAnonymous", true);
-
-            // 익명 사용자 IP 위협 점수
-            if (event.getIpThreatScore() != null) {
-                metadata.put("ipThreatScore", event.getIpThreatScore());
-                log.debug("[ZeroTrustEventListener] IP threat score from AI: {:.3f}",
-                         event.getIpThreatScore());
-            }
-        } else {
-            metadata.put("isAnonymous", false);
-
-            // 인증 사용자 신뢰 점수
-            if (event.getTrustScore() != null) {
-                metadata.put("trustScore", event.getTrustScore());
-                log.debug("[ZeroTrustEventListener] Trust score from AI: {:.3f}",
-                         event.getTrustScore());
-            }
-        }
-
-        // Phase 9: 세션/사용자 컨텍스트 정보 추가 (Layer1 프롬프트 강화용)
-        // null일 경우 보수적 기본값 true 사용 (Zero Trust: 신규 사용자로 간주하여 더 엄격하게 검증)
-        metadata.put("isNewSession", event.getIsNewSession() != null ? event.getIsNewSession() : true);
-        metadata.put("isNewUser", event.getIsNewUser() != null ? event.getIsNewUser() : true);
-        metadata.put("isNewDevice", event.getIsNewDevice() != null ? event.getIsNewDevice() : true);
-        if (event.getRecentRequestCount() != null) {
-            metadata.put("recentRequestCount", event.getRecentRequestCount());
-        }
-
-        // AI Native v4.1.0: 원시 데이터 추가 (LLM이 직접 판단)
-        if (event.getRiskScore() != null) {
-            metadata.put("authz.riskScore", event.getRiskScore());
-        }
-        if (event.getEventTier() != null) {
-            metadata.put("event.tier", event.getEventTier().name());
-        }
-        secEvent.setMetadata(metadata);
-
-        // AI Native v4.1.0: Severity 하드코딩 제거 - LLM이 원시 데이터로 직접 판단
-        // 이전: Risk Score 임계값 기반 Severity 매핑 (0.8/0.6/0.4/0.2)
-        // 변경: 기본값 MEDIUM, 원시 데이터(riskScore, eventTier)는 metadata에 저장
-        secEvent.setSeverity(SecurityEvent.Severity.MEDIUM);
-
-        return secEvent;
-    }
-
-    /**
-     * HttpRequestEvent로 SecurityEvent 보강
-     */
-    private void enrichSecurityEvent(SecurityEvent secEvent, HttpRequestEvent httpEvent) {
-        // 기존 enrichSecurityEvent 메서드와 유사하지만 HttpRequestEvent 전용
-        if (eventEnricher != null) {
-            // SecurityEventEnricher 활용 (있는 경우)
-            // 추가 컨텍스트 정보 보강
-        }
-    }
-
-    // ========================================================================
-    // AI Native v6.8: LLM CHALLENGE MFA 전용 메서드
-    // ========================================================================
-
-    /**
-     * LLM CHALLENGE MFA 여부 확인
-     *
-     * Redis에 저장된 previousAction을 확인하여 MFA 유형을 구분합니다:
-     * - previousAction == "CHALLENGE": LLM이 위험 평가 후 CHALLENGE 판정 -> MFA 검증 -> ALLOW
-     * - previousAction == null 또는 "ALLOW": 정책 기반 일반 MFA (관리자 페이지, 민감 작업 등)
-     *
-     * @param event 인증 성공 이벤트
-     * @return LLM CHALLENGE MFA인 경우 true
-     */
     private boolean isLlmChallengeMfa(AuthenticationSuccessEvent event) {
         String userId = event.getUserId();
         if (userId == null || userId.isBlank()) {
@@ -559,13 +170,10 @@ public class ZeroTrustEventListener {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "previousAction");
 
-            // AI Native v7.0: LLM이 CHALLENGE 또는 ESCALATE 반환 후 MFA 성공한 경우
-            // 두 경우 모두 MFA 인증으로 신원 확인됨 → baseline/RAG 학습 필요
             String actionStr = String.valueOf(previousAction);
             boolean isLlmAction = "CHALLENGE".equals(actionStr) || "ESCALATE".equals(actionStr);
 
             if (isLlmAction) {
-                // previousAction 정리 (재사용 방지)
                 redisTemplate.opsForHash().delete(analysisKey, "previousAction");
                 log.debug("[ZeroTrustEventListener] LLM {} MFA 확인 - previousAction 정리 완료: userId={}",
                     actionStr, userId);
@@ -579,18 +187,6 @@ public class ZeroTrustEventListener {
         }
     }
 
-    /**
-     * MFA 성공 시 SecurityDecision 생성
-     *
-     * AI Native v6.8: SecurityDecisionPostProcessor와 호환되는 SecurityDecision 객체를 생성합니다.
-     * MFA 성공은 검증 완료 상태이므로:
-     * - action: ALLOW (검증 완료)
-     * - riskScore: 0.0 (MFA로 위험 해소)
-     * - confidence: 1.0 (MFA 검증 확신)
-     *
-     * @param event 인증 성공 이벤트
-     * @return SecurityDecision
-     */
     private SecurityDecision createMfaSuccessDecision(AuthenticationSuccessEvent event) {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.ALLOW)
@@ -601,9 +197,4 @@ public class ZeroTrustEventListener {
                 .analysisTime(System.currentTimeMillis())
                 .build();
     }
-
-    // AI Native v6.8: updateSessionContextOnAuthSuccess(), storeInVectorDatabaseOnAuthSuccess() 메서드 삭제
-    // - SecurityDecisionPostProcessor 서비스로 이동
-    // - Layer1ContextualStrategy와 동일한 로직 사용으로 중복 제거
-
 }

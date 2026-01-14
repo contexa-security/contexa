@@ -118,10 +118,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         if (authorizationEventPublisher != null && !authorizationDecision.isGranted()) {
             long startTime = System.nanoTime();
-            TrustAssessment assessment = (TrustAssessment) authorizationContext.attributes().get("ai_assessment");
-            authorizationEventPublisher.publishWebAuthorizationDecision(
-                    authentication, request, authorizationDecision, assessment
-            );
+            authorizationEventPublisher.publishWebAuthorizationDecision(authentication, request, authorizationDecision);
 
             long duration = System.nanoTime() - startTime;
 
