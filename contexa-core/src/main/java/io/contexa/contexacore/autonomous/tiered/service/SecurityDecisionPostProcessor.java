@@ -160,58 +160,39 @@ public class SecurityDecisionPostProcessor {
     /**
      * 행동 패턴 컨텐츠 생성
      *
-     * AI Native v6.7: 순환 로직 방지
-     * - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
-     * - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
-     * - 사실 데이터만 포함 (userId, IP, path, hour)
+     * AI Native v8.6: Document-Query 형식 통일 (Similarity 95%+ 목표)
+     * - LLM 분석에 불필요한 속성 제거: EventId, Method, Timestamp, Hour
+     * - 검색 쿼리와 100% 일치하는 형식으로 통일: User, IP, Path만 포함
+     * - EventId, Method, Timestamp, Hour는 metadata에만 저장 (content에서 제거)
      *
-     * AI Native v7.2: eventId, timestamp 추가
-     * - 동일한 userId/IP/Path/Hour 요청도 고유한 embedding을 갖도록 함
-     * - 벡터 검색에서 누적 데이터가 반환되도록 함
+     * 변경 전: "EventId: xxx, User: admin, IP: xxx, Path: xxx, Method: GET, Timestamp: xxx, Hour: 18"
+     * 변경 후: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/users"
      */
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder content = new StringBuilder();
 
-        // AI Native v7.2: eventId 추가 (고유 식별자 - 각 문서가 다른 embedding을 갖도록)
-        if (event.getEventId() != null) {
-            content.append("EventId: ").append(event.getEventId());
-        }
-
-        // 사용자 ID (null이면 생략)
+        // User (검색 키 - Query와 일치)
         if (event.getUserId() != null) {
-            if (content.length() > 0) content.append(", ");
             content.append("User: ").append(event.getUserId());
         }
 
-        // IP (사실 데이터)
+        // IP (검색 키 - Query와 일치)
         if (event.getSourceIp() != null) {
             if (content.length() > 0) content.append(", ");
             content.append("IP: ").append(event.getSourceIp());
         }
 
-        // 경로 추출 (사실 데이터)
+        // Path (검색 키 - Query와 일치)
         String path = extractPath(event);
         if (path != null) {
             if (content.length() > 0) content.append(", ");
             content.append("Path: ").append(path);
         }
 
-        // AI Native v7.0: HTTP Method 추가 (사실 데이터)
-        String method = extractHttpMethod(event);
-        if (method != null) {
-            if (content.length() > 0) content.append(", ");
-            content.append("Method: ").append(method);
-        }
-
-        // AI Native v7.2: timestamp 추가 (고유성 보장)
-        if (event.getTimestamp() != null) {
-            if (content.length() > 0) content.append(", ");
-            content.append("Timestamp: ").append(event.getTimestamp().toString());
-            content.append(", Hour: ").append(event.getTimestamp().getHour());
-        }
-
-        // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직 위험)
-        // - 이전 BLOCK/ALLOW가 embedding에 포함되면 다음 판단에 편향을 줄 수 있음
+        // AI Native v8.6: 아래 필드들은 content에서 제거 (metadata에만 저장)
+        // - EventId: 각 요청마다 다름 -> 검색 시 알 수 없음 -> Similarity 저하
+        // - Method: 검색 시 알 수 없음 -> metadata에만 저장
+        // - Timestamp, Hour: 각 요청마다 다름 -> metadata에만 저장
 
         return content.toString();
     }

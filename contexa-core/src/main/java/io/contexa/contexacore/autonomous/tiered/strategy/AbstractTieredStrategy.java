@@ -564,34 +564,31 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
 
         try {
-            // 검색 쿼리 빌드
+            // AI Native v8.6: Document-Query 형식 100% 통일 (Similarity 95%+ 목표)
+            // Document Content: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/users"
+            // Query: 동일한 형식으로 통일
             StringBuilder queryBuilder = new StringBuilder();
 
-            // 1. 이벤트 설명 (가장 중요한 검색 키워드)
-            if (event.getDescription() != null && !event.getDescription().isEmpty()) {
-                queryBuilder.append(event.getDescription()).append(" ");
+            // 1. User (검색 키 - Document와 일치)
+            if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
+                queryBuilder.append("User: ").append(event.getUserId());
             }
 
-            // 2. 요청 경로 (targetResource)
+            // 2. IP (검색 키 - Document와 일치)
+            if (event.getSourceIp() != null) {
+                if (queryBuilder.length() > 0) queryBuilder.append(", ");
+                queryBuilder.append("IP: ").append(event.getSourceIp());
+            }
+
+            // 3. Path (검색 키 - Document와 일치, "Path: " 접두사 추가)
             String targetResource = eventEnricher.getTargetResource(event).orElse(null);
             if (targetResource != null && !targetResource.isEmpty()) {
-                queryBuilder.append(targetResource).append(" ");
+                if (queryBuilder.length() > 0) queryBuilder.append(", ");
+                queryBuilder.append("Path: ").append(targetResource);
             }
 
-            // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요 (Description/경로에서 유추 가능)
-
-            // 3. 사용자 ID - Document 형식과 통일 (AI Native v8.5)
-            // Vector Similarity 향상: Query와 Document 텍스트 형식 일치
-            // 변경 전: "user:admin " → 변경 후: "User: admin, "
-            if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
-                queryBuilder.append("User: ").append(event.getUserId()).append(", ");
-            }
-
-            // 4. 소스 IP - Document 형식과 통일 (AI Native v8.5)
-            // 변경 전: "IP:0:0:0:0:0:0:0:1 " → 변경 후: "IP: 0:0:0:0:0:0:0:1, "
-            if (event.getSourceIp() != null) {
-                queryBuilder.append("IP: ").append(event.getSourceIp()).append(", ");
-            }
+            // AI Native v8.6: description 제거 (Document Content에 없음 -> Similarity 저하 원인)
+            // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요
 
             String query = queryBuilder.toString().trim();
             // AI Native: 빈 쿼리 시 무의미한 기본값 대신 검색 스킵

@@ -1208,34 +1208,42 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     // - Layer2PromptTemplate.SystemContext 클래스도 삭제됨
 
     /**
-     * AI Native v6.6: 벡터 데이터베이스에 저장 (통합 응답 형식)
-     * SecurityResponse 필드: riskScore, confidence, action, reasoning, mitre
+     * AI Native v8.6: 벡터 데이터베이스에 저장 (Document-Query 형식 통일)
+     *
+     * Document Content 형식: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/users"
+     * SecurityDecisionPostProcessor.buildBehaviorContent()와 100% 동일한 형식
      */
     private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision, SecurityResponse response) {
         if (unifiedVectorService == null) return;
 
         try {
-            // AI Native v6.8: 순환 로직 방지
-            // - LLM 결과(riskScore, reasoning) 제거 - 이전 분석이 다음 분석에 영향을 미치면 안 됨
-            // AI Native v7.0: embedding 텍스트 생성 (사실 데이터만 포함)
-            // - "unknown" 기본값 제거 - LLM이 실제 값으로 오해, 벡터 임베딩 오염
-            // - action 제거 - LLM 결과가 embedding에 포함되면 순환 로직 위험
-            // - 사실 데이터만 포함 (userId, sourceIp, MITRE)
+            // AI Native v8.6: Document-Query 형식 100% 통일 (Similarity 95%+ 목표)
+            // SecurityDecisionPostProcessor.buildBehaviorContent()와 동일한 형식
+            // - User, IP, Path만 포함 (검색 쿼리와 일치)
+            // - MITRE 제거 (BEHAVIOR 문서에서) - THREAT 문서에서만 사용
             StringBuilder content = new StringBuilder();
+
+            // User (검색 키 - Query와 일치)
             if (event.getUserId() != null) {
                 content.append("User: ").append(event.getUserId());
             }
+
+            // IP (검색 키 - Query와 일치)
             if (event.getSourceIp() != null) {
                 if (content.length() > 0) content.append(", ");
                 content.append("IP: ").append(event.getSourceIp());
             }
-            // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직 위험)
-            // 이전: content.append("Action: ").append(decision.getAction());
-            if (response.getMitre() != null && !response.getMitre().isEmpty()) {
+
+            // Path (검색 키 - Query와 일치)
+            String path = eventEnricher.getTargetResource(event).orElse(null);
+            if (path != null && !path.isEmpty()) {
                 if (content.length() > 0) content.append(", ");
-                content.append("MITRE: ").append(response.getMitre());
+                content.append("Path: ").append(path);
             }
-            // AI Native v7.0: riskScore, reasoning, action 모두 제거 (순환 로직 방지)
+
+            // AI Native v8.6: MITRE 제거 (BEHAVIOR 문서에서)
+            // - MITRE는 THREAT 문서(storeThreatDocument)에서만 사용
+            // - BEHAVIOR 문서는 검색 쿼리와 일치하는 User, IP, Path만 포함
 
             // Spring AI Document는 null 값을 허용하지 않으므로 기본값 설정 필수
             Map<String, Object> metadata = new HashMap<>();
