@@ -1149,77 +1149,107 @@ public class BaselineLearningService {
             return buildNewUserWarning(userId, currentEvent);
         }
 
-        StringBuilder sb = new StringBuilder();
-        // AI Native v7.0: MATCH/MISMATCH 형식으로 변경
-        // LLM이 직접 비교할 필요 없이 즉시 판단 가능
-        sb.append("=== BASELINE COMPARISON ===\n");
+        // AI Native v7.4: JSON 구조화 + Enum 사용 + 예외 조항
+        // - LLM 프롬프트 파싱 부담 감소
+        // - 매직 스트링 제거 (타입 안전성)
+        // - Related Context 예외 조항 추가 (LLM Reasoning 활용)
 
-        // 1. IP 비교 - MATCH/MISMATCH 명시
+        // 1. IP 비교
         String[] normalIps = baseline.getNormalIpRanges();
         String currentIp = currentEvent != null ? currentEvent.getSourceIp() : "unknown";
         String normalizedCurrentIp = extractIpRange(currentIp);
         boolean ipMatch = isIpMatch(normalIps, normalizedCurrentIp);
-        sb.append(String.format("IP: %s (Current: %s, Baseline: %s)\n",
-            ipMatch ? "MATCH" : "MISMATCH",
-            normalizedCurrentIp != null ? normalizedCurrentIp : currentIp,
-            normalIps != null && normalIps.length > 0 ? String.join(", ", normalIps) : "none"));
+        BaselineMatchStatus ipStatus = ipMatch ? BaselineMatchStatus.MATCH : BaselineMatchStatus.MISMATCH;
 
-        // 2. Hour 비교 - MATCH/MISMATCH 명시
+        // 2. Hour 비교
         Integer[] normalHours = baseline.getNormalAccessHours();
         int currentHour = currentEvent != null && currentEvent.getTimestamp() != null
             ? currentEvent.getTimestamp().getHour() : -1;
         boolean hourMatch = isHourMatch(normalHours, currentHour);
-        sb.append(String.format("Hour: %s (Current: %d, Baseline: %s)\n",
-            hourMatch ? "MATCH" : "MISMATCH",
-            currentHour,
-            normalHours != null && normalHours.length > 0 ? Arrays.toString(normalHours) : "none"));
+        BaselineMatchStatus hourStatus = hourMatch ? BaselineMatchStatus.MATCH : BaselineMatchStatus.MISMATCH;
 
-        // 3. UA 비교 - MATCH/PARTIAL/MISMATCH 명시
+        // 3. UA 비교 (v7.4: Enum 반환)
         String[] normalUserAgents = baseline.getNormalUserAgents();
         String currentUserAgent = currentEvent != null ? currentEvent.getUserAgent() : null;
-        String uaMatchStatus = getUAMatchStatus(normalUserAgents, currentUserAgent);
+        BaselineMatchStatus uaStatus = getUAMatchStatus(normalUserAgents, currentUserAgent);
         String currentUASignature = extractUASignature(currentUserAgent);
         String baselineUASignature = normalUserAgents != null && normalUserAgents.length > 0
             ? extractUASignature(normalUserAgents[0]) : "none";
-        sb.append(String.format("UA: %s (Current: %s, Baseline: %s)\n",
-            uaMatchStatus,
-            currentUASignature,
-            baselineUASignature));
 
-        // 4. Overall 매칭 점수 (AI Native: 정보 제공, 판단은 LLM)
+        // 4. Overall 매칭 점수
         int matchCount = (ipMatch ? 1 : 0) + (hourMatch ? 1 : 0) +
-                         ("MATCH".equals(uaMatchStatus) ? 1 : 0);
+                         (BaselineMatchStatus.MATCH == uaStatus ? 1 : 0);
         int totalCriteria = 3;
         int matchPercentage = (matchCount * 100) / totalCriteria;
-        sb.append(String.format("Overall: %d%% match (%d/%d criteria)\n\n",
-            matchPercentage, matchCount, totalCriteria));
 
-        // 5. RECOMMENDATION (AI Native v7.3: OS 변경 감지 추가)
-        // LLM이 모호한 권고를 받으면 보수적으로 CHALLENGE 선택 → 영구 CHALLENGE 루프 발생
-        // 따라서 명확한 조건별 권고 제공
-        if (!ipMatch) {
-            sb.append("RECOMMENDATION: IP mismatch requires verification (CHALLENGE recommended)\n");
-        } else if (matchCount == totalCriteria) {
-            sb.append("RECOMMENDATION: All criteria matched (ALLOW recommended)\n");
-        } else if (ipMatch && hourMatch && "PARTIAL".equals(uaMatchStatus)) {
-            // AI Native v7.1: UA PARTIAL은 브라우저 자동 업데이트로 인해 정상
-            // 영구 CHALLENGE 루프 방지: IP + Hour MATCH면 ALLOW 가능
-            sb.append("RECOMMENDATION: IP and Hour match, UA version difference is normal ");
-            sb.append("(browser auto-update). ALLOW possible.\n");
-        } else if (ipMatch && hourMatch && "MISMATCH".equals(uaMatchStatus)) {
-            // AI Native v7.3: OS/디바이스 변경 감지 - 계정 탈취 의심
-            // Windows → Android, Mac → iOS 등 OS 변경은 세션 하이재킹 가능성
-            sb.append("RECOMMENDATION: IP and Hour match but UA shows different OS/device. ");
-            sb.append("Possible session hijacking or device change. CHALLENGE recommended.\n");
-        } else if (ipMatch && hourMatch) {
-            sb.append("RECOMMENDATION: IP and Hour match (ALLOW possible)\n");
-        } else if (ipMatch) {
-            sb.append("RECOMMENDATION: IP match but Hour mismatch, evaluate based on context\n");
-        } else {
-            sb.append("RECOMMENDATION: Partial match, evaluate based on context\n");
-        }
+        // 5. RECOMMENDATION 결정 (v7.4: 예외 조항 포함)
+        String recommendation = determineRecommendation(ipMatch, hourMatch, uaStatus, matchCount, totalCriteria);
+
+        // JSON 구조화 출력 (v7.4: LLM 파싱 부담 감소)
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== BASELINE COMPARISON (JSON) ===\n");
+        sb.append("{\n");
+        sb.append("  \"baseline\": {\n");
+        sb.append(String.format("    \"ip\": {\"status\": \"%s\", \"current\": \"%s\", \"baseline\": \"%s\"},\n",
+            ipStatus, normalizedCurrentIp != null ? normalizedCurrentIp : currentIp,
+            normalIps != null && normalIps.length > 0 ? String.join(",", normalIps) : "none"));
+        sb.append(String.format("    \"hour\": {\"status\": \"%s\", \"current\": %d, \"baseline\": %s},\n",
+            hourStatus, currentHour,
+            normalHours != null && normalHours.length > 0 ? Arrays.toString(normalHours) : "[]"));
+        sb.append(String.format("    \"ua\": {\"status\": \"%s\", \"current\": \"%s\", \"baseline\": \"%s\"}\n",
+            uaStatus, currentUASignature, baselineUASignature));
+        sb.append("  },\n");
+        sb.append(String.format("  \"overall\": {\"matchPercentage\": %d, \"matchCount\": %d, \"totalCriteria\": %d},\n",
+            matchPercentage, matchCount, totalCriteria));
+        sb.append(String.format("  \"recommendation\": \"%s\"\n", recommendation));
+        sb.append("}\n\n");
+
+        // v7.4: 예외 조항 명시 (LLM Reasoning 활용)
+        sb.append("=== OVERRIDE CONDITIONS ===\n");
+        sb.append("LLM may override the recommendation if Related Context shows:\n");
+        sb.append("- User has established multi-device access pattern (e.g., mobile + desktop)\n");
+        sb.append("- Previous successful MFA from this device type\n");
+        sb.append("- Known VPN/proxy usage pattern for this user\n");
+        sb.append("- Legitimate travel pattern (business trips, remote work)\n");
 
         return sb.toString();
+    }
+
+    /**
+     * AI Native v7.4: RECOMMENDATION 결정 로직
+     *
+     * 기본 권고 + 예외 조항:
+     * - 기본값은 Baseline 비교 결과에 따라 결정
+     * - LLM은 Related Context를 참조하여 override 가능
+     *
+     * @param ipMatch IP 일치 여부
+     * @param hourMatch Hour 일치 여부
+     * @param uaStatus UA 일치 상태 (Enum)
+     * @param matchCount 일치 항목 수
+     * @param totalCriteria 전체 항목 수
+     * @return RECOMMENDATION 문자열
+     */
+    private String determineRecommendation(boolean ipMatch, boolean hourMatch,
+                                           BaselineMatchStatus uaStatus, int matchCount, int totalCriteria) {
+        if (!ipMatch) {
+            return "CHALLENGE (IP mismatch - unless Related Context shows VPN/travel pattern)";
+        }
+        if (matchCount == totalCriteria) {
+            return "ALLOW (all criteria matched)";
+        }
+        if (ipMatch && hourMatch && BaselineMatchStatus.PARTIAL == uaStatus) {
+            return "ALLOW (browser version difference is normal)";
+        }
+        if (ipMatch && hourMatch && BaselineMatchStatus.MISMATCH == uaStatus) {
+            return "CHALLENGE (OS/device change - unless Related Context shows multi-device pattern)";
+        }
+        if (ipMatch && hourMatch) {
+            return "ALLOW (IP and Hour match)";
+        }
+        if (ipMatch) {
+            return "CHALLENGE (Hour mismatch - evaluate context)";
+        }
+        return "CHALLENGE (partial match - evaluate context)";
     }
 
     /**
@@ -1264,34 +1294,38 @@ public class BaselineLearningService {
     }
 
     /**
-     * AI Native v7.3: UserAgent 일치 상태 판단 (OS 변경 감지 추가)
+     * AI Native v7.4: UserAgent 일치 상태 판단 (Enum 반환)
      *
      * v7.3 보안 개선:
-     * - 기존: 브라우저명만 비교 → OS 변경 미감지 → 계정 탈취 공격 허용
-     * - 변경: 브라우저명 + OS 분리 비교 → OS 변경 시 MISMATCH 반환
+     * - 기존: 브라우저명만 비교 -> OS 변경 미감지 -> 계정 탈취 공격 허용
+     * - 변경: 브라우저명 + OS 분리 비교 -> OS 변경 시 MISMATCH 반환
+     *
+     * v7.4 리팩토링:
+     * - 매직 스트링 제거 -> BaselineMatchStatus Enum 사용
+     * - 타입 안전성 확보
      *
      * 판정 기준:
      * - MATCH: 브라우저명 + 버전 + OS 모두 일치
      * - PARTIAL: 브라우저명 + OS 일치, 버전만 다름 (자동 업데이트로 정상)
-     * - MISMATCH: OS가 다름 (Windows → Android = 디바이스 변경 = 의심)
+     * - MISMATCH: OS가 다름 (Windows -> Android = 디바이스 변경 = 의심)
      * - UNKNOWN: UA 정보 없거나 파싱 불가
      *
      * @param normalUserAgents Baseline UA 목록
      * @param currentUserAgent 현재 UA
-     * @return MATCH, PARTIAL, MISMATCH, UNKNOWN
+     * @return BaselineMatchStatus Enum
      */
-    private String getUAMatchStatus(String[] normalUserAgents, String currentUserAgent) {
+    private BaselineMatchStatus getUAMatchStatus(String[] normalUserAgents, String currentUserAgent) {
         if (normalUserAgents == null || normalUserAgents.length == 0 || currentUserAgent == null) {
-            return "UNKNOWN";
+            return BaselineMatchStatus.UNKNOWN;
         }
         String currentSig = extractUASignature(currentUserAgent);
         if (currentSig == null || currentSig.equals("unknown") || currentSig.equals("unknown (unknown)")) {
-            return "UNKNOWN";
+            return BaselineMatchStatus.UNKNOWN;
         }
         for (String normalUA : normalUserAgents) {
             String normalSig = extractUASignature(normalUA);
             if (normalSig != null && currentSig.equals(normalSig)) {
-                return "MATCH";
+                return BaselineMatchStatus.MATCH;
             }
 
             // AI Native v7.3: 브라우저 + OS 분리 비교
@@ -1309,16 +1343,16 @@ public class BaselineLearningService {
             // 같은 브라우저인 경우
             if (currentBrowserName != null && currentBrowserName.equals(normalBrowserName)) {
                 // OS가 다르면 MISMATCH (디바이스 변경 = 계정 탈취 의심)
-                // 예: Windows → Android, Mac → iOS 등
+                // 예: Windows -> Android, Mac -> iOS 등
                 if (currentOS != null && normalOS != null && !currentOS.equals(normalOS)) {
                     log.debug("[Baseline] UA OS 불일치 감지: current={}, baseline={}", currentOS, normalOS);
-                    return "MISMATCH";  // v7.3: OS 변경은 PARTIAL이 아닌 MISMATCH
+                    return BaselineMatchStatus.MISMATCH;  // v7.3: OS 변경은 PARTIAL이 아닌 MISMATCH
                 }
                 // OS 동일, 버전만 다르면 PARTIAL (브라우저 자동 업데이트로 정상)
-                return "PARTIAL";
+                return BaselineMatchStatus.PARTIAL;
             }
         }
-        return "MISMATCH";
+        return BaselineMatchStatus.MISMATCH;
     }
 
     // Phase 9: analyzeDeviations() 제거 - AI Native 위반 (규칙 기반 점수 계산)
