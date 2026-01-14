@@ -1234,11 +1234,19 @@ public class BaselineLearningService {
 
         // v7.4: 예외 조항 명시 (LLM Reasoning 활용)
         sb.append("=== OVERRIDE CONDITIONS ===\n");
-        sb.append("LLM may override the recommendation if Related Context shows:\n");
+        sb.append("LLM may override the recommendation ONLY if Related Context shows:\n");
         sb.append("- User has established multi-device access pattern (e.g., mobile + desktop)\n");
         sb.append("- Previous successful MFA from this device type\n");
         sb.append("- Known VPN/proxy usage pattern for this user\n");
-        sb.append("- Legitimate travel pattern (business trips, remote work)\n");
+        sb.append("- Legitimate travel pattern (business trips, remote work)\n\n");
+
+        // AI Native v8.7: recommendation 권장 (강제 -> 권장으로 변경)
+        sb.append("=== RECOMMENDATION ===\n");
+        sb.append("Based on baseline analysis, the suggested action is: ");
+        sb.append(recommendation.toUpperCase()).append("\n");
+        sb.append("Consider this recommendation carefully.\n");
+        sb.append("If you disagree, explain why in your reasoning field.\n");
+        sb.append("NOTE: Browser version differences (UA PARTIAL) are common due to auto-updates.\n");
 
         return sb.toString();
     }

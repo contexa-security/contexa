@@ -138,7 +138,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             // 4. PromptTemplate을 통한 프롬프트 구성
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
-            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis);
+            // AI Native v8.9: SecurityEvent 파라미터 추가 (OS 필드 설정용)
+            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
 
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
@@ -345,8 +346,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         // - 효과: 유사도 52% -> 90%+ 기대
         final String currentIp = event.getSourceIp();
         final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
+        // AI Native v8.10: requestPath로 통일 (HCADContext 도메인 객체 기준)
         final String currentPath = event.getMetadata() != null ?
-                (String) event.getMetadata().get("requestUri") : null;
+                (String) event.getMetadata().get("requestPath") : null;
 
         try {
             List<Document> similarBehaviors = behaviorVectorService.findSimilarBehaviors(
@@ -511,14 +513,62 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return ctx;
     }
 
-    private SecurityPromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(BaseBehaviorAnalysis behaviorAnalysis) {
+    /**
+     * AI Native v8.9: SecurityEvent 파라미터 추가
+     * - currentUserAgentOS: 현재 요청의 OS (event.getUserAgent()에서 추출)
+     * - previousUserAgentOS: Baseline의 OS (baselineContext에서 추출)
+     */
+    private SecurityPromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(
+            BaseBehaviorAnalysis behaviorAnalysis,
+            SecurityEvent event) {
         SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
 
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
 
+        // AI Native v8.9: UserAgent OS 필드 설정 (LLM이 디바이스 변경 패턴 분석용)
+        // 1. 현재 요청의 UserAgent OS
+        if (event != null && event.getUserAgent() != null) {
+            String currentOS = extractOSFromUserAgent(event.getUserAgent());
+            ctx.setCurrentUserAgentOS(currentOS);
+        }
+
+        // 2. Baseline의 UserAgent OS (baselineContext에서 추출)
+        if (behaviorAnalysis.getBaselineContext() != null) {
+            String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
+            ctx.setPreviousUserAgentOS(baselineOS);
+        }
+
         return ctx;
+    }
+
+    /**
+     * AI Native v8.9: Baseline 컨텍스트에서 UserAgent OS 추출
+     *
+     * JSON 형식: "ua": {"status": "...", "current": "Chrome/120 (Android)", "baseline": "Chrome/143 (Windows)"}
+     */
+    private String extractOSFromBaselineContext(String baselineContext) {
+        if (baselineContext == null || baselineContext.isEmpty()) {
+            return null;
+        }
+
+        try {
+            // "baseline": "Chrome/143 (Windows)" 패턴에서 OS 추출
+            int baselineIdx = baselineContext.indexOf("\"baseline\":");
+            if (baselineIdx == -1) return null;
+
+            int startParen = baselineContext.indexOf("(", baselineIdx);
+            int endParen = baselineContext.indexOf(")", startParen);
+
+            if (startParen != -1 && endParen != -1 && endParen > startParen) {
+                return baselineContext.substring(startParen + 1, endParen);
+            }
+        } catch (Exception e) {
+            log.debug("[Layer1] Failed to extract OS from baseline context: {}", e.getMessage());
+        }
+
+        return null;
     }
 
     /**

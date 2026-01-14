@@ -227,7 +227,7 @@ public class SecurityDecisionPostProcessor {
     private String extractPath(SecurityEvent event) {
         if (event.getMetadata() != null) {
             // ZeroTrustEventListener에서 설정
-            Object uri = event.getMetadata().get("requestUri");
+            Object uri = event.getMetadata().get("requestPath");
             if (uri != null) {
                 return uri.toString();
             }

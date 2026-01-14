@@ -734,10 +734,10 @@ public class KafkaSecurityEventCollector {
             });
         }
 
-        // AI Native v8.6: requestUri 저장 (Document-Query 형식 통일의 핵심)
-        // authzEvent.getResource()는 requestUri를 담고 있음 (AuthorizationEventPublisher에서 설정)
+        // AI Native v8.10: requestPath로 통일 (HCADContext 도메인 객체 기준)
+        // authzEvent.getResource()는 requestPath를 담고 있음 (AuthorizationEventPublisher에서 설정)
         if (authzEvent.getResource() != null) {
-            event.addMetadata("requestUri", authzEvent.getResource());
+            event.addMetadata("requestPath", authzEvent.getResource());
         }
 
         // AI Native v4.1.0: 원시 데이터 저장 (LLM이 직접 판단)

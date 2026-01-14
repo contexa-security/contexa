@@ -291,34 +291,43 @@ public class SecurityPromptTemplate {
               "mitre": "<T1078|T1110|T1185|none>"
             }
 
-            GUARDRAILS (MANDATORY - No exceptions):
+            DECISION GUIDELINES (AI Native v8.7 - Guided, Not Forced):
 
-            [ALLOW conditions]
-            1. IP MATCH + Hour MATCH + UA PARTIAL (browser version only) + IsNewUser=false -> ALLOW
+            [ALLOW conditions - Strongly Recommended]
+            1. IP MATCH + Hour MATCH + UA PARTIAL + IsNewUser=false -> Strongly recommend ALLOW
+               CONTEXT: Browser auto-updates cause version changes frequently.
+               Chrome/120 vs Chrome/143 = same browser, different version = NORMAL user behavior.
+               Consider: Is there any attack evidence in RELATED CONTEXT? If not, ALLOW is appropriate.
+
+            2. If BASELINE recommendation says "ALLOW", consider following it.
+               Override only if RELATED CONTEXT shows explicit attack evidence:
+               - >3 MFA failures in 1 hour
+               - Known malicious IP pattern
+               - Credential stuffing indicators
 
             [CHALLENGE conditions - Suspicious but MFA verifiable]
-            2. New User (No Baseline) -> CHALLENGE
-            3. IP MISMATCH + UA MATCH + No travel pattern in RELATED CONTEXT -> CHALLENGE
-            4. UA MISMATCH (OS change) + No multi-device pattern in RELATED CONTEXT -> CHALLENGE
+            3. New User (No Baseline) -> CHALLENGE recommended
+            4. IP MISMATCH + UA MATCH + No travel pattern in RELATED CONTEXT -> Consider CHALLENGE
+            5. UA MISMATCH (OS change, e.g., Windows->Android) + No multi-device pattern -> Consider CHALLENGE
 
-            [BLOCK conditions - Attack evidence or multiple mismatches]
-            5. RELATED CONTEXT shows attack pattern (>3 failed MFA in 1 hour) -> BLOCK
-            6. IP MISMATCH + Hour MISMATCH + UA MISMATCH + No pattern in RELATED CONTEXT -> BLOCK
+            [BLOCK conditions - Attack evidence required]
+            6. RELATED CONTEXT shows attack pattern (>3 failed MFA in 1 hour) -> BLOCK recommended
+            7. IP MISMATCH + Hour MISMATCH + UA MISMATCH + No pattern in RELATED CONTEXT -> Consider BLOCK
 
             [ESCALATE conditions]
-            7. Confidence < 0.4 -> ESCALATE
-            8. Confidence range: 0.3-0.95
+            8. Confidence < 0.4 -> ESCALATE recommended
+            9. Confidence range: 0.3-0.95
 
-            CHALLENGE vs BLOCK:
-            - Both block access initially
-            - CHALLENGE: Allows MFA verification (suspicious but recoverable)
-            - BLOCK: Denies access completely (attack evidence detected)
+            KEY DISTINCTION:
+            - UA PARTIAL (same browser, different version): Common due to auto-updates -> typically ALLOW
+            - UA MISMATCH (different OS): Device change detected -> typically CHALLENGE
 
-            REASONING RULES:
+            REASONING REQUIREMENTS:
             - Reference SPECIFIC observations from BASELINE or RELATED CONTEXT
-            - Do NOT use generic phrases like "New user or device change"
-            - If IsNewUser=false, reasoning MUST NOT mention "new user"
-            - If BLOCK, must cite attack evidence from RELATED CONTEXT
+            - Explain WHY you chose your action (not just what you observed)
+            - If you disagree with BASELINE recommendation, explain your reasoning
+            - If IsNewUser=false, do not mention "new user" in reasoning
+            - If BLOCK, cite specific attack evidence from RELATED CONTEXT
 
             OUTPUT: Single-line JSON only. No markdown. No extra text.
             """);
@@ -483,8 +492,8 @@ public class SecurityPromptTemplate {
                 }
             }
 
-            // AI Native v6.8: 실제 metadata 키 사용 (requestUri는 ZeroTrustEventListener에서 설정됨)
-            Object requestUri = metadata.get("requestUri");
+            // AI Native v8.10: requestPath로 통일 (HCADContext 도메인 객체 기준)
+            Object requestUri = metadata.get("requestPath");
             if (requestUri != null) {
                 meta.append("|path=").append(requestUri);
             }

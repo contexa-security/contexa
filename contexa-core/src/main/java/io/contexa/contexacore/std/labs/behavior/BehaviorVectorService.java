@@ -325,11 +325,11 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 if (behaviorText.length() > 0) behaviorText.append(", ");
                 behaviorText.append("IP: ").append(context.getRemoteIp());
             }
-            // AI Native v8.6: Path 추가 (Document-Query 형식 통일)
-            // metadata에서 requestUri를 가져옴 (Line 306-312에서 병합됨)
+            // AI Native v8.10: requestPath로 통일 (HCADContext 도메인 객체 기준)
+            // metadata에서 requestPath를 가져옴 (Line 306-312에서 병합됨)
             String requestPath = null;
             if (context.getMetadata() != null) {
-                Object pathObj = context.getMetadata().get("requestUri");
+                Object pathObj = context.getMetadata().get("requestPath");
                 if (pathObj != null) {
                     requestPath = pathObj.toString();
                 }

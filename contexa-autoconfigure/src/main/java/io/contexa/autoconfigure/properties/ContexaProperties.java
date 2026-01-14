@@ -72,6 +72,12 @@ public class ContexaProperties {
         private boolean enabled = true;
 
         /**
+         * AI Native v8.10: X-Simulated-User-Agent 헤더를 통한 User-Agent 시뮬레이션 활성화
+         * 테스트 환경에서만 true로 설정 (운영 환경에서는 false 유지)
+         */
+        private boolean enableSimulatedUserAgent = false;
+
+        /**
          * 유사도 설정
          */
         private Similarity similarity = new Similarity();
