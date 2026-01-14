@@ -56,7 +56,31 @@ public enum VectorDocumentType {
      * 접근 거버넌스 (Access Governance)
      * - AccessGovernanceLabConnector의 접근 제어 패턴
      */
-    ACCESS_GOVERNANCE("access_governance");
+    ACCESS_GOVERNANCE("access_governance"),
+
+    /**
+     * 감사 로그 (Audit Log)
+     * AI Native v8.5: BehavioralAnalysisContextRetriever용
+     * - 시스템 감사 이벤트
+     * - 관리자 작업 로그
+     */
+    AUDIT("audit"),
+
+    /**
+     * 활동 로그 (Activity Log)
+     * AI Native v8.5: BehavioralAnalysisContextRetriever용
+     * - 사용자 활동 기록
+     * - 세션 활동 패턴
+     */
+    ACTIVITY("activity"),
+
+    /**
+     * 이상 탐지 (Anomaly Detection)
+     * AI Native v8.5: BehavioralAnalysisContextRetriever용
+     * - 이상 행동 패턴
+     * - 비정상 접근 시도
+     */
+    ANOMALY("anomaly");
 
     private final String value;
 

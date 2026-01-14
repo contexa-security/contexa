@@ -211,8 +211,12 @@ public class TieredStrategyProperties {
             /**
              * 관련 컨텍스트 검색 유사도 임계값
              * searchRelatedContext()에서 사용
+             *
+             * AI Native v8.5: 0.5로 상향 (RAG Pollution 방지)
+             * - 0.0은 모든 문서 반환 -> LLM 판단 오류 증가
+             * - 0.5 이상 유사도만 반환하여 노이즈 감소
              */
-            private double similarityThreshold = 0.0;
+            private double similarityThreshold = 0.5;
         }
 
         @Data
@@ -313,8 +317,12 @@ public class TieredStrategyProperties {
             /**
              * 관련 컨텍스트 검색 유사도 임계값
              * searchRelatedContext()에서 사용
+             *
+             * AI Native v8.5: 0.5로 상향 (RAG Pollution 방지)
+             * - 0.0은 모든 문서 반환 -> LLM 판단 오류 증가
+             * - 0.5 이상 유사도만 반환하여 노이즈 감소
              */
-            private double similarityThreshold = 0.0;
+            private double similarityThreshold = 0.5;
 
             // AI Native v5.1.0: threatActorLimit, campaignLimit 삭제
             // - findKnownThreatActors(), identifyRelatedCampaigns() 메서드 제거됨

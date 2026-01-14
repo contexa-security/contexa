@@ -328,6 +328,13 @@ public class SecurityDecisionPostProcessor {
             : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         metadata.put("timestamp", eventTimestamp);
 
+        // AI Native v8.5: hour 별도 저장 (AbstractTieredStrategy와 동일)
+        // - SecurityPromptTemplate에서 metadata.get("hour")로 직접 접근
+        // - timestamp 문자열 파싱 대신 정확한 hour 값 사용
+        if (event.getTimestamp() != null) {
+            metadata.put("hour", event.getTimestamp().getHour());
+        }
+
         // SecurityEvent 정보 - AI Native: null인 경우 필드 생략
         if (event.getEventId() != null) {
             metadata.put("eventId", event.getEventId());

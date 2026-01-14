@@ -467,15 +467,19 @@ public class SecurityPromptTemplate {
                 meta.append("|ip=").append(sourceIp);
             }
 
-            // AI Native v6.7: hour 추가 (시간대 비교 용이)
-            Object timestamp = metadata.get("timestamp");
-            if (timestamp != null) {
-                // 시간만 추출하여 표시 (전체 타임스탬프는 불필요하게 길음)
-                String timeStr = timestamp.toString();
-                if (timeStr.contains("T") && timeStr.length() > 13) {
-                    meta.append("|hour=").append(timeStr.substring(11, 13));
-                } else {
-                    meta.append("|time=").append(timeStr);
+            // AI Native v8.5: hour 필드 직접 사용 (시간대 패턴 분석용)
+            // - metadata에 hour 필드가 있으면 직접 사용 (더 정확)
+            // - 없으면 timestamp 문자열에서 파싱 (하위 호환)
+            Object hour = metadata.get("hour");
+            if (hour != null) {
+                meta.append("|hour=").append(hour);
+            } else {
+                Object timestamp = metadata.get("timestamp");
+                if (timestamp != null) {
+                    String timeStr = timestamp.toString();
+                    if (timeStr.contains("T") && timeStr.length() > 13) {
+                        meta.append("|hour=").append(timeStr.substring(11, 13));
+                    }
                 }
             }
 

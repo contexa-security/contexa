@@ -95,12 +95,13 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         
         // 행동 분석 필터 구성
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
+        // AI Native v8.5: VectorDocumentType enum 사용 (TODO 해결)
         var filter = filterBuilder.and(
             filterBuilder.in("documentType",
                 VectorDocumentType.BEHAVIOR.getValue(),
-                "audit",  // TODO: VectorDocumentType에 추가 필요
-                "activity",  // TODO: VectorDocumentType에 추가 필요
-                "anomaly"),  // TODO: VectorDocumentType에 추가 필요
+                VectorDocumentType.AUDIT.getValue(),
+                VectorDocumentType.ACTIVITY.getValue(),
+                VectorDocumentType.ANOMALY.getValue()),
             filterBuilder.gte("relevanceScore", 0.6)
         ).build();
         

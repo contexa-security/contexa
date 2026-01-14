@@ -268,6 +268,20 @@ public class BaselineLearningService {
         String currentPath = extractPath(event);
         String currentUserAgent = event != null ? event.getUserAgent() : null;
 
+        // AI Native v8.5: UA 파싱 실패 시 학습 차단 (기준선 오염 방지)
+        // "Browser (Desktop)"은 파싱 실패 기본값으로, 실제 브라우저/OS 정보가 없음
+        // 이 상태로 학습하면 이후 정상 UA와 비교 시 영구 MISMATCH 발생
+        if (currentUserAgent == null || currentUserAgent.isEmpty()) {
+            log.warn("[Baseline][AI Native v8.5] UA 없음 - 학습 차단: userId={}", userId);
+            return current;  // 기존 baseline 유지 (null이면 첫 학습 불가 -> 정상 UA로 재시도 필요)
+        }
+        String uaSignatureForValidation = extractUASignature(currentUserAgent);
+        if ("Browser (Desktop)".equals(uaSignatureForValidation)) {
+            log.warn("[Baseline][AI Native v8.5] UA 파싱 실패 - 학습 차단: userId={}, ua={}",
+                userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
+            return current;  // 기존 baseline 유지 (null이면 첫 학습 불가 -> 정상 UA로 재시도 필요)
+        }
+
         if (current == null) {
             // 첫 학습: Zero Trust 필수 데이터 초기화
             // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현

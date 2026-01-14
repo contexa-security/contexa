@@ -233,6 +233,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         metadata.put("timestamp", eventTimestamp);
 
+        // AI Native v8.5: Hour 정보 별도 저장 (시간대 패턴 분석용)
+        // - timestamp 문자열에서 추출하기 어려우므로 별도 필드로 저장
+        // - LLM이 RELATED CONTEXT에서 시간대 패턴을 쉽게 분석 가능
+        if (event.getTimestamp() != null) {
+            metadata.put("hour", event.getTimestamp().getHour());
+        }
+
         // SecurityEvent 정보 - AI Native: null인 경우 필드 생략
         if (event.getEventId() != null) {
             metadata.put("eventId", event.getEventId());
@@ -573,14 +580,17 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요 (Description/경로에서 유추 가능)
 
-            // 3. 사용자 ID (보조 정보)
+            // 3. 사용자 ID - Document 형식과 통일 (AI Native v8.5)
+            // Vector Similarity 향상: Query와 Document 텍스트 형식 일치
+            // 변경 전: "user:admin " → 변경 후: "User: admin, "
             if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
-                queryBuilder.append("user:").append(event.getUserId()).append(" ");
+                queryBuilder.append("User: ").append(event.getUserId()).append(", ");
             }
 
-            // 4. 소스 IP (보조 정보)
+            // 4. 소스 IP - Document 형식과 통일 (AI Native v8.5)
+            // 변경 전: "IP:0:0:0:0:0:0:0:1 " → 변경 후: "IP: 0:0:0:0:0:0:0:1, "
             if (event.getSourceIp() != null) {
-                queryBuilder.append("IP:").append(event.getSourceIp()).append(" ");
+                queryBuilder.append("IP: ").append(event.getSourceIp()).append(", ");
             }
 
             String query = queryBuilder.toString().trim();
@@ -591,21 +601,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 return java.util.Collections.emptyList();
             }
 
-            // AI Native v7.1: BEHAVIOR 타입 + userId 필터 (계정 격리 - CRITICAL)
+            // AI Native v8.5: BEHAVIOR 타입 + userId 필터 (계정 격리 - CRITICAL)
             // userId 필터가 없으면 다른 사용자의 데이터가 LLM 분석에 포함되어
             // 정상 사용자와 공격자 구분이 불가능해짐
             String userId = event.getUserId();
-            String documentTypeFilter;
-            if (userId != null && !userId.isEmpty()) {
-                documentTypeFilter = String.format("documentType == '%s' && userId == '%s'",
-                    VectorDocumentType.BEHAVIOR.getValue(), userId);
-                log.debug("[{}][AI Native v7.1] RAG search with userId filter: {}", getLayerName(), userId);
-            } else {
-                // userId 없는 경우 documentType만으로 검색 (폴백)
-                documentTypeFilter = String.format("documentType == '%s'",
-                    VectorDocumentType.BEHAVIOR.getValue());
-                log.warn("[{}][AI Native v7.1] RAG search without userId filter - potential data leak", getLayerName());
+            if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
+                // AI Native v8.5: userId 없는 경우 검색 차단 (보안 강화)
+                // 폴백 검색은 모든 사용자 데이터를 반환하여 계정 격리 실패 야기
+                log.warn("[{}][AI Native v8.5] userId 없음 - RAG 검색 스킵 (계정 격리 보호)",
+                    getLayerName());
+                return java.util.Collections.emptyList();
             }
+
+            String documentTypeFilter = String.format("documentType == '%s' && userId == '%s'",
+                VectorDocumentType.BEHAVIOR.getValue(), userId);
+            log.debug("[{}][AI Native v8.5] RAG search with userId filter: {}", getLayerName(), userId);
 
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
