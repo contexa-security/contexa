@@ -1596,11 +1596,11 @@ public class BaselineLearningService {
      */
     private String extractUASignature(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
-            return "unknown";
+            return "Browser (Desktop)";  // AI Native v7.1: "unknown" 대신 의미있는 기본값
         }
 
-        String browser = "unknown";
-        String os = "unknown";
+        String browser = "Browser";  // AI Native v7.1: "unknown" 대신 "Browser"
+        String os = "Desktop";  // AI Native v7.1: "unknown" 대신 "Desktop" (기본값)
 
         // 브라우저 및 버전 추출 (메이저 버전만)
         if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
@@ -1615,18 +1615,24 @@ public class BaselineLearningService {
             browser = browser.replace("Version", "Safari");
         }
 
-        // OS 추출
-        if (userAgent.contains("Windows")) {
-            os = "Windows";
-        } else if (userAgent.contains("Mac OS")) {
-            os = "Mac";
-        } else if (userAgent.contains("Linux") && !userAgent.contains("Android")) {
-            os = "Linux";
-        } else if (userAgent.contains("Android")) {
+        // AI Native v7.1: OS 추출 강화 (모바일 OS 우선 검사)
+        // Android가 Linux를 포함하므로 모바일 OS를 먼저 검사해야 함
+        if (userAgent.contains("Android")) {
             os = "Android";
-        } else if (userAgent.contains("iPhone") || userAgent.contains("iPad")) {
+        } else if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iOS")) {
             os = "iOS";
+        } else if (userAgent.contains("Windows")) {
+            os = "Windows";
+        } else if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
+            os = "Mac";
+        } else if (userAgent.contains("CrOS")) {
+            os = "ChromeOS";
+        } else if (userAgent.contains("Linux")) {
+            os = "Linux";
+        } else if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
+            os = "Mobile";  // 모바일이지만 OS 특정 불가
         }
+        // else: 기본값 "Desktop" 유지
 
         return browser + " (" + os + ")";
     }

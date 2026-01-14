@@ -247,6 +247,17 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             metadata.put("sessionId", event.getSessionId());
         }
 
+        // AI Native v7.1: userAgent 정보 추가 (디바이스 패턴 분석용)
+        // LLM이 RELATED CONTEXT에서 이전 요청의 디바이스 정보를 볼 수 있도록 함
+        if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
+            metadata.put("userAgent", event.getUserAgent());
+            // OS 정보 추출하여 저장 (LLM 분석 용이성)
+            String userAgentOS = extractOSFromUserAgent(event.getUserAgent());
+            if (userAgentOS != null) {
+                metadata.put("userAgentOS", userAgentOS);
+            }
+        }
+
         // AI Native v7.0: action, riskScore, confidence 모두 제거 (순환 로직 방지)
         // LLM 결과(action 포함)가 다음 분석에 영향을 미치면 독립적 분석 불가
         // action 저장 제거: 이전 BLOCK/ALLOW가 다음 판단에 편향을 줄 수 있음
@@ -580,9 +591,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 return java.util.Collections.emptyList();
             }
 
-            // BEHAVIOR 타입 문서만 검색
-            String documentTypeFilter = String.format("documentType == '%s'",
-                VectorDocumentType.BEHAVIOR.getValue());
+            // AI Native v7.1: BEHAVIOR 타입 + userId 필터 (계정 격리 - CRITICAL)
+            // userId 필터가 없으면 다른 사용자의 데이터가 LLM 분석에 포함되어
+            // 정상 사용자와 공격자 구분이 불가능해짐
+            String userId = event.getUserId();
+            String documentTypeFilter;
+            if (userId != null && !userId.isEmpty()) {
+                documentTypeFilter = String.format("documentType == '%s' && userId == '%s'",
+                    VectorDocumentType.BEHAVIOR.getValue(), userId);
+                log.debug("[{}][AI Native v7.1] RAG search with userId filter: {}", getLayerName(), userId);
+            } else {
+                // userId 없는 경우 documentType만으로 검색 (폴백)
+                documentTypeFilter = String.format("documentType == '%s'",
+                    VectorDocumentType.BEHAVIOR.getValue());
+                log.warn("[{}][AI Native v7.1] RAG search without userId filter - potential data leak", getLayerName());
+            }
 
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
@@ -700,5 +723,54 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
         public boolean isBaselineEstablished() { return baselineEstablished; }
         public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
+    }
+
+    // ========================================================================
+    // AI Native v7.1: User-Agent OS 추출 유틸리티
+    // ========================================================================
+
+    /**
+     * User-Agent에서 OS 정보 추출
+     *
+     * AI Native v7.1: LLM이 디바이스 패턴을 분석할 수 있도록
+     * User-Agent에서 OS 정보를 추출하여 메타데이터에 저장합니다.
+     *
+     * @param userAgent User-Agent 문자열
+     * @return OS 이름 (Android, iOS, Windows, Mac, Linux, ChromeOS, Mobile, Desktop)
+     */
+    protected String extractOSFromUserAgent(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return null;
+        }
+
+        // 모바일 OS 우선 검사 (Android가 Linux를 포함하므로)
+        if (userAgent.contains("Android")) {
+            return "Android";
+        }
+        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iOS")) {
+            return "iOS";
+        }
+
+        // 데스크톱 OS
+        if (userAgent.contains("Windows NT") || userAgent.contains("Windows")) {
+            return "Windows";
+        }
+        if (userAgent.contains("Mac OS X") || userAgent.contains("Macintosh")) {
+            return "Mac";
+        }
+        if (userAgent.contains("CrOS")) {
+            return "ChromeOS";
+        }
+        if (userAgent.contains("Linux")) {
+            return "Linux";
+        }
+
+        // 모바일 패턴 감지 (OS 특정 불가 시)
+        if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
+            return "Mobile";
+        }
+
+        // 기본값: Desktop (unknown 대신)
+        return "Desktop";
     }
 }

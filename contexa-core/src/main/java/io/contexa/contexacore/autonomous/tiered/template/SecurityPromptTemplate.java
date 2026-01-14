@@ -105,25 +105,47 @@ public class SecurityPromptTemplate {
         String baselineSection = baselineSectionBuilder.toString();
 
         // Related Documents - 설정에서 최대 개수 읽기
+        // AI Native v7.1: userId 재검증으로 다른 사용자 문서 필터링 (계정 격리)
         StringBuilder relatedContextBuilder = new StringBuilder();
         int maxRagDocs = tieredStrategyProperties.getLayer1().getPrompt().getMaxRagDocuments();
         int maxDocs = (relatedDocuments != null) ? Math.min(maxRagDocs, relatedDocuments.size()) : 0;
-        for (int i = 0; i < maxDocs; i++) {
+        int addedDocs = 0;
+        int filteredDocs = 0;
+        for (int i = 0; i < maxDocs && addedDocs < maxRagDocs; i++) {
             Document doc = relatedDocuments.get(i);
+
+            // AI Native v7.1: userId 재검증 - 다른 사용자의 문서는 제외
+            // 계정별 데이터 격리를 프롬프트 단계에서도 강제
+            Map<String, Object> docMetadata = doc.getMetadata();
+            if (userId != null) {
+                Object docUserId = docMetadata.get("userId");
+                if (docUserId != null && !userId.equals(docUserId.toString())) {
+                    filteredDocs++;
+                    log.debug("[SecurityPromptTemplate] 다른 사용자 문서 제외: docUser={}, currentUser={}",
+                        docUserId, userId);
+                    continue;  // 다른 사용자의 문서 제외
+                }
+            }
+
             String content = doc.getText();
             if (content != null && !content.isBlank()) {
-                if (i > 0) {
+                if (addedDocs > 0) {
                     relatedContextBuilder.append("\n");
                 }
 
-                String docMeta = buildDocumentMetadata(doc, i + 1);
+                String docMeta = buildDocumentMetadata(doc, addedDocs + 1);
                 int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getRagDocument();
                 String truncatedContent = content.length() > maxLength
                     ? content.substring(0, maxLength) + "..."
                     : content;
 
                 relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
+                addedDocs++;
             }
+        }
+        if (filteredDocs > 0) {
+            log.info("[SecurityPromptTemplate][AI Native v7.1] userId 필터링: {}개 문서 제외, {}개 포함",
+                filteredDocs, addedDocs);
         }
         boolean hasRelatedDocs = relatedContextBuilder.length() > 0;
         String relatedContext = hasRelatedDocs ? relatedContextBuilder.toString() : null;
@@ -472,6 +494,13 @@ public class SecurityPromptTemplate {
             Object requestUri = metadata.get("requestUri");
             if (requestUri != null) {
                 meta.append("|path=").append(requestUri);
+            }
+
+            // AI Native v7.1: userAgentOS 출력 (디바이스 패턴 분석용)
+            // LLM이 이전 요청의 디바이스 정보를 볼 수 있도록 함
+            Object userAgentOS = metadata.get("userAgentOS");
+            if (userAgentOS != null) {
+                meta.append("|os=").append(userAgentOS);
             }
         }
 
