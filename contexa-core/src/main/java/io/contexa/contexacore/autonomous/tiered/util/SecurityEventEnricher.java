@@ -60,9 +60,28 @@ public class SecurityEventEnricher {
     
     /**
      * 대상 리소스 조회
+     *
+     * AI Native v8.6: 메타데이터 키 통일
+     * - targetResource, requestUri, fullPath 순서로 체크
+     * - ZeroTrustEventListener: requestUri 키 사용
+     * - HCADContextExtractor: fullPath 키 사용
+     * - SecurityEventEnricher: targetResource 키 사용
      */
     public Optional<String> getTargetResource(SecurityEvent event) {
-        return getMetadataValue(event, TARGET_RESOURCE, String.class);
+        // 1. targetResource 체크 (SecurityEventEnricher에서 설정)
+        Optional<String> target = getMetadataValue(event, TARGET_RESOURCE, String.class);
+        if (target.isPresent()) {
+            return target;
+        }
+
+        // 2. requestUri 체크 (ZeroTrustEventListener/KafkaSecurityEventCollector에서 설정)
+        Optional<String> requestUri = getMetadataValue(event, "requestUri", String.class);
+        if (requestUri.isPresent()) {
+            return requestUri;
+        }
+
+        // 3. fullPath 체크 (HCADContextExtractor에서 설정)
+        return getMetadataValue(event, "fullPath", String.class);
     }
     
     // AI Native v6.0: httpMethod 관련 메서드 제거 - LLM 분석에 불필요

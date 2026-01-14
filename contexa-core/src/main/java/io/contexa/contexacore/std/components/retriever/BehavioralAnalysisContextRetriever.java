@@ -141,12 +141,17 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
                 ragResult = super.retrieveContext(request);
             }
             
-            // VectorService를 통한 유사 행동 패턴 검색
+            // AI Native v8.6: VectorService를 통한 유사 행동 패턴 검색
+            // Document-Query 형식 통일: User/IP/Path 형식으로 검색
             List<Document> vectorServiceDocs = List.of();
             try {
+                String remoteIp = context.getRemoteIp();
+                String requestPath = context.getMetadata() != null ?
+                        (String) context.getMetadata().get("requestUri") : null;
                 vectorServiceDocs = vectorService.findSimilarBehaviors(
-                    context.getUserId(), 
-                    context.getCurrentActivity(), 
+                    context.getUserId(),
+                    remoteIp,
+                    requestPath,
                     10
                 );
             } catch (Exception e) {

@@ -339,25 +339,22 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             return Collections.emptyList();
         }
 
-        // AI Native: description이 없으면 의미 있는 검색 불가
-        String description = event.getDescription();
-        if (description == null || description.isEmpty()) {
-            log.debug("[Layer1][AI Native] No description for similar events search, skipping");
-            return Collections.emptyList();
-        }
+        // AI Native v8.6: IP/Path로 검색 (Document-Query 형식 100% 통일)
+        // - 기존: 한글 쿼리 "사용자 admin의 활동 패턴" vs 영어 문서 "User: admin, IP: x.x.x.x"
+        // - 변경: 영어 쿼리 "User: admin, IP: x.x.x.x, Path: /api/xxx" = 문서 형식 동일
+        // - 효과: 유사도 52% -> 90%+ 기대
+        final String currentIp = event.getSourceIp();
+        final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
+        final String currentPath = event.getMetadata() != null ?
+                (String) event.getMetadata().get("requestUri") : null;
 
         try {
             List<Document> similarBehaviors = behaviorVectorService.findSimilarBehaviors(
                     userId,
-                    description,
+                    currentIp,
+                    currentPath,
                     5
             );
-
-            // AI Native v7.0: IP/Hour 명확한 MATCH/MISMATCH 표시, Path 추가
-            final String currentIp = event.getSourceIp();
-            final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
-            final String currentPath = event.getMetadata() != null ?
-                    (String) event.getMetadata().get("requestUri") : null;
 
             return similarBehaviors.stream()
                     .map(doc -> {

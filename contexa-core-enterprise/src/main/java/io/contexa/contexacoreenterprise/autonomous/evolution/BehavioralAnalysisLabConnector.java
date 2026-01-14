@@ -319,11 +319,16 @@ public class BehavioralAnalysisLabConnector {
     private void enrichWithVectorAnalysis(ThreatAssessment assessment, SecurityEvent event) {
         try {
             String userId = event.getUserId();
-            String activity = event.getSeverity() != null ? event.getSeverity().toString() : "UNKNOWN";
+            // AI Native v8.6: Document-Query 형식 통일
+            // - 기존: severity 기반 검색 → 문서 형식과 불일치
+            // - 변경: User/IP/Path 형식으로 검색
+            String sourceIp = event.getSourceIp();
+            String requestPath = event.getMetadata() != null ?
+                    (String) event.getMetadata().get("requestUri") : null;
 
             // 1. Vector Store에서 유사 행동 패턴 검색 (상위 10개)
             List<org.springframework.ai.document.Document> similarBehaviors =
-                behaviorVectorService.findSimilarBehaviors(userId, activity, 10);
+                behaviorVectorService.findSimilarBehaviors(userId, sourceIp, requestPath, 10);
 
             // 2. 유사 패턴 분석
             Map<String, Object> vectorAnalysis = analyzeSimilarBehaviors(similarBehaviors, event);

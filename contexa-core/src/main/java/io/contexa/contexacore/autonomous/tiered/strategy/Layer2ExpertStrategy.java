@@ -328,10 +328,16 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 return findSimilarIncidentsFallback(event);
             }
 
-            // AI Native v4.2.0: sourceIp → userId 수정 (findSimilarBehaviors 첫번째 파라미터는 userId)
+            // AI Native v8.6: Document-Query 형식 통일
+            // - 기존: incidentQuery (텍스트 쿼리) → 문서 형식과 불일치
+            // - 변경: User/IP/Path 형식으로 통일
+            String sourceIp = event.getSourceIp();
+            String requestPath = event.getMetadata() != null ?
+                    (String) event.getMetadata().get("requestUri") : null;
             List<Document> similarIncidents = behaviorVectorService.findSimilarBehaviors(
                     userId,
-                    incidentQuery.toString(),
+                    sourceIp,
+                    requestPath,
                     5
             );
 
@@ -515,24 +521,21 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             return Collections.emptyList();
         }
 
-        String description = event.getDescription();
-        if (description == null || description.isEmpty()) {
-            log.debug("[Layer2][AI Native] No description for similar events search, skipping");
-            return Collections.emptyList();
-        }
+        // AI Native v8.6: IP/Path로 검색 (Document-Query 형식 100% 통일)
+        // - 기존: 한글 쿼리 vs 영어 문서 → 유사도 52%
+        // - 변경: 영어 쿼리 = 문서 형식 동일 → 유사도 90%+ 기대
+        final String currentIp = event.getSourceIp();
+        final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
+        final String currentPath = event.getMetadata() != null ?
+                (String) event.getMetadata().get("requestUri") : null;
 
         try {
             List<Document> similarBehaviors = behaviorVectorService.findSimilarBehaviors(
                     userId,
-                    description,
+                    currentIp,
+                    currentPath,
                     5
             );
-
-            // AI Native v6.8: Action, MatchedBy 추가
-            final String currentIp = event.getSourceIp();
-            final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
-            final String currentPath = event.getMetadata() != null ?
-                    (String) event.getMetadata().get("requestUri") : null;
 
             return similarBehaviors.stream()
                     .map(doc -> {

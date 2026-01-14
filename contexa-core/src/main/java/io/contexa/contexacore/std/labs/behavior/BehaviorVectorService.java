@@ -312,9 +312,10 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 }
             }
 
-            // AI Native v7.0: 행동 텍스트 생성 (사실 데이터만 포함)
+            // AI Native v8.6: 행동 텍스트 생성 (Document-Query 형식 통일)
             // - "unknown" 폴백 제거: null이면 필드 자체 생략
-            // - behaviorAnomalyScore 제거: LLM 결과 = 순환 로직 위험
+            // - Path 추가: findSimilarBehaviors() 쿼리와 형식 일치
+            // - 저장 형식: "User: admin, IP: x.x.x.x, Path: /api/xxx"
             StringBuilder behaviorText = new StringBuilder();
 
             if (context.getUserId() != null) {
@@ -324,6 +325,19 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 if (behaviorText.length() > 0) behaviorText.append(", ");
                 behaviorText.append("IP: ").append(context.getRemoteIp());
             }
+            // AI Native v8.6: Path 추가 (Document-Query 형식 통일)
+            // metadata에서 requestUri를 가져옴 (Line 306-312에서 병합됨)
+            String requestPath = null;
+            if (context.getMetadata() != null) {
+                Object pathObj = context.getMetadata().get("requestUri");
+                if (pathObj != null) {
+                    requestPath = pathObj.toString();
+                }
+            }
+            if (requestPath != null) {
+                if (behaviorText.length() > 0) behaviorText.append(", ");
+                behaviorText.append("Path: ").append(requestPath);
+            }
             if (context.getCurrentActivity() != null) {
                 if (behaviorText.length() > 0) behaviorText.append(", ");
                 behaviorText.append("Activity: ").append(context.getCurrentActivity());
@@ -332,7 +346,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 if (behaviorText.length() > 0) behaviorText.append(", ");
                 behaviorText.append("Sequence: ").append(context.getSequencePattern());
             }
-            // AI Native v7.0: behaviorAnomalyScore 제거 (LLM 결과 = 순환 로직)
 
             Document behaviorDoc = new Document(behaviorText.toString(), metadata);
             storeDocument(behaviorDoc);
@@ -707,21 +720,41 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     /**
      * 유사한 행동 패턴 검색
      * BehavioralAnalysisContextRetriever와의 통합을 위한 메서드
-     * 
+     *
+     * AI Native v8.6: Document-Query 형식 100% 통일
+     * - 저장된 Document: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/xxx"
+     * - 검색 Query: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/xxx"
+     * - 형식 일치로 유사도 향상 (52% -> 90%+ 기대)
+     *
      * @param userId 사용자 ID
-     * @param activity 현재 활동
+     * @param ip 소스 IP 주소
+     * @param path 요청 경로
      * @param topK 검색할 최대 문서 수
      * @return 유사한 행동 패턴 문서 목록
      */
-    public List<Document> findSimilarBehaviors(String userId, String activity, int topK) {
+    public List<Document> findSimilarBehaviors(String userId, String ip, String path, int topK) {
         try {
             Map<String, Object> filters = new HashMap<>();
             filters.put("documentType", "behavior");
             filters.put("userId", userId);
             filters.put("topK", topK);
-            
-            String query = String.format("사용자 %s의 %s 활동 패턴", userId, activity);
-            return searchSimilar(query, filters);
+
+            // AI Native v8.6: Document-Query 형식 통일
+            // 저장된 문서와 동일한 형식으로 쿼리 생성
+            StringBuilder query = new StringBuilder();
+            if (userId != null) {
+                query.append("User: ").append(userId);
+            }
+            if (ip != null) {
+                if (query.length() > 0) query.append(", ");
+                query.append("IP: ").append(ip);
+            }
+            if (path != null) {
+                if (query.length() > 0) query.append(", ");
+                query.append("Path: ").append(path);
+            }
+
+            return searchSimilar(query.toString(), filters);
         } catch (Exception e) {
             log.error("[BehaviorVectorService] 유사 행동 패턴 검색 실패", e);
             return List.of();

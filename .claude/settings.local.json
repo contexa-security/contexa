@@ -76,7 +76,8 @@
       "Bash(echo:*)",
       "Bash(.gradlew.bat :contexa-core:compileJava --quiet)",
       "Bash(find-object:*)",
-      "Bash(Select-String \"Layer\")"
+      "Bash(Select-String \"Layer\")",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []
