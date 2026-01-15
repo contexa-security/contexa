@@ -351,23 +351,7 @@ public class RedisSecurityEventCollector {
         }
     }
 
-    /**
-     * @deprecated AI Native: eventType 필드 제거로 인해 사용 중단
-     * LLM이 분석하여 action을 결정하므로 eventType 기반 라우팅 불필요
-     */
-    @Deprecated(since = "4.0.0", forRemoval = true)
-    private void routeToSpecializedHandler(SecurityEventListener listener, SecurityEvent event) {
-        // AI Native: eventType 기반 라우팅 제거 - 모든 이벤트는 onSecurityEvent로 통합 처리
-        // LLM이 분석 후 action (ALLOW/BLOCK/CHALLENGE/ESCALATE)을 결정
-        
-        // AI Native: action 기반 고위험 이벤트 판단
-        Map<String, Object> metadata = event.getMetadata();
-        String aiAction = metadata != null ? (String) metadata.get("aiAction") : null;
-        if ("BLOCK".equals(aiAction) || "CHALLENGE".equals(aiAction)) {
-            listener.onHighRiskEvent(event);
-        }
-    }
-    
+
     private SecurityEvent parseThreatAlert(String json) throws Exception {
         Map<String, Object> data = objectMapper.readValue(json, Map.class);
         

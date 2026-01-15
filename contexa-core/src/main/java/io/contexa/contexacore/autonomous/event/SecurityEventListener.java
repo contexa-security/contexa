@@ -40,20 +40,6 @@ public interface SecurityEventListener {
     }
     
     /**
-     * 고위험 이벤트 처리
-     *
-     * AI Native v4.1.0: Severity 필터링 제거 - 모든 이벤트 LLM 분석
-     * onBlockEvent() 사용 권장
-     *
-     * @deprecated AI Native 원칙 위반 - onBlockEvent() 사용 권장
-     */
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    default void onHighRiskEvent(SecurityEvent event) {
-        // AI Native v4.1.0: Severity 필터링 제거 - 모든 이벤트 전달
-        onSecurityEvent(event);
-    }
-
-    /**
      * AI Native: BLOCK action 이벤트 처리
      */
     default void onBlockEvent(SecurityEvent event, SecurityDecision decision) {

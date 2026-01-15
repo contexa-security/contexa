@@ -162,11 +162,15 @@ public class SecurityDecisionPostProcessor {
      *
      * AI Native v8.6: Document-Query 형식 통일 (Similarity 95%+ 목표)
      * - LLM 분석에 불필요한 속성 제거: EventId, Method, Timestamp, Hour
-     * - 검색 쿼리와 100% 일치하는 형식으로 통일: User, IP, Path만 포함
+     * - 검색 쿼리와 100% 일치하는 형식으로 통일: User, IP, Path, OS 포함
      * - EventId, Method, Timestamp, Hour는 metadata에만 저장 (content에서 제거)
      *
+     * AI Native v8.9: OS 정보 추가
+     * - 벡터 유사도 계산에 OS 반영 (컨텍스트 변경 감지)
+     * - Windows 문서와 Android 문서 구분 가능
+     *
      * 변경 전: "EventId: xxx, User: admin, IP: xxx, Path: xxx, Method: GET, Timestamp: xxx, Hour: 18"
-     * 변경 후: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/users"
+     * 변경 후: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/users, OS: Android"
      */
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder content = new StringBuilder();
@@ -187,6 +191,14 @@ public class SecurityDecisionPostProcessor {
         if (path != null) {
             if (content.length() > 0) content.append(", ");
             content.append("Path: ").append(path);
+        }
+
+        // AI Native v8.9: OS 정보 추가 (벡터 유사도에 반영)
+        // Desktop은 기본값이므로 제외하여 기존 문서와 호환성 유지
+        String os = extractOSFromUserAgent(event.getUserAgent());
+        if (os != null && !"Desktop".equals(os)) {
+            if (content.length() > 0) content.append(", ");
+            content.append("OS: ").append(os);
         }
 
         // AI Native v8.6: 아래 필드들은 content에서 제거 (metadata에만 저장)

@@ -450,7 +450,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
 
         // 같은 브라우저이고 OS 키워드가 동일하면 유사
-        String[] osKeywords = {"Windows", "Mac OS", "Linux", "Android", "iOS", "iPhone", "iPad"};
+        // AI Native v8.8: "Mac OS" → "Mac" (extractUASignature 반환값과 일치)
+        // AI Native v8.8: "ChromeOS" 추가 (extractUASignature에서 지원)
+        // AI Native v8.8: "iPod" 추가 (iOS 디바이스 완전 지원)
+        String[] osKeywords = {"Windows", "Mac", "Linux", "Android", "iOS", "iPhone", "iPad", "iPod", "ChromeOS"};
         String cachedOs = null;
         String currentOs = null;
 
@@ -585,6 +588,14 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             if (targetResource != null && !targetResource.isEmpty()) {
                 if (queryBuilder.length() > 0) queryBuilder.append(", ");
                 queryBuilder.append("Path: ").append(targetResource);
+            }
+
+            // AI Native v8.9: OS 정보 추가 (Document Content와 일치 - 벡터 유사도 향상)
+            // SecurityDecisionPostProcessor.buildBehaviorContent()와 동일한 형식 사용
+            String currentOS = extractOSFromUserAgent(event.getUserAgent());
+            if (currentOS != null && !"Desktop".equals(currentOS)) {
+                if (queryBuilder.length() > 0) queryBuilder.append(", ");
+                queryBuilder.append("OS: ").append(currentOS);
             }
 
             // AI Native v8.6: description 제거 (Document Content에 없음 -> Similarity 저하 원인)
@@ -754,7 +765,9 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (userAgent.contains("Android")) {
             return "Android";
         }
-        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iOS")) {
+        // AI Native v8.8: iPod 추가 (드물지만 존재)
+        if (userAgent.contains("iPhone") || userAgent.contains("iPad")
+                || userAgent.contains("iPod") || userAgent.contains("iOS")) {
             return "iOS";
         }
 

@@ -1528,36 +1528,37 @@ public class BaselineLearningService {
             return "Unknown";
         }
 
-        String ua = userAgent.toLowerCase();
+        // AI Native v8.8: lowercase 변환 제거 (원본 대소문자 유지)
+        // UA 문자열은 표준 형식이므로 변환 불필요
 
-        // Windows 계열
-        if (ua.contains("windows nt") || ua.contains("windows phone")) {
-            return "Windows";
-        }
-
-        // Android (iOS/macOS보다 먼저 체크 - Android는 Linux 기반이므로)
-        if (ua.contains("android")) {
+        // 모바일 OS 우선 검사 (Android가 Linux를 포함하므로)
+        if (userAgent.contains("Android")) {
             return "Android";
         }
 
         // iOS 계열 (iPhone, iPad, iPod)
-        if (ua.contains("iphone") || ua.contains("ipad") || ua.contains("ipod")) {
+        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iPod")) {
             return "iOS";
         }
 
-        // macOS (Mac OS X)
-        if (ua.contains("mac os x") || ua.contains("macintosh")) {
-            return "macOS";
+        // Windows 계열
+        if (userAgent.contains("Windows")) {
+            return "Windows";
         }
 
-        // Linux (Android 제외)
-        if (ua.contains("linux") && !ua.contains("android")) {
-            return "Linux";
+        // macOS (Mac OS X) - AI Native v8.8: "Mac" 반환 (extractUASignature와 일치)
+        if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
+            return "Mac";
         }
 
         // Chrome OS
-        if (ua.contains("cros")) {
+        if (userAgent.contains("CrOS")) {
             return "ChromeOS";
+        }
+
+        // Linux (Android 제외)
+        if (userAgent.contains("Linux") && !userAgent.contains("Android")) {
+            return "Linux";
         }
 
         return "Unknown";
@@ -1646,16 +1647,20 @@ public class BaselineLearningService {
             browser = browser.replace("Edg", "Edge");
         } else if (userAgent.contains("Firefox/")) {
             browser = extractBrowserVersion(userAgent, "Firefox/");
-        } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome")) {
+        // AI Native v8.8: Safari 감지 조건 강화 (Chrome, Edge 제외)
+        // Edge Chromium도 Safari/ 문자열을 포함하므로 제외 필요
+        } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
             browser = extractBrowserVersion(userAgent, "Version/");
             browser = browser.replace("Version", "Safari");
         }
 
         // AI Native v7.1: OS 추출 강화 (모바일 OS 우선 검사)
         // Android가 Linux를 포함하므로 모바일 OS를 먼저 검사해야 함
+        // AI Native v8.8: iPod 추가 (드물지만 존재)
         if (userAgent.contains("Android")) {
             os = "Android";
-        } else if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iOS")) {
+        } else if (userAgent.contains("iPhone") || userAgent.contains("iPad")
+                   || userAgent.contains("iPod") || userAgent.contains("iOS")) {
             os = "iOS";
         } else if (userAgent.contains("Windows")) {
             os = "Windows";

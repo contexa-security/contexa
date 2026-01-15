@@ -74,6 +74,14 @@ public class ZeroTrustSecurityService {
     private boolean sessionTrackingEnabled;
 
     /**
+     * AI Native v8.11: X-Simulated-User-Agent 헤더를 통한 User-Agent 시뮬레이션 활성화
+     * 테스트 환경에서만 true로 설정 (운영 환경에서는 false 유지)
+     * HCADContextExtractor와 동일한 설정 사용
+     */
+    @Value("${contexa.hcad.enable-simulated-user-agent:false}")
+    private boolean enableSimulatedUserAgent;
+
+    /**
      * SecurityContext에 Zero Trust 기능 적용 (인증된 사용자)
      *
      * @param context   SecurityContext
@@ -545,6 +553,7 @@ public class ZeroTrustSecurityService {
                     .build();
 
             // SecurityEvent 생성 (request에서 컨텍스트 추출)
+            // AI Native v8.11: extractUserAgent() 사용 (X-Simulated-User-Agent 지원)
             SecurityEvent event = SecurityEvent.builder()
                     .eventId(UUID.randomUUID().toString())
                     .source(SecurityEvent.EventSource.IAM)
@@ -552,7 +561,7 @@ public class ZeroTrustSecurityService {
                     .sourceIp(extractClientIp(request))
                     .sessionId(request.getSession(false) != null ?
                             request.getSession(false).getId() : null)
-                    .userAgent(request.getHeader("User-Agent"))
+                    .userAgent(extractUserAgent(request))
                     .timestamp(LocalDateTime.now())
                     .description("MFA authentication success - baseline learning")
                     .build();
@@ -583,6 +592,7 @@ public class ZeroTrustSecurityService {
             UnifiedCustomUserDetails userDto = (UnifiedCustomUserDetails) authentication.getPrincipal();
 
             // 이벤트 빌더 생성
+            // AI Native v8.11: extractUserAgent() 사용 (X-Simulated-User-Agent 지원)
             AuthenticationSuccessEvent.AuthenticationSuccessEventBuilder builder =
                     AuthenticationSuccessEvent.builder()
                             .eventId(java.util.UUID.randomUUID().toString())
@@ -591,7 +601,7 @@ public class ZeroTrustSecurityService {
                             .sessionId(request.getSession(false) != null ? request.getSession().getId() : null)
                             .eventTimestamp(java.time.LocalDateTime.now())
                             .sourceIp(extractClientIp(request))
-                            .userAgent(request.getHeader("User-Agent"))
+                            .userAgent(extractUserAgent(request))
                             .authenticationType("MFA");
 
             Map<String, Object> metadata = new HashMap<>();
@@ -768,5 +778,25 @@ public class ZeroTrustSecurityService {
             log.debug("[ZeroTrust][IP] CIDR check failed for {} in {}", ip, cidr, e);
             return false;
         }
+    }
+
+    /**
+     * AI Native v8.11: User-Agent 추출
+     *
+     * X-Simulated-User-Agent 헤더를 통한 User-Agent 시뮬레이션 지원
+     * HCADContextExtractor와 동일한 로직 사용
+     *
+     * @param request HTTP 요청
+     * @return User-Agent 문자열
+     */
+    private String extractUserAgent(HttpServletRequest request) {
+        if (enableSimulatedUserAgent) {
+            String simulated = request.getHeader("X-Simulated-User-Agent");
+            if (simulated != null && !simulated.isEmpty()) {
+                log.debug("[ZeroTrust][AI Native v8.11] Using simulated User-Agent: {}", simulated);
+                return simulated;
+            }
+        }
+        return request.getHeader("User-Agent");
     }
 }

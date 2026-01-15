@@ -224,7 +224,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .timeout(Duration.ofMillis(totalTimeoutMs))
                 .onErrorResume(throwable -> {
                     log.error("[Layer1][AI Native v4.3.0] Async analysis failed or timed out ({}ms)",
-                        totalTimeoutMs, throwable);
+                            totalTimeoutMs, throwable);
                     return Mono.just(createFallbackDecision(System.currentTimeMillis()));
                 });
     }
