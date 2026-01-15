@@ -8,9 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 
 @Slf4j
@@ -106,7 +108,12 @@ public class SecurityPromptTemplate {
 
         // Related Documents - 설정에서 최대 개수 읽기
         // AI Native v7.1: userId 재검증으로 다른 사용자 문서 필터링 (계정 격리)
+        // AI Native v8.14: 5대 컨텍스트 요소 수집 (원시 데이터만, 해석 없음)
         StringBuilder relatedContextBuilder = new StringBuilder();
+        Set<String> detectedOSSet = new HashSet<>();
+        Set<String> detectedIPSet = new HashSet<>();
+        Set<String> detectedHourSet = new HashSet<>();
+        Set<String> detectedPathSet = new HashSet<>();
         int maxRagDocs = tieredStrategyProperties.getLayer1().getPrompt().getMaxRagDocuments();
         int maxDocs = (relatedDocuments != null) ? Math.min(maxRagDocs, relatedDocuments.size()) : 0;
         int addedDocs = 0;
@@ -140,6 +147,45 @@ public class SecurityPromptTemplate {
                     : content;
 
                 relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
+
+                // AI Native v8.14: 5대 컨텍스트 요소 수집 (원시 데이터만)
+                // 1. OS 수집
+                Object userAgentOS = docMetadata.get("userAgentOS");
+                if (userAgentOS != null && !userAgentOS.toString().isEmpty()) {
+                    detectedOSSet.add(userAgentOS.toString());
+                }
+
+                // 2. IP 수집 (loopback 정규화)
+                Object sourceIp = docMetadata.get("sourceIp");
+                if (sourceIp != null && !sourceIp.toString().isEmpty()) {
+                    String ipStr = sourceIp.toString();
+                    if (ipStr.contains("127.0.0.1") || ipStr.contains("0:0:0:0:0:0:0:1")) {
+                        detectedIPSet.add("loopback");
+                    } else {
+                        detectedIPSet.add(ipStr);
+                    }
+                }
+
+                // 3. Hour 수집
+                Object hour = docMetadata.get("hour");
+                if (hour != null) {
+                    detectedHourSet.add(hour.toString());
+                }
+
+                // 4. Path prefix 수집 (중복 방지를 위해 prefix만)
+                Object requestPath = docMetadata.get("requestPath");
+                if (requestPath != null && !requestPath.toString().isEmpty()) {
+                    String pathStr = requestPath.toString();
+                    // /api/security-test/xxx -> /api/security-test/*
+                    int secondSlash = pathStr.indexOf('/', 1);
+                    int thirdSlash = secondSlash > 0 ? pathStr.indexOf('/', secondSlash + 1) : -1;
+                    if (thirdSlash > 0) {
+                        detectedPathSet.add(pathStr.substring(0, thirdSlash) + "/*");
+                    } else {
+                        detectedPathSet.add(pathStr);
+                    }
+                }
+
                 addedDocs++;
             }
         }
@@ -167,17 +213,25 @@ public class SecurityPromptTemplate {
         }
         if (event.getTimestamp() != null) {
             prompt.append("Timestamp: ").append(event.getTimestamp()).append("\n");
+
+            // AI Native v8.14: CurrentHour 추출 (LLM 시간대 비교 용이)
+            String timestampStr = event.getTimestamp().toString();
+            if (timestampStr.contains("T") && timestampStr.length() > 13) {
+                prompt.append("CurrentHour: ").append(timestampStr.substring(11, 13)).append("\n");
+            }
         }
         if (userId != null) {
             prompt.append("User: ").append(PromptTemplateUtils.sanitizeUserInput(userId)).append("\n");
         }
-        // AI Native v6.5: Description 필드 제거
-        // - "Authorization decision: ALLOWED" 같은 무의미한 값이 LLM 분석을 방해
-        // - LLM에 필요한 데이터만 제공하여 분석 품질 향상
 
-        // AI Native: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
+        // AI Native v8.14: HttpMethod 추출 (요청 유형 분석용)
         Map<String, Object> metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
+            Object httpMethod = metadataObj.get("httpMethod");
+            if (httpMethod != null && !httpMethod.toString().isEmpty()) {
+                prompt.append("HttpMethod: ").append(httpMethod).append("\n");
+            }
+            // AI Native: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
             appendMetadataIfPresent(prompt, metadataObj, "auth.failure_count", "FailureCount");
         }
 
@@ -257,12 +311,48 @@ public class SecurityPromptTemplate {
         }
 
         // 6. 관련 문서 (RAG)
+        // AI Native v8.13: RELATED CONTEXT = ALLOW된 검증된 정상 행동 기록
+        // - Baseline과 DB에는 ALLOW 판정받은 데이터만 저장됨
+        // - LLM은 이 정상 패턴과 현재 요청을 맥락적으로 비교하여 판단
         prompt.append("\n=== RELATED CONTEXT ===\n");
+        prompt.append("NOTE: All documents below are VERIFIED NORMAL BEHAVIOR (ALLOW decisions).\n");
+        prompt.append("These represent this user's established behavioral patterns.\n\n");
         if (hasRelatedDocs) {
             String sanitizedContext = PromptTemplateUtils.sanitizeUserInput(relatedContext);
             prompt.append(sanitizedContext).append("\n");
         } else {
             prompt.append("[NO_DATA] No related context found in vector store\n");
+        }
+
+        // AI Native v8.14: CONTEXT SUMMARY (원시 데이터만, 해석/판단 없음)
+        // - 플랫폼은 데이터만 제공, 판단은 LLM에게 위임
+        // - 해석 문구 제거: "(multi-device pattern)", "(single location)" 등
+        prompt.append("\n=== CONTEXT SUMMARY ===\n");
+
+        // 1. OS 목록 (해석 없이 사실만)
+        if (!detectedOSSet.isEmpty()) {
+            prompt.append("Detected OS: ").append(String.join(", ", detectedOSSet)).append("\n");
+        }
+
+        // 2. IP 목록 (해석 없이 사실만)
+        if (!detectedIPSet.isEmpty()) {
+            prompt.append("Detected IPs: ").append(String.join(", ", detectedIPSet)).append("\n");
+        }
+
+        // 3. Hour 목록 (해석 없이 사실만)
+        if (!detectedHourSet.isEmpty()) {
+            prompt.append("Active hours: ").append(String.join(", ", detectedHourSet)).append("\n");
+        }
+
+        // 4. Path 목록 (해석 없이 사실만)
+        if (!detectedPathSet.isEmpty()) {
+            prompt.append("Accessed paths: ").append(String.join(", ", detectedPathSet)).append("\n");
+        }
+
+        // 데이터 없는 경우
+        if (detectedOSSet.isEmpty() && detectedIPSet.isEmpty()
+                && detectedHourSet.isEmpty() && detectedPathSet.isEmpty()) {
+            prompt.append("No historical context available.\n");
         }
 
         // 7. 사용자 Baseline
@@ -273,73 +363,54 @@ public class SecurityPromptTemplate {
         prompt.append(dataQualitySection);
 
         // 9. 응답 형식 (통일된 5필드)
-        // AI Native v8.5 (Guarded AI Architecture):
-        // - GUARDRAILS를 ALLOW/CHALLENGE/BLOCK/ESCALATE 4개 섹션으로 분리
-        // - CHALLENGE: 의심스러우나 MFA로 검증 가능한 상황 (New User, IP 변경, OS 변경)
-        // - BLOCK: 공격 증거 또는 다중 불일치 상황 (>3 MFA 실패, 3요소 모두 불일치)
-        // - CHALLENGE vs BLOCK 구분 가이드라인 추가
+        // AI Native v8.14: 데이터 기반 분석 (Data-Driven Analysis)
+        // - 분석 절차 명확화, Doc 참조 필수화, 템플릿 복사 방지
         prompt.append("""
 
-            === DECISION FRAMEWORK (AI Native v8.5) ===
+            === DECISION FRAMEWORK (AI Native v8.14 - Data-Driven Analysis) ===
 
-            REQUIRED JSON FORMAT (5 fields):
+            RESPONSE FORMAT:
             {
-              "riskScore": <number 0.0-1.0>,
-              "confidence": <number 0.3-0.95>,
+              "riskScore": <0.0-1.0>,
+              "confidence": <0.3-0.95>,
               "action": "<ALLOW|CHALLENGE|BLOCK|ESCALATE>",
-              "reasoning": "<specific observation, max 30 tokens>",
+              "reasoning": "<specific data comparison, max 50 tokens>",
               "mitre": "<T1078|T1110|T1185|none>"
             }
 
-            CRITICAL - MULTI-DEVICE PATTERN CHECK (MUST DO FIRST):
-            Before deciding CHALLENGE for UA MISMATCH, you MUST check RELATED CONTEXT for multi-device pattern.
-            HOW: Count distinct |os=| values in RELATED CONTEXT documents.
-            - If Doc1|os=Android AND Doc2|os=Windows exist -> multi-device pattern ESTABLISHED -> ALLOW (not CHALLENGE)
-            - If all documents have same OS (e.g., all |os=Windows|) -> no pattern -> CHALLENGE is appropriate
-            EXAMPLE: [Doc1|os=Android] + [Doc3|os=Windows] = 2 distinct OS = multi-device user = ALLOW
+            ANALYSIS TASK:
+            Compare CURRENT REQUEST against RELATED CONTEXT and CONTEXT SUMMARY.
 
-            DECISION GUIDELINES (AI Native v8.7 - Guided, Not Forced):
+            COMPARISON PROCEDURE:
 
-            [ALLOW conditions - Strongly Recommended]
-            1. IP MATCH + Hour MATCH + UA PARTIAL + IsNewUser=false -> Strongly recommend ALLOW
-               CONTEXT: Browser auto-updates cause version changes frequently.
-               Chrome/120 vs Chrome/143 = same browser, different version = NORMAL user behavior.
-               Consider: Is there any attack evidence in RELATED CONTEXT? If not, ALLOW is appropriate.
+            STEP 1 - OS Comparison:
+            - Check CurrentOS in NETWORK section
+            - Check "Detected OS" in CONTEXT SUMMARY
+            - If CurrentOS exists in Detected OS -> OS_MATCH
+            - If not -> OS_MISMATCH
 
-            2. If BASELINE recommendation says "ALLOW", consider following it.
-               Override only if RELATED CONTEXT shows explicit attack evidence:
-               - >3 MFA failures in 1 hour
-               - Known malicious IP pattern
-               - Credential stuffing indicators
+            STEP 2 - IP Comparison:
+            - Check IP in NETWORK section
+            - Check "Detected IPs" in CONTEXT SUMMARY
+            - If current IP exists in Detected IPs -> IP_MATCH
 
-            3. UA MISMATCH (OS change) + Multi-device pattern in RELATED CONTEXT -> ALLOW
-               (User has established history of using multiple devices)
+            STEP 3 - Hour Comparison:
+            - Check CurrentHour in EVENT section
+            - Check "Active hours" in CONTEXT SUMMARY
+            - If CurrentHour within Active hours (+-2h) -> HOUR_NORMAL
 
-            [CHALLENGE conditions - Suspicious but MFA verifiable]
-            4. New User (No Baseline) -> CHALLENGE recommended
-            5. IP MISMATCH + UA MATCH + No travel pattern in RELATED CONTEXT -> Consider CHALLENGE
-            6. UA MISMATCH (OS change) + NO multi-device pattern (all docs have same OS) -> Consider CHALLENGE
+            STEP 4 - Decision:
+            - Multiple MATCH -> ALLOW (pattern continuation)
+            - OS_MISMATCH but multiple OS in history -> ALLOW (multi-device user)
+            - All MISMATCH + no history -> CHALLENGE (new pattern)
+            - Attack indicators (>3 MFA failures) -> BLOCK
 
-            [BLOCK conditions - Attack evidence required]
-            7. RELATED CONTEXT shows attack pattern (>3 failed MFA in 1 hour) -> BLOCK recommended
-            8. IP MISMATCH + Hour MISMATCH + UA MISMATCH + No pattern in RELATED CONTEXT -> Consider BLOCK
+            REASONING REQUIREMENT:
+            - MUST reference specific Doc numbers: "Doc1 os=Android matches CurrentOS"
+            - MUST reference CONTEXT SUMMARY: "CurrentOS Android in Detected OS"
+            - NEVER use generic phrases like "no similar pattern"
 
-            [ESCALATE conditions]
-            9. Confidence < 0.4 -> ESCALATE recommended
-            10. Confidence range: 0.3-0.95
-
-            KEY DISTINCTION:
-            - UA PARTIAL (same browser, different version): Common due to auto-updates -> typically ALLOW
-            - UA MISMATCH (different OS): Device change detected -> typically CHALLENGE
-
-            REASONING REQUIREMENTS:
-            - Reference SPECIFIC observations from BASELINE or RELATED CONTEXT
-            - Explain WHY you chose your action (not just what you observed)
-            - If you disagree with BASELINE recommendation, explain your reasoning
-            - If IsNewUser=false, do not mention "new user" in reasoning
-            - If BLOCK, cite specific attack evidence from RELATED CONTEXT
-
-            OUTPUT: Single-line JSON only. No markdown. No extra text.
+            OUTPUT: Single JSON line only. No markdown.
             """);
 
         return prompt.toString();
@@ -560,6 +631,12 @@ public class SecurityPromptTemplate {
             int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer1().getUserAgent();
             String sanitizedUa = PromptTemplateUtils.sanitizeAndTruncate(ua, maxUserAgent);
             network.append("UserAgent: ").append(sanitizedUa).append("\n");
+
+            // AI Native v8.14: CurrentOS 추출 (LLM OS 비교 용이)
+            String currentOS = extractOSFromUserAgent(ua);
+            if (currentOS != null) {
+                network.append("CurrentOS: ").append(currentOS).append("\n");
+            }
         }
 
         return network.toString().trim();
@@ -570,6 +647,42 @@ public class SecurityPromptTemplate {
      */
     private boolean isValidData(String value) {
         return PromptTemplateUtils.isValidData(value);
+    }
+
+    /**
+     * AI Native v8.14: UserAgent에서 OS 추출 (단순 추출, 판단 없음)
+     *
+     * @param userAgent 원본 UserAgent 문자열
+     * @return 추출된 OS 또는 null
+     */
+    private String extractOSFromUserAgent(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return null;
+        }
+
+        // 모바일 OS 우선 검사
+        if (userAgent.contains("Android")) {
+            return "Android";
+        }
+        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iPod")) {
+            return "iOS";
+        }
+
+        // 데스크톱 OS
+        if (userAgent.contains("Windows")) {
+            return "Windows";
+        }
+        if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
+            return "Mac";
+        }
+        if (userAgent.contains("Linux") && !userAgent.contains("Android")) {
+            return "Linux";
+        }
+        if (userAgent.contains("CrOS")) {
+            return "ChromeOS";
+        }
+
+        return null;
     }
 
     /**
