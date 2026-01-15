@@ -1,3 +1,6 @@
+contexa:
+  hcad:
+    enable-simulated-user-agent: true
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/identity

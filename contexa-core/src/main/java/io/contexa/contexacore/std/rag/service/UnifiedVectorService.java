@@ -88,6 +88,11 @@ public class UnifiedVectorService implements VectorOperations {
             document.getMetadata().get("id"), documentType);
 
         targetService.storeDocument(document);
+
+        // AI Native v8.12: 단일 문서 저장 시에도 캐시 무효화
+        // storeDocuments()에만 있던 캐시 무효화를 단일 저장에도 적용
+        // MFA 성공 후 저장된 새 문서가 즉시 검색 결과에 포함되도록 함
+        cacheLayer.invalidateAll();
     }
 
     /**
