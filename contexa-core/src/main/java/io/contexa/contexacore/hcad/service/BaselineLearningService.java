@@ -1229,63 +1229,50 @@ public class BaselineLearningService {
         sb.append("  },\n");
         sb.append(String.format("  \"overall\": {\"matchPercentage\": %d, \"matchCount\": %d, \"totalCriteria\": %d},\n",
             matchPercentage, matchCount, totalCriteria));
-        sb.append(String.format("  \"recommendation\": \"%s\"\n", recommendation));
+        // AI Native v8.14: recommendation(판단) 대신 comparisonResult(원시 상태)로 변경
+        sb.append(String.format("  \"comparisonResult\": \"%s\"\n", recommendation));
         sb.append("}\n\n");
 
-        // v7.4: 예외 조항 명시 (LLM Reasoning 활용)
-        sb.append("=== OVERRIDE CONDITIONS ===\n");
-        sb.append("LLM may override the recommendation ONLY if Related Context shows:\n");
-        sb.append("- User has established multi-device access pattern (e.g., mobile + desktop)\n");
-        sb.append("- Previous successful MFA from this device type\n");
-        sb.append("- Known VPN/proxy usage pattern for this user\n");
-        sb.append("- Legitimate travel pattern (business trips, remote work)\n\n");
-
-        // AI Native v8.7: recommendation 권장 (강제 -> 권장으로 변경)
-        sb.append("=== RECOMMENDATION ===\n");
-        sb.append("Based on baseline analysis, the suggested action is: ");
-        sb.append(recommendation.toUpperCase()).append("\n");
-        sb.append("Consider this recommendation carefully.\n");
-        sb.append("If you disagree, explain why in your reasoning field.\n");
-        sb.append("NOTE: Browser version differences (UA PARTIAL) are common due to auto-updates.\n");
+        // AI Native v8.14: RECOMMENDATION 섹션 제거 (플랫폼 판단 금지)
+        // 대신 BASELINE NOTES로 사실적 정보만 제공
+        sb.append("=== BASELINE NOTES ===\n");
+        sb.append("- IP_STATUS: Current IP compared to user's normal IP addresses\n");
+        sb.append("- HOUR_STATUS: Current hour compared to user's normal active hours\n");
+        sb.append("- UA_STATUS: MATCH (exact), PARTIAL (version diff), MISMATCH (OS/browser diff)\n");
+        sb.append("- Browser version differences (UA PARTIAL) are common due to auto-updates\n");
 
         return sb.toString();
     }
 
     /**
-     * AI Native v7.4: RECOMMENDATION 결정 로직
+     * AI Native v8.14: Baseline 비교 상태 반환 (판단 제거)
      *
-     * 기본 권고 + 예외 조항:
-     * - 기본값은 Baseline 비교 결과에 따라 결정
-     * - LLM은 Related Context를 참조하여 override 가능
+     * AI Native 원칙:
+     * - 플랫폼은 원시 데이터/상태만 제공
+     * - 판단(ALLOW/CHALLENGE/BLOCK)은 LLM에게 위임
+     * - 플랫폼이 판단을 내리면 LLM이 편향됨
+     *
+     * 변경 이력:
+     * - v7.4: 기본 권고 + 예외 조항 (AI Native 위반)
+     * - v8.14: 판단 완전 제거, 원시 상태만 반환 (AI Native 준수)
      *
      * @param ipMatch IP 일치 여부
      * @param hourMatch Hour 일치 여부
      * @param uaStatus UA 일치 상태 (Enum)
      * @param matchCount 일치 항목 수
      * @param totalCriteria 전체 항목 수
-     * @return RECOMMENDATION 문자열
+     * @return 원시 상태 문자열 (판단 없음)
      */
     private String determineRecommendation(boolean ipMatch, boolean hourMatch,
                                            BaselineMatchStatus uaStatus, int matchCount, int totalCriteria) {
-        if (!ipMatch) {
-            return "CHALLENGE (IP mismatch - unless Related Context shows VPN/travel pattern)";
-        }
-        if (matchCount == totalCriteria) {
-            return "ALLOW (all criteria matched)";
-        }
-        if (ipMatch && hourMatch && BaselineMatchStatus.PARTIAL == uaStatus) {
-            return "ALLOW (browser version difference is normal)";
-        }
-        if (ipMatch && hourMatch && BaselineMatchStatus.MISMATCH == uaStatus) {
-            return "CHALLENGE (OS/device change - unless Related Context shows multi-device pattern)";
-        }
-        if (ipMatch && hourMatch) {
-            return "ALLOW (IP and Hour match)";
-        }
-        if (ipMatch) {
-            return "CHALLENGE (Hour mismatch - evaluate context)";
-        }
-        return "CHALLENGE (partial match - evaluate context)";
+        // AI Native v8.14: 판단 제거, 원시 상태만 반환
+        // LLM이 RELATED CONTEXT, CONTEXT SUMMARY와 비교하여 직접 판단
+        String ipStatus = ipMatch ? "MATCH" : "MISMATCH";
+        String hourStatus = hourMatch ? "MATCH" : "MISMATCH";
+        String uaStatusStr = uaStatus != null ? uaStatus.name() : "UNKNOWN";
+
+        return String.format("IP_STATUS=%s, HOUR_STATUS=%s, UA_STATUS=%s",
+            ipStatus, hourStatus, uaStatusStr);
     }
 
     /**
@@ -1445,32 +1432,17 @@ public class BaselineLearningService {
         }
         sb.append("\n");
 
-        // Zero Trust v6.0: MANDATORY CONSTRAINT 추가
-        // AI Native 원칙과 Zero Trust 원칙의 균형:
-        // - 플랫폼이 판단하지 않지만, 검증 불가 상태에서 ALLOW는 보안 위협
-        // - LLM에게 "검증 불가 상황"에서의 행동 제약 제공
-        sb.append("=== MANDATORY CONSTRAINT ===\n");
-        sb.append("NO BASELINE = VERIFICATION IMPOSSIBLE\n");
-        // AI Native v6.0: 축약형(A,C,E) → 풀네임(ALLOW,CHALLENGE,ESCALATE)으로 통일
-        // - Layer1PromptTemplate ACTIONS 섹션과 일관성 유지
-        // - LLM 혼란 방지 및 파싱 정확도 향상
-        sb.append("- You MUST NOT return action=ALLOW for users without baseline\n");
-        sb.append("- Valid actions: CHALLENGE or ESCALATE only\n");
-        sb.append("- riskScore MUST be >= 0.5 for unverified users\n");
-        sb.append("- confidence MUST be <= 0.5 without baseline comparison\n\n");
+        // AI Native v8.14: 강제 규칙 제거, 정보성 텍스트로 변경
+        // 기존 MANDATORY CONSTRAINT ("MUST NOT", "MUST be")가 LLM 판단을 편향시킴
+        // RELATED CONTEXT에 검증된 패턴이 있어도 ALLOW 불가능했던 문제 해결
+        sb.append("=== BASELINE CONSIDERATIONS ===\n");
+        sb.append("No traditional baseline profile established for this user.\n\n");
 
-        sb.append("RATIONALE:\n");
-        sb.append("- Absence of threat evidence is NOT evidence of safety\n");
-        sb.append("- First-time attackers have no history to compare\n");
-        sb.append("- Account takeover attackers may use legitimate credentials\n\n");
-
-        // AI Native v6.0: HTTP 메서드 기반 위험도 분류 제거
-        // - @Protectable 어노테이션이 붙은 모든 리소스는 보호 대상
-        // - GET 요청이라도 고객 데이터 유출이면 고위험
-        // - 신규 사용자에 대해서는 Zero Trust 원칙 적용: CHALLENGE 또는 ESCALATE 권장
-        sb.append("=== @PROTECTABLE RESOURCE ===\n");
-        sb.append("This resource is marked as @Protectable - security-critical.\n");
-        sb.append("For new users without baseline: CHALLENGE or ESCALATE recommended.\n\n");
+        sb.append("Decision guidance (facts, not rules):\n");
+        sb.append("- RELATED CONTEXT contains VERIFIED NORMAL BEHAVIOR (past ALLOW decisions)\n");
+        sb.append("- If RELATED CONTEXT has documents matching current OS/IP/Hour → verified pattern exists\n");
+        sb.append("- If RELATED CONTEXT is EMPTY → no verified patterns to compare against\n");
+        sb.append("- Cannot verify behavior without comparison data\n\n");
 
         return sb.toString();
     }
