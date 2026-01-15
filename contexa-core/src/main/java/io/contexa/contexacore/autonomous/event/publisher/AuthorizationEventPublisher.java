@@ -198,11 +198,18 @@ public class AuthorizationEventPublisher {
                     .isNewUser(requestInfo.getIsNewUser())
                     .isNewDevice(requestInfo.getIsNewDevice())
                     .recentRequestCount(requestInfo.getRecentRequestCount());
+
+            // AI Native v8.12: Method Authorization에서도 requestPath 설정
+            // Web Authorization과 동일하게 HTTP URI를 requestPath로 저장
+            // extractPath()가 requestPath를 우선 사용하므로 메서드명 대신 HTTP URI가 저장됨
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("requestPath", requestInfo.getRequestUri());
+            builder.metadata(metadata);
         }
 
         return builder.build();
     }
-    
+
     private Map<String, Object> extractWebMetadata(RequestInfo requestInfo, Authentication authentication) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("queryString", requestInfo.getQueryString());

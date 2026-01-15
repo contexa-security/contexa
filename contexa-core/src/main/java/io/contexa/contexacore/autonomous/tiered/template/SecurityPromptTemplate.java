@@ -291,6 +291,13 @@ public class SecurityPromptTemplate {
               "mitre": "<T1078|T1110|T1185|none>"
             }
 
+            CRITICAL - MULTI-DEVICE PATTERN CHECK (MUST DO FIRST):
+            Before deciding CHALLENGE for UA MISMATCH, you MUST check RELATED CONTEXT for multi-device pattern.
+            HOW: Count distinct |os=| values in RELATED CONTEXT documents.
+            - If Doc1|os=Android AND Doc2|os=Windows exist -> multi-device pattern ESTABLISHED -> ALLOW (not CHALLENGE)
+            - If all documents have same OS (e.g., all |os=Windows|) -> no pattern -> CHALLENGE is appropriate
+            EXAMPLE: [Doc1|os=Android] + [Doc3|os=Windows] = 2 distinct OS = multi-device user = ALLOW
+
             DECISION GUIDELINES (AI Native v8.7 - Guided, Not Forced):
 
             [ALLOW conditions - Strongly Recommended]
@@ -305,18 +312,21 @@ public class SecurityPromptTemplate {
                - Known malicious IP pattern
                - Credential stuffing indicators
 
+            3. UA MISMATCH (OS change) + Multi-device pattern in RELATED CONTEXT -> ALLOW
+               (User has established history of using multiple devices)
+
             [CHALLENGE conditions - Suspicious but MFA verifiable]
-            3. New User (No Baseline) -> CHALLENGE recommended
-            4. IP MISMATCH + UA MATCH + No travel pattern in RELATED CONTEXT -> Consider CHALLENGE
-            5. UA MISMATCH (OS change, e.g., Windows->Android) + No multi-device pattern -> Consider CHALLENGE
+            4. New User (No Baseline) -> CHALLENGE recommended
+            5. IP MISMATCH + UA MATCH + No travel pattern in RELATED CONTEXT -> Consider CHALLENGE
+            6. UA MISMATCH (OS change) + NO multi-device pattern (all docs have same OS) -> Consider CHALLENGE
 
             [BLOCK conditions - Attack evidence required]
-            6. RELATED CONTEXT shows attack pattern (>3 failed MFA in 1 hour) -> BLOCK recommended
-            7. IP MISMATCH + Hour MISMATCH + UA MISMATCH + No pattern in RELATED CONTEXT -> Consider BLOCK
+            7. RELATED CONTEXT shows attack pattern (>3 failed MFA in 1 hour) -> BLOCK recommended
+            8. IP MISMATCH + Hour MISMATCH + UA MISMATCH + No pattern in RELATED CONTEXT -> Consider BLOCK
 
             [ESCALATE conditions]
-            8. Confidence < 0.4 -> ESCALATE recommended
-            9. Confidence range: 0.3-0.95
+            9. Confidence < 0.4 -> ESCALATE recommended
+            10. Confidence range: 0.3-0.95
 
             KEY DISTINCTION:
             - UA PARTIAL (same browser, different version): Common due to auto-updates -> typically ALLOW
