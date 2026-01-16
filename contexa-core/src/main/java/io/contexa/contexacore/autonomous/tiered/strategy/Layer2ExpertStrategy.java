@@ -128,6 +128,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "ESCALATE";
 
         // AI Native v5.1.0: iocIndicators 필드 제거 (Layer2SecurityResponse에서 삭제됨)
+        // AI Native v8.12: LLM reasoning을 ThreatAssessment에 전달 (TIPS 데모용)
         return ThreatAssessment.builder()
                 .riskScore(expertDecision.getRiskScore())
                 .confidence(expertDecision.getConfidence())
@@ -137,6 +138,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(false)  // Layer2는 최종 계층
                 .action(action)  // AI Native: LLM action 직접 저장
+                .reasoning(expertDecision.getReasoning())  // AI Native v8.12: LLM 분석 근거
                 .build();
     }
 

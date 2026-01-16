@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.security.processor;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -75,6 +76,15 @@ public class ColdPathEventProcessor implements IPathProcessor {
     @Autowired(required = false)
     private AdminOverrideService adminOverrideService;
 
+    /**
+     * TIPS Demo v1.0: LLM 분석 이벤트 리스너 (Optional)
+     *
+     * 실시간 LLM 분석 과정을 SSE를 통해 클라이언트에 전송하기 위한 이벤트 리스너입니다.
+     * spring-boot-starter-contexa 모듈에서 구현체를 제공합니다.
+     */
+    @Autowired(required = false)
+    private LlmAnalysisEventListener llmAnalysisEventListener;
+
     private final AtomicLong processedCount = new AtomicLong(0);
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
     private volatile long lastProcessedTimestamp = 0;
@@ -111,7 +121,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
     @Override
     public ProcessingResult processEvent(SecurityEvent event, double riskScore) {
         long startTime = System.currentTimeMillis();
-        
+
         try {
             String userId = event.getUserId();
             if (userId == null) {
@@ -121,9 +131,14 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     "Missing userId"
                 );
             }
-            
-            log.info("Cold Path 계층적 AI 진단 시작 - userId: {}, eventId: {}, riskScore: {}", 
+
+            log.info("Cold Path 계층적 AI 진단 시작 - userId: {}, eventId: {}, riskScore: {}",
                     userId, event.getEventId(), riskScore);
+
+            // TIPS Demo: 컨텍스트 수집 완료 이벤트 발행
+            String requestPath = extractRequestPath(event);
+            String analysisRequirement = extractAnalysisRequirement(event);
+            publishContextCollected(userId, requestPath, analysisRequirement);
             
             // ProcessingResult 생성
             ProcessingResult result = ProcessingResult.builder()
@@ -213,6 +228,8 @@ public class ColdPathEventProcessor implements IPathProcessor {
         result.setBaseScore(riskScore);
 
         long startTime = System.currentTimeMillis();
+        String userId = event.getUserId();
+        String requestPath = extractRequestPath(event);
 
         try {
             // AI Native: Layer1부터 시작 (LLM이 shouldEscalate로 상위 Layer 에스컬레이션 결정)
@@ -223,7 +240,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
             if (contextualStrategy != null) {
                 log.debug("Layer 1 컨텍스트 분석 시작 - eventId: {}", event.getEventId());
 
+                // TIPS Demo: Layer1 시작 이벤트
+                publishLayer1Start(userId, requestPath);
+
+                long layer1StartTime = System.currentTimeMillis();
                 layer1Assessment = contextualStrategy.evaluate(event);
+                long layer1ElapsedMs = System.currentTimeMillis() - layer1StartTime;
+
                 // AI Native v3.1.0: threatLevel -> action
                 log.info("Layer 1 평가: riskScore={}, confidence={}, action={}, shouldEscalate={}",
                         layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
@@ -239,11 +262,27 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.setAnalysisDepth(1); // Layer1에서 종료
                     result.setAction(layer1Assessment.getAction()); // AI Native: LLM action 직접 사용
 
+                    // TIPS Demo: Layer1 완료 이벤트
+                    // AI Native v8.12: ThreatAssessment.reasoning에서 LLM 분석 근거 가져오기
+                    String reasoning = layer1Assessment.getReasoning() != null
+                            ? layer1Assessment.getReasoning() : "Layer1 analysis completed";
+                    publishLayer1Complete(userId, layer1Assessment.getAction(),
+                            layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
+                            reasoning, extractMitre(layer1Assessment), layer1ElapsedMs);
+
+                    // TIPS Demo: 최종 결정 적용 이벤트
+                    publishDecisionApplied(userId, layer1Assessment.getAction(), "LAYER1", requestPath);
+
                     log.info("Layer 1에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, action: {}, 시간: {}ms",
                             layer1Assessment.getAction(), System.currentTimeMillis() - startTime);
 
                     return result;
                 }
+
+                // TIPS Demo: Layer1 완료 (에스컬레이션) 이벤트
+                publishLayer1Complete(userId, "ESCALATE",
+                        layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
+                        "Escalating to Layer2 for deeper analysis", "none", layer1ElapsedMs);
 
                 // AI Native v4.2.0: Layer1 결과를 event metadata에 저장 (Layer2에서 사용)
                 event.getMetadata().put("layer1Assessment", layer1Assessment);
@@ -254,7 +293,16 @@ public class ColdPathEventProcessor implements IPathProcessor {
             if (expertStrategy != null) {
                 log.debug("Layer 2 전문가 분석 시작 - eventId: {}", event.getEventId());
 
+                // TIPS Demo: Layer2 시작 이벤트
+                String escalationReason = layer1Assessment != null
+                        ? "Low confidence in Layer1: " + layer1Assessment.getConfidence()
+                        : "Direct escalation to expert analysis";
+                publishLayer2Start(userId, requestPath, escalationReason);
+
+                long layer2StartTime = System.currentTimeMillis();
                 ThreatAssessment layer2Assessment = expertStrategy.evaluate(event);
+                long layer2ElapsedMs = System.currentTimeMillis() - layer2StartTime;
+
                 // AI Native v3.1.0: threatLevel -> action
                 log.info("Layer 2 평가: riskScore={}, confidence={}, action={}",
                         layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
@@ -266,6 +314,17 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.addRecommendedActions(layer2Assessment.getRecommendedActions());
                 result.setAnalysisDepth(2); // Layer2에서 종료
                 result.setAction(layer2Assessment.getAction()); // AI Native: LLM action 직접 사용
+
+                // TIPS Demo: Layer2 완료 이벤트
+                // AI Native v8.12: ThreatAssessment.reasoning에서 LLM 분석 근거 가져오기
+                String layer2Reasoning = layer2Assessment.getReasoning() != null
+                        ? layer2Assessment.getReasoning() : "Layer2 expert analysis completed";
+                publishLayer2Complete(userId, layer2Assessment.getAction(),
+                        layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
+                        layer2Reasoning, extractMitre(layer2Assessment), layer2ElapsedMs);
+
+                // TIPS Demo: 최종 결정 적용 이벤트
+                publishDecisionApplied(userId, layer2Assessment.getAction(), "LAYER2", requestPath);
 
                 log.info("Layer 2에서 최종 처리 완료 (5% 케이스) - action: {}, 시간: {}ms",
                         layer2Assessment.getAction(), System.currentTimeMillis() - startTime);
@@ -544,6 +603,111 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 .mitigationActions(new ArrayList<>(recommendedActions))
                 .reasoning(reasoningPrefix)
                 .build();
+        }
+    }
+
+    // ========== TIPS Demo: SSE 이벤트 발행 헬퍼 메서드 ==========
+
+    private void publishContextCollected(String userId, String requestPath, String analysisRequirement) {
+        if (llmAnalysisEventListener != null) {
+            try {
+                llmAnalysisEventListener.onContextCollected(userId, requestPath, analysisRequirement);
+            } catch (Exception e) {
+                log.debug("[ColdPath][SSE] 컨텍스트 수집 이벤트 발행 실패: {}", e.getMessage());
+            }
+        }
+    }
+
+    private String extractAnalysisRequirement(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return "PREFERRED";
+        }
+        Object requirement = event.getMetadata().get("analysisRequirement");
+        if (requirement != null) {
+            return requirement.toString();
+        }
+        return "PREFERRED";
+    }
+
+    private String extractRequestPath(SecurityEvent event) {
+        if (event == null || event.getMetadata() == null) {
+            return "unknown";
+        }
+        Object requestPath = event.getMetadata().get("requestPath");
+        if (requestPath != null) {
+            return requestPath.toString();
+        }
+        Object fullPath = event.getMetadata().get("fullPath");
+        if (fullPath != null) {
+            return fullPath.toString();
+        }
+        return "unknown";
+    }
+
+    private String extractMitre(ThreatAssessment assessment) {
+        if (assessment == null || assessment.getIndicators() == null) {
+            return "none";
+        }
+        for (Object indicator : assessment.getIndicators()) {
+            String str = indicator.toString();
+            if (str.startsWith("T") && str.matches("T\\d{4}.*")) {
+                return str.split(" ")[0];
+            }
+        }
+        return "none";
+    }
+
+    private void publishLayer1Start(String userId, String requestPath) {
+        if (llmAnalysisEventListener != null) {
+            try {
+                llmAnalysisEventListener.onLayer1Start(userId, requestPath);
+            } catch (Exception e) {
+                log.debug("[ColdPath][SSE] Layer1 시작 이벤트 발행 실패: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void publishLayer1Complete(String userId, String action, Double riskScore,
+            Double confidence, String reasoning, String mitre, Long elapsedMs) {
+        if (llmAnalysisEventListener != null) {
+            try {
+                llmAnalysisEventListener.onLayer1Complete(userId, action, riskScore,
+                        confidence, reasoning, mitre, elapsedMs);
+            } catch (Exception e) {
+                log.debug("[ColdPath][SSE] Layer1 완료 이벤트 발행 실패: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void publishLayer2Start(String userId, String requestPath, String reason) {
+        if (llmAnalysisEventListener != null) {
+            try {
+                llmAnalysisEventListener.onLayer2Start(userId, requestPath, reason);
+            } catch (Exception e) {
+                log.debug("[ColdPath][SSE] Layer2 시작 이벤트 발행 실패: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void publishLayer2Complete(String userId, String action, Double riskScore,
+            Double confidence, String reasoning, String mitre, Long elapsedMs) {
+        if (llmAnalysisEventListener != null) {
+            try {
+                llmAnalysisEventListener.onLayer2Complete(userId, action, riskScore,
+                        confidence, reasoning, mitre, elapsedMs);
+            } catch (Exception e) {
+                log.debug("[ColdPath][SSE] Layer2 완료 이벤트 발행 실패: {}", e.getMessage());
+            }
+        }
+    }
+
+    private void publishDecisionApplied(String userId, String action, String layer, String requestPath) {
+        if (llmAnalysisEventListener != null) {
+            try {
+                llmAnalysisEventListener.onDecisionApplied(userId, action, layer, requestPath);
+            } catch (Exception e) {
+                log.debug("[ColdPath][SSE] 최종 결정 이벤트 발행 실패: {}", e.getMessage());
+            }
         }
     }
 }

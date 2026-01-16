@@ -311,6 +311,9 @@ public class ZeroTrustSecurityService {
                 // 원할한 테스트를 위해 여기에서 액션 업데이트 및 기준선 저장,이벤트를 발행한다.(ZeroTrustEventListener 의 handleAuthenticationSuccess 참고)
                 resetActionOnMfaSuccess(userId, request);
                 publishAuthenticationSuccessEvent(request, SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication());
+                if (auth.getPrincipal() instanceof UnifiedCustomUserDetails userDetails) {
+                    adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
+                }
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
                 log.info("[ZeroTrust][AI Native] MFA CHALLENGE required (HIGH RISK): {}", userId);
             }
@@ -319,6 +322,9 @@ public class ZeroTrustSecurityService {
                 log.warn("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
             }
             case "PENDING_ANALYSIS" -> {
+                if (auth.getPrincipal() instanceof UnifiedCustomUserDetails userDetails) {
+                    adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
+                }
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
                 log.debug("[ZeroTrust][AI Native] PENDING_ANALYSIS - limited access: {}", userId);
             }

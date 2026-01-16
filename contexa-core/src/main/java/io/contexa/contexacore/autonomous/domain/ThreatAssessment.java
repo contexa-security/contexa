@@ -57,6 +57,9 @@ public class ThreatAssessment {
 
     private String action;
 
+    // AI Native v8.12: LLM 분석 근거 (TIPS 데모용)
+    private String reasoning;
+
     // AI Native: LLM이 에스컬레이션 필요 여부를 직접 결정
     // LLM이 현재 Layer에서 충분히 분석했다고 판단하면 false
     // LLM이 더 상위 Layer 분석이 필요하다고 판단하면 true

@@ -371,9 +371,12 @@ public class ZeroTrustRedisKeys {
     
     /**
      * 세션 메타데이터 (보조)
-     * 세션별 임시 데이터
+     * 세션별 임시 데이터 (userId, device, createdAt)
      * Format: security:session:meta:{sessionId}
-     * TTL: Session lifetime
+     * Type: Hash
+     * TTL: 24 hours (HCADContextExtractor에서 설정)
+     *
+     * 설정 위치: HCADContextExtractor.enrichWithSessionInfo()
      */
     public static String sessionMetadata(String sessionId) {
         validateSessionId(sessionId);
@@ -394,8 +397,12 @@ public class ZeroTrustRedisKeys {
      * 세션별 액션 이력
      * 세션 내에서 수행된 최근 액션 목록
      * Format: security:session:actions:{sessionId}
-     * Type: List
-     * TTL: Session lifetime
+     * Type: List (FIFO - 오래된 항목 자동 제거)
+     * TTL: 24 hours (SecurityDecisionPostProcessor에서 설정)
+     * Max Size: 100 (초과 시 가장 오래된 항목 제거)
+     *
+     * 설정 위치: SecurityDecisionPostProcessor.updateSessionContext()
+     * 조회: Layer1ContextualStrategy, Layer2ExpertStrategy (최근 10개만 조회)
      */
     public static String sessionActions(String sessionId) {
         validateSessionId(sessionId);

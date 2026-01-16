@@ -62,12 +62,23 @@ public class SecurityDecisionPostProcessor {
 
         try {
             // AI Native v6.0: 행동 기반 세션 기록 (httpMethod 제거 - LLM 분석에 불필요)
+            // AI Native v8.12: TTL 및 크기 제한 추가 (orphan 데이터 방지)
+            String sessionActionsKey = ZeroTrustRedisKeys.sessionActions(sessionId);
             redisTemplate.opsForList().rightPush(
-                    ZeroTrustRedisKeys.sessionActions(sessionId),
+                    sessionActionsKey,
                     String.format("%s:%s",
                             event.getDescription() != null ? event.getDescription() : "action",
                             decision.getAction())
             );
+
+            // AI Native v8.12: TTL 설정 (24시간) - 세션 만료 시 자동 삭제
+            redisTemplate.expire(sessionActionsKey, Duration.ofHours(24));
+
+            // AI Native v8.12: 크기 제한 (최대 100개) - 메모리 증가 방지
+            Long size = redisTemplate.opsForList().size(sessionActionsKey);
+            if (size != null && size > 100) {
+                redisTemplate.opsForList().leftPop(sessionActionsKey);
+            }
 
             // v3.1.0: MITIGATE -> BLOCK으로 통합됨
             SecurityDecision.Action sessionAction = decision.getAction();

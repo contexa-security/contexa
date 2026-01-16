@@ -3,360 +3,275 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@Protectable 보안 플로우 테스트 (실제 LLM 분석)</title>
+    <title>Contexa AI Native Zero Trust Security Platform - TIPS Demo</title>
     <link rel="stylesheet" th:href="@{/css/security-test.css}">
 </head>
 <body>
     <div class="container">
-        <!-- 헤더 영역 -->
-        <header class="header">
-            <h1>@Protectable 보안 플로우 테스트</h1>
-            <p class="subtitle">
-                실제 LLM 분석을 통한 Zero Trust 보안 테스트입니다.
-                시나리오를 선택하고 테스트를 실행하면 ColdPathEventProcessor가 Layer1/2/3 분석을 수행합니다.
-            </p>
+        <!-- Hero Header -->
+        <header class="hero-header">
+            <div class="hero-content">
+                <h1 class="hero-title">Contexa</h1>
+                <p class="hero-subtitle">AI Native Zero Trust Security Platform</p>
+                <p class="hero-description">
+                    2-Tier LLM 아키텍처 기반 실시간 보안 위협 분석 및 대응 시스템
+                </p>
+            </div>
+            <div class="hero-badge">
+                <span class="badge-text">TIPS Demo</span>
+            </div>
         </header>
 
-        <!-- 실제 플로우 안내 -->
-        <section class="section flow-info">
-            <h2>실제 플로우</h2>
-            <div class="flow-diagram">
-                <div class="flow-step">
-                    <span class="step-number">1</span>
-                    <span class="step-text">1차 요청: 분석 트리거</span>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-step">
-                    <span class="step-number">2</span>
-                    <span class="step-text">비동기 LLM 분석 (3초)</span>
-                </div>
-                <div class="flow-arrow">&rarr;</div>
-                <div class="flow-step">
-                    <span class="step-number">3</span>
-                    <span class="step-text">2차 요청: 분석 결과 적용</span>
-                </div>
-            </div>
-        </section>
+        <!-- SSE Connection Status -->
+        <div class="sse-status" id="sse-status">
+            <span class="sse-indicator disconnected" id="sse-indicator"></span>
+            <span class="sse-text" id="sse-text">SSE 연결 대기중...</span>
+        </div>
 
-        <!-- 사용자 정보 영역 -->
-        <section class="section user-info">
-            <h2>현재 사용자</h2>
-            <div class="info-grid">
-                <div class="info-item">
-                    <span class="label">사용자 ID</span>
-                    <span class="value" id="current-username" th:text="${username}">anonymous</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">URL 권한</span>
-                    <span class="value" id="url-authorities" th:text="${urlAuthorities}">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">서비스 권한</span>
-                    <span class="value" id="method-authorities" th:text="${methodAuthorities}">-</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Action 상태 영역 -->
-        <section class="section action-status">
-            <h2>현재 LLM 분석 결과</h2>
-            <div class="status-display">
-                <div class="status-item">
-                    <span class="label">Action</span>
-                    <span class="value action-badge action-PENDING_ANALYSIS" id="current-action">PENDING_ANALYSIS</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Risk Score</span>
-                    <span class="value" id="risk-score">0.00</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Confidence</span>
-                    <span class="value" id="confidence">0.00</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Threat Level</span>
-                    <span class="value threat-badge threat-UNKNOWN" id="threat-level">UNKNOWN</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">이상 탐지</span>
-                    <span class="value" id="is-anomaly">No</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">분석 상태</span>
-                    <span class="value" id="analysis-status">Not Analyzed</span>
-                </div>
-            </div>
-            <div class="button-group">
-                <button class="btn btn-secondary" id="btn-refresh-status">상태 새로고침</button>
-                <button class="btn btn-danger" id="btn-reset-action">분석 결과 초기화</button>
-            </div>
-        </section>
-
-        <!-- 시나리오 선택 영역 -->
-        <section class="section scenario-selection">
-            <h2>시나리오 선택</h2>
-            <p class="description">
-                시나리오를 선택하면 해당 컨텍스트(IP, User-Agent)로 요청이 전송됩니다.
-                LLM이 컨텍스트를 분석하여 정상/공격을 판별합니다.
-            </p>
-
-            <div class="scenario-cards">
-                <!-- 정상 사용자 시나리오 -->
-                <div class="scenario-card" id="scenario-normal" data-scenario="NORMAL_USER">
-                    <div class="scenario-icon normal-icon">&#128100;</div>
-                    <h3>정상 사용자</h3>
-                    <div class="scenario-details">
-                        <p><strong>IP:</strong> 192.168.1.100</p>
-                        <p><strong>User-Agent:</strong> Chrome/120.0 (Windows)</p>
-                        <p><strong>예상 결과:</strong> ALLOW</p>
-                    </div>
-                    <div class="scenario-desc">
-                        사내 네트워크에서 일반 브라우저로 접속하는 정상 사용자
-                    </div>
-                </div>
-
-                <!-- 계정 탈취 시나리오 -->
-                <div class="scenario-card" id="scenario-takeover" data-scenario="ACCOUNT_TAKEOVER">
-                    <div class="scenario-icon warning-icon">&#9888;</div>
-                    <h3>계정 탈취 의심</h3>
-                    <div class="scenario-details">
-                        <p><strong>IP:</strong> 203.0.113.50</p>
-                        <p><strong>User-Agent:</strong> Android 10 (Mobile)</p>
-                        <p><strong>예상 결과:</strong> BLOCK / CHALLENGE</p>
-                    </div>
-                    <div class="scenario-desc">
-                        평소와 다른 위치/디바이스에서의 갑작스러운 접속
-                    </div>
-                </div>
-
-                <!-- 봇 공격 시나리오 -->
-                <div class="scenario-card" id="scenario-bot" data-scenario="BOT_ATTACK">
-                    <div class="scenario-icon danger-icon">&#128126;</div>
-                    <h3>봇 공격</h3>
-                    <div class="scenario-details">
-                        <p><strong>IP:</strong> 45.33.32.156</p>
-                        <p><strong>User-Agent:</strong> curl/7.68.0</p>
-                        <p><strong>예상 결과:</strong> BLOCK</p>
-                    </div>
-                    <div class="scenario-desc">
-                        자동화 도구를 사용한 악성 봇의 접근 시도
-                    </div>
-                </div>
-
-                <!-- 권한 상승 시나리오 -->
-                <div class="scenario-card" id="scenario-escalation" data-scenario="PRIVILEGE_ESCALATION">
-                    <div class="scenario-icon escalation-icon">&#128274;</div>
-                    <h3>권한 상승 시도</h3>
-                    <div class="scenario-details">
-                        <p><strong>IP:</strong> 10.0.0.99</p>
-                        <p><strong>User-Agent:</strong> Python-requests/2.28</p>
-                        <p><strong>예상 결과:</strong> ESCALATE / BLOCK</p>
-                    </div>
-                    <div class="scenario-desc">
-                        일반 사용자가 관리자 리소스에 접근 시도
-                    </div>
-                </div>
-            </div>
-
-            <div class="selected-scenario" id="selected-scenario-info">
-                <p>시나리오를 선택하세요.</p>
-            </div>
-        </section>
-
-        <!-- 관리자 개입 영역 (AI Native v3.5.0) -->
-        <section class="section admin-override">
-            <h2>관리자 개입 (Admin Override)</h2>
-            <p class="description">
-                LLM이 BLOCK/CHALLENGE/ESCALATE 판정을 내린 요청에 대해 관리자가 검토하고
-                승인/거부를 결정할 수 있습니다. 승인 시 ALLOW로 전환되며, Baseline 학습 여부를 선택할 수 있습니다.
-            </p>
-
-            <div class="override-status" id="override-status">
-                <div class="status-row">
-                    <span class="label">대기 중인 요청:</span>
-                    <span class="value" id="pending-status">확인 중...</span>
-                </div>
-                <div class="status-row" id="pending-details" style="display: none;">
-                    <div class="pending-info">
-                        <div class="info-row">
-                            <span class="label">Request ID:</span>
-                            <span class="value" id="pending-request-id">-</span>
+        <!-- Main Content Grid -->
+        <div class="main-grid">
+            <!-- Left Column: Scenario Selection -->
+            <section class="section scenario-section">
+                <h2 class="section-title">시나리오 선택</h2>
+                <div class="scenario-cards">
+                    <!-- 정상 사용자 시나리오 -->
+                    <div class="scenario-card" id="scenario-normal" data-scenario="NORMAL_USER">
+                        <div class="scenario-header normal">
+                            <span class="scenario-icon">&#128100;</span>
+                            <h3>정상 사용자</h3>
                         </div>
-                        <div class="info-row">
-                            <span class="label">User ID:</span>
-                            <span class="value" id="pending-user-id">-</span>
+                        <div class="scenario-body">
+                            <div class="scenario-detail">
+                                <span class="detail-label">IP</span>
+                                <span class="detail-value">192.168.1.100</span>
+                            </div>
+                            <div class="scenario-detail">
+                                <span class="detail-label">UA</span>
+                                <span class="detail-value">Chrome/120.0 (Windows)</span>
+                            </div>
+                            <div class="scenario-detail">
+                                <span class="detail-label">예상 결과</span>
+                                <span class="detail-value expected-allow">ALLOW</span>
+                            </div>
                         </div>
-                        <div class="info-row">
-                            <span class="label">Action:</span>
-                            <span class="value action-badge" id="pending-action">-</span>
+                        <div class="scenario-footer">
+                            사내 네트워크, 일반 브라우저 접속
                         </div>
-                        <div class="info-row">
-                            <span class="label">Risk Score:</span>
-                            <span class="value" id="pending-risk-score">-</span>
+                    </div>
+
+                    <!-- 계정 탈취 시나리오 -->
+                    <div class="scenario-card" id="scenario-takeover" data-scenario="ACCOUNT_TAKEOVER">
+                        <div class="scenario-header warning">
+                            <span class="scenario-icon">&#9888;</span>
+                            <h3>계정 탈취 의심</h3>
                         </div>
-                        <div class="info-row">
-                            <span class="label">Confidence:</span>
-                            <span class="value" id="pending-confidence">-</span>
+                        <div class="scenario-body">
+                            <div class="scenario-detail">
+                                <span class="detail-label">IP</span>
+                                <span class="detail-value">203.0.113.50</span>
+                            </div>
+                            <div class="scenario-detail">
+                                <span class="detail-label">UA</span>
+                                <span class="detail-value">Android 10 (Mobile)</span>
+                            </div>
+                            <div class="scenario-detail">
+                                <span class="detail-label">예상 결과</span>
+                                <span class="detail-value expected-challenge">CHALLENGE</span>
+                            </div>
                         </div>
-                        <div class="info-row">
-                            <span class="label">Reasoning:</span>
-                            <span class="value" id="pending-reasoning">-</span>
+                        <div class="scenario-footer">
+                            IP/디바이스 변경 탐지, MFA 요구
+                        </div>
+                    </div>
+
+                    <!-- 권한 상승 시나리오 -->
+                    <div class="scenario-card" id="scenario-escalation" data-scenario="PRIVILEGE_ESCALATION">
+                        <div class="scenario-header danger">
+                            <span class="scenario-icon">&#128274;</span>
+                            <h3>권한 상승 시도</h3>
+                        </div>
+                        <div class="scenario-body">
+                            <div class="scenario-detail">
+                                <span class="detail-label">IP</span>
+                                <span class="detail-value">10.0.0.99</span>
+                            </div>
+                            <div class="scenario-detail">
+                                <span class="detail-label">UA</span>
+                                <span class="detail-value">python-requests/2.28</span>
+                            </div>
+                            <div class="scenario-detail">
+                                <span class="detail-label">예상 결과</span>
+                                <span class="detail-value expected-block">BLOCK</span>
+                            </div>
+                        </div>
+                        <div class="scenario-footer">
+                            자동화 도구 탐지, MITRE ATT&CK 매핑
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="override-form" id="override-form" style="display: none;">
-                <div class="form-group">
-                    <label for="override-reason">승인/거부 사유 (필수)</label>
-                    <textarea id="override-reason" rows="3" placeholder="관리자 개입 사유를 입력하세요..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="baseline-update-allowed">
-                        Baseline 학습 허용 (이 패턴을 향후 정상으로 학습)
-                    </label>
-                </div>
-                <div class="button-group">
-                    <button class="btn btn-success" id="btn-approve">승인 (ALLOW)</button>
-                    <button class="btn btn-danger" id="btn-reject">거부 (BLOCK 유지)</button>
-                    <button class="btn btn-secondary" id="btn-refresh-pending">새로고침</button>
-                </div>
-            </div>
+            <!-- Right Column: Real-time LLM Analysis Panel -->
+            <section class="section analysis-section">
+                <h2 class="section-title">실시간 LLM 분석</h2>
 
-            <div class="override-result" id="override-result" style="display: none;">
-                <h4>처리 결과</h4>
-                <pre id="override-result-content"></pre>
-            </div>
-        </section>
+                <!-- Analysis Progress -->
+                <div class="analysis-panel">
+                    <div class="analysis-step" id="step-context">
+                        <div class="step-indicator waiting"></div>
+                        <div class="step-content">
+                            <span class="step-label">Context Collection</span>
+                            <span class="step-status" id="step-context-status">대기</span>
+                        </div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="analysis-step" id="step-layer1">
+                        <div class="step-indicator waiting"></div>
+                        <div class="step-content">
+                            <span class="step-label">Layer1 Analysis</span>
+                            <span class="step-model">(Llama 8B)</span>
+                            <span class="step-status" id="step-layer1-status">대기</span>
+                        </div>
+                    </div>
+                    <div class="step-connector"></div>
+                    <div class="analysis-step layer2-step" id="step-layer2" style="display: none;">
+                        <div class="step-indicator waiting"></div>
+                        <div class="step-content">
+                            <span class="step-label">Layer2 Analysis</span>
+                            <span class="step-model">(Claude)</span>
+                            <span class="step-status" id="step-layer2-status">대기</span>
+                        </div>
+                    </div>
+                    <div class="step-connector layer2-connector" style="display: none;"></div>
+                    <div class="analysis-step" id="step-decision">
+                        <div class="step-indicator waiting"></div>
+                        <div class="step-content">
+                            <span class="step-label">Decision Applied</span>
+                            <span class="step-status" id="step-decision-status">대기</span>
+                        </div>
+                    </div>
+                </div>
 
-        <!-- 테스트 실행 영역 -->
-        <section class="section test-execution">
-            <h2>보안 테스트 실행</h2>
-            <p class="description">
-                선택한 시나리오의 컨텍스트로 @Protectable 메서드를 호출합니다.
-                두 번의 요청이 순차적으로 실행됩니다.
+                <!-- Current Action Badge -->
+                <div class="action-display">
+                    <div class="action-badge-large" id="current-action-badge">
+                        <span class="action-text">PENDING</span>
+                    </div>
+                    <div class="metrics-row">
+                        <div class="metric">
+                            <span class="metric-label">Risk Score</span>
+                            <div class="metric-bar">
+                                <div class="metric-fill risk-fill" id="risk-fill" style="width: 0%"></div>
+                            </div>
+                            <span class="metric-value" id="risk-value">0.00</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Confidence</span>
+                            <div class="metric-bar">
+                                <div class="metric-fill confidence-fill" id="confidence-fill" style="width: 0%"></div>
+                            </div>
+                            <span class="metric-value" id="confidence-value">0.00</span>
+                        </div>
+                    </div>
+                    <div class="mitre-display" id="mitre-display" style="display: none;">
+                        <span class="mitre-label">MITRE ATT&CK:</span>
+                        <span class="mitre-value" id="mitre-value">-</span>
+                    </div>
+                </div>
+
+                <!-- Reasoning Display -->
+                <div class="reasoning-display" id="reasoning-display" style="display: none;">
+                    <h4>LLM 분석 근거</h4>
+                    <p class="reasoning-text" id="reasoning-text">-</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Security Test Execution -->
+        <section class="section test-section">
+            <h2 class="section-title">보안 테스트 실행</h2>
+            <p class="section-description">
+                선택한 시나리오의 컨텍스트로 @Protectable 보호 메서드를 호출합니다.
             </p>
 
             <div class="test-cards">
-                <!-- NOT_REQUIRED 테스트 -->
-                <div class="test-card" id="card-public" data-requirement="NOT_REQUIRED" data-endpoint="public">
-                    <div class="card-header">
-                        <h3>공개 데이터 조회</h3>
-                        <span class="badge badge-success">NOT_REQUIRED</span>
-                    </div>
-                    <div class="card-body">
-                        <p>분석 불필요 - 인증만 확인</p>
-                        <code>isAuthenticated()</code>
-                    </div>
-                    <div class="card-footer">
-                        <input type="text" class="resource-input" id="input-public" value="resource-001" placeholder="Resource ID">
-                        <button class="btn btn-test" id="btn-test-public">테스트 실행</button>
-                    </div>
-                </div>
-
                 <!-- PREFERRED 테스트 -->
                 <div class="test-card" id="card-normal" data-requirement="PREFERRED" data-endpoint="normal">
-                    <div class="card-header">
-                        <h3>일반 데이터 조회</h3>
-                        <span class="badge badge-info">PREFERRED</span>
+                    <div class="card-header preferred">
+                        <h3>일반 데이터</h3>
+                        <span class="requirement-badge">PREFERRED</span>
                     </div>
                     <div class="card-body">
-                        <p>분석 있으면 사용, 없으면 기본값</p>
-                        <code>defaultAction: MONITOR</code>
+                        <p class="card-desc">분석 있으면 사용, 없으면 기본 허용</p>
+                        <code class="card-code">defaultAction: ALLOW</code>
                     </div>
                     <div class="card-footer">
-                        <input type="text" class="resource-input" id="input-normal" value="resource-002" placeholder="Resource ID">
-                        <button class="btn btn-test" id="btn-test-normal">테스트 실행</button>
+                        <button class="btn-test" id="btn-test-normal" disabled>
+                            <span class="btn-icon">&#9654;</span>
+                            테스트 실행
+                        </button>
                     </div>
                 </div>
 
                 <!-- REQUIRED 테스트 -->
                 <div class="test-card" id="card-sensitive" data-requirement="REQUIRED" data-endpoint="sensitive">
-                    <div class="card-header">
-                        <h3>민감 데이터 조회</h3>
-                        <span class="badge badge-warning">REQUIRED</span>
+                    <div class="card-header required">
+                        <h3>민감 데이터</h3>
+                        <span class="requirement-badge">REQUIRED</span>
                     </div>
                     <div class="card-body">
-                        <p>분석 완료 필수 (동기 대기)</p>
-                        <code>analysisTimeout: 3000ms</code>
+                        <p class="card-desc">분석 완료 필수 (동기 대기 3초)</p>
+                        <code class="card-code">analysisTimeout: 3000ms</code>
                     </div>
                     <div class="card-footer">
-                        <input type="text" class="resource-input" id="input-sensitive" value="resource-003" placeholder="Resource ID">
-                        <button class="btn btn-test" id="btn-test-sensitive">테스트 실행</button>
+                        <button class="btn-test" id="btn-test-sensitive" disabled>
+                            <span class="btn-icon">&#9654;</span>
+                            테스트 실행
+                        </button>
                     </div>
                 </div>
 
                 <!-- STRICT 테스트 -->
                 <div class="test-card" id="card-critical" data-requirement="STRICT" data-endpoint="critical">
-                    <div class="card-header">
-                        <h3>중요 데이터 조회</h3>
-                        <span class="badge badge-danger">STRICT</span>
+                    <div class="card-header strict">
+                        <h3>중요 데이터</h3>
+                        <span class="requirement-badge">STRICT</span>
                     </div>
                     <div class="card-body">
-                        <p>분석 완료 + ALLOW만 허용</p>
-                        <code>ADMIN 권한 필수</code>
+                        <p class="card-desc">분석 완료 + ALLOW만 접근 허용</p>
+                        <code class="card-code">onlyAllowOnAllow: true</code>
                     </div>
                     <div class="card-footer">
-                        <input type="text" class="resource-input" id="input-critical" value="resource-004" placeholder="Resource ID">
-                        <button class="btn btn-test" id="btn-test-critical">테스트 실행</button>
+                        <button class="btn-test" id="btn-test-critical" disabled>
+                            <span class="btn-icon">&#9654;</span>
+                            테스트 실행
+                        </button>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- 실행 결과 로그 영역 -->
-        <section class="section result-log">
-            <h2>실행 결과 로그</h2>
-            <div class="log-controls">
-                <button class="btn btn-secondary" id="btn-clear-log">로그 지우기</button>
-                <label>
-                    <input type="checkbox" id="auto-scroll" checked>
-                    자동 스크롤
-                </label>
-            </div>
-            <div class="log-container" id="log-container">
-                <div class="log-entry log-info">
-                    <span class="log-time">--:--:--</span>
-                    <span class="log-message">시나리오를 선택하고 테스트 버튼을 클릭하세요. 두 번의 요청이 자동으로 실행됩니다.</span>
+        <!-- Decision Flow Timeline -->
+        <section class="section timeline-section">
+            <h2 class="section-title">Decision Flow Timeline</h2>
+            <div class="timeline-container" id="timeline-container">
+                <div class="timeline-entry info">
+                    <span class="timeline-time">--:--:--</span>
+                    <span class="timeline-message">시나리오를 선택하고 테스트 버튼을 클릭하세요.</span>
                 </div>
+            </div>
+            <div class="timeline-controls">
+                <button class="btn-secondary" id="btn-clear-timeline">타임라인 초기화</button>
+                <button class="btn-secondary" id="btn-reset-analysis">분석 결과 초기화</button>
             </div>
         </section>
 
-        <!-- 테스트 시나리오 가이드 -->
-        <section class="section scenarios">
-            <h2>테스트 시나리오 가이드</h2>
-            <div class="scenario-list">
-                <div class="scenario">
-                    <h4>시나리오 1: 정상 사용자 + 공개 데이터</h4>
-                    <p>정상 사용자 시나리오 선택 후 공개 데이터 테스트. 1차/2차 모두 성공합니다.</p>
-                </div>
-                <div class="scenario">
-                    <h4>시나리오 2: 정상 사용자 + 민감 데이터</h4>
-                    <p>1차 요청에서 분석 트리거, 3초 대기 후 2차 요청에서 ALLOW로 접근 허용됩니다.</p>
-                </div>
-                <div class="scenario">
-                    <h4>시나리오 3: 계정 탈취 + 민감 데이터</h4>
-                    <p>LLM이 비정상 컨텍스트를 감지, 2차 요청에서 BLOCK/CHALLENGE로 차단됩니다.</p>
-                </div>
-                <div class="scenario">
-                    <h4>시나리오 4: 봇 공격 + 일반 데이터</h4>
-                    <p>curl User-Agent를 LLM이 봇으로 판별, 2차 요청에서 BLOCK으로 차단됩니다.</p>
-                </div>
-                <div class="scenario">
-                    <h4>시나리오 5: 초기화 후 REQUIRED 테스트</h4>
-                    <p>분석 결과 초기화 후 민감 데이터 접근 시 1차 요청에서 분석 대기 타임아웃 발생.</p>
-                </div>
-                <div class="scenario">
-                    <h4>시나리오 6: 동일 계정 + 다른 컨텍스트</h4>
-                    <p>같은 사용자라도 IP/UA가 다르면 LLM이 다르게 판단합니다.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- 푸터 -->
+        <!-- Footer -->
         <footer class="footer">
-            <p>Contexa Zero Trust Security Platform - @Protectable Flow Test (Real LLM Analysis)</p>
+            <div class="footer-content">
+                <p class="footer-brand">Contexa Zero Trust Security Platform</p>
+                <p class="footer-version">TIPS Demo v1.0 | 2-Tier LLM Architecture (Llama 8B + Claude)</p>
+            </div>
         </footer>
     </div>
 

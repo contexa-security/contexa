@@ -1,24 +1,24 @@
 /**
  * ============================================================================
- * @Protectable 보안 플로우 테스트 페이지 JavaScript (실제 LLM 분석)
+ * Contexa AI Native Zero Trust Security Platform - TIPS Demo
  * ============================================================================
  *
- * 실제 LLM 분석을 통한 Zero Trust 보안 테스트 UI
+ * 실시간 LLM 분석 시각화 및 SSE 연결
  *
- * 실제 플로우:
- * 1. 클라이언트가 시나리오 선택 (IP, User-Agent 설정)
- * 2. 1차 요청: @Protectable 메서드 호출 -> 이벤트 발행 -> LLM 분석 트리거
- * 3. 대기: ColdPathEventProcessor의 비동기 분석 완료 대기 (3초)
- * 4. 2차 요청: Redis에 저장된 분석 결과 기반 허용/차단
+ * 아키텍처:
+ * ColdPathEventProcessor -> LlmAnalysisEventListener -> SSE -> Client
  *
- * API 엔드포인트:
- * - GET  /api/test-action/status  : 현재 분석 결과 조회
- * - DELETE /api/test-action/reset : 분석 결과 초기화
- * - GET  /api/security-test/*     : @Protectable 메서드 테스트
+ * SSE 이벤트 유형:
+ * - CONTEXT_COLLECTED: 컨텍스트 수집 완료
+ * - LAYER1_START: Layer1 분석 시작 (Llama 8B)
+ * - LAYER1_COMPLETE: Layer1 분석 완료
+ * - LAYER2_START: Layer2 에스컬레이션 (Claude)
+ * - LAYER2_COMPLETE: Layer2 분석 완료
+ * - DECISION_APPLIED: 최종 결정 적용
+ * - ERROR: 오류 발생
  *
- * 컨텍스트 전달:
- * - X-Forwarded-For: 클라이언트 IP (시나리오별)
- * - User-Agent: 브라우저/도구 정보 (시나리오별)
+ * @author contexa
+ * @since TIPS Demo v1.0
  */
 
 'use strict';
@@ -32,22 +32,16 @@
      * API 엔드포인트
      */
     const API = {
+        SSE_ENDPOINT: '/api/sse/llm-analysis',
         ACTION_STATUS: '/api/test-action/status',
         ACTION_RESET: '/api/test-action/reset',
-        TEST_PUBLIC: '/api/security-test/public/',
         TEST_NORMAL: '/api/security-test/normal/',
         TEST_SENSITIVE: '/api/security-test/sensitive/',
-        TEST_CRITICAL: '/api/security-test/critical/',
-        // Admin Override API (AI Native v3.5.0)
-        OVERRIDE_PENDING: '/api/admin/override/pending/current',
-        OVERRIDE_APPROVE: '/api/admin/override/approve',
-        OVERRIDE_REJECT: '/api/admin/override/reject'
+        TEST_CRITICAL: '/api/security-test/critical/'
     };
 
     /**
-     * 시나리오별 HTTP 헤더 프리셋
-     * 실제 플로우에서 HCADFilter와 SecurityEventPublishingFilter가
-     * X-Forwarded-For 헤더에서 IP를 추출함
+     * 시나리오별 HTTP 헤더 (X-Simulated-User-Agent, X-Forwarded-For)
      */
     const SCENARIO_HEADERS = {
         'NORMAL_USER': {
@@ -57,10 +51,6 @@
         'ACCOUNT_TAKEOVER': {
             'X-Forwarded-For': '203.0.113.50',
             'X-Simulated-User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
-        },
-        'BOT_ATTACK': {
-            'X-Forwarded-For': '45.33.32.156',
-            'X-Simulated-User-Agent': 'curl/7.68.0'
         },
         'PRIVILEGE_ESCALATION': {
             'X-Forwarded-For': '10.0.0.99',
@@ -76,142 +66,49 @@
             name: '정상 사용자',
             ip: '192.168.1.100',
             userAgent: 'Chrome/120.0 (Windows)',
-            expectedAction: 'ALLOW',
-            description: '사내 네트워크에서 일반 브라우저로 접속하는 정상 사용자'
+            expectedAction: 'ALLOW'
         },
         'ACCOUNT_TAKEOVER': {
             name: '계정 탈취 의심',
             ip: '203.0.113.50',
             userAgent: 'Android 10 (Mobile)',
-            expectedAction: 'BLOCK / CHALLENGE',
-            description: '평소와 다른 위치/디바이스에서의 갑작스러운 접속'
-        },
-        'BOT_ATTACK': {
-            name: '봇 공격',
-            ip: '45.33.32.156',
-            userAgent: 'curl/7.68.0',
-            expectedAction: 'BLOCK',
-            description: '자동화 도구를 사용한 악성 봇의 접근 시도'
+            expectedAction: 'CHALLENGE'
         },
         'PRIVILEGE_ESCALATION': {
             name: '권한 상승 시도',
             ip: '10.0.0.99',
-            userAgent: 'Python-requests/2.28',
-            expectedAction: 'ESCALATE / BLOCK',
-            description: '일반 사용자가 관리자 리소스에 접근 시도'
+            userAgent: 'python-requests/2.28',
+            expectedAction: 'BLOCK'
         }
     };
 
     /**
-     * Action 정보 매핑
+     * Action 색상 및 정보
+     * CSS 클래스명 형식: action-{ACTION} (예: action-ALLOW, action-BLOCK)
      */
-    const ACTION_INFO = {
-        'ALLOW': {
-            description: '정상 접근이 허용됩니다. LLM 분석 결과 안전한 요청으로 판단되었습니다.',
-            badgeClass: 'action-ALLOW'
-        },
-        'MONITOR': {
-            description: '접근은 허용되지만 모니터링됩니다. 추가 분석을 위해 로그가 수집됩니다.',
-            badgeClass: 'action-MONITOR'
-        },
-        'CHALLENGE': {
-            description: '추가 인증이 필요합니다. MFA 또는 재인증을 요청할 수 있습니다.',
-            badgeClass: 'action-CHALLENGE'
-        },
-        'INVESTIGATE': {
-            description: '수동 조사가 필요합니다. 보안팀의 검토가 진행됩니다.',
-            badgeClass: 'action-INVESTIGATE'
-        },
-        'ESCALATE': {
-            description: '상위 권한자에게 에스컬레이션됩니다. 긴급 대응이 필요합니다.',
-            badgeClass: 'action-ESCALATE'
-        },
-        'BLOCK': {
-            description: '접근이 차단됩니다. LLM 분석 결과 위험한 요청으로 판단되었습니다.',
-            badgeClass: 'action-BLOCK'
-        },
-        'PENDING_ANALYSIS': {
-            description: 'LLM 분석이 진행 중이거나 아직 시작되지 않았습니다.',
-            badgeClass: 'action-PENDING_ANALYSIS'
-        }
+    const ACTION_STYLES = {
+        'ALLOW': { class: 'action-ALLOW', color: '#2e7d32' },
+        'BLOCK': { class: 'action-BLOCK', color: '#c62828' },
+        'CHALLENGE': { class: 'action-CHALLENGE', color: '#1565c0' },
+        'ESCALATE': { class: 'action-ESCALATE', color: '#7b1fa2' },
+        'PENDING': { class: 'action-PENDING', color: '#666' }
     };
-
-    /**
-     * Threat Level 정보 매핑
-     */
-    const THREAT_LEVEL_INFO = {
-        'CRITICAL': { badgeClass: 'threat-CRITICAL' },
-        'HIGH': { badgeClass: 'threat-HIGH' },
-        'MEDIUM': { badgeClass: 'threat-MEDIUM' },
-        'LOW': { badgeClass: 'threat-LOW' },
-        'INFO': { badgeClass: 'threat-INFO' },
-        'UNKNOWN': { badgeClass: 'threat-UNKNOWN' }
-    };
-
-    /**
-     * 로그 레벨별 CSS 클래스
-     */
-    const LOG_LEVELS = {
-        INFO: 'log-info',
-        SUCCESS: 'log-success',
-        WARNING: 'log-warning',
-        ERROR: 'log-error',
-        BLOCKED: 'log-blocked',
-        STEP: 'log-step'
-    };
-
-    /**
-     * 테스트 유형 정보
-     */
-    const TEST_INFO = {
-        'public': {
-            name: '공개 데이터',
-            analysisRequirement: 'NOT_REQUIRED',
-            description: '분석 불필요 - 인증만 확인'
-        },
-        'normal': {
-            name: '일반 데이터',
-            analysisRequirement: 'PREFERRED',
-            description: '분석 있으면 사용, 없으면 기본값 (MONITOR)'
-        },
-        'sensitive': {
-            name: '민감 데이터',
-            analysisRequirement: 'REQUIRED',
-            description: '분석 완료 필수 (동기 대기 3초)'
-        },
-        'critical': {
-            name: '중요 데이터',
-            analysisRequirement: 'STRICT',
-            description: 'ADMIN 권한 + 분석 완료 + ALLOW만 허용'
-        }
-    };
-
-    /**
-     * LLM 분석 대기 시간 (밀리초)
-     */
-    const ANALYSIS_WAIT_TIME = 100000000;
 
     // ============================================================================
     // 상태 관리
     // ============================================================================
 
-    /**
-     * 애플리케이션 상태
-     */
     const state = {
         selectedScenario: null,
-        currentAction: 'PENDING_ANALYSIS',
+        currentAction: 'PENDING',
         riskScore: 0.0,
         confidence: 0.0,
-        threatLevel: 'UNKNOWN',
-        isAnomaly: false,
-        analysisStatus: 'NOT_ANALYZED',
-        isLoading: false,
+        mitre: null,
+        reasoning: null,
         isTestRunning: false,
-        logEntries: [],
-        // Admin Override (AI Native v3.5.0)
-        pendingRequest: null,
-        hasPendingRequest: false
+        sseConnected: false,
+        eventSource: null,
+        analysisPhase: 'idle' // idle, context, layer1, layer2, decision
     };
 
     // ============================================================================
@@ -225,173 +122,469 @@
      */
     function initializeElements() {
         elements = {
-            // Action 상태 표시
-            currentAction: document.getElementById('current-action'),
-            riskScore: document.getElementById('risk-score'),
-            confidence: document.getElementById('confidence'),
-            threatLevel: document.getElementById('threat-level'),
-            isAnomaly: document.getElementById('is-anomaly'),
-            analysisStatus: document.getElementById('analysis-status'),
+            // SSE 상태
+            sseStatus: document.getElementById('sse-status'),
+            sseIndicator: document.getElementById('sse-indicator'),
+            sseText: document.getElementById('sse-text'),
 
             // 시나리오 카드
             scenarioNormal: document.getElementById('scenario-normal'),
             scenarioTakeover: document.getElementById('scenario-takeover'),
-            scenarioBot: document.getElementById('scenario-bot'),
             scenarioEscalation: document.getElementById('scenario-escalation'),
-            selectedScenarioInfo: document.getElementById('selected-scenario-info'),
 
-            // 버튼
-            btnRefreshStatus: document.getElementById('btn-refresh-status'),
-            btnResetAction: document.getElementById('btn-reset-action'),
-            btnClearLog: document.getElementById('btn-clear-log'),
+            // 분석 단계
+            stepContext: document.getElementById('step-context'),
+            stepContextStatus: document.getElementById('step-context-status'),
+            stepLayer1: document.getElementById('step-layer1'),
+            stepLayer1Status: document.getElementById('step-layer1-status'),
+            stepLayer2: document.getElementById('step-layer2'),
+            stepLayer2Status: document.getElementById('step-layer2-status'),
+            stepDecision: document.getElementById('step-decision'),
+            stepDecisionStatus: document.getElementById('step-decision-status'),
+
+            // Action 배지
+            currentActionBadge: document.getElementById('current-action-badge'),
+
+            // 메트릭
+            riskFill: document.getElementById('risk-fill'),
+            riskValue: document.getElementById('risk-value'),
+            confidenceFill: document.getElementById('confidence-fill'),
+            confidenceValue: document.getElementById('confidence-value'),
+
+            // MITRE & Reasoning
+            mitreDisplay: document.getElementById('mitre-display'),
+            mitreValue: document.getElementById('mitre-value'),
+            reasoningDisplay: document.getElementById('reasoning-display'),
+            reasoningText: document.getElementById('reasoning-text'),
 
             // 테스트 버튼
-            btnTestPublic: document.getElementById('btn-test-public'),
             btnTestNormal: document.getElementById('btn-test-normal'),
             btnTestSensitive: document.getElementById('btn-test-sensitive'),
             btnTestCritical: document.getElementById('btn-test-critical'),
 
-            // 테스트 입력
-            inputPublic: document.getElementById('input-public'),
-            inputNormal: document.getElementById('input-normal'),
-            inputSensitive: document.getElementById('input-sensitive'),
-            inputCritical: document.getElementById('input-critical'),
-
             // 테스트 카드
-            cardPublic: document.getElementById('card-public'),
             cardNormal: document.getElementById('card-normal'),
             cardSensitive: document.getElementById('card-sensitive'),
             cardCritical: document.getElementById('card-critical'),
 
-            // 로그
-            logContainer: document.getElementById('log-container'),
-            autoScrollCheckbox: document.getElementById('auto-scroll'),
+            // 타임라인
+            timelineContainer: document.getElementById('timeline-container'),
 
-            // Admin Override (AI Native v3.5.0)
-            pendingStatus: document.getElementById('pending-status'),
-            pendingDetails: document.getElementById('pending-details'),
-            pendingRequestId: document.getElementById('pending-request-id'),
-            pendingUserId: document.getElementById('pending-user-id'),
-            pendingAction: document.getElementById('pending-action'),
-            pendingRiskScore: document.getElementById('pending-risk-score'),
-            pendingConfidence: document.getElementById('pending-confidence'),
-            pendingReasoning: document.getElementById('pending-reasoning'),
-            overrideForm: document.getElementById('override-form'),
-            overrideReason: document.getElementById('override-reason'),
-            baselineUpdateAllowed: document.getElementById('baseline-update-allowed'),
-            btnApprove: document.getElementById('btn-approve'),
-            btnReject: document.getElementById('btn-reject'),
-            btnRefreshPending: document.getElementById('btn-refresh-pending'),
-            overrideResult: document.getElementById('override-result'),
-            overrideResultContent: document.getElementById('override-result-content')
+            // 컨트롤 버튼
+            btnClearTimeline: document.getElementById('btn-clear-timeline'),
+            btnResetAnalysis: document.getElementById('btn-reset-analysis')
         };
     }
 
     // ============================================================================
-    // API 통신
+    // SSE 연결 관리
     // ============================================================================
 
     /**
-     * HTTP 요청 수행 (시나리오 헤더 포함)
-     *
-     * @param {string} url - 요청 URL
-     * @param {Object} options - fetch 옵션
-     * @param {boolean} includeScenarioHeaders - 시나리오 헤더 포함 여부
-     * @returns {Promise<Object>} - 응답 JSON
+     * SSE 연결 설정
      */
-    async function request(url, options = {}, includeScenarioHeaders = false) {
-        const defaultHeaders = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        };
-
-        // 시나리오 헤더 추가
-        let scenarioHeaders = {};
-        if (includeScenarioHeaders && state.selectedScenario) {
-            scenarioHeaders = SCENARIO_HEADERS[state.selectedScenario] || {};
+    function connectSSE() {
+        if (state.eventSource) {
+            state.eventSource.close();
         }
 
-        const mergedOptions = {
-            ...options,
-            headers: {
-                ...defaultHeaders,
-                ...scenarioHeaders,
-                ...options.headers
-            },
-            credentials: 'same-origin'
-        };
+        updateSseStatus('connecting', 'SSE 연결 중...');
 
         try {
-            const response = await fetch(url, mergedOptions);
-            const contentType = response.headers.get('content-type');
+            state.eventSource = new EventSource(API.SSE_ENDPOINT);
 
-            if (contentType && contentType.includes('application/json')) {
-                const data = await response.json();
+            state.eventSource.onopen = function() {
+                state.sseConnected = true;
+                updateSseStatus('connected', 'SSE 연결됨');
+                addTimelineEntry('info', 'SSE 연결 성공 - 실시간 LLM 분석 수신 대기');
+            };
 
-                if (!response.ok) {
-                    throw new ApiError(
-                        data.message || data.error || `HTTP ${response.status}`,
-                        response.status,
-                        data
-                    );
-                }
+            state.eventSource.onerror = function(event) {
+                state.sseConnected = false;
+                updateSseStatus('disconnected', 'SSE 연결 끊김');
+                addTimelineEntry('error', 'SSE 연결 오류 - 재연결 시도 중...');
 
-                return data;
-            } else {
-                const text = await response.text();
-                throw new ApiError(
-                    extractErrorMessage(text, response.status),
-                    response.status,
-                    { rawResponse: text }
-                );
-            }
+                // 5초 후 재연결 시도
+                setTimeout(connectSSE, 5000);
+            };
+
+            // CONTEXT_COLLECTED 이벤트
+            state.eventSource.addEventListener('CONTEXT_COLLECTED', function(event) {
+                const data = JSON.parse(event.data);
+                handleContextCollected(data);
+            });
+
+            // LAYER1_START 이벤트
+            state.eventSource.addEventListener('LAYER1_START', function(event) {
+                const data = JSON.parse(event.data);
+                handleLayer1Start(data);
+            });
+
+            // LAYER1_COMPLETE 이벤트
+            state.eventSource.addEventListener('LAYER1_COMPLETE', function(event) {
+                const data = JSON.parse(event.data);
+                handleLayer1Complete(data);
+            });
+
+            // LAYER2_START 이벤트
+            state.eventSource.addEventListener('LAYER2_START', function(event) {
+                const data = JSON.parse(event.data);
+                handleLayer2Start(data);
+            });
+
+            // LAYER2_COMPLETE 이벤트
+            state.eventSource.addEventListener('LAYER2_COMPLETE', function(event) {
+                const data = JSON.parse(event.data);
+                handleLayer2Complete(data);
+            });
+
+            // DECISION_APPLIED 이벤트
+            state.eventSource.addEventListener('DECISION_APPLIED', function(event) {
+                const data = JSON.parse(event.data);
+                handleDecisionApplied(data);
+            });
+
+            // ERROR 이벤트
+            state.eventSource.addEventListener('ERROR', function(event) {
+                const data = JSON.parse(event.data);
+                handleError(data);
+            });
+
+            // heartbeat 이벤트 (연결 유지용)
+            state.eventSource.addEventListener('heartbeat', function(event) {
+                // 연결 유지 확인
+            });
+
         } catch (error) {
-            if (error instanceof ApiError) {
-                throw error;
-            }
-            throw new ApiError(error.message, 0, { originalError: error });
+            console.error('SSE 연결 오류:', error);
+            updateSseStatus('disconnected', 'SSE 연결 실패');
         }
     }
 
     /**
-     * API 에러 클래스
+     * SSE 상태 표시 업데이트
      */
-    class ApiError extends Error {
-        constructor(message, status, data) {
-            super(message);
-            this.name = 'ApiError';
-            this.status = status;
-            this.data = data;
+    function updateSseStatus(status, text) {
+        if (elements.sseIndicator) {
+            elements.sseIndicator.className = 'sse-indicator ' + status;
+        }
+        if (elements.sseText) {
+            elements.sseText.textContent = text;
+        }
+    }
+
+    // ============================================================================
+    // SSE 이벤트 핸들러
+    // ============================================================================
+
+    /**
+     * 컨텍스트 수집 완료 처리
+     *
+     * AI Native v8.12: LLM 분석이 시작됨을 알리는 첫 SSE 이벤트
+     * 이 이벤트 수신 시점에 UI 변경 시작 (버튼 비활성화, 분석 UI 초기화)
+     */
+    function handleContextCollected(data) {
+        // AI Native v8.12: LLM 분석 시작 → 이제 UI 변경 시작
+        state.isTestRunning = true;
+        disableTestButtons();
+
+        // 분석 UI 초기화
+        resetAnalysisUI();
+
+        // 타임라인에 분석 시작 메시지
+        addTimelineEntry('info', '========== LLM 분석 시작 ==========');
+        addTimelineEntry('info', `분석 요구 수준: ${data.analysisRequirement || 'N/A'}`);
+
+        // 분석 단계 업데이트
+        state.analysisPhase = 'context';
+        updateStepStatus('context', 'active', '수집 완료');
+    }
+
+    /**
+     * Layer1 분석 시작 처리
+     */
+    function handleLayer1Start(data) {
+        state.analysisPhase = 'layer1';
+        updateStepStatus('context', 'completed', '완료');
+        updateStepStatus('layer1', 'active', '분석 중...');
+        addTimelineEntry('info', 'Layer1 분석 시작 (Llama 8B)');
+    }
+
+    /**
+     * Layer1 분석 완료 처리
+     */
+    function handleLayer1Complete(data) {
+        updateStepStatus('layer1', 'completed', `완료 (${data.elapsedMs || 0}ms)`);
+
+        // 메트릭 업데이트
+        updateMetrics(data.riskScore, data.confidence);
+
+        // MITRE 표시
+        if (data.mitre && data.mitre !== 'none') {
+            showMitre(data.mitre);
+        }
+
+        // Reasoning 표시
+        if (data.reasoning) {
+            showReasoning(data.reasoning);
+        }
+
+        // Action이 ESCALATE가 아니면 최종 결정으로 처리
+        if (data.action !== 'ESCALATE') {
+            updateActionBadge(data.action);
+            addTimelineEntry('success', `Layer1 분석 완료: ${data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
+        } else {
+            addTimelineEntry('warning', `Layer1: ESCALATE - Layer2로 에스컬레이션`);
         }
     }
 
     /**
-     * HTML 응답에서 에러 메시지 추출
+     * Layer2 에스컬레이션 시작 처리
      */
-    function extractErrorMessage(html, status) {
-        if (status === 403) {
-            if (html.includes('ZeroTrustAccessDeniedException')) {
-                return 'Zero Trust 보안 정책에 의해 접근이 거부되었습니다.';
-            }
-            if (html.includes('AccessDeniedException')) {
-                return '접근이 거부되었습니다. (AccessDeniedException)';
-            }
-            return '접근이 거부되었습니다. (HTTP 403)';
+    function handleLayer2Start(data) {
+        state.analysisPhase = 'layer2';
+
+        // Layer2 단계 표시
+        if (elements.stepLayer2) {
+            elements.stepLayer2.style.display = 'flex';
+        }
+        const layer2Connector = document.querySelector('.layer2-connector');
+        if (layer2Connector) {
+            layer2Connector.style.display = 'block';
         }
 
-        if (status === 401) {
-            return '인증이 필요합니다. 로그인 후 다시 시도하세요.';
+        updateStepStatus('layer2', 'active', '분석 중...');
+        addTimelineEntry('warning', `Layer2 에스컬레이션: ${data.reason || 'N/A'}`);
+    }
+
+    /**
+     * Layer2 분석 완료 처리
+     */
+    function handleLayer2Complete(data) {
+        updateStepStatus('layer2', 'completed', `완료 (${data.elapsedMs || 0}ms)`);
+
+        // 메트릭 업데이트
+        updateMetrics(data.riskScore, data.confidence);
+
+        // MITRE 표시
+        if (data.mitre && data.mitre !== 'none') {
+            showMitre(data.mitre);
         }
 
-        if (status === 500) {
-            const exceptionMatch = html.match(/([A-Za-z]+Exception)/);
-            if (exceptionMatch) {
-                return `서버 오류: ${exceptionMatch[1]}`;
+        // Reasoning 표시
+        if (data.reasoning) {
+            showReasoning(data.reasoning);
+        }
+
+        updateActionBadge(data.action);
+        addTimelineEntry('success', `Layer2 분석 완료: ${data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
+    }
+
+    /**
+     * 최종 결정 적용 처리
+     */
+    function handleDecisionApplied(data) {
+        state.analysisPhase = 'decision';
+        updateStepStatus('decision', 'completed', '적용됨');
+        updateActionBadge(data.action);
+
+        const layerInfo = data.layer ? ` (${data.layer})` : '';
+        addTimelineEntry('success', `최종 결정 적용: ${data.action}${layerInfo}`);
+
+        // 테스트 완료
+        state.isTestRunning = false;
+        enableTestButtons();
+    }
+
+    /**
+     * 에러 처리
+     */
+    function handleError(data) {
+        addTimelineEntry('error', `오류: ${data.message || 'Unknown error'}`);
+        state.isTestRunning = false;
+        enableTestButtons();
+    }
+
+    // ============================================================================
+    // UI 업데이트 함수
+    // ============================================================================
+
+    /**
+     * 분석 단계 상태 업데이트
+     */
+    function updateStepStatus(step, status, text) {
+        const stepElement = elements[`step${step.charAt(0).toUpperCase() + step.slice(1)}`];
+        const statusElement = elements[`step${step.charAt(0).toUpperCase() + step.slice(1)}Status`];
+
+        if (stepElement) {
+            const indicator = stepElement.querySelector('.step-indicator');
+            if (indicator) {
+                indicator.className = 'step-indicator ' + status;
             }
-            return '서버 내부 오류가 발생했습니다. (HTTP 500)';
         }
 
-        return `요청 처리 중 오류가 발생했습니다. (HTTP ${status})`;
+        if (statusElement) {
+            statusElement.textContent = text;
+        }
+    }
+
+    /**
+     * Action 배지 업데이트
+     */
+    function updateActionBadge(action) {
+        state.currentAction = action;
+
+        if (elements.currentActionBadge) {
+            const actionText = elements.currentActionBadge.querySelector('.action-text');
+            if (actionText) {
+                actionText.textContent = action;
+            }
+
+            // 모든 action 클래스 제거 (CSS 클래스명 형식: action-{ACTION})
+            elements.currentActionBadge.classList.remove(
+                'action-ALLOW', 'action-BLOCK', 'action-CHALLENGE', 'action-ESCALATE', 'action-PENDING'
+            );
+
+            // 새 action 클래스 추가
+            const style = ACTION_STYLES[action] || ACTION_STYLES['PENDING'];
+            elements.currentActionBadge.classList.add(style.class);
+        }
+    }
+
+    /**
+     * 메트릭 업데이트
+     */
+    function updateMetrics(riskScore, confidence) {
+        state.riskScore = riskScore || 0;
+        state.confidence = confidence || 0;
+
+        // Risk Score
+        if (elements.riskFill) {
+            elements.riskFill.style.width = `${state.riskScore * 100}%`;
+        }
+        if (elements.riskValue) {
+            elements.riskValue.textContent = state.riskScore.toFixed(2);
+        }
+
+        // Confidence
+        if (elements.confidenceFill) {
+            elements.confidenceFill.style.width = `${state.confidence * 100}%`;
+        }
+        if (elements.confidenceValue) {
+            elements.confidenceValue.textContent = state.confidence.toFixed(2);
+        }
+    }
+
+    /**
+     * MITRE ATT&CK 표시
+     */
+    function showMitre(mitre) {
+        state.mitre = mitre;
+
+        if (elements.mitreDisplay && mitre && mitre !== 'none') {
+            elements.mitreDisplay.style.display = 'block';
+            if (elements.mitreValue) {
+                elements.mitreValue.textContent = mitre;
+            }
+        }
+    }
+
+    /**
+     * LLM Reasoning 표시
+     */
+    function showReasoning(reasoning) {
+        state.reasoning = reasoning;
+
+        if (elements.reasoningDisplay && reasoning) {
+            elements.reasoningDisplay.style.display = 'block';
+            if (elements.reasoningText) {
+                elements.reasoningText.textContent = reasoning;
+            }
+        }
+    }
+
+    /**
+     * 타임라인 엔트리 추가
+     */
+    function addTimelineEntry(type, message) {
+        if (!elements.timelineContainer) return;
+
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('ko-KR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
+        const entry = document.createElement('div');
+        entry.className = `timeline-entry ${type}`;
+        entry.innerHTML = `
+            <span class="timeline-time">${timeStr}</span>
+            <span class="timeline-message">${escapeHtml(message)}</span>
+        `;
+
+        elements.timelineContainer.appendChild(entry);
+
+        // 자동 스크롤
+        elements.timelineContainer.scrollTop = elements.timelineContainer.scrollHeight;
+    }
+
+    /**
+     * 타임라인 초기화
+     */
+    function clearTimeline() {
+        if (elements.timelineContainer) {
+            elements.timelineContainer.innerHTML = `
+                <div class="timeline-entry info">
+                    <span class="timeline-time">--:--:--</span>
+                    <span class="timeline-message">시나리오를 선택하고 테스트 버튼을 클릭하세요.</span>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * 분석 결과 초기화
+     */
+    function resetAnalysis() {
+        state.currentAction = 'PENDING';
+        state.riskScore = 0;
+        state.confidence = 0;
+        state.mitre = null;
+        state.reasoning = null;
+        state.analysisPhase = 'idle';
+
+        // Action 배지 초기화
+        updateActionBadge('PENDING');
+
+        // 메트릭 초기화
+        updateMetrics(0, 0);
+
+        // MITRE 숨기기
+        if (elements.mitreDisplay) {
+            elements.mitreDisplay.style.display = 'none';
+        }
+
+        // Reasoning 숨기기
+        if (elements.reasoningDisplay) {
+            elements.reasoningDisplay.style.display = 'none';
+        }
+
+        // 분석 단계 초기화
+        ['context', 'layer1', 'layer2', 'decision'].forEach(step => {
+            updateStepStatus(step, 'waiting', '대기');
+        });
+
+        // Layer2 숨기기
+        if (elements.stepLayer2) {
+            elements.stepLayer2.style.display = 'none';
+        }
+        const layer2Connector = document.querySelector('.layer2-connector');
+        if (layer2Connector) {
+            layer2Connector.style.display = 'none';
+        }
+
+        addTimelineEntry('info', '분석 결과가 초기화되었습니다.');
     }
 
     // ============================================================================
@@ -400,8 +593,6 @@
 
     /**
      * 시나리오 선택 처리
-     *
-     * @param {string} scenario - 시나리오 키
      */
     function selectScenario(scenario) {
         state.selectedScenario = scenario;
@@ -417,228 +608,134 @@
             selectedCard.classList.add('selected');
         }
 
-        // 선택된 시나리오 정보 표시
+        // 테스트 버튼 활성화
+        enableTestButtons();
+
         const info = SCENARIO_INFO[scenario];
-        if (info && elements.selectedScenarioInfo) {
-            elements.selectedScenarioInfo.innerHTML = `
-                <p><strong>선택된 시나리오:</strong> ${escapeHtml(info.name)}</p>
-                <p><strong>IP:</strong> ${escapeHtml(info.ip)} | <strong>User-Agent:</strong> ${escapeHtml(info.userAgent)}</p>
-                <p><strong>예상 LLM 판단:</strong> ${escapeHtml(info.expectedAction)}</p>
-            `;
-            elements.selectedScenarioInfo.classList.add('active');
-        }
-
-        log('INFO', `시나리오 선택: ${info.name} (IP: ${info.ip})`);
-    }
-
-    // ============================================================================
-    // Action 상태 관리
-    // ============================================================================
-
-    /**
-     * Action 상태 조회 및 UI 갱신
-     */
-    async function refreshActionStatus() {
-        if (state.isLoading) return;
-
-        setLoading(true);
-        log('INFO', 'LLM 분석 결과 조회 중...');
-
-        try {
-            const data = await request(API.ACTION_STATUS);
-
-            state.currentAction = data.action || 'PENDING_ANALYSIS';
-            state.riskScore = data.riskScore || 0.0;
-            state.confidence = data.confidence || 0.0;
-            state.threatLevel = data.threatLevel || 'UNKNOWN';
-            state.isAnomaly = data.isAnomaly || false;
-            state.analysisStatus = data.analysisStatus || 'NOT_ANALYZED';
-
-            updateStatusDisplay();
-
-            log('SUCCESS', `분석 결과: Action=${state.currentAction}, Risk=${state.riskScore.toFixed(2)}, Confidence=${state.confidence.toFixed(2)}`);
-        } catch (error) {
-            log('ERROR', `분석 결과 조회 실패: ${error.message}`);
-            console.error('Action status error:', error);
-        } finally {
-            setLoading(false);
-        }
+        addTimelineEntry('info', `시나리오 선택: ${info.name} (IP: ${info.ip})`);
     }
 
     /**
-     * Action 초기화 (PENDING_ANALYSIS로 복귀)
+     * 테스트 버튼 활성화
      */
-    async function resetAction() {
-        if (state.isLoading) return;
+    function enableTestButtons() {
+        const enabled = state.selectedScenario && !state.isTestRunning;
 
-        setLoading(true);
-        log('INFO', '분석 결과 초기화 중...');
+        [elements.btnTestNormal, elements.btnTestSensitive, elements.btnTestCritical].forEach(btn => {
+            if (btn) {
+                btn.disabled = !enabled;
+            }
+        });
+    }
 
-        try {
-            await request(API.ACTION_RESET, { method: 'DELETE' });
-
-            state.currentAction = 'PENDING_ANALYSIS';
-            state.riskScore = 0.0;
-            state.confidence = 0.0;
-            state.threatLevel = 'UNKNOWN';
-            state.isAnomaly = false;
-            state.analysisStatus = 'NOT_ANALYZED';
-
-            updateStatusDisplay();
-
-            log('SUCCESS', '분석 결과가 초기화되었습니다. 새로운 시나리오 테스트를 시작할 수 있습니다.');
-        } catch (error) {
-            log('ERROR', `초기화 실패: ${error.message}`);
-            console.error('Reset action error:', error);
-        } finally {
-            setLoading(false);
-        }
+    /**
+     * 테스트 버튼 비활성화
+     */
+    function disableTestButtons() {
+        [elements.btnTestNormal, elements.btnTestSensitive, elements.btnTestCritical].forEach(btn => {
+            if (btn) {
+                btn.disabled = true;
+            }
+        });
     }
 
     // ============================================================================
-    // 보안 API 테스트 (두 번의 요청 패턴)
+    // API 테스트 실행
     // ============================================================================
 
     /**
-     * 보안 API 테스트 실행 (두 번의 요청)
-     *
-     * 실제 플로우:
-     * 1. 1차 요청: 분석 트리거 (defaultAction 사용 또는 타임아웃)
-     * 2. 대기: ColdPathEventProcessor의 비동기 분석 완료 대기
-     * 3. 2차 요청: 분석 결과 기반 허용/차단
-     *
-     * @param {string} type - 테스트 유형 (public, normal, sensitive, critical)
-     * @param {string} resourceId - 리소스 ID
+     * API 테스트 실행
      */
-    async function executeTest(type, resourceId) {
+    async function executeTest(type) {
         if (state.isTestRunning) {
-            log('WARNING', '테스트가 이미 실행 중입니다.');
+            addTimelineEntry('warning', '테스트가 이미 실행 중입니다.');
             return;
         }
 
         if (!state.selectedScenario) {
-            log('WARNING', '먼저 시나리오를 선택하세요.');
+            addTimelineEntry('warning', '먼저 시나리오를 선택하세요.');
             return;
         }
 
-        const testInfo = TEST_INFO[type];
-        const scenarioInfo = SCENARIO_INFO[state.selectedScenario];
-        const card = getTestCard(type);
+        // AI Native v8.12: UI 변경은 SSE 이벤트(CONTEXT_COLLECTED) 수신 시에만 수행
+        // 클라이언트 요청 시점에서는 UI 변경 없이 fetch 요청만 전송
+        // LLM 분석이 스킵되면 SSE 이벤트가 오지 않으므로 분석 UI 표시 없음
 
-        // 카드 상태 초기화
-        resetCardState(card);
-
-        state.isTestRunning = true;
-        setLoading(true);
-
-        const logPrefix = `[${testInfo.name}]`;
-        log('STEP', `========== 테스트 시작 ==========`);
-        log('INFO', `${logPrefix} 시나리오: ${scenarioInfo.name}`);
-        log('INFO', `${logPrefix} 컨텍스트: IP=${scenarioInfo.ip}, UA=${scenarioInfo.userAgent}`);
-        log('INFO', `${logPrefix} AnalysisRequirement: ${testInfo.analysisRequirement}`);
-
-        // URL 구성
+        const resourceId = 'resource-' + Date.now();
         const url = getTestUrl(type, resourceId);
-        if (!url) {
-            log('ERROR', `${logPrefix} 알 수 없는 테스트 유형: ${type}`);
-            state.isTestRunning = false;
-            setLoading(false);
-            return;
-        }
+        const scenarioInfo = SCENARIO_INFO[state.selectedScenario];
+
+        // AI Native v8.12: 요청 전송 알림 (최소한의 타임라인 메시지)
+        addTimelineEntry('info', `요청 전송: ${getTestTypeName(type)} - ${scenarioInfo.name}`);
 
         try {
-            // ===== 1차 요청: 분석 트리거 =====
-            log('STEP', `${logPrefix} [1차 요청] 분석 트리거 중...`);
-            log('INFO', `${logPrefix} X-Forwarded-For: ${scenarioInfo.ip}`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    ...SCENARIO_HEADERS[state.selectedScenario]
+                },
+                credentials: 'same-origin'
+            });
 
-            let firstRequestSuccess = false;
-            let firstRequestMessage = '';
-
-            try {
-                const startTime1 = performance.now();
-                const data1 = await request(url, {}, true);
-                const elapsed1 = (performance.now() - startTime1).toFixed(0);
-
-                firstRequestSuccess = true;
-                firstRequestMessage = `1차 요청 성공 (${elapsed1}ms)`;
-                log('SUCCESS', `${logPrefix} ${firstRequestMessage}`);
-            } catch (error1) {
-                // 1차 요청 실패는 예상됨 (REQUIRED/STRICT의 경우 타임아웃)
-                firstRequestMessage = `1차 요청: ${error1.message}`;
-                if (error1.status === 403) {
-                    log('WARNING', `${logPrefix} 1차 요청 차단됨 (예상된 동작) - ${error1.message}`);
+            if (response.ok) {
+                const data = await response.json();
+                addTimelineEntry('success', `요청 성공: ${data.data || 'OK'}`);
+            } else {
+                const errorText = await response.text();
+                if (response.status === 403) {
+                    addTimelineEntry('error', `접근 차단됨 (HTTP 403)`);
                 } else {
-                    log('WARNING', `${logPrefix} 1차 요청 오류 - ${error1.message}`);
+                    addTimelineEntry('error', `요청 실패 (HTTP ${response.status})`);
                 }
             }
-
-            // ===== 대기: 비동기 분석 완료 =====
-            log('STEP', `${logPrefix} [대기] LLM 분석 완료 대기 (${ANALYSIS_WAIT_TIME/1000}초)...`);
-            log('INFO', `${logPrefix} ColdPathEventProcessor -> Layer1/2/3 분석 -> Redis 저장`);
-
-            /*await sleep(ANALYSIS_WAIT_TIME);
-
-            // 분석 결과 조회
-            log('INFO', `${logPrefix} 분석 결과 조회 중...`);
-            try {
-                const statusData = await request(API.ACTION_STATUS);
-                state.currentAction = statusData.action || 'PENDING_ANALYSIS';
-                state.riskScore = statusData.riskScore || 0.0;
-                state.confidence = statusData.confidence || 0.0;
-                state.threatLevel = statusData.threatLevel || 'UNKNOWN';
-                state.isAnomaly = statusData.isAnomaly || false;
-                state.analysisStatus = statusData.analysisStatus || 'NOT_ANALYZED';
-                updateStatusDisplay();
-
-                log('INFO', `${logPrefix} LLM 분석 결과: Action=${state.currentAction}, Risk=${state.riskScore.toFixed(2)}`);
-            } catch (statusError) {
-                log('WARNING', `${logPrefix} 분석 결과 조회 실패: ${statusError.message}`);
-            }
-
-            // ===== 2차 요청: 분석 결과 기반 =====
-            log('STEP', `${logPrefix} [2차 요청] 분석 결과 기반 접근 시도...`);
-
-            const startTime2 = performance.now();
-            const data2 = await request(url, {}, true);
-            const elapsed2 = (performance.now() - startTime2).toFixed(0);
-
-            // 2차 요청 성공
-            setCardSuccess(card);
-            log('SUCCESS', `${logPrefix} 2차 요청 성공 - 접근 허용됨 (${elapsed2}ms)`);
-            log('SUCCESS', `${logPrefix} LLM Action: ${state.currentAction}, 응답: "${data2.data}"`);
-
         } catch (error) {
-            // 2차 요청 실패
-            setCardFailed(card);
-
-            if (error.status === 403) {
-                log('BLOCKED', `${logPrefix} 2차 요청 차단됨 - ${error.message}`);
-                log('INFO', `${logPrefix} LLM이 '${state.currentAction}' Action을 결정하여 접근이 거부되었습니다.`);
-            } else if (error.status === 401) {
-                log('ERROR', `${logPrefix} 인증 실패 - ${error.message}`);
-            } else {
-                log('ERROR', `${logPrefix} 오류 - ${error.message}`);
-            }
-
-            console.error(`Test ${type} error:`, error);*/
-        } finally {
-            log('STEP', `========== 테스트 완료 ==========`);
+            addTimelineEntry('error', `네트워크 오류: ${error.message}`);
             state.isTestRunning = false;
-            setLoading(false);
+            enableTestButtons();
         }
     }
 
     /**
-     * 테스트 URL 구성
-     *
-     * @param {string} type - 테스트 유형
-     * @param {string} resourceId - 리소스 ID
-     * @returns {string|null} - URL 또는 null
+     * 분석 UI만 초기화 (분석 결과 API 초기화 없이)
+     */
+    function resetAnalysisUI() {
+        state.currentAction = 'PENDING';
+        state.riskScore = 0;
+        state.confidence = 0;
+        state.mitre = null;
+        state.reasoning = null;
+        state.analysisPhase = 'idle';
+
+        updateActionBadge('PENDING');
+        updateMetrics(0, 0);
+
+        if (elements.mitreDisplay) {
+            elements.mitreDisplay.style.display = 'none';
+        }
+        if (elements.reasoningDisplay) {
+            elements.reasoningDisplay.style.display = 'none';
+        }
+
+        ['context', 'layer1', 'layer2', 'decision'].forEach(step => {
+            updateStepStatus(step, 'waiting', '대기');
+        });
+
+        if (elements.stepLayer2) {
+            elements.stepLayer2.style.display = 'none';
+        }
+        const layer2Connector = document.querySelector('.layer2-connector');
+        if (layer2Connector) {
+            layer2Connector.style.display = 'none';
+        }
+    }
+
+    /**
+     * 테스트 URL 생성
      */
     function getTestUrl(type, resourceId) {
         switch (type) {
-            case 'public':
-                return API.TEST_PUBLIC + encodeURIComponent(resourceId);
             case 'normal':
                 return API.TEST_NORMAL + encodeURIComponent(resourceId);
             case 'sensitive':
@@ -651,381 +748,19 @@
     }
 
     /**
-     * 대기 함수
-     *
-     * @param {number} ms - 대기 시간 (밀리초)
-     * @returns {Promise<void>}
+     * 테스트 유형 이름 반환
      */
-    function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    /**
-     * 테스트 카드 요소 가져오기
-     */
-    function getTestCard(type) {
+    function getTestTypeName(type) {
         switch (type) {
-            case 'public': return elements.cardPublic;
-            case 'normal': return elements.cardNormal;
-            case 'sensitive': return elements.cardSensitive;
-            case 'critical': return elements.cardCritical;
-            default: return null;
+            case 'normal': return '일반 데이터 (PREFERRED)';
+            case 'sensitive': return '민감 데이터 (REQUIRED)';
+            case 'critical': return '중요 데이터 (STRICT)';
+            default: return type;
         }
     }
 
     /**
-     * 카드 상태 초기화
-     */
-    function resetCardState(card) {
-        if (!card) return;
-        card.classList.remove('success', 'failed', 'testing');
-    }
-
-    /**
-     * 카드 성공 상태 설정
-     */
-    function setCardSuccess(card) {
-        if (!card) return;
-        card.classList.remove('failed', 'testing');
-        card.classList.add('success');
-    }
-
-    /**
-     * 카드 실패 상태 설정
-     */
-    function setCardFailed(card) {
-        if (!card) return;
-        card.classList.remove('success', 'testing');
-        card.classList.add('failed');
-    }
-
-    // ============================================================================
-    // UI 갱신
-    // ============================================================================
-
-    /**
-     * Action 상태 표시 갱신
-     */
-    function updateStatusDisplay() {
-        // Action 배지
-        const actionInfo = ACTION_INFO[state.currentAction] || ACTION_INFO['PENDING_ANALYSIS'];
-        if (elements.currentAction) {
-            elements.currentAction.textContent = state.currentAction;
-            elements.currentAction.className = `value action-badge ${actionInfo.badgeClass}`;
-        }
-
-        // Risk Score
-        if (elements.riskScore) {
-            elements.riskScore.textContent = state.riskScore.toFixed(2);
-        }
-
-        // Confidence
-        if (elements.confidence) {
-            elements.confidence.textContent = state.confidence.toFixed(2);
-        }
-
-        // Threat Level 배지
-        const threatInfo = THREAT_LEVEL_INFO[state.threatLevel] || THREAT_LEVEL_INFO['UNKNOWN'];
-        if (elements.threatLevel) {
-            elements.threatLevel.textContent = state.threatLevel;
-            elements.threatLevel.className = `value threat-badge ${threatInfo.badgeClass}`;
-        }
-
-        // Is Anomaly
-        if (elements.isAnomaly) {
-            elements.isAnomaly.textContent = state.isAnomaly ? 'Yes' : 'No';
-            elements.isAnomaly.style.color = state.isAnomaly ? '#c62828' : '#2e7d32';
-        }
-
-        // Analysis Status
-        if (elements.analysisStatus) {
-            elements.analysisStatus.textContent = state.analysisStatus === 'ANALYZED' ? 'Analyzed' : 'Not Analyzed';
-            elements.analysisStatus.style.color = state.analysisStatus === 'ANALYZED' ? '#2e7d32' : '#666';
-        }
-    }
-
-    /**
-     * 로딩 상태 설정
-     */
-    function setLoading(loading) {
-        state.isLoading = loading;
-
-        const buttons = [
-            elements.btnRefreshStatus,
-            elements.btnResetAction,
-            elements.btnTestPublic,
-            elements.btnTestNormal,
-            elements.btnTestSensitive,
-            elements.btnTestCritical
-        ];
-
-        buttons.forEach(btn => {
-            if (btn) {
-                btn.disabled = loading;
-                if (loading) {
-                    btn.classList.add('loading');
-                } else {
-                    btn.classList.remove('loading');
-                }
-            }
-        });
-    }
-
-    // ============================================================================
-    // 로깅
-    // ============================================================================
-
-    /**
-     * 로그 메시지 추가
-     */
-    function log(level, message) {
-        const timestamp = new Date().toLocaleTimeString('ko-KR', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            fractionalSecondDigits: 3
-        });
-
-        const entry = {
-            timestamp: timestamp,
-            level: level,
-            message: message
-        };
-
-        state.logEntries.push(entry);
-
-        // DOM에 로그 엔트리 추가
-        const logElement = document.createElement('div');
-        logElement.className = `log-entry ${LOG_LEVELS[level] || LOG_LEVELS.INFO}`;
-        logElement.innerHTML = `
-            <span class="log-time">${escapeHtml(timestamp)}</span>
-            <span class="log-message">${escapeHtml(message)}</span>
-        `;
-
-        if (elements.logContainer) {
-            elements.logContainer.appendChild(logElement);
-
-            // 자동 스크롤
-            if (elements.autoScrollCheckbox && elements.autoScrollCheckbox.checked) {
-                elements.logContainer.scrollTop = elements.logContainer.scrollHeight;
-            }
-        }
-    }
-
-    /**
-     * 로그 전체 삭제
-     */
-    function clearLog() {
-        state.logEntries = [];
-        if (elements.logContainer) {
-            elements.logContainer.innerHTML = '';
-        }
-        log('INFO', '로그가 초기화되었습니다.');
-    }
-
-    // ============================================================================
-    // Admin Override (AI Native v3.5.0)
-    // ============================================================================
-
-    /**
-     * 대기 중인 요청 조회
-     */
-    async function checkPendingRequest() {
-        log('INFO', '[Admin Override] 대기 중인 요청 확인 중...');
-
-        try {
-            const data = await request(API.OVERRIDE_PENDING);
-
-            state.hasPendingRequest = data.hasPending || false;
-            state.pendingRequest = data;
-
-            updatePendingDisplay();
-
-            if (state.hasPendingRequest) {
-                log('WARNING', `[Admin Override] 대기 중인 요청 발견: Action=${data.action}, Risk=${data.riskScore}`);
-            } else {
-                log('INFO', '[Admin Override] 대기 중인 요청 없음');
-            }
-
-        } catch (error) {
-            log('ERROR', `[Admin Override] 대기 요청 조회 실패: ${error.message}`);
-            state.hasPendingRequest = false;
-            state.pendingRequest = null;
-            updatePendingDisplay();
-        }
-    }
-
-    /**
-     * 대기 요청 표시 갱신
-     */
-    function updatePendingDisplay() {
-        if (!elements.pendingStatus) return;
-
-        if (!state.hasPendingRequest || !state.pendingRequest) {
-            elements.pendingStatus.textContent = '없음';
-            elements.pendingStatus.style.color = '#2e7d32';
-            if (elements.pendingDetails) elements.pendingDetails.style.display = 'none';
-            if (elements.overrideForm) elements.overrideForm.style.display = 'none';
-            if (elements.overrideResult) elements.overrideResult.style.display = 'none';
-            return;
-        }
-
-        const data = state.pendingRequest;
-
-        elements.pendingStatus.textContent = '있음 (관리자 검토 필요)';
-        elements.pendingStatus.style.color = '#c62828';
-
-        if (elements.pendingDetails) {
-            elements.pendingDetails.style.display = 'block';
-        }
-
-        if (elements.pendingRequestId) {
-            elements.pendingRequestId.textContent = data.requestId || '-';
-        }
-        if (elements.pendingUserId) {
-            elements.pendingUserId.textContent = data.userId || '-';
-        }
-        if (elements.pendingAction) {
-            elements.pendingAction.textContent = data.action || '-';
-            const actionInfo = ACTION_INFO[data.action] || {};
-            elements.pendingAction.className = `value action-badge ${actionInfo.badgeClass || ''}`;
-        }
-        if (elements.pendingRiskScore) {
-            elements.pendingRiskScore.textContent = (data.riskScore || 0).toFixed(2);
-        }
-        if (elements.pendingConfidence) {
-            elements.pendingConfidence.textContent = (data.confidence || 0).toFixed(2);
-        }
-        if (elements.pendingReasoning) {
-            elements.pendingReasoning.textContent = data.reasoning || '-';
-        }
-
-        if (elements.overrideForm) {
-            elements.overrideForm.style.display = 'block';
-        }
-    }
-
-    /**
-     * 요청 승인 처리
-     */
-    async function approveRequest() {
-        if (!state.pendingRequest) {
-            log('WARNING', '[Admin Override] 승인할 요청이 없습니다.');
-            return;
-        }
-
-        const reason = elements.overrideReason ? elements.overrideReason.value.trim() : '';
-        if (!reason) {
-            log('WARNING', '[Admin Override] 승인 사유를 입력하세요.');
-            alert('승인 사유를 입력하세요.');
-            return;
-        }
-
-        const baselineUpdateAllowed = elements.baselineUpdateAllowed ?
-            elements.baselineUpdateAllowed.checked : false;
-
-        const data = state.pendingRequest;
-        const requestBody = {
-            requestId: data.requestId,
-            userId: data.userId,
-            originalAction: data.action,
-            originalRiskScore: data.riskScore || 0,
-            originalConfidence: data.confidence || 0,
-            reason: reason,
-            baselineUpdateAllowed: baselineUpdateAllowed
-        };
-
-        log('INFO', `[Admin Override] 승인 처리 중... (baselineUpdateAllowed=${baselineUpdateAllowed})`);
-
-        try {
-            const result = await request(API.OVERRIDE_APPROVE, {
-                method: 'POST',
-                body: JSON.stringify(requestBody)
-            });
-
-            if (result.success) {
-                log('SUCCESS', `[Admin Override] 승인 완료: ${result.message}`);
-                showOverrideResult(result);
-
-                // 상태 갱신
-                state.hasPendingRequest = false;
-                state.pendingRequest = null;
-                updatePendingDisplay();
-
-                // Action 상태 갱신
-                await refreshActionStatus();
-            } else {
-                log('ERROR', `[Admin Override] 승인 실패: ${result.error}`);
-            }
-
-        } catch (error) {
-            log('ERROR', `[Admin Override] 승인 처리 오류: ${error.message}`);
-        }
-    }
-
-    /**
-     * 요청 거부 처리
-     */
-    async function rejectRequest() {
-        if (!state.pendingRequest) {
-            log('WARNING', '[Admin Override] 거부할 요청이 없습니다.');
-            return;
-        }
-
-        const reason = elements.overrideReason ? elements.overrideReason.value.trim() : '';
-        if (!reason) {
-            log('WARNING', '[Admin Override] 거부 사유를 입력하세요.');
-            alert('거부 사유를 입력하세요.');
-            return;
-        }
-
-        const data = state.pendingRequest;
-        const requestBody = {
-            requestId: data.requestId,
-            userId: data.userId,
-            originalAction: data.action,
-            originalRiskScore: data.riskScore || 0,
-            originalConfidence: data.confidence || 0,
-            reason: reason
-        };
-
-        log('INFO', '[Admin Override] 거부 처리 중...');
-
-        try {
-            const result = await request(API.OVERRIDE_REJECT, {
-                method: 'POST',
-                body: JSON.stringify(requestBody)
-            });
-
-            if (result.success) {
-                log('SUCCESS', `[Admin Override] 거부 완료: ${result.message}`);
-                showOverrideResult(result);
-
-                // 상태 갱신
-                state.hasPendingRequest = false;
-                state.pendingRequest = null;
-                updatePendingDisplay();
-            } else {
-                log('ERROR', `[Admin Override] 거부 실패: ${result.error}`);
-            }
-
-        } catch (error) {
-            log('ERROR', `[Admin Override] 거부 처리 오류: ${error.message}`);
-        }
-    }
-
-    /**
-     * Override 결과 표시
-     */
-    function showOverrideResult(result) {
-        if (elements.overrideResult && elements.overrideResultContent) {
-            elements.overrideResult.style.display = 'block';
-            elements.overrideResultContent.textContent = JSON.stringify(result, null, 2);
-        }
-    }
-
-    /**
-     * HTML 특수문자 이스케이프
+     * HTML 이스케이프
      */
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -1034,11 +769,11 @@
     }
 
     // ============================================================================
-    // 이벤트 핸들러
+    // 이벤트 리스너
     // ============================================================================
 
     /**
-     * 이벤트 리스너 등록
+     * 이벤트 리스너 바인딩
      */
     function bindEventListeners() {
         // 시나리오 카드 클릭
@@ -1051,76 +786,32 @@
             });
         });
 
-        // 상태 새로고침 버튼
-        if (elements.btnRefreshStatus) {
-            elements.btnRefreshStatus.addEventListener('click', refreshActionStatus);
-        }
-
-        // 초기화 버튼
-        if (elements.btnResetAction) {
-            elements.btnResetAction.addEventListener('click', resetAction);
-        }
-
         // 테스트 버튼
-        if (elements.btnTestPublic) {
-            elements.btnTestPublic.addEventListener('click', function() {
-                const resourceId = elements.inputPublic ? elements.inputPublic.value : 'resource-001';
-                executeTest('public', resourceId || 'resource-001');
-            });
-        }
-
         if (elements.btnTestNormal) {
-            elements.btnTestNormal.addEventListener('click', function() {
-                const resourceId = elements.inputNormal ? elements.inputNormal.value : 'resource-002';
-                executeTest('normal', resourceId || 'resource-002');
-            });
+            elements.btnTestNormal.addEventListener('click', () => executeTest('normal'));
         }
-
         if (elements.btnTestSensitive) {
-            elements.btnTestSensitive.addEventListener('click', function() {
-                const resourceId = elements.inputSensitive ? elements.inputSensitive.value : 'resource-003';
-                executeTest('sensitive', resourceId || 'resource-003');
-            });
+            elements.btnTestSensitive.addEventListener('click', () => executeTest('sensitive'));
         }
-
         if (elements.btnTestCritical) {
-            elements.btnTestCritical.addEventListener('click', function() {
-                const resourceId = elements.inputCritical ? elements.inputCritical.value : 'resource-004';
-                executeTest('critical', resourceId || 'resource-004');
-            });
+            elements.btnTestCritical.addEventListener('click', () => executeTest('critical'));
         }
 
-        // 로그 삭제 버튼
-        if (elements.btnClearLog) {
-            elements.btnClearLog.addEventListener('click', clearLog);
+        // 타임라인 초기화 버튼
+        if (elements.btnClearTimeline) {
+            elements.btnClearTimeline.addEventListener('click', clearTimeline);
         }
 
-        // Admin Override 버튼 (AI Native v3.5.0)
-        if (elements.btnApprove) {
-            elements.btnApprove.addEventListener('click', approveRequest);
-        }
-
-        if (elements.btnReject) {
-            elements.btnReject.addEventListener('click', rejectRequest);
-        }
-
-        if (elements.btnRefreshPending) {
-            elements.btnRefreshPending.addEventListener('click', checkPendingRequest);
+        // 분석 결과 초기화 버튼
+        if (elements.btnResetAnalysis) {
+            elements.btnResetAnalysis.addEventListener('click', resetAnalysis);
         }
 
         // 키보드 단축키
         document.addEventListener('keydown', function(event) {
-            // Ctrl + R: 상태 새로고침
-            if (event.ctrlKey && event.key === 'r') {
-                event.preventDefault();
-                refreshActionStatus();
-            }
-
-            // 숫자 키로 시나리오 선택
             if (event.key === '1') selectScenario('NORMAL_USER');
             if (event.key === '2') selectScenario('ACCOUNT_TAKEOVER');
-            if (event.key === '3') selectScenario('BOT_ATTACK');
-            if (event.key === '4') selectScenario('PRIVILEGE_ESCALATION');
+            if (event.key === '3') selectScenario('PRIVILEGE_ESCALATION');
         });
     }
 
@@ -1132,24 +823,18 @@
      * 애플리케이션 초기화
      */
     function initialize() {
-        // DOM 요소 초기화
         initializeElements();
-
-        // 이벤트 리스너 등록
         bindEventListeners();
 
-        // 초기 로그 메시지
-        log('INFO', '@Protectable 보안 플로우 테스트 페이지가 로드되었습니다.');
-        log('INFO', '실제 LLM 분석을 통한 Zero Trust 테스트입니다.');
-        log('INFO', '1. 시나리오를 선택하세요 (1-4 키 또는 카드 클릭)');
-        log('INFO', '2. 테스트 버튼을 클릭하면 두 번의 요청이 자동 실행됩니다.');
-        log('INFO', '');
+        // SSE 연결
+        connectSSE();
 
-        // 초기 상태 조회
-        refreshActionStatus();
+        // 초기 상태
+        updateActionBadge('PENDING');
+        updateMetrics(0, 0);
 
-        // Admin Override 대기 요청 확인 (AI Native v3.5.0)
-        checkPendingRequest();
+        addTimelineEntry('info', 'Contexa AI Native Zero Trust Security Platform');
+        addTimelineEntry('info', '시나리오를 선택하고 테스트 버튼을 클릭하세요.');
     }
 
     // DOM 로드 완료 시 초기화

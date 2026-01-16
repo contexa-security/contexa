@@ -110,6 +110,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
         String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
         // AI Native v4.3.0: eventId, assessedAt 추가 (null 필드 정리)
+        // AI Native v8.12: LLM reasoning을 ThreatAssessment에 전달 (TIPS 데모용)
         return ThreatAssessment.builder()
                 .eventId(event.getEventId())
                 .assessedAt(LocalDateTime.now())
@@ -120,6 +121,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .strategyName("Layer1-Contextual")
                 .shouldEscalate(shouldEscalate)
                 .action(action)  // AI Native: LLM action 직접 저장
+                .reasoning(decision.getReasoning())  // AI Native v8.12: LLM 분석 근거
                 .build();
     }
 
