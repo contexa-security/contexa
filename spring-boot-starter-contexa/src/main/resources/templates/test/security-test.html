@@ -8,54 +8,38 @@
 </head>
 <body>
     <div class="container">
-        <!-- Hero Header -->
+        <!-- Compact Hero Header -->
         <header class="hero-header">
             <div class="hero-content">
                 <h1 class="hero-title">Contexa</h1>
                 <p class="hero-subtitle">AI Native Zero Trust Security Platform</p>
-                <p class="hero-description">
-                    2-Tier LLM 아키텍처 기반 실시간 보안 위협 분석 및 대응 시스템
-                </p>
             </div>
-            <div class="hero-badge">
-                <span class="badge-text">TIPS Demo</span>
+            <div class="hero-right">
+                <div class="sse-status" id="sse-status">
+                    <span class="sse-indicator disconnected" id="sse-indicator"></span>
+                    <span class="sse-text" id="sse-text">SSE 대기</span>
+                </div>
+                <div class="hero-badge">
+                    <span class="badge-text">TIPS Demo</span>
+                </div>
             </div>
         </header>
 
-        <!-- SSE Connection Status -->
-        <div class="sse-status" id="sse-status">
-            <span class="sse-indicator disconnected" id="sse-indicator"></span>
-            <span class="sse-text" id="sse-text">SSE 연결 대기중...</span>
-        </div>
-
-        <!-- Main Content Grid -->
-        <div class="main-grid">
-            <!-- Left Column: Scenario Selection -->
+        <!-- Main Content Grid: 3 Columns -->
+        <div class="main-grid-3col">
+            <!-- Column 1: Scenario Selection (Compact) -->
             <section class="section scenario-section">
-                <h2 class="section-title">시나리오 선택</h2>
+                <h2 class="section-title">시나리오</h2>
                 <div class="scenario-cards">
                     <!-- 정상 사용자 시나리오 -->
                     <div class="scenario-card" id="scenario-normal" data-scenario="NORMAL_USER">
                         <div class="scenario-header normal">
                             <span class="scenario-icon">&#128100;</span>
                             <h3>정상 사용자</h3>
+                            <span class="expected-badge expected-allow">승인</span>
                         </div>
                         <div class="scenario-body">
-                            <div class="scenario-detail">
-                                <span class="detail-label">IP</span>
-                                <span class="detail-value">192.168.1.100</span>
-                            </div>
-                            <div class="scenario-detail">
-                                <span class="detail-label">UA</span>
-                                <span class="detail-value">Chrome/120.0 (Windows)</span>
-                            </div>
-                            <div class="scenario-detail">
-                                <span class="detail-label">예상 결과</span>
-                                <span class="detail-value expected-allow">ALLOW</span>
-                            </div>
-                        </div>
-                        <div class="scenario-footer">
-                            사내 네트워크, 일반 브라우저 접속
+                            <span class="scenario-info">192.168.1.100 | Chrome/120 (Win)</span>
                         </div>
                     </div>
 
@@ -64,23 +48,10 @@
                         <div class="scenario-header warning">
                             <span class="scenario-icon">&#9888;</span>
                             <h3>계정 탈취 의심</h3>
+                            <span class="expected-badge expected-challenge">2차 승인 필요</span>
                         </div>
                         <div class="scenario-body">
-                            <div class="scenario-detail">
-                                <span class="detail-label">IP</span>
-                                <span class="detail-value">203.0.113.50</span>
-                            </div>
-                            <div class="scenario-detail">
-                                <span class="detail-label">UA</span>
-                                <span class="detail-value">Android 10 (Mobile)</span>
-                            </div>
-                            <div class="scenario-detail">
-                                <span class="detail-label">예상 결과</span>
-                                <span class="detail-value expected-challenge">CHALLENGE</span>
-                            </div>
-                        </div>
-                        <div class="scenario-footer">
-                            IP/디바이스 변경 탐지, MFA 요구
+                            <span class="scenario-info">203.0.113.50 | Android 10</span>
                         </div>
                     </div>
 
@@ -89,84 +60,63 @@
                         <div class="scenario-header danger">
                             <span class="scenario-icon">&#128274;</span>
                             <h3>권한 상승 시도</h3>
+                            <span class="expected-badge expected-block">차단</span>
                         </div>
                         <div class="scenario-body">
-                            <div class="scenario-detail">
-                                <span class="detail-label">IP</span>
-                                <span class="detail-value">10.0.0.99</span>
-                            </div>
-                            <div class="scenario-detail">
-                                <span class="detail-label">UA</span>
-                                <span class="detail-value">python-requests/2.28</span>
-                            </div>
-                            <div class="scenario-detail">
-                                <span class="detail-label">예상 결과</span>
-                                <span class="detail-value expected-block">BLOCK</span>
-                            </div>
-                        </div>
-                        <div class="scenario-footer">
-                            자동화 도구 탐지, MITRE ATT&CK 매핑
+                            <span class="scenario-info">10.0.0.99 | python-requests</span>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Right Column: Real-time LLM Analysis Panel -->
+            <!-- Column 2: Real-time LLM Analysis Panel -->
             <section class="section analysis-section">
                 <h2 class="section-title">실시간 LLM 분석</h2>
 
-                <!-- Analysis Progress -->
+                <!-- Analysis Progress (Compact) -->
                 <div class="analysis-panel">
-                    <div class="analysis-step" id="step-context">
-                        <div class="step-indicator waiting"></div>
-                        <div class="step-content">
-                            <span class="step-label">Context Collection</span>
-                            <span class="step-status" id="step-context-status">대기</span>
+                    <div class="analysis-steps-compact">
+                        <div class="analysis-step-compact" id="step-context">
+                            <div class="step-indicator waiting"></div>
+                            <span class="step-label-compact">Context</span>
                         </div>
-                    </div>
-                    <div class="step-connector"></div>
-                    <div class="analysis-step" id="step-layer1">
-                        <div class="step-indicator waiting"></div>
-                        <div class="step-content">
-                            <span class="step-label">Layer1 Analysis</span>
-                            <span class="step-model">(Llama 8B)</span>
-                            <span class="step-status" id="step-layer1-status">대기</span>
+                        <div class="step-arrow">&#10132;</div>
+                        <div class="analysis-step-compact" id="step-layer1">
+                            <div class="step-indicator waiting"></div>
+                            <span class="step-label-compact">Layer1</span>
                         </div>
-                    </div>
-                    <div class="step-connector"></div>
-                    <div class="analysis-step layer2-step" id="step-layer2" style="display: none;">
-                        <div class="step-indicator waiting"></div>
-                        <div class="step-content">
-                            <span class="step-label">Layer2 Analysis</span>
-                            <span class="step-model">(Claude)</span>
-                            <span class="step-status" id="step-layer2-status">대기</span>
+                        <div class="step-arrow layer2-arrow" style="display: none;">&#10132;</div>
+                        <div class="analysis-step-compact layer2-step" id="step-layer2" style="display: none;">
+                            <div class="step-indicator waiting"></div>
+                            <span class="step-label-compact">Layer2</span>
                         </div>
-                    </div>
-                    <div class="step-connector layer2-connector" style="display: none;"></div>
-                    <div class="analysis-step" id="step-decision">
-                        <div class="step-indicator waiting"></div>
-                        <div class="step-content">
-                            <span class="step-label">Decision Applied</span>
-                            <span class="step-status" id="step-decision-status">대기</span>
+                        <div class="step-arrow">&#10132;</div>
+                        <div class="analysis-step-compact" id="step-decision">
+                            <div class="step-indicator waiting"></div>
+                            <span class="step-label-compact">Decision</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Current Action Badge -->
                 <div class="action-display">
+                    <div class="action-header">
+                        <span class="action-label">Action</span>
+                        <button class="reload-btn" id="reload-action-btn" title="Redis에서 현재 Action 조회">&#x27F3;</button>
+                    </div>
                     <div class="action-badge-large" id="current-action-badge">
-                        <span class="action-text">PENDING</span>
+                        <span class="action-text">대기</span>
                     </div>
                     <div class="metrics-row">
                         <div class="metric">
-                            <span class="metric-label">Risk Score</span>
+                            <span class="metric-label">Risk</span>
                             <div class="metric-bar">
                                 <div class="metric-fill risk-fill" id="risk-fill" style="width: 0%"></div>
                             </div>
                             <span class="metric-value" id="risk-value">0.00</span>
                         </div>
                         <div class="metric">
-                            <span class="metric-label">Confidence</span>
+                            <span class="metric-label">Conf</span>
                             <div class="metric-bar">
                                 <div class="metric-fill confidence-fill" id="confidence-fill" style="width: 0%"></div>
                             </div>
@@ -174,104 +124,58 @@
                         </div>
                     </div>
                     <div class="mitre-display" id="mitre-display" style="display: none;">
-                        <span class="mitre-label">MITRE ATT&CK:</span>
+                        <span class="mitre-label">MITRE:</span>
                         <span class="mitre-value" id="mitre-value">-</span>
                     </div>
                 </div>
 
-                <!-- Reasoning Display -->
+                <!-- Reasoning Display (Compact) -->
                 <div class="reasoning-display" id="reasoning-display" style="display: none;">
-                    <h4>LLM 분석 근거</h4>
+                    <h4>분석 근거</h4>
                     <p class="reasoning-text" id="reasoning-text">-</p>
+                </div>
+            </section>
+
+            <!-- Column 3: Decision Flow Timeline -->
+            <section class="section timeline-section">
+                <h2 class="section-title">Timeline</h2>
+                <div class="timeline-container" id="timeline-container">
+                    <div class="timeline-entry info">
+                        <span class="timeline-time">--:--:--</span>
+                        <span class="timeline-message">시나리오 선택 후 테스트 실행</span>
+                    </div>
+                </div>
+                <div class="timeline-controls">
+                    <button class="btn-small" id="btn-clear-timeline">초기화</button>
+                    <button class="btn-small" id="btn-reset-analysis">분석 리셋</button>
                 </div>
             </section>
         </div>
 
-        <!-- Security Test Execution -->
-        <section class="section test-section">
-            <h2 class="section-title">보안 테스트 실행</h2>
-            <p class="section-description">
-                선택한 시나리오의 컨텍스트로 @Protectable 보호 메서드를 호출합니다.
-            </p>
-
-            <div class="test-cards">
-                <!-- PREFERRED 테스트 -->
-                <div class="test-card" id="card-normal" data-requirement="PREFERRED" data-endpoint="normal">
-                    <div class="card-header preferred">
-                        <h3>일반 데이터</h3>
-                        <span class="requirement-badge">PREFERRED</span>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-desc">분석 있으면 사용, 없으면 기본 허용</p>
-                        <code class="card-code">defaultAction: ALLOW</code>
-                    </div>
-                    <div class="card-footer">
-                        <button class="btn-test" id="btn-test-normal" disabled>
-                            <span class="btn-icon">&#9654;</span>
-                            테스트 실행
-                        </button>
-                    </div>
-                </div>
-
-                <!-- REQUIRED 테스트 -->
-                <div class="test-card" id="card-sensitive" data-requirement="REQUIRED" data-endpoint="sensitive">
-                    <div class="card-header required">
-                        <h3>민감 데이터</h3>
-                        <span class="requirement-badge">REQUIRED</span>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-desc">분석 완료 필수 (동기 대기 3초)</p>
-                        <code class="card-code">analysisTimeout: 3000ms</code>
-                    </div>
-                    <div class="card-footer">
-                        <button class="btn-test" id="btn-test-sensitive" disabled>
-                            <span class="btn-icon">&#9654;</span>
-                            테스트 실행
-                        </button>
-                    </div>
-                </div>
-
-                <!-- STRICT 테스트 -->
-                <div class="test-card" id="card-critical" data-requirement="STRICT" data-endpoint="critical">
-                    <div class="card-header strict">
-                        <h3>중요 데이터</h3>
-                        <span class="requirement-badge">STRICT</span>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-desc">분석 완료 + ALLOW만 접근 허용</p>
-                        <code class="card-code">onlyAllowOnAllow: true</code>
-                    </div>
-                    <div class="card-footer">
-                        <button class="btn-test" id="btn-test-critical" disabled>
-                            <span class="btn-icon">&#9654;</span>
-                            테스트 실행
-                        </button>
-                    </div>
-                </div>
+        <!-- Security Test Execution - Compact Button Bar at Bottom -->
+        <section class="test-bar">
+            <div class="test-bar-label">보안 테스트:</div>
+            <div class="test-buttons">
+                <button class="btn-test-compact preferred" id="btn-test-normal" data-requirement="PREFERRED" data-endpoint="normal" disabled>
+                    <span class="test-btn-label">일반 데이터</span>
+                    <span class="test-btn-badge">PREFERRED</span>
+                </button>
+                <button class="btn-test-compact required" id="btn-test-sensitive" data-requirement="REQUIRED" data-endpoint="sensitive" disabled>
+                    <span class="test-btn-label">민감 데이터</span>
+                    <span class="test-btn-badge">REQUIRED</span>
+                </button>
+                <button class="btn-test-compact strict" id="btn-test-critical" data-requirement="STRICT" data-endpoint="critical" disabled>
+                    <span class="test-btn-label">중요 데이터</span>
+                    <span class="test-btn-badge">STRICT</span>
+                </button>
             </div>
         </section>
 
-        <!-- Decision Flow Timeline -->
-        <section class="section timeline-section">
-            <h2 class="section-title">Decision Flow Timeline</h2>
-            <div class="timeline-container" id="timeline-container">
-                <div class="timeline-entry info">
-                    <span class="timeline-time">--:--:--</span>
-                    <span class="timeline-message">시나리오를 선택하고 테스트 버튼을 클릭하세요.</span>
-                </div>
-            </div>
-            <div class="timeline-controls">
-                <button class="btn-secondary" id="btn-clear-timeline">타임라인 초기화</button>
-                <button class="btn-secondary" id="btn-reset-analysis">분석 결과 초기화</button>
-            </div>
-        </section>
-
-        <!-- Footer -->
+        <!-- Compact Footer -->
         <footer class="footer">
-            <div class="footer-content">
-                <p class="footer-brand">Contexa Zero Trust Security Platform</p>
-                <p class="footer-version">TIPS Demo v1.0 | 2-Tier LLM Architecture (Llama 8B + Claude)</p>
-            </div>
+            <span class="footer-brand">Contexa Zero Trust</span>
+            <span class="footer-sep">|</span>
+            <span class="footer-version">TIPS Demo v1.0 | 2-Tier LLM (Llama 8B + Claude)</span>
         </footer>
     </div>
 

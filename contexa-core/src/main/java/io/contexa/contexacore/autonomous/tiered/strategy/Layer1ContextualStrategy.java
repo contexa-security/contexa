@@ -372,10 +372,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         }
                         int similarityPct = (int) (score * 100);
 
-                        // AI Native v7.0: Path 추출
-                        String docPath = meta.get("requestUri") != null ?
-                                meta.get("requestUri").toString() : "N/A";
-
                         // AI Native v7.0: IP MATCH/MISMATCH 명시
                         String ipMatch;
                         Object docIp = meta.get("sourceIp");
@@ -401,18 +397,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                             }
                         }
 
-                        // AI Native v7.0: Path MATCH/MISMATCH 명시
-                        String pathMatch;
-                        if (docPath.equals("N/A")) {
-                            pathMatch = "N/A";
-                        } else if (currentPath != null && currentPath.equals(docPath)) {
-                            pathMatch = "MATCH";
-                        } else {
-                            pathMatch = "MISMATCH";
-                        }
-
-                        return String.format("EventID:%s, Similarity:%d%%, Path:%s, IP:%s, Hour:%s, PathMatch:%s",
-                                meta.get("eventId"), similarityPct, docPath, ipMatch, hourMatch, pathMatch);
+                        // AI Native v10.3: Path 제거 - LLM이 PathMatch를 CHALLENGE 이유로 오용
+                        // 같은 사용자가 다른 경로에 접근하는 것은 정상적인 행동
+                        return String.format("EventID:%s, Similarity:%d%%, IP:%s, Hour:%s",
+                                meta.get("eventId"), similarityPct, ipMatch, hourMatch);
                     })
                     .collect(Collectors.toList());
 
@@ -546,9 +534,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     }
 
     /**
-     * AI Native v8.9: Baseline 컨텍스트에서 UserAgent OS 추출
+     * AI Native v9.1: Baseline 컨텍스트에서 UserAgent OS 추출
      *
-     * JSON 형식: "ua": {"status": "...", "current": "Chrome/120 (Android)", "baseline": "Chrome/143 (Windows)"}
+     * 테이블 형식:
+     * | Factor | Current           | Baseline          | Status  |
+     * | UA     | Chrome/120 (And..)| Chrome/143 (Win..)| MISMATCH|
+     *
+     * Baseline 열에서 "(...)" 안의 OS 추출
      */
     private String extractOSFromBaselineContext(String baselineContext) {
         if (baselineContext == null || baselineContext.isEmpty()) {
@@ -556,15 +548,37 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
 
         try {
-            // "baseline": "Chrome/143 (Windows)" 패턴에서 OS 추출
+            // 방법 1: 테이블 형식 - "| UA" 행에서 Baseline 열의 OS 추출
+            int uaRowIdx = baselineContext.indexOf("| UA");
+            if (uaRowIdx != -1) {
+                // UA 행의 끝까지 찾기
+                int rowEndIdx = baselineContext.indexOf("\n", uaRowIdx);
+                if (rowEndIdx == -1) rowEndIdx = baselineContext.length();
+                String uaRow = baselineContext.substring(uaRowIdx, rowEndIdx);
+
+                // 파이프(|)로 열 분리: [empty, UA, Current, Baseline, Status, empty]
+                String[] columns = uaRow.split("\\|");
+                if (columns.length >= 4) {
+                    // columns[3]이 Baseline 열: "Chrome/143 (Windows)" 형태
+                    String baselineColumn = columns[3].trim();
+                    int startParen = baselineColumn.lastIndexOf("(");
+                    int endParen = baselineColumn.lastIndexOf(")");
+                    if (startParen != -1 && endParen > startParen) {
+                        String os = baselineColumn.substring(startParen + 1, endParen);
+                        // 말줄임표 처리: "Win..." -> "Windows" 매핑 불가, 있는 그대로 반환
+                        return os.replace("...", "");
+                    }
+                }
+            }
+
+            // 방법 2: 레거시 JSON 형식 폴백 - "baseline": "Chrome/143 (Windows)"
             int baselineIdx = baselineContext.indexOf("\"baseline\":");
-            if (baselineIdx == -1) return null;
-
-            int startParen = baselineContext.indexOf("(", baselineIdx);
-            int endParen = baselineContext.indexOf(")", startParen);
-
-            if (startParen != -1 && endParen != -1 && endParen > startParen) {
-                return baselineContext.substring(startParen + 1, endParen);
+            if (baselineIdx != -1) {
+                int startParen = baselineContext.indexOf("(", baselineIdx);
+                int endParen = baselineContext.indexOf(")", startParen);
+                if (startParen != -1 && endParen > startParen) {
+                    return baselineContext.substring(startParen + 1, endParen);
+                }
             }
         } catch (Exception e) {
             log.debug("[Layer1] Failed to extract OS from baseline context: {}", e.getMessage());

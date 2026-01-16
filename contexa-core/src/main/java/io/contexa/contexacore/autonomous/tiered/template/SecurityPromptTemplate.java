@@ -9,6 +9,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -272,7 +273,8 @@ public class SecurityPromptTemplate {
             // AI Native v7.0: LLM 분석 시점 기준 - Baseline 없으면 모두 true
             appendZeroTrustSignals(prompt, event, behaviorAnalysis, baselineStatus);
         } else {
-            prompt.append("[NO_DATA] Session context unavailable\n");
+            // AI Native v9.0: 매직 스트링 제거 - DATA AVAILABILITY 섹션에서 상세 표시
+            prompt.append("Session context not available (see DATA AVAILABILITY)\n");
         }
 
         // AI Native v6.6: 세션 디바이스 변경 감지 (중립적 정보 제공)
@@ -304,10 +306,12 @@ public class SecurityPromptTemplate {
                     prompt.append("  ").append(i + 1).append(". ").append(sanitizedEvent).append("\n");
                 }
             } else {
-                prompt.append("[NO_DATA] No similar events found\n");
+                // AI Native v9.0: 매직 스트링 제거 - DATA AVAILABILITY 섹션에서 상세 표시
+                prompt.append("No similar events in history (see DATA AVAILABILITY)\n");
             }
         } else {
-            prompt.append("[NO_DATA] Behavior analysis unavailable\n");
+            // AI Native v9.0: 매직 스트링 제거 - DATA AVAILABILITY 섹션에서 상세 표시
+            prompt.append("Behavior analysis not available (see DATA AVAILABILITY)\n");
         }
 
         // 6. 관련 문서 (RAG)
@@ -321,7 +325,8 @@ public class SecurityPromptTemplate {
             String sanitizedContext = PromptTemplateUtils.sanitizeUserInput(relatedContext);
             prompt.append(sanitizedContext).append("\n");
         } else {
-            prompt.append("[NO_DATA] No related context found in vector store\n");
+            // AI Native v9.0: 매직 스트링 제거 - DATA AVAILABILITY 섹션에서 상세 표시
+            prompt.append("No related context found (see DATA AVAILABILITY)\n");
         }
 
         // AI Native v8.14: CONTEXT SUMMARY (원시 데이터만, 해석/판단 없음)
@@ -329,88 +334,69 @@ public class SecurityPromptTemplate {
         // - 해석 문구 제거: "(multi-device pattern)", "(single location)" 등
         prompt.append("\n=== CONTEXT SUMMARY ===\n");
 
-        // 1. OS 목록 (해석 없이 사실만)
+        // AI Native v10.0: Factor별 명확한 라벨로 LLM 혼동 방지
+        // - [OS], [IP], [Hour], [UA] 형태로 구분
+        // - LLM이 각 Factor를 정확히 식별할 수 있도록
+
+        // 1. OS
         if (!detectedOSSet.isEmpty()) {
-            prompt.append("Detected OS: ").append(String.join(", ", detectedOSSet)).append("\n");
+            prompt.append("[OS] Known: ").append(String.join(", ", detectedOSSet)).append("\n");
         }
 
-        // 2. IP 목록 (해석 없이 사실만)
+        // 2. IP
         if (!detectedIPSet.isEmpty()) {
-            prompt.append("Detected IPs: ").append(String.join(", ", detectedIPSet)).append("\n");
+            prompt.append("[IP] Known: ").append(String.join(", ", detectedIPSet)).append("\n");
         }
 
-        // 3. Hour 목록 (해석 없이 사실만)
+        // 3. Hour
         if (!detectedHourSet.isEmpty()) {
-            prompt.append("Active hours: ").append(String.join(", ", detectedHourSet)).append("\n");
+            prompt.append("[Hour] Known: ").append(String.join(", ", detectedHourSet)).append("\n");
         }
 
-        // 4. Path 목록 (해석 없이 사실만)
-        if (!detectedPathSet.isEmpty()) {
-            prompt.append("Accessed paths: ").append(String.join(", ", detectedPathSet)).append("\n");
+        // 4. UA (Baseline에서 추출)
+        if (baselineContext != null && baselineContext.contains("Known UA:")) {
+            int uaStart = baselineContext.indexOf("Known UA:");
+            if (uaStart >= 0) {
+                int uaEnd = baselineContext.indexOf("\n", uaStart);
+                String knownUA = uaEnd > uaStart
+                    ? baselineContext.substring(uaStart + 10, uaEnd).trim()
+                    : baselineContext.substring(uaStart + 10).trim();
+                prompt.append("[UA] Known: ").append(knownUA).append("\n");
+            }
         }
 
         // 데이터 없는 경우
-        if (detectedOSSet.isEmpty() && detectedIPSet.isEmpty()
-                && detectedHourSet.isEmpty() && detectedPathSet.isEmpty()) {
+        if (detectedOSSet.isEmpty() && detectedIPSet.isEmpty() && detectedHourSet.isEmpty()) {
             prompt.append("No historical context available.\n");
         }
 
-        // 7. 사용자 Baseline
-        prompt.append("\n").append(baselineSection).append("\n");
+        // AI Native v9.8: 신규 사용자 경고만 유지
+        if (baselineStatus == BaselineStatus.NEW_USER) {
+            prompt.append("\n").append(baselineSection);
+        }
 
-        // 8. 데이터 품질 평가
-        prompt.append("\n=== DATA QUALITY ===\n");
-        prompt.append(dataQualitySection);
-
-        // 9. 응답 형식 (통일된 5필드)
-        // AI Native v8.14: 데이터 기반 분석 (Data-Driven Analysis)
-        // - 분석 절차 명확화, Doc 참조 필수화, 템플릿 복사 방지
+        // AI Native v10.0: DECISION - Factor 라벨과 일치하도록 가이드라인 수정
         prompt.append("""
 
-            === DECISION FRAMEWORK (AI Native v8.14 - Data-Driven Analysis) ===
+            === DECISION ===
 
-            RESPONSE FORMAT:
-            {
-              "riskScore": <0.0-1.0>,
-              "confidence": <0.3-0.95>,
-              "action": "<ALLOW|CHALLENGE|BLOCK|ESCALATE>",
-              "reasoning": "<specific data comparison, max 50 tokens>",
-              "mitre": "<T1078|T1110|T1185|none>"
-            }
+            RESPOND WITH JSON ONLY:
+            {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
 
-            ANALYSIS TASK:
-            Compare CURRENT REQUEST against RELATED CONTEXT and CONTEXT SUMMARY.
+            COMPARE Current (from NETWORK) vs Known (from CONTEXT SUMMARY):
+            1. [OS]: Is CurrentOS in [OS] Known?
+            2. [IP]: Is current IP in [IP] Known?
+            3. [Hour]: Is CurrentHour in [Hour] Known?
+            4. [UA]: Is CurrentUA same as [UA] Known? (browser/version only, e.g., Chrome/120)
 
-            COMPARISON PROCEDURE:
+            ACTIONS:
+            - ALLOW: All factors match known patterns
+            - CHALLENGE: Some factors differ from known patterns
+            - BLOCK: Strong indicators of unauthorized access
+            - ESCALATE: Complex situation requiring human review
 
-            STEP 1 - OS Comparison:
-            - Check CurrentOS in NETWORK section
-            - Check "Detected OS" in CONTEXT SUMMARY
-            - If CurrentOS exists in Detected OS -> OS_MATCH
-            - If not -> OS_MISMATCH
+            MITRE (if applicable): T1078, T1110, T1185
 
-            STEP 2 - IP Comparison:
-            - Check IP in NETWORK section
-            - Check "Detected IPs" in CONTEXT SUMMARY
-            - If current IP exists in Detected IPs -> IP_MATCH
-
-            STEP 3 - Hour Comparison:
-            - Check CurrentHour in EVENT section
-            - Check "Active hours" in CONTEXT SUMMARY
-            - If CurrentHour within Active hours (+-2h) -> HOUR_NORMAL
-
-            STEP 4 - Decision:
-            - Multiple MATCH -> ALLOW (pattern continuation)
-            - OS_MISMATCH but multiple OS in history -> ALLOW (multi-device user)
-            - All MISMATCH + no history -> CHALLENGE (new pattern)
-            - Attack indicators (>3 MFA failures) -> BLOCK
-
-            REASONING REQUIREMENT:
-            - MUST reference specific Doc numbers: "Doc1 os=Android matches CurrentOS"
-            - MUST reference CONTEXT SUMMARY: "CurrentOS Android in Detected OS"
-            - NEVER use generic phrases like "no similar pattern"
-
-            OUTPUT: Single JSON line only. No markdown.
             """);
 
         return prompt.toString();
@@ -455,9 +441,15 @@ public class SecurityPromptTemplate {
         }
 
         // 3. IsNewDevice: HCAD 시점 값 사용 (디바이스 기반)
+        // AI Native v9.1: IsNewDevice=true Zero Trust 경고 추가
         Boolean isNewDevice = getIsNewDevice(behaviorAnalysis, event);
         if (isNewDevice != null) {
             prompt.append("IsNewDevice: ").append(isNewDevice).append("\n");
+
+            // Zero Trust: 새 디바이스 - 사실만 제공
+            if (isNewDevice) {
+                prompt.append("  -> First time seeing this device for this user\n");
+            }
         }
     }
 
@@ -579,12 +571,10 @@ public class SecurityPromptTemplate {
                 meta.append("|path=").append(requestUri);
             }
 
-            // AI Native v7.1: userAgentOS 출력 (디바이스 패턴 분석용)
-            // LLM이 이전 요청의 디바이스 정보를 볼 수 있도록 함
-            Object userAgentOS = metadata.get("userAgentOS");
-            if (userAgentOS != null) {
-                meta.append("|os=").append(userAgentOS);
-            }
+            // AI Native v9.0: userAgentOS 출력 제거 (OS 중복 방지)
+            // - 현재 OS: NETWORK.CurrentOS에서 제공
+            // - 과거 OS: CONTEXT SUMMARY.Known OS에서 집계
+            // - RELATED CONTEXT에서 개별 os= 필드 제거로 LLM 혼란 방지
         }
 
         meta.append("]");
@@ -637,6 +627,11 @@ public class SecurityPromptTemplate {
             if (currentOS != null) {
                 network.append("CurrentOS: ").append(currentOS).append("\n");
             }
+
+            // AI Native v10.1: CurrentUA 추출 (LLM UA 비교 용이)
+            // [UA] Known과 동일한 형식으로 추출하여 직접 비교 가능하게
+            String currentUA = extractUASignature(ua);
+            network.append("CurrentUA: ").append(currentUA).append("\n");
         }
 
         return network.toString().trim();
@@ -683,6 +678,54 @@ public class SecurityPromptTemplate {
         }
 
         return null;
+    }
+
+    /**
+     * AI Native v9.3: IP 주소 정규화
+     * - loopback 주소들을 통일된 형태로 변환
+     * - IPv6 loopback (::1, 0:0:0:0:0:0:0:1) -> "loopback"
+     * - IPv4 loopback (127.0.0.1) -> "loopback"
+     * - "loopback" 문자열 그대로 유지
+     *
+     * @param ip 원본 IP 주소
+     * @return 정규화된 IP 주소
+     */
+    private String normalizeIP(String ip) {
+        if (ip == null || ip.isEmpty()) {
+            return ip;
+        }
+
+        String trimmed = ip.trim().toLowerCase();
+
+        // loopback 주소 통일
+        if (trimmed.equals("loopback") ||
+            trimmed.equals("::1") ||
+            trimmed.equals("0:0:0:0:0:0:0:1") ||
+            trimmed.equals("127.0.0.1") ||
+            trimmed.equals("localhost")) {
+            return "loopback";
+        }
+
+        return ip;
+    }
+
+    /**
+     * AI Native v9.3: IP Set 정규화
+     * - Set 내의 모든 IP를 정규화하여 새 Set 반환
+     *
+     * @param ipSet 원본 IP Set
+     * @return 정규화된 IP Set
+     */
+    private Set<String> normalizeIPSet(Set<String> ipSet) {
+        if (ipSet == null || ipSet.isEmpty()) {
+            return ipSet;
+        }
+
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String ip : ipSet) {
+            normalized.add(normalizeIP(ip));
+        }
+        return normalized;
     }
 
     /**
@@ -764,6 +807,70 @@ public class SecurityPromptTemplate {
         if (value != null) {
             sb.append(promptLabel).append(": ").append(value).append("\n");
         }
+    }
+
+    /**
+     * AI Native v10.3: UserAgent에서 브라우저/버전만 추출
+     *
+     * OS는 이미 [OS] Factor에서 별도로 비교하므로,
+     * UA에서는 브라우저/버전만 추출하여 중복 비교 제거
+     *
+     * AI Native v10.3 변경:
+     * - 변경 전: "Chrome/120/Windows" - OS 중복 + LLM 환각 유발
+     * - 변경 후: "Chrome/120" - 브라우저/버전만 비교
+     *
+     * @param userAgent 원본 UserAgent 문자열
+     * @return 브라우저/버전 (예: "Chrome/120")
+     */
+    private String extractUASignature(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return "Browser";
+        }
+
+        // 브라우저 및 버전 추출 (메이저 버전만)
+        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
+            return extractBrowserVersion(userAgent, "Chrome/");
+        } else if (userAgent.contains("Edg/")) {
+            String browser = extractBrowserVersion(userAgent, "Edg/");
+            return browser.replace("Edg", "Edge");
+        } else if (userAgent.contains("Firefox/")) {
+            return extractBrowserVersion(userAgent, "Firefox/");
+        } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
+            String browser = extractBrowserVersion(userAgent, "Version/");
+            return browser.replace("Version", "Safari");
+        }
+
+        return "Browser";
+    }
+
+    /**
+     * AI Native v10.1: User-Agent에서 브라우저 버전 추출 (메이저 버전만)
+     *
+     * @param userAgent User-Agent 문자열
+     * @param prefix 브라우저 prefix (예: "Chrome/")
+     * @return 브라우저명/메이저버전 (예: "Chrome/120")
+     */
+    private String extractBrowserVersion(String userAgent, String prefix) {
+        int idx = userAgent.indexOf(prefix);
+        if (idx == -1) return "Browser";
+
+        int start = idx + prefix.length();
+        if (start >= userAgent.length()) return "Browser";
+
+        int end = start;
+        while (end < userAgent.length()) {
+            char c = userAgent.charAt(end);
+            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
+                break;
+            }
+            end++;
+        }
+
+        if (end == start) return "Browser";
+
+        String version = userAgent.substring(start, end);
+        String browserName = prefix.replace("/", "");
+        return browserName + "/" + version;
     }
 
     /**

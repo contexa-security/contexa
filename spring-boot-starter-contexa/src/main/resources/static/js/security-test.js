@@ -94,6 +94,19 @@
         'PENDING': { class: 'action-PENDING', color: '#666' }
     };
 
+    /**
+     * Action 한국어 라벨
+     * 화면에 표시되는 텍스트
+     */
+    const ACTION_LABELS = {
+        'ALLOW': '승인',
+        'BLOCK': '차단',
+        'CHALLENGE': '2차 승인 필요',
+        'ESCALATE': '에스컬레이션',
+        'PENDING': '대기',
+        'PENDING_ANALYSIS': '분석 대기'
+    };
+
     // ============================================================================
     // 상태 관리
     // ============================================================================
@@ -132,15 +145,13 @@
             scenarioTakeover: document.getElementById('scenario-takeover'),
             scenarioEscalation: document.getElementById('scenario-escalation'),
 
-            // 분석 단계
+            // 분석 단계 (컴팩트 레이아웃)
             stepContext: document.getElementById('step-context'),
-            stepContextStatus: document.getElementById('step-context-status'),
             stepLayer1: document.getElementById('step-layer1'),
-            stepLayer1Status: document.getElementById('step-layer1-status'),
             stepLayer2: document.getElementById('step-layer2'),
-            stepLayer2Status: document.getElementById('step-layer2-status'),
             stepDecision: document.getElementById('step-decision'),
-            stepDecisionStatus: document.getElementById('step-decision-status'),
+            // Layer2 화살표 (에스컬레이션 시 표시)
+            layer2Arrow: document.querySelector('.layer2-arrow'),
 
             // Action 배지
             currentActionBadge: document.getElementById('current-action-badge'),
@@ -157,22 +168,20 @@
             reasoningDisplay: document.getElementById('reasoning-display'),
             reasoningText: document.getElementById('reasoning-text'),
 
-            // 테스트 버튼
+            // 테스트 버튼 (컴팩트 버튼 바)
             btnTestNormal: document.getElementById('btn-test-normal'),
             btnTestSensitive: document.getElementById('btn-test-sensitive'),
             btnTestCritical: document.getElementById('btn-test-critical'),
-
-            // 테스트 카드
-            cardNormal: document.getElementById('card-normal'),
-            cardSensitive: document.getElementById('card-sensitive'),
-            cardCritical: document.getElementById('card-critical'),
 
             // 타임라인
             timelineContainer: document.getElementById('timeline-container'),
 
             // 컨트롤 버튼
             btnClearTimeline: document.getElementById('btn-clear-timeline'),
-            btnResetAnalysis: document.getElementById('btn-reset-analysis')
+            btnResetAnalysis: document.getElementById('btn-reset-analysis'),
+
+            // AI Native v8.12: Action 리로드 버튼
+            reloadActionBtn: document.getElementById('reload-action-btn')
         };
     }
 
@@ -332,25 +341,24 @@
         // Action이 ESCALATE가 아니면 최종 결정으로 처리
         if (data.action !== 'ESCALATE') {
             updateActionBadge(data.action);
-            addTimelineEntry('success', `Layer1 분석 완료: ${data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
+            addTimelineEntry('success', `Layer1 분석 완료: ${ACTION_LABELS[data.action] || data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
         } else {
             addTimelineEntry('warning', `Layer1: ESCALATE - Layer2로 에스컬레이션`);
         }
     }
 
     /**
-     * Layer2 에스컬레이션 시작 처리
+     * Layer2 에스컬레이션 시작 처리 (컴팩트 레이아웃)
      */
     function handleLayer2Start(data) {
         state.analysisPhase = 'layer2';
 
-        // Layer2 단계 표시
+        // Layer2 단계 및 화살표 표시
         if (elements.stepLayer2) {
             elements.stepLayer2.style.display = 'flex';
         }
-        const layer2Connector = document.querySelector('.layer2-connector');
-        if (layer2Connector) {
-            layer2Connector.style.display = 'block';
+        if (elements.layer2Arrow) {
+            elements.layer2Arrow.style.display = 'flex';
         }
 
         updateStepStatus('layer2', 'active', '분석 중...');
@@ -377,7 +385,7 @@
         }
 
         updateActionBadge(data.action);
-        addTimelineEntry('success', `Layer2 분석 완료: ${data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
+        addTimelineEntry('success', `Layer2 분석 완료: ${ACTION_LABELS[data.action] || data.action} (Risk: ${(data.riskScore || 0).toFixed(2)})`);
     }
 
     /**
@@ -389,7 +397,7 @@
         updateActionBadge(data.action);
 
         const layerInfo = data.layer ? ` (${data.layer})` : '';
-        addTimelineEntry('success', `최종 결정 적용: ${data.action}${layerInfo}`);
+        addTimelineEntry('success', `최종 결정 적용: ${ACTION_LABELS[data.action] || data.action}${layerInfo}`);
 
         // 테스트 완료
         state.isTestRunning = false;
@@ -410,21 +418,16 @@
     // ============================================================================
 
     /**
-     * 분석 단계 상태 업데이트
+     * 분석 단계 상태 업데이트 (컴팩트 레이아웃)
      */
     function updateStepStatus(step, status, text) {
         const stepElement = elements[`step${step.charAt(0).toUpperCase() + step.slice(1)}`];
-        const statusElement = elements[`step${step.charAt(0).toUpperCase() + step.slice(1)}Status`];
 
         if (stepElement) {
             const indicator = stepElement.querySelector('.step-indicator');
             if (indicator) {
                 indicator.className = 'step-indicator ' + status;
             }
-        }
-
-        if (statusElement) {
-            statusElement.textContent = text;
         }
     }
 
@@ -434,10 +437,16 @@
     function updateActionBadge(action) {
         state.currentAction = action;
 
+        // 디버깅: 전달된 action 값과 변환 결과 확인
+        console.log('[updateActionBadge] action:', action, '-> label:', ACTION_LABELS[action] || action);
+
         if (elements.currentActionBadge) {
             const actionText = elements.currentActionBadge.querySelector('.action-text');
             if (actionText) {
-                actionText.textContent = action;
+                // 한국어 라벨 사용, 미정의 시 원본 표시
+                const label = ACTION_LABELS[action] || action;
+                console.log('[updateActionBadge] Setting text to:', label);
+                actionText.textContent = label;
             }
 
             // 모든 action 클래스 제거 (CSS 클래스명 형식: action-{ACTION})
@@ -500,6 +509,26 @@
             if (elements.reasoningText) {
                 elements.reasoningText.textContent = reasoning;
             }
+        }
+    }
+
+    /**
+     * AI Native v8.12: MITRE 정보 숨기기
+     */
+    function hideMitre() {
+        state.mitre = null;
+        if (elements.mitreDisplay) {
+            elements.mitreDisplay.style.display = 'none';
+        }
+    }
+
+    /**
+     * AI Native v8.12: Reasoning 정보 숨기기
+     */
+    function hideReasoning() {
+        state.reasoning = null;
+        if (elements.reasoningDisplay) {
+            elements.reasoningDisplay.style.display = 'none';
         }
     }
 
@@ -575,13 +604,12 @@
             updateStepStatus(step, 'waiting', '대기');
         });
 
-        // Layer2 숨기기
+        // Layer2 및 화살표 숨기기
         if (elements.stepLayer2) {
             elements.stepLayer2.style.display = 'none';
         }
-        const layer2Connector = document.querySelector('.layer2-connector');
-        if (layer2Connector) {
-            layer2Connector.style.display = 'none';
+        if (elements.layer2Arrow) {
+            elements.layer2Arrow.style.display = 'none';
         }
 
         addTimelineEntry('info', '분석 결과가 초기화되었습니다.');
@@ -697,6 +725,104 @@
         }
     }
 
+    // ============================================================================
+    // AI Native v8.12: Action 리로드 기능
+    // ============================================================================
+
+    /**
+     * 현재 Action 새로고침
+     * Redis에서 HCAD 분석 결과 조회하여 UI 업데이트
+     */
+    async function reloadCurrentAction() {
+        const btn = elements.reloadActionBtn;
+        if (!btn) return;
+
+        // 로딩 상태 표시
+        btn.classList.add('loading');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(API.ACTION_STATUS, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // UI 업데이트
+            handleCurrentActionResponse(data);
+
+            // 타임라인에 기록
+            const source = data.analysisStatus === 'ANALYZED' ? 'Redis 캐시' : '분석 없음';
+            addTimelineEntry('info', `Action 조회: ${ACTION_LABELS[data.action] || data.action} (${source})`);
+
+        } catch (error) {
+            console.error('Action 조회 실패:', error);
+            addTimelineEntry('error', `Action 조회 실패: ${error.message}`);
+        } finally {
+            // 로딩 상태 해제
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+    }
+
+    /**
+     * 현재 Action 응답 처리
+     * @param {Object} data - 서버 응답 데이터
+     */
+    function handleCurrentActionResponse(data) {
+        const action = data.action || 'PENDING_ANALYSIS';
+
+        // Action 배지 업데이트 (PENDING_ANALYSIS는 PENDING으로 표시)
+        const displayAction = action === 'PENDING_ANALYSIS' ? 'PENDING' : action;
+        updateActionBadge(displayAction);
+
+        // 메트릭 업데이트
+        if (data.riskScore !== undefined && data.riskScore !== null) {
+            updateMetrics(data.riskScore, data.confidence || 0);
+        } else {
+            // 분석 결과 없으면 메트릭 초기화
+            updateMetrics(0, 0);
+        }
+
+        // MITRE 표시/숨기기
+        if (data.mitre && data.mitre !== 'none') {
+            showMitre(data.mitre);
+        } else {
+            hideMitre();
+        }
+
+        // Reasoning 표시/숨기기
+        if (data.reasoning) {
+            showReasoning(data.reasoning);
+        } else if (data.analysisStatus === 'NOT_ANALYZED') {
+            // 분석 결과 없음 메시지
+            showReasoning('분석 결과 없음 - 보안 테스트 실행 시 LLM 분석이 수행됩니다.');
+        } else {
+            hideReasoning();
+        }
+
+        // 분석 상태에 따른 단계 표시 업데이트
+        if (data.analysisStatus === 'ANALYZED') {
+            // 캐시된 분석 결과가 있으면 모든 단계 완료로 표시
+            updateStepStatus('context', 'completed', '완료');
+            updateStepStatus('layer1', 'completed', '완료');
+            updateStepStatus('decision', 'completed', '적용됨');
+        } else if (data.analysisStatus === 'NOT_ANALYZED') {
+            // 분석 결과 없으면 단계 초기화
+            ['context', 'layer1', 'layer2', 'decision'].forEach(step => {
+                updateStepStatus(step, 'waiting', '대기');
+            });
+        }
+    }
+
     /**
      * 분석 UI만 초기화 (분석 결과 API 초기화 없이)
      */
@@ -725,9 +851,8 @@
         if (elements.stepLayer2) {
             elements.stepLayer2.style.display = 'none';
         }
-        const layer2Connector = document.querySelector('.layer2-connector');
-        if (layer2Connector) {
-            layer2Connector.style.display = 'none';
+        if (elements.layer2Arrow) {
+            elements.layer2Arrow.style.display = 'none';
         }
     }
 
@@ -805,6 +930,11 @@
         // 분석 결과 초기화 버튼
         if (elements.btnResetAnalysis) {
             elements.btnResetAnalysis.addEventListener('click', resetAnalysis);
+        }
+
+        // AI Native v8.12: Action 리로드 버튼
+        if (elements.reloadActionBtn) {
+            elements.reloadActionBtn.addEventListener('click', reloadCurrentAction);
         }
 
         // 키보드 단축키

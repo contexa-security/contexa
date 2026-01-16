@@ -607,6 +607,26 @@ public class BaselineLearningService {
     }
 
     /**
+     * AI Native v9.0: 테이블 셀 문자열 자르기
+     *
+     * 테이블 형식 출력 시 셀 너비를 맞추기 위해 문자열을 지정된 길이로 자름
+     * 길이 초과 시 "..." 추가
+     *
+     * @param str 원본 문자열
+     * @param maxLength 최대 길이
+     * @return 잘린 문자열
+     */
+    private String truncateForTable(String str, int maxLength) {
+        if (str == null) {
+            return "";
+        }
+        if (str.length() <= maxLength) {
+            return str;
+        }
+        return str.substring(0, maxLength - 3) + "...";
+    }
+
+    /**
      * IPv6 주소 범위 정규화 (AI Native v6.5)
      *
      * /64 prefix 기준으로 범위 추출 (처음 4개 세그먼트)
@@ -1177,69 +1197,37 @@ public class BaselineLearningService {
             return buildNewUserWarning(userId, currentEvent);
         }
 
-        // AI Native v7.4: JSON 구조화 + Enum 사용 + 예외 조항
-        // - LLM 프롬프트 파싱 부담 감소
-        // - 매직 스트링 제거 (타입 안전성)
-        // - Related Context 예외 조항 추가 (LLM Reasoning 활용)
+        // AI Native v9.9: Baseline raw 데이터만 추출 (MATCH/MISMATCH 계산 제거)
+        // - AI가 Current vs Known 직접 비교하도록
+        // - 플랫폼은 Known 값만 제공, 판단은 AI에게 위임
 
-        // 1. IP 비교
+        // Baseline에서 raw 데이터 추출
         String[] normalIps = baseline.getNormalIpRanges();
-        String currentIp = currentEvent != null ? currentEvent.getSourceIp() : "unknown";
-        String normalizedCurrentIp = extractIpRange(currentIp);
-        boolean ipMatch = isIpMatch(normalIps, normalizedCurrentIp);
-        BaselineMatchStatus ipStatus = ipMatch ? BaselineMatchStatus.MATCH : BaselineMatchStatus.MISMATCH;
-
-        // 2. Hour 비교
         Integer[] normalHours = baseline.getNormalAccessHours();
-        int currentHour = currentEvent != null && currentEvent.getTimestamp() != null
-            ? currentEvent.getTimestamp().getHour() : -1;
-        boolean hourMatch = isHourMatch(normalHours, currentHour);
-        BaselineMatchStatus hourStatus = hourMatch ? BaselineMatchStatus.MATCH : BaselineMatchStatus.MISMATCH;
-
-        // 3. UA 비교 (v7.4: Enum 반환)
         String[] normalUserAgents = baseline.getNormalUserAgents();
-        String currentUserAgent = currentEvent != null ? currentEvent.getUserAgent() : null;
-        BaselineMatchStatus uaStatus = getUAMatchStatus(normalUserAgents, currentUserAgent);
-        String currentUASignature = extractUASignature(currentUserAgent);
         String baselineUASignature = normalUserAgents != null && normalUserAgents.length > 0
             ? extractUASignature(normalUserAgents[0]) : "none";
-
-        // 4. Overall 매칭 점수
-        int matchCount = (ipMatch ? 1 : 0) + (hourMatch ? 1 : 0) +
-                         (BaselineMatchStatus.MATCH == uaStatus ? 1 : 0);
-        int totalCriteria = 3;
-        int matchPercentage = (matchCount * 100) / totalCriteria;
-
-        // 5. RECOMMENDATION 결정 (v7.4: 예외 조항 포함)
-        String recommendation = determineRecommendation(ipMatch, hourMatch, uaStatus, matchCount, totalCriteria);
-
-        // JSON 구조화 출력 (v7.4: LLM 파싱 부담 감소)
+        // - AI가 Current vs Known 직접 비교하도록
+        // - 플랫폼은 Known 값만 제공, 판단은 AI에게 위임
         StringBuilder sb = new StringBuilder();
-        sb.append("=== BASELINE COMPARISON (JSON) ===\n");
-        sb.append("{\n");
-        sb.append("  \"baseline\": {\n");
-        sb.append(String.format("    \"ip\": {\"status\": \"%s\", \"current\": \"%s\", \"baseline\": \"%s\"},\n",
-            ipStatus, normalizedCurrentIp != null ? normalizedCurrentIp : currentIp,
-            normalIps != null && normalIps.length > 0 ? String.join(",", normalIps) : "none"));
-        sb.append(String.format("    \"hour\": {\"status\": \"%s\", \"current\": %d, \"baseline\": %s},\n",
-            hourStatus, currentHour,
-            normalHours != null && normalHours.length > 0 ? Arrays.toString(normalHours) : "[]"));
-        sb.append(String.format("    \"ua\": {\"status\": \"%s\", \"current\": \"%s\", \"baseline\": \"%s\"}\n",
-            uaStatus, currentUASignature, baselineUASignature));
-        sb.append("  },\n");
-        sb.append(String.format("  \"overall\": {\"matchPercentage\": %d, \"matchCount\": %d, \"totalCriteria\": %d},\n",
-            matchPercentage, matchCount, totalCriteria));
-        // AI Native v8.14: recommendation(판단) 대신 comparisonResult(원시 상태)로 변경
-        sb.append(String.format("  \"comparisonResult\": \"%s\"\n", recommendation));
-        sb.append("}\n\n");
 
-        // AI Native v8.14: RECOMMENDATION 섹션 제거 (플랫폼 판단 금지)
-        // 대신 BASELINE NOTES로 사실적 정보만 제공
-        sb.append("=== BASELINE NOTES ===\n");
-        sb.append("- IP_STATUS: Current IP compared to user's normal IP addresses\n");
-        sb.append("- HOUR_STATUS: Current hour compared to user's normal active hours\n");
-        sb.append("- UA_STATUS: MATCH (exact), PARTIAL (version diff), MISMATCH (OS/browser diff)\n");
-        sb.append("- Browser version differences (UA PARTIAL) are common due to auto-updates\n");
+        // Known IP 목록
+        if (normalIps != null && normalIps.length > 0) {
+            sb.append("Known IPs: ").append(String.join(", ", normalIps)).append("\n");
+        }
+
+        // Known Hours 목록
+        if (normalHours != null && normalHours.length > 0) {
+            StringBuilder hours = new StringBuilder();
+            for (int i = 0; i < normalHours.length; i++) {
+                if (i > 0) hours.append(", ");
+                hours.append(normalHours[i]);
+            }
+            sb.append("Known Hours: ").append(hours).append("\n");
+        }
+
+        // Known UA (원시 값)
+        sb.append("Known UA: ").append(baselineUASignature).append("\n");
 
         return sb.toString();
     }
@@ -1595,59 +1583,37 @@ public class BaselineLearningService {
     }
 
     /**
-     * AI Native v6.6: User-Agent에서 핵심 정보만 추출
+     * AI Native v10.3: UserAgent에서 브라우저/버전만 추출
      *
-     * LLM이 쉽게 비교할 수 있도록 브라우저명, 메이저 버전, OS만 추출
-     * 예: "Chrome/143 (Windows)", "Firefox/120 (Linux)"
+     * OS는 이미 [OS] Factor에서 별도로 비교하므로,
+     * UA에서는 브라우저/버전만 추출하여 중복 비교 제거
+     *
+     * AI Native v10.3 변경:
+     * - 변경 전: "Chrome/120/Windows" - OS 중복 + LLM 환각 유발
+     * - 변경 후: "Chrome/120" - 브라우저/버전만 비교
      *
      * @param userAgent 전체 User-Agent 문자열
-     * @return 핵심 정보만 포함한 시그니처
+     * @return 브라우저/버전 (예: "Chrome/120")
      */
     private String extractUASignature(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
-            return "Browser (Desktop)";  // AI Native v7.1: "unknown" 대신 의미있는 기본값
+            return "Browser";
         }
-
-        String browser = "Browser";  // AI Native v7.1: "unknown" 대신 "Browser"
-        String os = "Desktop";  // AI Native v7.1: "unknown" 대신 "Desktop" (기본값)
 
         // 브라우저 및 버전 추출 (메이저 버전만)
         if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
-            browser = extractBrowserVersion(userAgent, "Chrome/");
+            return extractBrowserVersion(userAgent, "Chrome/");
         } else if (userAgent.contains("Edg/")) {
-            browser = extractBrowserVersion(userAgent, "Edg/");
-            browser = browser.replace("Edg", "Edge");
+            String browser = extractBrowserVersion(userAgent, "Edg/");
+            return browser.replace("Edg", "Edge");
         } else if (userAgent.contains("Firefox/")) {
-            browser = extractBrowserVersion(userAgent, "Firefox/");
-        // AI Native v8.8: Safari 감지 조건 강화 (Chrome, Edge 제외)
-        // Edge Chromium도 Safari/ 문자열을 포함하므로 제외 필요
+            return extractBrowserVersion(userAgent, "Firefox/");
         } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
-            browser = extractBrowserVersion(userAgent, "Version/");
-            browser = browser.replace("Version", "Safari");
+            String browser = extractBrowserVersion(userAgent, "Version/");
+            return browser.replace("Version", "Safari");
         }
 
-        // AI Native v7.1: OS 추출 강화 (모바일 OS 우선 검사)
-        // Android가 Linux를 포함하므로 모바일 OS를 먼저 검사해야 함
-        // AI Native v8.8: iPod 추가 (드물지만 존재)
-        if (userAgent.contains("Android")) {
-            os = "Android";
-        } else if (userAgent.contains("iPhone") || userAgent.contains("iPad")
-                   || userAgent.contains("iPod") || userAgent.contains("iOS")) {
-            os = "iOS";
-        } else if (userAgent.contains("Windows")) {
-            os = "Windows";
-        } else if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
-            os = "Mac";
-        } else if (userAgent.contains("CrOS")) {
-            os = "ChromeOS";
-        } else if (userAgent.contains("Linux")) {
-            os = "Linux";
-        } else if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
-            os = "Mobile";  // 모바일이지만 OS 특정 불가
-        }
-        // else: 기본값 "Desktop" 유지
-
-        return browser + " (" + os + ")";
+        return "Browser";
     }
 
     /**

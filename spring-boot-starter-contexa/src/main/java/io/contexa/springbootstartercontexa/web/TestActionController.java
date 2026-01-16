@@ -99,6 +99,9 @@ public class TestActionController {
         String threatLevel = (String) fields.getOrDefault("threatLevel", "UNKNOWN");
         String isAnomalyStr = (String) fields.getOrDefault("isAnomaly", "false");
         String updatedAt = (String) fields.get("updatedAt");
+        // AI Native v8.12: LLM 분석 근거 및 MITRE 매핑 추가
+        String reasoning = (String) fields.get("reasoning");
+        String mitre = (String) fields.get("mitre");
 
         response.put("action", action);
         response.put("riskScore", Double.parseDouble(riskScoreStr));
@@ -107,6 +110,13 @@ public class TestActionController {
         response.put("isAnomaly", Boolean.parseBoolean(isAnomalyStr));
         response.put("analysisStatus", "ANALYZED");
         response.put("updatedAt", updatedAt);
+        // AI Native v8.12: LLM 분석 근거 및 MITRE 매핑
+        if (reasoning != null) {
+            response.put("reasoning", reasoning);
+        }
+        if (mitre != null && !"none".equals(mitre)) {
+            response.put("mitre", mitre);
+        }
 
         log.info("[Action 상태 조회] 완료 - userId: {}, action: {}, riskScore: {}",
             userId, action, riskScoreStr);
