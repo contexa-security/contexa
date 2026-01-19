@@ -20,39 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Baseline Learning Service (AI Native v3.4.0)
- *
- * 정상 패턴 학습 서비스 - EMA(Exponential Moving Average) 기반
- *
- * AI Native 원칙 (v3.4.0 강화):
- * - LLM이 ALLOW를 반환하면 무조건 학습 (confidence 임계값 검증 제거)
- * - LLM이 확신 없으면 ALLOW 대신 CHALLENGE/ESCALATE를 반환하도록 프롬프트에서 강제
- * - 학습된 Baseline은 Layer1 프롬프트의 컨텍스트로 제공
- * - LLM이 Baseline과 현재 요청을 비교하여 판단
- *
- * EMA 공식:
- * newBaseline = (alpha * currentValue) + ((1 - alpha) * oldBaseline)
- * - alpha = 0.1 (기본값, 새 값에 10% 가중치)
- *
- * 학습 조건 (AI Native v3.4.0):
- * - action = ALLOW (LLM이 허용 결정) -> 무조건 학습
- * - isAnomaly = false (LLM이 정상 판단)
- * - confidence 임계값 검증 제거 (규칙 기반 판단 = AI Native 위반)
- *
- * 기준선 오염 불가능 증명:
- * - 공격자 패턴 -> LLM이 BLOCK -> 학습 안 됨
- * - 애매한 패턴 -> LLM이 CHALLENGE/ESCALATE -> 학습 안 됨
- * - ALLOW는 "확실히 정상"일 때만 반환 -> 무조건 학습해도 안전
- *
- * Redis 저장 스키마:
- * - Key: security:hcad:baseline:{userId}
- * - Fields: avgTrustScore, avgRequestCount, updateCount, lastUpdated
- * - AI Native v7.2: learningMaturity 필드 제거 - updateCount만으로 학습 정도 표현
- *
- * @author contexa
- * @since 3.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class BaselineLearningService {

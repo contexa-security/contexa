@@ -110,10 +110,12 @@ public class SecurityPromptTemplate {
         // Related Documents - 설정에서 최대 개수 읽기
         // AI Native v7.1: userId 재검증으로 다른 사용자 문서 필터링 (계정 격리)
         // AI Native v8.14: 5대 컨텍스트 요소 수집 (원시 데이터만, 해석 없음)
+        // AI Native v11.2: UA Set 추가 - 모든 항목 동일하게 복수 값 수집
         StringBuilder relatedContextBuilder = new StringBuilder();
         Set<String> detectedOSSet = new HashSet<>();
         Set<String> detectedIPSet = new HashSet<>();
         Set<String> detectedHourSet = new HashSet<>();
+        Set<String> detectedUASet = new HashSet<>();
         Set<String> detectedPathSet = new HashSet<>();
         int maxRagDocs = tieredStrategyProperties.getLayer1().getPrompt().getMaxRagDocuments();
         int maxDocs = (relatedDocuments != null) ? Math.min(maxRagDocs, relatedDocuments.size()) : 0;
@@ -173,7 +175,13 @@ public class SecurityPromptTemplate {
                     detectedHourSet.add(hour.toString());
                 }
 
-                // 4. Path prefix 수집 (중복 방지를 위해 prefix만)
+                // 4. UA 수집 (AI Native v11.2: RAG 문서에서 브라우저 정보 수집)
+                Object userAgentBrowser = docMetadata.get("userAgentBrowser");
+                if (userAgentBrowser != null && !userAgentBrowser.toString().isEmpty()) {
+                    detectedUASet.add(userAgentBrowser.toString());
+                }
+
+                // 5. Path prefix 수집 (중복 방지를 위해 prefix만)
                 Object requestPath = docMetadata.get("requestPath");
                 if (requestPath != null && !requestPath.toString().isEmpty()) {
                     String pathStr = requestPath.toString();
@@ -234,6 +242,12 @@ public class SecurityPromptTemplate {
             }
             // AI Native: 원시 메트릭 제공 (Severity 대신 LLM이 직접 위험도 평가)
             appendMetadataIfPresent(prompt, metadataObj, "auth.failure_count", "FailureCount");
+        }
+
+        // AI Native v11.0: 현재 요청 Path 출력 (PRE-COMPUTED COMPARISON과 연계)
+        String eventPath = extractRequestPath(event);
+        if (eventPath != null && !eventPath.isEmpty()) {
+            prompt.append("Path: ").append(PromptTemplateUtils.sanitizeUserInput(eventPath)).append("\n");
         }
 
         // 2. 네트워크 정보 (Zero Trust: 필수 출력)
@@ -329,53 +343,74 @@ public class SecurityPromptTemplate {
             prompt.append("No related context found (see DATA AVAILABILITY)\n");
         }
 
-        // AI Native v8.14: CONTEXT SUMMARY (원시 데이터만, 해석/판단 없음)
-        // - 플랫폼은 데이터만 제공, 판단은 LLM에게 위임
-        // - 해석 문구 제거: "(multi-device pattern)", "(single location)" 등
-        prompt.append("\n=== CONTEXT SUMMARY ===\n");
+        // AI Native v11.0: CONTEXT SUMMARY 제거
+        // - PRE-COMPUTED COMPARISON에서 Known 값을 이미 표시
+        // - 중복 제거로 토큰 절약 및 LLM 혼란 방지
 
-        // AI Native v10.0: Factor별 명확한 라벨로 LLM 혼동 방지
-        // - [OS], [IP], [Hour], [UA] 형태로 구분
-        // - LLM이 각 Factor를 정확히 식별할 수 있도록
+        // AI Native v11.0: PRE-COMPUTED COMPARISON 추가
+        // 플랫폼이 사실적 비교만 계산, LLM은 위험도 판단에 집중
+        // Hallucination 방지: "Chrome/120 != Chrome/120" 같은 오류 방지
+        prompt.append("\n=== PRE-COMPUTED COMPARISON ===\n");
+        prompt.append("| Factor | Current | Known | MATCH |\n");
+        prompt.append("|--------|---------|-------|-------|\n");
 
-        // 1. OS
-        if (!detectedOSSet.isEmpty()) {
-            prompt.append("[OS] Known: ").append(String.join(", ", detectedOSSet)).append("\n");
-        }
+        // 1. OS 비교
+        String currentOS = extractOSFromUserAgent(event.getUserAgent());
+        String knownOSStr = !detectedOSSet.isEmpty() ? String.join(", ", detectedOSSet) : "N/A";
+        boolean osMatch = currentOS != null && detectedOSSet.contains(currentOS);
+        prompt.append("| OS | ").append(currentOS != null ? currentOS : "N/A")
+              .append(" | ").append(knownOSStr)
+              .append(" | ").append(osMatch ? "YES" : "NO").append(" |\n");
 
-        // 2. IP
-        if (!detectedIPSet.isEmpty()) {
-            prompt.append("[IP] Known: ").append(String.join(", ", detectedIPSet)).append("\n");
-        }
+        // 2. IP 비교
+        String currentIP = normalizeIP(event.getSourceIp());
+        String knownIPStr = !detectedIPSet.isEmpty() ? String.join(", ", normalizeIPSet(detectedIPSet)) : "N/A";
+        boolean ipMatch = currentIP != null && normalizeIPSet(detectedIPSet).contains(currentIP);
+        prompt.append("| IP | ").append(currentIP != null ? currentIP : "N/A")
+              .append(" | ").append(knownIPStr)
+              .append(" | ").append(ipMatch ? "YES" : "NO").append(" |\n");
 
-        // 3. Hour
-        if (!detectedHourSet.isEmpty()) {
-            prompt.append("[Hour] Known: ").append(String.join(", ", detectedHourSet)).append("\n");
-        }
-
-        // 4. UA (Baseline에서 추출)
-        if (baselineContext != null && baselineContext.contains("Known UA:")) {
-            int uaStart = baselineContext.indexOf("Known UA:");
-            if (uaStart >= 0) {
-                int uaEnd = baselineContext.indexOf("\n", uaStart);
-                String knownUA = uaEnd > uaStart
-                    ? baselineContext.substring(uaStart + 10, uaEnd).trim()
-                    : baselineContext.substring(uaStart + 10).trim();
-                prompt.append("[UA] Known: ").append(knownUA).append("\n");
+        // 3. Hour 비교
+        String currentHour = null;
+        if (event.getTimestamp() != null) {
+            String timestampStr = event.getTimestamp().toString();
+            if (timestampStr.contains("T") && timestampStr.length() > 13) {
+                currentHour = timestampStr.substring(11, 13);
             }
         }
+        String knownHourStr = !detectedHourSet.isEmpty() ? String.join(", ", detectedHourSet) : "N/A";
+        boolean hourMatch = currentHour != null && detectedHourSet.contains(currentHour);
+        prompt.append("| Hour | ").append(currentHour != null ? currentHour : "N/A")
+              .append(" | ").append(knownHourStr)
+              .append(" | ").append(hourMatch ? "YES" : "NO").append(" |\n");
 
-        // 데이터 없는 경우
-        if (detectedOSSet.isEmpty() && detectedIPSet.isEmpty() && detectedHourSet.isEmpty()) {
-            prompt.append("No historical context available.\n");
-        }
+        // 4. UA 비교 (AI Native v11.2: detectedUASet 사용으로 복수 값 지원)
+        String currentUA = extractUASignature(event.getUserAgent());
+        String knownUAStr = !detectedUASet.isEmpty() ? String.join(", ", detectedUASet) : "N/A";
+        boolean uaMatch = currentUA != null && detectedUASet.contains(currentUA);
+        prompt.append("| UA | ").append(currentUA != null ? currentUA : "N/A")
+              .append(" | ").append(knownUAStr)
+              .append(" | ").append(uaMatch ? "YES" : (detectedUASet.isEmpty() ? "N/A" : "NO")).append(" |\n");
 
-        // AI Native v9.8: 신규 사용자 경고만 유지
+        // 5. Path 비교 (AI Native v11.0 신규)
+        String currentPath = extractRequestPath(event);
+        String knownPathStr = !detectedPathSet.isEmpty() ? String.join(", ", detectedPathSet) : "N/A";
+        boolean pathMatch = currentPath != null && matchesPathPattern(currentPath, detectedPathSet);
+        prompt.append("| Path | ").append(currentPath != null ? currentPath : "N/A")
+              .append(" | ").append(knownPathStr)
+              .append(" | ").append(pathMatch ? "YES" : (detectedPathSet.isEmpty() ? "N/A" : "NO")).append(" |\n");
+
+        // AI Native v11.1: MATCH_COUNT, 백분율, RISK ASSESSMENT GUIDE 제거
+        // - 플랫폼이 점수를 계산하면 LLM의 독립적 판단 침해
+        // - 규칙 기반 가이드 제공 = AI Native 위반
+        // - LLM이 사실 데이터(YES/NO)만 보고 스스로 위험도 판단
+
+        // AI Native v9.8: 신규 사용자는 Baseline 없음을 명시 (사실 데이터)
         if (baselineStatus == BaselineStatus.NEW_USER) {
             prompt.append("\n").append(baselineSection);
         }
 
-        // AI Native v10.0: DECISION - Factor 라벨과 일치하도록 가이드라인 수정
+        // AI Native v11.1: DECISION - MATCH_COUNT/RISK GUIDE 제거, 기존 프롬프트 유지
         prompt.append("""
 
             === DECISION ===
@@ -383,15 +418,12 @@ public class SecurityPromptTemplate {
             RESPOND WITH JSON ONLY:
             {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
 
-            COMPARE Current (from NETWORK) vs Known (from CONTEXT SUMMARY):
-            1. [OS]: Is CurrentOS in [OS] Known?
-            2. [IP]: Is current IP in [IP] Known?
-            3. [Hour]: Is CurrentHour in [Hour] Known?
-            4. [UA]: Is CurrentUA same as [UA] Known? (browser/version only, e.g., Chrome/120)
+            USE PRE-COMPUTED COMPARISON above for factual accuracy.
+            YOUR TASK: Assess RISK based on context, not just matches.
 
             ACTIONS:
-            - ALLOW: All factors match known patterns
-            - CHALLENGE: Some factors differ from known patterns
+            - ALLOW: Contextually safe, consistent with known patterns
+            - CHALLENGE: Needs verification
             - BLOCK: Strong indicators of unauthorized access
             - ESCALATE: Complex situation requiring human review
 
@@ -871,6 +903,87 @@ public class SecurityPromptTemplate {
         String version = userAgent.substring(start, end);
         String browserName = prefix.replace("/", "");
         return browserName + "/" + version;
+    }
+
+    /**
+     * AI Native v11.0: 현재 요청의 Path 추출
+     *
+     * @param event 보안 이벤트
+     * @return 요청 경로 또는 null
+     */
+    private String extractRequestPath(SecurityEvent event) {
+        if (event == null) {
+            return null;
+        }
+
+        // 1. metadata에서 requestPath 추출 (우선)
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null) {
+            Object path = metadata.get("requestPath");
+            if (path != null && !path.toString().isEmpty()) {
+                return path.toString();
+            }
+
+            // requestUri도 확인
+            Object uri = metadata.get("requestUri");
+            if (uri != null && !uri.toString().isEmpty()) {
+                return uri.toString();
+            }
+        }
+
+        // 2. description에서 추출 시도
+        // 예: "GET /test/security" -> "/test/security"
+        String desc = event.getDescription();
+        if (desc != null && desc.contains(" /")) {
+            int pathStart = desc.indexOf(" /") + 1;
+            int pathEnd = desc.indexOf(" ", pathStart);
+            if (pathEnd == -1) pathEnd = desc.length();
+            String path = desc.substring(pathStart, pathEnd);
+            if (!path.isEmpty()) {
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * AI Native v11.0: Path 패턴 매칭
+     *
+     * 현재 경로가 알려진 경로 패턴 집합에 포함되는지 확인
+     * - 정확히 일치하거나
+     * - prefix 패턴에 일치 (예: /api/security-test/* 패턴에 /api/security-test/resource 일치)
+     *
+     * @param currentPath 현재 요청 경로
+     * @param knownPaths 알려진 경로 패턴 집합
+     * @return 일치 여부
+     */
+    private boolean matchesPathPattern(String currentPath, Set<String> knownPaths) {
+        if (currentPath == null || knownPaths == null || knownPaths.isEmpty()) {
+            return false;
+        }
+
+        for (String knownPath : knownPaths) {
+            // 정확히 일치
+            if (currentPath.equals(knownPath)) {
+                return true;
+            }
+
+            // 와일드카드 패턴 일치 (예: /api/security-test/*)
+            if (knownPath.endsWith("/*")) {
+                String prefix = knownPath.substring(0, knownPath.length() - 1); // "/*" 제거
+                if (currentPath.startsWith(prefix)) {
+                    return true;
+                }
+            }
+
+            // prefix 일치 (현재 경로가 알려진 경로로 시작)
+            if (currentPath.startsWith(knownPath) || knownPath.startsWith(currentPath)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -361,20 +361,27 @@ public class SecurityDecisionPostProcessor {
             metadata.put("threatCategory", decision.getThreatCategory());
         }
 
-        // AI Native v6.8: 실제 metadata 키 사용 (requestUri)
-        String requestUri = extractPath(event);
-        if (requestUri != null) {
-            metadata.put("requestUri", requestUri);
+        // AI Native v6.8: 실제 metadata 키 사용 (requestPath로 통일)
+        // AI Native v11.0: requestUri -> requestPath 변경 (PRE-COMPUTED COMPARISON과 일관성)
+        String requestPath = extractPath(event);
+        if (requestPath != null) {
+            metadata.put("requestPath", requestPath);
         }
 
         // AI Native v7.3: userAgent 정보 추가 (디바이스 패턴 분석용)
         // AbstractTieredStrategy.buildBaseMetadata()와 동일하게 userAgent/userAgentOS 저장
         // RELATED CONTEXT에서 모든 문서에 |os= 필드가 일관되게 포함되도록 함
+        // AI Native v11.0: userAgentBrowser 추가 (PRE-COMPUTED COMPARISON용)
         if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
             metadata.put("userAgent", event.getUserAgent());
             String userAgentOS = extractOSFromUserAgent(event.getUserAgent());
             if (userAgentOS != null) {
                 metadata.put("userAgentOS", userAgentOS);
+            }
+            // AI Native v11.0: 브라우저 시그니처 추가 (Chrome/120 형식)
+            String browser = extractBrowserSignature(event.getUserAgent());
+            if (browser != null) {
+                metadata.put("userAgentBrowser", browser);
             }
         }
 
@@ -423,5 +430,98 @@ public class SecurityDecisionPostProcessor {
         }
 
         return "Desktop";
+    }
+
+    /**
+     * User-Agent에서 브라우저 시그니처 추출 (AI Native v11.0)
+     *
+     * PRE-COMPUTED COMPARISON의 UA 비교를 위한 브라우저 식별자 추출.
+     * AbstractTieredStrategy.extractBrowserSignature()와 동일한 로직입니다.
+     *
+     * @param userAgent User-Agent 문자열
+     * @return 브라우저 시그니처 (예: "Chrome/120", "Firefox/121", "Safari/17")
+     */
+    private String extractBrowserSignature(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return null;
+        }
+
+        // Edge는 Chrome보다 먼저 체크 (Edge도 Chrome을 포함하므로)
+        if (userAgent.contains("Edg/") || userAgent.contains("Edge/")) {
+            String version = extractBrowserVersion(userAgent, "Edg/");
+            if (version == null) {
+                version = extractBrowserVersion(userAgent, "Edge/");
+            }
+            return "Edge/" + (version != null ? version : "unknown");
+        }
+
+        // Chrome
+        if (userAgent.contains("Chrome/")) {
+            String version = extractBrowserVersion(userAgent, "Chrome/");
+            return "Chrome/" + (version != null ? version : "unknown");
+        }
+
+        // Firefox
+        if (userAgent.contains("Firefox/")) {
+            String version = extractBrowserVersion(userAgent, "Firefox/");
+            return "Firefox/" + (version != null ? version : "unknown");
+        }
+
+        // Safari (Chrome이 없고 Safari가 있는 경우)
+        if (userAgent.contains("Safari/") && !userAgent.contains("Chrome")) {
+            // Safari 버전은 Version/ 에서 추출
+            String version = extractBrowserVersion(userAgent, "Version/");
+            return "Safari/" + (version != null ? version : "unknown");
+        }
+
+        // Opera
+        if (userAgent.contains("OPR/") || userAgent.contains("Opera/")) {
+            String version = extractBrowserVersion(userAgent, "OPR/");
+            if (version == null) {
+                version = extractBrowserVersion(userAgent, "Opera/");
+            }
+            return "Opera/" + (version != null ? version : "unknown");
+        }
+
+        return null;
+    }
+
+    /**
+     * User-Agent에서 특정 브라우저의 버전 번호 추출 (AI Native v11.0)
+     *
+     * @param userAgent User-Agent 문자열
+     * @param prefix 브라우저 접두사 (예: "Chrome/", "Firefox/")
+     * @return 주 버전 번호 (예: "120", "121")
+     */
+    private String extractBrowserVersion(String userAgent, String prefix) {
+        int startIndex = userAgent.indexOf(prefix);
+        if (startIndex == -1) {
+            return null;
+        }
+
+        startIndex += prefix.length();
+        int endIndex = startIndex;
+
+        // 숫자와 점만 포함하는 버전 문자열 추출
+        while (endIndex < userAgent.length()) {
+            char c = userAgent.charAt(endIndex);
+            if (Character.isDigit(c) || c == '.') {
+                endIndex++;
+            } else {
+                break;
+            }
+        }
+
+        if (endIndex > startIndex) {
+            String fullVersion = userAgent.substring(startIndex, endIndex);
+            // 주 버전만 반환 (120.0.0.0 -> 120)
+            int dotIndex = fullVersion.indexOf('.');
+            if (dotIndex > 0) {
+                return fullVersion.substring(0, dotIndex);
+            }
+            return fullVersion;
+        }
+
+        return null;
     }
 }

@@ -793,4 +793,71 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         // 기본값: Desktop (unknown 대신)
         return "Desktop";
     }
+
+    /**
+     * AI Native v11.0: UserAgent에서 브라우저/버전 시그니처 추출
+     *
+     * PRE-COMPUTED COMPARISON에서 UA 비교에 사용
+     * OS는 별도 필드(userAgentOS)로 저장하므로 브라우저/버전만 추출
+     *
+     * @param userAgent User-Agent 문자열
+     * @return 브라우저/메이저버전 (예: "Chrome/120")
+     */
+    protected String extractBrowserSignature(String userAgent) {
+        if (userAgent == null || userAgent.isEmpty()) {
+            return null;
+        }
+
+        // Edge (Chromium 기반이므로 Chrome보다 먼저 검사)
+        if (userAgent.contains("Edg/")) {
+            return extractBrowserVersion(userAgent, "Edg/", "Edge");
+        }
+
+        // Chrome
+        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
+            return extractBrowserVersion(userAgent, "Chrome/", "Chrome");
+        }
+
+        // Firefox
+        if (userAgent.contains("Firefox/")) {
+            return extractBrowserVersion(userAgent, "Firefox/", "Firefox");
+        }
+
+        // Safari (Chrome, Edge가 아닌 경우만)
+        if (userAgent.contains("Safari/") && userAgent.contains("Version/")) {
+            return extractBrowserVersion(userAgent, "Version/", "Safari");
+        }
+
+        // Opera
+        if (userAgent.contains("OPR/")) {
+            return extractBrowserVersion(userAgent, "OPR/", "Opera");
+        }
+
+        return null;
+    }
+
+    /**
+     * AI Native v11.0: User-Agent에서 브라우저 버전 추출 (메이저 버전만)
+     */
+    private String extractBrowserVersion(String userAgent, String prefix, String browserName) {
+        int idx = userAgent.indexOf(prefix);
+        if (idx == -1) return null;
+
+        int start = idx + prefix.length();
+        if (start >= userAgent.length()) return null;
+
+        int end = start;
+        while (end < userAgent.length()) {
+            char c = userAgent.charAt(end);
+            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
+                break;
+            }
+            end++;
+        }
+
+        if (end == start) return null;
+
+        String version = userAgent.substring(start, end);
+        return browserName + "/" + version;
+    }
 }

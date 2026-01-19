@@ -347,7 +347,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         // - 변경: 영어 쿼리 "User: admin, IP: x.x.x.x, Path: /api/xxx" = 문서 형식 동일
         // - 효과: 유사도 52% -> 90%+ 기대
         final String currentIp = event.getSourceIp();
-        final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
         // AI Native v8.10: requestPath로 통일 (HCADContext 도메인 객체 기준)
         final String currentPath = event.getMetadata() != null ?
                 (String) event.getMetadata().get("requestPath") : null;
@@ -372,35 +371,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         }
                         int similarityPct = (int) (score * 100);
 
-                        // AI Native v7.0: IP MATCH/MISMATCH 명시
-                        String ipMatch;
-                        Object docIp = meta.get("sourceIp");
-                        if (docIp == null) {
-                            ipMatch = "N/A";
-                        } else if (currentIp != null && currentIp.equals(docIp.toString())) {
-                            ipMatch = "MATCH";
-                        } else {
-                            ipMatch = "MISMATCH";
-                        }
-
-                        // AI Native v7.0: Hour MATCH/MISMATCH 명시
-                        String hourMatch = "N/A";
-                        if (currentHour != null && meta.get("timestamp") != null) {
-                            String ts = meta.get("timestamp").toString();
-                            if (ts.contains("T") && ts.length() > 13) {
-                                try {
-                                    int docHour = Integer.parseInt(ts.substring(11, 13));
-                                    hourMatch = (currentHour == docHour) ? "MATCH" : "MISMATCH";
-                                } catch (NumberFormatException ignored) {
-                                    hourMatch = "N/A";
-                                }
-                            }
-                        }
-
-                        // AI Native v10.3: Path 제거 - LLM이 PathMatch를 CHALLENGE 이유로 오용
-                        // 같은 사용자가 다른 경로에 접근하는 것은 정상적인 행동
-                        return String.format("EventID:%s, Similarity:%d%%, IP:%s, Hour:%s",
-                                meta.get("eventId"), similarityPct, ipMatch, hourMatch);
+                        // AI Native v11.4: SimilarEvents 유사도만 표시
+                        // - PRE-COMPUTED COMPARISON이 Known Set 기반 비교의 단일 진실 공급원
+                        // - IP/Hour도 개별 문서 비교 시 Known Set과 충돌 가능
+                        //   (예: Known IP={loopback, 192.168.1.1}인데 개별 loopback 문서와 비교하면
+                        //    192.168.1.1 요청이 MISMATCH로 표시됨)
+                        // - SimilarEvents는 순수하게 "과거 이벤트와 얼마나 유사한가"만 표시
+                        return String.format("EventID:%s, Similarity:%d%%",
+                                meta.get("eventId"), similarityPct);
                     })
                     .collect(Collectors.toList());
 

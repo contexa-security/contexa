@@ -334,8 +334,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             // - 기존: incidentQuery (텍스트 쿼리) → 문서 형식과 불일치
             // - 변경: User/IP/Path 형식으로 통일
             String sourceIp = event.getSourceIp();
+            // AI Native v11.0: requestPath로 통일 (Layer1과 일관성)
             String requestPath = event.getMetadata() != null ?
-                    (String) event.getMetadata().get("requestUri") : null;
+                    (String) event.getMetadata().get("requestPath") : null;
             List<Document> similarIncidents = behaviorVectorService.findSimilarBehaviors(
                     userId,
                     sourceIp,
@@ -527,9 +528,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         // - 기존: 한글 쿼리 vs 영어 문서 → 유사도 52%
         // - 변경: 영어 쿼리 = 문서 형식 동일 → 유사도 90%+ 기대
         final String currentIp = event.getSourceIp();
-        final Integer currentHour = event.getTimestamp() != null ? event.getTimestamp().getHour() : null;
+        // AI Native v11.0: requestPath로 통일 (Layer1과 일관성)
         final String currentPath = event.getMetadata() != null ?
-                (String) event.getMetadata().get("requestUri") : null;
+                (String) event.getMetadata().get("requestPath") : null;
 
         try {
             List<Document> similarBehaviors = behaviorVectorService.findSimilarBehaviors(
@@ -551,32 +552,14 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         }
                         int similarityPct = (int) (score * 100);
 
-                        // Action (과거 결정)
-                        String action = meta.get("action") != null ? meta.get("action").toString() : "N/A";
-
-                        // MatchedBy 계산 (어떤 속성이 일치하는지)
-                        List<String> matched = new ArrayList<>();
-                        if (currentIp != null && currentIp.equals(meta.get("sourceIp"))) {
-                            matched.add("IP");
-                        }
-                        if (currentHour != null && meta.get("timestamp") != null) {
-                            String ts = meta.get("timestamp").toString();
-                            if (ts.contains("T") && ts.length() > 13) {
-                                try {
-                                    int docHour = Integer.parseInt(ts.substring(11, 13));
-                                    if (currentHour == docHour) {
-                                        matched.add("Hour");
-                                    }
-                                } catch (NumberFormatException ignored) {}
-                            }
-                        }
-                        if (currentPath != null && currentPath.equals(meta.get("requestUri"))) {
-                            matched.add("Path");
-                        }
-                        String matchedBy = matched.isEmpty() ? "Vector" : String.join(",", matched);
-
-                        return String.format("EventID:%s, Similarity:%d%%, Action:%s, MatchedBy:[%s]",
-                                meta.get("eventId"), similarityPct, action, matchedBy);
+                        // AI Native v11.4: SimilarEvents 유사도만 표시
+                        // - PRE-COMPUTED COMPARISON이 Known Set 기반 비교의 단일 진실 공급원
+                        // - Action/MatchedBy/IP/Hour/Path 제거: 개별 문서 비교 결과는 LLM 혼란 유발
+                        //   (예: Known IP={loopback, 192.168.1.1}인데 개별 loopback 문서와 비교하면
+                        //    192.168.1.1 요청이 MISMATCH로 표시됨)
+                        // - SimilarEvents는 순수하게 "과거 이벤트와 얼마나 유사한가"만 표시
+                        return String.format("EventID:%s, Similarity:%d%%",
+                                meta.get("eventId"), similarityPct);
                     })
                     .collect(Collectors.toList());
 
@@ -1246,6 +1229,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 content.append("Path: ").append(path);
             }
 
+            // AI Native v11.0: OS 추가 (PRE-COMPUTED COMPARISON용)
+            String os = extractOSFromUserAgent(event.getUserAgent());
+            if (os != null) {
+                if (content.length() > 0) content.append(", ");
+                content.append("OS: ").append(os);
+            }
+
             // AI Native v8.6: MITRE 제거 (BEHAVIOR 문서에서)
             // - MITRE는 THREAT 문서(storeThreatDocument)에서만 사용
             // - BEHAVIOR 문서는 검색 쿼리와 일치하는 User, IP, Path만 포함
@@ -1269,6 +1259,29 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             }
             if (event.getSessionId() != null) {
                 metadata.put("sessionId", event.getSessionId());
+            }
+
+            // AI Native v11.0: UA 정보 추가 (PRE-COMPUTED COMPARISON용)
+            // os 변수는 이미 content 빌드에서 사용하므로 재사용
+            if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
+                metadata.put("userAgent", event.getUserAgent());
+                if (os != null) {
+                    metadata.put("userAgentOS", os);
+                }
+                String browser = extractBrowserSignature(event.getUserAgent());
+                if (browser != null) {
+                    metadata.put("userAgentBrowser", browser);
+                }
+            }
+
+            // AI Native v11.0: hour 정보 추가 (시간대 패턴 분석용)
+            if (event.getTimestamp() != null) {
+                metadata.put("hour", event.getTimestamp().getHour());
+            }
+
+            // AI Native v11.0: requestPath 정보 추가 (경로 패턴 분석용)
+            if (path != null && !path.isEmpty()) {
+                metadata.put("requestPath", path);
             }
 
             // AI Native v7.0: action, riskScore, confidence 모두 제거 (순환 로직 방지)
