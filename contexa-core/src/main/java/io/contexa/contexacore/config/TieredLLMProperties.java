@@ -26,7 +26,8 @@ import java.util.Map;
 public class TieredLLMProperties {
 
     // 기본 모델 상수
-    public static final String DEFAULT_LAYER1_MODEL = "llama3.1:8b";
+//    public static final String DEFAULT_LAYER1_MODEL = "llama3.1:8b";
+    public static final String DEFAULT_LAYER1_MODEL = "qwen2.5:14b";
     public static final String DEFAULT_LAYER2_MODEL = "exaone3.5:latest";
 
     @Autowired(required = false)

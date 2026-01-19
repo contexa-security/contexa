@@ -53,7 +53,7 @@ spring:
     # - Layer 2: 고성능 모델 (exaone3.5:latest, 5% 트래픽, ESCALATE)
     security:
       layer1:
-        model: llama3.1:8b  # Layer 1: 경량 로컬 모델
+        model: qwen2.5:14b  # Layer 1: 경량 로컬 모델
       layer2:
         model: exaone3.5:latest  # Layer 2: 고성능 모델
       tiered:

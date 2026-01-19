@@ -253,12 +253,15 @@ public class SecurityPromptTemplate {
         String relatedContext = hasRelatedDocs ? relatedContextBuilder.toString() : null;
 
         // 프롬프트 구성
-        // AI Native v6.7: JSON 전용 응답 강제 - 시스템 역할 명시
+        // AI Native v12.0: 시스템 프롬프트 간소화 (규칙 기반 지시 제거)
+        // - CRITICAL INSTRUCTION 제거 (LLM 독립 판단 보장)
+        // - PRE-COMPUTED COMPARISON 제거 → CURRENT REQUEST + KNOWN PATTERNS로 변경
+        // - 플랫폼은 Raw 데이터만 제공, LLM이 직접 비교/판단
         StringBuilder prompt = new StringBuilder();
         prompt.append("""
-            You are a security analyst AI. Analyze the security event below and respond with ONLY a JSON object.
-            DO NOT include any explanation, markdown, or text before/after the JSON.
-            Your response must be a single valid JSON object starting with { and ending with }.
+            You are a Zero Trust security analyst AI.
+            Analyze the security context and respond with ONLY a JSON object.
+            No explanation, no markdown.
 
             """);
 
@@ -296,6 +299,41 @@ public class SecurityPromptTemplate {
         if (eventPath != null && !eventPath.isEmpty()) {
             prompt.append("Path: ").append(PromptTemplateUtils.sanitizeUserInput(eventPath)).append("\n");
         }
+
+        // AI Native v12.0: CURRENT REQUEST 섹션 (현재 요청의 Raw 데이터)
+        // - PRE-COMPUTED COMPARISON 테이블 제거 (YES/NO 판단 제거)
+        // - 플랫폼은 Raw 데이터만 제공, LLM이 직접 비교/판단
+        String currentOS = extractOSFromUserAgent(event.getUserAgent());
+        String currentIP = normalizeIP(event.getSourceIp());
+        String currentHour = null;
+        if (event.getTimestamp() != null) {
+            String timestampStr = event.getTimestamp().toString();
+            if (timestampStr.contains("T") && timestampStr.length() > 13) {
+                currentHour = timestampStr.substring(11, 13);
+            }
+        }
+        String currentUA = extractUASignature(event.getUserAgent());
+
+        prompt.append("\n=== CURRENT REQUEST ===\n");
+        prompt.append("OS: ").append(currentOS != null ? currentOS : "N/A").append("\n");
+        prompt.append("IP: ").append(currentIP != null ? currentIP : "N/A").append("\n");
+        prompt.append("Hour: ").append(currentHour != null ? currentHour : "N/A").append("\n");
+        prompt.append("UA: ").append(currentUA != null ? currentUA : "N/A").append("\n");
+
+        // AI Native v12.0: KNOWN PATTERNS 섹션 (Baseline + RAG 병합된 학습 패턴)
+        // - LLM이 CURRENT REQUEST와 KNOWN PATTERNS를 직접 비교하여 판단
+        String knownOSStr = !detectedOSSet.isEmpty() ? String.join(", ", detectedOSSet) : "N/A";
+        String knownIPStr = !detectedIPSet.isEmpty() ? String.join(", ", normalizeIPSet(detectedIPSet)) : "N/A";
+        String knownHourStr = !detectedHourSet.isEmpty() ? String.join(", ", detectedHourSet) : "N/A";
+        String knownUAStr = !detectedUASet.isEmpty() ? String.join(", ", detectedUASet) : "N/A";
+        String knownPathStr = !detectedPathSet.isEmpty() ? String.join(", ", detectedPathSet) : "N/A";
+
+        prompt.append("\n=== KNOWN PATTERNS ===\n");
+        prompt.append("OS: [").append(knownOSStr).append("]\n");
+        prompt.append("IP: [").append(knownIPStr).append("]\n");
+        prompt.append("Hour: [").append(knownHourStr).append("]\n");
+        prompt.append("UA: [").append(knownUAStr).append("]\n");
+        prompt.append("Path: [").append(knownPathStr).append("]\n");
 
         // 2. 네트워크 정보 (Zero Trust: 필수 출력)
         prompt.append("\n=== NETWORK ===\n");
@@ -341,15 +379,15 @@ public class SecurityPromptTemplate {
         // AI Native v6.6: 세션 디바이스 변경 감지 (중립적 정보 제공)
         // 판단은 LLM에게 위임 - 플랫폼은 데이터만 제공
         if (behaviorAnalysis != null) {
-            String previousOS = behaviorAnalysis.getPreviousUserAgentOS();
-            String currentOS = behaviorAnalysis.getCurrentUserAgentOS();
+            String previousSessionOS = behaviorAnalysis.getPreviousUserAgentOS();
+            String currentSessionOS = behaviorAnalysis.getCurrentUserAgentOS();
 
-            if (previousOS != null && currentOS != null && !previousOS.equals(currentOS)) {
+            if (previousSessionOS != null && currentSessionOS != null && !previousSessionOS.equals(currentSessionOS)) {
                 prompt.append("\n=== SESSION DEVICE CHANGE ===\n");
                 prompt.append("OBSERVATION: Same SessionId with different device fingerprint detected.\n");
-                prompt.append("Previous OS: ").append(previousOS).append("\n");
-                prompt.append("Current OS: ").append(currentOS).append("\n");
-                prompt.append("OS Transition: ").append(previousOS).append(" -> ").append(currentOS).append("\n");
+                prompt.append("Previous OS: ").append(previousSessionOS).append("\n");
+                prompt.append("Current OS: ").append(currentSessionOS).append("\n");
+                prompt.append("OS Transition: ").append(previousSessionOS).append(" -> ").append(currentSessionOS).append("\n");
                 // AI Native: 판단은 LLM에게 위임 - 플랫폼은 "CRITICAL", "Do NOT" 등 강제 표현 사용 금지
             }
         }
@@ -376,12 +414,11 @@ public class SecurityPromptTemplate {
         }
 
         // 6. 관련 문서 (RAG)
-        // AI Native v8.13: RELATED CONTEXT = ALLOW된 검증된 정상 행동 기록
-        // - Baseline과 DB에는 ALLOW 판정받은 데이터만 저장됨
-        // - LLM은 이 정상 패턴과 현재 요청을 맥락적으로 비교하여 판단
+        // AI Native v12.0: RELATED CONTEXT 설명 간소화 (규칙 지시 제거)
+        // - 개별 문서 비교 금지 지시 제거 (LLM 독립 판단 보장)
+        // - 단순히 역사적 이벤트로 표현
         prompt.append("\n=== RELATED CONTEXT ===\n");
-        prompt.append("NOTE: All documents below are VERIFIED NORMAL BEHAVIOR (ALLOW decisions).\n");
-        prompt.append("These represent this user's established behavioral patterns.\n\n");
+        prompt.append("Historical events for this user:\n\n");
         if (hasRelatedDocs) {
             String sanitizedContext = PromptTemplateUtils.sanitizeUserInput(relatedContext);
             prompt.append(sanitizedContext).append("\n");
@@ -390,77 +427,17 @@ public class SecurityPromptTemplate {
             prompt.append("No related context found (see DATA AVAILABILITY)\n");
         }
 
-        // AI Native v11.0: CONTEXT SUMMARY 제거
-        // - PRE-COMPUTED COMPARISON에서 Known 값을 이미 표시
-        // - 중복 제거로 토큰 절약 및 LLM 혼란 방지
-
-        // AI Native v11.0: PRE-COMPUTED COMPARISON 추가
-        // 플랫폼이 사실적 비교만 계산, LLM은 위험도 판단에 집중
-        // Hallucination 방지: "Chrome/120 != Chrome/120" 같은 오류 방지
-        prompt.append("\n=== PRE-COMPUTED COMPARISON ===\n");
-        prompt.append("| Factor | Current | Known | MATCH |\n");
-        prompt.append("|--------|---------|-------|-------|\n");
-
-        // 1. OS 비교
-        String currentOS = extractOSFromUserAgent(event.getUserAgent());
-        String knownOSStr = !detectedOSSet.isEmpty() ? String.join(", ", detectedOSSet) : "N/A";
-        boolean osMatch = currentOS != null && detectedOSSet.contains(currentOS);
-        prompt.append("| OS | ").append(currentOS != null ? currentOS : "N/A")
-              .append(" | ").append(knownOSStr)
-              .append(" | ").append(osMatch ? "YES" : "NO").append(" |\n");
-
-        // 2. IP 비교
-        String currentIP = normalizeIP(event.getSourceIp());
-        String knownIPStr = !detectedIPSet.isEmpty() ? String.join(", ", normalizeIPSet(detectedIPSet)) : "N/A";
-        boolean ipMatch = currentIP != null && normalizeIPSet(detectedIPSet).contains(currentIP);
-        prompt.append("| IP | ").append(currentIP != null ? currentIP : "N/A")
-              .append(" | ").append(knownIPStr)
-              .append(" | ").append(ipMatch ? "YES" : "NO").append(" |\n");
-
-        // 3. Hour 비교
-        String currentHour = null;
-        if (event.getTimestamp() != null) {
-            String timestampStr = event.getTimestamp().toString();
-            if (timestampStr.contains("T") && timestampStr.length() > 13) {
-                currentHour = timestampStr.substring(11, 13);
-            }
-        }
-        String knownHourStr = !detectedHourSet.isEmpty() ? String.join(", ", detectedHourSet) : "N/A";
-        boolean hourMatch = currentHour != null && detectedHourSet.contains(currentHour);
-        prompt.append("| Hour | ").append(currentHour != null ? currentHour : "N/A")
-              .append(" | ").append(knownHourStr)
-              .append(" | ").append(hourMatch ? "YES" : "NO").append(" |\n");
-
-        // 4. UA 비교 (AI Native v11.2: detectedUASet 사용으로 복수 값 지원)
-        String currentUA = extractUASignature(event.getUserAgent());
-        String knownUAStr = !detectedUASet.isEmpty() ? String.join(", ", detectedUASet) : "N/A";
-        boolean uaMatch = currentUA != null && detectedUASet.contains(currentUA);
-        prompt.append("| UA | ").append(currentUA != null ? currentUA : "N/A")
-              .append(" | ").append(knownUAStr)
-              .append(" | ").append(uaMatch ? "YES" : (detectedUASet.isEmpty() ? "N/A" : "NO")).append(" |\n");
-
-        // 5. Path 비교 (AI Native v11.0 신규)
-        String currentPath = extractRequestPath(event);
-        String knownPathStr = !detectedPathSet.isEmpty() ? String.join(", ", detectedPathSet) : "N/A";
-        boolean pathMatch = currentPath != null && matchesPathPattern(currentPath, detectedPathSet);
-        prompt.append("| Path | ").append(currentPath != null ? currentPath : "N/A")
-              .append(" | ").append(knownPathStr)
-              .append(" | ").append(pathMatch ? "YES" : (detectedPathSet.isEmpty() ? "N/A" : "NO")).append(" |\n");
-
-        // AI Native v11.1: MATCH_COUNT, 백분율, RISK ASSESSMENT GUIDE 제거
-        // - 플랫폼이 점수를 계산하면 LLM의 독립적 판단 침해
-        // - 규칙 기반 가이드 제공 = AI Native 위반
-        // - LLM이 사실 데이터(YES/NO)만 보고 스스로 위험도 판단
+        // AI Native v11.9: PRE-COMPUTED COMPARISON은 EVENT 다음에 출력됨 (상단 이동)
 
         // AI Native v9.8: 신규 사용자는 Baseline 없음을 명시 (사실 데이터)
         if (baselineStatus == BaselineStatus.NEW_USER) {
             prompt.append("\n").append(baselineSection);
         }
 
-        // AI Native v11.7: DECISION - CRITICAL INSTRUCTION으로 PRE-COMPUTED COMPARISON 우선 지시 강화
-        // - PRE-COMPUTED COMPARISON을 AUTHORITATIVE source로 명시
-        // - RELATED CONTEXT는 컨텍스트용, MATCH 판단에는 미사용 지시
-        // - 5/5 MATCH = ALLOW 가이드 미추가 (AI Native 원칙: 플랫폼 판단 배제)
+        // AI Native v12.0: DECISION 섹션 (판단 유도 제거)
+        // - "If all factors show YES" 등 규칙 기반 가이드 제거
+        // - LLM이 CURRENT REQUEST와 KNOWN PATTERNS를 직접 비교하여 독립적으로 판단
+        // - 응답 형식만 제공
         prompt.append("""
 
             === DECISION ===
@@ -468,19 +445,11 @@ public class SecurityPromptTemplate {
             RESPOND WITH JSON ONLY:
             {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
 
-            CRITICAL INSTRUCTION:
-            1. For OS/IP/Hour/UA/Path MATCH determination, ONLY use PRE-COMPUTED COMPARISON table
-            2. The MATCH column in PRE-COMPUTED COMPARISON is the AUTHORITATIVE source
-            3. BEHAVIOR, RELATED CONTEXT shows historical patterns - use for context, NOT for MATCH determination
-            4. If PRE-COMPUTED shows YES, treat that factor as matching known patterns
-
-            YOUR TASK: Assess RISK based on PRE-COMPUTED COMPARISON results and session context.
-
             ACTIONS:
-            - ALLOW: Contextually safe, consistent with known patterns
+            - ALLOW: Consistent with known patterns
             - CHALLENGE: Needs verification
-            - BLOCK: Strong indicators of unauthorized access
-            - ESCALATE: Complex situation requiring human review
+            - BLOCK: Unauthorized access indicators
+            - ESCALATE: Requires human review
 
             MITRE (if applicable): T1078, T1110, T1185
 
