@@ -105,7 +105,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         this.approvalService = approvalService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties);
+        this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties, baselineLearningService);
         this.behaviorVectorService = behaviorVectorService;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;

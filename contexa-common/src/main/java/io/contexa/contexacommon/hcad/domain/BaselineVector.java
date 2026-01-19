@@ -24,6 +24,7 @@ import java.time.Instant;
  * - normalAccessHours: 정상 접근 시간대 (현재 시간과 비교)
  * - frequentPaths: 자주 접근하는 경로 (현재 경로와 비교)
  * - normalUserAgents: 정상 User-Agent (세션 하이재킹 탐지)
+ * - normalOperatingSystems: 정상 OS (AI Native v11.6)
  * - updateCount: 업데이트 횟수 (학습 정도 표시)
  *
  * v7.2 변경: learningMaturity 필드 제거
@@ -50,6 +51,7 @@ public class BaselineVector implements Serializable {
     private Integer[] normalAccessHours;  // 정상 접근 시간대 (0-23) - LLM이 현재 시간과 비교
     private String[] frequentPaths;       // 자주 접근하는 경로 - LLM이 현재 경로와 비교
     private String[] normalUserAgents;    // 정상 User-Agent - LLM이 세션 하이재킹 탐지
+    private String[] normalOperatingSystems;  // AI Native v11.6: 정상 OS - LLM이 OS 비교
 
     // ========== 학습 메타데이터 (LLM 컨텍스트) ==========
     @Builder.Default

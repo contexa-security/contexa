@@ -1,8 +1,10 @@
 package io.contexa.contexacore.autonomous.tiered.template;
 
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -21,14 +23,18 @@ public class SecurityPromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;
     private final TieredStrategyProperties tieredStrategyProperties;
+    // AI Native v11.5: Baseline + RAG 통합을 위한 서비스 주입
+    private final BaselineLearningService baselineLearningService;
 
     @Autowired
     public SecurityPromptTemplate(
             @Autowired(required = false) SecurityEventEnricher eventEnricher,
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties,
+            @Autowired(required = false) BaselineLearningService baselineLearningService) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.tieredStrategyProperties = tieredStrategyProperties != null
             ? tieredStrategyProperties : new TieredStrategyProperties();
+        this.baselineLearningService = baselineLearningService;
     }
 
     /**
@@ -67,37 +73,20 @@ public class SecurityPromptTemplate {
         String baselineContext = (behaviorAnalysis != null) ? behaviorAnalysis.getBaselineContext() : null;
         BaselineStatus baselineStatus = determineBaselineStatus(behaviorAnalysis, baselineContext);
 
-        // Baseline 섹션 구성 - enum 기반
+        // AI Native v11.5: BASELINE 섹션 단순화
+        // - Known 데이터(IP, Hour, UA, Path)는 PRE-COMPUTED COMPARISON에 통합됨
+        // - Baseline + RAG 데이터가 detectedXXXSet에 병합되어 단일 Known Set 구성
+        // - BASELINE 섹션은 NEW_USER의 ZERO TRUST WARNING만 유지
         StringBuilder baselineSectionBuilder = new StringBuilder();
-        baselineSectionBuilder.append("=== BASELINE ===\n");
 
-        // AI Native v6.5: learningMaturity 프롬프트 출력 제거
-        // - LLM 분석에 불필요한 메타데이터
-        // - 핵심 비교 데이터(IP, 시간, 경로, UA)만 제공
-
-        if (baselineStatus == BaselineStatus.ESTABLISHED) {
-            baselineSectionBuilder.append("STATUS: Available\n");
-
-            if (baselineContext != null) {
-                String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
-                baselineSectionBuilder.append(sanitizedBaseline).append("\n");
-            }
-        } else {
+        if (baselineStatus == BaselineStatus.NEW_USER) {
+            baselineSectionBuilder.append("=== BASELINE ===\n");
             baselineSectionBuilder.append("STATUS: ").append(baselineStatus.getStatusLabel()).append("\n");
             baselineSectionBuilder.append("IMPACT: ").append(baselineStatus.getImpactDescription()).append("\n");
 
-            // 신규 사용자에게 CRITICAL 경고 메시지 포함 (있는 경우)
-            if (baselineStatus == BaselineStatus.NEW_USER && baselineContext != null
-                && (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
-                String sanitizedBaseline = PromptTemplateUtils.sanitizeUserInput(baselineContext);
-                baselineSectionBuilder.append(sanitizedBaseline).append("\n");
-            }
-        }
-
-        // AI Native v6.4: ZERO TRUST WARNING 추가
-        // 신규 사용자에게 ALLOW 부여 방지 - Zero Trust 핵심 원칙
-        // Baseline 없음 = 정상 행동 패턴 검증 불가 = ALLOW 불가능
-        if (baselineStatus == BaselineStatus.NEW_USER) {
+            // AI Native v6.4: ZERO TRUST WARNING
+            // 신규 사용자에게 ALLOW 부여 방지 - Zero Trust 핵심 원칙
+            // Baseline 없음 = 정상 행동 패턴 검증 불가 = ALLOW 불가능
             baselineSectionBuilder.append("\nZERO TRUST WARNING:\n");
             baselineSectionBuilder.append("- This is a new user without established behavioral baseline.\n");
             baselineSectionBuilder.append("- Cannot verify if this is the legitimate user or an attacker.\n");
@@ -198,6 +187,64 @@ public class SecurityPromptTemplate {
                 addedDocs++;
             }
         }
+
+        // AI Native v11.5: Baseline 데이터를 detectedXXXSet에 병합
+        // - RAG + Baseline 통합으로 단일 Known Set 구성
+        // - 두 데이터 소스 간 충돌 방지 (BASELINE 섹션 별도 출력 제거)
+        if (userId != null && baselineLearningService != null) {
+            BaselineVector baseline = baselineLearningService.getBaseline(userId);
+            if (baseline != null) {
+                // IP 병합 (normalIpRanges)
+                if (baseline.getNormalIpRanges() != null) {
+                    for (String ip : baseline.getNormalIpRanges()) {
+                        if (ip != null && !ip.isEmpty()) {
+                            detectedIPSet.add(ip);
+                        }
+                    }
+                }
+                // Hour 병합 (normalAccessHours)
+                if (baseline.getNormalAccessHours() != null) {
+                    for (Integer hour : baseline.getNormalAccessHours()) {
+                        if (hour != null) {
+                            detectedHourSet.add(hour.toString());
+                        }
+                    }
+                }
+                // UA 병합 (normalUserAgents)
+                if (baseline.getNormalUserAgents() != null) {
+                    for (String ua : baseline.getNormalUserAgents()) {
+                        if (ua != null && !ua.isEmpty()) {
+                            detectedUASet.add(ua);
+                        }
+                    }
+                }
+                // Path 병합 (frequentPaths)
+                if (baseline.getFrequentPaths() != null) {
+                    for (String path : baseline.getFrequentPaths()) {
+                        if (path != null && !path.isEmpty()) {
+                            detectedPathSet.add(path);
+                        }
+                    }
+                }
+                // AI Native v11.6: OS 병합 (normalOperatingSystems)
+                if (baseline.getNormalOperatingSystems() != null) {
+                    for (String os : baseline.getNormalOperatingSystems()) {
+                        if (os != null && !os.isEmpty()) {
+                            detectedOSSet.add(os);
+                        }
+                    }
+                }
+                log.debug("[SecurityPromptTemplate][AI Native v11.6] Baseline 데이터 병합: userId={}, " +
+                    "IPs={}, Hours={}, UAs={}, Paths={}, OSs={}",
+                    userId,
+                    baseline.getNormalIpRanges() != null ? baseline.getNormalIpRanges().length : 0,
+                    baseline.getNormalAccessHours() != null ? baseline.getNormalAccessHours().length : 0,
+                    baseline.getNormalUserAgents() != null ? baseline.getNormalUserAgents().length : 0,
+                    baseline.getFrequentPaths() != null ? baseline.getFrequentPaths().length : 0,
+                    baseline.getNormalOperatingSystems() != null ? baseline.getNormalOperatingSystems().length : 0);
+            }
+        }
+
         if (filteredDocs > 0) {
             log.info("[SecurityPromptTemplate][AI Native v7.1] userId 필터링: {}개 문서 제외, {}개 포함",
                 filteredDocs, addedDocs);
@@ -410,7 +457,10 @@ public class SecurityPromptTemplate {
             prompt.append("\n").append(baselineSection);
         }
 
-        // AI Native v11.1: DECISION - MATCH_COUNT/RISK GUIDE 제거, 기존 프롬프트 유지
+        // AI Native v11.7: DECISION - CRITICAL INSTRUCTION으로 PRE-COMPUTED COMPARISON 우선 지시 강화
+        // - PRE-COMPUTED COMPARISON을 AUTHORITATIVE source로 명시
+        // - RELATED CONTEXT는 컨텍스트용, MATCH 판단에는 미사용 지시
+        // - 5/5 MATCH = ALLOW 가이드 미추가 (AI Native 원칙: 플랫폼 판단 배제)
         prompt.append("""
 
             === DECISION ===
@@ -418,8 +468,13 @@ public class SecurityPromptTemplate {
             RESPOND WITH JSON ONLY:
             {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
 
-            USE PRE-COMPUTED COMPARISON above for factual accuracy.
-            YOUR TASK: Assess RISK based on context, not just matches.
+            CRITICAL INSTRUCTION:
+            1. For OS/IP/Hour/UA/Path MATCH determination, ONLY use PRE-COMPUTED COMPARISON table
+            2. The MATCH column in PRE-COMPUTED COMPARISON is the AUTHORITATIVE source
+            3. BEHAVIOR, RELATED CONTEXT shows historical patterns - use for context, NOT for MATCH determination
+            4. If PRE-COMPUTED shows YES, treat that factor as matching known patterns
+
+            YOUR TASK: Assess RISK based on PRE-COMPUTED COMPARISON results and session context.
 
             ACTIONS:
             - ALLOW: Contextually safe, consistent with known patterns

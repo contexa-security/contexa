@@ -153,8 +153,9 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityPromptTemplate securityPromptTemplate(
             @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
-        return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties);
+            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties,
+            BaselineLearningService baselineLearningService) {
+        return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties,baselineLearningService);
     }
 
     /**

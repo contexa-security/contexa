@@ -288,6 +288,13 @@ public class BaselineLearningService {
                     builder.normalUserAgents(new String[]{truncatedUA});
                     log.warn("[Baseline] SecurityEvent 첫 학습 - UA 파싱 실패, 원본 저장: {}", truncatedUA);
                 }
+
+                // AI Native v11.6: OS 정보 초기화 (PRE-COMPUTED COMPARISON용)
+                String os = extractOS(currentUserAgent);
+                if (os != null && !os.equals("Unknown")) {
+                    builder.normalOperatingSystems(new String[]{os});
+                    log.debug("[Baseline][AI Native v11.6] SecurityEvent 첫 학습 - OS 저장: {}", os);
+                }
             }
 
             return builder.build();
@@ -314,6 +321,11 @@ public class BaselineLearningService {
                              ? normalizedUA : currentUserAgent;
         String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate);
 
+        // AI Native v11.6: OS 패턴 업데이트 - PRE-COMPUTED COMPARISON용
+        String currentOS = extractOS(currentUserAgent);
+        String[] normalOperatingSystems = updateNormalOperatingSystems(
+            current.getNormalOperatingSystems(), currentOS);
+
         // AI Native v7.2: learningMaturity 제거 - updateCount만으로 학습 정도 표현
         return BaselineVector.builder()
             .userId(userId)
@@ -326,6 +338,7 @@ public class BaselineLearningService {
             .normalAccessHours(normalAccessHours)
             .frequentPaths(frequentPaths)
             .normalUserAgents(normalUserAgents)
+            .normalOperatingSystems(normalOperatingSystems)
             .build();
     }
 
@@ -812,6 +825,48 @@ public class BaselineLearningService {
     }
 
     /**
+     * normalOperatingSystems 업데이트 (최대 5개 유지) - AI Native v11.6
+     *
+     * PRE-COMPUTED COMPARISON에서 OS 비교를 위해 학습된 OS 패턴 유지
+     * normalUserAgents와 동일한 패턴으로 구현
+     *
+     * @param current 현재 OS 배열
+     * @param newOS 새 OS (Windows, Mac, Linux 등)
+     * @return 업데이트된 OS 배열 (최대 5개)
+     */
+    private String[] updateNormalOperatingSystems(String[] current, String newOS) {
+        if (newOS == null || newOS.isEmpty() || newOS.equals("Unknown")) {
+            return current;
+        }
+
+        if (current == null || current.length == 0) {
+            return new String[]{newOS};
+        }
+
+        // 이미 존재하면 그대로 반환
+        for (String existing : current) {
+            if (newOS.equals(existing)) {
+                return current;
+            }
+        }
+
+        // 최대 5개 유지
+        if (current.length >= 5) {
+            // 가장 오래된 것 제거하고 새로운 것 추가
+            String[] updated = new String[5];
+            System.arraycopy(current, 1, updated, 0, 4);
+            updated[4] = newOS;
+            return updated;
+        }
+
+        // 새로운 것 추가
+        String[] updated = new String[current.length + 1];
+        System.arraycopy(current, 0, updated, 0, current.length);
+        updated[current.length] = newOS;
+        return updated;
+    }
+
+    /**
      * Baseline 조회 (Zero Trust 필수 데이터 포함)
      *
      * AI Native v6.0: 신규 사용자 Cold Start 문제 해결
@@ -891,6 +946,8 @@ public class BaselineLearningService {
                 .frequentPaths(parseStringArray(data.get("frequentPaths")))
                 // AI Native v3.1: User-Agent 패턴 조회 - LLM 세션 하이재킹 탐지용
                 .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
+                // AI Native v11.6: OS 패턴 조회 - PRE-COMPUTED COMPARISON용
+                .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
                 .build();
 
         } catch (Exception e) {
@@ -1061,16 +1118,21 @@ public class BaselineLearningService {
             if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
                 data.put("normalUserAgents", String.join(",", baseline.getNormalUserAgents()));
             }
+            // AI Native v11.6: OS 패턴 저장 - PRE-COMPUTED COMPARISON용
+            if (baseline.getNormalOperatingSystems() != null && baseline.getNormalOperatingSystems().length > 0) {
+                data.put("normalOperatingSystems", String.join(",", baseline.getNormalOperatingSystems()));
+            }
 
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, BASELINE_TTL);
 
-            log.debug("[BaselineLearningService] Baseline 저장 완료: userId={}, normalIpRanges={}, normalAccessHours={}, frequentPaths={}, normalUserAgents={}",
+            log.debug("[BaselineLearningService] Baseline 저장 완료: userId={}, IPs={}, Hours={}, Paths={}, UAs={}, OSs={}",
                 userId,
                 baseline.getNormalIpRanges() != null ? baseline.getNormalIpRanges().length : 0,
                 baseline.getNormalAccessHours() != null ? baseline.getNormalAccessHours().length : 0,
                 baseline.getFrequentPaths() != null ? baseline.getFrequentPaths().length : 0,
-                baseline.getNormalUserAgents() != null ? baseline.getNormalUserAgents().length : 0);
+                baseline.getNormalUserAgents() != null ? baseline.getNormalUserAgents().length : 0,
+                baseline.getNormalOperatingSystems() != null ? baseline.getNormalOperatingSystems().length : 0);
 
         } catch (Exception e) {
             log.error("[BaselineLearningService] Baseline 저장 실패: userId={}", userId, e);

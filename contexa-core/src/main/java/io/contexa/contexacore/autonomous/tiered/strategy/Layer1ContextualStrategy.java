@@ -76,7 +76,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.unifiedVectorService = unifiedVectorService;
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties);
+        this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties, baselineLearningService);
         this.behaviorVectorService = behaviorVectorService;
         this.baselineLearningService = baselineLearningService;
         this.postProcessor = postProcessor;
