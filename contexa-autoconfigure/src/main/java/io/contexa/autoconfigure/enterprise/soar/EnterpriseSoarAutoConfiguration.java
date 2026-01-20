@@ -67,36 +67,7 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
-/**
- * Enterprise SOAR AutoConfiguration
- *
- * <p>
- * Contexa Enterprise 모듈의 SOAR (Security Orchestration, Automation and Response) 자동 구성을 제공합니다.
- * @Bean 방식으로 Enterprise SOAR 서비스들을 명시적으로 등록합니다.
- * </p>
- *
- * <h3>포함된 컴포넌트 (27개):</h3>
- * <ul>
- *   <li><strong>Level 0: Infrastructure (3개)</strong> - JavaMailSender, TemplateEngine, NotificationTargetManager</li>
- *   <li><strong>Level 1: Helper/Utility (4개)</strong> - WebSocketConfigHelper, ToolCallDetectionHelper, ConversationHistoryBuilder, ToolApprovalService</li>
- *   <li><strong>Level 2: Simple Services (6개)</strong> - SoarPromptTemplate, ApprovalRequestFactory, ApprovalRequestValidator, ApprovalStateManager, SoarEmailService, McpApprovalNotificationService</li>
- *   <li><strong>Level 3: Medium Services (7개)</strong> - SoarToolIntegrationProvider, SoarDiagnosisStrategy, SoarToolExecutionService, SoarContextRetriever, ApprovalEventListener, RedisApprovalSubscriber, SoarLabImpl</li>
- *   <li><strong>Level 4: Complex Services (4개)</strong> - SoarToolCallingService, SoarApprovalNotifierImpl, SoarInteractionManager, AsyncToolExecutionService</li>
- *   <li><strong>Level 5: Highest Services (1개)</strong> - UnifiedApprovalService</li>
- *   <li><strong>Level 6: Controllers (2개)</strong> - ToolApprovalController, SoarApprovalController</li>
- * </ul>
- *
- * <h3>활성화 조건:</h3>
- * <pre>
- * contexa:
- *   enterprise:
- *     enabled: true
- *   soar:
- *     enabled: true  (기본값)
- * </pre>
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService")
 @ConditionalOnProperty(
@@ -110,21 +81,12 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 public class EnterpriseSoarAutoConfiguration {
 
     public EnterpriseSoarAutoConfiguration() {
-        // @Bean 방식으로 Enterprise SOAR 서비스 등록
+        
     }
 
-    // ========== Level 0: Infrastructure (3개) ==========
+    
 
-    /**
-     * JavaMailSender - 이메일 발송 서비스
-     *
-     * <p>
-     * Spring Boot의 자동 구성을 사용하지만, 필요시 커스터마이징 가능합니다.
-     * 실제 메일 설정 값은 application.yml에서 주입됩니다.
-     * </p>
-     *
-     * @return JavaMailSender
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(name = "soar.notification.email.enabled", havingValue = "true", matchIfMissing = true)
@@ -132,21 +94,13 @@ public class EnterpriseSoarAutoConfiguration {
         return new JavaMailSenderImpl();
     }
 
-    /**
-     * 이메일 템플릿 엔진
-     *
-     * <p>
-     * Thymeleaf 기반 이메일 템플릿 처리를 제공합니다.
-     * </p>
-     *
-     * @return TemplateEngine
-     */
+    
     @Bean
     @ConditionalOnMissingBean(name = "emailTemplateEngine")
     public TemplateEngine emailTemplateEngine() {
         SpringTemplateEngine templateEngine = new SpringTemplateEngine();
 
-        // 이메일 템플릿 리졸버 설정
+        
         ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
         templateResolver.setPrefix("templates/");
         templateResolver.setSuffix(".html");
@@ -159,26 +113,16 @@ public class EnterpriseSoarAutoConfiguration {
         return templateEngine;
     }
 
-    /**
-     * 알림 타겟 관리자
-     *
-     * <p>
-     * 사용자별 알림 채널 선호도와 연결 상태를 관리합니다.
-     * </p>
-     *
-     * @return NotificationTargetManager
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public NotificationConfig.NotificationTargetManager notificationTargetManager() {
         return new NotificationConfig.NotificationTargetManager();
     }
 
-    // ========== Level 1: Helper/Utility 클래스 (4개) ==========
+    
 
-    /**
-     * 1. WebSocketConfigHelper - WebSocket 설정 헬퍼
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -191,9 +135,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new WebSocketConfigHelper();
     }
 
-    /**
-     * 2. ToolCallDetectionHelper - 도구 호출 감지 헬퍼
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -206,9 +148,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new ToolCallDetectionHelper();
     }
 
-    /**
-     * 3. ConversationHistoryBuilder - Conversation History 빌더
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -221,9 +161,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new ConversationHistoryBuilder();
     }
 
-    /**
-     * 4. ToolApprovalService - Tool 승인 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -236,11 +174,9 @@ public class EnterpriseSoarAutoConfiguration {
         return new ToolApprovalService();
     }
 
-    // ========== Level 2: Simple Services (4개) ==========
+    
 
-    /**
-     * 5. SoarPromptTemplate - SOAR 프롬프트 템플릿
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -253,9 +189,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarPromptTemplate();
     }
 
-    /**
-     * 6. ApprovalRequestFactory - 승인 요청 팩토리
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -268,9 +202,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new ApprovalRequestFactory();
     }
 
-    /**
-     * 7. ApprovalRequestValidator - 승인 요청 검증기
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -283,9 +215,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new ApprovalRequestValidator();
     }
 
-    /**
-     * 8. ApprovalStateManager - 승인 상태 관리자
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -299,9 +229,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new ApprovalStateManager(eventPublisher);
     }
 
-    /**
-     * 9. SoarEmailService - SOAR 이메일 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -316,9 +244,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarEmailService(mailSender, templateEngine);
     }
 
-    /**
-     * 10. McpApprovalNotificationService - MCP 승인 알림 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -334,11 +260,9 @@ public class EnterpriseSoarAutoConfiguration {
         return new McpApprovalNotificationService(eventPublisher, objectMapper, notificationRepository);
     }
 
-    // ========== Level 3: Medium Services (7개) ==========
+    
 
-    /**
-     * 9. SoarToolIntegrationProvider - SOAR Tool Integration Provider
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -351,9 +275,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarToolIntegrationProvider();
     }
 
-    /**
-     * 10. SoarDiagnosisStrategy - SOAR 진단 전략
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -367,9 +289,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarDiagnosisStrategy(labFactory);
     }
 
-    /**
-     * 11. SoarToolExecutionService - SOAR Tool 실행 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -384,9 +304,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarToolExecutionService(toolCapableLLMClient, toolResolver);
     }
 
-    /**
-     * 12. SoarContextRetriever - SOAR 컨텍스트 검색기
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -401,9 +319,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarContextRetriever(vectorStore, registry);
     }
 
-    /**
-     * 13. ApprovalEventListener - 승인 이벤트 리스너
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -417,9 +333,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new ApprovalEventListener(approvalService);
     }
 
-    /**
-     * 14. RedisApprovalSubscriber - Redis 승인 구독자
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -432,9 +346,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new RedisApprovalSubscriber();
     }
 
-    /**
-     * 15. SoarLabImpl - SOAR Lab 구현체
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -449,11 +361,9 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarLabImpl(tracer, orchestrator);
     }
 
-    // ========== Level 4: Complex Services (4개) ==========
+    
 
-    /**
-     * 16. SoarToolCallingService - SOAR Tool Calling 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -472,10 +382,7 @@ public class EnterpriseSoarAutoConfiguration {
         );
     }
 
-    /**
-     * 17. SoarApprovalNotifierImpl - SOAR 승인 알림 구현체
-     * IMPORTANT: @Qualifier("brokerMessagingTemplate") 패턴 반드시 사용
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -494,10 +401,7 @@ public class EnterpriseSoarAutoConfiguration {
         );
     }
 
-    /**
-     * 18. SoarInteractionManager - SOAR 상호작용 관리자
-     * IMPORTANT: @Qualifier("brokerMessagingTemplate") 패턴 반드시 사용
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -513,9 +417,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarInteractionManager(redisTemplate, brokerTemplate, approvalService);
     }
 
-    /**
-     * 19. AsyncToolExecutionService - 비동기 Tool 실행 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -531,12 +433,9 @@ public class EnterpriseSoarAutoConfiguration {
         return new AsyncToolExecutionService(contextRepository, objectMapper, chainedToolResolver);
     }
 
-    // ========== Level 5: Highest Services (1개) ==========
+    
 
-    /**
-     * 20. UnifiedApprovalService - 통합 승인 서비스
-     * ApprovalService 인터페이스 타입으로 빈 등록
-     */
+    
     @Bean
     @ConditionalOnMissingBean(ApprovalService.class)
     @ConditionalOnProperty(
@@ -559,10 +458,7 @@ public class EnterpriseSoarAutoConfiguration {
         );
     }
 
-    /**
-     * 21. WebSocketApprovalHandler - WebSocket 승인 핸들러
-     * IMPORTANT: @Qualifier("brokerMessagingTemplate") 패턴 반드시 사용
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -580,9 +476,7 @@ public class EnterpriseSoarAutoConfiguration {
         );
     }
 
-    /**
-     * 22. PipelineSoarToolExecutionStep - 파이프라인 SOAR Tool 실행 단계
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -602,11 +496,9 @@ public class EnterpriseSoarAutoConfiguration {
         );
     }
 
-    // ========== Controllers (2개) ==========
+    
 
-    /**
-     * 23. ToolApprovalController - Tool 승인 컨트롤러
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -620,10 +512,7 @@ public class EnterpriseSoarAutoConfiguration {
         return new ToolApprovalController(approvalService);
     }
 
-    /**
-     * 24. SoarApprovalController - SOAR 승인 컨트롤러
-     * IMPORTANT: @Qualifier("brokerMessagingTemplate") 패턴 반드시 사용
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(

@@ -27,13 +27,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-/**
- * IAM AIAM Service and Strategy AutoConfiguration
- */
+
 @AutoConfiguration
 public class IamAiamServiceStrategyAutoConfiguration {
 
-    // Services
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(ApprovalService.class)
@@ -117,7 +115,7 @@ public class IamAiamServiceStrategyAutoConfiguration {
                 policyGenerationLab, dataCollectionService, meterRegistry);
     }
 
-    // Strategies
+    
     @Bean
     @ConditionalOnMissingBean
     public AccessGovernanceDiagnosisStrategy accessGovernanceDiagnosisStrategy(AILabFactory labFactory) {

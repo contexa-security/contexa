@@ -35,25 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 통합 3계층 보안 시스템 LLM Configuration
- *
- * 모든 AI/LLM 관련 설정의 중앙 진입점
- * UnifiedAIConfiguration의 기능을 통합하여 단일 Configuration으로 관리
- *
- * SOLID 원칙 준수:
- * - 단일 책임: 각 Configuration은 명확한 역할 담당
- * - 개방-폐쇄: 새로운 Configuration 추가 시 기존 코드 수정 불필요
- * - 의존성 역전: 인터페이스 기반 설계로 구체적 구현에 의존하지 않음
- *
- * 통합 구조:
- * 1. 3계층 ChatModel 생성 (Layer 1, 2, 3)
- * 2. UnifiedLLMOrchestrator를 @Primary로 설정
- * 3. AdvisorConfiguration - Advisor 시스템 통합
- * 4. ToolCallingConfiguration - 도구 실행 시스템 (Enterprise에서 제공)
- *
- * @since 3.0.0
- */
+
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
@@ -70,9 +52,7 @@ public class CoreLLMTieredAutoConfiguration {
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
 
-    /**
-     * Layer 1: TinyLlama ChatModel
-     */
+    
     @Bean(name = "tinyLlamaChatModel")
     @ConditionalOnMissingBean(name = "tinyLlamaChatModel")
     public ChatModel tinyLlamaChatModel(
@@ -103,9 +83,7 @@ public class CoreLLMTieredAutoConfiguration {
         return null;
     }
 
-    /**
-     * Layer 2: Llama3.1:8b ChatModel
-     */
+    
     @Bean(name = "llama31ChatModel")
     @ConditionalOnMissingBean(name = "llama31ChatModel")
     public ChatModel llama31ChatModel(
@@ -136,10 +114,7 @@ public class CoreLLMTieredAutoConfiguration {
         return null;
     }
 
-    /**
-     * Anthropic Claude 모델 (Layer 2 클라우드 백업 옵션)
-     * 사용자가 spring.ai.security.layer2.backup.model 설정으로 오버라이드 가능
-     */
+    
     @Bean(name = "claudeOpusChatModel")
     @ConditionalOnMissingBean(name = "claudeOpusChatModel")
     public ChatModel claudeOpusChatModel(
@@ -157,10 +132,7 @@ public class CoreLLMTieredAutoConfiguration {
         return null;
     }
 
-    /**
-     * OpenAI GPT 모델 (Layer 2 클라우드 백업 옵션)
-     * 사용자가 spring.ai.security.layer2.backup.model 설정으로 오버라이드 가능
-     */
+    
     @Bean(name = "gpt4ChatModel")
     @ConditionalOnMissingBean(name = "gpt4ChatModel")
     public ChatModel gpt4ChatModel(
@@ -178,9 +150,7 @@ public class CoreLLMTieredAutoConfiguration {
         return null;
     }
 
-    /**
-     * Primary ChatModel
-     */
+    
     @Bean
     @Primary
     public ChatModel primaryChatModel(
@@ -227,9 +197,7 @@ public class CoreLLMTieredAutoConfiguration {
         throw new IllegalStateException("No ChatModel available. Please configure at least one AI provider.");
     }
 
-    /**
-     * 스트리밍 핸들러
-     */
+    
     @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
     public StreamingHandler streamingHandler() {
@@ -237,9 +205,7 @@ public class CoreLLMTieredAutoConfiguration {
         return new DefaultStreamingHandler(tieredLLMProperties);
     }
 
-    /**
-     * UnifiedLLMOrchestrator - 모든 LLM 호출의 단일 진입점
-     */
+    
     @Bean
     @Primary
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
@@ -272,9 +238,7 @@ public class CoreLLMTieredAutoConfiguration {
         return unifiedLLMOrchestrator;
     }
 
-    /**
-     * Primary EmbeddingModel
-     */
+    
     @Bean(name = "primaryEmbeddingModel")
     @Primary
     @ConditionalOnMissingBean(name = "primaryEmbeddingModel")

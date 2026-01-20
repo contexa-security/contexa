@@ -17,9 +17,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
-/**
- * IAM AI Infrastructure AutoConfiguration
- */
+
 @AutoConfiguration
 public class IamAiamInfrastructureAutoConfiguration {
 

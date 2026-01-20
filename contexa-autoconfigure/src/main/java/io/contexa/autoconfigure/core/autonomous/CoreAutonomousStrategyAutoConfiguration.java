@@ -23,20 +23,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
-/**
- * Core Autonomous Strategy AutoConfiguration
- *
- * Contexa Core의 Autonomous Strategy 관련 컴포넌트 자동 구성
- *
- * 포함된 컴포넌트 (약 15개):
- * - Threat Evaluation Strategies (7개)
- * - Policy Monitoring (2개)
- * - Safety Management (3개)
- * - State Management (1개)
- * - Security Identification (1개)
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 @ConditionalOnProperty(
     prefix = "contexa.autonomous",
@@ -47,9 +34,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreAutonomousStrategyAutoConfiguration {
 
-    // ========== Threat Evaluation Strategies ==========
-    // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
-    // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
+    
+    
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -77,7 +64,7 @@ public class CoreAutonomousStrategyAutoConfiguration {
         return new VectorStoreEvaluationStrategy();
     }
 
-    // ========== Policy Monitoring ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -94,7 +81,7 @@ public class CoreAutonomousStrategyAutoConfiguration {
         return new PolicyProposalAnalytics(policyEvolutionProposalRepository, policyEffectivenessMonitor);
     }
 
-    // ========== Safety Management ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -114,7 +101,7 @@ public class CoreAutonomousStrategyAutoConfiguration {
         return new PolicyVersionManager();
     }
 
-    // ========== State Management ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -125,7 +112,7 @@ public class CoreAutonomousStrategyAutoConfiguration {
         return new DistributedStateManager(redisTemplate, redisDistributedLockService, objectMapper);
     }
 
-    // ========== Security Identification ==========
+    
 
     @Bean
     @ConditionalOnMissingBean

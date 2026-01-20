@@ -62,67 +62,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.*;
 
-/**
- * Enterprise Tool AutoConfiguration
- *
- * Contexa Enterprise 모듈의 Tool Calling 자동 구성을 제공합니다.
- * Spring Boot AutoConfiguration 패턴으로 32개 빈을 직접 등록합니다.
- *
- * 포함된 빈 (32개, 7개 레벨):
- *
- * Level 1: Enterprise Core (2개)
- * - SoarLab - SOAR 실험실 인터페이스
- * - ThreatEvaluator - 위협 평가 엔진
- *
- * Level 2: Tool Calling (11개)
- * - defaultToolCallingManager - Spring AI 표준 ToolCallingManager
- * - approvalAwareToolCallingManager - 승인 기반 Decorator
- * - standardToolCallingManager - 승인 비활성화 시 사용
- * - toolCallbackResolver - Spring AI 표준 Resolver
- * - chainedToolResolver - 4개 Resolver 체인
- * - springBeanToolCallbackResolver - Spring Bean 기반 Resolver
- * - mcpToolResolver - MCP Tool Resolver
- * - staticToolCallbackResolver - Static Tool Resolver
- * - fallbackToolResolver - Fallback Resolver
- * - metricsCollector - 메트릭 수집기
- * - toolInventoryLogger - Tool 인벤토리 로거
- *
- * Level 3: MCP Integration (7개)
- * - toolEventPublisher - Tool 이벤트 발행기
- * - mcpFunctionCallbackProvider - MCP to Spring AI 변환기
- * - mcpPromptIntegrator - MCP Prompt 통합기
- * - mcpResourceProvider - MCP Resource 제공자
- * - mcpToolIntegrationAdapter - MCP Tool 통합 어댑터
- * - unifiedToolCallbackProvider - 통합 Tool Callback Provider
- * - mcpClientProvider - MCP Client Provider
- *
- * Level 4: MCP Clients (3개)
- * - braveSearchMcpClient - Brave Search MCP Client
- * - securityMcpClient - Security MCP Client
- * - mcpClientStatus - MCP Client 상태 모니터
- *
- * Level 5: Tool Configuration (2개)
- * - toolEnabledChatClient - Tool이 통합된 ChatClient
- * - toolIntegrationStatus - Tool 통합 상태 모니터
- *
- * Level 6: Tool Execution (3개)
- * - toolResultCache - Tool 결과 캐시
- * - toolAuthorizationService - Tool 권한 검증 서비스
- * - configurationLogger - 설정 로거
- *
- * Level 7: SOAR Tools (4개)
- * - soarToolCallingManager - SOAR Tool Calling Manager
- * - toolApprovalPolicyManager - Tool 승인 정책 관리자
- * - toolExecutionExceptionProcessor - Tool 실행 예외 처리기
- * - pipelineSoarToolExecutionStep - 6단계 파이프라인 통합
- *
- * 활성화 조건:
- * contexa:
- *   enterprise:
- *     enabled: true
- *
- * @since 0.1.0-ALPHA
- */
+
 @Slf4j
 @AutoConfiguration
 @EnableAsync(proxyTargetClass = true)
@@ -137,9 +77,9 @@ import java.util.*;
 @EnableConfigurationProperties(ContexaProperties.class)
 public class EnterpriseToolAutoConfiguration {
 
-    // ========================================
-    // Level 1: Enterprise Core (2개)
-    // ========================================
+    
+    
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -161,9 +101,9 @@ public class EnterpriseToolAutoConfiguration {
         return null;
     }
 
-    // ========================================
-    // Level 2: Tool Calling (11개)
-    // ========================================
+    
+    
+    
 
     @Bean
     @ConditionalOnMissingBean(name = "defaultToolCallingManager")
@@ -232,7 +172,7 @@ public class EnterpriseToolAutoConfiguration {
 
         log.info("🔗 ToolCallbackResolver 체인 구성: {} 개", resolvers.size());
 
-        // Spring AI 표준 DelegatingToolCallbackResolver 사용
+        
         return new DelegatingToolCallbackResolver(resolvers);
     }
 
@@ -248,10 +188,10 @@ public class EnterpriseToolAutoConfiguration {
         log.info("ChainedToolResolver 생성 (향상된 기능)");
 
         List<ToolCallbackResolver> resolvers = Arrays.asList(
-            mcpToolResolver,           // MCP 도구 우선
-            springBeanResolver,        // Spring Bean 도구
-            staticToolResolver,        // 정적 도구
-            fallbackToolResolver       // Fallback
+            mcpToolResolver,           
+            springBeanResolver,        
+            staticToolResolver,        
+            fallbackToolResolver       
         );
 
         ChainedToolResolver chainedResolver = new ChainedToolResolver(
@@ -323,7 +263,7 @@ public class EnterpriseToolAutoConfiguration {
             public void logToolInventory() {
                 log.info("========== 도구 인벤토리 ==========");
 
-                // ChainedToolResolver에서 도구 수집
+                
                 if (chainedResolver.isPresent()) {
                     Set<String> toolNames = chainedResolver.get().getRegisteredToolNames();
                     log.info("등록된 도구 총 {} 개", toolNames.size());
@@ -333,7 +273,7 @@ public class EnterpriseToolAutoConfiguration {
                     }
                 }
 
-                // MCP 도구 통계
+                
                 if (mcpProvider.isPresent()) {
                     Map<String, Object> stats = mcpProvider.get().getMcpToolStatistics();
                     log.info("MCP 도구 통계: {}", stats);
@@ -345,12 +285,12 @@ public class EnterpriseToolAutoConfiguration {
     }
 
     private interface ToolInventoryLogger {
-        // Marker interface for inventory logging bean
+        
     }
 
-    // ========================================
-    // Level 3: MCP Integration (7개)
-    // ========================================
+    
+    
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -415,9 +355,9 @@ public class EnterpriseToolAutoConfiguration {
         return new McpClientProviderImpl(mcpClients, braveSearchMcpClient, securityMcpClient);
     }
 
-    // ========================================
-    // Level 4: MCP Clients (3개)
-    // ========================================
+    
+    
+    
 
     @Bean(destroyMethod = "close")
     @ConditionalOnProperty(prefix = "spring.ai.mcp.client.brave-search", name = "enabled", havingValue = "true", matchIfMissing = false)
@@ -426,12 +366,12 @@ public class EnterpriseToolAutoConfiguration {
         log.info("Brave Search MCP 클라이언트 초기화");
 
         try {
-            // Brave Search MCP 서버 실행 파라미터
+            
             var stdioParams = ServerParameters.builder("npx")
                     .args("-y", "@modelcontextprotocol/server-brave-search")
                     .build();
 
-            // MCP 클라이언트 생성 및 초기화
+            
             var mcpClient = McpClient.sync(new StdioClientTransport(stdioParams, null))
                     .requestTimeout(Duration.ofSeconds(requestTimeoutSeconds))
                     .build();
@@ -443,7 +383,7 @@ public class EnterpriseToolAutoConfiguration {
 
         } catch (Exception e) {
             log.warn("Brave Search MCP 클라이언트 생성 실패: {}", e.getMessage());
-            // 클라이언트 생성 실패시에도 null 대신 기본 구현체 반환
+            
             return createFallbackMcpClient();
         }
     }
@@ -456,7 +396,7 @@ public class EnterpriseToolAutoConfiguration {
         log.info("contexa MCP 클라이언트 초기화 (SSE Transport)");
 
         try {
-            // SSE Transport를 사용하여 로컬 MCP 서버와 연결
+            
             HttpClientSseClientTransport transport = HttpClientSseClientTransport.builder(serverUrl)
                     .sseEndpoint("/sse")
                     .build();
@@ -465,7 +405,7 @@ public class EnterpriseToolAutoConfiguration {
                     .requestTimeout(Duration.ofSeconds(requestTimeoutSeconds))
                     .build();
 
-            // contexa MCP 서버 초기화 시도
+            
             try {
                 var init = mcpClient.initialize();
                 log.info("contexa MCP 초기화 완료: {}", init != null ? init.serverInfo() : "server info unavailable");
@@ -478,7 +418,7 @@ public class EnterpriseToolAutoConfiguration {
 
         } catch (Exception e) {
             log.warn("contexa MCP 클라이언트 생성 실패: {}", e.getMessage());
-            // 클라이언트 생성 실패시에도 null 대신 기본 구현체 반환
+            
             return createFallbackMcpClient();
         }
     }
@@ -494,7 +434,7 @@ public class EnterpriseToolAutoConfiguration {
                     .build();
         } catch (Exception e) {
             log.error("Fallback MCP 클라이언트 생성도 실패", e);
-            // 모든 시도가 실패한 경우 더미 구현체 반환
+            
             return null;
         }
     }
@@ -519,9 +459,9 @@ public class EnterpriseToolAutoConfiguration {
         );
     }
 
-    // ========================================
-    // Level 5: Tool Configuration (2개)
-    // ========================================
+    
+    
+    
 
     @Bean
     @ConditionalOnMissingBean(name = "toolEnabledChatClient")
@@ -534,7 +474,7 @@ public class EnterpriseToolAutoConfiguration {
 
         log.info("🛠️ 도구 활성화 ChatClient 생성 시작");
 
-        // Builder 선택: Advisor가 있으면 우선 사용
+        
         ChatClient.Builder builder = advisorBuilder != null ? advisorBuilder : basicBuilder;
 
         if (builder == null) {
@@ -542,7 +482,7 @@ public class EnterpriseToolAutoConfiguration {
             throw new IllegalStateException("ChatClient.Builder not found. Check LlmConfig and AdvisorAutoConfiguration.");
         }
 
-        // 도구 통합
+        
         if (toolsEnabled && toolResolver != null) {
             try {
                 ToolCallback[] tools = toolResolver.getAllToolCallbacks();
@@ -551,7 +491,7 @@ public class EnterpriseToolAutoConfiguration {
                     builder = builder.defaultToolCallbacks(tools);
                     log.info("{} 개의 도구가 ChatClient에 통합되었습니다", tools.length);
 
-                    // 도구 목록 로깅 (디버그 레벨)
+                    
                     if (log.isDebugEnabled()) {
                         for (ToolCallback tool : tools) {
                             log.debug("  - {}: {}",
@@ -564,7 +504,7 @@ public class EnterpriseToolAutoConfiguration {
                 }
             } catch (Exception e) {
                 log.error("도구 통합 실패", e);
-                // 도구 통합 실패해도 기본 ChatClient는 생성
+                
             }
         } else if (!toolsEnabled) {
             log.info("도구가 비활성화되어 있습니다");
@@ -572,7 +512,7 @@ public class EnterpriseToolAutoConfiguration {
             log.warn("ChainedToolResolver를 찾을 수 없습니다");
         }
 
-        // 도구 관련 시스템 프롬프트 추가
+        
         if (toolsEnabled) {
             builder = builder.defaultSystem("""
                 You are an AI Assistant with access to integrated security tools.
@@ -631,9 +571,9 @@ public class EnterpriseToolAutoConfiguration {
         int toolCount
     ) {}
 
-    // ========================================
-    // Level 6: Tool Execution (3개)
-    // ========================================
+    
+    
+    
 
     @Bean
     @ConditionalOnMissingBean(ToolResultCache.class)
@@ -665,16 +605,16 @@ public class EnterpriseToolAutoConfiguration {
         }
     }
 
-    // ========================================
-    // Level 7: SOAR Tools (4개)
-    // ========================================
+    
+    
+    
 
     @Bean(name = "soarToolCallingManager")
     @ConditionalOnMissingBean
     public ToolCallingManager soarToolCallingManager() {
         log.info("SOAR ToolCallingManager Bean 생성");
 
-        // ChainedToolResolver를 통해 도구를 동적으로 해결
+        
         return DefaultToolCallingManager.builder().build();
     }
 
@@ -711,10 +651,7 @@ public class EnterpriseToolAutoConfiguration {
         );
     }
 
-    /**
-     * Constructor
-     * 32개 빈이 자동으로 등록되었음을 로그에 기록
-     */
+    
     public EnterpriseToolAutoConfiguration() {
         log.info("=".repeat(80));
         log.info("Enterprise Tool AutoConfiguration 초기화");

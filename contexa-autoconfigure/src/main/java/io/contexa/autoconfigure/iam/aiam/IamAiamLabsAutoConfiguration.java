@@ -40,15 +40,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
-/**
- * IAM AIAM Labs and Vector Services AutoConfiguration
- *
- * Labs, VectorServices, Data Collection Services, Utilities를 등록합니다.
- */
+
 @AutoConfiguration
 public class IamAiamLabsAutoConfiguration {
 
-    // Vector Services (6개)
+    
     @Bean
     @ConditionalOnMissingBean
     public PolicyGenerationVectorService policyGenerationVectorService(
@@ -97,7 +93,7 @@ public class IamAiamLabsAutoConfiguration {
         return new SecurityCopilotVectorService(standardVectorStoreService, vectorStoreMetrics);
     }
 
-    // Data Collection Services (3개)
+    
     @Bean
     @ConditionalOnMissingBean
     public StudioQueryCollectionService studioQueryCollectionService(
@@ -128,7 +124,7 @@ public class IamAiamLabsAutoConfiguration {
                 studioQueryCollectionService, policyGenerationCollectionService);
     }
 
-    // Utility Services (3개)
+    
     @Bean
     @ConditionalOnMissingBean
     public QueryIntentAnalyzer queryIntentAnalyzer() {
@@ -147,7 +143,7 @@ public class IamAiamLabsAutoConfiguration {
         return new LabStreamMerger();
     }
 
-    // Labs (7개)
+    
     @Bean
     @ConditionalOnMissingBean
     public AdvancedPolicyGenerationLab advancedPolicyGenerationLab(

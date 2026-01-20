@@ -20,41 +20,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
-/**
- * Enterprise Dashboard AutoConfiguration
- *
- * Contexa Enterprise 모듈의 Dashboard Metrics 자동 구성을 제공합니다.
- * @Bean 방식으로 Dashboard Metrics 서비스들을 명시적으로 등록합니다.
- *
- * 포함된 컴포넌트 (10개):
- * Zero Trust Metrics (4개):
- * - UserTrustMetrics, HCADFeedbackLoopMetrics, EventPublishingMetrics, DefaultRoutingDecisionMetrics
- *
- * Vector Store Metrics (1개):
- * - VectorStoreMetrics
- *
- * Unified Metrics (2개):
- * - UnifiedSecurityMetricsCollector, SystemMetricsCollector
- *
- * SOAR Metrics (1개):
- * - ToolExecutionMetrics
- *
- * Plane Metrics (1개):
- * - OrthogonalSignalCollector
- *
- * Evolution Metrics (1개):
- * - EvolutionMetricsCollector
- *
- * 활성화 조건:
- * contexa:
- *   enterprise:
- *     enabled: true
- *   dashboard:
- *     metrics:
- *       enabled: true  (기본값)
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.UserTrustMetrics")
 @ConditionalOnProperty(
@@ -67,14 +33,12 @@ import org.springframework.context.annotation.Bean;
 public class EnterpriseDashboardAutoConfiguration {
 
     public EnterpriseDashboardAutoConfiguration() {
-        // @Bean 방식으로 Enterprise Dashboard Metrics 서비스 등록
+        
     }
 
-    // ========== Zero Trust Metrics (4개) ==========
+    
 
-    /**
-     * 1. UserTrustMetrics - 사용자 신뢰도 메트릭
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -87,9 +51,7 @@ public class EnterpriseDashboardAutoConfiguration {
         return new UserTrustMetrics(registry);
     }
 
-    /**
-     * 2. HCADFeedbackLoopMetrics - HCAD 피드백 루프 메트릭
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -102,9 +64,7 @@ public class EnterpriseDashboardAutoConfiguration {
         return new HCADFeedbackLoopMetrics(registry);
     }
 
-    /**
-     * 3. EventPublishingMetrics - 이벤트 발행 메트릭
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -117,9 +77,7 @@ public class EnterpriseDashboardAutoConfiguration {
         return new EventPublishingMetrics(registry);
     }
 
-    /**
-     * 4. DefaultRoutingDecisionMetrics - 라우팅 결정 메트릭
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -132,11 +90,9 @@ public class EnterpriseDashboardAutoConfiguration {
         return new DefaultRoutingDecisionMetrics(registry);
     }
 
-    // ========== Vector Store Metrics (1개) ==========
+    
 
-    /**
-     * 5. VectorStoreMetrics - 벡터 저장소 메트릭
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -149,11 +105,9 @@ public class EnterpriseDashboardAutoConfiguration {
         return new VectorStoreMetrics();
     }
 
-    // ========== Unified Metrics (2개) ==========
+    
 
-    /**
-     * 6. UnifiedSecurityMetricsCollector - 통합 보안 메트릭 수집기
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -166,9 +120,7 @@ public class EnterpriseDashboardAutoConfiguration {
         return new UnifiedSecurityMetricsCollector(registry);
     }
 
-    /**
-     * 7. SystemMetricsCollector - 시스템 메트릭 수집기
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -183,11 +135,9 @@ public class EnterpriseDashboardAutoConfiguration {
         return new SystemMetricsCollector(incidentRepository, registry);
     }
 
-    // ========== SOAR Metrics (1개) ==========
+    
 
-    /**
-     * 8. ToolExecutionMetrics - 도구 실행 메트릭
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -200,11 +150,9 @@ public class EnterpriseDashboardAutoConfiguration {
         return new ToolExecutionMetrics(registry);
     }
 
-    // ========== Evolution Metrics (1개) ==========
+    
 
-    /**
-     * 10. EvolutionMetricsCollector - 진화 메트릭 수집기
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(

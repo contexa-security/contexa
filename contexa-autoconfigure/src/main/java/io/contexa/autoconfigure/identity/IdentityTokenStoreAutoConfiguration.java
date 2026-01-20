@@ -26,18 +26,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
-/**
- * 토큰 저장소 자동 설정
- *
- * TokenStoreType 설정에 따라 적절한 RefreshTokenStore 구현체를 자동으로 등록합니다.
- * - MEMORY: 단일 서버 환경용 (기본값)
- * - REDIS: 분산 서버 환경용
- *
- * 보안 강화 기능 활성화 옵션:
- * - spring.auth.enhanced-security: 보안 강화 기능 활성화 (기본값: false)
- *
- * @since 2024.12
- */
+
 @Slf4j
 @AutoConfiguration
 @RequiredArgsConstructor
@@ -48,18 +37,7 @@ public class IdentityTokenStoreAutoConfiguration {
     @Value("${spring.auth.enhanced-security:false}")
     private boolean enhancedSecurityEnabled;
 
-    /**
-     * RefreshTokenStore 빈 자동 등록
-     *
-     * @param jwtDecoder JWT 디코더 (RSA 공개키 사용)
-     * @param redisTemplate Redis 템플릿 (optional)
-     * @param lockService 분산 락 서비스 (optional)
-     * @param eventPublisher 이벤트 발행 서비스 (optional)
-     * @param tokenChainManager 토큰 체인 관리자 (optional - 보안 강화 기능)
-     * @param anomalyDetector 비정상 패턴 감지기 (optional - 보안 강화 기능)
-     * @param managementService 토큰 관리 서비스 (optional - 보안 강화 기능)
-     * @return RefreshTokenStore 구현체
-     */
+    
     @Bean
     @ConditionalOnMissingBean(RefreshTokenStore.class)
     public RefreshTokenStore refreshTokenStore(
@@ -73,13 +51,13 @@ public class IdentityTokenStoreAutoConfiguration {
 
         TokenStoreType storeType = authContextProperties.getTokenStoreType();
 
-        // 메모리 저장소
+        
         if (storeType == TokenStoreType.MEMORY) {
             log.info("Creating memory-based refresh token store for single server environment (RSA-based)");
             return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
         }
 
-        // Redis 저장소
+        
         if (storeType == TokenStoreType.REDIS) {
             if (redisTemplate == null) {
                 log.warn("REDIS token store is configured but Redis is not available. " +
@@ -102,15 +80,12 @@ public class IdentityTokenStoreAutoConfiguration {
             );
         }
 
-        // 기본값
+        
         log.warn("Unknown token store type: {}. Using default MEMORY store.", storeType);
         return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
     }
 
-    /**
-     * RedisDistributedLockService 빈 자동 등록
-     * Redis가 활성화된 경우에만 생성됩니다.
-     */
+    
     @Bean
     @ConditionalOnClass(RedisTemplate.class)
     @ConditionalOnMissingBean(RedisDistributedLockService.class)
@@ -124,10 +99,7 @@ public class IdentityTokenStoreAutoConfiguration {
         return null;
     }
 
-    /**
-     * TokenChainManager 빈 자동 등록
-     * 보안 강화 기능이 활성화된 경우에만 생성됩니다.
-     */
+    
     @Bean
     @ConditionalOnProperty(name = "spring.auth.enhanced-security", havingValue = "true")
     @ConditionalOnMissingBean(TokenChainManager.class)
@@ -143,10 +115,7 @@ public class IdentityTokenStoreAutoConfiguration {
         return null;
     }
 
-    /**
-     * RefreshTokenAnomalyDetector 빈 자동 등록
-     * 보안 강화 기능이 활성화된 경우에만 생성됩니다.
-     */
+    
     @Bean
     @ConditionalOnProperty(name = "spring.auth.enhanced-security", havingValue = "true")
     @ConditionalOnMissingBean(RefreshTokenAnomalyDetector.class)
@@ -163,12 +132,7 @@ public class IdentityTokenStoreAutoConfiguration {
         return null;
     }
 
-    /**
-     * RefreshTokenManagementService 빈 자동 등록
-     * 보안 강화 기능이 활성화되고 EnhancedRefreshTokenStore 인터페이스를 구현한 경우에만 생성됩니다.
-     *
-     * 순환 참조 방지: @Lazy 어노테이션을 사용하여 RefreshTokenStore를 지연 주입합니다.
-     */
+    
     @Bean
     @ConditionalOnProperty(name = "spring.auth.enhanced-security", havingValue = "true")
     @ConditionalOnMissingBean(RefreshTokenManagementService.class)

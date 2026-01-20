@@ -19,9 +19,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-/**
- * IAM AIAM Web Controllers AutoConfiguration
- */
+
 @AutoConfiguration
 @EnableConfigurationProperties(SecurityStepUpProperties.class)
 public class IamAiamWebAutoConfiguration {

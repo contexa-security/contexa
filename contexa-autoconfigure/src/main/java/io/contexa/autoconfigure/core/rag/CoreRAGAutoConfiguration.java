@@ -53,37 +53,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * Core RAG AutoConfiguration
- *
- * Contexa 프레임워크의 RAG 관련 자동 구성을 제공합니다.
- *
- * 포함된 Bean (17개):
- * Observability (1개):
- * - securityVectorStoreObservationConvention - VectorStore 관찰성
- *
- * RAG Advisors (3개):
- * - behaviorAnalysisRagAdvisor - 행동 분석용 RAG Advisor (@Primary)
- * - riskAssessmentRagAdvisor - 위험 평가용 RAG Advisor
- * - policyGenerationRagAdvisor - 정책 생성용 RAG Advisor
- *
- * Query Transformers (3개):
- * - behaviorQueryTransformer - 행동 분석 쿼리 변환기
- * - riskQueryTransformer - 위험 평가 쿼리 변환기
- * - policyQueryTransformer - 정책 생성 쿼리 변환기
- *
- * STD Service Beans (10개):
- * - StandardVectorStoreService, ModelDiscoveryService, AIModelManager
- * - DistributedSessionManager, BehaviorVectorService, RiskAssessmentVectorService
- * - AIModelUsage, DistributedStrategyExecutor, UnifiedVectorService, AINativeProcessor
- *
- * 활성화 조건:
- * contexa:
- *   rag:
- *     enabled: true  (기본값)
- *
- * @since 0.1.0-ALPHA
- */
+
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration.class)
@@ -116,12 +86,7 @@ public class CoreRAGAutoConfiguration {
         log.info("VectorStore Observability: ENABLED");
     }
 
-    /**
-     * VectorStore Observability: SecurityVectorStoreObservationConvention
-     *
-     * Spring AI VectorStore의 모든 작업에 대해 보안 관련 관찰성을 제공합니다.
-     * PgVectorStore가 자동으로 이 Convention을 사용합니다.
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public VectorStoreObservationConvention securityVectorStoreObservationConvention() {
@@ -130,10 +95,7 @@ public class CoreRAGAutoConfiguration {
         return new SecurityVectorStoreObservationConvention();
     }
 
-    /**
-     * 1단계: StandardVectorStoreService
-     * Spring AI 표준 VectorStore 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public StandardVectorStoreService standardVectorStoreService(
@@ -146,10 +108,7 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    /**
-     * 1단계: ModelDiscoveryService
-     * LLM 모델 발견 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public ModelDiscoveryService modelDiscoveryService(
@@ -160,20 +119,14 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    /**
-     * 1단계: AIModelManager
-     * 동적 AI 모델 관리 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public AIModelManager aiModelManager() {
         return new AIModelManager();
     }
 
-    /**
-     * 1단계: DistributedSessionManager
-     * 분산 세션 관리 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public DistributedSessionManager distributedSessionManager(
@@ -184,10 +137,7 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    /**
-     * 2단계: BehaviorVectorService
-     * 행동 분석 전용 벡터 저장소 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
@@ -200,10 +150,7 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    /**
-     * 2단계: RiskAssessmentVectorService
-     * Zero Trust 위험 평가 전용 벡터 저장소 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public RiskAssessmentVectorService riskAssessmentVectorService(
@@ -214,10 +161,7 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    /**
-     * 2단계: AIModelUsage
-     * AI 모델 사용 예시 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public AIModelUsage aiModelUsage(
@@ -225,10 +169,7 @@ public class CoreRAGAutoConfiguration {
         return new AIModelUsage(aiModelManager);
     }
 
-    /**
-     * 2단계: DistributedStrategyExecutor
-     * 분산 전략 실행 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public DistributedStrategyExecutor distributedStrategyExecutor(
@@ -238,10 +179,7 @@ public class CoreRAGAutoConfiguration {
         return new DistributedStrategyExecutor(orchestrator, eventPublisher, strategyRegistry);
     }
 
-    /**
-     * 3단계: UnifiedVectorService
-     * 통합 Vector Store 서비스 (모든 벡터 저장 및 검색의 단일 진입점)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public UnifiedVectorService unifiedVectorService(
@@ -254,10 +192,7 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    /**
-     * 3단계: AINativeProcessor
-     * AI Native IAM Operations Master Brain
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public AINativeProcessor aiNativeProcessor(
@@ -269,13 +204,9 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    // ===== Spring AI RAG Advisors (6개) =====
+    
 
-    /**
-     * RAG 1: 행동 분석용 RAG Advisor
-     *
-     * 사용자 행동 패턴 분석을 위한 특화된 검색 증강 생성 어드바이저입니다.
-     */
+    
     @Bean
     @Primary
     @ConditionalOnMissingBean(name = "behaviorAnalysisRagAdvisor")
@@ -307,11 +238,7 @@ public class CoreRAGAutoConfiguration {
             .build();
     }
 
-    /**
-     * RAG 2: 위험 평가용 RAG Advisor
-     *
-     * 보안 위험 평가를 위한 특화된 검색 증강 생성 어드바이저입니다.
-     */
+    
     @Bean
     @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
@@ -338,11 +265,7 @@ public class CoreRAGAutoConfiguration {
             .build();
     }
 
-    /**
-     * RAG 3: 정책 생성용 RAG Advisor
-     *
-     * AI 기반 정책 생성을 위한 검색 증강 생성 어드바이저입니다.
-     */
+    
     @Bean
     @ConditionalOnMissingBean(name = "policyGenerationRagAdvisor")
     public RetrievalAugmentationAdvisor policyGenerationRagAdvisor(
@@ -366,9 +289,7 @@ public class CoreRAGAutoConfiguration {
             .build();
     }
 
-    /**
-     * Query Transformer 1: 행동 분석 쿼리 변환기
-     */
+    
     @Bean("behaviorQueryTransformer")
     @ConditionalOnMissingBean(name = "behaviorQueryTransformer")
     public QueryTransformer behaviorQueryTransformer(ChatClient.Builder chatClientBuilder) {
@@ -405,9 +326,7 @@ public class CoreRAGAutoConfiguration {
         };
     }
 
-    /**
-     * Query Transformer 2: 위험 평가 쿼리 변환기
-     */
+    
     @Bean("riskQueryTransformer")
     @ConditionalOnMissingBean(name = "riskQueryTransformer")
     public QueryTransformer riskQueryTransformer(ChatClient.Builder chatClientBuilder) {
@@ -444,9 +363,7 @@ public class CoreRAGAutoConfiguration {
         };
     }
 
-    /**
-     * Query Transformer 3: 정책 생성 쿼리 변환기
-     */
+    
     @Bean("policyQueryTransformer")
     @ConditionalOnMissingBean(name = "policyQueryTransformer")
     public QueryTransformer policyQueryTransformer(ChatClient.Builder chatClientBuilder) {

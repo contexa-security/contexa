@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAdminMonitoringAutoConfiguration {
 
-    // Controllers (2개)
+    
     @Bean
     @ConditionalOnMissingBean
     public DashboardController dashboardController(DashboardService dashboardService) {
@@ -34,7 +34,7 @@ public class IamAdminMonitoringAutoConfiguration {
         return new MetricsDashboardController();
     }
 
-    // Services (4개)
+    
     @Bean
     @ConditionalOnMissingBean
     public DashboardService dashboardService(

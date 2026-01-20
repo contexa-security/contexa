@@ -24,9 +24,7 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 
 import java.util.List;
 
-/**
- * XACML PEP (Policy Enforcement Point) AutoConfiguration
- */
+
 @AutoConfiguration
 public class IamXacmlPepAutoConfiguration {
 
@@ -38,11 +36,7 @@ public class IamXacmlPepAutoConfiguration {
         return new ExpressionAuthorizationManagerResolver(evaluators, customWebSecurityExpressionHandler);
     }
 
-    /**
-     * CustomDynamicAuthorizationManager 빈 등록
-     *
-     * AI Native v13.0: ZeroTrustEventPublisher로 변경
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public CustomDynamicAuthorizationManager customDynamicAuthorizationManager(

@@ -49,23 +49,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
 
-/**
- * Core Autonomous Event AutoConfiguration
- *
- * Contexa Core의 Autonomous Event 관련 컴포넌트 자동 구성
- *
- * 포함된 컴포넌트 (약 27개):
- * - Event Listeners (4개)
- * - Event Publishers (5개)
- * - Event Monitoring (2개)
- * - Event Processing (5개)
- * - Orchestrator Handlers (3개)
- * - Orchestrator Strategies (4개)
- * - Security Processors (2개)
- * - Audit & Authorization (2개)
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 @ConditionalOnProperty(
     prefix = "contexa.autonomous",
@@ -76,7 +60,7 @@ import java.util.List;
 @EnableConfigurationProperties({ContexaProperties.class, SecurityPlaneProperties.class})
 public class CoreAutonomousEventAutoConfiguration {
 
-    // ========== Event Listeners ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -100,14 +84,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new KafkaSecurityEventPublisher(kafkaTemplate);
     }
 
-    /**
-     * ZeroTrustEventPublisher - Zero Trust 공통 이벤트 발행 모듈
-     *
-     * AI Native v13.0: 이벤트 기반 Zero Trust 아키텍처
-     *
-     * 모든 보안 이벤트의 단일 발행점으로, Spring Event를 통해
-     * ZeroTrustEventListener로 이벤트를 전달합니다.
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustEventPublisher zeroTrustEventPublisher(
@@ -116,7 +93,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ZeroTrustEventPublisher(applicationEventPublisher, tieredStrategyProperties);
     }
 
-    // ========== Event Monitoring ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -134,7 +111,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new RedisMemoryMonitor(redisTemplate, meterRegistry);
     }
 
-    // ========== Event Processing ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -170,15 +147,15 @@ public class CoreAutonomousEventAutoConfiguration {
         return new EventNormalizer();
     }
 
-//    @Bean
-//    @ConditionalOnMissingBean
+
+
     public SecurityEventPublishingFilter securityEventPublishingFilter(
             ApplicationEventPublisher applicationEventPublisher,
             UnifiedEventPublishingDecisionEngine unifiedEventPublishingDecisionEngine) {
         return new SecurityEventPublishingFilter(applicationEventPublisher, unifiedEventPublishingDecisionEngine);
     }
 
-    // ========== Orchestrator Handlers ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -188,7 +165,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ProcessingExecutionHandler(processingStrategies, applicationEventPublisher);
     }
 
-    // AI Native: SessionInvalidationHandler 제거 (ZeroTrustSecurityService의 BLOCK action으로 대체)
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -196,7 +173,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new SecurityPlaneEventListener(securityPlaneAgent);
     }
 
-    // ========== Orchestrator Strategies ==========
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -204,7 +181,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ColdPathStrategy(coldPathEventProcessor);
     }
 
-    // AI Native: HotPathStrategy 제거 (삭제된 Hot Path 전략)
+    
 
     @Bean
     @ConditionalOnMissingBean
@@ -218,15 +195,9 @@ public class CoreAutonomousEventAutoConfiguration {
         return new SoarOrchestrationStrategy();
     }
 
-    // ========== Security Processors ==========
+    
 
-    /**
-     * ColdPathEventProcessor - Cold Path 이벤트 처리기 (AI Native)
-     *
-     * AI Native 전환:
-     * - ZeroTrustDecisionEngine 제거
-     * - HotPathEventProcessor 제거 (모든 요청은 Cold Path)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public ColdPathEventProcessor coldPathEventProcessor(
@@ -236,14 +207,9 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ColdPathEventProcessor(redisTemplate, contextualStrategy, expertStrategy);
     }
 
-    // ========== Post Processor ==========
+    
 
-    /**
-     * SecurityDecisionPostProcessor - AI Native v6.8
-     *
-     * Layer1ContextualStrategy와 ZeroTrustEventListener에서 공통으로 사용하는
-     * 세션 컨텍스트 업데이트 및 벡터 스토어 저장 로직을 통합합니다.
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
@@ -252,7 +218,7 @@ public class CoreAutonomousEventAutoConfiguration {
         return new SecurityDecisionPostProcessor(redisTemplate, unifiedVectorService);
     }
 
-    // ========== Audit & Authorization ==========
+    
 
     @Bean
     @ConditionalOnMissingBean

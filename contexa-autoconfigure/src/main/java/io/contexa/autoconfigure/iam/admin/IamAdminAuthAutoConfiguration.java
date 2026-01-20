@@ -25,7 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @AutoConfiguration
 public class IamAdminAuthAutoConfiguration {
 
-    // Controllers (8개)
+    
     @Bean
     @ConditionalOnMissingBean
     public LoginController loginController() {
@@ -94,7 +94,7 @@ public class IamAdminAuthAutoConfiguration {
         return new DocumentController(documentService);
     }
 
-    // Services (6개)
+    
     @Bean("userManagementService")
     @ConditionalOnMissingBean
     public UserManagementService userManagementService(

@@ -22,47 +22,11 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 
-/**
- * IAM Security AutoConfiguration
- *
- * <p>
- * Spring Security Method Security Expression Handler를 제공합니다.
- * </p>
- *
- * <h3>등록되는 빈:</h3>
- * <ul>
- *   <li>MethodSecurityExpressionHandler - XACML 기반 메서드 보안 표현식 핸들러</li>
- * </ul>
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 public class IamSecurityAutoConfiguration {
 
-    /**
-     * Method Security Expression Handler
-     *
-     * <p>
-     * XACML 기반 메서드 보안 표현식 처리를 제공합니다.
-     * </p>
-     *
-     * @param zeroTrustMode Zero Trust 모드 (STANDARD, TRUST, REALTIME)
-     * @param customPermissionEvaluator 커스텀 권한 평가자
-     * @param roleHierarchy 역할 계층
-     * @param policyRetrievalPoint 정책 조회 포인트
-     * @param contextHandler 컨텍스트 핸들러
-     * @param attributePIP 속성 정보 포인트
-     * @param auditLogService 감사 로그 서비스
-     * @param aINativeProcessor AI 네이티브 프로세서
-     * @param auditLogRepository 감사 로그 레포지토리
-     * @param applicationContext 애플리케이션 컨텍스트
-     * @param userRepository 사용자 레포지토리
-     * @param groupRepository 그룹 레포지토리
-     * @param documentRepository 문서 레포지토리
-     * @param redisTemplate Trust Score Redis 템플릿
-     * @param stringRedisTemplate String Redis 템플릿
-     * @return MethodSecurityExpressionHandler
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public MethodSecurityExpressionHandler methodSecurityExpressionHandler(

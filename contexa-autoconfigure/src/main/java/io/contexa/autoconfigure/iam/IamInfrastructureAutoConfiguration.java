@@ -23,36 +23,12 @@ import reactor.netty.resources.ConnectionProvider;
 
 import java.time.Duration;
 
-/**
- * IAM 인프라 AutoConfiguration
- *
- * <p>
- * Querydsl, WebClient 등 IAM 기본 인프라 설정을 제공합니다.
- * </p>
- *
- * <h3>등록되는 빈:</h3>
- * <ul>
- *   <li>JPAQueryFactory - Querydsl JPA 쿼리 팩토리</li>
- *   <li>AuthorizationManagerMethodInterceptor - @Protectable 메서드 인터셉터</li>
- *   <li>WebClientCustomizer - AI 클라이언트용 WebClient 커스터마이저</li>
- * </ul>
- *
- * @since 0.1.0-ALPHA
- */
+
 @Slf4j
 @AutoConfiguration
 public class IamInfrastructureAutoConfiguration {
 
-    /**
-     * Querydsl JPA 쿼리 팩토리
-     *
-     * <p>
-     * Querydsl을 사용한 타입 안전 JPA 쿼리를 생성하기 위한 팩토리입니다.
-     * </p>
-     *
-     * @param entityManager JPA EntityManager
-     * @return JPAQueryFactory
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public JPAQueryFactory jpaQueryFactory(EntityManager entityManager) {
@@ -60,22 +36,9 @@ public class IamInfrastructureAutoConfiguration {
         return new JPAQueryFactory(entityManager);
     }
 
-    /**
-     * @Protectable 어노테이션 메서드 인터셉터
-     *
-     * <p>
-     * @Protectable 어노테이션이 적용된 메서드에 대한 XACML 기반 인가 처리를 수행합니다.
-     * meterRegistryPostProcessor 빈이 존재할 때만 활성화됩니다.
-     * </p>
-     *
-     * AI Native v13.0: ZeroTrustEventPublisher로 변경
-     *
-     * @param protectableMethodAuthorizationManager XACML 기반 메서드 인가 관리자
-     * @param zeroTrustEventPublisher Zero Trust 이벤트 발행자
-     * @return AuthorizationManagerMethodInterceptor
-     */
+    
     @Bean
-//    @ConditionalOnBean(name = "meterRegistryPostProcessor")
+
     @ConditionalOnMissingBean
     public AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
             ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,
@@ -90,15 +53,7 @@ public class IamInfrastructureAutoConfiguration {
         return interceptor;
     }
 
-    /**
-     * @Protectable 어노테이션 포인트컷 생성
-     *
-     * <p>
-     * 클래스 레벨 또는 메서드 레벨에 @Protectable 어노테이션이 적용된 경우를 매칭합니다.
-     * </p>
-     *
-     * @return Pointcut
-     */
+    
     private static Pointcut classOrMethod() {
         return Pointcuts.union(
             new AnnotationMatchingPointcut(null, Protectable.class, true),
@@ -112,32 +67,20 @@ public class IamInfrastructureAutoConfiguration {
         return new RoleHierarchyImpl();
     }
 
-    /**
-     * AI 클라이언트용 WebClient 커스터마이저
-     *
-     * <p>
-     * AI API 호출에 최적화된 WebClient 설정을 제공합니다:
-     * </p>
-     * <ul>
-     *   <li>커넥션 풀: 최대 50개 커넥션</li>
-     *   <li>응답 타임아웃: 3분 (AI 응답 대기 시간 고려)</li>
-     * </ul>
-     *
-     * @return WebClientCustomizer
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public WebClientCustomizer webClientCustomizer() {
         log.info("WebClientCustomizer 빈 등록 (AI 클라이언트용 최적화 설정)");
 
-        // ConnectionProvider 생성 (최대 50개 커넥션)
+        
         ConnectionProvider provider = ConnectionProvider.create("custom-ai-pool", 50);
 
-        // HttpClient 생성 (3분 타임아웃)
+        
         HttpClient httpClient = HttpClient.create(provider)
                 .responseTimeout(Duration.ofMinutes(3));
 
-        // WebClient.Builder에 적용
+        
         return builder -> builder.clientConnector(new ReactorClientHttpConnector(httpClient));
     }
 }

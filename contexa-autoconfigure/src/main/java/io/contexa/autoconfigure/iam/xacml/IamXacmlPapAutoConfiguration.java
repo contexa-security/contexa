@@ -38,13 +38,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 
-/**
- * XACML PAP (Policy Administration Point) AutoConfiguration
- */
+
 @AutoConfiguration
 public class IamXacmlPapAutoConfiguration {
 
-    // Services (6개)
+    
     @Bean
     @ConditionalOnMissingBean
     public PolicyEnrichmentService policyEnrichmentService(PolicyTranslator policyTranslator) {
@@ -113,7 +111,7 @@ public class IamXacmlPapAutoConfiguration {
                 conditionTemplateRepository, policyEnrichmentService, authorizationManager);
     }
 
-    // Controllers (3개)
+    
     @Bean
     @ConditionalOnMissingBean
     public BusinessPolicyController businessPolicyController(

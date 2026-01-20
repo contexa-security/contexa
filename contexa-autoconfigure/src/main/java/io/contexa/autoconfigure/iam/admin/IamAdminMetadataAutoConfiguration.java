@@ -31,7 +31,7 @@ import org.springframework.context.annotation.Lazy;
 @AutoConfiguration
 public class IamAdminMetadataAutoConfiguration {
 
-    // Controllers (4개)
+    
     @Bean
     @ConditionalOnMissingBean
     public FunctionCatalogController functionCatalogController(
@@ -67,7 +67,7 @@ public class IamAdminMetadataAutoConfiguration {
                 businessMetadataService, modelMapper, permissionCatalogService);
     }
 
-    // Services (3개)
+    
     @Bean
     @ConditionalOnMissingBean
     public FunctionCatalogService functionCatalogService(

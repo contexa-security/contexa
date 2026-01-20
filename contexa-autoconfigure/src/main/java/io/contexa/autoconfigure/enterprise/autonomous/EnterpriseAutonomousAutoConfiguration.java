@@ -43,13 +43,13 @@ import io.contexa.contexacoreenterprise.autonomous.orchestrator.strategy.AwaitAp
 import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
 import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
-// AI Native v4.0: VectorLearningScheduler import 제거 (클래스 삭제됨)
+
 import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
 import io.contexa.contexacoreenterprise.autonomous.scheduler.StaticAnalysisScheduler;
 import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
-// ProposalToPolicyConverter는 같은 패키지에 위치 (io.contexa.autoconfigure.enterprise.autonomous)
+
 import io.contexa.contexacore.autonomous.notification.NotificationService;
-// PolicyActivationEventListener는 같은 패키지에 위치 (io.contexa.autoconfigure.enterprise.autonomous)
+
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -58,7 +58,7 @@ import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationSer
 import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-// AI Native v4.0: HCADVectorIntegrationService import 제거 (클래스 삭제됨)
+
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.opentelemetry.api.trace.Tracer;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,46 +74,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-/**
- * Enterprise Autonomous AutoConfiguration
- *
- * Contexa Enterprise 모듈의 Autonomous Policy Evolution 자동 구성을 제공합니다.
- * @Bean 방식으로 Enterprise Autonomous 서비스들을 명시적으로 등록합니다.
- *
- * 포함된 컴포넌트 (27개):
- * Level 1-4: Core Services (5개)
- * - PolicyApprovalService, PolicyEvolutionEngine, PolicyEvolutionGovernance
- * - PolicyActivationServiceImpl, AutonomousLearningCoordinator
- *
- * Level 5: Evolution Lab Integration (6개)
- * - AITuningService, AccessGovernanceLabConnector, BehavioralAnalysisLabConnector
- * - IntegratedThreatEvaluator, PolicyEvolutionLabIntegration, PolicyEvolutionLab
- *
- * Level 6: Helper Classes (3개)
- * - PolicyEvolutionHelper, LearningEngineHelper, MemorySystemHelper
- *
- * Level 7: Independent Services (8개)
- * - XAIReportingService, PolicyAuditLogger, PolicyUsageMetricsService
- * - SlackNotificationAdapter, SmsNotificationAdapter, DefaultNotificationService
- * - SoarNotifierImpl, AwaitApprovalStrategy
- *
- * Level 8: Intermediate Services (3개)
- * - UnifiedNotificationService, PolicyProposalManagementService, ApprovalWorkflow
- *
- * Level 9: Service (1개)
- * - AsyncResultDeliveryService
- * (AI Native v4.0: VectorLearningScheduler 제거됨)
- *
- * 활성화 조건:
- * contexa:
- *   enterprise:
- *     enabled: true
- *   autonomous:
- *     policy-evolution:
- *       enabled: true  (기본값)
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
 @ConditionalOnProperty(
@@ -126,14 +87,12 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 public class EnterpriseAutonomousAutoConfiguration {
 
     public EnterpriseAutonomousAutoConfiguration() {
-        // @Bean 방식으로 Enterprise Autonomous 서비스 등록
+        
     }
 
-    // ========== Level 1: 독립적 서비스 (2개) ==========
+    
 
-    /**
-     * 1-1. PolicyApprovalService - 정책 승인 워크플로우 관리
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -149,9 +108,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyApprovalService(proposalRepository, eventPublisher);
     }
 
-    /**
-     * 1-2. PolicyEvolutionEngine - 정책 진화 엔진
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -172,11 +129,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    // ========== Level 2: Level 1 의존 (1개) ==========
+    
 
-    /**
-     * 2-1. PolicyEvolutionGovernance - 정책 진화 거버넌스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -195,11 +150,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    // ========== Level 3: PolicyActivationService 구현체 (1개) ==========
+    
 
-    /**
-     * 3-1. PolicyActivationServiceImpl - 정책 활성화 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean(PolicyActivationService.class)
     @ConditionalOnProperty(
@@ -212,11 +165,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyActivationServiceImpl();
     }
 
-    // ========== Level 4: 최상위 코디네이터 (1개) ==========
+    
 
-    /**
-     * 4-1. AutonomousLearningCoordinator - 자율 학습 코디네이터
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -237,11 +188,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    // ========== Level 5: Evolution Lab 연동 및 Intelligence (6개) ==========
+    
 
-    /**
-     * 5-1. AITuningService - AI 모델 자동 튜닝 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -256,9 +205,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new AITuningService(vectorStore, redisTemplate);
     }
 
-    /**
-     * 5-2. AccessGovernanceLabConnector - Access Governance Lab 연동 커넥터
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -271,9 +218,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new AccessGovernanceLabConnector();
     }
 
-    /**
-     * 5-3. BehavioralAnalysisLabConnector - Behavioral Analysis Lab 연동 커넥터
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -286,9 +231,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new BehavioralAnalysisLabConnector();
     }
 
-    /**
-     * 5-4. IntegratedThreatEvaluator - 통합 위협 평가기
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -303,9 +246,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new IntegratedThreatEvaluator(redisAtomicOperations, redisTemplate);
     }
 
-    /**
-     * 5-5. PolicyEvolutionLabIntegration - Policy Evolution Lab 통합
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -320,9 +261,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyEvolutionLabIntegration(proposalManagementService, eventPublisher);
     }
 
-    /**
-     * 5-6. PolicyEvolutionLab - Policy Evolution Lab (Enterprise AI Lab)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -340,11 +279,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyEvolutionLab(tracer, chatModel, policyEvolutionHelper, learningEngineHelper, memorySystemHelper);
     }
 
-    // ========== Level 6: Helper 클래스 (3개) ==========
+    
 
-    /**
-     * 6-1. PolicyEvolutionHelper - 정책 진화 헬퍼
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -359,9 +296,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyEvolutionHelper(unifiedVectorService, tuningService);
     }
 
-    /**
-     * 6-2. LearningEngineHelper - 학습 엔진 헬퍼
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -376,9 +311,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new LearningEngineHelper(tuningService, stateManager);
     }
 
-    /**
-     * 6-3. MemorySystemHelper - 메모리 시스템 헬퍼
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -395,11 +328,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new MemorySystemHelper(unifiedVectorService, standardVectorStoreService, stateManager, redisTemplate);
     }
 
-    // ========== Level 7: 독립적/낮은 의존성 클래스 (8개) ==========
+    
 
-    /**
-     * 7-1. XAIReportingService - 설명 가능한 AI 리포팅
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -414,9 +345,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new XAIReportingService(vectorStore, redisTemplate);
     }
 
-    /**
-     * 7-2. PolicyAuditLogger - 정책 감사 로거
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -430,11 +359,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyAuditLogger(synthesisPolicyRepository);
     }
 
-    /**
-     * 7-3. PolicyUsageMetricsService - 정책 사용 메트릭
-     *
-     * ContexaCacheService를 통한 2-Level 캐시로 정책 효과 분석 결과를 캐싱합니다.
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -449,9 +374,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyUsageMetricsService(proposalRepository, cacheService);
     }
 
-    /**
-     * 7-4. SlackNotificationAdapter - Slack 알림 어댑터
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -465,9 +388,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new SlackNotificationAdapter(objectMapper);
     }
 
-    /**
-     * 7-5. SmsNotificationAdapter - SMS 알림 어댑터
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -481,9 +402,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new SmsNotificationAdapter(objectMapper);
     }
 
-    /**
-     * 7-6. DefaultNotificationService - 기본 알림 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -496,9 +415,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new DefaultNotificationService();
     }
 
-    /**
-     * 7-7. SoarNotifierImpl - SOAR 알림 구현체
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -511,9 +428,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new SoarNotifierImpl();
     }
 
-    /**
-     * 7-8. AwaitApprovalStrategy - 승인 대기 전략
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -528,11 +443,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new AwaitApprovalStrategy(redisTemplate, eventPublisher);
     }
 
-    // ========== Level 8: 중간 의존성 클래스 (3개) ==========
+    
 
-    /**
-     * 8-1. UnifiedNotificationService - 통합 알림 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -550,10 +463,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new UnifiedNotificationService(emailService, websocketService, slackAdapter, smsAdapter, redisTemplate);
     }
 
-    /**
-     * 8-2. PolicyProposalManagementService - 정책 제안 관리 서비스
-     * IPolicyProposalManagementService 인터페이스로 빈 등록
-     */
+    
     @Bean
     @ConditionalOnMissingBean(IPolicyProposalManagementService.class)
     @ConditionalOnProperty(
@@ -570,9 +480,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyProposalManagementService(proposalRepository, governance, auditLogger, eventPublisher);
     }
 
-    /**
-     * 8-3. ApprovalWorkflow - 승인 워크플로우
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -587,11 +495,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new ApprovalWorkflow(redisTemplate, authService);
     }
 
-    // ========== Level 9: Service 및 Scheduler (2개) ==========
+    
 
-    /**
-     * 9-1. AsyncResultDeliveryService - 비동기 결과 전달 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -613,14 +519,12 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    // AI Native v4.0: VectorLearningScheduler 제거
-    // - HCADVectorIntegrationService와 함께 삭제
-    // - Cold Path ↔ Hot Path 동기화 불필요 (LLM이 직접 Redis에 저장)
-    // - 임베딩 캐시 정리는 Redis TTL로 자동 처리
+    
+    
+    
+    
 
-    /**
-     * 9-2. PolicyChangeEventListener - 정책 변경 이벤트 리스너
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -638,9 +542,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    /**
-     * 9-4. StaticAnalysisScheduler - 정적 분석 스케줄러
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -662,11 +564,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    // ========== Level 10: Controller (1개) ==========
+    
 
-    /**
-     * 10-1. PolicyWorkbenchController - 정책 워크벤치 컨트롤러
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -688,14 +588,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    // ========== Level 11: AI Policy - XACML PAP 연동 (2개) ==========
+    
 
-    /**
-     * 11-1. ProposalToPolicyConverter - AI 정책 제안을 XACML Policy로 변환
-     *
-     * PolicyEvolutionProposal을 PolicyDto로 변환하여
-     * XACML PAP(Policy Administration Point)에서 사용할 수 있게 합니다.
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -708,15 +603,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new ProposalToPolicyConverter();
     }
 
-    /**
-     * 11-2. PolicyActivationEventListener - AI 정책 활성화 이벤트 처리
-     *
-     * PolicyActivationServiceImpl.PolicyChangeEvent를 수신하여
-     * 승인된 AI 정책을 실제 XACML Policy로 변환하고 Spring Security에 적용합니다.
-     *
-     * 이 리스너가 AI Policy와 Spring Security 간의 핵심 연결점입니다:
-     * PolicyEvolutionProposal -> PolicyDto -> Policy -> Spring Security
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
@@ -741,17 +628,7 @@ public class EnterpriseAutonomousAutoConfiguration {
         );
     }
 
-    /**
-     * 11-3. SpelValidationService - AI 생성 SpEL 표현식 검증 서비스
-     *
-     * PolicyEvolutionEngine이 AI로부터 받은 SpEL 표현식이
-     * 실제 Contexa 보안 시스템에서 실행 가능한지 검증합니다.
-     *
-     * 검증 항목:
-     * 1. SpEL 구문 유효성
-     * 2. 허용된 메서드/변수만 사용하는지 확인 (#trust.*, #ai.*, hasRole 등)
-     * 3. 보안 위험 패턴 탐지 (코드 인젝션 방지)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(

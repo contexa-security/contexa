@@ -19,30 +19,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * Identity Service AutoConfiguration
- *
- * <p>
- * Contexa Identity의 Service 관련 자동 구성을 제공합니다.
- * UserDetailsService, URL Provider, OTT 서비스 등을 명시적으로 등록합니다.
- * </p>
- *
- * <h3>등록되는 빈:</h3>
- * <ul>
- *   <li>Core Services (1개): AuthUrlProvider</li>
- *   <li>OTT Services (4개): EmailService, EmailOneTimeTokenService, MagicLinkHandler, InMemoryCodeStore</li>
- * </ul>
- *
- * <h3>활성화 조건:</h3>
- * <pre>
- * contexa:
- *   identity:
- *     service:
- *       enabled: true  # (기본값)
- * </pre>
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 @ConditionalOnProperty(
     prefix = "contexa.identity.service",
@@ -53,35 +30,28 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class IdentityServiceAutoConfiguration {
 
     public IdentityServiceAutoConfiguration() {
-        // Service 관련 빈 등록
+        
     }
 
-    // ========== Level 1: Core Services (1개) ==========
+    
 
-    /**
-     * 1-1. AuthUrlProvider - 인증 URL 제공 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public AuthUrlProvider authUrlProvider(AuthContextProperties properties) {
         return new AuthUrlProvider(properties);
     }
 
-    // ========== Level 2: OTT Services (4개) ==========
+    
 
-    /**
-     * 2-1. EmailService - 이메일 발송 서비스
-     * JavaMailSender가 있으면 실제 이메일을 발송하고, 없으면 로그만 출력
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public EmailService emailService(@Autowired(required = false) JavaMailSender mailSender) {
         return new EmailService(mailSender);
     }
 
-    /**
-     * 2-2. OneTimeTokenService - 이메일 기반 OTT 서비스
-     */
+    
     @Bean
     @ConditionalOnMissingBean(OneTimeTokenService.class)
     public OneTimeTokenService oneTimeTokenService(
@@ -97,18 +67,14 @@ public class IdentityServiceAutoConfiguration {
         );
     }
 
-    /**
-     * 2-3. MagicLinkHandler - Magic Link 핸들러
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public MagicLinkHandler magicLinkHandler() {
         return new MagicLinkHandler();
     }
 
-    /**
-     * 2-4. InMemoryCodeStore - 인메모리 코드 저장소
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public InMemoryCodeStore inMemoryCodeStore() {

@@ -27,13 +27,11 @@ import org.springframework.context.annotation.Bean;
 
 import java.util.List;
 
-/**
- * XACML PDP (Policy Decision Point) AutoConfiguration
- */
+
 @AutoConfiguration
 public class IamXacmlPdpAutoConfiguration {
 
-    // Translators (6개)
+    
     @Bean
     @ConditionalOnMissingBean
     public RoleFunctionTranslator roleFunctionTranslator() {
@@ -74,7 +72,7 @@ public class IamXacmlPdpAutoConfiguration {
         return new PolicyTranslator(roleRepository, groupRepository, permissionRepository, translators);
     }
 
-    // Evaluators (4개)
+    
     @Bean
     @ConditionalOnMissingBean
     public WebSpelExpressionEvaluator webSpelExpressionEvaluator() {
@@ -105,7 +103,7 @@ public class IamXacmlPdpAutoConfiguration {
                 contextHandler, attributePIP, aiNativeProcessor, auditLogRepository, applicationContext);
     }
 
-    // Permission Evaluator (1개)
+    
     @Bean
     @ConditionalOnMissingBean
     public CustomPermissionEvaluator customPermissionEvaluator(

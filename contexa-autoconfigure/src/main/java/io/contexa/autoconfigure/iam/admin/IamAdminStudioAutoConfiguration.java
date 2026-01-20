@@ -22,7 +22,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAdminStudioAutoConfiguration {
 
-    // Controllers (1개)
+    
     @Bean
     @ConditionalOnMissingBean
     public AuthorizationStudioController authorizationStudioController(
@@ -32,7 +32,7 @@ public class IamAdminStudioAutoConfiguration {
         return new AuthorizationStudioController(explorerService, visualizerService, actionService);
     }
 
-    // Services (3개)
+    
     @Bean
     @ConditionalOnMissingBean
     public StudioExplorerService studioExplorerService(

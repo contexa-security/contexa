@@ -12,17 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
-/**
- * Core Infrastructure Extended AutoConfiguration
- *
- * Contexa Core의 Infrastructure 관련 컴포넌트 자동 구성
- *
- * 포함된 컴포넌트 (2개):
- * - RedisAtomicOperations
- * - RedisEventListener
- *
- * @since 0.1.0-ALPHA
- */
+
 @AutoConfiguration
 @ConditionalOnProperty(
     prefix = "contexa.infrastructure",

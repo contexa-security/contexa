@@ -26,52 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-/**
- * Enterprise MCP Tool AutoConfiguration
- *
- * <p>
- * <strong>Enterprise Edition 전용</strong> - MCP (Model Context Protocol) 도구 시스템 자동 구성
- * </p>
- *
- * <p>
- * 이 AutoConfiguration은 상용 버전(contexa-core-enterprise)에서만 활성화됩니다.
- * 커뮤니티 버전(contexa-core)에서는 로드되지 않습니다.
- * </p>
- *
- * <h3>등록되는 빈:</h3>
- * <ul>
- *   <li>ToolCallbackProvider - MCP Tool Provider</li>
- *   <li>List&lt;SyncResourceSpecification&gt; - MCP Resources (보안 로그, 시스템 정보)</li>
- *   <li>List&lt;SyncPromptSpecification&gt; - MCP Prompts (보안 분석)</li>
- *   <li>List&lt;SyncCompletionSpecification&gt; - MCP Completions (명령어 자동 완성)</li>
- *   <li>McpServerInfoLogger - MCP 서버 정보 로거</li>
- * </ul>
- *
- * <h3>활성화 조건:</h3>
- * <pre>
- * contexa:
- *   enterprise:
- *     enabled: true  # Enterprise 버전 활성화 (필수)
- *
- * spring:
- *   ai:
- *     mcp:
- *       server:
- *         enabled: true  # MCP 서버 활성화 (선택, 기본값 true)
- * </pre>
- *
- * <h3>자동 스캔 컴포넌트:</h3>
- * <ul>
- *   <li>Services: AuditLogService, IpBlockingService, UserSessionService</li>
- *   <li>Resources: SecurityLogResource, SystemInfoResource</li>
- *   <li>Prompts: SecurityAnalysisPrompts</li>
- *   <li>Completions: SecurityCommandCompletion</li>
- *   <li>Event Listeners: SimpleToolEventListener</li>
- *   <li>Tools: 9개 MCP Tool 구현체 (@Component + @Tool)</li>
- * </ul>
- *
- * @since 0.1.0-ALPHA
- */
+
 @Slf4j
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexamcp.tools.NetworkScanTool")
@@ -93,162 +48,118 @@ import java.util.List;
 })
 public class EnterpriseMcpAutoConfiguration {
 
-    // ========================================
-    // Level 1: MCP Tools (9개)
-    // ========================================
+    
+    
+    
 
-    /**
-     * 1. NetworkScanTool - 네트워크 스캔 도구
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public NetworkScanTool networkScanTool() {
         return new NetworkScanTool();
     }
 
-    /**
-     * 2. LogAnalysisTool - 로그 분석 도구
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public LogAnalysisTool logAnalysisTool() {
         return new LogAnalysisTool();
     }
 
-    /**
-     * 3. ThreatIntelligenceTool - 위협 인텔리전스 도구
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public ThreatIntelligenceTool threatIntelligenceTool() {
         return new ThreatIntelligenceTool();
     }
 
-    /**
-     * 4. FileQuarantineTool - 파일 격리 도구
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public FileQuarantineTool fileQuarantineTool() {
         return new FileQuarantineTool();
     }
 
-    /**
-     * 5. ProcessKillTool - 프로세스 종료 도구
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public ProcessKillTool processKillTool() {
         return new ProcessKillTool();
     }
 
-    /**
-     * 6. NetworkIsolationTool - 네트워크 격리 도구
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public NetworkIsolationTool networkIsolationTool() {
         return new NetworkIsolationTool();
     }
 
-    /**
-     * 7. AuditLogQueryTool - 감사 로그 조회 도구 (의존성: AuditLogService)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public AuditLogQueryTool auditLogQueryTool(AuditLogService auditLogService) {
         return new AuditLogQueryTool(auditLogService);
     }
 
-    /**
-     * 8. IpBlockingTool - IP 차단 도구 (의존성: IpBlockingService)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public IpBlockingTool ipBlockingTool(IpBlockingService ipBlockingService) {
         return new IpBlockingTool(ipBlockingService);
     }
 
-    /**
-     * 9. SessionTerminationTool - 세션 종료 도구 (의존성: UserSessionService)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public SessionTerminationTool sessionTerminationTool(UserSessionService userSessionService) {
         return new SessionTerminationTool(userSessionService);
     }
 
-    // ========================================
-    // Level 2: MCP Resources (2개)
-    // ========================================
+    
+    
+    
 
-    /**
-     * 1. SecurityLogResource - 보안 로그 리소스 (의존성: ObjectMapper)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public SecurityLogResource securityLogResource(ObjectMapper objectMapper) {
         return new SecurityLogResource(objectMapper);
     }
 
-    /**
-     * 2. SystemInfoResource - 시스템 정보 리소스 (의존성: ObjectMapper)
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public SystemInfoResource systemInfoResource(ObjectMapper objectMapper) {
         return new SystemInfoResource(objectMapper);
     }
 
-    // ========================================
-    // Level 3: MCP Prompts (1개)
-    // ========================================
+    
+    
+    
 
-    /**
-     * SecurityAnalysisPrompts - 보안 분석 프롬프트
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public SecurityAnalysisPrompts securityAnalysisPrompts() {
         return new SecurityAnalysisPrompts();
     }
 
-    // ========================================
-    // Level 4: MCP Completions (1개)
-    // ========================================
+    
+    
+    
 
-    /**
-     * SecurityCommandCompletion - 보안 명령어 자동 완성
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public SecurityCommandCompletion securityCommandCompletion() {
         return new SecurityCommandCompletion();
     }
 
-    // ========================================
-    // Level 5: MCP Aggregators (기존 유지)
-    // ========================================
+    
+    
+    
 
-    /**
-     * MCP Tool Provider 등록
-     *
-     * <p>
-     * @Tool 어노테이션이 있는 도구들을 MCP에 노출합니다.
-     * Spring AI 예제 패턴을 따릅니다.
-     * </p>
-     *
-     * @param networkScanTool 네트워크 스캔 도구
-     * @param logAnalysisTool 로그 분석 도구
-     * @param threatIntelligenceTool 위협 인텔리전스 도구
-     * @param fileQuarantineTool 파일 격리 도구
-     * @param processKillTool 프로세스 종료 도구
-     * @param networkIsolationTool 네트워크 격리 도구
-     * @param auditLogQueryTool 감사 로그 조회 도구
-     * @param ipBlockingTool IP 차단 도구
-     * @param sessionTerminationTool 세션 종료 도구
-     * @return ToolCallbackProvider
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public ToolCallbackProvider mcpToolProvider(
@@ -283,17 +194,7 @@ public class EnterpriseMcpAutoConfiguration {
         return provider;
     }
 
-    /**
-     * MCP Resources 등록
-     *
-     * <p>
-     * 보안 로그, 시스템 정보 등을 리소스로 노출합니다.
-     * </p>
-     *
-     * @param securityLogResource 보안 로그 리소스
-     * @param systemInfoResource 시스템 정보 리소스
-     * @return MCP 리소스 목록
-     */
+    
     @Bean
     @ConditionalOnMissingBean(name = "mcpResources")
     public List<McpServerFeatures.SyncResourceSpecification> mcpResources(
@@ -304,11 +205,11 @@ public class EnterpriseMcpAutoConfiguration {
 
         List<McpServerFeatures.SyncResourceSpecification> resources = new ArrayList<>();
 
-        // 보안 로그 리소스
+        
         resources.add(securityLogResource.createSpecification());
         log.info("  Resource 등록: Security Logs (security://logs/current)");
 
-        // 시스템 정보 리소스
+        
         resources.add(systemInfoResource.createSpecification());
         log.info("  Resource 등록: System Info (security://system/info)");
 
@@ -317,16 +218,7 @@ public class EnterpriseMcpAutoConfiguration {
         return resources;
     }
 
-    /**
-     * MCP Prompts 등록
-     *
-     * <p>
-     * 보안 분석을 위한 프롬프트 템플릿을 제공합니다.
-     * </p>
-     *
-     * @param securityAnalysisPrompts 보안 분석 프롬프트
-     * @return MCP 프롬프트 목록
-     */
+    
     @Bean
     @ConditionalOnMissingBean(name = "mcpPrompts")
     public List<McpServerFeatures.SyncPromptSpecification> mcpPrompts(
@@ -336,11 +228,11 @@ public class EnterpriseMcpAutoConfiguration {
 
         List<McpServerFeatures.SyncPromptSpecification> prompts = new ArrayList<>();
 
-        // 로그 분석 프롬프트
+        
         prompts.add(securityAnalysisPrompts.createLogAnalysisSpec());
         log.info("  Prompt 등록: analyze_security_logs");
 
-        // 위협 평가 프롬프트
+        
         prompts.add(securityAnalysisPrompts.createThreatAssessmentSpec());
         log.info("  Prompt 등록: assess_threat_level");
 
@@ -349,21 +241,7 @@ public class EnterpriseMcpAutoConfiguration {
         return prompts;
     }
 
-    /**
-     * MCP Completions 등록
-     *
-     * <p>
-     * 보안 명령어 자동 완성 기능을 제공합니다.
-     * </p>
-     *
-     * <p>
-     * 현재 Spring AI MCP의 Completion API가 완전히 정의되지 않아
-     * 빈 목록을 반환하지만, 향후 확장을 위해 구조를 유지합니다.
-     * </p>
-     *
-     * @param securityCommandCompletion 보안 명령어 자동 완성
-     * @return MCP 자동 완성 목록
-     */
+    
     @Bean
     @ConditionalOnMissingBean(name = "mcpCompletions")
     public List<McpServerFeatures.SyncCompletionSpecification> mcpCompletions(
@@ -373,7 +251,7 @@ public class EnterpriseMcpAutoConfiguration {
 
         List<McpServerFeatures.SyncCompletionSpecification> completions = new ArrayList<>();
 
-        // SecurityCommandCompletion의 정보 생성
+        
         var completionInfo = securityCommandCompletion.createCompletionSpecification();
         if (completionInfo != null) {
             log.info("  Completion 정보 생성: {} - {} 개 명령어",
@@ -388,29 +266,14 @@ public class EnterpriseMcpAutoConfiguration {
         return completions;
     }
 
-    /**
-     * MCP 서버 정보 로거
-     *
-     * <p>
-     * 애플리케이션 시작 시 MCP 설정 정보를 출력하여
-     * 운영자가 확인할 수 있도록 합니다.
-     * </p>
-     *
-     * @return MCP 서버 정보 로거
-     */
+    
     @Bean
     @ConditionalOnMissingBean
     public McpServerInfoLogger mcpServerInfoLogger() {
         return new McpServerInfoLogger();
     }
 
-    /**
-     * MCP 서버 정보 로거
-     *
-     * <p>
-     * 시작 시 MCP 서버 구성 정보를 로깅하여 운영자가 확인할 수 있도록 합니다.
-     * </p>
-     */
+    
     public static class McpServerInfoLogger {
 
         public McpServerInfoLogger() {

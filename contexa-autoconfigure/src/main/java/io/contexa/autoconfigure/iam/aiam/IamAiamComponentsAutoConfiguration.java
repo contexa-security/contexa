@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAiamComponentsAutoConfiguration {
 
-    // PromptTemplates (13개)
+    
     @Bean
     @ConditionalOnMissingBean
     public PolicyGenerationTemplate policyGenerationTemplate() {
@@ -100,7 +100,7 @@ public class IamAiamComponentsAutoConfiguration {
         return new SecurityCopilotStreamingTemplate();
     }
 
-    // ContextRetrievers (6개)
+    
     @Bean
     @ConditionalOnMissingBean
     public PolicyGenerationContextRetriever policyGenerationContextRetriever(

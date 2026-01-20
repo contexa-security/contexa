@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamMiscAutoConfiguration {
 
-    // Miscellaneous Components (3개)
+    
     @Bean
     @ConditionalOnMissingBean
     public IntegrationEventBus integrationEventBus() {

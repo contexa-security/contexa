@@ -30,7 +30,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAdminWorkflowAutoConfiguration {
 
-    // Controllers (2개)
+    
     @Bean
     @ConditionalOnMissingBean
     public PolicyWizardController policyWizardController(
@@ -57,7 +57,7 @@ public class IamAdminWorkflowAutoConfiguration {
                 grantingWizardService, userManagementService, groupService, roleService);
     }
 
-    // Services (4개)
+    
     @Bean
     @ConditionalOnMissingBean
     public PermissionWizardService permissionWizardService(
@@ -87,7 +87,7 @@ public class IamAdminWorkflowAutoConfiguration {
         return new WorkflowOrchestratorImpl(permissionWizardService);
     }
 
-    // Components (1개)
+    
     @Bean
     @ConditionalOnMissingBean
     public BusinessPolicyTranslator businessPolicyTranslator(

@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAdminSupportAutoConfiguration {
 
-    // Services (2개)
+    
     @Bean
     @ConditionalOnMissingBean
     public VisualizationService visualizationService(UserRepository userRepository) {
