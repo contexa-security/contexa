@@ -336,6 +336,7 @@ public class SecurityPromptTemplate {
         prompt.append("For OS, IP, Hour, UA - check if CURRENT value exists in KNOWN list:\n");
         prompt.append("- IN list = MATCH (established pattern)\n");
         prompt.append("- NOT in list = MISMATCH (new/unusual)\n");
+        prompt.append("Example: CURRENT 'Android' in KNOWN [Windows, Android] = MATCH\n");
         prompt.append("Signal context (each mismatch is significant, not minor):\n");
         prompt.append("- IP mismatch: New network location (security-sensitive)\n");
         prompt.append("- OS mismatch: New device type (potential account compromise)\n");
