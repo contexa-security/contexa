@@ -49,7 +49,7 @@ public class SoarIncidentService {
 
         SoarIncident savedIncident = incidentRepository.save(incident);
 
-        // playbookEngine.start(savedIncident, playbookId, eventData); // 제거
+        
 
         return savedIncident;
     }
@@ -63,20 +63,13 @@ public class SoarIncidentService {
         });
     }
 
-    /**
-     * 인시던트 완료 처리 및 SecurityPlaneAgent 연동
-     *
-     * @param incidentId 인시던트 ID
-     * @param resolvedBy 해결 주체
-     * @param resolutionMethod 해결 방법
-     * @param wasSuccessful 성공 여부
-     */
+    
     @Transactional
     public void completeIncident(UUID incidentId, String resolvedBy, String resolutionMethod, boolean wasSuccessful) {
         SoarIncident incident = incidentRepository.findById(incidentId)
             .orElseThrow(() -> new IllegalArgumentException("Incident not found: " + incidentId));
 
-        // 상태 업데이트
+        
         SoarIncidentStatus finalStatus = wasSuccessful ?
             SoarIncidentStatus.COMPLETED : SoarIncidentStatus.FAILED;
 
@@ -86,14 +79,14 @@ public class SoarIncidentService {
 
         incidentRepository.save(incident);
 
-        // SecurityPlaneAgent에 완료 알림 (ApplicationContext를 통해 연동)
-        // 실제 구현은 이벤트 기반으로 처리
+        
+        
         publishIncidentCompletedEvent(incident, resolvedBy, resolutionMethod, wasSuccessful);
     }
 
     private void publishIncidentCompletedEvent(SoarIncident incident, String resolvedBy,
                                               String resolutionMethod, boolean wasSuccessful) {
-        // IncidentCompletedEvent 발행
+        
         IncidentCompletedEvent event = new IncidentCompletedEvent(
             this, incident, resolvedBy, resolutionMethod, wasSuccessful);
 

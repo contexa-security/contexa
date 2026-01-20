@@ -20,17 +20,17 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
         String sessionId = factorContext.getMfaSessionId();
         log.info("Completing MFA for session: {}", sessionId);
 
-        // 완료된 팩터 목록 로깅
+        
         logCompletedFactors(factorContext);
 
-        // Phase 2 개선: State Machine이 상태 전이를 담당
-        // ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN 이벤트로 인한 전이가
-        // 이미 MFA_SUCCESSFUL로 상태를 변경하므로 여기서 중복 호출 불필요
+        
+        
+        
 
-        // 추가 완료 처리 로직
+        
         performCompletionTasks(factorContext);
 
-        // 이벤트 메타데이터 추가
+        
         updateEventMetadata(context);
 
         log.info("MFA successfully completed for session: {}", sessionId);
@@ -48,12 +48,12 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
     }
 
     private void performCompletionTasks(FactorContext factorContext) {
-        // 추가 완료 작업이 필요한 경우 여기에 구현
-        // 예: 감사 로그, 메트릭스 수집 등
+        
+        
     }
 
     private void updateEventMetadata(StateContext<MfaState, MfaEvent> context) {
-        // 추가 이벤트 메타데이터가 필요한 경우 여기에 구현
-        // FactorContext에 이미 완료 정보가 저장되어 있음
+        
+        
     }
 }

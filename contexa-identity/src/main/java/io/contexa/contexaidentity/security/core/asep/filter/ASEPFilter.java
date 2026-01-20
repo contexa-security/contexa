@@ -34,7 +34,7 @@ import java.util.*;
 @Setter
 public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
 
-    private int order = Ordered.LOWEST_PRECEDENCE - 900; // AsepConfigurer보다 더 늦게 (하지만 다른 일반 필터보다는 일찍)
+    private int order = Ordered.LOWEST_PRECEDENCE - 900; 
 
     private final SecurityExceptionHandlerMethodRegistry handlerRegistry;
     private final SecurityExceptionHandlerInvoker handlerInvoker;
@@ -46,7 +46,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             List<HttpMessageConverter<?>> messageConverters) {
         this.handlerRegistry = Objects.requireNonNull(handlerRegistry, "SecurityExceptionHandlerMethodRegistry cannot be null");
         this.handlerInvoker = Objects.requireNonNull(handlerInvoker, "AsepHandlerAdapter cannot be null");
-        // 방어적 복사를 통해 외부 리스트 변경으로부터 안전하게
+        
         this.messageConverters = (messageConverters != null) ? List.copyOf(messageConverters) : Collections.emptyList();
         log.debug("ASEP: ASEPFilter (POJO) initialized. MessageConverters count: {}", this.messageConverters.size());
     }
@@ -65,16 +65,16 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             if (response.isCommitted()) {
                 log.warn("ASEP: Response already committed. Unable to handle exception [{}] on path [{}].",
                         ex.getClass().getSimpleName(), request.getRequestURI(), ex);
-                // 이 경우 예외를 다시 던지는 것 외에는 할 수 있는 것이 거의 없음.
-                // 또는 단순히 반환하여 서블릿 컨테이너의 기본 오류 처리에 맡길 수 있음.
-                // 사용자 정의 오류 페이지가 이미 일부 전송되었을 수 있음.
+                
+                
+                
                 if (ex instanceof IOException) throw (IOException) ex;
                 if (ex instanceof ServletException) throw (ServletException) ex;
                 if (ex instanceof RuntimeException) throw (RuntimeException) ex;
                 throw new ServletException("Unhandled exception after response committed: " + ex.getMessage(), ex);
             }
-            // 응답 버퍼를 클리어할 수 있지만, 매우 신중해야 함 (이미 일부 헤더가 쓰여졌을 수 있음)
-            // try { response.resetBuffer(); } catch (IllegalStateException e) { log.trace("Cannot reset buffer for exception handling",e); }
+            
+            
 
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             handleException(request, response, authentication, ex);
@@ -85,7 +85,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             HttpServletRequest request,
             HttpServletResponse response,
             @Nullable Authentication authentication,
-            Throwable exception) throws IOException { // ServletException 대신 IOException
+            Throwable exception) throws IOException { 
         try {
             log.debug("ASEP: Caught exception [{}] for authentication [{}] on path [{}]",
                     exception.getClass().getName(),
@@ -108,12 +108,12 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                 handleCentralizedDefaultErrorResponse(request, response, exception, authentication, false);
             }
         } catch (Exception handlerInvocationException) {
-            // 핸들러 실행 중 새로운 예외 발생 시 처리
+            
             log.error("ASEP: Exception occurred while invoking ASEP handler for original exception [{}]: {}. Handler exception: {}",
                     exception.getClass().getSimpleName(), exception.getMessage(),
                     handlerInvocationException.getMessage(), handlerInvocationException);
             if (!response.isCommitted()) {
-                // 이 경우, 다시 핸들러를 찾지 않고 중앙 기본 오류 응답으로 처리 (무한 루프 방지)
+                
                 handleCentralizedDefaultErrorResponse(request, response, handlerInvocationException, authentication, true);
             } else {
                 log.warn("ASEP: Response already committed. Unable to send final default error for handlerInvocationException: {}",
@@ -130,7 +130,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             @Nullable Authentication authentication,
             boolean isHandlerError) throws IOException {
 
-        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR; // 기본값
+        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR; 
         String errorCode = "INTERNAL_SERVER_ERROR";
         String baseMessage = isHandlerError ? "Error occurred in ASEP exception handler" : "An unexpected error occurred";
         String detailMessage = exception.getMessage();
@@ -139,24 +139,24 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             status = HttpStatus.UNAUTHORIZED;
             errorCode = "UNAUTHENTICATED";
             baseMessage = "Authentication failed";
-            SecurityContextHolder.clearContext(); // 인증 실패 시 컨텍스트 클리어
+            SecurityContextHolder.clearContext(); 
             log.debug("ASEP: Cleared SecurityContext due to AuthenticationException.");
         } else if (exception instanceof AccessDeniedException) {
             status = HttpStatus.FORBIDDEN;
             errorCode = "ACCESS_DENIED";
             baseMessage = "Access denied";
         }
-        // TODO: 필요시 다른 특정 예외 타입에 대한 상태 코드 및 메시지 매핑 추가
-        // (예: HttpMediaTypeNotSupportedException -> HttpStatus.UNSUPPORTED_MEDIA_TYPE)
-        // (예: HttpMessageNotReadableException -> HttpStatus.BAD_REQUEST)
+        
+        
+        
 
-        // 응답이 이미 시작되지 않았다면 상태 코드 설정
+        
         if (!response.isCommitted()) {
             response.setStatus(status.value());
         } else {
             log.warn("ASEP: Response already committed (status {}). Cannot set new status {} for default error response.",
                     response.getStatus(), status.value());
-            return; // 이미 응답 시작되었으면 더 이상 처리 불가
+            return; 
         }
 
         Map<String, Object> errorAttributes = new LinkedHashMap<>();
@@ -165,8 +165,8 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         errorAttributes.put("error", errorCode);
         errorAttributes.put("message", baseMessage + (detailMessage != null && !detailMessage.isBlank() ? ": " + detailMessage : ""));
         errorAttributes.put("path", request.getRequestURI());
-        errorAttributes.put("exception", exception.getClass().getName()); // 개발/디버그 시 유용
-        // if (isHandlerError) errorAttributes.put("handlerErrorCause", true);
+        errorAttributes.put("exception", exception.getClass().getName()); 
+        
 
         MediaType bestMatchingMediaType = determineBestMediaTypeForDefaultResponse(request);
         response.setContentType(bestMatchingMediaType.toString());
@@ -214,7 +214,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
 
 
     private MediaType determineResponseMediaType(HttpServletRequest request, HandlerMethod handlerMethod) {
-        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.ALL); // 기본값
+        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.ALL); 
         String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
         if (acceptHeader != null && !acceptHeader.trim().isEmpty()) {
             try {
@@ -228,18 +228,18 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             }
         }
 
-        // 핸들러에 produces가 명시된 경우
+        
         if (handlerMethod != null && !CollectionUtils.isEmpty(handlerMethod.getProduces())) {
             List<MediaType> handlerProduces = handlerMethod.getProduces().stream()
-                    .map(MediaType::parseMediaType) // 여기서 InvalidMediaTypeException 발생 가능성 있음 (어노테이션 값 검증 필요)
+                    .map(MediaType::parseMediaType) 
                     .toList();
 
             for (MediaType acceptedType : acceptedMediaTypes) {
                 for (MediaType producedType : handlerProduces) {
                     if (acceptedType.isCompatibleWith(producedType)) {
-                        // 실제 변환 가능한지 HttpMessageConverter로 확인 (선택적)
+                        
                         for (HttpMessageConverter<?> converter : this.messageConverters) {
-                            // 실제 반환될 객체 타입을 알 수 없으므로 Object.class 또는 Map.class 등으로 가정
+                            
                             if (converter.canWrite(Object.class, producedType)) {
                                 return producedType.removeQualityValue();
                             }
@@ -247,7 +247,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                     }
                 }
             }
-            // Accept 헤더와 매칭되는 것이 없으면, 핸들러가 명시한 첫번째 produce 타입을 반환 (만약 변환 가능하다면)
+            
             if (!handlerProduces.isEmpty()) {
                 MediaType firstProduce = handlerProduces.get(0).removeQualityValue();
                 for (HttpMessageConverter<?> converter : this.messageConverters) {
@@ -255,12 +255,12 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                 }
             }
         }
-        // 핸들러에 produces가 없거나 매칭 안되면, Accept 헤더 기반으로 시스템 기본 지원 타입 시도
+        
         return determineBestMediaTypeForDefaultResponse(request);
     }
 
     private MediaType determineBestMediaTypeForDefaultResponse(HttpServletRequest request) {
-        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON); // 기본값
+        List<MediaType> acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON); 
         String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
         if (acceptHeader != null && !acceptHeader.trim().isEmpty()) {
             try {
@@ -276,19 +276,19 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         }
 
         for (MediaType acceptedType : acceptedMediaTypes) {
-            // 와일드카드 타입이 아닌 구체적인 타입을 우선적으로 찾음
+            
             if (!acceptedType.isWildcardType() && !acceptedType.isWildcardSubtype()) {
                 for (HttpMessageConverter<?> converter : this.messageConverters) {
-                    if (converter.canWrite(Map.class, acceptedType)) { // 오류 객체는 보통 Map 또는 POJO
+                    if (converter.canWrite(Map.class, acceptedType)) { 
                         return acceptedType.removeQualityValue();
                     }
                 }
             }
         }
-        // 구체적인 타입 매칭 실패 시, 호환되는 타입 중 컨버터가 지원하는 첫 번째 타입
+        
         for (MediaType acceptedType : acceptedMediaTypes) {
             for (HttpMessageConverter<?> converter : this.messageConverters) {
-                for(MediaType supported : converter.getSupportedMediaTypes(Map.class)) { // Map.class 대신 실제 오류객체 타입
+                for(MediaType supported : converter.getSupportedMediaTypes(Map.class)) { 
                     if (acceptedType.isCompatibleWith(supported) && !supported.isWildcardType() && !supported.isWildcardSubtype()) {
                         return supported.removeQualityValue();
                     }
@@ -296,11 +296,11 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             }
         }
 
-        // 최후의 기본값 (JSON을 지원하는 컨버터가 있다면 JSON)
+        
         for (HttpMessageConverter<?> converter : this.messageConverters) {
             if (converter.canWrite(Map.class, MediaType.APPLICATION_JSON)) return MediaType.APPLICATION_JSON;
         }
-        // 정말 아무것도 없으면 OCTET_STREAM (거의 발생하지 않아야 함)
+        
         return MediaType.APPLICATION_OCTET_STREAM;
     }
 }

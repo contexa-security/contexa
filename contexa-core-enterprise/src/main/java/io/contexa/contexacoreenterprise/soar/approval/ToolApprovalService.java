@@ -11,23 +11,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * Tool Approval Service
- * SOAR 도구 실행에 대한 승인 관리 (Client 측 구현)
- * 고위험 도구는 실행 전 승인 필요
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class ToolApprovalService {
     
-    // 메모리 기반 승인 요청 저장
+    
     private final Map<String, ApprovalRequest> pendingApprovals = new ConcurrentHashMap<>();
     private final Map<String, ApprovalResult> approvalHistory = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<ApprovalResult>> approvalFutures = new ConcurrentHashMap<>();
     
-    /**
-     * 승인 요청 생성
-     */
+    
     public CompletableFuture<ApprovalResult> requestApproval(String toolName, String requestData, 
                                                             String riskLevel, String requestedBy) {
         String approvalId = UUID.randomUUID().toString();
@@ -50,7 +44,7 @@ public class ToolApprovalService {
         log.info("Approval request created: {} for tool {} (Risk: {})", 
             approvalId, toolName, riskLevel);
         
-        // 타임아웃 처리 (30분)
+        
         CompletableFuture.delayedExecutor(30, java.util.concurrent.TimeUnit.MINUTES)
             .execute(() -> {
                 if (!future.isDone()) {
@@ -61,9 +55,7 @@ public class ToolApprovalService {
         return future;
     }
     
-    /**
-     * 승인 처리
-     */
+    
     public boolean approve(String approvalId, String decidedBy, String reason) {
         ApprovalRequest request = pendingApprovals.remove(approvalId);
         if (request == null) {
@@ -91,9 +83,7 @@ public class ToolApprovalService {
         return true;
     }
     
-    /**
-     * 거부 처리
-     */
+    
     public boolean reject(String approvalId, String decidedBy, String reason) {
         ApprovalRequest request = pendingApprovals.remove(approvalId);
         if (request == null) {
@@ -121,9 +111,7 @@ public class ToolApprovalService {
         return true;
     }
     
-    /**
-     * 만료 처리
-     */
+    
     private void expire(String approvalId) {
         ApprovalRequest request = pendingApprovals.remove(approvalId);
         if (request != null) {
@@ -147,16 +135,12 @@ public class ToolApprovalService {
         }
     }
     
-    /**
-     * 대기 중인 승인 요청 조회
-     */
+    
     public List<ApprovalRequest> getPendingApprovals() {
         return new ArrayList<>(pendingApprovals.values());
     }
     
-    /**
-     * 승인 이력 조회
-     */
+    
     public List<ApprovalResult> getApprovalHistory(int limit) {
         return approvalHistory.values().stream()
             .sorted((a, b) -> b.getDecidedAt().compareTo(a.getDecidedAt()))
@@ -164,9 +148,7 @@ public class ToolApprovalService {
             .collect(Collectors.toList());
     }
     
-    /**
-     * Approval Request DTO
-     */
+    
     @Data
     @Builder
     public static class ApprovalRequest {
@@ -179,9 +161,7 @@ public class ToolApprovalService {
         private String status;
     }
     
-    /**
-     * Approval Result DTO
-     */
+    
     @Data
     @Builder
     public static class ApprovalResult {

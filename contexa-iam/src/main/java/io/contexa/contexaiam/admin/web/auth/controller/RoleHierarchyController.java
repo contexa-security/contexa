@@ -28,7 +28,7 @@ public class RoleHierarchyController {
     private final RoleHierarchyService roleHierarchyService;
     private final ModelMapper modelMapper;
     private final RoleService roleService;
-    private final GroupService groupService; // 추가: 그룹 정보 조회용
+    private final GroupService groupService; 
 
     @GetMapping
     public String getRoleHierarchies(Model model) {
@@ -70,11 +70,11 @@ public class RoleHierarchyController {
 
             RoleHierarchyDto dto = modelMapper.map(entity, RoleHierarchyDto.class);
 
-            // 계층 문자열 디버깅
+            
             String hierarchyString = entity.getHierarchyString();
             log.info("Raw hierarchy string from DB: [{}]", hierarchyString);
 
-            // \n 문자열을 실제 개행문자로 변환
+            
             if (hierarchyString != null && hierarchyString.contains("\\n")) {
                 hierarchyString = hierarchyString.replace("\\n", "\n");
                 log.info("Converted hierarchy string: [{}]", hierarchyString);
@@ -82,13 +82,13 @@ public class RoleHierarchyController {
 
             List<RoleHierarchyDto.HierarchyPair> pairs = new ArrayList<>();
             if (hierarchyString != null && !hierarchyString.trim().isEmpty()) {
-                // 실제 개행문자로 분리
+                
                 String[] lines = hierarchyString.split("\n");
 
                 for (String line : lines) {
                     line = line.trim();
                     if (line.contains(">")) {
-                        String[] parts = line.split("\\s*>\\s*"); // > 양쪽 공백 제거
+                        String[] parts = line.split("\\s*>\\s*"); 
                         if (parts.length == 2) {
                             String parent = parts[0].trim();
                             String child = parts[1].trim();
@@ -146,17 +146,13 @@ public class RoleHierarchyController {
         return "redirect:/admin/role-hierarchies";
     }
 
-    /**
-     * 역할 계층 폼에 필요한 모델 데이터를 준비합니다.
-     * - 모든 역할을 그룹별로 구조화
-     * - 각 역할의 권한 정보 포함
-     */
+    
     private void prepareHierarchyFormModel(Model model, List<RoleHierarchyDto.HierarchyPair> existingPairs) {
         try {
-            // 모든 그룹과 역할 정보를 조회 (N+1 문제 방지를 위해 fetch join 사용)
+            
             List<Group> allGroups = groupService.getAllGroups();
 
-            // 그룹별 역할 정보를 구조화
+            
             List<GroupWithRolesDto> groupsWithRoles = allGroups.stream()
                     .map(group -> {
                         GroupWithRolesDto gwrDto = new GroupWithRolesDto();
@@ -166,14 +162,14 @@ public class RoleHierarchyController {
 
                         List<RoleDetailDto> roleDetails = group.getGroupRoles().stream()
                                 .map(GroupRole::getRole)
-                                .filter(role -> role != null && !"Y".equals(role.getIsExpression())) // 표현식 역할 제외
+                                .filter(role -> role != null && !"Y".equals(role.getIsExpression())) 
                                 .map(role -> {
                                     RoleDetailDto rdDto = new RoleDetailDto();
                                     rdDto.setRoleId(role.getId());
                                     rdDto.setRoleName(role.getRoleName());
                                     rdDto.setRoleDesc(role.getRoleDesc() != null ? role.getRoleDesc() : role.getRoleName());
 
-                                    // 권한 정보 매핑
+                                    
                                     List<String> permissions = role.getRolePermissions().stream()
                                             .filter(rp -> rp.getPermission() != null)
                                             .map(rp -> rp.getPermission().getFriendlyName())
@@ -189,10 +185,10 @@ public class RoleHierarchyController {
                         gwrDto.setRoles(roleDetails);
                         return gwrDto;
                     })
-                    .filter(gwrDto -> !gwrDto.getRoles().isEmpty()) // 역할이 없는 그룹 제외
+                    .filter(gwrDto -> !gwrDto.getRoles().isEmpty()) 
                     .collect(Collectors.toList());
 
-            // 그룹에 속하지 않은 역할들 (혹시 있다면)
+            
             List<RoleMetadataDto> ungroupedRoles = roleService.getRolesWithoutExpression().stream()
                     .filter(role -> allGroups.stream()
                             .noneMatch(group -> group.getGroupRoles().stream()
@@ -204,7 +200,7 @@ public class RoleHierarchyController {
             model.addAttribute("ungroupedRoles", ungroupedRoles);
             model.addAttribute("hierarchyPairs", existingPairs);
 
-            // 모든 역할의 간단한 목록 (호환성 유지)
+            
             List<RoleMetadataDto> allRoles = roleService.getRolesWithoutExpression().stream()
                     .map(role -> modelMapper.map(role, RoleMetadataDto.class))
                     .collect(Collectors.toList());

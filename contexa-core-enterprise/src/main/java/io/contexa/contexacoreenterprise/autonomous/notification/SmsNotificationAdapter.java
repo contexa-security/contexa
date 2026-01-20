@@ -19,30 +19,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
-/**
- * SmsNotificationAdapter - SMS 알림 어댑터
- * 
- * SMS 게이트웨이를 통해 긴급 보안 알림을 전송하는 어댑터입니다.
- * Twilio, AWS SNS, 국내 SMS 서비스 등을 지원합니다.
- * 
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SmsNotificationAdapter {
     
     private final ObjectMapper objectMapper;
     
-    // WebClient for SMS Gateway
+    
     private WebClient smsWebClient;
     
-    // SMS 제공자 타입
+    
     public enum SmsProvider {
         TWILIO, AWS_SNS, ALIGO, COOLSMS, CUSTOM
     }
     
-    // 설정값
+    
     @Value("${sms.provider:TWILIO}")
     private SmsProvider provider;
     
@@ -79,21 +71,21 @@ public class SmsNotificationAdapter {
     @Value("${sms.emergency.only:true}")
     private boolean emergencyOnly;
     
-    // 수신자 관리
+    
     private final Map<String, RecipientInfo> recipientRegistry = new ConcurrentHashMap<>();
     
-    // 메시지 템플릿
+    
     private final Map<String, SmsTemplate> templates = new ConcurrentHashMap<>();
     
-    // 메트릭
+    
     private final AtomicLong totalSmsSent = new AtomicLong(0);
     private final AtomicLong failedSms = new AtomicLong(0);
     private final Map<String, AtomicLong> providerMetrics = new ConcurrentHashMap<>();
     
-    // Rate limiting (시간별)
+    
     private final List<Long> smsTimes = Collections.synchronizedList(new ArrayList<>());
     
-    // 전화번호 검증 패턴
+    
     private static final Pattern PHONE_PATTERN = Pattern.compile("^\\+?[1-9]\\d{1,14}$");
     private static final Pattern KOREAN_PHONE_PATTERN = Pattern.compile("^(010|011|016|017|018|019)-?\\d{3,4}-?\\d{4}$");
     
@@ -106,16 +98,16 @@ public class SmsNotificationAdapter {
         
         log.info("SMS 알림 어댑터 초기화 시작 - Provider: {}", provider);
         
-        // WebClient 초기화
+        
         initializeWebClient();
         
-        // 템플릿 로드
+        
         loadSmsTemplates();
         
-        // 수신자 로드
+        
         loadRecipients();
         
-        // 연결 테스트
+        
         if (!emergencyOnly) {
             testConnection().subscribe(
                 success -> log.info("SMS 게이트웨이 연결 테스트 성공"),
@@ -126,15 +118,13 @@ public class SmsNotificationAdapter {
         log.info("SMS 알림 어댑터 초기화 완료");
     }
     
-    /**
-     * 전화번호로 SMS 발송
-     */
+    
     public Mono<Boolean> sendToPhone(String phoneNumber, String message, UnifiedNotificationService.NotificationPriority priority) {
         if (!smsEnabled) {
             return Mono.just(false);
         }
         
-        // 긴급 전용 모드 체크
+        
         if (emergencyOnly && priority != UnifiedNotificationService.NotificationPriority.URGENT) {
             log.debug("긴급 전용 모드 - 우선순위 불충족: {}", priority);
             return Mono.just(false);
@@ -154,15 +144,13 @@ public class SmsNotificationAdapter {
             );
     }
     
-    /**
-     * SMS 발송 (간단한 인터페이스)
-     */
+    
     public Mono<Boolean> sendSms(String subject, String content, UnifiedNotificationService.NotificationPriority priority) {
         if (!smsEnabled) {
             return Mono.just(false);
         }
         
-        // 긴급 알림 수신자 목록 가져오기
+        
         List<String> recipients = getRecipientsForPriority(priority);
         
         if (recipients.isEmpty()) {
@@ -172,15 +160,13 @@ public class SmsNotificationAdapter {
         
         String message = formatSmsMessage(subject, content);
         
-        // 모든 수신자에게 발송
+        
         return Flux.fromIterable(recipients)
             .flatMap(phone -> sendToPhone(phone, message, priority))
-            .reduce(false, (a, b) -> a || b);  // 하나라도 성공하면 true
+            .reduce(false, (a, b) -> a || b);  
     }
     
-    /**
-     * 보안 알림 SMS 발송
-     */
+    
     public Mono<Boolean> sendSecurityAlert(String alertType, String severity, String description, String action) {
         if (!smsEnabled) {
             return Mono.just(false);
@@ -207,9 +193,7 @@ public class SmsNotificationAdapter {
         return sendSms("보안 알림", message, priority);
     }
     
-    /**
-     * 승인 요청 SMS 발송
-     */
+    
     public Mono<Boolean> sendApprovalRequest(String requestId, String toolName, String riskLevel, String approverPhone) {
         if (!smsEnabled) {
             return Mono.just(false);
@@ -226,9 +210,7 @@ public class SmsNotificationAdapter {
         return sendToPhone(approverPhone, message, UnifiedNotificationService.NotificationPriority.HIGH);
     }
     
-    /**
-     * 배치 SMS 발송
-     */
+    
     public Mono<List<SmsResult>> sendBatchSms(List<SmsRequest> requests) {
         if (!smsEnabled) {
             return Mono.just(Collections.emptyList());
@@ -243,9 +225,7 @@ public class SmsNotificationAdapter {
             .collectList();
     }
     
-    /**
-     * 실제 SMS 발송 (Provider별 구현)
-     */
+    
     private Mono<Boolean> sendSmsMessage(String phoneNumber, String message, UnifiedNotificationService.NotificationPriority priority) {
         recordSmsTime();
         
@@ -274,9 +254,7 @@ public class SmsNotificationAdapter {
         });
     }
     
-    /**
-     * Twilio SMS 발송
-     */
+    
     private Mono<Boolean> sendViaTwilio(String phoneNumber, String message) {
         Map<String, String> body = new HashMap<>();
         body.put("To", phoneNumber);
@@ -297,9 +275,7 @@ public class SmsNotificationAdapter {
             .map(response -> response.getStatus() != null && !response.getStatus().equals("failed"));
     }
     
-    /**
-     * AWS SNS SMS 발송
-     */
+    
     private Mono<Boolean> sendViaAwsSns(String phoneNumber, String message) {
         Map<String, Object> request = new HashMap<>();
         request.put("PhoneNumber", phoneNumber);
@@ -319,9 +295,7 @@ public class SmsNotificationAdapter {
             .map(response -> response.getMessageId() != null);
     }
     
-    /**
-     * 알리고 SMS 발송 (국내)
-     */
+    
     private Mono<Boolean> sendViaAligo(String phoneNumber, String message) {
         Map<String, String> params = new HashMap<>();
         params.put("key", apiKey);
@@ -340,9 +314,7 @@ public class SmsNotificationAdapter {
             .map(response -> response.getResultCode() == 1);
     }
     
-    /**
-     * CoolSMS 발송 (국내)
-     */
+    
     private Mono<Boolean> sendViaCoolSms(String phoneNumber, String message) {
         Map<String, Object> params = new HashMap<>();
         params.put("to", phoneNumber);
@@ -361,9 +333,7 @@ public class SmsNotificationAdapter {
             .map(response -> "2000".equals(response.getStatusCode()));
     }
     
-    /**
-     * 커스텀 게이트웨이 발송
-     */
+    
     private Mono<Boolean> sendViaCustom(String phoneNumber, String message) {
         Map<String, Object> request = new HashMap<>();
         request.put("to", phoneNumber);
@@ -383,9 +353,7 @@ public class SmsNotificationAdapter {
             });
     }
     
-    /**
-     * WebClient 초기화
-     */
+    
     private void initializeWebClient() {
         String baseUrl = switch (provider) {
             case TWILIO -> "https://api.twilio.com";
@@ -401,32 +369,28 @@ public class SmsNotificationAdapter {
             .build();
     }
     
-    /**
-     * SMS 템플릿 로드
-     */
+    
     private void loadSmsTemplates() {
-        // 보안 알림 템플릿
+        
         templates.put("SECURITY_ALERT", new SmsTemplate(
             "[CONTEXA] ${severity} ${type}\n${description}\n조치:${action}"
         ));
         
-        // 승인 요청 템플릿
+        
         templates.put("APPROVAL", new SmsTemplate(
             "[CONTEXA] 승인필요\n${toolName}\n위험:${riskLevel}\nID:${requestId}"
         ));
         
-        // 인시던트 템플릿
+        
         templates.put("INCIDENT", new SmsTemplate(
             "[긴급] 보안인시던트\n${incidentType}\n즉시확인필요"
         ));
     }
     
-    /**
-     * 수신자 로드
-     */
+    
     private void loadRecipients() {
-        // 설정 파일이나 DB에서 수신자 정보 로드
-        // 예시로 하드코딩
+        
+        
         recipientRegistry.put("security_team", new RecipientInfo(
             "Security Team",
             Arrays.asList("+821012345678", "+821087654321"),
@@ -441,9 +405,7 @@ public class SmsNotificationAdapter {
         ));
     }
     
-    /**
-     * 전화번호 검증
-     */
+    
     private Mono<String> validatePhoneNumber(String phoneNumber) {
         return Mono.fromCallable(() -> {
             if (phoneNumber == null || phoneNumber.isEmpty()) {
@@ -452,13 +414,13 @@ public class SmsNotificationAdapter {
             
             String cleaned = phoneNumber.replaceAll("[\\s\\-\\(\\)]", "");
             
-            // 한국 번호 체크
+            
             if (KOREAN_PHONE_PATTERN.matcher(cleaned).matches()) {
-                // 국제 형식으로 변환
+                
                 cleaned = "+82" + cleaned.substring(1).replaceAll("-", "");
             }
             
-            // 국제 형식 체크
+            
             if (!PHONE_PATTERN.matcher(cleaned).matches()) {
                 throw new IllegalArgumentException("유효하지 않은 전화번호: " + phoneNumber);
             }
@@ -467,9 +429,7 @@ public class SmsNotificationAdapter {
         });
     }
     
-    /**
-     * 메시지 길이 제한
-     */
+    
     private String truncateMessage(String message) {
         if (message == null) return "";
         
@@ -480,17 +440,13 @@ public class SmsNotificationAdapter {
         return message.substring(0, maxMessageLength - 3) + "...";
     }
     
-    /**
-     * SMS 메시지 포맷팅
-     */
+    
     private String formatSmsMessage(String subject, String content) {
         String formatted = String.format("[CONTEXA] %s\n%s", subject, content);
         return truncateMessage(formatted);
     }
     
-    /**
-     * 우선순위별 수신자 목록
-     */
+    
     private List<String> getRecipientsForPriority(UnifiedNotificationService.NotificationPriority priority) {
         List<String> recipients = new ArrayList<>();
         
@@ -501,18 +457,16 @@ public class SmsNotificationAdapter {
         return recipients;
     }
     
-    /**
-     * Rate limit 체크
-     */
+    
     private Mono<Boolean> checkRateLimit() {
         return Mono.fromCallable(() -> {
             long now = System.currentTimeMillis();
             long oneHourAgo = now - 3600000;
             
-            // 1시간 이상 된 기록 제거
+            
             smsTimes.removeIf(time -> time < oneHourAgo);
             
-            // Rate limit 체크
+            
             if (smsTimes.size() >= rateLimitPerHour) {
                 return false;
             }
@@ -521,16 +475,12 @@ public class SmsNotificationAdapter {
         });
     }
     
-    /**
-     * SMS 시간 기록
-     */
+    
     private void recordSmsTime() {
         smsTimes.add(System.currentTimeMillis());
     }
     
-    /**
-     * 전화번호 마스킹
-     */
+    
     private String maskPhoneNumber(String phoneNumber) {
         if (phoneNumber == null || phoneNumber.length() < 8) {
             return "****";
@@ -540,36 +490,28 @@ public class SmsNotificationAdapter {
         return phoneNumber.substring(0, 3) + "****" + phoneNumber.substring(len - 4);
     }
     
-    /**
-     * AWS 리전 가져오기
-     */
+    
     private String getAwsRegion() {
-        // 환경변수나 설정에서 가져오기
+        
         return System.getenv().getOrDefault("AWS_REGION", "ap-northeast-2");
     }
     
-    /**
-     * 기본 보안 템플릿 생성
-     */
+    
     private SmsTemplate createDefaultSecurityTemplate() {
         return new SmsTemplate("[CONTEXA] ${severity} 보안알림\n${description}");
     }
     
-    /**
-     * 연결 테스트
-     */
+    
     private Mono<Boolean> testConnection() {
-        // Provider별 연결 테스트
+        
         return switch (provider) {
             case TWILIO -> testTwilioConnection();
             case AWS_SNS -> testAwsSnsConnection();
-            case ALIGO, COOLSMS, CUSTOM -> Mono.just(true);  // 실제 테스트는 비용 발생
+            case ALIGO, COOLSMS, CUSTOM -> Mono.just(true);  
         };
     }
     
-    /**
-     * Twilio 연결 테스트
-     */
+    
     private Mono<Boolean> testTwilioConnection() {
         String auth = Base64.getEncoder().encodeToString(
             (apiKey + ":" + apiSecret).getBytes()
@@ -584,9 +526,7 @@ public class SmsNotificationAdapter {
             .onErrorReturn(false);
     }
     
-    /**
-     * AWS SNS 연결 테스트
-     */
+    
     private Mono<Boolean> testAwsSnsConnection() {
         return smsWebClient.post()
             .uri("/")
@@ -599,9 +539,7 @@ public class SmsNotificationAdapter {
             .onErrorReturn(false);
     }
     
-    /**
-     * 메트릭 조회
-     */
+    
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("enabled", smsEnabled);
@@ -622,11 +560,9 @@ public class SmsNotificationAdapter {
         return metrics;
     }
     
-    // 내부 클래스들
     
-    /**
-     * SMS 요청
-     */
+    
+    
     @lombok.Data
     @lombok.Builder
     public static class SmsRequest {
@@ -635,9 +571,7 @@ public class SmsNotificationAdapter {
         private UnifiedNotificationService.NotificationPriority priority;
     }
     
-    /**
-     * SMS 결과
-     */
+    
     @lombok.Data
     @lombok.AllArgsConstructor
     public static class SmsResult {
@@ -646,9 +580,7 @@ public class SmsNotificationAdapter {
         private String errorMessage;
     }
     
-    /**
-     * 수신자 정보
-     */
+    
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class RecipientInfo {
@@ -657,9 +589,7 @@ public class SmsNotificationAdapter {
         private Set<UnifiedNotificationService.NotificationPriority> priorities;
     }
     
-    /**
-     * SMS 템플릿
-     */
+    
     @lombok.AllArgsConstructor
     private static class SmsTemplate {
         private final String template;
@@ -674,7 +604,7 @@ public class SmsNotificationAdapter {
         }
     }
     
-    // Provider별 응답 클래스들
+    
     
     @lombok.Data
     private static class TwilioResponse {

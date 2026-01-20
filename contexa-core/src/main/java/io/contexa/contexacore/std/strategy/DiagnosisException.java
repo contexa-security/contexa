@@ -1,10 +1,6 @@
 package io.contexa.contexacore.std.strategy;
 
-/**
- * AI 진단 실행 중 발생하는 예외
- * 
- * 각 DiagnosisStrategy 구현체에서 진단 실행 중 오류 발생 시 던지는 예외
- */
+
 public class DiagnosisException extends RuntimeException {
     
     private final String diagnosisType;

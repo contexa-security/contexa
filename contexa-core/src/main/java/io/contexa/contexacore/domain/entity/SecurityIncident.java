@@ -16,12 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * 보안 인시던트 도메인 엔티티
- * 
- * 24시간 자율 보안 평면에서 감지된 보안 사건을 표현합니다.
- * MITRE ATT&CK, NIST CSF, CIS Controls 매핑을 포함합니다.
- */
+
 @Entity
 @Table(name = "security_incidents")
 @Getter
@@ -132,7 +127,7 @@ public class SecurityIncident {
     @Column(name = "event_id")
     private List<String> relatedEventIds;
     
-    // 추가 필드들
+    
     @Column(name = "affected_system")
     private String affectedSystem;
     
@@ -148,9 +143,7 @@ public class SecurityIncident {
     @Column(name = "last_event_time")
     private LocalDateTime lastEventTime;
     
-    /**
-     * 인시던트 타입
-     */
+    
     public enum IncidentType {
         INTRUSION_ATTEMPT("침입 시도"),
         MALWARE_DETECTION("악성코드 탐지"),
@@ -179,9 +172,7 @@ public class SecurityIncident {
         }
     }
     
-    /**
-     * 위협 수준
-     */
+    
     public enum ThreatLevel {
         CRITICAL(0.9, "치명적"),
         HIGH(0.7, "높음"),
@@ -206,11 +197,7 @@ public class SecurityIncident {
         }
         
 
-        /**
-         * AI Native v3.3.0: LLM이 직접 ThreatLevel 결정
-         * 이 메서드는 LLM이 결정한 threatLevel 문자열을 enum으로 변환할 때만 사용
-         * 점수 기반 변환은 AI Native 원칙 위반
-         */
+        
         public static ThreatLevel fromString(String level) {
             if (level == null) return INFO;
             return switch (level.toUpperCase()) {
@@ -223,9 +210,7 @@ public class SecurityIncident {
         }
     }
     
-    /**
-     * 인시던트 상태
-     */
+    
     public enum IncidentStatus {
         NEW("신규"),
         INVESTIGATING("조사중"),
@@ -252,31 +237,25 @@ public class SecurityIncident {
         }
     }
     
-    /**
-     * 위협 지표 추가
-     */
+    
     public void addIndicator(ThreatIndicator indicator) {
         if (indicators == null) {
             indicators = new ArrayList<>();
         }
         indicators.add(indicator);
-        // ThreatIndicator에 incident 관계 설정 (JPA가 관리)
+        
     }
     
-    /**
-     * 보안 액션 추가
-     */
+    
     public void addAction(SecurityAction action) {
         if (actions == null) {
             actions = new ArrayList<>();
         }
         actions.add(action);
-        // SecurityAction에 incident 관계 설정 (JPA가 관리)
+        
     }
     
-    /**
-     * 영향받는 자산 추가
-     */
+    
     public void addAffectedAsset(String assetId) {
         if (affectedAssets == null) {
             affectedAssets = new HashSet<>();
@@ -284,9 +263,7 @@ public class SecurityIncident {
         affectedAssets.add(assetId);
     }
     
-    /**
-     * 태그 추가
-     */
+    
     public void addTag(String tag) {
         if (tags == null) {
             tags = new HashSet<>();
@@ -294,9 +271,7 @@ public class SecurityIncident {
         tags.add(tag);
     }
     
-    /**
-     * 관련 이벤트 ID 추가
-     */
+    
     public void addRelatedEventId(String eventId) {
         if (relatedEventIds == null) {
             relatedEventIds = new ArrayList<>();
@@ -304,17 +279,13 @@ public class SecurityIncident {
         relatedEventIds.add(eventId);
     }
     
-    /**
-     * 인시던트 해결
-     */
+    
     public void resolve() {
         this.status = IncidentStatus.RESOLVED;
         this.resolvedAt = LocalDateTime.now();
     }
     
-    /**
-     * 인시던트 에스컬레이션
-     */
+    
     public void escalate() {
         this.escalatedAt = LocalDateTime.now();
         if (this.threatLevel == ThreatLevel.MEDIUM) {
@@ -324,19 +295,15 @@ public class SecurityIncident {
         }
     }
     
-    /**
-     * 승인 필요 여부 판단
-     */
+    
     public boolean needsApproval() {
-        // AI Native: ThreatLevel 직접 비교
+        
         return requiresApproval ||
                threatLevel == ThreatLevel.CRITICAL ||
                threatLevel == ThreatLevel.HIGH;
     }
     
-    /**
-     * 자동 대응 가능 여부
-     */
+    
     @JsonIgnore
     public boolean canAutoRespond() {
         return autoResponseEnabled && !needsApproval() && status.isActive();

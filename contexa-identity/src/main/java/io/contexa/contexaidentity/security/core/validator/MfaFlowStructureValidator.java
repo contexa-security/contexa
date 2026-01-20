@@ -25,7 +25,7 @@ public class MfaFlowStructureValidator implements Validator<AuthenticationFlowCo
             return result;
         }
 
-        // 1. 1차 인증 검사
+        
         AuthenticationStepConfig firstStep = steps.get(0);
         if (firstStep.getOrder() != 0 ||
                 ! ("mfa_form".equalsIgnoreCase(firstStep.getType()) || "mfa_rest".equalsIgnoreCase(firstStep.getType())) ) {
@@ -33,7 +33,7 @@ public class MfaFlowStructureValidator implements Validator<AuthenticationFlowCo
                     flowIdentifier, firstStep.getType(), firstStep.getOrder()));
         }
 
-        // 2. 최소 2개 스텝 (1차 인증 + 1개 이상의 2차 인증 요소) 검사
+        
         if (steps.size() < 2) {
             result.addError(String.format("치명적 오류: %s에는 1차 인증 외에 최소 1개 이상의 2차 인증 요소가 필요합니다. 현재 총 스텝 수: %d",
                     flowIdentifier, steps.size()));

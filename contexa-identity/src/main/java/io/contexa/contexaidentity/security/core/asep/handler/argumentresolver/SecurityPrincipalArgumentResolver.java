@@ -30,7 +30,7 @@ public class SecurityPrincipalArgumentResolver implements SecurityHandlerMethodA
         if (principal != null && parameter.getParameterType().isInstance(principal)) {
             return principal;
         }
-        // SpEL 표현식 지원 등은 현재 미구현
+        
         return null;
     }
 }

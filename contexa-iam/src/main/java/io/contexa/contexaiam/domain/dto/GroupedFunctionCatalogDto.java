@@ -7,9 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- * permissions-catalog.html 뷰에서 상태별로 탭을 나누어 표시하기 위한 전용 DTO
- */
+
 @Getter
 public class GroupedFunctionCatalogDto {
 

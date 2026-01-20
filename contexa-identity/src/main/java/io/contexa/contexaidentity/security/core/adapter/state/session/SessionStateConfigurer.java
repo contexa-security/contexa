@@ -7,11 +7,11 @@ public class SessionStateConfigurer extends AbstractHttpConfigurer<SessionStateC
 
     @Override
     public void init(HttpSecurity http) {
-//        System.out.println( "SessionStateConfigurer.init()");
+
     }
 
     @Override
     public void configure(HttpSecurity http) {
-//        System.out.println( "SessionStateConfigurer.configure()");
+
     }
 }

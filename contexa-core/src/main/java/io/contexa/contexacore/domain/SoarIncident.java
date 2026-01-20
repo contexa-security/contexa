@@ -9,11 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * SOAR 인시던트
- * 
- * 보안 인시던트 정보를 캡슐화합니다.
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -40,9 +36,7 @@ public class SoarIncident implements Serializable {
     private String resolution;
     private Map<String, Object> metadata;
     
-    /**
-     * 인시던트 상태
-     */
+    
     public enum IncidentStatus {
         NEW("신규"),
         INVESTIGATING("조사 중"),
@@ -66,9 +60,7 @@ public class SoarIncident implements Serializable {
         }
     }
     
-    /**
-     * 인시던트 심각도
-     */
+    
     public enum IncidentSeverity {
         CRITICAL("치명적"),
         HIGH("높음"),
@@ -87,9 +79,7 @@ public class SoarIncident implements Serializable {
         }
     }
     
-    /**
-     * 인시던트 유형
-     */
+    
     public enum IncidentType {
         MALWARE("악성코드"),
         RANSOMWARE("랜섬웨어"),

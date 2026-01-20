@@ -8,10 +8,7 @@ import lombok.Data;
 
 import java.util.List;
 
-/**
- * IAM 데이터 수집 결과
- * 수집된 모든 IAM 데이터를 담는 컨테이너
- */
+
 @Data
 public class IAMDataSet {
     
@@ -23,24 +20,18 @@ public class IAMDataSet {
     private String error;
     private boolean success = true;
     
-    /**
-     * 에러 설정
-     */
+    
     public void setError(String error) {
         this.error = error;
         this.success = false;
     }
     
-    /**
-     * 성공 여부 확인
-     */
+    
     public boolean isSuccess() {
         return success && error == null;
     }
     
-    /**
-     * 데이터 존재 여부 확인
-     */
+    
     public boolean hasData() {
         return (users != null && !users.isEmpty()) ||
                (groups != null && !groups.isEmpty()) ||
@@ -48,9 +39,7 @@ public class IAMDataSet {
                (permissions != null && !permissions.isEmpty());
     }
     
-    /**
-     * 데이터 요약 정보
-     */
+    
     public String getSummary() {
         if (!isSuccess()) {
             return "데이터 수집 실패: " + error;

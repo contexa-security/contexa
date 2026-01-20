@@ -6,9 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * 대화 메시지
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

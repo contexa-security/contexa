@@ -10,60 +10,37 @@ import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 모델 제공자 통합 설정
- *
- * 모든 모델 제공자(Ollama, Anthropic, OpenAI 등)의 설정을 중앙에서 관리합니다.
- * 하드코딩 제거 및 동적 설정을 통해 코드 수정 없이 새 모델을 추가할 수 있습니다.
- */
+
 @Slf4j
 @Data
 @ConfigurationProperties(prefix = "spring.ai.providers")
 public class ModelProviderProperties {
 
-    /**
-     * Ollama 프로바이더 설정
-     */
+    
     @NestedConfigurationProperty
     private OllamaConfig ollama = new OllamaConfig();
 
-    /**
-     * Anthropic 프로바이더 설정
-     */
+    
     @NestedConfigurationProperty
     private AnthropicConfig anthropic = new AnthropicConfig();
 
-    /**
-     * OpenAI 프로바이더 설정
-     */
+    
     @NestedConfigurationProperty
     private OpenAIConfig openai = new OpenAIConfig();
 
-    /**
-     * vLLM 프로바이더 설정
-     *
-     * vLLM은 OpenAI 호환 API를 제공하는 고처리량 로컬 LLM 추론 엔진입니다.
-     * PagedAttention 기술로 Ollama 대비 약 10배의 처리량을 제공합니다.
-     */
+    
     @NestedConfigurationProperty
     private VLLMConfig vllm = new VLLMConfig();
 
-    /**
-     * 프로바이더 매핑 테이블
-     * 모델명 패턴 -> 프로바이더 매핑
-     */
+    
     @NestedConfigurationProperty
     private Map<String, String> providerMapping = new HashMap<>();
 
-    /**
-     * 기본 모델 스펙 (프로바이더별 기본값)
-     */
+    
     @NestedConfigurationProperty
     private DefaultSpecs defaults = new DefaultSpecs();
 
-    /**
-     * Ollama 설정
-     */
+    
     @Data
     public static class OllamaConfig {
         private String baseUrl = "http://127.0.0.1:11434";
@@ -90,9 +67,7 @@ public class ModelProviderProperties {
         }
     }
 
-    /**
-     * Anthropic 설정
-     */
+    
     @Data
     public static class AnthropicConfig {
         private String baseUrl = "https://api.anthropic.com";
@@ -109,9 +84,7 @@ public class ModelProviderProperties {
         }
     }
 
-    /**
-     * OpenAI 설정
-     */
+    
     @Data
     public static class OpenAIConfig {
         private String baseUrl = "https://api.openai.com";
@@ -119,36 +92,25 @@ public class ModelProviderProperties {
         private Map<String, ModelSpec> models = new HashMap<>();
     }
 
-    /**
-     * vLLM 설정
-     *
-     * vLLM은 OpenAI 호환 API를 제공하는 고처리량 로컬 LLM 추론 엔진입니다.
-     * 특징:
-     * - PagedAttention: KV 캐시 메모리 낭비 60-80% -> 4% 미만으로 감소
-     * - Continuous Batching: 동적 배치로 GPU 활용률 극대화
-     * - Ollama 대비 약 10배의 처리량
-     * - OpenAI 호환 API로 기존 OpenAI 클라이언트 재사용 가능
-     */
+    
     @Data
     public static class VLLMConfig {
         private String baseUrl = "http://localhost:8000";
-        private boolean enabled = false;  // 기본 비활성화
+        private boolean enabled = false;  
         private Map<String, ModelSpec> models = new HashMap<>();
         private PerformanceDefaults performance = new PerformanceDefaults();
 
         @Data
         public static class PerformanceDefaults {
-            private Integer latencyMs = 50;  // vLLM은 저지연
+            private Integer latencyMs = 50;  
             private Integer timeoutMs = 5000;
-            private Double performanceScore = 95.0;  // vLLM은 고성능
-            private Integer concurrency = 200;  // vLLM은 고처리량
-            private Integer throughputMultiplier = 10;  // Ollama 대비 10배
+            private Double performanceScore = 95.0;  
+            private Integer concurrency = 200;  
+            private Integer throughputMultiplier = 10;  
         }
     }
 
-    /**
-     * 모델 상세 스펙
-     */
+    
     @Data
     public static class ModelSpec {
         private String displayName;
@@ -156,19 +118,19 @@ public class ModelProviderProperties {
         private String modelSize;
         private Integer tier;
 
-        // Capabilities
+        
         private ModelCapabilities capabilities = new ModelCapabilities();
 
-        // Performance
+        
         private PerformanceSpec performance = new PerformanceSpec();
 
-        // Cost
+        
         private CostSpec cost = new CostSpec();
 
-        // Options
+        
         private ModelOptions options = new ModelOptions();
 
-        // Metadata
+        
         private Map<String, Object> metadata = new HashMap<>();
 
         @Data
@@ -187,7 +149,7 @@ public class ModelProviderProperties {
         @Data
         public static class PerformanceSpec {
             private Integer latencyMs = 1000;
-            private String throughputLevel = "MEDIUM"; // HIGH, MEDIUM, LOW
+            private String throughputLevel = "MEDIUM"; 
             private Integer concurrency = 50;
             private Integer recommendedTimeoutMs = 5000;
             private Double performanceScore = 75.0;
@@ -198,7 +160,7 @@ public class ModelProviderProperties {
             private Double costPerInputToken = 0.0;
             private Double costPerOutputToken = 0.0;
             private Double costEfficiency = 100.0;
-            private String billingModel = "per-token"; // per-token, per-request, subscription
+            private String billingModel = "per-token"; 
         }
 
         @Data
@@ -212,9 +174,7 @@ public class ModelProviderProperties {
         }
     }
 
-    /**
-     * 기본 스펙 설정
-     */
+    
     @Data
     public static class DefaultSpecs {
         private Map<Integer, TierDefaults> tierDefaults = new HashMap<>();
@@ -231,15 +191,13 @@ public class ModelProviderProperties {
         }
     }
 
-    /**
-     * 모델명으로 프로바이더 결정
-     */
+    
     public String getProviderForModel(String modelName) {
         if (modelName == null || modelName.isEmpty()) {
             return "unknown";
         }
 
-        // 매핑 테이블에서 먼저 확인
+        
         for (Map.Entry<String, String> entry : providerMapping.entrySet()) {
             String pattern = entry.getKey();
             if (modelName.matches(pattern) || modelName.startsWith(pattern)) {
@@ -247,22 +205,22 @@ public class ModelProviderProperties {
             }
         }
 
-        // Ollama 모델 확인
+        
         if (ollama.getModels().containsKey(modelName)) {
             return "ollama";
         }
 
-        // Anthropic 모델 확인
+        
         if (anthropic.getModels().containsKey(modelName)) {
             return "anthropic";
         }
 
-        // OpenAI 모델 확인
+        
         if (openai.getModels().containsKey(modelName)) {
             return "openai";
         }
 
-        // vLLM 모델 확인
+        
         if (vllm.getModels().containsKey(modelName)) {
             return "vllm";
         }
@@ -271,9 +229,7 @@ public class ModelProviderProperties {
         return "unknown";
     }
 
-    /**
-     * 모델 스펙 조회
-     */
+    
     public ModelSpec getModelSpec(String provider, String modelName) {
         switch (provider.toLowerCase()) {
             case "ollama":
@@ -289,21 +245,17 @@ public class ModelProviderProperties {
         }
     }
 
-    /**
-     * Tier별 기본값 조회
-     */
+    
     public DefaultSpecs.TierDefaults getTierDefaults(int tier) {
         return defaults.getTierDefaults().get(tier);
     }
 
-    /**
-     * 설정 초기화 후 검증
-     */
+    
     @PostConstruct
     public void validateConfiguration() {
         log.info("모델 제공자 설정 검증 시작");
 
-        // Ollama 설정 검증
+        
         if (ollama.isEnabled()) {
             log.info("Ollama 설정: baseUrl={}, 모델 수={}",
                     ollama.getBaseUrl(), ollama.getModels().size());
@@ -312,7 +264,7 @@ public class ModelProviderProperties {
             }
         }
 
-        // Anthropic 설정 검증
+        
         if (anthropic.isEnabled()) {
             log.info("Anthropic 설정: baseUrl={}, 모델 수={}",
                     anthropic.getBaseUrl(), anthropic.getModels().size());
@@ -321,7 +273,7 @@ public class ModelProviderProperties {
             }
         }
 
-        // OpenAI 설정 검증
+        
         if (openai.isEnabled()) {
             log.info("OpenAI 설정: baseUrl={}, 모델 수={}",
                     openai.getBaseUrl(), openai.getModels().size());
@@ -330,7 +282,7 @@ public class ModelProviderProperties {
             }
         }
 
-        // vLLM 설정 검증
+        
         if (vllm.isEnabled()) {
             log.info("vLLM 설정: baseUrl={}, 모델 수={}, 처리량 배수={}x",
                     vllm.getBaseUrl(), vllm.getModels().size(),
@@ -340,13 +292,13 @@ public class ModelProviderProperties {
             }
         }
 
-        // 프로바이더 매핑 검증
+        
         log.info("프로바이더 매핑 규칙: {} 개", providerMapping.size());
         for (Map.Entry<String, String> entry : providerMapping.entrySet()) {
             log.debug("  - {} -> {}", entry.getKey(), entry.getValue());
         }
 
-        // Tier 기본값 검증
+        
         log.info("Tier 기본값 설정: {} 개", defaults.getTierDefaults().size());
         for (Map.Entry<Integer, DefaultSpecs.TierDefaults> entry : defaults.getTierDefaults().entrySet()) {
             DefaultSpecs.TierDefaults td = entry.getValue();

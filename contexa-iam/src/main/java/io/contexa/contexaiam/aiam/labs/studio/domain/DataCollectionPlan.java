@@ -8,14 +8,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * IAM 데이터 수집 계획
- * AI 분석 결과를 기반으로 어떤 데이터를 수집할지 결정
- */
+
 @Getter
 public class DataCollectionPlan {
     
-    // 동적 키워드 매핑 (하드코딩 완전 제거)
+    
     private static final Map<String, String> RESOURCE_KEYWORDS;
     static {
         RESOURCE_KEYWORDS = new HashMap<>();
@@ -40,24 +37,22 @@ public class DataCollectionPlan {
         this.confidenceScore = 80;
         this.analysisContext = "AI 분석 기반 데이터 수집";
         
-        // AI 분석 결과에 따른 동적 데이터 수집 계획
+        
         QueryIntent queryIntent = queryIntentAnalyzer.analyzeIntent(originalQuery);
         
         if (queryIntent != null) {
-            // 질문 유형에 따른 데이터 수집 계획
+            
             String questionType = queryIntent.getQuestionType();
             String entityType = queryIntent.getEntityType();
             
             planDataCollection(questionType, entityType, originalQuery);
         } else {
-            // 폴백 계획
+            
             createFallbackPlan(originalQuery);
         }
     }
     
-    /**
-     * 동적 키워드 검색 (하드코딩 완전 제거)
-     */
+    
     private boolean containsResourceKeywords(String query) {
         String lowerQuery = query.toLowerCase();
         return RESOURCE_KEYWORDS.keySet().stream()
@@ -65,7 +60,7 @@ public class DataCollectionPlan {
     }
     
     private void planDataCollection(String questionType, String entityType, String query) {
-        // 질문 유형에 따른 데이터 수집
+        
         if ("WHO".equals(questionType)) {
             requiredDataTypes.add("USERS");
             requiredDataTypes.add("GROUPS");
@@ -91,7 +86,7 @@ public class DataCollectionPlan {
             requiredDataTypes.add("RELATIONSHIPS");
         }
         
-        // 엔티티 유형에 따른 추가 데이터 수집
+        
         if ("RESOURCE".equals(entityType)) {
             requiredDataTypes.add("BUSINESS_RESOURCES");
             requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -104,7 +99,7 @@ public class DataCollectionPlan {
             requiredDataTypes.add("PERMISSIONS");
         }
         
-        // 동적 키워드 검색 사용 (하드코딩 제거)
+        
         if (containsResourceKeywords(query)) {
             requiredDataTypes.add("BUSINESS_RESOURCES");
             requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -112,14 +107,14 @@ public class DataCollectionPlan {
     }
     
     private void createFallbackPlan(String query) {
-        // 기본 데이터 수집 계획
+        
         requiredDataTypes.add("USERS");
         requiredDataTypes.add("GROUPS");
         requiredDataTypes.add("ROLES");
         requiredDataTypes.add("PERMISSIONS");
         requiredDataTypes.add("RELATIONSHIPS");
         
-        // 동적 키워드 검색 사용 (하드코딩 제거)
+        
         if (containsResourceKeywords(query)) {
             requiredDataTypes.add("BUSINESS_RESOURCES");
             requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -134,7 +129,7 @@ public class DataCollectionPlan {
         plan.requiredDataTypes.add("PERMISSIONS");
         plan.requiredDataTypes.add("RELATIONSHIPS");
         
-        // 동적 키워드 검색 사용 (하드코딩 제거)
+        
         if (plan.containsResourceKeywords(query)) {
             plan.requiredDataTypes.add("BUSINESS_RESOURCES");
             plan.requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -149,7 +144,7 @@ public class DataCollectionPlan {
         this.confidenceScore = 50;
     }
     
-    // 필요한 데이터 타입 확인 메서드들
+    
     public boolean needsUsers() { return requiredDataTypes.contains("USERS"); }
     public boolean needsGroups() { return requiredDataTypes.contains("GROUPS"); }
     public boolean needsRoles() { return requiredDataTypes.contains("ROLES"); }

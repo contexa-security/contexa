@@ -55,7 +55,7 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
         AuthMethodConfigurerFactory factory = new AuthMethodConfigurerFactory(this.applicationContext);
 
         if (formLoginCustomizer != null) {
-            // MFA 1차 인증용 FormDslConfigurer 생성 (AuthType.MFA_FORM)
+            
             FormConfigurerConfigurerImpl formDslBuilder = (FormConfigurerConfigurerImpl) factory.createFactorConfigurer(
                 AuthType.MFA_FORM, FormConfigurerConfigurer.class
             );
@@ -67,7 +67,7 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
             log.debug("PrimaryAuth: FormLogin options built. Processing URL: {}", determinedLoginProcessingUrl);
 
         } else if (restLoginCustomizer != null) {
-            // MFA 1차 인증용 RestDslConfigurer 생성 (AuthType.MFA_REST)
+            
             RestConfigurerConfigurerImpl restDslBuilder = (RestConfigurerConfigurerImpl) factory.createFactorConfigurer(
                 AuthType.MFA_REST, RestConfigurerConfigurer.class
             );
@@ -78,8 +78,8 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
             determinedLoginProcessingUrl = builtRestOptions.getLoginProcessingUrl();
             log.debug("PrimaryAuth: RestLogin options built. Processing URL: {}", determinedLoginProcessingUrl);
         } else {
-            // 이 메서드가 호출되었다는 것은 formLoginCustomizer 또는 restLoginCustomizer 중 하나는 설정되었음을 의미해야 함.
-            // MfaDslConfigurerImpl.build()에서 호출 전에 이 조건을 확인.
+            
+            
             throw new DslConfigurationException("Neither formLogin nor restLogin was configured for primary authentication, but buildOptions was called.");
         }
 

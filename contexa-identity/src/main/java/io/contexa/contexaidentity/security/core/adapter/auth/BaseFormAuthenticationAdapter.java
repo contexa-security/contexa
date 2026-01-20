@@ -8,16 +8,13 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccess
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 
-/**
- * Form 인증 어댑터 기반 클래스
- * @param <T> Configurer 타입
- */
+
 public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfigurer<T, HttpSecurity>>
         extends AbstractAuthenticationAdapter<FormOptions> {
 
     @Override
     public int getOrder() {
-        return 100; // Form은 REST(200)보다 우선순위 높음
+        return 100; 
     }
 
     @Override
@@ -37,20 +34,14 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
         });
     }
 
-    /**
-     * Configurer 인스턴스 생성
-     */
+    
     protected abstract T createConfigurer();
 
-    /**
-     * Form 인증 설정
-     */
+    
     protected abstract void configureFormAuthentication(T configurer, FormOptions opts,
                                                         PlatformAuthenticationSuccessHandler successHandler,
                                                         PlatformAuthenticationFailureHandler failureHandler);
 
-    /**
-     * Security Context 설정
-     */
+    
     protected abstract void configureSecurityContext(T configurer, FormOptions opts);
 }

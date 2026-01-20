@@ -9,12 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * FallbackToolResolver
- * 
- * 다른 Resolver가 도구를 찾지 못했을 때 대체 도구를 제공합니다.
- * 기본 동작이나 에러 메시지를 반환하는 도구들을 관리합니다.
- */
+
 @Slf4j
 public class FallbackToolResolver implements ToolCallbackResolver {
     
@@ -29,37 +24,35 @@ public class FallbackToolResolver implements ToolCallbackResolver {
 
         log.trace("Fallback 도구 검색: {}", toolName);
         
-        // 특정 도구에 대한 대체 도구가 있는지 확인
+        
         ToolCallback specificFallback = fallbackTools.get(toolName);
         if (specificFallback != null) {
             log.debug("특정 Fallback 도구 발견: {}", toolName);
             return specificFallback;
         }
         
-        // 패턴 매칭을 통한 대체 도구 검색
+        
         ToolCallback patternFallback = findPatternMatchedFallback(toolName);
         if (patternFallback != null) {
             log.debug("패턴 매칭 Fallback 도구 발견: {}", toolName);
             return patternFallback;
         }
         
-        // 기본 대체 도구 반환
+        
         log.debug("기본 Fallback 도구 반환: {}", toolName);
         return createDefaultFallback(toolName);
     }
     
-    /**
-     * 기본 대체 도구들 초기화
-     */
+    
     private void initializeFallbackTools() {
-        // 네트워크 관련 도구 대체
+        
         fallbackTools.put("network_scan_fallback", new FallbackToolCallback(
             "network_scan_fallback",
             "네트워크 스캔 도구를 사용할 수 없습니다",
             "네트워크 스캔 기능이 현재 비활성화되어 있습니다. 관리자에게 문의하세요."
         ));
         
-        // 로그 분석 도구 대체
+        
         fallbackTools.put("log_analysis_fallback", new FallbackToolCallback(
             "log_analysis_fallback",
             "로그 분석 도구를 사용할 수 없습니다",
@@ -69,11 +62,9 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         log.info("Fallback 도구 초기화 완료: {} 개", fallbackTools.size());
     }
     
-    /**
-     * 패턴 매칭을 통한 대체 도구 검색
-     */
+    
     private ToolCallback findPatternMatchedFallback(String toolName) {
-        // 보안 관련 도구
+        
         if (toolName.contains("scan") || toolName.contains("security")) {
             return new FallbackToolCallback(
                 toolName + "_fallback",
@@ -82,7 +73,7 @@ public class FallbackToolResolver implements ToolCallbackResolver {
             );
         }
         
-        // AI 관련 도구
+        
         if (toolName.contains("ai") || toolName.contains("llm")) {
             return new FallbackToolCallback(
                 toolName + "_fallback",
@@ -94,9 +85,7 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         return null;
     }
     
-    /**
-     * 기본 대체 도구 생성
-     */
+    
     private ToolCallback createDefaultFallback(String toolName) {
         return new FallbackToolCallback(
             toolName + "_default_fallback",
@@ -105,25 +94,19 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         );
     }
     
-    /**
-     * 대체 도구 등록
-     */
+    
     public void registerFallback(String toolName, ToolCallback fallback) {
         fallbackTools.put(toolName, fallback);
         log.info("Fallback 도구 등록: {}", toolName);
     }
     
-    /**
-     * 대체 도구 제거
-     */
+    
     public void removeFallback(String toolName) {
         fallbackTools.remove(toolName);
         log.info("Fallback 도구 제거: {}", toolName);
     }
     
-    /**
-     * 통계 정보
-     */
+    
     public Map<String, Object> getStatistics() {
         return Map.of(
             "totalFallbacks", fallbackTools.size(),
@@ -131,9 +114,7 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         );
     }
     
-    /**
-     * 기본 Fallback 도구 구현
-     */
+    
     private static class FallbackToolCallback implements ToolCallback {
         private final String name;
         private final String description;

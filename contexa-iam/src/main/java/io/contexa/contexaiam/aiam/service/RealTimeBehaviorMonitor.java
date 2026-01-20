@@ -14,9 +14,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * 실시간 사용자 행동 모니터링 서비스
- */
+
 @Slf4j
 public class RealTimeBehaviorMonitor {
 
@@ -24,7 +22,7 @@ public class RealTimeBehaviorMonitor {
     private final SimpMessagingTemplate brokerTemplate;
     private final Set<String> monitoringUsers = ConcurrentHashMap.newKeySet();
 
-    // 실시간 이벤트 스트림
+    
     private final Sinks.Many<Map<String, Object>> behaviorEventSink =
             Sinks.many().multicast().onBackpressureBuffer();
 
@@ -34,14 +32,12 @@ public class RealTimeBehaviorMonitor {
         this.brokerTemplate = brokerTemplate;
     }
 
-    /**
-     * 특정 사용자 모니터링 시작
-     */
+    
     public void startMonitoring(String userId) {
         monitoringUsers.add(userId);
         log.info("사용자 모니터링 시작: {}", userId);
 
-        // 초기 캐시 생성
+        
         BehaviorRealtimeCache cache = realtimeCacheRepository.findById(userId)
                 .orElseGet(() -> createInitialCache(userId));
 
@@ -49,17 +45,13 @@ public class RealTimeBehaviorMonitor {
         realtimeCacheRepository.save(cache);
     }
 
-    /**
-     * 특정 사용자 모니터링 중지
-     */
+    
     public void stopMonitoring(String userId) {
         monitoringUsers.remove(userId);
         log.info("사용자 모니터링 중지: {}", userId);
     }
 
-    /**
-     * 전체 사용자 행동 스트림
-     */
+    
     public Flux<String> streamAllUserBehaviors() {
         return behaviorEventSink.asFlux()
                 .map(this::convertEventToJson)
@@ -67,9 +59,7 @@ public class RealTimeBehaviorMonitor {
                         log.error("스트리밍 오류: {}", error.getMessage()));
     }
 
-    /**
-     * 행동 이벤트 발생
-     */
+    
     public void publishBehaviorEvent(String userId, String activity, String ip, double riskScore) {
         Map<String, Object> event = new HashMap<>();
         event.put("userId", userId);
@@ -79,16 +69,16 @@ public class RealTimeBehaviorMonitor {
         event.put("timestamp", LocalDateTime.now().toString());
         event.put("riskLevel", determineRiskLevel(riskScore));
 
-        // 실시간 캐시 업데이트
+        
         updateRealtimeCache(userId, activity, ip, riskScore);
 
-        // 이벤트 발행
+        
         behaviorEventSink.tryEmitNext(event);
 
-        // WebSocket 으로도 전송 (옵션)
+        
         brokerTemplate.convertAndSend("/topic/behavior-events", event);
 
-        // 모니터링 중인 사용자면 상세 정보 전송
+        
         if (monitoringUsers.contains(userId)) {
             Map<String, Object> detailedEvent = new HashMap<>(event);
             detailedEvent.put("anomalies", detectRealTimeAnomalies(userId, activity, ip));
@@ -96,14 +86,12 @@ public class RealTimeBehaviorMonitor {
         }
     }
 
-    /**
-     * 실시간 캐시 업데이트
-     */
+    
     private void updateRealtimeCache(String userId, String activity, String ip, double riskScore) {
         BehaviorRealtimeCache cache = realtimeCacheRepository.findById(userId)
                 .orElseGet(() -> createInitialCache(userId));
 
-        // 최근 활동 업데이트
+        
         List<Map<String, Object>> recentActivities = cache.getRecentActivitiesList();
         if (recentActivities == null) {
             recentActivities = new ArrayList<>();
@@ -117,7 +105,7 @@ public class RealTimeBehaviorMonitor {
 
         recentActivities.add(0, newActivity);
 
-        // 최대 10개만 유지
+        
         if (recentActivities.size() > 10) {
             recentActivities = recentActivities.subList(0, 10);
         }
@@ -126,7 +114,7 @@ public class RealTimeBehaviorMonitor {
         cache.setLastActivityTimestamp(LocalDateTime.now());
         cache.setCurrentRiskScore((float) riskScore);
 
-        // 위험 요인 업데이트
+        
         if (riskScore > 50) {
             List<String> riskFactors = new ArrayList<>();
             if (riskScore > 70) riskFactors.add("HIGH_RISK_SCORE");
@@ -134,27 +122,25 @@ public class RealTimeBehaviorMonitor {
             cache.setRiskFactors(convertToJson(riskFactors));
         }
 
-        // TTL 설정 (1시간)
+        
         cache.setExpiresAt(LocalDateTime.now().plusHours(1));
 
         realtimeCacheRepository.save(cache);
     }
 
-    /**
-     * 실시간 이상 징후 감지
-     */
+    
     private List<String> detectRealTimeAnomalies(String userId, String activity, String ip) {
         List<String> anomalies = new ArrayList<>();
 
         BehaviorRealtimeCache cache = realtimeCacheRepository.findById(userId).orElse(null);
         if (cache == null) return anomalies;
 
-        // IP 변경 감지
+        
         if (cache.getSessionIp() != null && !cache.getSessionIp().equals(ip)) {
             anomalies.add("IP 주소 변경 감지");
         }
 
-        // 짧은 시간 내 과도한 활동
+        
         if (cache.getRecentActivitiesList() != null && cache.getRecentActivitiesList().size() >= 5) {
             LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
             long recentCount = cache.getRecentActivitiesList().stream()
@@ -169,7 +155,7 @@ public class RealTimeBehaviorMonitor {
             }
         }
 
-        // 위험한 활동 패턴
+        
         if (activity.toLowerCase().contains("delete") || activity.toLowerCase().contains("admin")) {
             anomalies.add("민감한 작업 수행");
         }
@@ -177,9 +163,7 @@ public class RealTimeBehaviorMonitor {
         return anomalies;
     }
 
-    /**
-     * 초기 캐시 생성
-     */
+    
     private BehaviorRealtimeCache createInitialCache(String userId) {
         BehaviorRealtimeCache cache = new BehaviorRealtimeCache();
         cache.setUserId(userId);
@@ -190,9 +174,7 @@ public class RealTimeBehaviorMonitor {
         return cache;
     }
 
-    /**
-     * 위험 수준 결정
-     */
+    
     private String determineRiskLevel(double riskScore) {
         if (riskScore >= 80) return "CRITICAL";
         else if (riskScore >= 60) return "HIGH";
@@ -200,9 +182,7 @@ public class RealTimeBehaviorMonitor {
         else return "LOW";
     }
 
-    /**
-     * 이벤트를 JSON 문자열로 변환
-     */
+    
     private String convertEventToJson(Map<String, Object> event) {
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper()
@@ -213,9 +193,7 @@ public class RealTimeBehaviorMonitor {
         }
     }
 
-    /**
-     * 객체를 JSON 문자열로 변환
-     */
+    
     private String convertToJson(Object obj) {
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper()
@@ -226,35 +204,27 @@ public class RealTimeBehaviorMonitor {
         }
     }
 
-    /**
-     * 만료된 캐시 정리 (매시간 실행)
-     */
-//    @Scheduled(fixedDelay = 3600000) // 1시간마다
+    
+
     public void cleanupExpiredCache() {
         log.info("만료된 실시간 캐시 정리 시작");
         int deleted = realtimeCacheRepository.deleteByExpiresAtBefore(LocalDateTime.now());
         log.info("만료된 캐시 {}개 삭제됨", deleted);
     }
 
-    /**
-     * 현재 모니터링 중인 사용자 목록
-     */
+    
     public Set<String> getMonitoringUsers() {
         return new HashSet<>(monitoringUsers);
     }
 
-    /**
-     * 사용자의 현재 위험도 조회
-     */
+    
     public float getCurrentRiskScore(String userId) {
         return realtimeCacheRepository.findById(userId)
                 .map(BehaviorRealtimeCache::getCurrentRiskScore)
                 .orElse(0.0f);
     }
 
-    /**
-     * 전체 사용자의 평균 위험도
-     */
+    
     public double getAverageRiskScore() {
         List<BehaviorRealtimeCache> allCaches = realtimeCacheRepository.findAll();
         if (allCaches.isEmpty()) return 0.0;
@@ -265,9 +235,7 @@ public class RealTimeBehaviorMonitor {
                 .orElse(0.0);
     }
 
-    /**
-     * 고위험 사용자 목록 (위험도 70 이상)
-     */
+    
     public List<String> getHighRiskUsers() {
         return realtimeCacheRepository.findByCurrentRiskScoreGreaterThan(70.0f)
                 .stream()

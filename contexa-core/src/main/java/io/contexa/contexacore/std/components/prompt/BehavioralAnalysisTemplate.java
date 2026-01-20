@@ -12,24 +12,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
-/**
- * 사용자 행동 패턴 분석 프롬프트 템플릿
- *
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환
- * - 표준화된 포맷 지시
- * - 성능 최적화
- *
- * Spring AI 공식 패턴 준수
- * 
- * UEBA (User and Entity Behavior Analytics) 분석:
- * - 사용자 행동 패턴 이상 징후 탐지
- * - 시간대별 접근 패턴 분석
- * - IP 기반 위치 이상 감지
- * - 리소스 접근 패턴 분석
- * - 권한 변경 이상 탐지
- */
+
 @Slf4j
 @PromptTemplateConfig(
         key = "behavioralAnalysis",
@@ -38,13 +21,13 @@ import java.util.Optional;
 )
 public class BehavioralAnalysisTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성
+    
     private final BeanOutputConverter<BehavioralAnalysisResponse> converter =
         new BeanOutputConverter<>(BehavioralAnalysisResponse.class);
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        // Spring AI의 포맷 지시사항 자동 생성
+        
         String formatInstructions = converter.getFormat();
         
         return String.format("""
@@ -139,13 +122,11 @@ public class BehavioralAnalysisTemplate implements PromptTemplate {
             history
         );
         
-        // BeanOutputConverter의 포맷 지시사항을 다시 추가 (강조)
+        
         return analysisRequest + "\n\n" + converter.getFormat();
     }
     
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     */
+    
     public BeanOutputConverter<BehavioralAnalysisResponse> getConverter() {
         return converter;
     }

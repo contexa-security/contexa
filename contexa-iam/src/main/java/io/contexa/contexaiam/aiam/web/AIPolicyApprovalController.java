@@ -17,14 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * AI Policy Approval Controller
- *
- * AI가 생성하거나 진화시킨 정책의 승인/거부를 처리하는 REST API 컨트롤러입니다.
- *
- * @author contexa
- * @since 3.1.0
- */
+
 @Slf4j
 @RequestMapping("/api/ai/policies")
 @RequiredArgsConstructor
@@ -32,9 +25,7 @@ public class AIPolicyApprovalController {
 
     private final PolicyService policyService;
 
-    /**
-     * AI 생성 정책 목록 조회 (승인 대기 중)
-     */
+    
     @GetMapping("/pending")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_APPROVE')")
     public ResponseEntity<Page<PolicyDTO>> getPendingAIPolicies(Pageable pageable) {
@@ -46,9 +37,7 @@ public class AIPolicyApprovalController {
         return ResponseEntity.ok(policyDTOs);
     }
 
-    /**
-     * 모든 AI 생성 정책 목록 조회
-     */
+    
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_VIEW')")
     public ResponseEntity<Page<PolicyDTO>> getAllAIPolicies(
@@ -64,9 +53,7 @@ public class AIPolicyApprovalController {
         return ResponseEntity.ok(policyDTOs);
     }
 
-    /**
-     * 특정 AI 정책 상세 조회
-     */
+    
     @GetMapping("/{policyId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_VIEW')")
     public ResponseEntity<PolicyDetailDTO> getAIPolicy(@PathVariable Long policyId) {
@@ -81,9 +68,7 @@ public class AIPolicyApprovalController {
         return ResponseEntity.ok(detailDTO);
     }
 
-    /**
-     * AI 정책 승인
-     */
+    
     @PostMapping("/{policyId}/approve")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_APPROVE')")
     public ResponseEntity<ApprovalResponseDTO> approvePolicy(
@@ -104,7 +89,7 @@ public class AIPolicyApprovalController {
                     .body(new ApprovalResponseDTO(false, "정책이 이미 처리되었습니다."));
             }
 
-            // 정책 승인 처리
+            
             policy.approve(principal.getName());
             if (request != null && request.isActivateImmediately()) {
                 policy.activate();
@@ -112,7 +97,7 @@ public class AIPolicyApprovalController {
 
             policyService.save(policy);
 
-            // 응답 생성
+            
             ApprovalResponseDTO response = new ApprovalResponseDTO(
                 true,
                 "정책이 성공적으로 승인되었습니다.",
@@ -133,9 +118,7 @@ public class AIPolicyApprovalController {
         }
     }
 
-    /**
-     * AI 정책 거부
-     */
+    
     @PostMapping("/{policyId}/reject")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_APPROVE')")
     public ResponseEntity<ApprovalResponseDTO> rejectPolicy(
@@ -156,16 +139,16 @@ public class AIPolicyApprovalController {
                     .body(new ApprovalResponseDTO(false, "정책이 이미 처리되었습니다."));
             }
 
-            // 정책 거부 처리
+            
             policy.reject(principal.getName());
             policyService.save(policy);
 
-            // 거부 사유 기록 (학습용)
+            
             if (request != null && request.getReason() != null) {
                 policyService.recordRejectionReason(policy.getId(), request.getReason());
             }
 
-            // 응답 생성
+            
             ApprovalResponseDTO response = new ApprovalResponseDTO(
                 true,
                 "정책이 거부되었습니다.",
@@ -186,9 +169,7 @@ public class AIPolicyApprovalController {
         }
     }
 
-    /**
-     * AI 정책 통계 조회
-     */
+    
     @GetMapping("/statistics")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_VIEW')")
     public ResponseEntity<Map<String, Object>> getAIPolicyStatistics() {
@@ -196,32 +177,30 @@ public class AIPolicyApprovalController {
 
         Map<String, Object> statistics = new HashMap<>();
 
-        // 전체 AI 정책 수
+        
         long totalAIPolicies = policyService.countAIPolicies();
         statistics.put("total", totalAIPolicies);
 
-        // 상태별 정책 수
+        
         Map<String, Long> statusCounts = policyService.countAIPoliciesByStatus();
         statistics.put("byStatus", statusCounts);
 
-        // 출처별 정책 수
+        
         Map<String, Long> sourceCounts = policyService.countAIPoliciesBySource();
         statistics.put("bySource", sourceCounts);
 
-        // 최근 30일 승인율
+        
         double approvalRate = policyService.calculateApprovalRate(30);
         statistics.put("approvalRate", approvalRate);
 
-        // 평균 신뢰도 점수
+        
         double avgConfidenceScore = policyService.calculateAverageConfidenceScore();
         statistics.put("avgConfidenceScore", avgConfidenceScore);
 
         return ResponseEntity.ok(statistics);
     }
 
-    /**
-     * AI 정책 일괄 승인
-     */
+    
     @PostMapping("/batch/approve")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BatchApprovalResponseDTO> batchApprove(
@@ -257,11 +236,9 @@ public class AIPolicyApprovalController {
         return ResponseEntity.ok(response);
     }
 
-    // ==================== DTO Classes ====================
+    
 
-    /**
-     * 정책 DTO
-     */
+    
     public static class PolicyDTO {
         public Long id;
         public String name;
@@ -274,9 +251,7 @@ public class AIPolicyApprovalController {
         public boolean isActive;
     }
 
-    /**
-     * 정책 상세 DTO
-     */
+    
     public static class PolicyDetailDTO extends PolicyDTO {
         public Policy.Effect effect;
         public int priority;
@@ -287,9 +262,7 @@ public class AIPolicyApprovalController {
         public List<String> rules;
     }
 
-    /**
-     * 승인 요청 DTO
-     */
+    
     public static class ApprovalRequestDTO {
         private boolean activateImmediately = true;
         private String comment;
@@ -302,9 +275,7 @@ public class AIPolicyApprovalController {
         public void setComment(String comment) { this.comment = comment; }
     }
 
-    /**
-     * 거부 요청 DTO
-     */
+    
     public static class RejectRequestDTO {
         private String reason;
         private String comment;
@@ -315,9 +286,7 @@ public class AIPolicyApprovalController {
         public void setComment(String comment) { this.comment = comment; }
     }
 
-    /**
-     * 승인/거부 응답 DTO
-     */
+    
     public static class ApprovalResponseDTO {
         private boolean success;
         private String message;
@@ -344,7 +313,7 @@ public class AIPolicyApprovalController {
             this.processedAt = processedAt;
         }
 
-        // Getters
+        
         public boolean isSuccess() { return success; }
         public String getMessage() { return message; }
         public Long getPolicyId() { return policyId; }
@@ -354,9 +323,7 @@ public class AIPolicyApprovalController {
         public LocalDateTime getProcessedAt() { return processedAt; }
     }
 
-    /**
-     * 일괄 승인 요청 DTO
-     */
+    
     public static class BatchApprovalRequestDTO {
         private List<Long> policyIds;
         private boolean activateImmediately = true;
@@ -369,9 +336,7 @@ public class AIPolicyApprovalController {
         }
     }
 
-    /**
-     * 일괄 승인 응답 DTO
-     */
+    
     public static class BatchApprovalResponseDTO {
         private List<Long> successIds = new java.util.ArrayList<>();
         private Map<Long, String> failedIds = new HashMap<>();
@@ -390,7 +355,7 @@ public class AIPolicyApprovalController {
         public Map<Long, String> getSkippedIds() { return skippedIds; }
     }
 
-    // ==================== Helper Methods ====================
+    
 
     private PolicyDTO convertToDTO(Policy policy) {
         PolicyDTO dto = new PolicyDTO();
@@ -423,7 +388,7 @@ public class AIPolicyApprovalController {
         dto.approvedAt = policy.getApprovedAt();
         dto.friendlyDescription = policy.getFriendlyDescription();
 
-        // targets와 rules 변환
+        
         dto.targets = policy.getTargets().stream()
             .map(target -> target.toString())
             .collect(java.util.stream.Collectors.toList());

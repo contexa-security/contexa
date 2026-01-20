@@ -31,17 +31,17 @@ public final class PasskeyConfigurerConfigurerImpl
 
     @Override
     public PasskeyConfigurerConfigurer order(int order) {
-        getOptionsBuilder().order(order); // AuthenticationProcessingOptions.Builder의 order 사용
+        getOptionsBuilder().order(order); 
         return self();
     }
 
     @Override
     public PasskeyConfigurerConfigurer loginProcessingUrl(String url) {
-        super.loginProcessingUrl(url); // AbstractOptionsBuilderConfigurer의 메서드 호출
+        super.loginProcessingUrl(url); 
         return self();
     }
 
-    // --- PasskeyDslConfigurer specific methods ---
+    
     @Override
     public PasskeyConfigurerConfigurer assertionOptionsEndpoint(String url) {
         getOptionsBuilder().assertionOptionsEndpoint(url);

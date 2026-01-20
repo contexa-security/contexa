@@ -17,12 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * 리소스 네이밍 전문 연구소 (리팩토링 버전)
- * 기존 ResourceNamingLab의 모든 기능을 유지하면서
- * 새로운 AbstractIAMLabNew 구조를 활용
- *
- */
+
 @Slf4j
 public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> {
 
@@ -52,7 +47,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     private Mono<ResourceNamingSuggestionResponse> processResourceNamingAsync(ResourceNamingSuggestionRequest request) {
         log.info("ResourceNaming 비동기 진단 시작 - 리소스 수: {} (완전 비블로킹)", request.getResources().size());
         
-        // 벡터 저장소에 요청 저장
+        
         try {
             vectorService.storeNamingRequest(request);
         } catch (Exception e) {
@@ -117,13 +112,13 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
             log.info("비동기 6단계 파이프라인 실행 완료 - 성공: {}, 실패: {}, 처리시간: {}ms",
                     allSuggestions.size(), failedIdentifiers.size(), processingTime);
             
-            // 벡터 저장소에 결과 저장
+            
             try {
-                // request를 저장하기 위해 원본 request를 재구성 (batches에서)
+                
                 List<ResourceNamingSuggestionRequest.ResourceItem> allResources = batches.stream()
                         .flatMap(List::stream)
                         .collect(Collectors.toList());
-                // ResourceNamingSuggestionRequest 생성
+                
                 ResourceNamingContext context = new ResourceNamingContext(SecurityLevel.STANDARD, AuditRequirement.BASIC);
                 ResourceNamingSuggestionRequest originalRequest = new ResourceNamingSuggestionRequest(
                         context,
@@ -156,9 +151,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                 });
     }
 
-    /**
-     * 비동기 배치 처리 메서드 (기존 코드 그대로 유지)
-     */
+    
     private Mono<ResourceNamingSuggestionResponse> processBatchAsync(List<ResourceNamingSuggestionRequest.ResourceItem> batch) {
         log.info("AI 리소스 네이밍 배치 비동기 생성 시작 - Pipeline 활용 (배치 크기: {})", batch.size());
 
@@ -226,16 +219,10 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                 fallbackStats);
     }
     
-    /**
-     * 피드백 기반 학습
-     * 
-     * @param request 원본 요청
-     * @param response 생성된 응답
-     * @param feedback 사용자 피드백
-     */
+    
     public void learnFromFeedback(ResourceNamingSuggestionRequest request, ResourceNamingSuggestionResponse response, String feedback) {
         try {
-            // storeFeedback는 String 3개를 받으므로 적절히 변환
+            
             String namingId = response.getRequestId();
             String selected = response.getSuggestions().isEmpty() ? "" : response.getSuggestions().get(0).getFriendlyName();
             vectorService.storeFeedback(namingId, selected, feedback);

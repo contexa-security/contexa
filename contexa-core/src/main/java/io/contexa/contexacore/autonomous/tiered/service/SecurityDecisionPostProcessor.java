@@ -15,24 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * SecurityDecision 후처리 서비스
- *
- * AI Native v6.8: Layer1ContextualStrategy와 ZeroTrustEventListener에서 공통으로 사용하는
- * 세션 컨텍스트 업데이트 및 벡터 스토어 저장 로직을 통합합니다.
- *
- * 핵심 기능:
- * - updateSessionContext(): 세션 액션 히스토리에 판정 결과 기록
- * - storeInVectorDatabase(): ALLOW 판정 시 행동 패턴을 벡터 스토어에 저장
- *
- * AI Native 원칙:
- * - ALLOW만 저장 (RAG Pollution 방지)
- * - BLOCK은 위협 패턴으로 추가 저장
- * - CHALLENGE/ESCALATE는 저장하지 않음
- *
- * @author contexa
- * @since AI Native v6.8
- */
+
 @Slf4j
 public class SecurityDecisionPostProcessor {
 
@@ -46,14 +29,7 @@ public class SecurityDecisionPostProcessor {
         this.unifiedVectorService = unifiedVectorService;
     }
 
-    /**
-     * 세션 컨텍스트 업데이트
-     *
-     * 세션 액션 히스토리에 행동 기록을 추가하고, BLOCK 시 위험 점수를 저장합니다.
-     *
-     * @param event SecurityEvent
-     * @param decision SecurityDecision
-     */
+    
     public void updateSessionContext(SecurityEvent event, SecurityDecision decision) {
         String sessionId = event.getSessionId();
         if (sessionId == null || redisTemplate == null) {
@@ -61,8 +37,8 @@ public class SecurityDecisionPostProcessor {
         }
 
         try {
-            // AI Native v6.0: 행동 기반 세션 기록 (httpMethod 제거 - LLM 분석에 불필요)
-            // AI Native v8.12: TTL 및 크기 제한 추가 (orphan 데이터 방지)
+            
+            
             String sessionActionsKey = ZeroTrustRedisKeys.sessionActions(sessionId);
             redisTemplate.opsForList().rightPush(
                     sessionActionsKey,
@@ -71,16 +47,16 @@ public class SecurityDecisionPostProcessor {
                             decision.getAction())
             );
 
-            // AI Native v8.12: TTL 설정 (24시간) - 세션 만료 시 자동 삭제
+            
             redisTemplate.expire(sessionActionsKey, Duration.ofHours(24));
 
-            // AI Native v8.12: 크기 제한 (최대 100개) - 메모리 증가 방지
+            
             Long size = redisTemplate.opsForList().size(sessionActionsKey);
             if (size != null && size > 100) {
                 redisTemplate.opsForList().leftPop(sessionActionsKey);
             }
 
-            // v3.1.0: MITIGATE -> BLOCK으로 통합됨
+            
             SecurityDecision.Action sessionAction = decision.getAction();
             if (sessionAction == SecurityDecision.Action.BLOCK) {
                 redisTemplate.opsForValue().set(
@@ -98,19 +74,7 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
-    /**
-     * Vector Store 저장
-     *
-     * Layer1ContextualStrategy.storeInVectorDatabase()와 동일한 로직입니다.
-     *
-     * AI Native v6.0: 모든 판정에 대해 행동 패턴 저장
-     * - ALLOW: 정상 행동 패턴 학습용 BEHAVIOR 문서 저장
-     * - BLOCK: 위협 패턴 학습용 THREAT 문서 추가 저장
-     * - CHALLENGE/ESCALATE: 저장하지 않음 (RAG Pollution 방지)
-     *
-     * @param event SecurityEvent
-     * @param decision SecurityDecision
-     */
+    
     public void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision) {
         if (unifiedVectorService == null) {
             return;
@@ -119,23 +83,23 @@ public class SecurityDecisionPostProcessor {
         try {
             SecurityDecision.Action action = decision.getAction();
 
-            // AI Native v7.0: confidence NaN 처리 개선
-            // 기존: NaN이면 저장 스킵 → ALLOW도 저장 안 됨 → Baseline 구축 불가
-            // 변경: NaN이어도 ALLOW/BLOCK은 저장 (confidence 0.5 기본값 사용)
+            
+            
+            
             double confidence = decision.getConfidence();
             if (Double.isNaN(confidence)) {
                 log.debug("[SecurityDecisionPostProcessor] confidence NaN, 기본값 0.5 사용: eventId={}",
                     event.getEventId());
-                // decision 객체의 confidence를 직접 수정하지 않고, 저장 시에만 0.5 사용
+                
             }
 
-            // AI Native v6.0: ALLOW만 저장 (Baseline 학습과 일관성 유지)
-            // CHALLENGE/ESCALATE 저장 시 RAG 오염 발생 - 부정적 컨텍스트가 LLM에 전달됨
+            
+            
             if (action == SecurityDecision.Action.ALLOW) {
                 storeBehaviorDocument(event, decision);
             }
 
-            // BLOCK 판정: 위협 패턴으로 저장
+            
             if (action == SecurityDecision.Action.BLOCK) {
                 storeBehaviorDocument(event, decision);
                 String content = buildBehaviorContent(event, decision);
@@ -147,11 +111,7 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
-    /**
-     * 행동 패턴 문서 저장
-     *
-     * Layer1ContextualStrategy.storeBehaviorDocument()와 동일한 로직입니다.
-     */
+    
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
             String content = buildBehaviorContent(event, decision);
@@ -168,64 +128,45 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
-    /**
-     * 행동 패턴 컨텐츠 생성
-     *
-     * AI Native v8.6: Document-Query 형식 통일 (Similarity 95%+ 목표)
-     * - LLM 분석에 불필요한 속성 제거: EventId, Method, Timestamp, Hour
-     * - 검색 쿼리와 100% 일치하는 형식으로 통일: User, IP, Path, OS 포함
-     * - EventId, Method, Timestamp, Hour는 metadata에만 저장 (content에서 제거)
-     *
-     * AI Native v8.9: OS 정보 추가
-     * - 벡터 유사도 계산에 OS 반영 (컨텍스트 변경 감지)
-     * - Windows 문서와 Android 문서 구분 가능
-     *
-     * 변경 전: "EventId: xxx, User: admin, IP: xxx, Path: xxx, Method: GET, Timestamp: xxx, Hour: 18"
-     * 변경 후: "User: admin, IP: 0:0:0:0:0:0:0:1, Path: /api/users, OS: Android"
-     */
+    
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder content = new StringBuilder();
 
-        // User (검색 키 - Query와 일치)
+        
         if (event.getUserId() != null) {
             content.append("User: ").append(event.getUserId());
         }
 
-        // IP (검색 키 - Query와 일치)
+        
         if (event.getSourceIp() != null) {
             if (content.length() > 0) content.append(", ");
             content.append("IP: ").append(event.getSourceIp());
         }
 
-        // Path (검색 키 - Query와 일치)
+        
         String path = extractPath(event);
         if (path != null) {
             if (content.length() > 0) content.append(", ");
             content.append("Path: ").append(path);
         }
 
-        // AI Native v8.9: OS 정보 추가 (벡터 유사도에 반영)
-        // Desktop은 기본값이므로 제외하여 기존 문서와 호환성 유지
+        
+        
         String os = extractOSFromUserAgent(event.getUserAgent());
         if (os != null && !"Desktop".equals(os)) {
             if (content.length() > 0) content.append(", ");
             content.append("OS: ").append(os);
         }
 
-        // AI Native v8.6: 아래 필드들은 content에서 제거 (metadata에만 저장)
-        // - EventId: 각 요청마다 다름 -> 검색 시 알 수 없음 -> Similarity 저하
-        // - Method: 검색 시 알 수 없음 -> metadata에만 저장
-        // - Timestamp, Hour: 각 요청마다 다름 -> metadata에만 저장
+        
+        
+        
+        
 
         return content.toString();
     }
 
-    /**
-     * HTTP Method 추출
-     *
-     * AI Native v7.0: metadata에서 httpMethod 추출
-     * ZeroTrustEventListener에서 metadata.put("httpMethod", event.getHttpMethod())로 설정됨
-     */
+    
     private String extractHttpMethod(SecurityEvent event) {
         Object metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
@@ -239,22 +180,15 @@ public class SecurityDecisionPostProcessor {
         return null;
     }
 
-    /**
-     * 이벤트에서 경로 추출
-     *
-     * AI Native v6.8: 실제 metadata 키에 맞게 수정
-     * - "requestUri": ZeroTrustEventListener에서 설정됨
-     * - "fullPath": HCADContextExtractor에서 설정됨
-     * - "path": 설정되는 곳 없음 (제거)
-     */
+    
     private String extractPath(SecurityEvent event) {
         if (event.getMetadata() != null) {
-            // ZeroTrustEventListener에서 설정
+            
             Object uri = event.getMetadata().get("requestPath");
             if (uri != null) {
                 return uri.toString();
             }
-            // HCADContextExtractor에서 설정
+            
             Object fullPath = event.getMetadata().get("fullPath");
             if (fullPath != null) {
                 return fullPath.toString();
@@ -263,25 +197,17 @@ public class SecurityDecisionPostProcessor {
         return null;
     }
 
-    /**
-     * 위협 문서 저장
-     *
-     * Layer1ContextualStrategy.storeThreatDocument()와 동일한 로직입니다.
-     *
-     * AI Native v7.0: 순환 로직 방지
-     * - RiskScore, Reasoning, Action 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
-     * - 사실 데이터(User, IP, ThreatCategory)만 저장
-     */
+    
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, String analysisContent) {
         try {
             Map<String, Object> threatMetadata = buildBaseMetadata(event, decision, VectorDocumentType.THREAT.getValue());
 
-            // 행동 패턴 추가
+            
             if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
                 threatMetadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
             }
 
-            // AI Native v7.0: 위협 설명 - 사실 데이터만 포함, LLM 결과(RiskScore, Reasoning, Action) 제거
+            
             StringBuilder threatDesc = new StringBuilder("Contextual Threat:");
 
             if (event.getUserId() != null) {
@@ -296,9 +222,9 @@ public class SecurityDecisionPostProcessor {
             if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
                 threatDesc.append(", BehaviorPatterns=").append(decision.getBehaviorPatterns());
             }
-            // AI Native v7.0: action 제거 (LLM 결과 = 순환 로직)
-            // 이전: threatDesc.append(", Action=").append(decision.getAction());
-            // AI Native v7.0: RiskScore, Reasoning, Action 모두 제거 (순환 로직 방지)
+            
+            
+            
 
             Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
             unifiedVectorService.storeDocument(threatDoc);
@@ -311,35 +237,26 @@ public class SecurityDecisionPostProcessor {
         }
     }
 
-    /**
-     * 벡터 저장용 공통 메타데이터 생성
-     *
-     * AbstractTieredStrategy.buildBaseMetadata()와 동일한 로직입니다.
-     *
-     * AI Native v7.0: 순환 로직 방지
-     * - riskScore, confidence, action 제거 - LLM 결과가 다음 분석에 영향을 미치면 안 됨
-     * - null인 경우 필드 생략 (LLM이 "unknown"을 실제 값으로 오해 방지)
-     * - 사실 데이터(eventId, userId, sourceIp, sessionId)만 저장
-     */
+    
     private Map<String, Object> buildBaseMetadata(SecurityEvent event, SecurityDecision decision, String documentType) {
         Map<String, Object> metadata = new HashMap<>();
 
-        // 필수 공통 metadata
+        
         metadata.put("documentType", documentType);
-        // AI Native v6.0 Critical: 이벤트 발생 시간 사용 (저장 시간 X)
+        
         String eventTimestamp = event.getTimestamp() != null
             ? event.getTimestamp().toString()
             : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         metadata.put("timestamp", eventTimestamp);
 
-        // AI Native v8.5: hour 별도 저장 (AbstractTieredStrategy와 동일)
-        // - SecurityPromptTemplate에서 metadata.get("hour")로 직접 접근
-        // - timestamp 문자열 파싱 대신 정확한 hour 값 사용
+        
+        
+        
         if (event.getTimestamp() != null) {
             metadata.put("hour", event.getTimestamp().getHour());
         }
 
-        // SecurityEvent 정보 - AI Native: null인 경우 필드 생략
+        
         if (event.getEventId() != null) {
             metadata.put("eventId", event.getEventId());
         }
@@ -353,32 +270,32 @@ public class SecurityDecisionPostProcessor {
             metadata.put("sessionId", event.getSessionId());
         }
 
-        // AI Native v7.0: action, riskScore, confidence 모두 제거 (순환 로직 방지)
-        // LLM 결과(action 포함)가 다음 분석에 영향을 미치면 독립적 분석 불가
-        // action 저장 제거: 이전 BLOCK/ALLOW가 다음 판단에 편향을 줄 수 있음
-        // threatCategory만 유지 (위협 유형 분류는 참조용으로 허용)
+        
+        
+        
+        
         if (decision.getThreatCategory() != null) {
             metadata.put("threatCategory", decision.getThreatCategory());
         }
 
-        // AI Native v6.8: 실제 metadata 키 사용 (requestPath로 통일)
-        // AI Native v11.0: requestUri -> requestPath 변경 (PRE-COMPUTED COMPARISON과 일관성)
+        
+        
         String requestPath = extractPath(event);
         if (requestPath != null) {
             metadata.put("requestPath", requestPath);
         }
 
-        // AI Native v7.3: userAgent 정보 추가 (디바이스 패턴 분석용)
-        // AbstractTieredStrategy.buildBaseMetadata()와 동일하게 userAgent/userAgentOS 저장
-        // RELATED CONTEXT에서 모든 문서에 |os= 필드가 일관되게 포함되도록 함
-        // AI Native v11.0: userAgentBrowser 추가 (PRE-COMPUTED COMPARISON용)
+        
+        
+        
+        
         if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
             metadata.put("userAgent", event.getUserAgent());
             String userAgentOS = extractOSFromUserAgent(event.getUserAgent());
             if (userAgentOS != null) {
                 metadata.put("userAgentOS", userAgentOS);
             }
-            // AI Native v11.0: 브라우저 시그니처 추가 (Chrome/120 형식)
+            
             String browser = extractBrowserSignature(event.getUserAgent());
             if (browser != null) {
                 metadata.put("userAgentBrowser", browser);
@@ -388,21 +305,13 @@ public class SecurityDecisionPostProcessor {
         return metadata;
     }
 
-    /**
-     * User-Agent에서 OS 정보 추출 (AI Native v7.3)
-     *
-     * AbstractTieredStrategy.extractOSFromUserAgent()와 동일한 로직입니다.
-     * RELATED CONTEXT의 |os= 필드 일관성을 위해 동일한 추출 로직 적용
-     *
-     * @param userAgent User-Agent 문자열
-     * @return OS 이름 (Android, iOS, Windows, Mac, ChromeOS, Linux, Mobile, Desktop 또는 null)
-     */
+    
     private String extractOSFromUserAgent(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
 
-        // 모바일 OS 우선 검사 (Android가 Linux를 포함하므로)
+        
         if (userAgent.contains("Android")) {
             return "Android";
         }
@@ -410,7 +319,7 @@ public class SecurityDecisionPostProcessor {
             return "iOS";
         }
 
-        // 데스크톱 OS
+        
         if (userAgent.contains("Windows NT") || userAgent.contains("Windows")) {
             return "Windows";
         }
@@ -424,7 +333,7 @@ public class SecurityDecisionPostProcessor {
             return "Linux";
         }
 
-        // 일반 모바일/데스크톱 구분
+        
         if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
             return "Mobile";
         }
@@ -432,21 +341,13 @@ public class SecurityDecisionPostProcessor {
         return "Desktop";
     }
 
-    /**
-     * User-Agent에서 브라우저 시그니처 추출 (AI Native v11.0)
-     *
-     * PRE-COMPUTED COMPARISON의 UA 비교를 위한 브라우저 식별자 추출.
-     * AbstractTieredStrategy.extractBrowserSignature()와 동일한 로직입니다.
-     *
-     * @param userAgent User-Agent 문자열
-     * @return 브라우저 시그니처 (예: "Chrome/120", "Firefox/121", "Safari/17")
-     */
+    
     private String extractBrowserSignature(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
 
-        // Edge는 Chrome보다 먼저 체크 (Edge도 Chrome을 포함하므로)
+        
         if (userAgent.contains("Edg/") || userAgent.contains("Edge/")) {
             String version = extractBrowserVersion(userAgent, "Edg/");
             if (version == null) {
@@ -455,26 +356,26 @@ public class SecurityDecisionPostProcessor {
             return "Edge/" + (version != null ? version : "unknown");
         }
 
-        // Chrome
+        
         if (userAgent.contains("Chrome/")) {
             String version = extractBrowserVersion(userAgent, "Chrome/");
             return "Chrome/" + (version != null ? version : "unknown");
         }
 
-        // Firefox
+        
         if (userAgent.contains("Firefox/")) {
             String version = extractBrowserVersion(userAgent, "Firefox/");
             return "Firefox/" + (version != null ? version : "unknown");
         }
 
-        // Safari (Chrome이 없고 Safari가 있는 경우)
+        
         if (userAgent.contains("Safari/") && !userAgent.contains("Chrome")) {
-            // Safari 버전은 Version/ 에서 추출
+            
             String version = extractBrowserVersion(userAgent, "Version/");
             return "Safari/" + (version != null ? version : "unknown");
         }
 
-        // Opera
+        
         if (userAgent.contains("OPR/") || userAgent.contains("Opera/")) {
             String version = extractBrowserVersion(userAgent, "OPR/");
             if (version == null) {
@@ -486,13 +387,7 @@ public class SecurityDecisionPostProcessor {
         return null;
     }
 
-    /**
-     * User-Agent에서 특정 브라우저의 버전 번호 추출 (AI Native v11.0)
-     *
-     * @param userAgent User-Agent 문자열
-     * @param prefix 브라우저 접두사 (예: "Chrome/", "Firefox/")
-     * @return 주 버전 번호 (예: "120", "121")
-     */
+    
     private String extractBrowserVersion(String userAgent, String prefix) {
         int startIndex = userAgent.indexOf(prefix);
         if (startIndex == -1) {
@@ -502,7 +397,7 @@ public class SecurityDecisionPostProcessor {
         startIndex += prefix.length();
         int endIndex = startIndex;
 
-        // 숫자와 점만 포함하는 버전 문자열 추출
+        
         while (endIndex < userAgent.length()) {
             char c = userAgent.charAt(endIndex);
             if (Character.isDigit(c) || c == '.') {
@@ -514,7 +409,7 @@ public class SecurityDecisionPostProcessor {
 
         if (endIndex > startIndex) {
             String fullVersion = userAgent.substring(startIndex, endIndex);
-            // 주 버전만 반환 (120.0.0.0 -> 120)
+            
             int dotIndex = fullVersion.indexOf('.');
             if (dotIndex > 0) {
                 return fullVersion.substring(0, dotIndex);

@@ -33,7 +33,7 @@ public class BusinessPolicyController {
 
     @PostMapping("/policy-workbench")
     public String createBusinessPolicy(@ModelAttribute("businessPolicyDto") BusinessPolicyDto businessPolicyDto, RedirectAttributes ra) {
-        // [수정] 모델 어트리뷰트 이름 일치
+        
         Policy newPolicy = businessPolicyService.createPolicyFromBusinessRule(businessPolicyDto);
         ra.addFlashAttribute("message", "비즈니스 정책 '" + newPolicy.getName() + "' 이(가) 성공적으로 생성되었습니다.");
         return "redirect:/admin/policies";

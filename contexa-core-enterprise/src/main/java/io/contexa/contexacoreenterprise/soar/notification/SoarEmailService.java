@@ -16,10 +16,7 @@ import org.thymeleaf.context.Context;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * SOAR 이메일 서비스
- * 승인 요청 및 결과를 이메일로 전송합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SoarEmailService {
@@ -38,9 +35,7 @@ public class SoarEmailService {
     
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     
-    /**
-     * 승인 요청 이메일 전송
-     */
+    
     @Async
     @Retryable(value = MessagingException.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public void sendApprovalRequestEmail(NotificationTarget target, ApprovalNotification notification) {
@@ -63,9 +58,7 @@ public class SoarEmailService {
         }
     }
     
-    /**
-     * 승인 완료 이메일 전송
-     */
+    
     @Async
     @Retryable(retryFor = MessagingException.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public void sendApprovalCompletedEmail(NotificationTarget target, String approvalId, 
@@ -98,9 +91,7 @@ public class SoarEmailService {
         }
     }
     
-    /**
-     * 승인 타임아웃 이메일 전송
-     */
+    
     @Async
     public void sendApprovalTimeoutEmail(NotificationTarget target, String approvalId, String toolName) {
         if (!emailEnabled) {
@@ -127,9 +118,7 @@ public class SoarEmailService {
         }
     }
     
-    /**
-     * 기본 이메일 전송 메서드 (UnifiedNotificationService에서 사용)
-     */
+    
     public void sendEmail(String to, String subject, String content) {
         if (!emailEnabled) {
             log.debug("이메일 알림이 비활성화되어 있습니다.");
@@ -145,9 +134,7 @@ public class SoarEmailService {
         }
     }
     
-    /**
-     * HTML 이메일 전송 (공통 메서드)
-     */
+    
     private void sendHtmlEmail(String to, String subject, String htmlContent) throws MessagingException, jakarta.mail.MessagingException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -160,21 +147,17 @@ public class SoarEmailService {
         mailSender.send(message);
     }
     
-    /**
-     * 승인 요청 제목 생성
-     */
+    
     private String buildApprovalRequestSubject(ApprovalNotification notification) {
         String riskIndicator = getRiskIndicator(notification.getRiskLevel());
         return String.format("[SOAR] %s 승인 요청: %s", riskIndicator, notification.getToolName());
     }
     
-    /**
-     * 승인 요청 HTML 생성
-     */
+    
     private String buildApprovalRequestHtml(ApprovalNotification notification, NotificationTarget target) {
         Context context = new Context();
         
-        // 기본 정보
+        
         context.setVariable("recipientName", target.getName());
         context.setVariable("approvalId", notification.getApprovalId());
         context.setVariable("toolName", notification.getToolName());
@@ -185,29 +168,27 @@ public class SoarEmailService {
         context.setVariable("requestedBy", notification.getRequestedBy());
         context.setVariable("requestedAt", notification.getRequestedAt().toString());
         
-        // 도구 파라미터
+        
         context.setVariable("toolArguments", notification.getToolArguments());
         
-        // 승인/거부 링크
+        
         String approveUrl = String.format("%s/api/soar/approval/%s/approve", baseUrl, notification.getApprovalId());
         String rejectUrl = String.format("%s/api/soar/approval/%s/reject", baseUrl, notification.getApprovalId());
         context.setVariable("approveUrl", approveUrl);
         context.setVariable("rejectUrl", rejectUrl);
         
-        // 타임아웃 정보
+        
         long timeoutMinutes = notification.getTimeoutSeconds() / 60;
         context.setVariable("timeoutMinutes", timeoutMinutes);
         
-        // 기타
+        
         context.setVariable("baseUrl", baseUrl);
         context.setVariable("timestamp", LocalDateTime.now().format(DATE_FORMATTER));
         
         return templateEngine.process("email/approval-request", context);
     }
     
-    /**
-     * 위험도 표시 문자
-     */
+    
     private String getRiskIndicator(String riskLevel) {
         return switch (riskLevel) {
             case "CRITICAL" -> "🔴";
@@ -218,9 +199,7 @@ public class SoarEmailService {
         };
     }
     
-    /**
-     * 위험도별 색상
-     */
+    
     private String getRiskColor(String riskLevel) {
         return switch (riskLevel) {
             case "CRITICAL" -> "#dc2626";
@@ -231,16 +210,12 @@ public class SoarEmailService {
         };
     }
     
-    /**
-     * 이메일 전송 가능 여부 확인
-     */
+    
     public boolean isEmailEnabled() {
         return emailEnabled;
     }
     
-    /**
-     * 이메일 설정 검증
-     */
+    
     public void validateEmailConfiguration() {
         if (emailEnabled && mailSender == null) {
             log.warn("이메일이 활성화되어 있지만 JavaMailSender가 구성되지 않았습니다.");

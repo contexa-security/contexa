@@ -2,8 +2,8 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
-import io.contexa.contexaiam.domain.entity.FunctionCatalog; // 복원된 메서드에서 사용하므로 import 추가
-import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService; // 복원된 메서드에서 사용하므로 import 추가
+import io.contexa.contexaiam.domain.entity.FunctionCatalog; 
+import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService; 
 import io.contexa.contexacommon.entity.Permission;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,13 +14,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
 
-/**
- * [최종 수정]
- * 사유: 삭제했던 addCommonAttributesToModel 메서드를 원칙에 따라 복원합니다.
- *      단, 새로운 1:1 관계 모델에서는 더 이상 기능 목록이 필요하지 않으므로,
- *      registerPermissionForm과 permissionDetails 메서드 내에서 해당 메서드 '호출' 부분만 제거합니다.
- *      이를 통해 기존 메서드를 보존하면서도 새로운 로직과의 충돌을 해결합니다.
- */
+
 @RequestMapping("/admin/permissions")
 @RequiredArgsConstructor
 @Slf4j
@@ -43,7 +37,7 @@ public class PermissionController {
     @GetMapping("/register")
     public String registerPermissionForm(Model model) {
         model.addAttribute("permission", new PermissionDto());
-        // [수정] addCommonAttributesToModel 호출 제거
+        
         return "admin/permissiondetails";
     }
 
@@ -62,7 +56,7 @@ public class PermissionController {
 
         PermissionDto permissionDto = convertToDto(permission);
         model.addAttribute("permission", permissionDto);
-        // [수정] addCommonAttributesToModel 호출 제거
+        
         return "admin/permissiondetails";
     }
 
@@ -74,11 +68,7 @@ public class PermissionController {
         return "redirect:/admin/permissions";
     }
 
-    /**
-     * [복원]
-     * 기존에 존재하던 메서드를 삭제하지 않고 그대로 유지합니다.
-     * 현재는 호출되지 않지만, 향후 다른 기능에서 필요할 수 있습니다.
-     */
+    
     private void addCommonAttributesToModel(Model model) {
         List<FunctionCatalog> allActiveFunctions = functionCatalogService.findAllActiveFunctions();
         model.addAttribute("allFunctions", allActiveFunctions);

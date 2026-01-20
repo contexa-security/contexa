@@ -5,10 +5,7 @@ import lombok.Data;
 
 import java.time.Instant;
 
-/**
- * Tool Executed Event
- * 도구가 실행되었을 때 발생하는 이벤트
- */
+
 @Data
 @Builder
 public class ToolExecutedEvent {

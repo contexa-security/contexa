@@ -22,13 +22,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 
-/**
- * Authorization Studio 자연어 질의 전문 연구소 (PipelineOrchestrator 기반)
- *
- * PipelineOrchestrator.executeStream() → StreamingUniversalPipelineExecutor 자동 선택
- * PipelineOrchestrator.execute() → 일반 진단 전용 executor 선택
- * 스트리밍 + 진단 동시 처리 지원
- */
+
 @Slf4j
 public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQueryResponse> {
 
@@ -75,14 +69,12 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         return processStreamingRequest(request);
     }
 
-    /**
-     * AI Studio 비동기 질의 처리 (진단 전용 - JSON 응답)
-     */
+    
     public Mono<StudioQueryResponse> processRequestAsync(StudioQueryRequest request) {
         long startTime = System.currentTimeMillis();
         log.info("[DIAGNOSIS] AI Studio 진단 처리 시작: {} (일반 executor 사용)", request.getQuery());
 
-        // 벡터 저장소에 요청 저장
+        
         try {
             vectorService.storeQueryRequest(request);
         } catch (Exception e) {
@@ -90,27 +82,27 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         }
 
         return Mono.fromCallable(() -> {
-                    // 1. 질의 의도 분석 및 데이터 수집 계획 수립
+                    
                     DataCollectionPlan collectionPlan = createDataCollectionPlan(request.getQuery());
                     log.info("데이터 수집 계획 수립 완료: {}", collectionPlan);
 
-                    // 2. IAM 데이터 수집 (전문 서비스 활용)
+                    
                     IAMDataSet dataSet = dataCollectionService.studioCollectData(collectionPlan);
                     log.info("IAM 데이터 수집 완료: {}", dataSet.getSummary());
 
-                    // 3. 🎨 데이터 포맷팅 (전문 서비스 활용)
+                    
                     String formattedData = queryFormatter.formatForAIMData(dataSet);
                     String systemMetadata = queryFormatter.formatSystemMetadata(request);
 
                     log.info("🎨 데이터 포맷팅 완료: {} characters", formattedData.length());
 
-                    // 4. 도메인 전문성: 진단용 AIRequest 구성 (JSON 응답)
+                    
                     return createStudioQueryAIRequest(request, formattedData, systemMetadata, false);
                 })
                 .flatMap(aiRequest -> {
                     log.info("[DIAGNOSIS] PipelineOrchestrator.execute() 호출 - 일반 executor 선택됨");
 
-                    // 5. PipelineOrchestrator.execute() → 일반 진단 전용 executor
+                    
                     PipelineConfiguration config = createStudioQueryPipelineConfig();
                     return orchestrator.execute(aiRequest, config, StudioQueryResponse.class);
                 })
@@ -126,31 +118,29 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
                 });
     }
 
-    /**
-     * AI Studio 스트리밍 질의 처리 (진단 + 스트리밍 동시 처리)
-     */
+    
     public Flux<String> processStreamingRequest(StudioQueryRequest request) {
         return Flux.defer(() -> {
             try {
                 log.info("[STREAMING] AI Studio 스트리밍 시작: {} (StreamingUniversalPipelineExecutor 자동선택)", request.getQuery());
 
-                // 1. 질의 의도 분석 및 데이터 수집 계획 수립 (공통 로직)
+                
                 DataCollectionPlan collectionPlan = createDataCollectionPlan(request.getQuery());
                 log.info("스트리밍 데이터 수집 계획 수립 완료: {}", collectionPlan);
 
-                // 2. IAM 데이터 수집 (공통 로직)
+                
                 IAMDataSet dataSet = dataCollectionService.studioCollectData(collectionPlan);
                 log.info("스트리밍 IAM 데이터 수집 완료: {}", dataSet.getSummary());
 
-                // 3. 🎨 데이터 포맷팅 (공통 로직)
+                
                 String formattedData = queryFormatter.formatForAIMData(dataSet);
                 String systemMetadata = queryFormatter.formatSystemMetadata(request);
 
-                // 4. AI 요청 생성 (스트리밍 + 진단 동시 처리용)
+                
                 AIRequest<StudioQueryContext> aiRequest = createStudioQueryAIRequest(request, formattedData, systemMetadata, true);
                 log.info("스트리밍+진단 AI 요청 생성 완료");
 
-                // 5. Pipeline 설정 
+                
                 PipelineConfiguration pipelineConfig = createStudioQueryStreamPipelineConfig();
                 log.info("⚙️ Pipeline 설정 완료");
 
@@ -159,7 +149,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
                         .doOnSubscribe(subscription -> { log.info("[{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
                         .doOnNext(chunk -> {
                             String chunkStr = chunk != null ? chunk.toString() : "";
-//                            log.error("[STREAMING] 청크 수신: {}", Thread.currentThread().threadId());
+
                         })
                         .doOnComplete(() -> {
                             log.info("[STREAMING] StudioQuery 스트리밍 완료 (진단 결과도 함께 수집됨)");
@@ -179,9 +169,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         });
     }
 
-    /**
-     * 데이터 수집 계획 수립 (기존 코드 그대로)
-     */
+    
     private DataCollectionPlan createDataCollectionPlan(String query) {
         try {
             return new DataCollectionPlan(queryIntentAnalyzer, query);
@@ -191,9 +179,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         }
     }
 
-    /**
-     * Pipeline 설정 구성 (기존 코드 그대로)
-     */
+    
     private PipelineConfiguration createStudioQueryPipelineConfig() {
         return PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
@@ -216,18 +202,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
                 .build();
     }
 
-    /**
-     * 도메인 전문성: Studio Query AIRequest 생성 (기존 코드 그대로)
-
-    private AIRequest<StudioQueryContext> createStudioQueryAIRequest(StudioQueryRequest request,
-                                                                     String formattedData,
-                                                                     String systemMetadata) {
-        return createStudioQueryAIRequest(request, formattedData, systemMetadata, false);
-    }
-
-    /**
-     * 도메인 전문성: Studio Query AIRequest 생성 (기존 코드 그대로)
-     */
+    
     private AIRequest<StudioQueryContext> createStudioQueryAIRequest(StudioQueryRequest request,
                                                                      String formattedData,
                                                                      String systemMetadata,
@@ -237,11 +212,11 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
                 .withNaturalLanguageQuery(request.getQuery())
                 .build();
 
-        // 스트리밍 여부에 따라 다른 프롬프트 사용
+        
         String promptKey = isStreaming ? "studioQueryStreaming" : "studioQuery";
         AIRequest<StudioQueryContext> aiRequest = new AIRequest<>(context, promptKey, "default-org");
 
-        // Studio Query 전문 메타데이터 설정
+        
         aiRequest.withParameter("naturalLanguageQuery", request.getQuery());
         aiRequest.withParameter("queryType", request.getQueryType());
         aiRequest.withParameter("requestType", isStreaming ? "studio_query_streaming" : "studio_query");
@@ -251,7 +226,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         aiRequest.withParameter("iamDataContext", formattedData);
         aiRequest.withParameter("systemMetadata", systemMetadata);
 
-        // 디버깅: AI에게 전달하는 파라미터 확인
+        
         log.info("AI 파라미터 - 프롬프트 키: {}", promptKey);
         log.info("AI 파라미터 - naturalLanguageQuery: {}", request.getQuery());
         log.info("AI 파라미터 - iamDataContext 길이: {}", formattedData.length());
@@ -261,20 +236,18 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         return aiRequest;
     }
 
-    /**
-     * 도메인 전문성: 응답 후처리 및 검증 (기존 코드 그대로)
-     */
+    
     private StudioQueryResponse enhanceStudioQueryResponse(StudioQueryResponse response, StudioQueryRequest request) {
         log.debug("Studio Query response post-processing started");
 
         try {
-            // Visualization data validation
+            
             if (response.getVisualizationData() == null) {
                 log.debug("No visualization data found, creating default visualization data");
                 response.setVisualizationData(createDefaultVisualizationData(request));
             }
 
-            // Security recommendations validation
+            
             if (response.getRecommendations() == null || response.getRecommendations().isEmpty()) {
                 log.debug("No security recommendations found, adding default recommendations");
                 response.setRecommendations(createDefaultRecommendations(request));
@@ -282,7 +255,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
 
             log.debug("Studio Query response post-processing completed");
             
-            // 벡터 저장소에 결과 저장
+            
             try {
                 vectorService.storeQueryResult(request, response);
             } catch (Exception ve) {
@@ -297,17 +270,11 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         }
     }
     
-    /**
-     * 피드백 기반 학습
-     * 
-     * @param request 원본 요청
-     * @param response 생성된 응답
-     * @param feedback 사용자 피드백
-     */
+    
     public void learnFromFeedback(StudioQueryRequest request, StudioQueryResponse response, String feedback) {
         try {
             String queryId = request.getRequestId();
-            boolean isHelpful = response.getConfidenceScore() > 0.7; // 신뢰도 기반 도움 여부 판단
+            boolean isHelpful = response.getConfidenceScore() > 0.7; 
             vectorService.storeFeedback(queryId, isHelpful, feedback);
             log.info("[StudioQueryLab] 피드백 학습 완료: {}", feedback.substring(0, Math.min(50, feedback.length())));
         } catch (Exception e) {
@@ -315,9 +282,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         }
     }
 
-    /**
-     * 도메인 전문성: Default Visualization Data Creation (기존 코드 그대로)
-     */
+    
     private StudioQueryResponse.VisualizationData createDefaultVisualizationData(StudioQueryRequest request) {
         StudioQueryResponse.VisualizationData vizData = new StudioQueryResponse.VisualizationData();
 
@@ -347,13 +312,11 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         return vizData;
     }
 
-    /**
-     * 도메인 전문성: Default Recommendations Creation (기존 코드 그대로)
-     */
+    
     private List<StudioQueryResponse.Recommendation> createDefaultRecommendations(StudioQueryRequest request) {
         StudioQueryResponse.Recommendation recommendation = new StudioQueryResponse.Recommendation();
 
-        // 질의 유형에 따른 구체적 권장사항 생성
+        
         String query = request.getQuery().toLowerCase();
 
         if (query.contains("누가") || query.contains("접근") || query.contains("권한")) {
@@ -366,7 +329,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
                     "불필요한 권한 식별 및 제거"
             ));
 
-            // 실행 가능한 액션 링크 추가
+            
             StudioQueryResponse.ActionLink usersLink = new StudioQueryResponse.ActionLink();
             usersLink.setText("사용자 관리");
             usersLink.setUrl("/admin/users");
@@ -401,9 +364,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         return List.of(recommendation);
     }
 
-    /**
-     * 도메인 전문성: Fallback Response Creation (기존 코드 그대로)
-     */
+    
     private StudioQueryResponse createFallbackResponse(StudioQueryRequest request) {
         StudioQueryResponse response = new StudioQueryResponse();
         response.setNaturalLanguageAnswer("죄송합니다. 현재 질의를 처리할 수 없습니다. 잠시 후 다시 시도해주세요.");
@@ -413,9 +374,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         return response;
     }
 
-    /**
-     * 도메인 전문성: Error Response Creation (기존 코드 그대로)
-     */
+    
     private StudioQueryResponse createErrorResponse(StudioQueryRequest request, Exception e) {
         StudioQueryResponse response = new StudioQueryResponse();
         response.setNaturalLanguageAnswer("시스템 오류로 인해 질의를 처리할 수 없습니다: " + e.getMessage());

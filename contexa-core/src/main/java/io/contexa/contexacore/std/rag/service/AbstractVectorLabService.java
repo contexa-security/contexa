@@ -16,24 +16,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-/**
- * Lab 벡터 저장소 서비스 추상 기본 클래스
- * 
- * 템플릿 메서드 패턴을 사용하여 모든 Lab의 벡터 저장 작업을 표준화합니다.
- * Spring AI 표준을 강제하고 공통 기능을 제공합니다.
- * 
- * @since 1.0.0
- */
+
 @Slf4j
 public abstract class AbstractVectorLabService implements VectorOperations {
 
     protected final StandardVectorStoreService standardVectorStoreService;
     protected final VectorStoreMetrics vectorStoreMetrics;
 
-    /**
-     * 생성자: VectorStoreMetrics는 선택적 의존성
-     * Enterprise 모듈이 없으면 null로 주입됨
-     */
+    
     protected AbstractVectorLabService(
             StandardVectorStoreService standardVectorStoreService,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
@@ -64,66 +54,45 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 getLabName(), labBatchSize, asyncEnabled, validationEnabled, enrichmentEnabled);
     }
     
-    /**
-     * Lab 이름 반환 (각 Lab에서 구현)
-     */
+    
     protected abstract String getLabName();
     
-    /**
-     * Lab 고유의 문서 타입 반환 (각 Lab에서 구현)
-     */
+    
     protected abstract String getDocumentType();
     
-    /**
-     * Lab별 메타데이터 강화 로직 (각 Lab에서 구현)
-     * 
-     * @param document 강화할 문서
-     * @return 강화된 문서
-     */
+    
     protected abstract Document enrichLabSpecificMetadata(Document document);
     
-    /**
-     * Lab별 문서 검증 로직 (각 Lab에서 구현)
-     * 
-     * @param document 검증할 문서
-     * @throws IllegalArgumentException 검증 실패 시
-     */
+    
     protected abstract void validateLabSpecificDocument(Document document);
     
-    /**
-     * Lab별 후처리 로직 (각 Lab에서 구현, 선택적)
-     * 
-     * @param document 후처리할 문서
-     * @param operationType 작업 타입 (STORE, UPDATE, DELETE)
-     */
+    
     protected void postProcessDocument(Document document, OperationType operationType) {
-        // 기본 구현은 비어있음, 필요한 Lab에서 오버라이드
+        
     }
     
-    /**
-     * 템플릿 메서드: 단일 문서 저장
-     */
+    
     @Override
     @Transactional
     public void storeDocument(Document document) {
         long startTime = System.currentTimeMillis();
         
         try {
-            // 1. 전처리 및 검증
+            
             Document processedDocument = preprocessDocument(document);
             
-            // 2. 표준 벡터 저장소에 저장
+            
             standardVectorStoreService.addDocuments(List.of(processedDocument));
             
-            // 3. 후처리
+            
             postProcessDocument(processedDocument, OperationType.STORE);
             
-            // 4. 메트릭 업데이트
+            
             long duration = System.currentTimeMillis() - startTime;
             if (vectorStoreMetrics != null) {
                 vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE, 1, duration);
 
-                // EventRecorder 인터페이스 호출
+                
                 Map<String, Object> eventMetadata = new HashMap<>();
                 eventMetadata.put("lab_name", getLabName());
                 eventMetadata.put("operation_type", OperationType.STORE.name());
@@ -144,9 +113,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * 템플릿 메서드: 여러 문서 배치 저장
-     */
+    
     @Override
     @Transactional
     public void storeDocuments(List<Document> documents) {
@@ -158,13 +125,13 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         long startTime = System.currentTimeMillis();
         
         try {
-            // 1. 전처리 및 검증
+            
             List<Document> processedDocuments = new ArrayList<>();
             for (Document doc : documents) {
                 processedDocuments.add(preprocessDocument(doc));
             }
             
-            // 2. 배치 처리로 저장
+            
             for (int i = 0; i < processedDocuments.size(); i += labBatchSize) {
                 int end = Math.min(i + labBatchSize, processedDocuments.size());
                 List<Document> batch = processedDocuments.subList(i, end);
@@ -174,12 +141,12 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 log.debug("[{}] 배치 저장 완료: {}/{}", getLabName(), end, processedDocuments.size());
             }
             
-            // 3. 후처리
+            
             for (Document doc : processedDocuments) {
                 postProcessDocument(doc, OperationType.STORE);
             }
             
-            // 4. 메트릭 업데이트
+            
             if (vectorStoreMetrics != null) {
                 vectorStoreMetrics.recordOperation(getLabName(), OperationType.STORE,
                                                  processedDocuments.size(),
@@ -197,9 +164,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * 비동기 단일 문서 저장
-     */
+    
     @Override
     public final CompletableFuture<Void> storeDocumentAsync(Document document) {
         if (!asyncEnabled) {
@@ -214,9 +179,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 });
     }
     
-    /**
-     * 비동기 배치 문서 저장
-     */
+    
     @Override
     public final CompletableFuture<Void> storeDocumentsAsync(List<Document> documents) {
         if (!asyncEnabled) {
@@ -231,23 +194,19 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 });
     }
     
-    /**
-     * 유사도 검색 (기본)
-     */
+    
     @Override
     public final List<Document> searchSimilar(String query) {
         return searchSimilar(query, Collections.emptyMap());
     }
     
-    /**
-     * 필터 기반 유사도 검색
-     */
+    
     @Override
     public final List<Document> searchSimilar(String query, Map<String, Object> filters) {
         long startTime = System.currentTimeMillis();
         
         try {
-            // Lab 고유 필터 추가
+            
             Map<String, Object> labFilters = new HashMap<>(filters);
             labFilters.put("documentType", getDocumentType());
             labFilters.putAll(getLabSpecificFilters());
@@ -273,9 +232,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * SearchRequest 기반 고급 검색
-     */
+    
     @Override
     public final List<Document> searchSimilar(SearchRequest searchRequest) {
         long startTime = System.currentTimeMillis();
@@ -302,9 +259,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * 시간 범위 기반 검색
-     */
+    
     @Override
     public final List<Document> searchByTimeRange(String query, LocalDateTime startTime, 
                                                  LocalDateTime endTime, String documentType) {
@@ -336,9 +291,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * 문서 삭제
-     */
+    
     @Override
     @Transactional
     public void deleteDocuments(List<String> documentIds) {
@@ -369,9 +322,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * 문서 업데이트
-     */
+    
     @Override
     @Transactional
     public void updateDocuments(List<Document> documents) {
@@ -383,16 +334,16 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         long startTime = System.currentTimeMillis();
         
         try {
-            // 1. 전처리 및 검증
+            
             List<Document> processedDocuments = new ArrayList<>();
             for (Document doc : documents) {
                 processedDocuments.add(preprocessDocument(doc));
             }
             
-            // 2. 표준 벡터 저장소에서 업데이트
+            
             standardVectorStoreService.updateDocuments(processedDocuments);
             
-            // 3. 후처리
+            
             for (Document doc : processedDocuments) {
                 postProcessDocument(doc, OperationType.UPDATE);
             }
@@ -414,17 +365,15 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * 벡터 저장소 통계
-     */
+    
     @Override
     public final Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
 
-        // 기본 통계
+        
         stats.putAll(standardVectorStoreService.getStatistics());
 
-        // Lab별 통계
+        
         if (vectorStoreMetrics != null) {
             stats.putAll(vectorStoreMetrics.getLabStatistics(getLabName()));
         }
@@ -432,12 +381,10 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         return stats;
     }
     
-    /**
-     * 문서 전처리 (공통 로직 + Lab별 로직)
-     */
+    
     private Document preprocessDocument(Document document) {
         try {
-            // 1. 기본 검증
+            
             if (document == null) {
                 throw new IllegalArgumentException("문서가 null입니다");
             }
@@ -446,34 +393,34 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 throw new IllegalArgumentException("문서 내용이 비어있습니다");
             }
             
-            // 2. 기본 메타데이터 설정
+            
             Map<String, Object> metadata = new HashMap<>(document.getMetadata());
             
-            // ID 설정
+            
             if (!metadata.containsKey("id")) {
                 metadata.put("id", UUID.randomUUID().toString());
             }
             
-            // 타임스탬프 설정
+            
             if (!metadata.containsKey("timestamp")) {
                 metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             }
             
-            // 문서 타입 설정
+            
             metadata.put("documentType", getDocumentType());
             
-            // Lab 정보 설정
+            
             metadata.put("labName", getLabName());
             metadata.put("processingTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
             
             Document processedDocument = new Document(document.getText(), metadata);
             
-            // 3. Lab별 검증
+            
             if (validationEnabled) {
                 validateLabSpecificDocument(processedDocument);
             }
             
-            // 4. Lab별 메타데이터 강화
+            
             if (enrichmentEnabled) {
                 processedDocument = enrichLabSpecificMetadata(processedDocument);
             }
@@ -486,16 +433,12 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
     
-    /**
-     * Lab별 고유 필터 반환 (각 Lab에서 필요시 오버라이드)
-     */
+    
     protected Map<String, Object> getLabSpecificFilters() {
         return Collections.emptyMap();
     }
     
-    /**
-     * 작업 타입 열거형
-     */
+    
     public enum OperationType {
         STORE, SEARCH, UPDATE, DELETE
     }

@@ -22,9 +22,9 @@ public final class AuthenticationFlowConfig {
     private final String typeName;
     private final int order;
     private final StateConfig stateConfig;
-    private final Customizer<HttpSecurity> rawHttpCustomizer; // SafeHttpCustomizer<HttpSecurity>로 변경 가능
+    private final Customizer<HttpSecurity> rawHttpCustomizer; 
 
-    // MFA 전용 필드들
+    
     private final PrimaryAuthenticationOptions primaryAuthenticationOptions;
     private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthenticationFailureHandler mfaFailureHandler;
@@ -33,7 +33,7 @@ public final class AuthenticationFlowConfig {
     private final boolean defaultDeviceTrustEnabled;
     private final MfaAsepAttributes mfaAsepAttributes;
     private final MfaPageConfig mfaPageConfig;
-    private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; // ⭐ MFA AuthenticationEntryPoint
+    private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; 
     private final List<AuthenticationStepConfig> stepConfigs;
 
     private AuthenticationFlowConfig(Builder builder) {
@@ -48,8 +48,8 @@ public final class AuthenticationFlowConfig {
         this.registeredFactorOptions = builder.registeredFactorOptions != null ? Collections.unmodifiableMap(new LinkedHashMap<>(builder.registeredFactorOptions)) : Collections.emptyMap();
         this.defaultDeviceTrustEnabled = builder.defaultDeviceTrustEnabled;
         this.mfaAsepAttributes = builder.mfaAsepAttributes;
-        this.mfaPageConfig = builder.mfaPageConfig; // MFA 커스텀 페이지 설정
-        this.mfaAuthenticationEntryPoint = builder.mfaAuthenticationEntryPoint; // ⭐ MFA EntryPoint
+        this.mfaPageConfig = builder.mfaPageConfig; 
+        this.mfaAuthenticationEntryPoint = builder.mfaAuthenticationEntryPoint; 
         this.stepConfigs = builder.stepConfigs != null ?
                 Collections.unmodifiableList(new ArrayList<>(builder.stepConfigs)) :
                 Collections.emptyList();
@@ -90,8 +90,8 @@ public final class AuthenticationFlowConfig {
         private Map<AuthType, AuthenticationProcessingOptions> registeredFactorOptions = new LinkedHashMap<>();
         private boolean defaultDeviceTrustEnabled;
         private MfaAsepAttributes mfaAsepAttributes;
-        private MfaPageConfig mfaPageConfig; // MFA 커스텀 페이지 설정
-        private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; // ⭐ MFA EntryPoint
+        private MfaPageConfig mfaPageConfig; 
+        private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; 
         private List<AuthenticationStepConfig> stepConfigs = new ArrayList<>();
 
         public Builder(String typeName) {
@@ -134,12 +134,12 @@ public final class AuthenticationFlowConfig {
             return this;
         }
 
-        public Builder mfaPageConfig(MfaPageConfig pageConfig) { // MFA 커스텀 페이지 설정
+        public Builder mfaPageConfig(MfaPageConfig pageConfig) { 
             this.mfaPageConfig = pageConfig;
             return this;
         }
 
-        public Builder mfaAuthenticationEntryPoint(MfaAuthenticationEntryPoint entryPoint) { // ⭐ MFA EntryPoint 설정
+        public Builder mfaAuthenticationEntryPoint(MfaAuthenticationEntryPoint entryPoint) { 
             this.mfaAuthenticationEntryPoint = entryPoint;
             return this;
         }
@@ -147,7 +147,7 @@ public final class AuthenticationFlowConfig {
         public AuthenticationFlowConfig build() {
             if (AuthType.MFA.name().equalsIgnoreCase(typeName)) {
                 Assert.notNull(primaryAuthenticationOptions, "PrimaryAuthenticationOptions must be set for MFA flow named '" + typeName + "'");
-                // Assert.isTrue(registeredFactorOptions != null && !registeredFactorOptions.isEmpty(), "At least one Factor must be registered for MFA flow named '" + typeName + "'"); // 이 조건은 policyProvider가 동적으로 결정할 수 있으므로 완화 가능
+                
                 Assert.isTrue(this.stepConfigs != null && this.stepConfigs.size() > 1, "MFA flow must have its primary and at least one secondary factor step configured in stepConfigs field.");
             } else {
                 Assert.isTrue(this.stepConfigs != null && !this.stepConfigs.isEmpty(),

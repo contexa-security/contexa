@@ -11,10 +11,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * 모든 인증 방식 옵션 클래스들의 공통된 기본 설정을 제공하는 추상 클래스입니다.
- * CSRF, CORS, Headers, Session Management, Logout 등 공통 보안 설정을 포함합니다.
- */
+
 @Getter
 public abstract class AbstractOptions {
     private final boolean csrfDisabled;
@@ -28,19 +25,15 @@ public abstract class AbstractOptions {
     protected AbstractOptions(Builder<?, ?> builder) {
         Objects.requireNonNull(builder, "Builder cannot be null");
         this.csrfDisabled = builder.csrfDisabled;
-        this.corsCustomizer = builder.corsCustomizer; // Optional.ofNullable(builder.corsCustomizer);
+        this.corsCustomizer = builder.corsCustomizer; 
         this.headersCustomizer = builder.headersCustomizer;
         this.sessionManagementCustomizer = builder.sessionManagementCustomizer;
         this.logoutCustomizer = builder.logoutCustomizer;
-        this.staticMatchers = List.copyOf(builder.staticMatchers); // Java 10+
-        this.rawHttpCustomizers = List.copyOf(builder.rawHttpCustomizers); // Java 10+
+        this.staticMatchers = List.copyOf(builder.staticMatchers); 
+        this.rawHttpCustomizers = List.copyOf(builder.rawHttpCustomizers); 
     }
 
-    /**
-     * 이 옵션 객체에 정의된 공통 보안 설정을 주어진 HttpSecurity에 적용합니다.
-     * @param http HttpSecurity 객체 (null이 아니어야 함)
-     * @throws Exception 설정 중 발생할 수 있는 예외
-     */
+    
     public void applyCommonSecurityConfigs(HttpSecurity http) throws Exception {
         Objects.requireNonNull(http, "HttpSecurity cannot be null");
 
@@ -71,11 +64,7 @@ public abstract class AbstractOptions {
         }
     }
 
-    /**
-     * AbstractOptions를 빌드하기 위한 추상 빌더 클래스입니다.
-     * @param <O> 빌드될 Options의 구체적인 타입
-     * @param <B> 빌더 자신의 구체적인 타입 (Self-referential)
-     */
+    
     public abstract static class Builder<O extends AbstractOptions, B extends Builder<O, B>> {
         private boolean csrfDisabled = false;
         private Customizer<CorsConfigurer<HttpSecurity>> corsCustomizer = Customizer.withDefaults();

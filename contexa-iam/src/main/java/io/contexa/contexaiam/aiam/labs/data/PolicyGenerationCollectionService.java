@@ -27,9 +27,7 @@ public class PolicyGenerationCollectionService {
     private static final Pattern SPEL_VARIABLE_PATTERN = Pattern.compile("#(\\w+)");
     private static final Set<String> GLOBAL_CONTEXT_VARIABLES = Set.of("#authentication", "#request", "#ai");
 
-    /**
-     * Virtual Thread 최적화된 동기 버전 (기존 인터페이스 유지)
-     */
+    
     @Transactional(readOnly = true)
     public PolicyGenerationItem.AvailableItems collectData() {
 
@@ -49,7 +47,7 @@ public class PolicyGenerationCollectionService {
                 this::addContextAwareConditionsToModel, Executors.newVirtualThreadPerTaskExecutor()
         );
 
-        // 모든 병렬 작업 완료 대기
+        
         CompletableFuture.allOf(roles, permissions, conditions).join();
         permissions.join();
 
@@ -61,7 +59,7 @@ public class PolicyGenerationCollectionService {
 
         List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
 
-        // 분류별로 조건들을 그룹화
+        
         Map<ConditionTemplate.ConditionClassification, List<ConditionTemplate>> classifiedConditions =
                 allConditions.stream()
                         .collect(Collectors.groupingBy(
@@ -94,12 +92,12 @@ public class PolicyGenerationCollectionService {
     private String enhanceConditionDescription(ConditionTemplate cond) {
         StringBuilder desc = new StringBuilder();
 
-        // 기본 설명
+        
         if (StringUtils.hasText(cond.getDescription())) {
             desc.append(cond.getDescription());
         }
 
-        // 분류 아이콘 및 설명
+        
         if (cond.getClassification() != null) {
             switch (cond.getClassification()) {
                 case UNIVERSAL -> desc.append(" 🟢 (즉시 사용 가능)");
@@ -108,12 +106,12 @@ public class PolicyGenerationCollectionService {
             }
         }
 
-        // 복잡도 표시
+        
         if (cond.getComplexityScore() != null) {
             desc.append(" [복잡도: ").append(cond.getComplexityScore()).append("/10]");
         }
 
-        // 승인 필요 여부
+        
         if (Boolean.TRUE.equals(cond.getApprovalRequired())) {
             desc.append(" 승인필요");
         }
@@ -121,9 +119,7 @@ public class PolicyGenerationCollectionService {
         return desc.toString();
     }
 
-    /**
-     * 분류의 정렬 순서를 반환합니다.
-     */
+    
     private int getClassificationOrder(ConditionTemplate.ConditionClassification classification) {
         if (classification == null) return 2;
         return switch (classification) {
@@ -138,7 +134,7 @@ public class PolicyGenerationCollectionService {
         if (spelTemplate == null) return variables;
         Matcher matcher = SPEL_VARIABLE_PATTERN.matcher(spelTemplate);
         while (matcher.find()) {
-            variables.add(matcher.group()); // # 포함하여 저장 (예: #owner)
+            variables.add(matcher.group()); 
         }
         return variables;
     }

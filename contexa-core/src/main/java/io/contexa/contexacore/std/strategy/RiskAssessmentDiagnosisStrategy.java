@@ -14,16 +14,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * 위험 평가 진단 전략 (리팩토링 버전)
- *
- * 기존 RiskAssessmentDiagnosisStrategy의 모든 기능을 유지하면서
- * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
- *
- * LabAccessor를 통한 타입 안전한 동적 Lab 조회
- * 스트리밍 지원
- * DiagnosisType.RISK_ASSESSMENT 처리
- */
+
 @Slf4j
 public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAssessmentContext, RiskAssessmentResponse> {
 
@@ -39,19 +30,19 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
 
     @Override
     public int getPriority() {
-        return 10; // 높은 우선순위 (기존과 동일)
+        return 10; 
     }
 
     @Override
     public boolean supportsStreaming() {
-        return true; // 스트리밍 지원 (기존과 동일)
+        return true; 
     }
 
     @Override
     protected void validateRequest(AIRequest<RiskAssessmentContext> request) throws DiagnosisException {
-        // 기존 검증 로직 그대로 유지
+        
 
-        // 1. 요청 타입 검증
+        
         if (!(request instanceof RiskAssessmentRequest)) {
             throw new DiagnosisException("INVALID_REQUEST_TYPE", "TYPE_MISMATCH",
                     "Expected RiskAssessmentRequest, got: " + request.getClass().getSimpleName());
@@ -59,7 +50,7 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
 
         RiskAssessmentRequest riskRequest = (RiskAssessmentRequest) request;
 
-        // 2. 컨텍스트 검증
+        
         RiskAssessmentContext context = riskRequest.getContext();
         if (context == null) {
             throw new DiagnosisException("MISSING_CONTEXT", "CONTEXT_NULL",
@@ -111,7 +102,7 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
         }
     }
 
-    // ==================== 커스텀 에러 메시지 (선택적 오버라이드) ====================
+    
 
     @Override
     protected String getExecutionErrorMessage() {

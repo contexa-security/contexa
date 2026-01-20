@@ -13,14 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Micrometer 기반 메트릭 추상 클래스
- *
- * Micrometer를 사용하는 모든 메트릭 클래스의 기반 구현을 제공합니다.
- *
- * @author contexa
- * @since 3.1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventRecorder {
@@ -28,11 +21,7 @@ public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventR
     protected final MeterRegistry meterRegistry;
     private final String domain;
 
-    /**
-     * 메트릭 초기화
-     *
-     * @PostConstruct로 자동 호출되며, 하위 클래스에서 구체적인 메트릭을 등록합니다.
-     */
+    
     @PostConstruct
     @Override
     public void initialize() {
@@ -45,25 +34,13 @@ public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventR
         log.info("[{}] Metrics initialized successfully", domain);
     }
 
-    /**
-     * Counter 메트릭 초기화
-     *
-     * 하위 클래스에서 구현하여 도메인별 카운터를 등록합니다.
-     */
+    
     protected abstract void initializeCounters();
 
-    /**
-     * Timer 메트릭 초기화
-     *
-     * 하위 클래스에서 구현하여 도메인별 타이머를 등록합니다.
-     */
+    
     protected abstract void initializeTimers();
 
-    /**
-     * Gauge 메트릭 초기화
-     *
-     * 하위 클래스에서 구현하여 도메인별 게이지를 등록합니다.
-     */
+    
     protected abstract void initializeGauges();
 
     @Override
@@ -119,25 +96,13 @@ public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventR
         log.info("[{}] Reset requested - Micrometer metrics cannot be reset, consider restarting the application", domain);
     }
 
-    /**
-     * Counter 빌더 헬퍼 메서드
-     *
-     * @param name 메트릭 이름
-     * @param description 설명
-     * @return Counter 빌더
-     */
+    
     protected Counter.Builder counterBuilder(String name, String description) {
         return Counter.builder(domain + "." + name)
                 .description(description);
     }
 
-    /**
-     * Timer 빌더 헬퍼 메서드
-     *
-     * @param name 메트릭 이름
-     * @param description 설명
-     * @return Timer 빌더
-     */
+    
     protected Timer.Builder timerBuilder(String name, String description) {
         return Timer.builder(domain + "." + name)
                 .description(description);

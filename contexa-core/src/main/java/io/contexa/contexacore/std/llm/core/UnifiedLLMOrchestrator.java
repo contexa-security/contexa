@@ -19,17 +19,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 
-/**
- * 통합 LLM 오케스트레이터
- * 
- * LLMClient와 ToolCapableLLMClient를 직접 구현하여
- * 기존 코드와 100% 호환성 제공하면서 새로운 아키텍처 적용
- * 
- * SOLID 원칙:
- * - SRP: 모델 선택, ChatClient 생성, 도구 실행 등을 별도 컴포넌트로 분리
- * - OCP: Strategy 패턴으로 새로운 모델 선택 전략 추가 가능
- * - DIP: 추상화에 의존 (ModelSelectionStrategy, ChatClientFactory 등)
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClient {
@@ -38,13 +28,13 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private final StreamingHandler streamingHandler;
     private final TieredLLMProperties tieredLLMProperties;
     
-    // =====================================
-    // LLMOperations 구현 (새로운 인터페이스)
-    // =====================================
+    
+    
+    
     
     @Override
     public Mono<String> execute(ExecutionContext context) {
-        // AI Native v4.2.0: null 체크 강화
+        
         if (context == null) {
             return Mono.error(new IllegalArgumentException("ExecutionContext cannot be null"));
         }
@@ -56,23 +46,23 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 context.getRequestId(), context.getTaskType(), context.getSecurityTaskType());
 
         return Mono.fromCallable(() -> {
-            // 1. 모델 선택
+            
             ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
             log.info("선택된 모델: {}", selectedModel.getClass().getSimpleName());
             
-            // 2. ChatClient 생성 (직접 구현)
+            
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
             
-            // 3. 프롬프트 실행 시작 - 올바른 Spring AI API 사용
+            
             var promptSpec = chatClient.prompt(context.getPrompt());
             
-            // 4. 옵션 적용 (모델명 포함)
+            
             if (context.getChatOptions() != null) {
                 promptSpec = promptSpec.options(context.getChatOptions());
             } else if (context.getTemperature() != null || context.getMaxTokens() != null ||
                       context.getPreferredModel() != null || context.getTier() != null ||
                       context.getAnalysisLevel() != null) {
-                // OllamaChatModel인 경우 tier 기반 모델 선택 로직 적용
+                
                 if (selectedModel instanceof OllamaChatModel) {
                     String modelName = determineOllamaModelName(context);
                     if (modelName != null) {
@@ -93,9 +83,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 }
             }
             
-            // 5. 도구 실행 처리 (기존 시스템 활용 - ApprovalAwareToolCallingManagerDecorator 사용)
+            
             if (context.getToolExecutionEnabled() != null && context.getToolExecutionEnabled()) {
-                // 도구가 있으면 ToolCallback 으로 실행
+                
                 if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
                     promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
                 } else if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
@@ -103,7 +93,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 }
             }
             
-            // 6. 응답 반환 및 성능 메트릭 기록
+            
             long startTime = System.currentTimeMillis();
             String response = promptSpec.call().content();
             long executionTime = System.currentTimeMillis() - startTime;
@@ -114,15 +104,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             log.debug("LLM 실행 완료 - RequestId: {}, 모델: {}, 실행시간: {}ms, 응답 길이: {}",
                     context.getRequestId(), modelName, executionTime, response != null ? response.length() : 0);
 
-            // AI Native v4.2.0: null 응답 처리 - 빈 문자열 대신 명시적 마커 반환
+            
             if (response == null || response.isBlank()) {
                 log.warn("LLM 응답이 null 또는 빈 문자열 - RequestId: {}", context.getRequestId());
-                return "{}";  // 빈 JSON 반환 (파싱 가능)
+                return "{}";  
             }
 
             return response;
         })
-        // AI Native v4.2.0: 재시도 로직 추가 (일시적 오류 복구)
+        
         .retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
             .filter(throwable -> throwable instanceof java.net.SocketTimeoutException
                 || throwable instanceof java.io.IOException)
@@ -137,13 +127,13 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         
         return Flux.defer(() -> {
             try {
-                // 1. 모델 선택
+                
                 ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
                 
-                // 2. ChatClient 생성 (직접 구현)
+                
                 ChatClient chatClient = ChatClient.builder(selectedModel).build();
 
-                // 3. 스트리밍 처리 및 성능 메트릭 기록
+                
                 long startTime = System.currentTimeMillis();
                 return streamingHandler.handleStreaming(chatClient, context)
                     .doOnComplete(() -> {
@@ -167,7 +157,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     
     @Override
     public <T> Mono<T> executeEntity(ExecutionContext context, Class<T> targetType) {
-        // AI Native v4.2.0: null 체크 강화
+        
         if (context == null || context.getPrompt() == null) {
             return Mono.error(new IllegalArgumentException("ExecutionContext and Prompt cannot be null"));
         }
@@ -179,21 +169,21 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 context.getRequestId(), targetType.getSimpleName());
 
         return Mono.fromCallable(() -> {
-            // 1. 모델 선택
+            
             ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
 
-            // 2. ChatClient 생성 (직접 구현)
+            
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
 
-            // 3. Entity 변환 실행 - 올바른 Spring AI API 사용
+            
             var promptSpec = chatClient.prompt(context.getPrompt());
             
-            // 4. 옵션 적용
+            
             if (context.getChatOptions() != null) {
                 promptSpec = promptSpec.options(context.getChatOptions());
             }
 
-            // 5. Entity로 응답 받기 및 성능 메트릭 기록
+            
             long startTime = System.currentTimeMillis();
             T result = (T) promptSpec.call().entity(targetType);
             long executionTime = System.currentTimeMillis() - startTime;
@@ -208,22 +198,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         .doOnError(error -> log.error("LLM Entity 실행 실패 - RequestId: {}", context.getRequestId(), error));
     }
     
-    /**
-     * Ollama 모델명 결정 메서드
-     * 우선순위: preferredModel > analysisLevel > tier
-     * 설정 파일 기반으로 하드코딩 제거
-     *
-     * @param context ExecutionContext
-     * @return 결정된 Ollama 모델명
-     */
+    
     private String determineOllamaModelName(ExecutionContext context) {
-        // 1. 명시적으로 지정된 모델이 있으면 사용
+        
         if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
             log.debug("지정된 모델 사용: {}", context.getPreferredModel());
             return context.getPreferredModel();
         }
 
-        // 2. AnalysisLevel이 설정되어 있으면 해당 tier의 모델 사용
+        
         if (context.getAnalysisLevel() != null) {
             int tier = context.getAnalysisLevel().getDefaultTier();
             String modelName = tieredLLMProperties.getModelNameForTier(tier);
@@ -232,14 +215,14 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return modelName;
         }
 
-        // 3. Tier가 직접 설정되어 있으면 해당 모델 사용
+        
         if (context.getTier() != null) {
             String modelName = tieredLLMProperties.getModelNameForTier(context.getTier());
             log.debug("Tier {} -> 모델: {}", context.getTier(), modelName);
             return modelName;
         }
 
-        // 4. SecurityTaskType 기반 선택 (설정 파일 기반)
+        
         if (context.getSecurityTaskType() != null) {
             int tier = context.getSecurityTaskType().getDefaultTier();
             String modelName = tieredLLMProperties.getModelNameForTier(tier);
@@ -248,22 +231,22 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return modelName;
         }
 
-        // 5. 기본값 (설정 파일에서 읽음)
-        String defaultModel = tieredLLMProperties.getModelNameForTier(1);  // Layer 1을 기본으로
+        
+        String defaultModel = tieredLLMProperties.getModelNameForTier(1);  
         log.warn("모델 선택 불가능, 기본 모델 사용: {}", defaultModel);
         return defaultModel;
     }
 
 
-    // =====================================
-    // LLMClient 구현 (기존 인터페이스 호환)
-    // =====================================
+    
+    
+    
     
     @Override
     public Mono<String> call(Prompt prompt) {
         log.debug("LLMClient.call() 호출 - 기존 인터페이스 호환 모드");
         
-        // 기존 Prompt를 ExecutionContext로 변환
+        
         ExecutionContext context = ExecutionContext.from(prompt);
         return execute(context);
     }
@@ -287,9 +270,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return stream(context);
     }
     
-    // =====================================
-    // ToolCapableLLMClient 구현 (기존 도구 호환)
-    // =====================================
+    
+    
+    
     
     @Override
     public Mono<String> callTools(Prompt prompt, List<Object> toolProviders) {
@@ -330,11 +313,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     .toolExecutionEnabled(true)
                     .build();
             
-            // 모델 선택 및 실행
+            
             ChatModel model = modelSelectionStrategy.selectModel(context);
             ChatClient client = ChatClient.builder(model).build();
             
-            // ToolCallback과 도구 제공자 설정
+            
             var promptSpec = client.prompt(prompt);
             if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
                 promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
@@ -361,7 +344,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             ChatModel model = modelSelectionStrategy.selectModel(context);
             ChatClient client = ChatClient.builder(model).build();
             
-            // ToolCallback 설정 후 실행
+            
             var promptSpec = client.prompt(prompt);
             if (toolCallbacks != null && toolCallbacks.length > 0) {
                 promptSpec = promptSpec.toolCallbacks(toolCallbacks);
@@ -402,13 +385,11 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return stream(context);
     }
     
-    // =====================================
-    // 3계층 보안 시스템 특화 메서드
-    // =====================================
     
-    /**
-     * 3계층 보안 태스크 실행
-     */
+    
+    
+    
+    
     public Mono<String> executeSecurityTask(int tier, String prompt, String requestId) {
         log.info("3계층 보안 태스크 실행 - Tier: {}, RequestId: {}", tier, requestId);
         
@@ -420,9 +401,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return execute(context);
     }
     
-    /**
-     * SOAR 통합 실행
-     */
+    
     public Mono<String> executeSoarTask(ExecutionContext.SecurityTaskType taskType, 
                                          Prompt prompt, 
                                          List<ToolCallback> soarTools) {
@@ -436,7 +415,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 .advisorEnabled(true)
                 .build();
         
-        // SOAR 태스크는 주로 Layer 3에서 실행
+        
         if (taskType == ExecutionContext.SecurityTaskType.SOAR_AUTOMATION ||
             taskType == ExecutionContext.SecurityTaskType.APPROVAL_WORKFLOW) {
             context.setTier(3);
@@ -445,14 +424,12 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return execute(context);
     }
     
-    /**
-     * 성능 메트릭 수집
-     */
+    
     public void recordMetrics(ExecutionContext context, long executionTime, boolean success) {
         log.debug("메트릭 기록 - RequestId: {}, 실행시간: {}ms, 성공: {}", 
                 context.getRequestId(), executionTime, success);
         
-        // TODO: Micrometer를 사용한 메트릭 기록
-        // 모델별, 태스크별, 계층별 성능 추적
+        
+        
     }
 }

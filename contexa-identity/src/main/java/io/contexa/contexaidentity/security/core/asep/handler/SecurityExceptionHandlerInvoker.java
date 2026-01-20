@@ -44,7 +44,7 @@ public final class SecurityExceptionHandlerInvoker {
             HttpServletRequest request,
             HttpServletResponse response,
             @Nullable Authentication authentication,
-            Throwable originalException, // 원본 예외
+            Throwable originalException, 
             HandlerMethod handlerMethod,
             @Nullable MediaType resolvedMediaType) throws Exception {
 
@@ -54,7 +54,7 @@ public final class SecurityExceptionHandlerInvoker {
         Objects.requireNonNull(methodToInvoke, "Method in HandlerMethod cannot be null");
         Objects.requireNonNull(beanToInvoke, "Bean in HandlerMethod cannot be null");
 
-        // Spring MVC 와 유사하게, 발생한 예외와 그 원인들을 수집
+        
         List<Throwable> exceptionsToProvide = new ArrayList<>();
         Throwable exToExpose = originalException;
         while (exToExpose != null) {
@@ -62,10 +62,10 @@ public final class SecurityExceptionHandlerInvoker {
             Throwable cause = exToExpose.getCause();
             exToExpose = (cause != exToExpose ? cause : null);
         }
-        // 추가적으로 HandlerMethod 자체도 providedArg로 전달 가능 (Spring MVC 참조)
-        // exceptionsToProvide.add(handlerMethod); // 필요하다면
+        
+        
 
-        // getMethodArgumentValues에 수집된 예외 목록 전달
+        
         Object[] args = getMethodArgumentValues(request, response, authentication, originalException, handlerMethod, exceptionsToProvide.toArray());
 
         Object returnValue;
@@ -97,9 +97,9 @@ public final class SecurityExceptionHandlerInvoker {
             HttpServletRequest request,
             HttpServletResponse response,
             @Nullable Authentication authentication,
-            Throwable originalCaughtException, // ASEPFilter 에서 최초 catch된 예외
+            Throwable originalCaughtException, 
             HandlerMethod handlerMethod,
-            @Nullable Object... providedArgs) throws Exception { // Spring MVC 의 providedArgs와 유사한 역할
+            @Nullable Object... providedArgs) throws Exception { 
 
         Method method = handlerMethod.getMethod();
         MethodParameter[] parameters = getMethodParameters(method);
@@ -112,23 +112,23 @@ public final class SecurityExceptionHandlerInvoker {
             MethodParameter parameter = parameters[i];
             parameter.initParameterNameDiscovery(this.parameterNameDiscoverer);
 
-            // 1. 먼저, 파라미터 타입이 Throwable을 상속하고, @CaughtException 어노테이션이 없는 경우,
-            //    providedArgs (예외 및 원인 목록) 중에서 타입이 일치하는 것을 찾아 주입.
+            
+            
             if (Throwable.class.isAssignableFrom(parameter.getParameterType()) &&
-                    !parameter.hasParameterAnnotation(CaughtException.class)) { // @CaughtException이 없는 예외 파라미터
+                    !parameter.hasParameterAnnotation(CaughtException.class)) { 
                 args[i] = findProvidedArgument(parameter, providedArgs);
                 if (args[i] != null) {
                     if (log.isTraceEnabled()) {
                         log.trace("ASEP: Resolved exception parameter [{}] (type: {}) directly from provided exceptions.",
                                 parameter.getParameterName(), parameter.getParameterType().getSimpleName());
                     }
-                    continue; // 다음 파라미터로
+                    continue; 
                 }
-                // 만약 providedArgs 에서 못 찾았지만 파라미터가 Throwable 타입이면, 다른 ArgumentResolver가 처리할 수도 있음
-                // (예: @CaughtException + 특정 로직). 여기서는 우선적으로 providedArgs 에서 찾음.
+                
+                
             }
 
-            // 2. 위에서 처리되지 않았다면, 등록된 ArgumentResolver 들을 순회하여 처리.
+            
             SecurityHandlerMethodArgumentResolver selectedResolver = findSupportingResolver(parameter);
             if (selectedResolver != null) {
                 if (log.isTraceEnabled()) {
@@ -137,7 +137,7 @@ public final class SecurityExceptionHandlerInvoker {
                             selectedResolver.getClass().getSimpleName(), method.getName());
                 }
                 try {
-                    // CaughtExceptionArgumentResolver는 originalCaughtException을 사용하도록 수정
+                    
                     args[i] = selectedResolver.resolveArgument(
                             parameter, request, response, authentication, originalCaughtException, handlerMethod
                     );
@@ -147,23 +147,20 @@ public final class SecurityExceptionHandlerInvoker {
                     throw ex;
                 }
             } else {
-                // findProvidedArgument 에서도 못 찾고, 지원하는 ArgumentResolver도 없는 경우
-                // (필수 파라미터인데 아무도 처리 못하면 문제 발생 가능 -> 핸들러 메서드 시그니처 설계 중요)
-                // 기본적으로는 null이 할당될 수 있으나, 핸들러 메서드에서 NPE 발생 가능성.
-                // Spring MVC는 이 경우 null을 전달하거나, 특정 타입(Optional 등)은 다르게 처리.
+                
+                
+                
+                
                 log.warn("ASEP: No suitable SecurityHandlerMethodArgumentResolver found (and not resolved from providedArgs) " +
                                 "for parameter type [{}] at index {} in method [{}]. Argument will be null if not optional.",
                         parameter.getParameterType().getName(), i, method.toGenericString());
-                args[i] = null; // 또는 예외 발생
+                args[i] = null; 
             }
         }
         return args;
     }
 
-    /**
-     * Spring MVC의 InvocableHandlerMethod.findProvidedArgument와 유사한 로직.
-     * providedArgs 중에서 MethodParameter 타입과 일치하는 첫 번째 인자를 찾아 반환합니다.
-     */
+    
     @Nullable
     private Object findProvidedArgument(MethodParameter parameter, @Nullable Object... providedArgs) {
         if (!ObjectUtils.isEmpty(providedArgs)) {

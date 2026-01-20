@@ -2,15 +2,7 @@ package io.contexa.contexacore.autonomous.event;
 
 import org.springframework.context.ApplicationEvent;
 
-/**
- * 자율 학습 시스템에서 생성한 정책이 승인되었을 때 발생하는 이벤트
- *
- * 이 이벤트는 AutonomousLearningCoordinator에서 발행되어
- * AIAM 시스템으로 전달되어 실제 보안 정책을 업데이트합니다.
- *
- * @author contexa
- * @since 1.0.0
- */
+
 public class PolicyApprovedEvent extends ApplicationEvent {
 
     private final String policyId;
@@ -21,18 +13,7 @@ public class PolicyApprovedEvent extends ApplicationEvent {
     private final String targetSystem;
     private final double confidenceScore;
 
-    /**
-     * 정책 승인 이벤트 생성자
-     *
-     * @param source 이벤트 발생 소스
-     * @param policyId 정책 ID
-     * @param policyName 정책 이름
-     * @param policyDescription 정책 설명
-     * @param policyRules 정책 규칙 (JSON 형태)
-     * @param approvedBy 승인자 (system/human/ai)
-     * @param targetSystem 적용 대상 시스템
-     * @param confidenceScore 정책 신뢰도 점수
-     */
+    
     public PolicyApprovedEvent(Object source, String policyId, String policyName,
                               String policyDescription, String policyRules,
                               String approvedBy, String targetSystem, double confidenceScore) {
@@ -46,7 +27,7 @@ public class PolicyApprovedEvent extends ApplicationEvent {
         this.confidenceScore = confidenceScore;
     }
 
-    // Getters
+    
     public String getPolicyId() {
         return policyId;
     }

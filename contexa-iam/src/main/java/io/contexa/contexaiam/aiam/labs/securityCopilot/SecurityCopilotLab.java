@@ -37,14 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * AI 보안 어드바이저 (Security Copilot Lab) - PipelineOrchestrator 기반
- *
- * PipelineOrchestrator.executeStream() → StreamingUniversalPipelineExecutor 자동 선택
- * PipelineOrchestrator.execute() → 일반 진단 전용 executor 선택
- * Lab 병렬 실행 → AI 종합 분석 → 실시간 스트리밍
- * 진단과 스트리밍 일원화
- */
+
 @Slf4j
 public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, SecurityCopilotResponse> {
 
@@ -55,8 +48,8 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
     private final SecurityCopilotVectorService vectorService;
 
     private final ConcurrentHashMap<String, DiagnosisSession> activeSessions = new ConcurrentHashMap<>();
-//    private final @Qualifier("streamingVirtualScheduler") Scheduler streamingVirtualScheduler;
-//    private final @Qualifier("parallelVirtualScheduler") Scheduler parallelVirtualScheduler;
+
+
 
     public SecurityCopilotLab(io.opentelemetry.api.trace.Tracer tracer,
                               PipelineOrchestrator orchestrator, AILabFactory labFactory,
@@ -67,7 +60,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         this.labFactory = labFactory;
         this.objectMapper = objectMapper;
         this.monitor = monitor;
-//        this.parallelVirtualScheduler = parallelVirtualScheduler;
+
         this.vectorService = vectorService;
         log.info("SecurityCopilotLab 3.0 초기화 - PipelineOrchestrator 기반 with Vector Storage");
     }
@@ -77,7 +70,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return true;
     }
 
-    // ==================== 핵심: 일원화된 진단 프로세스 ====================
+    
 
     @Override
     protected SecurityCopilotResponse doProcess(SecurityCopilotRequest request) throws Exception {
@@ -89,23 +82,14 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         log.info("[DIAGNOSIS] SecurityCopilot 진단 처리 시작: {} (일반 executor 사용)", request.getSecurityQuery());
         long startTime = System.currentTimeMillis();
         
-        // 벡터 저장소에 요청 저장
+        
         try {
             vectorService.storeSecurityAnalysisRequest(request);
         } catch (Exception e) {
             log.error("벡터 저장소 요청 저장 실패", e);
         }
 
-        /*SecurityCopilotContext context = new SecurityCopilotContext(
-                request.getUserId(),
-                "copilot-" + UUID.randomUUID().toString().substring(0, 8)
-        );
-        context.setSecurityQuery(request.getSecurityQuery());
-
-        AIRequest<SecurityCopilotContext> aiRequest = new IAMRequest<>(context, "securityCopilot")
-                .withDiagnosisType(DiagnosisType.SECURITY_COPILOT)
-                .withParameter("processingMode", "analysis")
-                .withParameter("securityQuery", request.getSecurityQuery());*/
+        
 
         log.info("[DIAGNOSIS] PipelineOrchestrator.execute() 호출 - Strategy 최적화 파이프라인 사용");
 
@@ -115,7 +99,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                     log.info("[DIAGNOSIS] SecurityCopilot 진단 처리 완료 ({}ms): JSON 응답 생성",
                             endTime - startTime);
                     
-                    // 벡터 저장소에 결과 저장
+                    
                     try {
                         vectorService.storeSecurityAnalysisResult(request, (SecurityCopilotResponse) response);
                     } catch (Exception e) {
@@ -143,27 +127,27 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
     }
 
 
-    // SecurityCopilotLab.java의 executeUnifiedPipelineStream 메서드 수정
+    
 
     private Flux<String> executeUnifiedPipelineStream(DiagnosisSession session) {
         String sessionId = session.getSessionId();
         SecurityCopilotRequest request = session.getRequest();
 
-        // 1. 세션 ID 전송
+        
         Flux<String> sessionStream = Flux.just("SESSION_ID:" + sessionId)
                 .doOnNext(msg -> log.info("[PARALLEL-{}] 세션 ID 전송: {}", sessionId, msg));
 
-        // 2. Lab 병렬 스트리밍 (각 Lab이 6단계 전체 실행)
+        
         Map<String, Flux<String>> labStreams = createLabStreams(request);
 
-        // 3. 스트림 병합
+        
         LabStreamMerger merger = new LabStreamMerger();
         LabStreamMerger.MergeResult mergeResult = merger.mergeLabStreams(labStreams);
 
-        // 4. 종합 분석 - flatMap 사용 (flatMapMany 대신)
+        
         Mono<SecurityAnalysisResult> analysisResultMono = mergeResult.waitForAllDiagnosis()
                 .doOnNext(diagnosisResults -> {
-                    // 받자마자 즉시 확인
+                    
                     log.info("[waitForAllDiagnosis 직후] Map 크기: {}", diagnosisResults.size());
                     diagnosisResults.forEach((lab, json) -> {
                         log.info("[받은직후][{}] 길이: {}", lab, json.length());
@@ -174,7 +158,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                     diagnosisResults.forEach((lab, json) -> {
                         log.info("[map내부][{}] 길이: {}, 유효JSON: {}", lab, json.length(), isValidJson(json));
 
-                        // 잘린 데이터 감지
+                        
                         if (!isValidJson(json)) {
                             log.error("[{}] JSON이 잘렸습니다! 끝부분: {}",
                                     lab, json.length() > 100 ? json.substring(json.length() - 100) : json);
@@ -183,14 +167,14 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
                     return createAnalysisResultFromDiagnosis(diagnosisResults, request);
                 })
-                .cache(); // 결과를 캐시하여 재계산 방지
+                .cache(); 
 
-        // 5. 종합 분석 스트림 생성
+        
         Flux<String> comprehensiveAnalysis = analysisResultMono.flatMapMany(analysisResult ->
                         executeComprehensiveAnalysisWithoutStreaming(analysisResult, request)
                 );
 
-        // 6. 순차 조합
+        
         return Flux.concat(
                 sessionStream,
                 mergeResult.getMergedStream(),
@@ -208,21 +192,19 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 (json.startsWith("[") && json.endsWith("]"));
     }
 
-    /**
-     * 종합 AI 분석 실행
-     */
+    
     private Flux<String> executeComprehensiveAnalysisWithoutStreaming(SecurityAnalysisResult analysisResult, SecurityCopilotRequest originalRequest) {
         this.validateLabResults(analysisResult);
 
-        // 연관성 분석을 위한 컨텍스트 생성
+        
         SecurityCopilotContext context = this.createComprehensiveAnalysisContext(
                 originalRequest, analysisResult);
 
-        // AI 요청 생성 (스트리밍 모드)
+        
         AIRequest<SecurityCopilotContext> aiRequest = createComprehensiveAnalysisAIRequest(originalRequest, context, analysisResult);
         aiRequest.withStreaming(true);
 
-        // 상태 관리
+        
         AtomicReference<StringBuilder> markerBuffer = new AtomicReference<>(new StringBuilder());
         AtomicReference<StringBuilder> jsonBuffer = new AtomicReference<>(new StringBuilder());
         AtomicBoolean markerDetected = new AtomicBoolean(false);
@@ -230,32 +212,32 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         Flux<String> stringFlux = orchestrator.executeStream(aiRequest)
                 .map(obj -> obj != null ? obj.toString() : "");
 
-        // 실시간 스트리밍 + JSON 수집을 동시에
+        
         return stringFlux
                 .handle((String chunkStr, SynchronousSink<String> sink) -> {
-                    // JSON 수집 모드
+                    
                     if (markerDetected.get()) {
                         jsonBuffer.get().append(chunkStr);
-                        // 마커 이후는 전송하지 않음
+                        
                         return;
                     }
 
-                    // 마커 버퍼링
+                    
                     StringBuilder buffer = markerBuffer.get();
                     buffer.append(chunkStr);
 
-                    // 마커 감지
+                    
                     int markerIndex = buffer.toString().indexOf("###FINAL_RESPONSE###");
                     if (markerIndex != -1) {
                         markerDetected.set(true);
 
-                        // 마커 이전 부분은 전송
+                        
                         if (markerIndex > 0) {
                             String beforeMarker = buffer.substring(0, markerIndex);
                             sink.next(beforeMarker);
                         }
 
-                        // 마커 이후 JSON 수집
+                        
                         if (markerIndex + 20 < buffer.length()) {
                             jsonBuffer.get().append(buffer.substring(markerIndex + 20));
                         }
@@ -264,29 +246,29 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                         return;
                     }
 
-                    // 마커가 없으면 안전한 부분만 실시간 전송
+                    
                     if (buffer.length() > 30) {
                         int sendLength = buffer.length() - 30;
                         String toSend = buffer.substring(0, sendLength);
                         buffer.delete(0, sendLength);
 
-                        // 실시간 전송!
+                        
                         sink.next(toSend);
                     }
                 })
                 .concatWith(
                         Flux.defer(() -> {
-                            // 남은 버퍼 + 최종 응답 처리
+                            
                             List<String> finalItems = new ArrayList<>();
 
-                            // 버퍼에 남은 데이터 전송
+                            
                             if (!markerDetected.get() && markerBuffer.get().length() > 0) {
                                 finalItems.add(markerBuffer.get().toString());
                             }
 
-                            // 최종 응답 생성
+                            
                             try {
-                                // 종합 분석 AI 응답 파싱
+                                
                                 SecurityCopilotResponse aiResponse = null;
 
                                 if (markerDetected.get()) {
@@ -305,10 +287,10 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                                     }
                                 }
 
-                                // 최종 SecurityCopilotResponse 생성
+                                
                                 SecurityCopilotResponse finalResponse = createFinalSecurityCopilotResponse(
-                                        analysisResult,      // Lab 진단 결과
-                                        aiResponse,          // 종합 분석 AI 응답 (null 가능)
+                                        analysisResult,      
+                                        aiResponse,          
                                         originalRequest
                                 );
 
@@ -318,7 +300,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                             } catch (Exception e) {
                                 log.error("최종 응답 생성 실패", e);
 
-                                // 에러 응답 생성
+                                
                                 try {
                                     SecurityCopilotResponse errorResponse = createErrorResponse(originalRequest, e);
                                     String errorJson = objectMapper.writeValueAsString(errorResponse);
@@ -335,9 +317,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
 
 
-    /**
-     * 최종 SecurityCopilotResponse 생성 (개선된 버전)
-     */
+    
     private SecurityCopilotResponse createFinalSecurityCopilotResponse(
             SecurityAnalysisResult labAnalysisResult,
             SecurityCopilotResponse comprehensiveAIResponse,
@@ -359,7 +339,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         response.setActionPlan(policyGenerationResult != null ? policyGenerationResult : "정책 생성 결과 없음");
         response.setOriginalQuery(request.getSecurityQuery());
 
-        // 종합 분석 AI 응답 병합
+        
         if (comprehensiveAIResponse != null) {
             response.setRecommendationSummary(comprehensiveAIResponse.getRecommendationSummary());
             response.setOverallSecurityScore(comprehensiveAIResponse.getOverallSecurityScore());
@@ -372,20 +352,20 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             response.setActionPriorities(comprehensiveAIResponse.getActionPriorities());
             response.setPredictiveAnalysis(comprehensiveAIResponse.getPredictiveAnalysis());
         } else {
-            // 기본값 설정
+            
             response.setRecommendationSummary("AI 종합 분석 결과를 기반으로 한 권장사항");
             response.setOverallSecurityScore(calculateOverallScore(labAnalysisResult));
             response.setRiskLevel(calculateRiskLevel(riskAssessmentResult.riskScore()));
         }
 
-        // 메타데이터
+        
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("sessionId", sessionId);
         metadata.put("labResults", labAnalysisResult);
         metadata.put("comprehensiveAnalysisAvailable", comprehensiveAIResponse != null);
         response.setMetadata(metadata);
 
-        // 실행 시간
+        
         long executionTime = System.currentTimeMillis() -
                 Long.parseLong(sessionId.substring(sessionId.lastIndexOf("-") + 1));
         response.setExecutionTimeMs(executionTime);
@@ -393,9 +373,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return response;
     }
 
-    /**
-     * 기본 응답 생성 (마커 미감지 시)
-     */
+    
     private SecurityCopilotResponse createDefaultResponse(
             SecurityAnalysisResult analysisResult,
             SecurityCopilotRequest request) {
@@ -403,9 +381,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return createFinalSecurityCopilotResponse(analysisResult, null, request);
     }
 
-    /**
-     * 에러 응답 생성
-     */
+    
     private SecurityCopilotResponse createErrorResponse(
             SecurityCopilotRequest request,
             Exception error) {
@@ -422,15 +398,13 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 .build();
     }
 
-    /**
-     * 개별 Lab 결과 검증
-     */
+    
     private void validateLabResults(SecurityAnalysisResult analysisResult) {
         log.info("개별 Lab 결과 검증 시작");
 
         Map<String, Object> labResults = analysisResult.getLabResults();
 
-        // StudioQuery 결과 검증
+        
         Object studioResult = labResults.get("StudioQuery");
         if (studioResult instanceof StudioQueryResponse studioResponse) {
             log.info("StudioQuery 결과 검증 완료 - 시각화 데이터: {}, 권장사항: {}",
@@ -438,14 +412,14 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                     studioResponse.getRecommendations() != null ? studioResponse.getRecommendations().size() : 0);
         }
 
-        // RiskAssessment 결과 검증
+        
         Object riskResult = labResults.get("RiskAssessment");
         if (riskResult instanceof RiskAssessmentResponse riskResponse) {
             log.info("RiskAssessment 결과 검증 완료 - 위험점수: {}, 신뢰도: {}",
                     riskResponse.riskScore(), riskResponse.trustScore());
         }
 
-        // PolicyGeneration 결과 검증
+        
         Object policyResult = labResults.get("PolicyGeneration");
         if (policyResult instanceof PolicyResponse policyResponse) {
             log.info("PolicyGeneration 결과 검증 완료 - 정책 데이터: {}, 신뢰도: {}",
@@ -454,9 +428,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         }
     }
 
-    /**
-     * 연관성 분석을 위한 컨텍스트 생성
-     */
+    
     private SecurityCopilotContext createComprehensiveAnalysisContext(
             SecurityCopilotRequest originalRequest,
             SecurityAnalysisResult analysisResult) {
@@ -473,25 +445,25 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
         context.setSecurityQuery(originalRequest.getSecurityQuery());
 
-        // 개별 Lab 결과를 연관성 분석용 메타데이터로 추가
+        
         Map<String, Object> labResults = analysisResult.getLabResults();
 
-        // 1. 권한 구조 데이터 추가
+        
         Object studioResult = labResults.get("StudioQuery");
         if (studioResult instanceof StudioQueryResponse studioResponse) {
             context.addSecurityMetadata("permissionStructure", studioResponse);
 
-            // 시각화 데이터에서 노드/엣지 정보 추출
+            
             if (studioResponse.getVisualizationData() != null) {
                 context.addSecurityMetadata("networkNodes", studioResponse.getVisualizationData().getNodes());
                 context.addSecurityMetadata("networkEdges", studioResponse.getVisualizationData().getEdges());
             }
 
-            // 권한 분석 결과 추가
+            
             context.addSecurityMetadata("analysisResults", studioResponse.getAnalysisResults());
         }
 
-        // 2. 위험 평가 데이터 추가
+        
         Object riskResult = labResults.get("RiskAssessment");
         if (riskResult instanceof RiskAssessmentResponse riskResponse) {
             context.addSecurityMetadata("riskAssessment", riskResponse);
@@ -499,7 +471,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             context.addSecurityMetadata("riskFactors", riskResponse.getAssessment());
         }
 
-        // 3. 정책 데이터 추가
+        
         Object policyResult = labResults.get("PolicyGeneration");
         if (policyResult instanceof PolicyResponse policyResponse) {
             context.addSecurityMetadata("policyData", policyResponse);
@@ -512,9 +484,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return context;
     }
 
-    /**
-     * 보안 점수로 위험 수준 계산
-     */
+    
     private String calculateRiskLevel(double score) {
         if (score >= 80) return "LOW";
         if (score >= 60) return "MEDIUM";
@@ -522,11 +492,9 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return "CRITICAL";
     }
 
-    // ====================== 설정 메서드 ======================
+    
 
-    /**
-     * 병렬 Lab 스트림 생성
-     */
+    
     private Map<String, Flux<String>> createLabStreams(SecurityCopilotRequest request) {
         Map<String, Flux<String>> streams = new LinkedHashMap<>();
         String currentThread = Thread.currentThread().getName();
@@ -535,10 +503,10 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         log.info("[PARALLEL-STREAMS] Lab 병렬 스트림 생성 시작 - 스레드: {}", currentThread);
 
         List<String> labNames = List.of("RiskAssessment", "StudioQuery", "PolicyGeneration");
-        // 핵심 개선: 각 Lab 스트림에 publishOn 적용
+        
         for (String labName : labNames) {
             Flux<String> labStream = Flux.defer(() -> executeLabStream(request, labName))
-//                    .subscribeOn(parallelVirtualScheduler)
+
                     .cache();
 
             addLabStream(streams, labName, labStream, startTime);
@@ -548,13 +516,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return streams;
     }
 
-   /* private Flux<String> executeLabStream(SecurityCopilotRequest request, String labName) {
-        // ★★★ 실제 파이프라인 대신, 지연을 시뮬레이션하는 테스트 Flux 반환
-        return Flux.interval(Duration.ofMillis(500)) // 0.5초마다 데이터 방출
-                .map(i -> String.format("'%s' 테스트 데이터 %d", labName, i + 1))
-                .take(10) // 10개만 방출하고
-                .concatWith(Mono.just("###FINAL_RESPONSE###{\"result\":\"OK\"}")); // 종료
-    }*/
+   
 
     private Flux<String> executeLabStream(SecurityCopilotRequest request, String labName) {
         return switch (labName) {
@@ -647,7 +609,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
     }
 
 
-    // 전체 점수 계산
+    
     private double calculateOverallScore(SecurityAnalysisResult labResults) {
         if (labResults.getLabResults().isEmpty()) {
             return 0.0;
@@ -656,20 +618,18 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         double totalScore = 0.0;
         int validLabCount = 0;
 
-        // 각 Lab 결과에 대해 점수 계산
+        
         for (Map.Entry<String, Object> entry : labResults.getLabResults().entrySet()) {
             if (isLabResultSuccessful(entry.getValue())) {
                 validLabCount++;
-                totalScore += 85.0; // 성공한 Lab은 85점으로 계산
+                totalScore += 85.0; 
             }
         }
 
         return validLabCount > 0 ? totalScore / validLabCount : 0.0;
     }
 
-    /**
-     * AI 종합 분석 요청 생성 (비스트리밍)
-     */
+    
     private AIRequest<SecurityCopilotContext> createComprehensiveAnalysisAIRequest(
             SecurityCopilotRequest request,
             SecurityCopilotContext context,
@@ -681,14 +641,14 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 request.getOrganizationId()
         );
 
-        // 기본 파라미터
+        
         aiRequest.withParameter("securityQuery", request.getSecurityQuery());
-//        aiRequest.withParameter("analysisScope", context.getAnalysisScope());
-//        aiRequest.withParameter("priority", context.getPriority());
-        aiRequest.withParameter("requestType", "comprehensive_analysis");
-        aiRequest.withParameter("outputFormat", "structured_json"); // 구조화된 JSON 요청
 
-        // AI가 반환해야 할 필수 필드 명시
+
+        aiRequest.withParameter("requestType", "comprehensive_analysis");
+        aiRequest.withParameter("outputFormat", "structured_json"); 
+
+        
         aiRequest.withParameter("requiredFields", Map.of(
                 "structureAnalysis", "권한 구조 분석 결과",
                 "riskAnalysis", "위험 평가 분석 결과",
@@ -707,7 +667,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 )
         ));
 
-        // Lab 결과를 구조화해서 전달
+        
         Map<String, Object> structuredLabResults = new HashMap<>();
         labResults.getLabResults().forEach((labName, result) -> {
             structuredLabResults.put(labName, Map.of(
@@ -718,7 +678,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         });
         aiRequest.withParameter("labResults", structuredLabResults);
 
-        // 한국어 설정
+        
         aiRequest.withParameter("language", "korean");
         aiRequest.withParameter("responseLanguage", "korean");
 
@@ -736,58 +696,58 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
         String cleaned = rawJson;
 
-        // 1. 마크다운 코드 블록 제거
+        
         if (cleaned.contains("```")) {
-            // ```json 또는 ``` 패턴 찾기
+            
             Pattern codeBlockPattern = Pattern.compile("```(?:json)?\\s*([\\s\\S]*?)```", Pattern.MULTILINE);
             Matcher matcher = codeBlockPattern.matcher(cleaned);
 
             if (matcher.find()) {
-                // 코드 블록 내용만 추출
+                
                 cleaned = matcher.group(1).trim();
                 log.debug("마크다운 코드 블록 제거됨");
             } else {
-                // 단순 ``` 제거
+                
                 cleaned = cleaned.replaceAll("```(?:json)?", "").replaceAll("```", "");
             }
         }
 
-        // 2. 백틱 제거
+        
         cleaned = cleaned.replaceAll("`", "");
 
-        // 3. 앞뒤 공백 및 줄바꿈 제거
+        
         cleaned = cleaned.trim();
 
-        // 4. BOM 및 제어 문자 제거
+        
         if (cleaned.length() > 0 && cleaned.charAt(0) == '\uFEFF') {
             cleaned = cleaned.substring(1);
         }
-        cleaned = cleaned.replaceAll("[\\x00-\\x1F\\x7F]", " "); // 제어문자는 공백으로 변환
+        cleaned = cleaned.replaceAll("[\\x00-\\x1F\\x7F]", " "); 
 
-        // 5. AI가 추가한 설명 텍스트 제거 (JSON 이전 부분)
+        
         int jsonStart = findJsonStart(cleaned);
         if (jsonStart > 0) {
             log.debug("JSON 이전 텍스트 제거: {} 문자", jsonStart);
             cleaned = cleaned.substring(jsonStart);
         }
 
-        // 6. JSON 끝 이후 텍스트 제거
+        
         int jsonEnd = findJsonEnd(cleaned);
         if (jsonEnd > 0 && jsonEnd < cleaned.length()) {
             log.debug("JSON 이후 텍스트 제거: {} 문자", cleaned.length() - jsonEnd);
             cleaned = cleaned.substring(0, jsonEnd);
         }
 
-        // 7. 이스케이프된 따옴표 처리
-        // AI가 가끔 JSON 내부의 따옴표를 잘못 이스케이프하는 경우
+        
+        
         cleaned = cleaned.replaceAll("\\\\\"", "\"");
 
-        // 8. 최종 검증
+        
         if (!isValidJsonStructure(cleaned)) {
             log.error("종합 분석 JSON 정제 실패. 구조가 유효하지 않음");
             log.debug("정제된 결과: {}", cleaned);
 
-            // 최후의 수단: 정규식으로 JSON 객체 추출
+            
             Pattern jsonObjectPattern = Pattern.compile("\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}", Pattern.DOTALL);
             Matcher objMatcher = jsonObjectPattern.matcher(rawJson);
 
@@ -804,9 +764,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return cleaned;
     }
 
-    /**
-     * JSON 시작 위치 찾기
-     */
+    
     private int findJsonStart(String text) {
         int braceIndex = text.indexOf('{');
         int bracketIndex = text.indexOf('[');
@@ -821,9 +779,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return Math.min(braceIndex, bracketIndex);
     }
 
-    /**
-     * JSON 끝 위치 찾기
-     */
+    
     private int findJsonEnd(String text) {
         int depth = 0;
         boolean inString = false;
@@ -863,7 +819,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
         json = json.trim();
 
-        // 객체 또는 배열로 시작하고 끝나는지 확인
+        
         boolean isObject = json.startsWith("{") && json.endsWith("}");
         boolean isArray = json.startsWith("[") && json.endsWith("]");
 
@@ -871,7 +827,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             return false;
         }
 
-        // 괄호 균형 확인
+        
         int depth = 0;
         boolean inString = false;
         char prevChar = 0;
@@ -900,30 +856,30 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
     }
 
 
-    // SecurityCopilotLab.java에 추가
+    
     private double calculateCategoryScore(SecurityAnalysisResult labResults, String labName) {
         Object result = labResults.getLabResults().get(labName);
 
         if (result != null && isLabResultSuccessful(result)) {
-            // 성공한 경우 기본 70점 + 추가 점수
+            
             double baseScore = 70.0;
 
-            // 결과 길이나 내용에 따라 추가 점수 부여
+            
             String resultText = result.toString();
             if (resultText.length() > 500) {
-                baseScore += 10.0; // 상세한 분석 결과
+                baseScore += 10.0; 
             }
             if (resultText.contains("성공") || resultText.contains("완료")) {
                 baseScore += 5.0;
             }
             if (resultText.contains("위험") || resultText.contains("주의")) {
-                baseScore -= 5.0; // 위험 요소 발견
+                baseScore -= 5.0; 
             }
 
-            return Math.min(Math.max(baseScore, 0), 100); // 0-100 범위
+            return Math.min(Math.max(baseScore, 0), 100); 
         }
 
-        // 실패한 경우 30점
+        
         return 30.0;
     }
 
@@ -946,11 +902,9 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 !resultStr.contains("없음") && !resultStr.isEmpty();
     }
 
-    // ==================== 내부 클래스 ====================
+    
 
-    /**
-     * 진단 세션
-     */
+    
     @Getter
     private static class DiagnosisSession {
         private final String sessionId;
@@ -958,7 +912,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         private final long startTime;
         private SecurityAnalysisResult labResults;
         private SecurityCopilotResponse finalResponse;
-        private volatile String status = "STARTED"; // 추가
+        private volatile String status = "STARTED"; 
 
         public DiagnosisSession(String sessionId, SecurityCopilotRequest request) {
             this.sessionId = sessionId;
@@ -968,23 +922,21 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
         public void setLabResults(SecurityAnalysisResult labResults) {
             this.labResults = labResults;
-            this.status = "LABS_COMPLETED"; // 추가
+            this.status = "LABS_COMPLETED"; 
         }
 
         public void setFinalResponse(SecurityCopilotResponse response) {
             this.finalResponse = response;
-            this.status = "COMPLETED"; // 추가
+            this.status = "COMPLETED"; 
         }
 
-        public String getStatus() { // 추가
+        public String getStatus() { 
             return this.status;
         }
     }
 
 
-    /**
-     * 진단 결과에서 SecurityAnalysisResult 생성 (실제 진단 결과 활용)
-     */
+    
     private SecurityAnalysisResult createAnalysisResultFromDiagnosis(
             Map<String, String> diagnosisResults, SecurityCopilotRequest request) {
 
@@ -994,11 +946,11 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         log.info("[DIAGNOSIS-ANALYSIS] 진단 결과 기반 분석 시작 - {} 개 Lab 결과", diagnosisResults.size());
 
         try {
-            // StudioQuery 진단 결과 처리
+            
             if (diagnosisResults.containsKey("StudioQuery")) {
                 String studioJson = diagnosisResults.get("StudioQuery");
 
-                // JSON이 마크다운이나 추가 텍스트를 포함할 수 있으므로 정제
+                
                 String cleanedJson = cleanLabDiagnosisJson(studioJson, "StudioQuery");
 
                 if (!cleanedJson.isEmpty()) {
@@ -1014,7 +966,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 }
             }
 
-            // RiskAssessment 진단 결과 처리
+            
             if (diagnosisResults.containsKey("RiskAssessment")) {
                 String riskJson = diagnosisResults.get("RiskAssessment");
                 String cleanedJson = cleanLabDiagnosisJson(riskJson, "RiskAssessment");
@@ -1032,7 +984,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 }
             }
 
-            // PolicyGeneration 진단 결과 처리
+            
             if (diagnosisResults.containsKey("PolicyGeneration")) {
                 String policyJson = diagnosisResults.get("PolicyGeneration");
                 String cleanedJson = cleanLabDiagnosisJson(policyJson, "PolicyGeneration");
@@ -1060,15 +1012,13 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return analysisResult;
     }
 
-    /**
-     * Lab 진단 결과 JSON 정제 (간단한 버전)
-     */
+    
     private String cleanLabDiagnosisJson(String rawJson, String labName) {
         if (rawJson == null || rawJson.isEmpty()) {
             return "";
         }
 
-        // 이미 cleanJsonString 메서드가 있으므로 그것을 재사용
+        
         String cleaned = cleanJsonString(rawJson);
 
         if (cleaned.isEmpty()) {
@@ -1078,20 +1028,14 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return cleaned;
     }
     
-    /**
-     * 피드백 기반 학습
-     * 
-     * @param request 원본 요청
-     * @param response 생성된 응답
-     * @param feedback 사용자 피드백
-     */
+    
     public void learnFromFeedback(SecurityCopilotRequest request, SecurityCopilotResponse response, String feedback) {
         try {
-            // 현재 SecurityCopilotVectorService는 storeFeedback 메서드가 없으므로
-            // 요청과 결과를 다시 저장하면서 피드백을 메타데이터로 포함
+            
+            
             log.info("[SecurityCopilotLab] 피드백 학습 시작: {}", feedback.substring(0, Math.min(50, feedback.length())));
             
-            // 피드백과 함께 결과 재저장 (향후 확장 가능)
+            
             vectorService.storeSecurityAnalysisResult(request, response);
             
             log.info("[SecurityCopilotLab] 피드백 학습 완료");

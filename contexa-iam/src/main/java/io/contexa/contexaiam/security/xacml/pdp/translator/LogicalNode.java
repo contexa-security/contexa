@@ -6,9 +6,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/**
- * 'AND', 'OR', 'NOT'과 같은 논리적 조합을 표현하는 복합 노드 (Composite).
- */
+
 @Getter
 public class LogicalNode implements ExpressionNode {
 
@@ -27,9 +25,7 @@ public class LogicalNode implements ExpressionNode {
                 .collect(Collectors.toSet());
     }
 
-    /**
-     * [추가] 자식 노드 중 하나라도 인증을 요구하면 true를 반환.
-     */
+    
     @Override
     public boolean requiresAuthentication() {
         return children.stream().anyMatch(ExpressionNode::requiresAuthentication);

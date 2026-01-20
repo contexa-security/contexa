@@ -54,12 +54,12 @@ public class MvcResourceScanner implements ResourceScanner {
                 httpMethod = ManagedResource.HttpMethod.ANY;
             }
 
-            // [변경] @Operation 대신 메서드 이름과 기본 설명 사용
+            
             String friendlyName = handlerMethod.getMethod().getName();
             String description = String.format("URL: [%s] %s", httpMethodStr, urlPattern);
 
-            // [신규] Spring REST Docs 문서의 앵커 링크 생성 규칙
-            // 예: /docs/index.html#users_create
+            
+            
             String docsAnchor = String.format("%s_%s", beanType.getSimpleName().toLowerCase().replace("controller", ""), handlerMethod.getMethod().getName().toLowerCase());
             String apiDocsUrl = String.format("%s#%s", restDocsPath, docsAnchor);
 

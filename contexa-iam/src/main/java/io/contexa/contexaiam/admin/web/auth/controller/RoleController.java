@@ -39,8 +39,8 @@ public class RoleController {
 	@GetMapping("/register")
 	public String registerRoleForm(Model model) {
 		model.addAttribute("role", new RoleDto());
-		model.addAttribute("permissionList", permissionService.getAllPermissions()); // 모든 Permission 목록
-		model.addAttribute("selectedPermissionIds", new ArrayList<Long>()); // 선택된 권한 ID 목록 초기화
+		model.addAttribute("permissionList", permissionService.getAllPermissions()); 
+		model.addAttribute("selectedPermissionIds", new ArrayList<Long>()); 
 		return "admin/rolesdetails";
 	}
 
@@ -70,7 +70,7 @@ public class RoleController {
 
 	@PostMapping("/{id}/edit")
 	public String updateRole(@PathVariable Long id, @ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
-		roleDto.setId(id); // ID를 DTO에 설정
+		roleDto.setId(id); 
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.updateRole(role, roleDto.getPermissionIds());
 		ra.addFlashAttribute("message", "역할이 성공적으로 업데이트되었습니다!");

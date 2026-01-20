@@ -8,11 +8,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
-/**
- * Redis Stream 초기화
- * 
- * 애플리케이션 시작 시 필요한 Redis Stream과 Consumer Group을 자동으로 생성합니다.
- */
+
 public class RedisStreamInitializer implements CommandLineRunner {
     
     private static final Logger logger = LoggerFactory.getLogger(RedisStreamInitializer.class);
@@ -37,21 +33,21 @@ public class RedisStreamInitializer implements CommandLineRunner {
     
     private void initializeRedisStream() {
         try {
-            // Stream이 존재하지 않으면 생성
+            
             Boolean hasKey = redisTemplate.hasKey(STREAM_KEY);
             if (Boolean.FALSE.equals(hasKey)) {
                 logger.info("Creating Redis stream: {}", STREAM_KEY);
-                // 더미 데이터를 추가하여 스트림 생성
+                
                 redisTemplate.opsForStream().add(STREAM_KEY, 
                     java.util.Collections.singletonMap("init", "true"));
             }
             
-            // Consumer Group 생성 시도
+            
             try {
                 redisTemplate.opsForStream().createGroup(STREAM_KEY, CONSUMER_GROUP);
                 logger.info("Created consumer group '{}' for stream '{}'", CONSUMER_GROUP, STREAM_KEY);
             } catch (Exception e) {
-                // 이미 존재하는 경우 무시
+                
                 if (e.getMessage() != null && e.getMessage().contains("BUSYGROUP")) {
                     logger.debug("Consumer group '{}' already exists for stream '{}'", CONSUMER_GROUP, STREAM_KEY);
                 } else {
@@ -59,7 +55,7 @@ public class RedisStreamInitializer implements CommandLineRunner {
                 }
             }
             
-            // 추가 스트림들도 초기화
+            
             initializeAdditionalStreams();
             
         } catch (Exception e) {
@@ -68,7 +64,7 @@ public class RedisStreamInitializer implements CommandLineRunner {
     }
     
     private void initializeAdditionalStreams() {
-        // 다른 필요한 스트림들도 초기화
+        
         String[] additionalStreams = {
             "threat-indicators-stream",
             "security-actions-stream",
@@ -84,7 +80,7 @@ public class RedisStreamInitializer implements CommandLineRunner {
                         java.util.Collections.singletonMap("init", "true"));
                 }
                 
-                // Consumer group 생성
+                
                 try {
                     redisTemplate.opsForStream().createGroup(streamKey, CONSUMER_GROUP);
                     logger.info("Created consumer group '{}' for stream '{}'", CONSUMER_GROUP, streamKey);

@@ -24,19 +24,19 @@ public class AIController {
             ChatResponse response;
 
             if (model != null) {
-                // 특정 모델 지정
+                
                 response = aiModelManager.chat(
                         AIModelManager.AIModelType.valueOf(model.toUpperCase()),
                         prompt
                 );
             } else if (taskType != null) {
-                // 작업 유형에 따라 자동 선택
+                
                 response = aiModelManager.chatWithBestModel(
                         AIModelManager.TaskType.valueOf(taskType.toUpperCase()),
                         prompt
                 );
             } else {
-                // 가장 빠른 모델 사용
+                
                 response = aiModelManager.chatWithFastest(prompt);
             }
 

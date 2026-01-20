@@ -11,10 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 정책 생성 및 관리를 위한 특화된 IAM 컨텍스트
- * 정책 생성 AI 작업에 필요한 모든 컨텍스트 정보를 포함
- */
+
 @Getter
 @Setter
 public class PolicyContext extends IAMContext {
@@ -46,10 +43,7 @@ public class PolicyContext extends IAMContext {
         return "POLICY";
     }
     
-    /**
-     * 정책 생성에 필요한 모든 컨텍스트가 완전한지 확인합니다
-     * @return 완전성 여부
-     */
+    
     public boolean isComplete() {
         return availableRoles != null && !availableRoles.isEmpty() &&
                availablePermissions != null && !availablePermissions.isEmpty() &&
@@ -57,10 +51,7 @@ public class PolicyContext extends IAMContext {
                naturalLanguageQuery != null && !naturalLanguageQuery.trim().isEmpty();
     }
     
-    /**
-     * 정책 생성 복잡도를 계산합니다
-     * @return 복잡도 점수 (1-10)
-     */
+    
     public int calculateComplexity() {
         int complexity = 1;
         
@@ -73,17 +64,14 @@ public class PolicyContext extends IAMContext {
         return Math.min(complexity, 10);
     }
     
-    /**
-     * 스트리밍 모드가 권장되는지 확인합니다
-     * @return 스트리밍 권장 여부
-     */
+    
     public boolean isStreamingRecommended() {
         return calculateComplexity() >= 6 || 
                (naturalLanguageQuery != null && naturalLanguageQuery.length() > 200) ||
                generationMode == PolicyGenerationMode.AI_ASSISTED;
     }
     
-    // Builder 패턴 지원
+    
     public static class Builder {
         private final PolicyContext context;
         

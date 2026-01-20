@@ -1,23 +1,14 @@
 package io.contexa.contexaidentity.security.core.mfa.context;
 
-/**
- * FactorContext 속성 키 상수 정의 클래스
- *
- * <p>
- * 모든 FactorContext 속성 키를 상수로 정의하여 오타 방지 및 IDE 자동완성을 지원합니다.
- * Redis 직렬화 안전성을 고려하여 실제 사용되는 속성만 정의합니다.
- * </p>
- */
+
 public final class FactorContextAttributes {
 
-    // 인스턴스화 방지
+    
     private FactorContextAttributes() {
         throw new AssertionError("Utility class cannot be instantiated");
     }
 
-    /**
-     * 이벤트 타임스탬프 추적
-     */
+    
     public static final class Timestamps {
         public static final String PRIMARY_AUTH_COMPLETED_AT = "primaryAuthCompletedAt";
         public static final String CHALLENGE_INITIATED_AT = "challengeInitiatedAt";
@@ -34,9 +25,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * 사용자 식별 정보
-     */
+    
     public static final class UserInfo {
         public static final String USERNAME = "username";
         public static final String USER_ID = "userId";
@@ -48,9 +37,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * 챌린지 및 팩터 정보
-     */
+    
     public static final class FactorInfo {
         public static final String CURRENT_PROCESSING_FACTOR = "currentProcessingFactor";
         public static final String FACTOR_TYPE = "factorType";
@@ -64,9 +51,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * MFA 정책 및 팩터 집합
-     */
+    
     public static final class Policy {
         public static final String AVAILABLE_FACTORS = "availableFactors";
         public static final String COMPLETED_FACTORS = "completedFactors";
@@ -79,9 +64,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * 완료 상태 및 의사결정
-     */
+    
     public static final class CompletionState {
         public static final String IS_COMPLETED = "isCompleted";
         public static final String NEEDS_FACTOR_SELECTION = "needsFactorSelection";
@@ -92,9 +75,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * 재시도 관리
-     */
+    
     public static final class Retry {
         public static final String RETRY_COUNT = "retryCount";
         public static final String RETRY_LIMIT = "retryLimit";
@@ -104,9 +85,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * MFA 플로우 메타데이터
-     */
+    
     public static final class FlowMetadata {
         public static final String MFA_SESSION_ID = "mfaSessionId";
         public static final String FLOW_TYPE_NAME = "flowTypeName";
@@ -117,9 +96,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * 디바이스 신뢰 및 세션 관리
-     */
+    
     public static final class DeviceAndSession {
         public static final String DEVICE_TRUSTED = "deviceTrusted";
         public static final String REMEMBER_ME = "rememberMe";
@@ -132,9 +109,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * 메시지 및 사유
-     */
+    
     public static final class MessageAndReason {
         public static final String MESSAGE = "message";
         public static final String REASON = "reason";
@@ -145,9 +120,7 @@ public final class FactorContextAttributes {
         }
     }
 
-    /**
-     * 상태 관리 및 제어
-     */
+    
     public static final class StateControl {
         public static final String BLOCKED = "blocked";
         public static final String MFA_DECISION_TYPE = "mfaDecisionType";

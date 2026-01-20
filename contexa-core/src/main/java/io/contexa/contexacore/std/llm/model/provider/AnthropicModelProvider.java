@@ -22,11 +22,7 @@ import org.springframework.web.client.RestClientException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Anthropic (Claude) 모델 제공자 구현
- *
- * Claude API를 통해 다양한 Claude 모델을 관리하고 제공합니다.
- */
+
 @Slf4j
 public class AnthropicModelProvider implements ModelProvider {
 
@@ -62,7 +58,7 @@ public class AnthropicModelProvider implements ModelProvider {
     public List<ModelDescriptor> getAvailableModels() {
         List<ModelDescriptor> models = new ArrayList<>();
 
-        // 설정 파일에서 정의된 모델들 가져오기
+        
         ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
         if (anthropicConfig != null && anthropicConfig.getModels() != null) {
             for (Map.Entry<String, ModelProviderProperties.ModelSpec> entry :
@@ -87,7 +83,7 @@ public class AnthropicModelProvider implements ModelProvider {
             return modelCache.get(modelId);
         }
 
-        // 설정 파일에서 찾기
+        
         ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
         if (anthropicConfig != null && anthropicConfig.getModels() != null) {
             ModelProviderProperties.ModelSpec spec = anthropicConfig.getModels().get(modelId);
@@ -105,13 +101,13 @@ public class AnthropicModelProvider implements ModelProvider {
     public ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config) {
         String modelId = descriptor.getModelId();
 
-        // 캐시 확인
+        
         if (modelInstances.containsKey(modelId)) {
             return modelInstances.get(modelId);
         }
 
         try {
-            // 설정에서 모델 스펙 가져오기
+            
             ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
             ModelProviderProperties.ModelSpec modelSpec = null;
 
@@ -124,11 +120,11 @@ public class AnthropicModelProvider implements ModelProvider {
                 apiModelId = modelSpec.getVersion();
             }
 
-            // AnthropicChatOptions 생성
+            
             AnthropicChatOptions.Builder optionsBuilder = AnthropicChatOptions.builder()
                 .model(apiModelId);
 
-            // 설정 적용
+            
             if (descriptor.getOptions() != null) {
                 ModelDescriptor.ModelOptions options = descriptor.getOptions();
                 if (options.getTemperature() != null) {
@@ -142,12 +138,12 @@ public class AnthropicModelProvider implements ModelProvider {
                 }
             }
 
-            // 최대 토큰 설정
+            
             if (descriptor.getCapabilities() != null) {
                 optionsBuilder.maxTokens(descriptor.getCapabilities().getMaxOutputTokens());
             }
 
-            // 추가 설정 적용
+            
             if (config != null) {
                 if (config.containsKey("temperature")) {
                     optionsBuilder.temperature((Double) config.get("temperature"));
@@ -164,12 +160,12 @@ public class AnthropicModelProvider implements ModelProvider {
 
             AnthropicChatOptions anthropicOptions = optionsBuilder.build();
 
-            // API 사용 가능 여부 체크
+            
             if (!isReady()) {
                 throw new ModelSelectionException("Anthropic API not configured. Please set ANTHROPIC_API_KEY", modelId);
             }
 
-            // AnthropicChatModel 생성
+            
             AnthropicChatModel chatModel = AnthropicChatModel.builder()
                 .anthropicApi(getAnthropicApi())
                 .defaultOptions(anthropicOptions)
@@ -193,14 +189,14 @@ public class AnthropicModelProvider implements ModelProvider {
 
     @Override
     public boolean supportsModel(String modelId) {
-        // 설정 파일에서 확인
+        
         ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
         if (anthropicConfig != null && anthropicConfig.getModels() != null &&
             anthropicConfig.getModels().containsKey(modelId)) {
             return true;
         }
 
-        // 캐시에서 확인
+        
         return modelCache.containsKey(modelId);
     }
 
@@ -215,7 +211,7 @@ public class AnthropicModelProvider implements ModelProvider {
                 return HealthStatus.unhealthy("Anthropic not initialized");
             }
 
-            // Anthropic API 헬스 체크 - messages endpoint에 최소 요청
+            
             String messagesUrl = baseUrl + "/v1/messages";
 
             HttpHeaders headers = new HttpHeaders();
@@ -223,18 +219,18 @@ public class AnthropicModelProvider implements ModelProvider {
             headers.set("anthropic-version", "2023-06-01");
             headers.set("content-type", "application/json");
 
-            // 설정에서 첫 번째 모델 가져오기
-            String testModel = "claude-3-haiku-20240307"; // 기본값
+            
+            String testModel = "claude-3-haiku-20240307"; 
             ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
             if (anthropicConfig != null && anthropicConfig.getModels() != null && !anthropicConfig.getModels().isEmpty()) {
-                // 첫 번째 모델의 version 사용
+                
                 ModelProviderProperties.ModelSpec firstSpec = anthropicConfig.getModels().values().iterator().next();
                 if (firstSpec != null && firstSpec.getVersion() != null) {
                     testModel = firstSpec.getVersion();
                 }
             }
 
-            // 최소 테스트 메시지
+            
             String testPayload = "{"
                 + "\"model\": \"" + testModel + "\","
                 + "\"max_tokens\": 1,"
@@ -252,7 +248,7 @@ public class AnthropicModelProvider implements ModelProvider {
                 details.put("baseUrl", baseUrl);
                 details.put("apiKeyConfigured", true);
 
-                // 특정 모델 사용 가능 여부 확인
+                
                 if (modelId != null && !modelId.isEmpty()) {
                     ModelProviderProperties.AnthropicConfig configForModel = modelProviderProperties.getAnthropic();
                     boolean modelExists = configForModel != null &&
@@ -264,11 +260,11 @@ public class AnthropicModelProvider implements ModelProvider {
                 return new HealthStatus(true, "Healthy", 0, details);
 
             } catch (RestClientException e) {
-                // API 키가 유효하지만 사용량 제한 등의 문제로 요청이 실패할 수 있음
+                
                 if (e.getMessage() != null && e.getMessage().contains("401")) {
                     return HealthStatus.unhealthy("Invalid API key");
                 } else if (e.getMessage() != null && e.getMessage().contains("429")) {
-                    // Rate limit이지만 API는 정상 작동 중
+                    
                     Map<String, Object> details = new HashMap<>();
                     details.put("status", "rate_limited");
                     details.put("baseUrl", baseUrl);
@@ -286,7 +282,7 @@ public class AnthropicModelProvider implements ModelProvider {
         log.info("AnthropicModelProvider 초기화 시작");
 
         try {
-            // 설정에서 baseUrl 가져오기
+            
             ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
             if (anthropicConfig != null && anthropicConfig.isEnabled()) {
                 this.baseUrl = anthropicConfig.getBaseUrl();
@@ -298,13 +294,13 @@ public class AnthropicModelProvider implements ModelProvider {
 
             if (apiKey == null || apiKey.isEmpty()) {
                 log.warn("Anthropic API 키가 설정되지 않았지만 계속 진행합니다");
-                // API 키가 없어도 설정 파일의 모델 정의는 사용 가능
+                
             }
 
-            // RestTemplate 초기화
+            
             this.restTemplate = new RestTemplate();
 
-            ready = true; // API 키가 없어도 ready 상태
+            ready = true; 
             log.info("AnthropicModelProvider 초기화 완료 - baseUrl: {}, API 키 설정: {}",
                      baseUrl, apiKey != null && !apiKey.isEmpty());
         } catch (Exception e) {
@@ -329,12 +325,12 @@ public class AnthropicModelProvider implements ModelProvider {
     @Override
     public void refreshModels() {
         log.info("Anthropic 모델 목록 새로고침");
-        // Claude 모델은 정적으로 정의되어 있으므로 특별한 새로고침 불필요
+        
     }
 
     @Override
     public int getPriority() {
-        return 20; // 클라우드 모델이므로 Ollama보다 낮은 우선순위
+        return 20; 
     }
 
     @Override
@@ -347,9 +343,7 @@ public class AnthropicModelProvider implements ModelProvider {
         return metrics;
     }
 
-    /**
-     * 설정 스펙으로부터 모델 디스크립터 생성
-     */
+    
     private ModelDescriptor createModelDescriptorFromSpec(String modelId, ModelProviderProperties.ModelSpec spec) {
         var capBuilder = ModelDescriptor.ModelCapabilities.builder()
             .streaming(spec.getCapabilities().getStreaming())
@@ -403,9 +397,7 @@ public class AnthropicModelProvider implements ModelProvider {
             .build();
     }
 
-    /**
-     * AnthropicApi 인스턴스 반환
-     */
+    
     private AnthropicApi getAnthropicApi() {
         if (anthropicApi == null) {
             throw new IllegalStateException("AnthropicApi not available. Please check Anthropic configuration.");

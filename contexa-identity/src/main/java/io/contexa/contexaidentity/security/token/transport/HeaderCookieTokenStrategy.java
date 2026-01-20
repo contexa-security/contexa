@@ -30,7 +30,7 @@ public class HeaderCookieTokenStrategy extends AbstractTokenTransportStrategy im
 
     @Override
     public String resolveRefreshToken(HttpServletRequest request) {
-        return extractCookie(request, REFRESH_TOKEN); // AbstractTokenTransportStrategy의 메서드 사용
+        return extractCookie(request, REFRESH_TOKEN); 
     }
 
     @Override
@@ -44,7 +44,7 @@ public class HeaderCookieTokenStrategy extends AbstractTokenTransportStrategy im
         List<ResponseCookie> cookiesToSet = new ArrayList<>();
         if (StringUtils.hasText(refreshToken)) {
             ResponseCookie refreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), refreshToken)
-                    .path(COOKIE_PATH) // propsProvider.getCookiePath() 등으로 변경 가능
+                    .path(COOKIE_PATH) 
                     .httpOnly(HTTP_ONLY)
                     .secure(propsProvider.isCookieSecure())
                     .sameSite(SAME_SITE)

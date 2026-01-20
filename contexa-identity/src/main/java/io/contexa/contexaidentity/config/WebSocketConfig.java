@@ -20,22 +20,14 @@ import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * WebSocket 설정
- *
- * SoarApprovalNotifier가 사용하는 SimpMessagingTemplate Bean을 생성합니다.
- * @EnableWebSocketMessageBroker 어노테이션이 AbstractMessageBrokerConfiguration을 활성화하여
- * brokerMessagingTemplate Bean을 자동 등록합니다.
- */
+
 @Slf4j
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    /**
-     * 세션 기반 Principal 구현
-     */
+    
     static class SessionPrincipal implements Principal {
         private final String name;
 
@@ -49,9 +41,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         }
     }
 
-    /**
-     * 핸드셰이크 시 세션 Principal 자동 생성
-     */
+    
     private final DefaultHandshakeHandler handshakeHandler = new DefaultHandshakeHandler() {
         @Override
         protected Principal determineUser(@NonNull ServerHttpRequest request,
@@ -71,13 +61,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // 클라이언트 → 서버 메시지 접두사
+        
         config.setApplicationDestinationPrefixes("/app");
 
-        // 서버 → 클라이언트 브로드캐스트 접두사
+        
         config.enableSimpleBroker("/topic", "/queue");
 
-        // 사용자/세션별 메시지 접두사
+        
         config.setUserDestinationPrefix("/user");
 
         log.info("WebSocket Message Broker 설정 완료 - app=/app, broker=/topic|/queue, user=/user");
@@ -85,7 +75,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // SOAR 승인 알림용 WebSocket 엔드포인트
+        
         registry.addEndpoint("/ws-soar")
                 .setAllowedOriginPatterns("*")
                 .setHandshakeHandler(handshakeHandler)
@@ -94,9 +84,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         log.info("STOMP 엔드포인트 등록 완료: /ws-soar");
     }
 
-    /**
-     * 클라이언트 → 서버 인바운드 채널 설정
-     */
+    
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         int processors = Runtime.getRuntime().availableProcessors();
@@ -119,9 +107,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                   processors, Math.max(8, processors * 2));
     }
 
-    /**
-     * 서버 → 클라이언트 아웃바운드 채널 설정
-     */
+    
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {
         int processors = Runtime.getRuntime().availableProcessors();

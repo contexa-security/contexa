@@ -13,12 +13,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * ToolResultCache
- * 
- * 도구 실행 결과를 캐싱합니다.
- * Redis를 사용하며, 로컬 캐시도 함께 관리합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class ToolResultCache {
@@ -34,24 +29,22 @@ public class ToolResultCache {
     @Value("${tool.cache.default-ttl:300}")
     private long defaultTtlSeconds;
     
-    // 로컬 캐시 (L1 캐시)
+    
     private final Map<String, CacheEntry> localCache = new ConcurrentHashMap<>();
     
-    // 캐시 통계
+    
     private final AtomicLong hitCount = new AtomicLong(0);
     private final AtomicLong missCount = new AtomicLong(0);
     private final AtomicLong putCount = new AtomicLong(0);
     private final AtomicLong evictionCount = new AtomicLong(0);
     
-    /**
-     * 캐시에서 결과 가져오기
-     */
+    
     public ToolExecutor.ToolResult get(String key) {
         if (!cacheEnabled) {
             return null;
         }
         
-        // L1 캐시 확인
+        
         CacheEntry localEntry = localCache.get(key);
         if (localEntry != null && !localEntry.isExpired()) {
             hitCount.incrementAndGet();
@@ -59,14 +52,14 @@ public class ToolResultCache {
             return localEntry.getValue();
         }
         
-        // L2 캐시 (Redis) 확인
+        
         try {
             Object cached = redisTemplate.opsForValue().get(formatRedisKey(key));
             if (cached instanceof ToolExecutor.ToolResult) {
                 hitCount.incrementAndGet();
                 log.trace("L2 캐시 히트: {}", key);
                 
-                // L1 캐시에도 저장
+                
                 putToLocalCache(key, (ToolExecutor.ToolResult) cached);
                 
                 return (ToolExecutor.ToolResult) cached;
@@ -80,23 +73,17 @@ public class ToolResultCache {
         return null;
     }
     
-    /**
-     * Optional로 결과 가져오기
-     */
+    
     public Optional<ToolExecutor.ToolResult> getOptional(String key) {
         return Optional.ofNullable(get(key));
     }
     
-    /**
-     * 캐시에 결과 저장
-     */
+    
     public void put(String key, ToolExecutor.ToolResult value) {
         put(key, value, Duration.ofSeconds(defaultTtlSeconds));
     }
     
-    /**
-     * 캐시에 결과 저장 (TTL 지정)
-     */
+    
     public void put(String key, ToolExecutor.ToolResult value, Duration ttl) {
         if (!cacheEnabled || value == null) {
             return;
@@ -104,10 +91,10 @@ public class ToolResultCache {
         
         putCount.incrementAndGet();
         
-        // L1 캐시 저장
+        
         putToLocalCache(key, value);
         
-        // L2 캐시 (Redis) 저장
+        
         try {
             redisTemplate.opsForValue().set(
                 formatRedisKey(key), 
@@ -120,16 +107,14 @@ public class ToolResultCache {
         }
     }
     
-    /**
-     * 캐시에서 제거
-     */
+    
     public void evict(String key) {
         evictionCount.incrementAndGet();
         
-        // L1 캐시 제거
+        
         localCache.remove(key);
         
-        // L2 캐시 제거
+        
         try {
             redisTemplate.delete(formatRedisKey(key));
             log.trace("캐시 제거: {}", key);
@@ -138,16 +123,14 @@ public class ToolResultCache {
         }
     }
     
-    /**
-     * 패턴으로 캐시 제거
-     */
+    
     public void evictByPattern(String pattern) {
-        // L1 캐시 제거
+        
         localCache.entrySet().removeIf(entry -> 
             entry.getKey().matches(pattern)
         );
         
-        // L2 캐시 제거
+        
         try {
             var keys = redisTemplate.keys(formatRedisKey(pattern));
             if (keys != null && !keys.isEmpty()) {
@@ -160,9 +143,7 @@ public class ToolResultCache {
         }
     }
     
-    /**
-     * 모든 캐시 클리어
-     */
+    
     public void clear() {
         int localSize = localCache.size();
         localCache.clear();
@@ -178,24 +159,18 @@ public class ToolResultCache {
         }
     }
     
-    /**
-     * 캐시 크기
-     */
+    
     public int size() {
         return localCache.size();
     }
     
-    /**
-     * 캐시 히트율
-     */
+    
     public double getHitRate() {
         long total = hitCount.get() + missCount.get();
         return total > 0 ? (double) hitCount.get() / total : 0.0;
     }
     
-    /**
-     * 캐시 통계
-     */
+    
     public CacheStatistics getStatistics() {
         return CacheStatistics.builder()
             .hitCount(hitCount.get())
@@ -207,9 +182,7 @@ public class ToolResultCache {
             .build();
     }
     
-    /**
-     * 캐시 통계 리셋
-     */
+    
     public void resetStatistics() {
         hitCount.set(0);
         missCount.set(0);
@@ -218,13 +191,11 @@ public class ToolResultCache {
         log.info("캐시 통계 리셋");
     }
     
-    // Private 메서드들
     
-    /**
-     * 로컬 캐시에 저장
-     */
+    
+    
     private void putToLocalCache(String key, ToolExecutor.ToolResult value) {
-        // 크기 제한 확인
+        
         if (localCache.size() >= localMaxSize) {
             evictOldestFromLocalCache();
         }
@@ -232,9 +203,7 @@ public class ToolResultCache {
         localCache.put(key, new CacheEntry(value, System.currentTimeMillis() + (defaultTtlSeconds * 1000)));
     }
     
-    /**
-     * 가장 오래된 로컬 캐시 항목 제거
-     */
+    
     private void evictOldestFromLocalCache() {
         localCache.entrySet().stream()
             .min((e1, e2) -> Long.compare(e1.getValue().getExpireTime(), e2.getValue().getExpireTime()))
@@ -245,16 +214,12 @@ public class ToolResultCache {
             });
     }
     
-    /**
-     * Redis 키 포맷
-     */
+    
     private String formatRedisKey(String key) {
         return "tool:cache:" + key;
     }
     
-    /**
-     * 캐시 엔트리
-     */
+    
     private static class CacheEntry {
         private final ToolExecutor.ToolResult value;
         private final long expireTime;
@@ -277,9 +242,7 @@ public class ToolResultCache {
         }
     }
     
-    /**
-     * 캐시 통계
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class CacheStatistics {

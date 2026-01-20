@@ -20,10 +20,10 @@ public class PostprocessingStepExecutionHandler implements StepExecutionHandler 
             PipelineStep step, AIRequest<T> request, PipelineConfiguration<T> configuration,
             PipelineExecutionContext context, Class<R> responseType) {
 
-        // responseType을 context의 metadata에 저장
+        
         context.addMetadata("targetResponseType", responseType);
         
-        // 표준 execute 메서드 호출
+        
         return step.execute(request, context)
                 .then(Mono.just(context));
     }

@@ -15,68 +15,43 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * HCAD 피드백 루프 메트릭 수집기
- *
- * 목적:
- * - HCAD 4-Layer 분석 각 레이어별 기여도 추적
- * - 피드백 루프 학습 효과 측정
- * - 유사도 계산 성능 모니터링
- *
- * 4-Layer 구조:
- * - Layer 1: RAG 위협 검색 (VectorStore 기반)
- * - Layer 2: 기준선 유사도 (Baseline Vector)
- * - Layer 3: 마할라노비스 이상도 (Mahalanobis Distance)
- * - Layer 4: 위협 상관관계 분석 (Threat Correlation)
- *
- * Prometheus 메트릭:
- * - zerotrust.hcad.analysis.total - 전체 분석 횟수
- * - zerotrust.hcad.analysis.duration - 분석 소요 시간
- * - zerotrust.hcad.layer.{layer}.contribution - 레이어별 기여도 (0.0-1.0)
- * - zerotrust.hcad.similarity.score - 최종 유사도 점수 분포
- * - zerotrust.hcad.anomaly.detected - 이상 탐지 횟수
- * - zerotrust.hcad.feedback.baseline.updated - 기준선 업데이트 횟수
- * - zerotrust.hcad.feedback.threshold.adjusted - 임계값 조정 횟수
- *
- * @author contexa
- * @since 3.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetrics, EventRecorder {
 
     private final MeterRegistry meterRegistry;
 
-    // 전체 분석 메트릭
+    
     private Counter analysisCounter;
     private Timer analysisTimer;
 
-    // 레이어별 기여도 추적 (AtomicLong으로 누적 합산)
+    
     private final AtomicLong layer1ThreatSearchSum = new AtomicLong(0);
     private final AtomicLong layer2BaselineSum = new AtomicLong(0);
     private final AtomicLong layer3AnomalySum = new AtomicLong(0);
     private final AtomicLong layer4CorrelationSum = new AtomicLong(0);
     private final AtomicLong contributionSampleCount = new AtomicLong(0);
 
-    // 유사도 점수 분포 (구간별 카운터)
-    private Counter similarityVeryHigh; // 0.9-1.0
-    private Counter similarityHigh;     // 0.7-0.9
-    private Counter similarityMedium;   // 0.5-0.7
-    private Counter similarityLow;      // 0.3-0.5
-    private Counter similarityVeryLow;  // 0.0-0.3
+    
+    private Counter similarityVeryHigh; 
+    private Counter similarityHigh;     
+    private Counter similarityMedium;   
+    private Counter similarityLow;      
+    private Counter similarityVeryLow;  
 
-    // 이상 탐지
+    
     private Counter anomalyDetectedCounter;
     private Counter anomalyFalsePositiveCounter;
 
-    // 피드백 루프 학습
+    
     private Counter baselineUpdatedCounter;
     private Counter thresholdAdjustedCounter;
     private Timer feedbackProcessingTimer;
 
     @PostConstruct
     public void init() {
-        // 전체 분석 메트릭
+        
         analysisCounter = Counter.builder("zerotrust.hcad.analysis.total")
             .description("HCAD 전체 분석 수행 횟수")
             .register(meterRegistry);
@@ -85,7 +60,7 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .description("HCAD 분석 소요 시간")
             .register(meterRegistry);
 
-        // 레이어별 평균 기여도 게이지
+        
         meterRegistry.gauge("zerotrust.hcad.layer.threat_search.contribution", layer1ThreatSearchSum,
             sum -> contributionSampleCount.get() > 0 ? sum.get() / (double) contributionSampleCount.get() : 0.0);
 
@@ -98,7 +73,7 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         meterRegistry.gauge("zerotrust.hcad.layer.correlation.contribution", layer4CorrelationSum,
             sum -> contributionSampleCount.get() > 0 ? sum.get() / (double) contributionSampleCount.get() : 0.0);
 
-        // 유사도 점수 분포
+        
         similarityVeryHigh = Counter.builder("zerotrust.hcad.similarity.score")
             .tag("range", "very_high")
             .tag("min", "0.9")
@@ -134,7 +109,7 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .description("유사도 매우 낮음 (0.0-0.3)")
             .register(meterRegistry);
 
-        // 이상 탐지
+        
         anomalyDetectedCounter = Counter.builder("zerotrust.hcad.anomaly.detected")
             .tag("type", "total")
             .description("이상 탐지 총 횟수")
@@ -145,7 +120,7 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .description("오탐지 (False Positive) 횟수")
             .register(meterRegistry);
 
-        // 피드백 루프
+        
         baselineUpdatedCounter = Counter.builder("zerotrust.hcad.feedback.baseline.updated")
             .description("기준선 벡터 업데이트 횟수 (학습)")
             .register(meterRegistry);
@@ -161,18 +136,12 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         log.info("[HCADFeedbackLoopMetrics] 초기화 완료 - 4-Layer 기여도 추적 시작");
     }
 
-    /**
-     * HCAD 분석 수행 기록
-     *
-     * @param durationNanos 분석 소요 시간 (나노초)
-     * @param finalSimilarity 최종 유사도 점수 (0.0-1.0)
-     * @param isAnomaly 이상 탐지 여부
-     */
+    
     public void recordAnalysis(long durationNanos, double finalSimilarity, boolean isAnomaly) {
         analysisCounter.increment();
         analysisTimer.record(durationNanos, TimeUnit.NANOSECONDS);
 
-        // 유사도 점수 분포 기록
+        
         if (finalSimilarity >= 0.9) {
             similarityVeryHigh.increment();
         } else if (finalSimilarity >= 0.7) {
@@ -185,29 +154,20 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             similarityVeryLow.increment();
         }
 
-        // 이상 탐지 기록
+        
         if (isAnomaly) {
             anomalyDetectedCounter.increment();
         }
     }
 
-    /**
-     * 4-Layer 기여도 기록
-     *
-     * 각 레이어가 최종 유사도에 기여한 정도를 추적
-     *
-     * @param threatSearchContribution Layer 1 기여도 (0.0-1.0)
-     * @param baselineContribution Layer 2 기여도 (0.0-1.0)
-     * @param anomalyContribution Layer 3 기여도 (0.0-1.0)
-     * @param correlationContribution Layer 4 기여도 (0.0-1.0)
-     */
+    
     public void recordLayerContributions(
         double threatSearchContribution,
         double baselineContribution,
         double anomalyContribution,
         double correlationContribution
     ) {
-        // 기여도를 0-100 스케일로 변환하여 저장 (평균 계산 용이)
+        
         layer1ThreatSearchSum.addAndGet((long) (threatSearchContribution * 100));
         layer2BaselineSum.addAndGet((long) (baselineContribution * 100));
         layer3AnomalySum.addAndGet((long) (anomalyContribution * 100));
@@ -215,43 +175,27 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         contributionSampleCount.incrementAndGet();
     }
 
-    /**
-     * 오탐지 (False Positive) 기록
-     *
-     * 이상으로 판정했으나 실제로는 정상인 경우
-     */
+    
     public void recordFalsePositive() {
         anomalyFalsePositiveCounter.increment();
     }
 
-    /**
-     * 기준선 업데이트 기록
-     *
-     * 피드백 루프를 통해 BaselineVector가 학습된 경우
-     */
+    
     public void recordBaselineUpdate() {
         baselineUpdatedCounter.increment();
     }
 
-    /**
-     * 임계값 조정 기록
-     *
-     * 피드백 루프를 통해 임계값이 동적으로 조정된 경우
-     */
+    
     public void recordThresholdAdjustment() {
         thresholdAdjustedCounter.increment();
     }
 
-    /**
-     * 피드백 처리 시간 기록
-     *
-     * @param durationNanos 피드백 처리 소요 시간 (나노초)
-     */
+    
     public void recordFeedbackProcessing(long durationNanos) {
         feedbackProcessingTimer.record(durationNanos, TimeUnit.NANOSECONDS);
     }
 
-    // ===== MetricsCollector 인터페이스 구현 =====
+    
 
     @Override
     public String getDomain() {
@@ -291,18 +235,18 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         contributionSampleCount.set(0);
     }
 
-    // ===== DomainMetrics 인터페이스 구현 =====
+    
 
     @Override
     public double getHealthScore() {
-        // 건강도 = (1 - 오탐율) * 레이어 균형도
+        
         long totalAnomalies = (long) anomalyDetectedCounter.count();
         long falsePositives = (long) anomalyFalsePositiveCounter.count();
 
         double falsePositiveRate = totalAnomalies > 0 ?
             (double) falsePositives / totalAnomalies : 0.0;
 
-        // 레이어 기여도 균형 (표준편차가 낮을수록 좋음)
+        
         double[] contributions = {
             contributionSampleCount.get() > 0 ? layer1ThreatSearchSum.get() / (double) contributionSampleCount.get() / 100.0 : 0.25,
             contributionSampleCount.get() > 0 ? layer2BaselineSum.get() / (double) contributionSampleCount.get() / 100.0 : 0.25,
@@ -318,7 +262,7 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         variance /= 4.0;
         double stdDev = Math.sqrt(variance);
 
-        // 균형도 점수 (표준편차가 0.1 이하면 완벽, 0.3 이상이면 불균형)
+        
         double balanceScore = Math.max(0, 1.0 - (stdDev / 0.3));
 
         return (1.0 - falsePositiveRate) * balanceScore;
@@ -337,7 +281,7 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         return metrics;
     }
 
-    // ===== EventRecorder 인터페이스 구현 =====
+    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {

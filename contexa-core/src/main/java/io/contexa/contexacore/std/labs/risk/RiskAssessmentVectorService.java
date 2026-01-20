@@ -18,14 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 
-/**
- * Zero Trust 위험 평가 전용 벡터 저장소 서비스
- * 
- * RiskAssessmentLab을 위한 Spring AI 표준 준수 벡터 저장소 서비스입니다.
- * Zero Trust 기반 위험 평가, 신뢰도 점수, 위험 요소를 벡터화하여 저장하고 학습합니다.
- * 
- * @since 1.0.0
- */
+
 @Slf4j
 public class RiskAssessmentVectorService extends AbstractVectorLabService {
     
@@ -46,7 +39,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
-    // Zero Trust 원칙 패턴
+    
     private static final Map<String, Pattern> ZERO_TRUST_PRINCIPLES = Map.of(
         "NEVER_TRUST", Pattern.compile("verify|validate|authenticate|검증|확인|인증", Pattern.CASE_INSENSITIVE),
         "ALWAYS_VERIFY", Pattern.compile("continuous|always|every|항상|지속적|매번", Pattern.CASE_INSENSITIVE),
@@ -58,7 +51,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         "CONTINUOUS_MONITORING", Pattern.compile("monitor|watch|track|모니터링|감시|추적", Pattern.CASE_INSENSITIVE)
     );
     
-    // 위험 카테고리 패턴
+    
     private static final Map<String, Pattern> RISK_CATEGORY_PATTERNS = Map.of(
         "IDENTITY_RISK", Pattern.compile("identity|credential|account|신원|자격증명|계정", Pattern.CASE_INSENSITIVE),
         "ACCESS_RISK", Pattern.compile("access|permission|authorization|접근|권한|인가", Pattern.CASE_INSENSITIVE),
@@ -70,7 +63,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         "COMPLIANCE_RISK", Pattern.compile("compliance|regulation|policy|준수|규정|정책", Pattern.CASE_INSENSITIVE)
     );
     
-    // 신뢰도 요소 패턴
+    
     private static final Map<String, Pattern> TRUST_FACTOR_PATTERNS = Map.of(
         "MFA_ENABLED", Pattern.compile("mfa|multi.*factor|2fa|다중.*인증|이중.*인증", Pattern.CASE_INSENSITIVE),
         "ENCRYPTION", Pattern.compile("encrypt|crypto|secure|암호화|보안", Pattern.CASE_INSENSITIVE),
@@ -103,29 +96,29 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         Map<String, Object> metadata = new HashMap<>(document.getMetadata());
         
         try {
-            // 1. Zero Trust 원칙 적용 분석
+            
             Map<String, Boolean> zeroTrustCompliance = analyzeZeroTrustCompliance(document.getText());
             metadata.put("zeroTrustCompliance", zeroTrustCompliance);
             metadata.put("zeroTrustScore", calculateZeroTrustScore(zeroTrustCompliance));
             
-            // 2. 위험 카테고리 분류
+            
             Set<String> riskCategories = classifyRiskCategories(document.getText());
             metadata.put("riskCategories", new ArrayList<>(riskCategories));
             metadata.put("multiCategoryRisk", riskCategories.size() > 1);
             
-            // 3. 신뢰도 요소 분석
+            
             TrustFactorAnalysis trustFactors = analyzeTrustFactors(document.getText());
             metadata.put("trustFactors", trustFactors.getFactors());
             metadata.put("trustScore", trustFactors.getScore());
             metadata.put("trustLevel", trustFactors.getLevel());
             
-            // 4. 위험 점수 계산
+            
             RiskScore riskScore = calculateRiskScore(metadata);
             metadata.put("riskScore", riskScore.getScore());
             metadata.put("riskLevel", riskScore.getLevel());
             metadata.put("riskFactors", riskScore.getFactors());
             
-            // 5. 컨텍스트 기반 위험 평가
+            
             if (contextAwareAssessment) {
                 ContextualRisk contextualRisk = assessContextualRisk(document.getText(), metadata);
                 metadata.put("contextualRiskScore", contextualRisk.getScore());
@@ -134,7 +127,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                 metadata.put("locationBasedRisk", contextualRisk.isLocationBasedRisk());
             }
             
-            // 6. 적응형 위험 점수
+            
             if (adaptiveRiskScoring) {
                 AdaptiveRiskScore adaptiveScore = calculateAdaptiveRiskScore(metadata);
                 metadata.put("adaptiveRiskScore", adaptiveScore.getScore());
@@ -142,7 +135,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                 metadata.put("adaptiveConfidence", adaptiveScore.getConfidence());
             }
             
-            // 7. 예측 위험 분석
+            
             if (predictiveRiskAnalysis) {
                 PredictiveRisk predictiveRisk = analyzePredictiveRisk(metadata);
                 metadata.put("predictedRiskLevel", predictiveRisk.getPredictedLevel());
@@ -150,7 +143,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                 metadata.put("predictedThreats", predictiveRisk.getThreats());
             }
             
-            // 8. 지속적 검증 요구사항
+            
             if (continuousValidation) {
                 ValidationRequirements validation = determineValidationRequirements(metadata);
                 metadata.put("validationFrequency", validation.getFrequency());
@@ -158,16 +151,16 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                 metadata.put("nextValidation", validation.getNextValidation());
             }
             
-            // 9. 위험 완화 권고사항
+            
             List<String> mitigationRecommendations = generateMitigationRecommendations(metadata);
             metadata.put("mitigationRecommendations", mitigationRecommendations);
             metadata.put("mitigationPriority", determineMitigationPriority(metadata));
             
-            // 10. Zero Trust 시그니처 생성
+            
             String zeroTrustSignature = generateZeroTrustSignature(metadata);
             metadata.put("zeroTrustSignature", zeroTrustSignature);
             
-            // 11. 메타데이터 버전 정보
+            
             metadata.put("enrichmentVersion", "2.0");
             metadata.put("enrichedByService", "RiskAssessmentVectorService");
             metadata.put("assessmentTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
@@ -185,7 +178,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
         
-        // 필수 필드 검증
+        
         if (!metadata.containsKey("userId") && 
             !metadata.containsKey("resourceId") && 
             !metadata.containsKey("assessmentType")) {
@@ -193,13 +186,13 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                 "Risk Assessment 문서는 userId, resourceId, assessmentType 중 최소 하나는 포함해야 합니다");
         }
         
-        // 평가 내용 검증
+        
         String text = document.getText();
         if (text == null || text.trim().length() < 10) {
             throw new IllegalArgumentException("위험 평가 내용이 너무 짧습니다 (최소 10자 필요)");
         }
         
-        // 평가 길이 제한
+        
         if (text.length() > 10000) {
             throw new IllegalArgumentException("위험 평가 내용이 너무 깁니다 (최대 10000자)");
         }
@@ -211,7 +204,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             Map<String, Object> metadata = document.getMetadata();
             
             if (operationType == OperationType.STORE) {
-                // Zero Trust 위반 감지 시 알림
+                
                 Double zeroTrustScore = (Double) metadata.get("zeroTrustScore");
                 if (zeroTrustScore != null && zeroTrustScore < zeroTrustThreshold) {
                     log.warn("[RiskAssessmentVectorService] Zero Trust 원칙 위반: 점수={}, 카테고리={}", 
@@ -221,11 +214,11 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                     metadata.put("violationAlertTriggered", true);
                     metadata.put("alertTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
                     
-                    // 즉시 재평가 트리거
+                    
                     triggerImmediateReassessment(metadata);
                 }
                 
-                // 고위험 감지 시 알림
+                
                 String riskLevel = (String) metadata.get("riskLevel");
                 if ("CRITICAL".equals(riskLevel) || "HIGH".equals(riskLevel)) {
                     log.warn("[RiskAssessmentVectorService] 고위험 감지: 수준={}, 점수={}", 
@@ -233,7 +226,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                     metadata.put("highRiskAlert", true);
                 }
                 
-                // 적응형 위험 추세 알림
+                
                 String adaptiveTrend = (String) metadata.get("adaptiveTrend");
                 if ("INCREASING".equals(adaptiveTrend)) {
                     log.warn("[RiskAssessmentVectorService] 위험 증가 추세 감지");
@@ -268,11 +261,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return filters;
     }
     
-    /**
-     * 위험 평가 요청을 벡터 저장소에 저장
-     * 
-     * @param request Risk Assessment 요청
-     */
+    
     public void storeRiskAssessmentRequest(RiskAssessmentRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -284,7 +273,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             metadata.put("documentType", "risk_assessment_request");
             metadata.put("requestId", UUID.randomUUID().toString());
             
-            // 분석 옵션
+            
             metadata.put("historyAnalysisEnabled", request.isEnableHistoryAnalysis());
             metadata.put("behaviorAnalysisEnabled", request.isEnableBehaviorAnalysis());
             metadata.put("maxHistoryRecords", request.getMaxHistoryRecords());
@@ -309,12 +298,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * 위험 평가 결과를 벡터 저장소에 저장
-     * 
-     * @param request 원본 요청
-     * @param response 평가 결과
-     */
+    
     public void storeRiskAssessmentResult(RiskAssessmentRequest request, RiskAssessmentResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -325,19 +309,19 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             metadata.put("documentType", "risk_assessment_result");
             metadata.put("assessmentId", response.getResponseId());
             
-            // Zero Trust 평가 결과
+            
             metadata.put("trustScore", response.trustScore());
             metadata.put("riskScore", response.riskScore());
             metadata.put("riskTags", response.getAssessment() != null ? response.getAssessment().riskTags() : List.of());
             metadata.put("recommendation", response.recommendation());
             
-            // 위험 요소 분석
+            
             if (response.getAssessment() != null && response.getAssessment().riskTags() != null) {
                 metadata.put("riskFactors", response.getAssessment().riskTags());
                 metadata.put("riskFactorCount", response.getAssessment().riskTags().size());
             }
             
-            // Zero Trust 준수 여부
+            
             boolean zeroTrustCompliant = response.trustScore() >= zeroTrustThreshold;
             metadata.put("zeroTrustCompliant", zeroTrustCompliant);
             
@@ -352,7 +336,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             Document resultDoc = new Document(resultText, metadata);
             storeDocument(resultDoc);
             
-            // 위험 요소별 상세 저장
+            
             storeDetailedRiskFactors(response, metadata);
             
             log.debug("[RiskAssessmentVectorService] 위험 평가 결과 저장 완료: 평가ID={}", response.getResponseId());
@@ -363,9 +347,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * 위험 요소 상세 정보 저장
-     */
+    
     private void storeDetailedRiskFactors(RiskAssessmentResponse response, Map<String, Object> baseMetadata) {
         if (response.getAssessment() != null && response.getAssessment().riskTags() != null) {
             response.getAssessment().riskTags().forEach(factor -> {
@@ -389,9 +371,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * Zero Trust 원칙 준수 분석
-     */
+    
     private Map<String, Boolean> analyzeZeroTrustCompliance(String content) {
         Map<String, Boolean> compliance = new HashMap<>();
         
@@ -408,9 +388,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return compliance;
     }
     
-    /**
-     * Zero Trust 점수 계산
-     */
+    
     private double calculateZeroTrustScore(Map<String, Boolean> compliance) {
         if (compliance.isEmpty()) return 0.0;
         
@@ -421,9 +399,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return (double) compliantCount / compliance.size();
     }
     
-    /**
-     * 위험 카테고리 분류
-     */
+    
     private Set<String> classifyRiskCategories(String content) {
         Set<String> categories = new HashSet<>();
         
@@ -442,9 +418,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return categories;
     }
     
-    /**
-     * 신뢰도 요소 분석
-     */
+    
     private TrustFactorAnalysis analyzeTrustFactors(String content) {
         TrustFactorAnalysis analysis = new TrustFactorAnalysis();
         List<String> factors = new ArrayList<>();
@@ -454,7 +428,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             for (Map.Entry<String, Pattern> entry : TRUST_FACTOR_PATTERNS.entrySet()) {
                 if (entry.getValue().matcher(content).find()) {
                     factors.add(entry.getKey());
-                    score += 0.125; // 각 요소당 12.5% (8개 요소)
+                    score += 0.125; 
                 }
             }
         }
@@ -470,15 +444,13 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return analysis;
     }
     
-    /**
-     * 위험 점수 계산
-     */
+    
     private RiskScore calculateRiskScore(Map<String, Object> metadata) {
         RiskScore riskScore = new RiskScore();
         double score = 0.0;
         List<String> factors = new ArrayList<>();
         
-        // Zero Trust 점수 반영 (역산 - 낮을수록 위험)
+        
         Double ztScore = (Double) metadata.get("zeroTrustScore");
         if (ztScore != null) {
             score += (1.0 - ztScore) * 30.0;
@@ -487,7 +459,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             }
         }
         
-        // 신뢰도 점수 반영 (역산)
+        
         Double trustScore = (Double) metadata.get("trustScore");
         if (trustScore != null) {
             score += (1.0 - trustScore) * 25.0;
@@ -496,13 +468,13 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             }
         }
         
-        // 다중 카테고리 위험
+        
         if (Boolean.TRUE.equals(metadata.get("multiCategoryRisk"))) {
             score += 20.0;
             factors.add("다중 위험 카테고리");
         }
         
-        // 위험 카테고리 수
+        
         List<String> categories = (List<String>) metadata.get("riskCategories");
         if (categories != null) {
             score += categories.size() * 5.0;
@@ -528,15 +500,13 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return riskScore;
     }
     
-    /**
-     * 컨텍스트 기반 위험 평가
-     */
+    
     private ContextualRisk assessContextualRisk(String content, Map<String, Object> metadata) {
         ContextualRisk contextualRisk = new ContextualRisk();
         double score = 0.0;
         List<String> factors = new ArrayList<>();
         
-        // 시간 기반 위험
+        
         LocalDateTime now = LocalDateTime.now();
         if (now.getHour() < 6 || now.getHour() > 22) {
             score += 0.2;
@@ -544,26 +514,26 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             contextualRisk.setTimeBasedRisk(true);
         }
         
-        // 주말 위험
+        
         if (now.getDayOfWeek().getValue() > 5) {
             score += 0.1;
             factors.add("주말 활동");
         }
         
-        // 위치 기반 위험
+        
         if (content != null && (content.contains("unknown location") || content.contains("알 수 없는 위치"))) {
             score += 0.3;
             factors.add("알 수 없는 위치");
             contextualRisk.setLocationBasedRisk(true);
         }
         
-        // 급격한 변화
+        
         if (content != null && (content.contains("sudden") || content.contains("급격") || content.contains("갑작"))) {
             score += 0.2;
             factors.add("급격한 변화");
         }
         
-        // 이상 패턴
+        
         if (content != null && (content.contains("unusual") || content.contains("anomaly") || content.contains("이상"))) {
             score += 0.2;
             factors.add("이상 패턴");
@@ -575,9 +545,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return contextualRisk;
     }
     
-    /**
-     * 적응형 위험 점수 계산
-     */
+    
     private AdaptiveRiskScore calculateAdaptiveRiskScore(Map<String, Object> metadata) {
         AdaptiveRiskScore adaptiveScore = new AdaptiveRiskScore();
         
@@ -585,11 +553,11 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         Double contextualRisk = (Double) metadata.get("contextualRiskScore");
         
         if (currentRisk != null && contextualRisk != null) {
-            // 적응형 점수 = 기본 위험 * (1 + 컨텍스트 가중치)
+            
             double adaptive = currentRisk * (1 + contextualRisk);
             adaptiveScore.setScore(Math.min(adaptive, 100.0));
             
-            // 추세 분석
+            
             if (adaptive > currentRisk * 1.2) {
                 adaptiveScore.setTrend("INCREASING");
             } else if (adaptive < currentRisk * 0.8) {
@@ -598,8 +566,8 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
                 adaptiveScore.setTrend("STABLE");
             }
             
-            // 신뢰도
-            adaptiveScore.setConfidence(0.85); // 기본 신뢰도
+            
+            adaptiveScore.setConfidence(0.85); 
         } else {
             adaptiveScore.setScore(currentRisk != null ? currentRisk : 50.0);
             adaptiveScore.setTrend("UNKNOWN");
@@ -609,9 +577,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return adaptiveScore;
     }
     
-    /**
-     * 예측 위험 분석
-     */
+    
     private PredictiveRisk analyzePredictiveRisk(Map<String, Object> metadata) {
         PredictiveRisk predictiveRisk = new PredictiveRisk();
         List<String> threats = new ArrayList<>();
@@ -619,7 +585,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         String riskLevel = (String) metadata.get("riskLevel");
         List<String> categories = (List<String>) metadata.get("riskCategories");
         
-        // 현재 위험 수준 기반 예측
+        
         if ("HIGH".equals(riskLevel) || "CRITICAL".equals(riskLevel)) {
             predictiveRisk.setPredictedLevel("CRITICAL");
             predictiveRisk.setProbability(0.8);
@@ -633,7 +599,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             predictiveRisk.setProbability(0.4);
         }
         
-        // 카테고리 기반 예측
+        
         if (categories != null) {
             if (categories.contains("IDENTITY_RISK")) {
                 threats.add("계정 탈취 시도 가능");
@@ -651,9 +617,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return predictiveRisk;
     }
     
-    /**
-     * 검증 요구사항 결정
-     */
+    
     private ValidationRequirements determineValidationRequirements(Map<String, Object> metadata) {
         ValidationRequirements requirements = new ValidationRequirements();
         List<String> methods = new ArrayList<>();
@@ -684,9 +648,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return requirements;
     }
     
-    /**
-     * 다음 검증 시간 계산
-     */
+    
     private String calculateNextValidation(String frequency) {
         LocalDateTime next;
         
@@ -707,9 +669,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return next.format(ISO_FORMATTER);
     }
     
-    /**
-     * 위험 완화 권고사항 생성
-     */
+    
     private List<String> generateMitigationRecommendations(Map<String, Object> metadata) {
         List<String> recommendations = new ArrayList<>();
         
@@ -717,21 +677,21 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         Double zeroTrustScore = (Double) metadata.get("zeroTrustScore");
         List<String> riskFactors = (List<String>) metadata.get("riskFactors");
         
-        // 위험 수준별 권고
+        
         if ("CRITICAL".equals(riskLevel) || "HIGH".equals(riskLevel)) {
             recommendations.add("즉시 다중 인증(MFA) 활성화");
             recommendations.add("접근 권한 재검토 및 최소화");
             recommendations.add("실시간 모니터링 강화");
         }
         
-        // Zero Trust 점수 기반 권고
+        
         if (zeroTrustScore != null && zeroTrustScore < zeroTrustThreshold) {
             recommendations.add("Zero Trust 원칙 적용 강화");
             recommendations.add("마이크로세그멘테이션 구현");
             recommendations.add("지속적 검증 프로세스 도입");
         }
         
-        // 위험 요소별 권고
+        
         if (riskFactors != null) {
             if (riskFactors.contains("낮은 신뢰도")) {
                 recommendations.add("신뢰도 향상을 위한 추가 인증 수단 도입");
@@ -747,9 +707,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return recommendations;
     }
     
-    /**
-     * 완화 우선순위 결정
-     */
+    
     private String determineMitigationPriority(Map<String, Object> metadata) {
         String riskLevel = (String) metadata.get("riskLevel");
         String adaptiveTrend = (String) metadata.get("adaptiveTrend");
@@ -765,9 +723,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * Zero Trust 시그니처 생성
-     */
+    
     private String generateZeroTrustSignature(Map<String, Object> metadata) {
         StringBuilder signature = new StringBuilder("ZT");
         
@@ -796,9 +752,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         return signature.toString();
     }
     
-    /**
-     * 즉시 재평가 트리거
-     */
+    
     private void triggerImmediateReassessment(Map<String, Object> metadata) {
         log.info("[RiskAssessmentVectorService] 즉시 재평가 트리거");
         metadata.put("reassessmentTriggered", true);
@@ -806,7 +760,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         metadata.put("reassessmentReason", "Zero Trust 원칙 위반");
     }
     
-    // 내부 클래스들
+    
     
     private static class TrustFactorAnalysis {
         private List<String> factors;
@@ -889,9 +843,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         public void setNextValidation(String nextValidation) { this.nextValidation = nextValidation; }
     }
     
-    /**
-     * 유사한 위험 패턴 검색
-     */
+    
     public List<Document> findSimilarRiskPatterns(String userId, String resourceIdentifier, int topK) {
         try {
             Map<String, Object> filters = new HashMap<>();
@@ -908,9 +860,7 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * 위험 평가 컨텍스트 저장
-     */
+    
     public void storeRiskAssessment(RiskAssessmentContext context) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -930,16 +880,14 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * 위험 평가 결과 저장
-     */
+    
     public void storeRiskResult(String requestId, double riskScore, String result) {
         try {
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("documentType", "risk_assessment_result");
             metadata.put("requestId", requestId);
             metadata.put("riskScore", riskScore);
-            metadata.put("assessmentType", "RISK_RESULT");  // 필수 필드 추가
+            metadata.put("assessmentType", "RISK_RESULT");  
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
 
             Document doc = new Document(result, metadata);

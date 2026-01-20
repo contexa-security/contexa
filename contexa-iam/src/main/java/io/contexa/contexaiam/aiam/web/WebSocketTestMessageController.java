@@ -21,7 +21,7 @@ public class WebSocketTestMessageController {
         this.brokerTemplate = brokerTemplate;
     }
 
-    // ★ 클라이언트 구독과 "완전히" 동일해야 함
+    
     private static final String USER_PONG_DEST = "/queue/test/pong";
     private static final String TOPIC_BROADCAST = "/topic/test";
 
@@ -42,12 +42,12 @@ public class WebSocketTestMessageController {
         pong.put("serverTime", System.currentTimeMillis());
         pong.put("timestamp", OffsetDateTime.now().toString());
 
-        // ★ 요청 보낸 세션/사용자에게만 회신 (/user/queue/test/pong) — 문자열 오탈자 금지
+        
         if (userName != null) {
             log.info("➡️  sendToUser name='{}' dest='{}'", userName, USER_PONG_DEST);
             brokerTemplate.convertAndSendToUser(userName, USER_PONG_DEST, pong);
         } else {
-            // HandshakeHandler 가 Principal을 주입하므로 일반적으로 도달 X
+            
             log.info("➡️  sendToUser (fallback by sessionId) session='{}' dest='{}'", sessionId, USER_PONG_DEST);
             var replyHeaders = SimpMessageHeaderAccessor.create();
             replyHeaders.setSessionId(sessionId);
@@ -55,7 +55,7 @@ public class WebSocketTestMessageController {
             brokerTemplate.convertAndSendToUser(sessionId, USER_PONG_DEST, pong, replyHeaders.getMessageHeaders());
         }
 
-        // (옵션) 브로드캐스트
+        
         Map<String, Object> broadcast = new HashMap<>();
         broadcast.put("type", "BROADCAST");
         broadcast.put("echo", payload.get("message"));

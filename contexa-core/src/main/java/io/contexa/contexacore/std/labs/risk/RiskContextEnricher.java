@@ -19,17 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-/**
- * 위험 평가 컨텍스트 강화기
- *
- * 실무급 데이터 수집 및 컨텍스트 강화 서비스
- * - Vector DB 기반 히스토리 분석
- * - Redis 기반 실시간 행동 메트릭
- * - 데이터베이스 기반 사용자 프로파일링
- * - 지리적 위치 및 디바이스 핑거프린팅
- *
- * XAI(설명 가능한 AI)를 위한 증거 수집 및 추적
- */
+
 @Slf4j
 public class RiskContextEnricher {
 
@@ -52,17 +42,15 @@ public class RiskContextEnricher {
         log.info("RiskContextEnricher initialized with production data sources");
     }
 
-    /**
-     * 컨텍스트 강화 - 초고속 3단계만 (순차 처리, 3초 내 완료)
-     */
+    
     public RiskAssessmentContext enrichContext(RiskAssessmentContext context) {
         long totalStartTime = System.currentTimeMillis();
         log.info("[ENRICHER] ===== 컨텍스트 강화 시작 ===== User: {}", context.getUserId());
 
         try {
-            // 핵심 3단계 순차 처리 (비동기 절대 NO!)
+            
 
-            // 1. 사용자 기본 정보 (빠름)
+            
             long step1Start = System.currentTimeMillis();
             log.info("[ENRICHER] STEP 1: 사용자 프로파일 강화 시작");
 
@@ -71,7 +59,7 @@ public class RiskContextEnricher {
             long step1Time = System.currentTimeMillis() - step1Start;
             log.info("[ENRICHER] STEP 1 완료: 사용자 프로파일 {}ms", step1Time);
 
-            // 2. 핵심 행동 메트릭만 (최소 쿼리)
+            
             long step2Start = System.currentTimeMillis();
             log.info("[ENRICHER] STEP 2: 행동 메트릭 수집 시작");
 
@@ -80,7 +68,7 @@ public class RiskContextEnricher {
             long step2Time = System.currentTimeMillis() - step2Start;
             log.info("[ENRICHER] STEP 2 완료: 행동 메트릭 {}ms", step2Time);
 
-            // 3. 환경 컨텍스트 (즉시)
+            
             long step3Start = System.currentTimeMillis();
             log.info("[ENRICHER] STEP 3: 환경 컨텍스트 강화 시작");
 
@@ -89,8 +77,8 @@ public class RiskContextEnricher {
             long step3Time = System.currentTimeMillis() - step3Start;
             log.info("[ENRICHER] STEP 3 완료: 환경 컨텍스트 {}ms", step3Time);
 
-            // Vector DB, Resource Pattern, IP Analysis 모두 스킵!
-            // 비동기 처리 절대 사용 안함!
+            
+            
 
             long totalTime = System.currentTimeMillis() - totalStartTime;
             context.withEnvironmentAttribute("enrichmentTotalTimeMs", totalTime);
@@ -110,9 +98,7 @@ public class RiskContextEnricher {
         }
     }
 
-    /**
-     * 사용자 프로파일 초고속 버전
-     */
+    
     private void enrichUserProfileFast(RiskAssessmentContext context) {
         try {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(context.getUserId());
@@ -121,7 +107,7 @@ public class RiskContextEnricher {
                 context.setUserName(user.getName());
                 context.setUserRoles(user.getRoleNames());
 
-                // 최소한의 메트릭만
+                
                 Map<String, Object> userMetrics = new HashMap<>();
                 userMetrics.put("mfaEnabled", user.isMfaEnabled());
                 userMetrics.put("roleCount", user.getRoleNames().size());
@@ -133,24 +119,22 @@ public class RiskContextEnricher {
         }
     }
 
-    /**
-     * 행동 메트릭 초고속 버전 (쿼리 2개만)
-     */
+    
     private void enrichBehaviorMetricsFast(RiskAssessmentContext context) {
         try {
             Map<String, Object> behaviorMetrics = new HashMap<>();
 
-            // 필수 쿼리 2개만! (Vector DB 완전 스킵)
+            
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
 
             behaviorMetrics.put("requestsInLastHour",
                     auditLogRepository.countByPrincipalNameAndTimeRange(
                             context.getUserId(), oneHourAgo, LocalDateTime.now()));
 
-            // 히스토리는 간단한 텍스트로
+            
             context.withHistoryContext("최근 1시간 접근 기록 기반 간단 분석");
 
-            // 나머지는 기본값
+            
             behaviorMetrics.put("deviceFingerprint", "fast-mode");
             behaviorMetrics.put("accessVelocity", 0.5);
 
@@ -164,9 +148,7 @@ public class RiskContextEnricher {
         }
     }
 
-    /**
-     * 환경 컨텍스트 강화
-     */
+    
     private void enrichEnvironmentContext(RiskAssessmentContext context) {
         try {
             LocalDateTime now = LocalDateTime.now();
@@ -188,12 +170,12 @@ public class RiskContextEnricher {
         }
     }
 
-    // ==================== 실무급 유틸리티 메서드들 ====================
+    
 
     private long calculateAccountAge(java.util.Date createdAt) {
         if (createdAt == null) return 0;
         long ageInMillis = System.currentTimeMillis() - createdAt.getTime();
-        return ageInMillis / (1000 * 60 * 60 * 24); // Convert to days
+        return ageInMillis / (1000 * 60 * 60 * 24); 
     }
 
     private String analyzeHistoryPatterns(List<Document> historyDocuments, RiskAssessmentContext context) {
@@ -257,7 +239,7 @@ public class RiskContextEnricher {
             List<AuditLog> recentLogs = auditLogRepository.findRecentLogsByPrincipalName(userId);
             if (recentLogs.size() < 2) return 0.0;
 
-            // 최근 로그들의 시간 간격으로 세션 지속시간 추정
+            
             double totalDuration = 0;
             int sessionCount = 0;
 
@@ -266,7 +248,7 @@ public class RiskContextEnricher {
                 LocalDateTime next = recentLogs.get(i + 1).getTimestamp();
 
                 long duration = java.time.Duration.between(next, current).toMinutes();
-                if (duration > 0 && duration < 240) { // 4시간 미만만 유효한 세션으로 간주
+                if (duration > 0 && duration < 240) { 
                     totalDuration += duration;
                     sessionCount++;
                 }
@@ -347,7 +329,7 @@ public class RiskContextEnricher {
         try {
             return resourceActionRepository.findByResourceIdentifier(resourceId)
                     .map(resource -> {
-                        // BusinessResource에 sensitivityLevel 필드가 없으므로 임시로 resourceType 기반 판단
+                        
                         String resourceType = resource.getResourceType();
                         if (resourceType.contains("FINANCIAL") || resourceType.contains("SENSITIVE")) {
                             return "HIGH";
@@ -377,7 +359,7 @@ public class RiskContextEnricher {
         try {
             List<Object[]> hourCounts = auditLogRepository.findTypicalAccessHoursByPrincipalName(userId);
             return hourCounts.stream()
-                    .limit(5) // 상위 5개 시간대만
+                    .limit(5) 
                     .map(obj -> (Integer) obj[0])
                     .collect(Collectors.toList());
         } catch (Exception e) {

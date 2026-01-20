@@ -22,15 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Dead Letter Queue 모니터링 시스템
- *
- * 기능:
- * - DLQ 메시지 실시간 모니터링
- * - 재시도 전략 (지수 백오프)
- * - 메트릭 수집 및 알림
- * - 자동 복구 메커니즘
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class DeadLetterQueueMonitor {
@@ -47,11 +39,11 @@ public class DeadLetterQueueMonitor {
     @Value("${security.kafka.dlq.alert-threshold:10}")
     private int alertThreshold;
 
-    // DLQ 메시지 추적
+    
     private final Map<String, DLQMessage> dlqMessages = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> errorCountByType = new ConcurrentHashMap<>();
 
-    // Metrics
+    
     private Counter dlqMessageCounter;
     private Counter retrySuccessCounter;
     private Counter retryFailureCounter;
@@ -60,7 +52,7 @@ public class DeadLetterQueueMonitor {
 
     @PostConstruct
     public void initialize() {
-        // Metrics 초기화
+        
         dlqMessageCounter = Counter.builder("dlq.messages.received")
             .description("Total number of messages received in DLQ")
             .register(meterRegistry);
@@ -85,9 +77,7 @@ public class DeadLetterQueueMonitor {
             maxRetries, retryDelayMs, alertThreshold);
     }
 
-    /**
-     * DLQ 메시지 수신 및 처리
-     */
+    
     @KafkaListener(topics = "${security.kafka.topic.dlq:security-dlq}",
                    groupId = "dlq-monitor-group",
                    containerFactory = "kafkaListenerContainerFactory")
@@ -113,41 +103,37 @@ public class DeadLetterQueueMonitor {
 
         dlqMessages.put(messageId, dlqMessage);
 
-        // 에러 타입별 카운트
+        
         String errorType = extractErrorType(errorMessage);
         errorCountByType.computeIfAbsent(errorType, k -> new AtomicLong()).incrementAndGet();
 
         log.warn("DLQ message received: messageId={}, originalTopic={}, retryCount={}, error={}",
             messageId, originalTopic, retryCount, errorMessage);
 
-        // 재시도 스케줄링
+        
         scheduleRetry(dlqMessage);
     }
 
-    /**
-     * 재시도 스케줄링 (지수 백오프)
-     */
+    
     private void scheduleRetry(DLQMessage message) {
         if (message.getRetryCount() >= maxRetries) {
             handlePermanentFailure(message);
             return;
         }
 
-        // 지수 백오프: delay * 2^retryCount
+        
         long backoffDelay = retryDelayMs * (long) Math.pow(2, message.getRetryCount());
 
         log.info("Scheduling retry for messageId={}, retryCount={}, delay={}ms",
             message.getMessageId(), message.getRetryCount(), backoffDelay);
 
-        // 실제 구현에서는 Spring Task Scheduler 또는 Quartz 사용
-        // 여기서는 간단히 표현
+        
+        
         message.setNextRetryAt(Instant.now().plusMillis(backoffDelay));
     }
 
-    /**
-     * 주기적 재시도 실행 (1분마다)
-     */
-//    @Scheduled(fixedRate = 60000)
+    
+
     public void processRetries() {
         Instant now = Instant.now();
 
@@ -156,9 +142,7 @@ public class DeadLetterQueueMonitor {
             .forEach(this::attemptRetry);
     }
 
-    /**
-     * 재시도 실행
-     */
+    
     private void attemptRetry(DLQMessage message) {
         log.info("Attempting retry: messageId={}, retryCount={}",
             message.getMessageId(), message.getRetryCount());
@@ -166,7 +150,7 @@ public class DeadLetterQueueMonitor {
         Instant start = Instant.now();
 
         try {
-            // 원본 토픽으로 재전송
+            
             kafkaTemplate.send(message.getOriginalTopic(), message.getPayload())
                 .whenComplete((result, ex) -> {
                     long latency = Duration.between(start, Instant.now()).toMillis();
@@ -194,9 +178,7 @@ public class DeadLetterQueueMonitor {
         }
     }
 
-    /**
-     * 영구 실패 처리
-     */
+    
     private void handlePermanentFailure(DLQMessage message) {
         permanentFailureCounter.increment();
 
@@ -204,37 +186,31 @@ public class DeadLetterQueueMonitor {
             message.getMessageId(), message.getOriginalTopic(),
             message.getRetryCount(), message.getErrorMessage());
 
-        // 알림 전송 (Slack, Email 등)
+        
         sendAlert(message);
 
-        // 영구 실패 저장소로 이동 (분석 및 수동 처리용)
+        
         archivePermanentFailure(message);
 
         dlqMessages.remove(message.getMessageId());
     }
 
-    /**
-     * 알림 전송
-     */
+    
     private void sendAlert(DLQMessage message) {
         log.error("ALERT: Permanent DLQ failure - messageId={}, topic={}",
             message.getMessageId(), message.getOriginalTopic());
 
-        // TODO: Slack, Email, PagerDuty 등 실제 알림 구현
+        
     }
 
-    /**
-     * 영구 실패 아카이빙
-     */
+    
     private void archivePermanentFailure(DLQMessage message) {
-        // TODO: 데이터베이스 또는 별도 Kafka 토픽에 저장
+        
         log.info("Archiving permanent failure: messageId={}", message.getMessageId());
     }
 
-    /**
-     * 주기적 모니터링 리포트 (5분마다)
-     */
-//    @Scheduled(fixedRate = 300000)
+    
+
     public void generateMonitoringReport() {
         int currentDLQSize = dlqMessages.size();
 
@@ -242,29 +218,25 @@ public class DeadLetterQueueMonitor {
         log.info("Current DLQ size: {}", currentDLQSize);
         log.info("Error types: {}", errorCountByType);
 
-        // 임계값 초과 시 경고
+        
         if (currentDLQSize > alertThreshold) {
             log.warn("DLQ size exceeded threshold: {} > {}", currentDLQSize, alertThreshold);
             sendThresholdAlert(currentDLQSize);
         }
 
-        // 메트릭 게이지 업데이트
+        
         meterRegistry.gauge("dlq.messages.current", currentDLQSize);
     }
 
-    /**
-     * 임계값 초과 알림
-     */
+    
     private void sendThresholdAlert(int currentSize) {
         log.error("ALERT: DLQ size threshold exceeded - current={}, threshold={}",
             currentSize, alertThreshold);
 
-        // TODO: 실제 알림 구현
+        
     }
 
-    /**
-     * 에러 타입 추출
-     */
+    
     private String extractErrorType(String errorMessage) {
         if (errorMessage == null) return "UNKNOWN";
 
@@ -276,9 +248,7 @@ public class DeadLetterQueueMonitor {
         return "OTHER";
     }
 
-    /**
-     * DLQ 메시지 모델
-     */
+    
     @lombok.Data
     @lombok.Builder
     private static class DLQMessage {

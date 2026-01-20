@@ -6,10 +6,7 @@ import lombok.Setter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 보안 컨텍스트 정보 클래스
- * SRP 준수: 보안 컨텍스트 관리만 담당
- */
+
 @Getter
 @Setter
 public class SecurityContext {

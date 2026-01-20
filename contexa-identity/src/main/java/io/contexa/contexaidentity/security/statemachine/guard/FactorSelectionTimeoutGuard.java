@@ -7,21 +7,11 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-/**
- * 팩터 선택 타임아웃 확인 Guard
- *
- * SelectFactorAction에서 설정한 factorSelectedAt 속성을 확인하여
- * 팩터 선택 후 일정 시간이 경과했는지 검증합니다.
- *
- * Phase 2.4: factorSelectedAt 타임아웃 검증
- */
+
 @Slf4j
 public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
 
-    /**
-     * 팩터 선택 타임아웃 (밀리초)
-     * 기본값: 5분 (300,000ms)
-     */
+    
     private static final long DEFAULT_SELECTION_TIMEOUT_MS = 5 * 60 * 1000L;
 
     @Override
@@ -29,13 +19,13 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
                                  FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
 
-        // factorSelectedAt 속성 확인
+        
         Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
 
         if (!(selectedAtObj instanceof Long)) {
             log.debug("[FactorSelectionTimeoutGuard] factorSelectedAt not set for session: {}, allowing transition",
                     sessionId);
-            return true; // 선택 시간이 설정되지 않았으면 허용
+            return true; 
         }
 
         Long factorSelectedAt = (Long) selectedAtObj;
@@ -58,14 +48,9 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
         return withinTimeout;
     }
 
-    /**
-     * 팩터 선택 타임아웃 설정 가져오기
-     *
-     * @param factorContext FactorContext
-     * @return 타임아웃 (밀리초)
-     */
+    
     private long getSelectionTimeoutMs(FactorContext factorContext) {
-        // 커스텀 타임아웃이 설정되어 있으면 사용
+        
         Object customTimeoutObj = factorContext.getAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS);
         if (customTimeoutObj instanceof Long) {
             return (Long) customTimeoutObj;
@@ -87,12 +72,7 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
         return "FactorSelectionTimeoutGuard";
     }
 
-    /**
-     * 남은 팩터 선택 시간 계산 (밀리초)
-     *
-     * @param factorContext FactorContext
-     * @return 남은 시간 (밀리초), 선택 시간이 설정되지 않았으면 타임아웃 전체 시간 반환
-     */
+    
     public long getRemainingSelectionTimeMs(FactorContext factorContext) {
         Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
 
@@ -108,22 +88,12 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
         return Math.max(0, timeoutMs - elapsedTime);
     }
 
-    /**
-     * 팩터 선택 타임아웃 여부 확인
-     *
-     * @param factorContext FactorContext
-     * @return 타임아웃 여부
-     */
+    
     public boolean isSelectionTimedOut(FactorContext factorContext) {
         return !doEvaluate(null, factorContext);
     }
 
-    /**
-     * 커스텀 팩터 선택 타임아웃 설정
-     *
-     * @param factorContext FactorContext
-     * @param timeoutMs 타임아웃 (밀리초)
-     */
+    
     public void setSelectionTimeout(FactorContext factorContext, long timeoutMs) {
         factorContext.setAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS, timeoutMs);
         log.debug("[FactorSelectionTimeoutGuard] Custom selection timeout set to {}ms for session: {}",

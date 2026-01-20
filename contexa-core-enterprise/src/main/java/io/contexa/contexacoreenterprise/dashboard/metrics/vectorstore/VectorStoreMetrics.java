@@ -13,16 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * 벡터 저장소 메트릭 수집 및 모니터링 시스템
- *
- * Lab별 벡터 저장소 사용 통계, 성능 메트릭, 에러 추적을 제공합니다.
- * 실시간 모니터링과 대시보드 데이터를 지원합니다.
- *
- * @since 1.0.0
- * @implNote VectorStoreMetrics는 특수 구조(ConcurrentHashMap, 내부 클래스)로 인해
- *           현재 패키지에 유지됩니다. 향후 리팩토링 시 metrics 패키지로 이동 예정.
- */
+
 @Slf4j
 public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.VectorStoreMetrics, DomainMetrics, EventRecorder {
     
@@ -33,14 +24,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
     private static final int MAX_HISTORY_SIZE = 1000;
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
-    /**
-     * Lab 작업 기록 (인터페이스 구현)
-     *
-     * @param labName Lab 이름
-     * @param operationType 작업 타입
-     * @param documentCount 처리된 문서 수
-     * @param durationMs 소요 시간 (밀리초)
-     */
+    
     @Override
     public void recordOperation(String labName, Object operationType, int documentCount, long durationMs) {
         if (operationType instanceof AbstractVectorLabService.OperationType) {
@@ -50,21 +34,14 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
 
-    /**
-     * Lab 작업 기록
-     *
-     * @param labName Lab 이름
-     * @param operationType 작업 타입
-     * @param documentCount 처리된 문서 수
-     * @param durationMs 소요 시간 (밀리초)
-     */
+    
     public void recordOperation(String labName, AbstractVectorLabService.OperationType operationType,
                                int documentCount, long durationMs) {
         try {
             LabMetrics metrics = labMetrics.computeIfAbsent(labName, k -> new LabMetrics(labName));
             
             synchronized (metrics) {
-                // 작업 통계 업데이트
+                
                 switch (operationType) {
                     case STORE:
                         metrics.getStoreOperations().incrementAndGet();
@@ -91,11 +68,11 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
                 metrics.getTotalOperations().incrementAndGet();
                 metrics.setLastOperationTime(LocalDateTime.now());
                 
-                // 평균 성능 업데이트
+                
                 updateAveragePerformance(metrics, operationType, durationMs);
             }
             
-            // 성능 히스토리 기록
+            
             recordPerformanceHistory(labName, operationType, documentCount, durationMs);
             
             log.debug("[{}] 작업 기록: {} - 문서 {}개, {}ms", 
@@ -106,13 +83,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
     
-    /**
-     * 에러 기록 (인터페이스 구현)
-     *
-     * @param labName Lab 이름
-     * @param operationType 작업 타입
-     * @param error 발생한 에러
-     */
+    
     @Override
     public void recordError(String labName, Object operationType, Exception error) {
         if (operationType instanceof AbstractVectorLabService.OperationType) {
@@ -122,13 +93,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
 
-    /**
-     * 에러 기록
-     *
-     * @param labName Lab 이름
-     * @param operationType 작업 타입
-     * @param error 발생한 에러
-     */
+    
     public void recordError(String labName, AbstractVectorLabService.OperationType operationType,
                            Throwable error) {
         try {
@@ -139,7 +104,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
                 metrics.setLastErrorTime(LocalDateTime.now());
             }
             
-            // 에러 히스토리 기록
+            
             ErrorRecord errorRecord = new ErrorRecord(
                 LocalDateTime.now(),
                 operationType,
@@ -150,7 +115,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             List<ErrorRecord> labErrors = errorHistory.computeIfAbsent(labName, k -> new CopyOnWriteArrayList<>());
             labErrors.add(errorRecord);
 
-            // 히스토리 크기 제한 (lock-free)
+            
             if (labErrors.size() > MAX_HISTORY_SIZE) {
                 labErrors.remove(0);
             }
@@ -162,12 +127,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
     
-    /**
-     * Lab별 통계 조회
-     * 
-     * @param labName Lab 이름
-     * @return Lab 통계 정보
-     */
+    
     public Map<String, Object> getLabStatistics(String labName) {
         LabMetrics metrics = labMetrics.get(labName);
         if (metrics == null) {
@@ -177,32 +137,32 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         Map<String, Object> stats = new HashMap<>();
         
         synchronized (metrics) {
-            // 기본 통계
+            
             stats.put("labName", metrics.getLabName());
             stats.put("totalOperations", metrics.getTotalOperations().get());
             stats.put("errorCount", metrics.getErrorCount().get());
             stats.put("lastOperationTime", metrics.getLastOperationTime());
             stats.put("lastErrorTime", metrics.getLastErrorTime());
             
-            // 작업별 통계
+            
             stats.put("storeOperations", metrics.getStoreOperations().get());
             stats.put("searchOperations", metrics.getSearchOperations().get());
             stats.put("updateOperations", metrics.getUpdateOperations().get());
             stats.put("deleteOperations", metrics.getDeleteOperations().get());
             
-            // 문서 수 통계
+            
             stats.put("storedDocuments", metrics.getStoredDocuments().get());
             stats.put("searchedDocuments", metrics.getSearchedDocuments().get());
             stats.put("updatedDocuments", metrics.getUpdatedDocuments().get());
             stats.put("deletedDocuments", metrics.getDeletedDocuments().get());
             
-            // 성능 통계
+            
             stats.put("averageStoreTime", metrics.getAverageStoreTime());
             stats.put("averageSearchTime", metrics.getAverageSearchTime());
             stats.put("averageUpdateTime", metrics.getAverageUpdateTime());
             stats.put("averageDeleteTime", metrics.getAverageDeleteTime());
             
-            // 에러율 계산
+            
             long totalOps = metrics.getTotalOperations().get();
             double errorRate = totalOps > 0 ? (metrics.getErrorCount().get() * 100.0 / totalOps) : 0.0;
             stats.put("errorRate", String.format("%.2f%%", errorRate));
@@ -211,11 +171,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         return stats;
     }
     
-    /**
-     * 전체 시스템 통계 조회
-     * 
-     * @return 전체 시스템 통계
-     */
+    
     public Map<String, Object> getSystemStatistics() {
         Map<String, Object> systemStats = new HashMap<>();
         
@@ -253,35 +209,22 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         return systemStats;
     }
     
-    /**
-     * Lab 에러 히스토리 조회
-     * 
-     * @param labName Lab 이름
-     * @param limit 조회할 최대 개수
-     * @return 에러 히스토리
-     */
+    
     public List<ErrorRecord> getErrorHistory(String labName, int limit) {
         List<ErrorRecord> labErrors = errorHistory.get(labName);
         if (labErrors == null || labErrors.isEmpty()) {
             return Collections.emptyList();
         }
 
-        // CopyOnWriteArrayList는 이미 thread-safe하므로 synchronized 불필요
+        
         List<ErrorRecord> result = new ArrayList<>(labErrors);
-        result.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp())); // 최신순
+        result.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp())); 
 
         return limit > 0 && result.size() > limit ?
                result.subList(0, limit) : result;
     }
     
-    /**
-     * Lab 성능 히스토리 조회
-     * 
-     * @param labName Lab 이름
-     * @param operationType 작업 타입 (선택적)
-     * @param limit 조회할 최대 개수
-     * @return 성능 히스토리
-     */
+    
     public List<PerformanceRecord> getPerformanceHistory(String labName, 
                                                         AbstractVectorLabService.OperationType operationType, 
                                                         int limit) {
@@ -290,21 +233,17 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             return Collections.emptyList();
         }
 
-        // CopyOnWriteArrayList는 이미 thread-safe하므로 synchronized 불필요
+        
         List<PerformanceRecord> filtered = labPerformance.stream()
             .filter(record -> operationType == null || record.getOperationType() == operationType)
-            .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp())) // 최신순
+            .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp())) 
             .limit(limit > 0 ? limit : labPerformance.size())
             .toList();
 
         return new ArrayList<>(filtered);
     }
     
-    /**
-     * 대시보드용 요약 통계
-     * 
-     * @return 대시보드 데이터
-     */
+    
     public VectorStoreDashboard getDashboard() {
         Map<String, Object> systemStats = getSystemStatistics();
         List<LabSummary> labSummaries = new ArrayList<>();
@@ -323,7 +262,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             labSummaries.add(summary);
         }
         
-        // 활동량 기준 정렬
+        
         labSummaries.sort((a, b) -> Long.compare(b.getTotalOperations(), a.getTotalOperations()));
         
         VectorStoreDashboard dashboard = new VectorStoreDashboard();
@@ -334,11 +273,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         return dashboard;
     }
     
-    /**
-     * 메트릭 초기화
-     * 
-     * @param labName Lab 이름 (null이면 전체 초기화)
-     */
+    
     public void resetMetrics(String labName) {
         if (labName == null) {
             labMetrics.clear();
@@ -353,9 +288,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
     
-    /**
-     * 평균 성능 업데이트
-     */
+    
     private void updateAveragePerformance(LabMetrics metrics, 
                                         AbstractVectorLabService.OperationType operationType, 
                                         long durationMs) {
@@ -383,9 +316,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
     
-    /**
-     * 성능 히스토리 기록
-     */
+    
     private void recordPerformanceHistory(String labName, 
                                         AbstractVectorLabService.OperationType operationType,
                                         int documentCount, long durationMs) {
@@ -399,33 +330,31 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         List<PerformanceRecord> labPerformance = performanceHistory.computeIfAbsent(labName, k -> new CopyOnWriteArrayList<>());
         labPerformance.add(record);
 
-        // 히스토리 크기 제한 (lock-free)
+        
         if (labPerformance.size() > MAX_HISTORY_SIZE) {
             labPerformance.remove(0);
         }
     }
     
-    /**
-     * Lab별 메트릭 정보
-     */
+    
     @Data
     public static class LabMetrics {
         private final String labName;
         
-        // 작업 통계
+        
         private final AtomicLong totalOperations = new AtomicLong(0);
         private final AtomicLong storeOperations = new AtomicLong(0);
         private final AtomicLong searchOperations = new AtomicLong(0);
         private final AtomicLong updateOperations = new AtomicLong(0);
         private final AtomicLong deleteOperations = new AtomicLong(0);
         
-        // 문서 수 통계
+        
         private final AtomicLong storedDocuments = new AtomicLong(0);
         private final AtomicLong searchedDocuments = new AtomicLong(0);
         private final AtomicLong updatedDocuments = new AtomicLong(0);
         private final AtomicLong deletedDocuments = new AtomicLong(0);
         
-        // 성능 통계
+        
         private final AtomicLong totalStoreDuration = new AtomicLong(0);
         private final AtomicLong totalSearchDuration = new AtomicLong(0);
         private final AtomicLong totalUpdateDuration = new AtomicLong(0);
@@ -436,10 +365,10 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private double averageUpdateTime = 0.0;
         private double averageDeleteTime = 0.0;
         
-        // 에러 통계
+        
         private final AtomicLong errorCount = new AtomicLong(0);
         
-        // 시간 정보
+        
         private LocalDateTime lastOperationTime;
         private LocalDateTime lastErrorTime;
         
@@ -448,9 +377,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
     
-    /**
-     * 에러 기록
-     */
+    
     @Data
     public static class ErrorRecord {
         private final LocalDateTime timestamp;
@@ -459,9 +386,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private final String errorMessage;
     }
     
-    /**
-     * 성능 기록
-     */
+    
     @Data
     public static class PerformanceRecord {
         private final LocalDateTime timestamp;
@@ -470,9 +395,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private final long durationMs;
     }
     
-    /**
-     * Lab 요약 정보
-     */
+    
     @Data
     public static class LabSummary {
         private String labName;
@@ -483,9 +406,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private LocalDateTime lastOperationTime;
     }
     
-    /**
-     * 대시보드 데이터
-     */
+    
     @Data
     public static class VectorStoreDashboard {
         private Map<String, Object> systemStatistics;
@@ -493,7 +414,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private LocalDateTime generatedAt;
     }
 
-    // ===== MetricsCollector 인터페이스 구현 =====
+    
 
     @Override
     public String getDomain() {
@@ -525,7 +446,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         log.info("VectorStoreMetrics 리셋 완료");
     }
 
-    // ===== DomainMetrics 인터페이스 구현 =====
+    
 
     @Override
     public double getHealthScore() {
@@ -553,7 +474,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         return metrics;
     }
 
-    // ===== EventRecorder 인터페이스 구현 =====
+    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {
@@ -583,7 +504,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
 
     @Override
     public void recordDuration(String operationName, long durationNanos) {
-        // VectorStoreMetrics는 자체 recordOperation 메서드 사용
+        
         log.debug("Duration recorded: {} ns", durationNanos);
     }
 }

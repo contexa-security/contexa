@@ -13,18 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 
-/**
- * Repository 패턴 기반 완전 일원화된 MfaStateMachineIntegrator
- *
- * <p>
- * Single Source of Truth 패턴: State Machine Extended State가 유일한 상태 저장소입니다.
- * FactorContext는 읽기 전용 스냅샷으로만 제공되며, 모든 상태 변경은 State Machine을 통해서만 수행됩니다.
- * </p>
- *
- * 개선사항:
- * - 이벤트 처리 표준화: 일관된 처리 패턴 적용
- * - 읽기 전용 스냅샷: 불변 FactorContext 제공으로 안전성 향상
- */
+
 @Slf4j
 public class MfaStateMachineIntegrator {
 
@@ -48,9 +37,7 @@ public class MfaStateMachineIntegrator {
                 sessionRepository.getRepositoryType());
     }
 
-    /**
-     * State Machine 초기화 - Response 포함 버전 (Redis 쿠키 설정 지원)
-     */
+    
     public void initializeStateMachine(FactorContext context, HttpServletRequest request, HttpServletResponse response) {
         String sessionId = context.getMfaSessionId();
 
@@ -58,10 +45,10 @@ public class MfaStateMachineIntegrator {
                 sessionId, sessionRepository.getRepositoryType());
 
         try {
-            // State Machine 초기화 (FactorContext도 함께 저장됨)
+            
             stateMachineService.initializeStateMachine(context, request);
 
-            // Repository를 통한 세션 저장
+            
             sessionRepository.storeSession(sessionId, request, response);
 
             log.info("Unified State Machine initialized successfully for session: {}", sessionId);
@@ -71,17 +58,12 @@ public class MfaStateMachineIntegrator {
         }
     }
 
-    /**
-     * 완전 일원화: 이벤트 전송
-     */
+    
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request) {
         return sendEvent(event, context, request, null);
     }
 
-    /**
-     * Phase 2: 추가 헤더와 함께 이벤트 전송
-     * Phase 5: 사전 검증 제거 - State Machine에 완전 위임
-     */
+    
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders) {
         String sessionId = context.getMfaSessionId();
         log.debug("Sending event {} to State Machine for session: {}", event, sessionId);
@@ -89,7 +71,7 @@ public class MfaStateMachineIntegrator {
         try {
             sessionRepository.refreshSession(sessionId);
 
-            // Phase 5: State Machine에 직접 위임 (사전 검증 제거)
+            
             boolean accepted = stateMachineService.sendEvent(event, context, request, additionalHeaders);
 
             if (accepted) {
@@ -107,9 +89,7 @@ public class MfaStateMachineIntegrator {
         }
     }
 
-    /**
-     * 완전 일원화: 현재 상태 조회
-     */
+    
     public MfaState getCurrentState(String sessionId) {
         try {
             return stateMachineService.getCurrentState(sessionId);
@@ -119,24 +99,14 @@ public class MfaStateMachineIntegrator {
         }
     }
 
-    /**
-     * FactorContext 로드
-     *
-     * <p>
-     * State Machine에서 관리하는 FactorContext를 반환합니다.
-     * sendEvent()에서 Context를 수정해야 하므로 원본을 그대로 반환합니다.
-     * </p>
-     *
-     * @param sessionId MFA 세션 ID
-     * @return FactorContext (세션이 없으면 null)
-     */
+    
     public FactorContext loadFactorContext(String sessionId) {
         try {
             FactorContext original = stateMachineService.getFactorContext(sessionId);
             if (original == null) {
                 return null;
             }
-            // sendEvent()에서 Context를 수정해야 하므로 원본을 그대로 반환
+            
             return original;
         } catch (Exception e) {
             log.error("Failed to load FactorContext from unified State Machine for session: {}", sessionId, e);
@@ -249,23 +219,16 @@ public class MfaStateMachineIntegrator {
                 properties.getMfa().getSessionTimeout());
     }
 
-    /**
-     * Phase 6: 이벤트 거부 사유 상세 분석
-     * State Machine이 이벤트를 거부했을 때 다음 정보를 제공:
-     * 1. 거부 사유
-     * 2. 해당 이벤트가 가능한 소스 상태들
-     * 3. 현재 상태에서 가능한 이벤트들
-     * 4. nextEventRecommendation (있는 경우)
-     */
+    
     private String analyzeEventRejectionReason(FactorContext context, MfaEvent event) {
         MfaState currentState = context.getCurrentState();
 
-        // Terminal state 체크
+        
         if (currentState.isTerminal()) {
             return String.format("State [%s] is terminal - no further events allowed", currentState);
         }
 
-        // 특수 상태별 메시지
+        
         if (currentState == MfaState.MFA_SESSION_EXPIRED) {
             return "MFA session has expired";
         }
@@ -276,23 +239,23 @@ public class MfaStateMachineIntegrator {
             return "State Machine not properly initialized";
         }
 
-        // Phase 6: 상세 거부 사유 생성
+        
         StringBuilder reason = new StringBuilder();
         reason.append(String.format("Event [%s] not valid for current state [%s]. ", event, currentState));
 
-        // 해당 이벤트가 가능한 소스 상태들 표시
+        
         String validSourceStates = getValidSourceStatesForEvent(event);
         if (validSourceStates != null && !validSourceStates.isEmpty()) {
             reason.append(String.format("Valid source states for %s: [%s]. ", event, validSourceStates));
         }
 
-        // 현재 상태에서 가능한 이벤트들 표시
+        
         String validEvents = getValidEventsForState(currentState);
         if (validEvents != null && !validEvents.isEmpty()) {
             reason.append(String.format("Valid events for %s: [%s]. ", currentState, validEvents));
         }
 
-        // nextEventRecommendation 확인
+        
         Object recommended = context.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
         if (recommended != null) {
             reason.append(String.format("Recommended event: [%s]. ", recommended));
@@ -303,10 +266,7 @@ public class MfaStateMachineIntegrator {
         return reason.toString();
     }
 
-    /**
-     * Phase 6: 이벤트별 유효한 소스 상태 반환
-     * State Machine Configuration 기반 매핑
-     */
+    
     private String getValidSourceStatesForEvent(MfaEvent event) {
         return switch (event) {
             case PRIMARY_AUTH_SUCCESS -> "NONE";
@@ -330,10 +290,7 @@ public class MfaStateMachineIntegrator {
         };
     }
 
-    /**
-     * Phase 6: 상태별 유효한 이벤트 반환
-     * State Machine Configuration 기반 매핑
-     */
+    
     private String getValidEventsForState(MfaState state) {
         return switch (state) {
             case NONE ->
@@ -360,9 +317,7 @@ public class MfaStateMachineIntegrator {
         };
     }
 
-    /**
-     * State Machine 통합 예외 클래스
-     */
+    
     public static class StateMachineIntegrationException extends RuntimeException {
         public StateMachineIntegrationException(String message) {
             super(message);

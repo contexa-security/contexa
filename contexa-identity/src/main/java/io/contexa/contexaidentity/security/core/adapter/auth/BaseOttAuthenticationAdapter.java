@@ -13,11 +13,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 
-/**
- * OTT 인증 어댑터 기반 클래스
- *
- * 단일 인증과 MFA 모두 동일한 Spring Security OneTimeTokenAuthenticationFilter를 사용합니다.
- */
+
 @Slf4j
 public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttOptions> {
 

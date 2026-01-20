@@ -81,13 +81,13 @@ public final class OttConfigurerConfigurerImpl
 
     @Override
     public OttConfigurerConfigurer tokenService(OneTimeTokenService service) {
-        getOptionsBuilder().oneTimeTokenService(service); // OttOptions.Builder에 해당 메소드 필요
+        getOptionsBuilder().oneTimeTokenService(service); 
         return self();
     }
 
     @Override
     public OttConfigurerConfigurer tokenGenerationSuccessHandler(OneTimeTokenGenerationSuccessHandler handler) {
-        getOptionsBuilder().tokenGenerationSuccessHandler(handler); // OttOptions.Builder에 해당 메소드 필요
+        getOptionsBuilder().tokenGenerationSuccessHandler(handler); 
         return self();
     }
 
@@ -98,8 +98,8 @@ public final class OttConfigurerConfigurerImpl
         if (ottAsepAttributesCustomizer != null) {
             ottAsepAttributesCustomizer.customize(attributes);
         }
-        // builder.setSharedObject(PasskeyAsepAttributes.class, attributes); // 제거
-        getOptionsBuilder().asepAttributes(attributes); // PasskeyOptions.Builder에 저장
+        
+        getOptionsBuilder().asepAttributes(attributes); 
         log.debug("ASEP: PasskeyAsepAttributes configured and will be stored within PasskeyOptions.");
         return self();
     }

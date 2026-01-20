@@ -29,28 +29,19 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * 분산환경 완전 대응 RestAuthenticationFilter - 최종 완성판
- *
- * 핵심 개선사항:
- * - Repository별 최적화된 세션 ID 생성 전략
- * - 분산환경에서 세션 ID 유니크성 보장
- * - 자동 충돌 해결 메커니즘
- * - 보안 강화된 세션 관리
- * - 실시간 헬스체킹 및 Fallback
- */
+
 @Slf4j
 public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
 
-    // 보안 강화 필드들
+    
     private final BytesKeyGenerator sessionIdGenerator;
     private final SecureRandom secureRandom;
     private final long authDelay;
 
-    // 분산환경 대응 상수들
+    
     private static final int MAX_SESSION_ID_GENERATION_ATTEMPTS = 5;
     private static final int MAX_COLLISION_RESOLUTION_ATTEMPTS = 3;
 
@@ -66,7 +57,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         this.stateMachineIntegrator = applicationContext.getBean(MfaStateMachineIntegrator.class);
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
 
-        // 보안 강화 초기화
+        
         this.sessionIdGenerator = KeyGenerators.secureRandom(32);
         this.secureRandom = new SecureRandom();
         this.authDelay = properties.getMfa().getMinimumDelayMs();
@@ -75,25 +66,23 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                 sessionRepository.getRepositoryType(), sessionRepository.supportsDistributedSync());
     }
 
-    /**
-     * 인증 성공 처리 - 분산환경 완전 대응
-     */
+    
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                           Authentication authentication) throws IOException, ServletException {
-        // Security Context 설정
+        
         SecurityContext context = securityContextHolderStrategy.createEmptyContext();
         context.setAuthentication(authentication);
         securityContextHolderStrategy.setContext(context);
         securityContextRepository.saveContext(context, request, response);
 
-        // 기존 세션 정리
+        
         cleanupExistingSession(request, response);
 
-        // 분산환경 대응 세션 ID 생성
+        
         String mfaSessionId = generateSecureDistributedSessionId(request);
         String flowTypeNameForContext = AuthType.MFA.name().toLowerCase();
 
-        // FactorContext 생성
+        
         FactorContext factorContext = new FactorContext(
                 mfaSessionId,
                 authentication,
@@ -101,11 +90,11 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                 flowTypeNameForContext
         );
 
-        // 보안 정보 추가
+        
         enhanceFactorContextWithSecurityInfo(factorContext, request);
 
         try {
-            // State Machine 초기화 및 세션 저장
+            
             stateMachineIntegrator.initializeStateMachine(factorContext, request, response);
 
             log.info("State Machine initialized. FactorContext state: {} for user: {} (session: {})",
@@ -124,7 +113,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for session: {}", mfaSessionId, e);
 
-            // 실패한 세션 정리
+            
             cleanupFailedSession(mfaSessionId, request, response);
 
             unsuccessfulAuthentication(request, response,
@@ -132,9 +121,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    /**
-     * 분산환경 대응 안전한 세션 ID 생성
-     */
+    
     private String generateSecureDistributedSessionId(HttpServletRequest request) {
         if (sessionRepository.supportsDistributedSync()) {
             return generateDistributedUniqueSessionId(request);
@@ -143,9 +130,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    /**
-     * 분산 클러스터용 고유 세션 ID 생성
-     */
+    
     private String generateDistributedUniqueSessionId(HttpServletRequest request) {
         log.debug("Generating distributed unique session ID using repository: {}", sessionRepository.getRepositoryType());
 
@@ -161,7 +146,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                     return resolveSessionIdGenerationFailure(request);
                 }
 
-                // 지수 백오프
+                
                 try {
                     Thread.sleep(50L * (1L << Math.min(attempt, 4)));
                 } catch (InterruptedException ie) {
@@ -171,14 +156,12 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
             }
         }
 
-        // 최종 폴백
+        
         log.warn("All distributed session ID generation attempts failed, using fallback method");
         return generateSecureSessionId();
     }
 
-    /**
-     * 세션 ID 생성 실패 시 충돌 해결
-     */
+    
     private String resolveSessionIdGenerationFailure(HttpServletRequest request) {
         log.info("Attempting to resolve session ID generation failure using collision resolution");
 
@@ -191,9 +174,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    /**
-     * FactorContext 보안 정보 추가
-     */
+    
     private void enhanceFactorContextWithSecurityInfo(FactorContext factorContext, HttpServletRequest request) {
         String deviceId = getOrCreateDeviceId(request);
         factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID, deviceId);
@@ -208,9 +189,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                 deviceId, sessionRepository.getRepositoryType());
     }
 
-    /**
-     * 실패한 세션 정리
-     */
+    
     private void cleanupFailedSession(String mfaSessionId, HttpServletRequest request, HttpServletResponse response) {
         try {
             if (sessionRepository.existsSession(mfaSessionId)) {
@@ -222,9 +201,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    /**
-     * 인증 실패 처리
-     */
+    
     public void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                             AuthenticationException failed) throws IOException, ServletException {
         securityContextHolderStrategy.clearContext();
@@ -239,9 +216,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         failureHandler.onAuthenticationFailure(request, response, failed);
     }
 
-    /**
-     * 기존 세션 정리
-     */
+    
     private void cleanupExistingSession(HttpServletRequest request, HttpServletResponse response) {
         try {
             stateMachineIntegrator.cleanupSession(request, response);
@@ -251,7 +226,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    // === 기존 유틸리티 메서드들 ===
+    
 
     public void ensureMinimumDelay(long startTime) {
         long elapsed = System.currentTimeMillis() - startTime;
@@ -300,9 +275,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         return request.getRemoteAddr();
     }
 
-    /**
-     * 분산환경 대응 디바이스 ID 생성
-     */
+    
     private String getOrCreateDeviceId(HttpServletRequest request) {
         String deviceId = request.getHeader("X-Device-Id");
         if (StringUtils.hasText(deviceId) && isValidDeviceId(deviceId)) {
@@ -319,9 +292,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         return deviceId;
     }
 
-    /**
-     * 분산환경용 디바이스 ID 생성
-     */
+    
     private String generateDistributedDeviceId(HttpServletRequest request) {
         String clientInfo = getClientIpAddress(request) + "|" +
                 (request.getHeader("User-Agent") != null ? request.getHeader("User-Agent") : "") + "|" +

@@ -14,32 +14,25 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-/**
- * System Information Resource
- * MCP를 통해 시스템 보안 정보를 리소스로 노출
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SystemInfoResource {
     
     private final ObjectMapper objectMapper;
     
-    /**
-     * 시스템 정보 리소스 정의
-     */
+    
     public McpSchema.Resource getResourceDefinition() {
         return new McpSchema.Resource(
-            "security://system/info",  // uri
-            "System Information",  // name
-            "System security information and configuration",  // description
-            "application/json",  // mimeType
-            null  // annotations - 사용하지 않음
+            "security://system/info",  
+            "System Information",  
+            "System security information and configuration",  
+            "application/json",  
+            null  
         );
     }
     
-    /**
-     * 시스템 정보 리소스 Specification 생성
-     */
+    
     public McpServerFeatures.SyncResourceSpecification createSpecification() {
         return new McpServerFeatures.SyncResourceSpecification(
             getResourceDefinition(),
@@ -47,14 +40,14 @@ public class SystemInfoResource {
                 try {
                     log.info("💻 시스템 정보 리소스 요청: {}", request.uri());
                     
-                    // 시스템 정보 수집
+                    
                     Map<String, Object> systemInfo = collectSystemInfo();
                     
-                    // JSON으로 변환
+                    
                     String jsonContent = objectMapper.writerWithDefaultPrettyPrinter()
                         .writeValueAsString(systemInfo);
                     
-                    // MCP 리소스 응답 생성
+                    
                     return new McpSchema.ReadResourceResult(
                         List.of(new McpSchema.TextResourceContents(
                             request.uri(),
@@ -71,15 +64,13 @@ public class SystemInfoResource {
         );
     }
     
-    /**
-     * 시스템 정보 수집
-     */
+    
     private Map<String, Object> collectSystemInfo() {
         try {
             OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
             RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
             
-            // 기본 시스템 정보
+            
             Map<String, Object> system = Map.of(
                 "hostname", InetAddress.getLocalHost().getHostName(),
                 "os_name", System.getProperty("os.name"),
@@ -93,9 +84,9 @@ public class SystemInfoResource {
                 "timestamp", Instant.now().toString()
             );
             
-            // 보안 관련 정보
+            
             Map<String, Object> security = Map.of(
-                "security_manager_enabled", false,  // SecurityManager is deprecated in Java 21
+                "security_manager_enabled", false,  
                 "tls_version", System.getProperty("https.protocols", "TLSv1.2,TLSv1.3"),
                 "file_encoding", System.getProperty("file.encoding"),
                 "user_name", System.getProperty("user.name"),
@@ -107,7 +98,7 @@ public class SystemInfoResource {
                 "last_security_scan", getLastSecurityScan()
             );
             
-            // 메모리 정보
+            
             Runtime runtime = Runtime.getRuntime();
             Map<String, Object> memory = Map.of(
                 "total_memory", runtime.totalMemory(),
@@ -117,7 +108,7 @@ public class SystemInfoResource {
                 "memory_usage_percent", ((runtime.totalMemory() - runtime.freeMemory()) * 100.0) / runtime.maxMemory()
             );
             
-            // 네트워크 정보
+            
             Map<String, Object> network = Map.of(
                 "hostname", InetAddress.getLocalHost().getHostName(),
                 "ip_address", InetAddress.getLocalHost().getHostAddress(),
@@ -127,7 +118,7 @@ public class SystemInfoResource {
                 "active_connections", getActiveConnectionsCount()
             );
             
-            // 모든 정보 통합
+            
             return Map.of(
                 "system", system,
                 "security", security,
@@ -147,21 +138,19 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * 실제 방화벽 상태 확인
-     */
+    
     private String checkFirewallStatus() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
             
             if (osName.contains("windows")) {
-                // Windows 방화벽 상태 확인
+                
                 return checkWindowsFirewall();
             } else if (osName.contains("linux")) {
-                // Linux iptables/firewalld 상태 확인
+                
                 return checkLinuxFirewall();
             } else if (osName.contains("mac")) {
-                // macOS 방화벽 상태 확인
+                
                 return checkMacFirewall();
             }
             
@@ -173,9 +162,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * 실제 안티바이러스 상태 확인
-     */
+    
     private String checkAntivirusStatus() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
@@ -196,22 +183,20 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * 실제 마지막 보안 스캔 시간 조회
-     */
+    
     private String getLastSecurityScan() {
         try {
-            // Windows Defender 로그 확인
+            
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
                 return getWindowsDefenderLastScan();
             }
             
-            // 기본적으로는 현재 시간 기준 추정
+            
             return Instant.now().minusSeconds(3600).toString();
             
         } catch (Exception e) {
             log.warn("마지막 보안 스캔 시간 조회 실패: {}", e.getMessage());
-            return Instant.now().minusSeconds(86400).toString(); // 24시간 전으로 기본값
+            return Instant.now().minusSeconds(86400).toString(); 
         }
     }
     
@@ -223,9 +208,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * 실제 열린 포트 수 확인
-     */
+    
     private int getOpenPortsCount() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
@@ -244,9 +227,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * 실제 활성 연결 수 확인
-     */
+    
     private int getActiveConnectionsCount() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
@@ -285,11 +266,9 @@ public class SystemInfoResource {
         );
     }
     
-    // ====== OS별 실제 구현 메서드들 ======
     
-    /**
-     * Windows 방화벽 상태 확인
-     */
+    
+    
     private String checkWindowsFirewall() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netsh", "advfirewall", "show", "allprofiles", "state");
@@ -317,12 +296,10 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Linux 방화벽 상태 확인
-     */
+    
     private String checkLinuxFirewall() {
         try {
-            // firewalld 확인
+            
             ProcessBuilder pb = new ProcessBuilder("systemctl", "is-active", "firewalld");
             Process process = pb.start();
             int exitCode = process.waitFor();
@@ -331,7 +308,7 @@ public class SystemInfoResource {
                 return "ENABLED";
             }
             
-            // iptables 확인
+            
             pb = new ProcessBuilder("iptables", "-L", "-n");
             process = pb.start();
             exitCode = process.waitFor();
@@ -344,9 +321,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * macOS 방화벽 상태 확인
-     */
+    
     private String checkMacFirewall() {
         try {
             ProcessBuilder pb = new ProcessBuilder("sudo", "pfctl", "-s", "info");
@@ -371,12 +346,10 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Windows 안티바이러스 상태 확인
-     */
+    
     private String checkWindowsAntivirus() {
         try {
-            // Windows Defender 상태 확인
+            
             ProcessBuilder pb = new ProcessBuilder("powershell", 
                 "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled");
             Process process = pb.start();
@@ -402,12 +375,10 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Linux 안티바이러스 상태 확인
-     */
+    
     private String checkLinuxAntivirus() {
         try {
-            // ClamAV 확인
+            
             ProcessBuilder pb = new ProcessBuilder("systemctl", "is-active", "clamav-daemon");
             Process process = pb.start();
             int exitCode = process.waitFor();
@@ -420,12 +391,10 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * macOS 안티바이러스 상태 확인
-     */
+    
     private String checkMacAntivirus() {
         try {
-            // XProtect 상태 확인 (macOS 기본 보안)
+            
             ProcessBuilder pb = new ProcessBuilder("system_profiler", "SPInstallHistoryDataType");
             Process process = pb.start();
             
@@ -448,9 +417,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Windows Defender 마지막 스캔 시간 조회
-     */
+    
     private String getWindowsDefenderLastScan() {
         try {
             ProcessBuilder pb = new ProcessBuilder("powershell", 
@@ -465,7 +432,7 @@ public class SystemInfoResource {
                 
                 while ((line = reader.readLine()) != null) {
                     if (line.contains("QuickScanStartTime") || line.contains("FullScanStartTime")) {
-                        // 날짜 파싱 로직
+                        
                         String[] parts = line.split(":");
                         if (parts.length > 1) {
                             lastScan = parts[1].trim();
@@ -482,9 +449,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Windows 열린 포트 수 확인
-     */
+    
     private int getWindowsOpenPorts() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-an");
@@ -504,9 +469,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Unix/Linux 열린 포트 수 확인
-     */
+    
     private int getUnixOpenPorts() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-ln");
@@ -526,9 +489,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Windows 활성 연결 수 확인
-     */
+    
     private int getWindowsActiveConnections() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-an");
@@ -548,9 +509,7 @@ public class SystemInfoResource {
         }
     }
     
-    /**
-     * Unix/Linux 활성 연결 수 확인
-     */
+    
     private int getUnixActiveConnections() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-n");

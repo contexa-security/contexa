@@ -9,11 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Tool Approval Controller
- * 보안 도구 승인 워크플로우 REST API
- * 관리자가 고위험 도구 실행을 승인/거부
- */
+
 @Slf4j
 @ResponseBody
 @RequestMapping("/api/soar/approval")
@@ -22,9 +18,7 @@ public class ToolApprovalController {
     
     private final ToolApprovalService approvalService;
     
-    /**
-     * 대기 중인 승인 요청 조회
-     */
+    
     @GetMapping("/pending")
     public ResponseEntity<List<ToolApprovalService.ApprovalRequest>> getPendingApprovals() {
         List<ToolApprovalService.ApprovalRequest> pending = approvalService.getPendingApprovals();
@@ -32,9 +26,7 @@ public class ToolApprovalController {
         return ResponseEntity.ok(pending);
     }
     
-    /**
-     * 승인 이력 조회
-     */
+    
     @GetMapping("/history")
     public ResponseEntity<List<ToolApprovalService.ApprovalResult>> getApprovalHistory(
             @RequestParam(defaultValue = "50") int limit) {
@@ -42,9 +34,7 @@ public class ToolApprovalController {
         return ResponseEntity.ok(history);
     }
     
-    /**
-     * 도구 실행 승인
-     */
+    
     @PostMapping("/{approvalId}/approve")
     public ResponseEntity<Map<String, Object>> approve(
             @PathVariable String approvalId,
@@ -73,9 +63,7 @@ public class ToolApprovalController {
         }
     }
     
-    /**
-     * 도구 실행 거부
-     */
+    
     @PostMapping("/{approvalId}/reject")
     public ResponseEntity<Map<String, Object>> reject(
             @PathVariable String approvalId,
@@ -105,9 +93,7 @@ public class ToolApprovalController {
         }
     }
     
-    /**
-     * 승인/거부 결정 DTO
-     */
+    
     public record ApprovalDecision(
         String decidedBy,
         String reason

@@ -12,15 +12,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * Network Isolation Tool
- *
- * 감염되거나 의심스러운 호스트를 네트워크에서 격리시킵니다.
- * 특정 IP, 포트, 프로토콜을 차단하거나 전체 네트워크 세그먼트를 격리할 수 있습니다.
- *
- * Spring AI @Tool 어노테이션 기반 구현
- * 고위험 도구 - 승인 필요
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -38,28 +30,13 @@ import java.util.*;
 public class NetworkIsolationTool {
     
     
-    // 격리 규칙 저장소 (시뮬레이션)
+    
     private static final Map<String, IsolationRule> ISOLATION_RULES = new HashMap<>();
     private static final Set<String> PROTECTED_HOSTS = Set.of(
         "127.0.0.1", "localhost", "dns-server", "domain-controller"
     );
     
-    /**
-     * 네트워크 격리 실행
-     * 
-     * @param action 작업 유형
-     * @param target 대상 (IP 주소, 호스트명, 서브넷)
-     * @param isolationType 격리 유형
-     * @param ports 차단할 포트 목록
-     * @param protocols 차단할 프로토콜 목록
-     * @param duration 격리 지속 시간 (분)
-     * @param reason 격리 사유
-     * @param createBackup 백업 생성 여부
-     * @param overrideProtection 보호된 호스트 무시
-     * @param confirmRestore 복원 확인
-     * @param confirmCritical 크리티컬 작업 확인
-     * @return 격리 결과
-     */
+    
     @Tool(
         name = "network_isolation",
         description = """
@@ -110,23 +87,23 @@ public class NetworkIsolationTool {
             action, target, isolationType);
         
         try {
-            // 입력 검증
+            
             validateRequest(action, target, isolationType, overrideProtection);
             
-            // 권한 확인
+            
             if (!hasRequiredPermissions()) {
                 throw new SecurityException("Insufficient permissions for network isolation");
             }
             
-            // 영향도 분석
+            
             ImpactAnalysis impact = analyzeImpact(action, target, isolationType, duration);
             
-            // 고위험 작업 확인
+            
             if (impact.severity.equals("CRITICAL")) {
-                // SOAR 시스템에서는 자동으로 승인 처리 (위험하지만 자동화를 위해)
+                
                 if (confirmCritical == null) {
                     log.warn("CRITICAL 작업 - 자동 승인 모드로 진행 (SOAR 시스템)");
-                    confirmCritical = true; // SOAR 시스템은 기본적으로 승인
+                    confirmCritical = true; 
                 }
                 
                 if (!Boolean.TRUE.equals(confirmCritical)) {
@@ -138,7 +115,7 @@ public class NetworkIsolationTool {
                 log.error("크리티컬 네트워크 격리 확인됨");
             }
             
-            // 작업 수행
+            
             IsolationResult result = switch (action.toLowerCase()) {
                 case "isolate" -> performIsolation(target, isolationType, duration, reason, 
                     createBackup, impact);
@@ -149,7 +126,7 @@ public class NetworkIsolationTool {
                 default -> throw new IllegalArgumentException("Unknown action: " + action);
             };
             
-            // 감사 로깅
+            
             SecurityToolUtils.auditLog(
                 "network_isolation",
                 action,
@@ -159,14 +136,14 @@ public class NetworkIsolationTool {
                 "SUCCESS"
             );
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("network_isolation", "execution_count", 1);
             SecurityToolUtils.recordMetric("network_isolation", action + "_count", 1);
             SecurityToolUtils.recordMetric("network_isolation", "affected_hosts", result.affectedCount);
             SecurityToolUtils.recordMetric("network_isolation", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
             
-            // 알림 발송
+            
             sendNotification(result);
             
             log.info("네트워크 격리 작업 완료: {}", result.message);
@@ -181,7 +158,7 @@ public class NetworkIsolationTool {
         } catch (Exception e) {
             log.error("네트워크 격리 실패", e);
             
-            // 에러 메트릭
+            
             SecurityToolUtils.recordMetric("network_isolation", "error_count", 1);
             
             return Response.builder()
@@ -192,9 +169,7 @@ public class NetworkIsolationTool {
         }
     }
     
-    /**
-     * 요청 검증
-     */
+    
     private void validateRequest(String action, String target, String isolationType, 
                                 Boolean overrideProtection) {
         if (action == null || action.trim().isEmpty()) {
@@ -205,7 +180,7 @@ public class NetworkIsolationTool {
             throw new IllegalArgumentException("Target is required");
         }
         
-        // 보호된 호스트 확인
+        
         if (PROTECTED_HOSTS.contains(target.toLowerCase())) {
             if (!Boolean.TRUE.equals(overrideProtection)) {
                 throw new SecurityException(
@@ -214,7 +189,7 @@ public class NetworkIsolationTool {
             }
         }
         
-        // 격리 유형 검증
+        
         if (isolationType != null) {
             Set<String> validTypes = Set.of("full", "inbound", "outbound", "selective");
             if (!validTypes.contains(isolationType.toLowerCase())) {
@@ -225,19 +200,17 @@ public class NetworkIsolationTool {
         }
     }
     
-    /**
-     * 영향도 분석
-     */
+    
     private ImpactAnalysis analyzeImpact(String action, String target, String isolationType, 
                                         Integer duration) {
         ImpactAnalysis impact = new ImpactAnalysis();
         
-        // 영향받는 서비스 분석
+        
         impact.affectedServices = identifyAffectedServices(target);
         impact.affectedHosts = identifyAffectedHosts(target);
         impact.estimatedDowntime = estimateDowntime(duration);
         
-        // 심각도 계산
+        
         if (impact.affectedServices.contains("critical-service") || 
             impact.affectedHosts.size() > 10) {
             impact.severity = "CRITICAL";
@@ -250,18 +223,16 @@ public class NetworkIsolationTool {
             impact.description = "Limited impact expected";
         }
         
-        // 복구 난이도
+        
         impact.recoveryDifficulty = calculateRecoveryDifficulty(action, isolationType);
         
-        // 대안 제시
+        
         impact.alternatives = suggestAlternatives(action, impact);
         
         return impact;
     }
     
-    /**
-     * 네트워크 격리 수행
-     */
+    
     private IsolationResult performIsolation(String target, String isolationType, Integer duration,
                                             String reason, Boolean createBackup, ImpactAnalysis impact) {
         String ruleId = UUID.randomUUID().toString();
@@ -275,7 +246,7 @@ public class NetworkIsolationTool {
             LocalDateTime.now().plusMinutes(duration) : null;
         rule.reason = reason;
         
-        // 격리 규칙 적용 (시뮬레이션)
+        
         List<String> appliedRules = new ArrayList<>();
         
         switch (rule.type.toLowerCase()) {
@@ -289,14 +260,14 @@ public class NetworkIsolationTool {
                 appliedRules.add(blockOutboundTraffic(target));
                 break;
             case "selective":
-                // Selective requires ports to be passed separately
+                
                 break;
         }
         
         rule.appliedRules = appliedRules;
         ISOLATION_RULES.put(ruleId, rule);
         
-        // 백업 구성 생성
+        
         if (Boolean.TRUE.equals(createBackup)) {
             createNetworkConfigBackup();
         }
@@ -312,19 +283,17 @@ public class NetworkIsolationTool {
         );
     }
     
-    /**
-     * IP/포트 차단
-     */
+    
     private IsolationResult performBlock(String target, List<Integer> ports, List<String> protocols) {
         List<String> blockedItems = new ArrayList<>();
         
-        // IP 차단
+        
         if (target != null) {
             blockedItems.add("IP: " + target);
             addFirewallRule("block", target, null);
         }
         
-        // 포트 차단
+        
         if (ports != null && !ports.isEmpty()) {
             for (Integer port : ports) {
                 blockedItems.add("Port: " + port);
@@ -332,7 +301,7 @@ public class NetworkIsolationTool {
             }
         }
         
-        // 프로토콜 차단
+        
         if (protocols != null && !protocols.isEmpty()) {
             for (String protocol : protocols) {
                 blockedItems.add("Protocol: " + protocol);
@@ -350,11 +319,9 @@ public class NetworkIsolationTool {
         );
     }
     
-    /**
-     * 네트워크 격리 (격리 VLAN으로 이동)
-     */
+    
     private IsolationResult performQuarantine(String target) {
-        // 격리 VLAN으로 이동 (시뮬레이션)
+        
         String quarantineVlan = "VLAN_999_QUARANTINE";
         
         log.info("호스트를 격리 VLAN으로 이동: {} -> {}", target, quarantineVlan);
@@ -369,11 +336,9 @@ public class NetworkIsolationTool {
         );
     }
     
-    /**
-     * 격리 해제
-     */
+    
     private IsolationResult performRestore(String target, Boolean confirmRestore) {
-        // 격리 규칙 찾기
+        
         IsolationRule rule = null;
         String ruleId = null;
         
@@ -389,12 +354,12 @@ public class NetworkIsolationTool {
             throw new IllegalArgumentException("No isolation rule found for: " + target);
         }
         
-        // 복원 확인
+        
         if (!Boolean.TRUE.equals(confirmRestore)) {
             throw new SecurityException("Restore confirmation required");
         }
         
-        // 격리 해제
+        
         ISOLATION_RULES.remove(ruleId);
         
         return new IsolationResult(
@@ -407,9 +372,7 @@ public class NetworkIsolationTool {
         );
     }
     
-    /**
-     * 긴급 네트워크 차단
-     */
+    
     private IsolationResult performEmergencyShutdown(Boolean confirmCritical) {
         if (!Boolean.TRUE.equals(confirmCritical)) {
             throw new SecurityException(
@@ -419,7 +382,7 @@ public class NetworkIsolationTool {
         
         log.error("🚨🚨긴급 네트워크 차단 실행 🚨🚨🚨");
         
-        // 모든 외부 통신 차단 (시뮬레이션)
+        
         List<String> shutdownActions = Arrays.asList(
             "Block all external traffic",
             "Isolate all subnets",
@@ -433,18 +396,18 @@ public class NetworkIsolationTool {
             "EMERGENCY-" + UUID.randomUUID(),
             null,
             shutdownActions,
-            -1 // 전체 네트워크 영향
+            -1 
         );
     }
     
-    // 헬퍼 메서드들
+    
     private boolean hasRequiredPermissions() {
-        // 권한 확인 시뮬레이션
+        
         return true;
     }
     
     private List<String> identifyAffectedServices(String target) {
-        // 영향받는 서비스 식별 (시뮬레이션)
+        
         List<String> services = new ArrayList<>();
         services.add("web-service");
         if (Math.random() > 0.5) {
@@ -455,7 +418,7 @@ public class NetworkIsolationTool {
     }
     
     private List<String> identifyAffectedHosts(String target) {
-        // 영향받는 호스트 식별 (시뮬레이션)
+        
         List<String> hosts = new ArrayList<>();
         hosts.add(target);
         int additionalHosts = (int)(Math.random() * 20);
@@ -531,9 +494,7 @@ public class NetworkIsolationTool {
         log.info("알림 발송: 네트워크 격리 작업 - {}", result.message);
     }
     
-    /**
-     * Response DTO
-     */
+    
     @Data
     @Builder
     public static class Response {
@@ -544,9 +505,7 @@ public class NetworkIsolationTool {
         private String error;
     }
     
-    /**
-     * 격리 결과
-     */
+    
     public static class IsolationResult {
         public String status;
         public String message;
@@ -566,9 +525,7 @@ public class NetworkIsolationTool {
         }
     }
     
-    /**
-     * 격리 규칙
-     */
+    
     private static class IsolationRule {
         String id;
         String target;
@@ -579,9 +536,7 @@ public class NetworkIsolationTool {
         List<String> appliedRules;
     }
     
-    /**
-     * 영향도 분석
-     */
+    
     public static class ImpactAnalysis {
         public String severity;
         public String description;

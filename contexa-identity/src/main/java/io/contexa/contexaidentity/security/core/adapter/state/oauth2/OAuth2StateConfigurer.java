@@ -23,14 +23,7 @@ import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * OAuth2 기반 상태 관리 전략을 HttpSecurity에 적용하는 설정자입니다.
- * OAuth2 Resource Server 및 Authorization Server 필터들을 필터 체인에 등록합니다.
- *
- * <p>이 설정자는 Spring Security의 oauth2ResourceServer() DSL과
- * Spring Authorization Server의 OAuth2AuthorizationServerConfigurer를 활용하여
- * AIDC 프레임워크의 DSL 스타일로 통합합니다.
- */
+
 @Slf4j
 public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2StateConfigurer, HttpSecurity> {
 
@@ -85,9 +78,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
 
     }
 
-    /**
-     * Resource Server 설정 적용
-     */
+    
     private void configureResourceServer(HttpSecurity http) throws Exception {
 
         http.oauth2ResourceServer(oauth2 -> oauth2
@@ -102,9 +93,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
 
     }
 
-    /**
-     * Authorization Server 설정 적용
-     */
+    
     private void configureAuthorizationServer(HttpSecurity http) throws Exception {
         OAuth2AuthorizationService authorizationService = http.getSharedObject(OAuth2AuthorizationService.class);
         RegisteredClientRepository clientRepository = http.getSharedObject(RegisteredClientRepository.class);
@@ -128,7 +117,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 authzServer.authorizationServerSettings(authzServerSettings);
             }
 
-            // TransactionTemplate 조회
+            
             ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
             TransactionTemplate transactionTemplate = null;
             if (appContext != null) {
@@ -172,7 +161,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 }
             });
 
-            // OIDC 지원
+            
             authzServer.oidc(Customizer.withDefaults());
         });
 

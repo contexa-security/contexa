@@ -10,47 +10,27 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 동적 위협 대응을 위한 도메인 컨텍스트
- * 
- * AI 기반 동적 위협 대응 합성 Lab에서 사용하는 컨텍스트 정보를 담습니다.
- * 위협 정보, 대응 정보, 정책 생성 힌트 등을 포함합니다.
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class DynamicThreatResponseContext extends IAMContext {
     
-    /**
-     * 위협 정보
-     */
+    
     private ThreatInfo threatInfo;
     
-    /**
-     * 대응 정보
-     */
+    
     private ResponseInfo responseInfo;
     
-    /**
-     * 정책 생성 힌트
-     */
+    
     private PolicyGenerationHint hint;
     
-    /**
-     * 추가 컨텍스트 정보
-     */
+    
     private Map<String, Object> additionalContext;
     
-    /**
-     * 이벤트 ID (원본 이벤트 추적용)
-     */
+    
     private String eventId;
     
-    /**
-     * 컨텍스트 생성 시간
-     */
+    
     private LocalDateTime createdAt;
     
     public DynamicThreatResponseContext() {
@@ -66,9 +46,7 @@ public class DynamicThreatResponseContext extends IAMContext {
         this.createdAt = LocalDateTime.now();
     }
     
-    /**
-     * 위협 정보
-     */
+    
     @Data
     public static class ThreatInfo {
         private String threatType;
@@ -84,9 +62,7 @@ public class DynamicThreatResponseContext extends IAMContext {
         }
     }
     
-    /**
-     * 대응 정보
-     */
+    
     @Data
     public static class ResponseInfo {
         private String mitigationAction;
@@ -101,21 +77,17 @@ public class DynamicThreatResponseContext extends IAMContext {
         }
     }
     
-    /**
-     * 정책 생성 힌트
-     */
+    
     @Data
     public static class PolicyGenerationHint {
-        private String preferredPolicyType;  // ACCESS_CONTROL, RATE_LIMITING, BLOCKING 등
-        private String scope;                 // GLOBAL, RESOURCE_SPECIFIC, USER_SPECIFIC 등
-        private Integer priority;              // 정책 우선순위
-        private Boolean requiresApproval;      // 승인 필요 여부
-        private String targetAudience;         // 정책 적용 대상
+        private String preferredPolicyType;  
+        private String scope;                 
+        private Integer priority;              
+        private Boolean requiresApproval;      
+        private String targetAudience;         
     }
     
-    /**
-     * 빌더 패턴을 위한 메서드들
-     */
+    
     public DynamicThreatResponseContext withThreatInfo(ThreatInfo threatInfo) {
         this.threatInfo = threatInfo;
         return this;
@@ -144,13 +116,11 @@ public class DynamicThreatResponseContext extends IAMContext {
         return this;
     }
     
-    /**
-     * 위협 심각도 기반 보안 레벨 자동 설정
-     */
+    
     public void adjustSecurityLevelBySeverity() {
-        // SecurityLevel은 final이므로 생성 후 변경할 수 없음
-        // 이 메서드는 미래 확장을 위해 비워둘
-        // 필요한 경우 새로운 컨텍스트를 생성해야 함
+        
+        
+        
     }
     
     @Override

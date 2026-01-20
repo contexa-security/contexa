@@ -10,17 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
-/**
- * 1단계: 컨텍스트 검색 단계
- *
- * SRP: 오직 컨텍스트 검색만 담당
- * OCP: Registry 패턴으로 새로운 Retriever 추가 가능
- *
- * 역할:
- * - Context 타입에 따라 적절한 ContextRetriever 선택
- * - RAG 검색 또는 데이터베이스 조회 수행
- * - 검색 결과를 다음 단계로 전달
- */
+
 @Slf4j
 public class ContextRetrievalStep implements PipelineStep {
 
@@ -38,10 +28,10 @@ public class ContextRetrievalStep implements PipelineStep {
             ContextRetriever contextRetriever = contextRetrieverRegistry.getRetriever(request.getContext());
             ContextRetriever.ContextRetrievalResult contextResult = contextRetriever.retrieveContext(request);
 
-            // 결과를 context에 저장하여 다음 단계로 전달
+            
             context.addStepResult(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL, contextResult);
 
-            // 디버깅용 contextInfo 로그
+            
             String debugContextInfo = contextResult != null ? contextResult.getContextInfo() : "null";
             log.debug("[{}] contextInfo 생성됨 ({}): {}",
                     getStepName(),
@@ -64,6 +54,6 @@ public class ContextRetrievalStep implements PipelineStep {
 
     @Override
     public int getOrder() {
-        return 1; // 첫 번째 단계
+        return 1; 
     }
 }

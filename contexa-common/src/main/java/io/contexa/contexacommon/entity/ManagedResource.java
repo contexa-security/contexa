@@ -37,10 +37,7 @@ public class ManagedResource {
     @Column(length = 1024)
     private String availableContextVariables;
 
-    /**
-     * [신규/대체] 리소스의 현재 상태를 나타내는 Enum.
-     * boolean 필드보다 더 명확한 상태 관리를 제공합니다.
-     */
+    
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
@@ -60,9 +57,9 @@ public class ManagedResource {
     public enum ResourceType { URL, METHOD }
     public enum HttpMethod { GET, POST, PUT, DELETE, PATCH, ANY }
     public enum Status {
-        NEEDS_DEFINITION, // 정의 필요 (스캔 후 초기 상태)
-        PERMISSION_CREATED, // 권한 생성됨 (정책과는 아직 미연결)
-        POLICY_CONNECTED, // 정책 연결됨
-        EXCLUDED // 관리 제외
+        NEEDS_DEFINITION, 
+        PERMISSION_CREATED, 
+        POLICY_CONNECTED, 
+        EXCLUDED 
     }
 }

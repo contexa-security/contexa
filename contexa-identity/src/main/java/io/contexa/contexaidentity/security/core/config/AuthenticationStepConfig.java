@@ -13,24 +13,24 @@ import java.util.Objects;
 @Setter
 @ToString
 public class AuthenticationStepConfig {
-    private String stepId; // 고유 식별자 필드
-    private boolean isPrimary; // 고유 식별자 필드
-    private String type;   // 예: "form", "ott", "passkey"
-    private AuthType authType;   // 예: "form", "ott", "passkey"
+    private String stepId; 
+    private boolean isPrimary; 
+    private String type;   
+    private AuthType authType;   
     private final Map<String, Object> options = new HashMap<>();
     private int order = 0;
-    // isRequired getter
-    private boolean required = true; // 이 단계가 MFA 플로우에서 필수인지 여부, 기본값 true
+    
+    private boolean required = true; 
 
     public AuthenticationStepConfig() {}
 
     public AuthenticationStepConfig(String type, int order) {
         this.type = type;
         this.order = order;
-        // stepId는 DSL 빌드 시점에 설정
+        
     }
 
-    // flowName을 받아 stepId를 자동 생성하는 생성자
+    
     public AuthenticationStepConfig(String flowName, String type, int order, boolean isPrimary) {
         this.type = type;
         this.order = order;
@@ -56,7 +56,7 @@ public class AuthenticationStepConfig {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AuthenticationStepConfig that = (AuthenticationStepConfig) o;
-        // stepId가 고유하므로 stepId로 비교하거나, 모든 필드 비교
+        
         return order == that.order &&
                 required == that.required &&
                 Objects.equals(stepId, that.stepId) &&

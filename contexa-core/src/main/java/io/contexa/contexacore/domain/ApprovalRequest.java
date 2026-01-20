@@ -11,11 +11,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * SOAR 승인 요청
- * 
- * 위험한 작업에 대한 승인 요청 정보를 캡슐화합니다.
- */
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -43,7 +39,7 @@ public class ApprovalRequest implements Serializable {
     private String potentialImpact;
     private Map<String, Object> metadata;
     
-    // 추가 필드
+    
     private Long id;
     private boolean approved;
     private String organizationId;
@@ -59,14 +55,12 @@ public class ApprovalRequest implements Serializable {
     private String approver;
     private java.time.Instant approvalTime;
     
-    /**
-     * UnifiedNotificationService에서 사용하는 메서드
-     */
+    
     public String getRequesterEmail() {
         if (requesterEmail != null) {
             return requesterEmail;
         }
-        // metadata에서 가져오기 시도
+        
         if (metadata != null && metadata.containsKey("email")) {
             return (String) metadata.get("email");
         }
@@ -77,16 +71,14 @@ public class ApprovalRequest implements Serializable {
         if (requesterPhone != null) {
             return requesterPhone;
         }
-        // metadata에서 가져오기 시도
+        
         if (metadata != null && metadata.containsKey("phone")) {
             return (String) metadata.get("phone");
         }
         return null;
     }
     
-    /**
-     * 위험 수준
-     */
+    
     public enum RiskLevel {
         CRITICAL("치명적", 9),
         HIGH("높음", 7),
@@ -111,9 +103,7 @@ public class ApprovalRequest implements Serializable {
         }
     }
     
-    /**
-     * 승인 유형
-     */
+    
     public enum ApprovalType {
         AUTO("자동 승인"),
         MANUAL("수동 승인 필요"),
@@ -133,9 +123,7 @@ public class ApprovalRequest implements Serializable {
         }
     }
     
-    /**
-     * 승인 상태
-     */
+    
     public enum ApprovalStatus {
         PENDING("대기 중"),
         APPROVED("승인됨"),
@@ -154,9 +142,7 @@ public class ApprovalRequest implements Serializable {
         }
     }
     
-    /**
-     * 승인 요청 생성
-     */
+    
     public static ApprovalRequest create(String sessionId, String toolName, Map<String, Object> parameters, String reason) {
         ApprovalRequest request = new ApprovalRequest();
         request.requestId = "APR-" + System.currentTimeMillis();
@@ -169,18 +155,14 @@ public class ApprovalRequest implements Serializable {
         return request;
     }
     
-    /**
-     * 승인 처리
-     */
+    
     public void approve(String approver) {
         this.status = ApprovalStatus.APPROVED;
         this.approvedBy = approver;
         this.approvedAt = LocalDateTime.now();
     }
     
-    /**
-     * 거부 처리
-     */
+    
     public void reject(String approver, String reason) {
         this.status = ApprovalStatus.REJECTED;
         this.approvedBy = approver;
@@ -188,23 +170,17 @@ public class ApprovalRequest implements Serializable {
         this.rejectionReason = reason;
     }
     
-    /**
-     * 만료 처리
-     */
+    
     public void expire() {
         this.status = ApprovalStatus.EXPIRED;
     }
     
-    /**
-     * 취소 처리
-     */
+    
     public void cancel() {
         this.status = ApprovalStatus.CANCELLED;
     }
     
-    /**
-     * 자동 승인 가능 여부
-     */
+    
     @JsonIgnore
     public boolean isAutoApprovable() {
         return this.riskLevel != null &&
@@ -215,20 +191,20 @@ public class ApprovalRequest implements Serializable {
         return this.approvalTimeout;
     }
     
-    // 빌더 패턴을 위한 정적 메서드
+    
     public static ApprovalRequestBuilder builder() {
         return new ApprovalRequestBuilder();
     }
     
-    // 승인 추가 메서드
+    
     public void addApproval(String approver, String approverName, String approverRole, String comments) {
         this.status = ApprovalStatus.APPROVED;
         this.approvedBy = approver;
         this.approvedAt = LocalDateTime.now();
-        // 실제로는 별도의 승인 기록을 관리해야 함
+        
     }
     
-    // 빌더 클래스
+    
     public static class ApprovalRequestBuilder {
         private ApprovalRequest request = new ApprovalRequest();
         
@@ -253,7 +229,7 @@ public class ApprovalRequest implements Serializable {
         }
         
         public ApprovalRequestBuilder toolDescription(String description) {
-            // toolDescription 필드가 없으므로 metadata에 저장
+            
             if (request.metadata == null) {
                 request.metadata = new java.util.HashMap<>();
             }

@@ -28,13 +28,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * MCP Approval Notification Service
- * 
- * MCP notifications 프로토콜을 구현하여
- * 승인 요청과 결과를 실시간으로 전송합니다.
- * WebSocket과 SSE를 모두 지원하는 통합 알림 서비스입니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class McpApprovalNotificationService {
@@ -42,35 +36,32 @@ public class McpApprovalNotificationService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     
-    // 비동기 모드를 위한 DB 저장 지원
+    
     private final ApprovalNotificationRepository notificationRepository;
     
-    // WebSocket 핸들러 주입 (옵셔널, Lazy로 순환 참조 해결)
+    
     @Lazy
     @Autowired(required = false)
     private WebSocketApprovalHandler webSocketHandler;
     
-    // Heartbeat 관련
+    
     private final AtomicLong heartbeatCounter = new AtomicLong(0);
     
-    // SSE 연결 관리
+    
     private final Map<String, SseEmitter> sseEmitters = new ConcurrentHashMap<>();
     private final List<SseEmitter> broadcastEmitters = new CopyOnWriteArrayList<>();
     
-    // 타임아웃 관리
+    
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
     private final Map<String, ScheduledTimeoutTask> timeoutTasks = new ConcurrentHashMap<>();
     
-    // 알림 히스토리
+    
     private final List<NotificationHistory> notificationHistory = new CopyOnWriteArrayList<>();
     private static final int MAX_HISTORY_SIZE = 100;
     
-    /**
-     * SSE Emitter 등록
-     * 타임아웃을 10분으로 설정하고 Heartbeat로 연결 유지
-     */
+    
     public SseEmitter registerEmitter(String clientId) {
-        // 10분 타임아웃 (600,000ms)
+        
         SseEmitter emitter = new SseEmitter(600000L);
         
         emitter.onCompletion(() -> {
@@ -94,7 +85,7 @@ public class McpApprovalNotificationService {
         sseEmitters.put(clientId, emitter);
         broadcastEmitters.add(emitter);
         
-        // 연결 확인 메시지 전송
+        
         sendToClient(clientId, new NotificationMessage(
             "CONNECTION",
             "Connected to approval notification service",
@@ -105,10 +96,7 @@ public class McpApprovalNotificationService {
         return emitter;
     }
     
-    /**
-     * 승인 요청 이벤트 리스너
-     * ApprovalEvent.APPROVAL_REQUESTED 이벤트를 처리하여 알림 전송
-     */
+    
     @EventListener
     @Async
     public void handleApprovalRequested(ApprovalEvent event) {
@@ -117,9 +105,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 승인 허가 이벤트 리스너
-     */
+    
     @EventListener
     @Async
     public void handleApprovalGranted(ApprovalEvent event) {
@@ -128,9 +114,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 승인 거부 이벤트 리스너
-     */
+    
     @EventListener
     @Async
     public void handleApprovalDenied(ApprovalEvent event) {
@@ -139,9 +123,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 타임아웃 이벤트 리스너
-     */
+    
     @EventListener
     @Async
     public void handleApprovalTimeout(ApprovalEvent event) {
@@ -150,9 +132,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 도구 실행 완료 이벤트 리스너
-     */
+    
     @EventListener
     @Async
     public void handleToolExecuted(ApprovalEvent event) {
@@ -169,9 +149,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 도구 실행 실패 이벤트 리스너
-     */
+    
     @EventListener
     @Async
     public void handleToolFailed(ApprovalEvent event) {
@@ -187,16 +165,12 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 승인 요청 알림 전송
-     * WebSocket을 우선 사용하고, WebSocket이 없을 때만 SSE 사용
-     * 기존 코드 호환성을 위해 public 유지
-     */
+    
     @Async
     public void sendApprovalRequest(ApprovalRequest request) {
         log.info("승인 요청 알림 전송: {}", request.getRequestId());
         
-        // Map.of()는 null을 허용하지 않으므로 HashMap 사용
+        
         Map<String, Object> data = buildNotificationData(request);
         
         NotificationMessage notification = new NotificationMessage(
@@ -205,38 +179,35 @@ public class McpApprovalNotificationService {
             data
         );
         
-        // WebSocket이 활성화되어 있으면 WebSocket만 사용
+        
         if (webSocketHandler != null) {
             try {
                 webSocketHandler.sendApprovalRequest(request);
                 log.debug("WebSocket 승인 요청 전송 완료: {}", request.getRequestId());
             } catch (Exception e) {
                 log.error("WebSocket 승인 요청 전송 실패, SSE로 폴백: {}", request.getRequestId(), e);
-                // WebSocket 실패 시 SSE로 폴백
+                
                 broadcast(notification);
             }
         } else {
-            // WebSocket이 없을 때만 SSE 사용
+            
             log.debug("WebSocket 핸들러 없음, SSE로 전송: {}", request.getRequestId());
             broadcast(notification);
         }
         
-        // 이벤트 발행
+        
         eventPublisher.publishEvent(new ApprovalRequestEvent(request));
         
-        // 타임아웃 설정
+        
         String riskLevelName = request.getRiskLevel() != null ? 
             request.getRiskLevel().name() : "MEDIUM";
         scheduleTimeout(request.getRequestId(), getTimeoutDuration(riskLevelName));
         
-        // 히스토리 저장
+        
         addToHistory(notification);
     }
     
-    /**
-     * 승인 허가 알림
-     * 기존 코드 호환성을 위해 public 유지
-     */
+    
     @Async
     public void sendApprovalGranted(String approvalId) {
         log.info("승인 허가 알림: {}", approvalId);
@@ -256,10 +227,7 @@ public class McpApprovalNotificationService {
         addToHistory(notification);
     }
     
-    /**
-     * 승인 거부 알림
-     * 기존 코드 호환성을 위해 public 유지
-     */
+    
     @Async
     public void sendApprovalDenied(String approvalId) {
         log.info("승인 거부 알림: {}", approvalId);
@@ -279,11 +247,7 @@ public class McpApprovalNotificationService {
         addToHistory(notification);
     }
     
-    /**
-     * 승인 타임아웃 알림
-     * WebSocket을 우선 사용하고, WebSocket이 없을 때만 SSE 사용
-     * 기존 코드 호환성을 위해 public 유지
-     */
+    
     @Async
     public void sendApprovalTimeout(String approvalId) {
         log.warn("승인 타임아웃: {}", approvalId);
@@ -301,18 +265,18 @@ public class McpApprovalNotificationService {
             timeoutData
         );
         
-        // WebSocket이 활성화되어 있으면 WebSocket만 사용
+        
         if (webSocketHandler != null) {
             try {
                 webSocketHandler.broadcastTimeoutNotification(approvalId, timeoutData);
                 log.debug("WebSocket 타임아웃 알림 전송 완료: {}", approvalId);
             } catch (Exception e) {
                 log.error("WebSocket 타임아웃 알림 전송 실패, SSE로 폴백: {}", approvalId, e);
-                // WebSocket 실패 시 SSE로 폴백
+                
                 broadcast(notification);
             }
         } else {
-            // WebSocket이 없을 때만 SSE 사용
+            
             log.debug("WebSocket 핸들러 없음, SSE로 전송: {}", approvalId);
             broadcast(notification);
         }
@@ -320,10 +284,7 @@ public class McpApprovalNotificationService {
         addToHistory(notification);
     }
     
-    /**
-     * Tool 실행 완료 알림
-     * 기존 코드 호환성을 위해 public 유지
-     */
+    
     @Async
     public void sendExecutionCompleted(String toolName, Object result, long executionTime) {
         log.info("Tool 실행 완료: {} ({}ms)", toolName, executionTime);
@@ -343,13 +304,11 @@ public class McpApprovalNotificationService {
         addToHistory(notification);
     }
     
-    /**
-     * 알림 데이터 생성 (null 안전 처리)
-     */
+    
     private Map<String, Object> buildNotificationData(ApprovalRequest request) {
         Map<String, Object> data = new HashMap<>();
         
-        // 필수 필드들 null 체크하여 추가
+        
         if (request.getRequestId() != null) {
             data.put("requestId", request.getRequestId());
         }
@@ -372,7 +331,7 @@ public class McpApprovalNotificationService {
             data.put("requester", request.getRequestedBy());
         }
         
-        // description 처리: toolDescription > actionDescription > 기본값
+        
         String description = request.getToolDescription();
         if (description == null) {
             description = request.getActionDescription();
@@ -390,10 +349,7 @@ public class McpApprovalNotificationService {
         return data;
     }
     
-    /**
-     * Tool 실행 실패 알림
-     * 기존 코드 호환성을 위해 public 유지
-     */
+    
     @Async
     public void sendExecutionFailed(String toolName, Exception exception) {
         log.error("💥 Tool 실행 실패: {}", toolName, exception);
@@ -413,9 +369,7 @@ public class McpApprovalNotificationService {
         addToHistory(notification);
     }
     
-    /**
-     * Tool 호출 감지 알림
-     */
+    
     @Async
     public void sendToolCallDetected(List<String> toolNames) {
         log.info("📞 Tool 호출 감지: {}", String.join(", ", toolNames));
@@ -434,9 +388,7 @@ public class McpApprovalNotificationService {
         addToHistory(notification);
     }
     
-    /**
-     * 특정 클라이언트에게 메시지 전송
-     */
+    
     private void sendToClient(String clientId, NotificationMessage message) {
         SseEmitter emitter = sseEmitters.get(clientId);
         if (emitter != null) {
@@ -454,9 +406,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * UnifiedNotificationService에서 사용하는 브로드캐스트 메서드
-     */
+    
     public void broadcastMessage(Map<String, Object> messageData) {
         NotificationMessage message = new NotificationMessage(
             "notification",
@@ -466,11 +416,9 @@ public class McpApprovalNotificationService {
         broadcast(message);
     }
     
-    /**
-     * 모든 클라이언트에게 브로드캐스트
-     */
+    
     private void broadcast(NotificationMessage message) {
-        // 1. SSE로 브로드캐스트
+        
         List<SseEmitter> deadEmitters = new ArrayList<>();
         
         broadcastEmitters.forEach(emitter -> {
@@ -485,10 +433,10 @@ public class McpApprovalNotificationService {
             }
         });
         
-        // 실패한 emitter 제거
+        
         broadcastEmitters.removeAll(deadEmitters);
         
-        // 2. WebSocket으로도 브로드캐스트 (타입별 토픽 매핑)
+        
         if (webSocketHandler != null) {
             try {
                 String topic = mapMessageTypeToTopic(message.type);
@@ -502,9 +450,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 메시지 타입을 WebSocket 토픽으로 매핑
-     */
+    
     private String mapMessageTypeToTopic(String messageType) {
         return switch (messageType) {
             case "APPROVAL_GRANTED" -> "/topic/approval/granted";
@@ -517,9 +463,7 @@ public class McpApprovalNotificationService {
         };
     }
     
-    /**
-     * 타임아웃 스케줄링
-     */
+    
     private void scheduleTimeout(String approvalId, long delayMillis) {
         ScheduledTimeoutTask task = new ScheduledTimeoutTask(approvalId);
         timeoutTasks.put(approvalId, task);
@@ -532,9 +476,7 @@ public class McpApprovalNotificationService {
         }, delayMillis, TimeUnit.MILLISECONDS);
     }
     
-    /**
-     * 타임아웃 취소
-     */
+    
     private void cancelTimeout(String approvalId) {
         ScheduledTimeoutTask task = timeoutTasks.remove(approvalId);
         if (task != null) {
@@ -542,21 +484,17 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 위험도에 따른 타임아웃 시간 결정
-     */
+    
     private long getTimeoutDuration(String riskLevel) {
         return switch (riskLevel) {
-            case "CRITICAL" -> 120000; // 2분
-            case "HIGH" -> 300000;     // 5분
-            case "MEDIUM" -> 600000;   // 10분
-            default -> 900000;         // 15분
+            case "CRITICAL" -> 120000; 
+            case "HIGH" -> 300000;     
+            case "MEDIUM" -> 600000;   
+            default -> 900000;         
         };
     }
     
-    /**
-     * 결과 요약
-     */
+    
     private String summarizeResult(Object result) {
         if (result == null) {
             return "No result";
@@ -570,64 +508,51 @@ public class McpApprovalNotificationService {
         return resultStr;
     }
     
-    /**
-     * 히스토리 추가
-     */
+    
     private void addToHistory(NotificationMessage notification) {
         notificationHistory.add(new NotificationHistory(
             notification,
             LocalDateTime.now()
         ));
         
-        // 최대 크기 유지
+        
         while (notificationHistory.size() > MAX_HISTORY_SIZE) {
             notificationHistory.remove(0);
         }
     }
     
-    /**
-     * 히스토리 조회
-     */
+    
     public List<NotificationHistory> getHistory(int limit) {
         int size = notificationHistory.size();
         int fromIndex = Math.max(0, size - limit);
         return new ArrayList<>(notificationHistory.subList(fromIndex, size));
     }
     
-    /**
-     * 알림 메시지 클래스
-     */
+    
     private record NotificationMessage(
         String type,
         String message,
         Map<String, Object> data
     ) {}
     
-    /**
-     * 알림 히스토리 클래스
-     */
+    
     public record NotificationHistory(
         NotificationMessage notification,
         LocalDateTime timestamp
     ) {}
     
-    /**
-     * 승인 요청 이벤트
-     */
+    
     public record ApprovalRequestEvent(
         ApprovalRequest request
     ) {}
     
-    /**
-     * 비동기 승인 요청 알림 전송 (DB 저장)
-     * Agent 모드에서 사용 - 실시간 WebSocket/SSE 대신 DB에 저장
-     */
+    
     @Async
     public void sendAsyncApprovalRequest(ApprovalRequest request, ToolExecutionContext executionContext) {
         log.info("비동기 승인 요청 알림 저장: {}", request.getRequestId());
         
         try {
-            // 알림 엔티티 생성 및 저장
+            
             ApprovalNotification notification = ApprovalNotification.builder()
                 .requestId(request.getRequestId())
                 .notificationType("APPROVAL_REQUEST")
@@ -639,14 +564,14 @@ public class McpApprovalNotificationService {
                     request.getRequestedBy()
                 ))
                 .userId(request.getUserId())
-                .targetRole("SECURITY_ADMIN") // 보안 관리자 역할
+                .targetRole("SECURITY_ADMIN") 
                 .priority(mapRiskToPriority(request.getRiskLevel()))
                 .actionRequired(true)
                 .groupId(executionContext.getIncidentId())
-                .expiresAt(LocalDateTime.now().plusMinutes(30)) // 30분 만료
+                .expiresAt(LocalDateTime.now().plusMinutes(30)) 
                 .build();
             
-            // 메타데이터 설정
+            
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("toolName", request.getToolName());
             metadata.put("riskLevel", request.getRiskLevel() != null ? request.getRiskLevel().toString() : "UNKNOWN");
@@ -654,25 +579,23 @@ public class McpApprovalNotificationService {
             metadata.put("sessionId", executionContext.getSessionId());
             notification.setNotificationData(metadata);
             
-            // DB에 저장
+            
             notificationRepository.save(notification);
             
             log.info("비동기 승인 요청 알림 저장 완료: ID={}, RequestId={}", 
                 notification.getId(), request.getRequestId());
             
-            // 이벤트 발행 (다른 서비스에서 처리 가능)
+            
             eventPublisher.publishEvent(new AsyncApprovalRequestEvent(request, notification, executionContext));
             
         } catch (Exception e) {
             log.error("비동기 승인 요청 알림 저장 실패: {}", request.getRequestId(), e);
-            // 실패 시 동기 모드로 폴백 시도 (가능한 경우)
+            
             sendApprovalRequest(request);
         }
     }
     
-    /**
-     * 비동기 승인 결과 알림 저장
-     */
+    
     @Async
     public void sendAsyncApprovalResult(String requestId, boolean approved, String approvedBy) {
         log.info("비동기 승인 결과 알림 저장: {} - {}", requestId, approved ? "승인" : "거부");
@@ -702,9 +625,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 위험도를 우선순위로 매핑
-     */
+    
     private String mapRiskToPriority(ApprovalRequest.RiskLevel riskLevel) {
         if (riskLevel == null) {
             return "MEDIUM";
@@ -718,20 +639,15 @@ public class McpApprovalNotificationService {
         };
     }
     
-    /**
-     * 비동기 승인 요청 이벤트
-     */
+    
     public record AsyncApprovalRequestEvent(
         ApprovalRequest request,
         ApprovalNotification notification,
         ToolExecutionContext executionContext
     ) {}
     
-    /**
-     * SSE Heartbeat 전송
-     * 30초마다 실행되어 연결을 유지합니다.
-     */
-//    @Scheduled(fixedDelay = 30000, initialDelay = 30000)
+    
+
     public void sendHeartbeat() {
         long count = heartbeatCounter.incrementAndGet();
         
@@ -745,7 +661,7 @@ public class McpApprovalNotificationService {
             )
         );
         
-        // SSE Heartbeat 전송
+        
         List<String> deadClients = new ArrayList<>();
         sseEmitters.forEach((clientId, emitter) -> {
             try {
@@ -759,13 +675,13 @@ public class McpApprovalNotificationService {
             }
         });
         
-        // 죽은 연결 제거
+        
         deadClients.forEach(clientId -> {
             sseEmitters.remove(clientId);
             log.debug("SSE 연결 제거: {}", clientId);
         });
         
-        // WebSocket Heartbeat도 전송
+        
         if (webSocketHandler != null) {
             try {
                 webSocketHandler.sendHeartbeat();
@@ -782,9 +698,7 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * 타임아웃 태스크
-     */
+    
     private static class ScheduledTimeoutTask {
         private final String approvalId;
         private volatile boolean cancelled = false;
@@ -802,20 +716,15 @@ public class McpApprovalNotificationService {
         }
     }
     
-    /**
-     * Send approval reminder
-     * 이제는 이벤트를 통해 간접적으로 처리됨
-     */
+    
     public void sendApprovalReminder(String approvalId) {
-        // approvalService 직접 호출 대신 이벤트 발행
+        
         log.info("Approval reminder requested for: {}", approvalId);
-        // UnifiedApprovalService가 이벤트를 발행하도록 위임
+        
         eventPublisher.publishEvent(new ApprovalReminderRequestedEvent(approvalId));
     }
     
-    /**
-     * 승인 알림 이벤트 (내부용)
-     */
+    
     public record ApprovalReminderRequestedEvent(
         String approvalId
     ) {}

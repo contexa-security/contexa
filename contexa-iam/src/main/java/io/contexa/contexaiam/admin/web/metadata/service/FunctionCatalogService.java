@@ -50,23 +50,16 @@ public class FunctionCatalogService {
         log.info("기능이 확인 및 등록되었습니다. [ID: {}, 이름: {}, 그룹: {}]", catalog.getId(), catalog.getFriendlyName(), group.getName());
     }
 
-    // --- Phase 2: 기능 카탈로그 관리 관련 ---
+    
 
-    /**
-     * 관리 가능한 모든 카탈로그(활성/비활성)를 DTO로 변환하여 조회합니다.
-     * @return List of FunctionCatalogDto
-     */
+    
     public List<FunctionCatalogDto> getManageableCatalogs() {
         return functionCatalogRepository.findAllByStatusNotWithDetails(FunctionCatalog.CatalogStatus.UNCONFIRMED).stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 특정 기능 카탈로그 항목을 업데이트합니다.
-     * @param id 카탈로그 ID
-     * @param dto 업데이트 정보
-     */
+    
     @Transactional
     public void updateCatalog(Long id, FunctionCatalogUpdateDto dto) {
         FunctionCatalog catalog = functionCatalogRepository.findById(id)
@@ -81,11 +74,7 @@ public class FunctionCatalogService {
         functionCatalogRepository.save(catalog);
     }
 
-    /**
-     * [신규 및 오류 수정] 개별 기능 카탈로그의 상태를 업데이트합니다.
-     * @param catalogId 업데이트할 카탈로그 ID
-     * @param status 변경할 상태 문자열 ("ACTIVE" or "INACTIVE")
-     */
+    
     @Transactional
     public void updateSingleStatus(Long catalogId, String status) {
         FunctionCatalog catalog = functionCatalogRepository.findById(catalogId)
@@ -96,15 +85,13 @@ public class FunctionCatalogService {
         log.info("카탈로그 ID {}의 상태가 {}로 변경되었습니다.", catalogId, newStatus);
     }
 
-    // '권한 정의' 화면을 위한 활성화된 기능 목록 조회
+    
     public List<FunctionCatalog> findAllActiveFunctions() {
-        // [오류 수정] 정확한 메소드와 파라미터로 호출
+        
         return functionCatalogRepository.findFunctionsByStatusWithDetails(FunctionCatalog.CatalogStatus.ACTIVE);
     }
 
-    /**
-     * 모든 카탈로그를 상태별로 그룹화하여 조회합니다.
-     */
+    
     public GroupedFunctionCatalogDto getGroupedCatalogs() {
         List<FunctionCatalog> allCatalogs = functionCatalogRepository.findAllWithDetails();
 
@@ -115,23 +102,17 @@ public class FunctionCatalogService {
         return new GroupedFunctionCatalogDto(grouped);
     }
 
-    /**
-     * [신규] 미확인 기능 일괄 등록 로직
-     */
+    
     @Transactional
     public void confirmBatch(List<Map<String, Long>> payload) {
         for (Map<String, Long> item : payload) {
             Long catalogId = item.get("catalogId");
             Long groupId = item.get("groupId");
-            confirmFunction(catalogId, groupId); // 기존 개별 등록 로직 재활용
+            confirmFunction(catalogId, groupId); 
         }
     }
 
-    /**
-     * 여러 기능 카탈로그의 상태를 일괄 변경합니다.
-     * @param ids 카탈로그 ID 목록
-     * @param status 변경할 상태 (ACTIVE or INACTIVE)
-     */
+    
     @Transactional
     public void batchUpdateStatus(List<Long> ids, String status) {
         FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase());
@@ -147,13 +128,13 @@ public class FunctionCatalogService {
 
         FunctionCatalogDto dto = new FunctionCatalogDto();
 
-        // FunctionCatalog 자체의 필드 설정
+        
         dto.setId(catalog.getId());
         dto.setFriendlyName(catalog.getFriendlyName());
         dto.setDescription(catalog.getDescription());
         dto.setStatus(catalog.getStatus());
 
-        // 중첩된 ManagedResource의 필드 설정
+        
         if (catalog.getManagedResource() != null) {
             dto.setResourceIdentifier(catalog.getManagedResource().getResourceIdentifier());
             dto.setResourceType(catalog.getManagedResource().getResourceType().name());
@@ -162,7 +143,7 @@ public class FunctionCatalogService {
             dto.setReturnType(catalog.getManagedResource().getReturnType());
         }
 
-        // 중첩된 FunctionGroup의 필드 설정
+        
         if (catalog.getFunctionGroup() != null) {
             dto.setFunctionGroupName(catalog.getFunctionGroup().getName());
         } else {
@@ -172,18 +153,5 @@ public class FunctionCatalogService {
         return dto;
     }
 
-    /*private FunctionCatalogDto convertToDto(FunctionCatalog catalog) {
-        FunctionCatalogDto dto = modelMapper.map(catalog, FunctionCatalogDto.class);
-        if (catalog.getManagedResource() != null) {
-            dto.setResourceIdentifier(catalog.getManagedResource().getResourceIdentifier());
-            dto.setResourceType(catalog.getManagedResource().getResourceType().name());
-            dto.setOwner(catalog.getManagedResource().getServiceOwner());
-            dto.setParameterTypes(catalog.getManagedResource().getParameterTypes());
-            dto.setReturnType(catalog.getManagedResource().getReturnType());
-        }
-        if (catalog.getFunctionGroup() != null) {
-            dto.setFunctionGroupName(catalog.getFunctionGroup().getName());
-        }
-        return dto;
-    }*/
+    
 }

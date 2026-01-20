@@ -64,7 +64,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                 username, emailPurpose, internalOneTimeToken.get().getTokenValue(), tokenValidityMinutes
         );
 
-//        emailService.sendHtmlMessage(username, emailSubject, htmlBody);
+
         log.info("Verification code ({}) for {} sent to {}. Token validity display: {} minutes.",
                 internalOneTimeToken.get().getTokenValue(), emailPurpose, username, tokenValidityMinutes);
 

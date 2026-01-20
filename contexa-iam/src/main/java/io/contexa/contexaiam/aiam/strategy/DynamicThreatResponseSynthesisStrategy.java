@@ -19,15 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * 동적 위협 대응 합성 전략
- * 
- * DynamicThreatResponseSynthesisLab을 실행하는 전략 구현
- * AbstractAIStrategy를 확장하여 표준 패턴 준수
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<DomainContext, DynamicThreatResponseResponse> {
     
@@ -42,7 +34,7 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
     
     @Override
     public int getPriority() {
-        return 20;  // 높은 우선순위
+        return 20;  
     }
     
     @Override
@@ -56,14 +48,14 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
             throw new DiagnosisException("THREAT_RESPONSE", "NULL_REQUEST", "요청이 null입니다");
         }
         
-        // 위협 정보 검증
+        
         Object threatInfo = request.getParameter("threatInfo", Object.class);
         if (threatInfo == null) {
             throw new DiagnosisException("THREAT_RESPONSE", "MISSING_THREAT_INFO",
                     "threatInfo 파라미터가 필요합니다");
         }
         
-        // 대응 정보 검증
+        
         Object responseInfo = request.getParameter("responseInfo", Object.class);
         if (responseInfo == null) {
             throw new DiagnosisException("THREAT_RESPONSE", "MISSING_RESPONSE_INFO",
@@ -78,22 +70,22 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
     
     @Override
     protected Object buildLabRequest(AIRequest<DomainContext> request) {
-        // DomainContext를 DynamicThreatResponseContext로 변환
+        
         DynamicThreatResponseContext context = new DynamicThreatResponseContext();
         
-        // 원본 컨텍스트에서 정보 복사
+        
         if (request.getContext() != null) {
             context.setUserId(request.getContext().getUserId());
             context.setSessionId(request.getContext().getSessionId());
         }
         
-        // 이벤트 ID 설정
+        
         String eventId = request.getParameter("eventId", String.class);
         if (eventId != null) {
             context.setEventId(eventId);
         }
         
-        // DynamicThreatResponseRequest 생성
+        
         return DynamicThreatResponseRequest.create(context);
     }
     
@@ -149,20 +141,18 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
         return "비동기 동적 위협 대응 합성 실행 실패: ";
     }
     
-    /**
-     * 이 전략이 처리할 수 있는 요청인지 확인
-     */
+    
     public boolean canHandle(AIRequest<DomainContext> request) {
         if (request == null) return false;
 
-        // 위협 관련 파라미터가 있는지 확인
+        
         return request.getParameter("threatInfo", Object.class) != null &&
                request.getParameter("responseInfo", Object.class) != null;
     }
 
     @Override
     protected PipelineConfig getPipelineConfig() {
-        // 위협 대응 합성은 신속하고 정확한 대응이 필요하므로 전체 파이프라인 실행
+        
         return PipelineConfig.fullPipeline();
     }
 }

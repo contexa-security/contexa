@@ -18,16 +18,7 @@ import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
-/**
- * 조건 템플릿 진단 전략 (리팩토링 버전)
- *
- * 기존 ConditionTemplateDiagnosisStrategy의 모든 기능을 유지하면서
- * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
- *
- * 동적 Lab 접근 패턴 사용
- * LabAccessor를 통한 타입 안전한 동적 Lab 조회
- * 타입 안전성과 null 안전성 보장
- */
+
 @Slf4j
 public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<ConditionTemplateContext, ConditionTemplateGenerationResponse> {
 
@@ -73,7 +64,7 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
 
     @Override
     protected Object buildLabRequest(AIRequest<ConditionTemplateContext> request) {
-        // 생성 유형 확인 (기존 로직 유지)
+        
         String generationType = request.getParameter("generationType", String.class);
         log.info("조건 템플릿 생성 유형: {}", generationType);
 
@@ -133,11 +124,9 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
     }
 
 
-    /**
-     * Lab 요청을 위한 내부 클래스들
-     */
+    
     private static class UniversalTemplateRequest {
-        // 범용 템플릿 요청을 위한 마커 클래스
+        
     }
 
     private static class SpecificTemplateRequest {
@@ -152,7 +141,7 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
 
     @Override
     protected PipelineConfig getPipelineConfig() {
-        // 조건 템플릿 생성은 간단한 템플릿의 경우 빠른 응답이 가능하므로 동적 구성 사용
+        
         return PipelineConfig.builder()
                 .contextRetrieval(PipelineConfig.ContextRetrievalStrategy.OPTIONAL)
                 .postProcessing(PipelineConfig.PostProcessingStrategy.DYNAMIC)

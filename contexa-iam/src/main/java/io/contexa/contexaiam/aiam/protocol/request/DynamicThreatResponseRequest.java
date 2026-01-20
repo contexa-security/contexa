@@ -7,15 +7,7 @@ import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.Getter;
 import lombok.Setter;
 
-/**
- * 동적 위협 대응 합성 Lab 요청 객체
- * 
- * DynamicThreatResponseSynthesisLab이 처리할 요청 데이터를 담는 객체
- * DynamicThreatResponseEvent로부터 변환되어 Lab에 전달됨
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Getter
 @Setter
 public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatResponseContext> {
@@ -23,14 +15,10 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
     private static final String PROMPT_TEMPLATE = "dynamicThreatResponse";
     private static final DiagnosisType DIAGNOSIS_TYPE = DiagnosisType.DYNAMIC_THREAT_RESPONSE;
     
-    /**
-     * 원본 이벤트 ID
-     */
+    
     private String eventId;
     
-    /**
-     * 보안 정책 생성 옵션
-     */
+    
     private boolean enablePolicyGeneration = true;
     private boolean enableSpelExpression = true;
     private boolean requiresApproval = false;
@@ -45,16 +33,12 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         this(context, PROMPT_TEMPLATE);
     }
     
-    /**
-     * 빠른 생성을 위한 정적 팩토리 메서드
-     */
+    
     public static DynamicThreatResponseRequest create(DynamicThreatResponseContext context) {
         return new DynamicThreatResponseRequest(context);
     }
     
-    /**
-     * 긴급 위협 대응 요청 생성
-     */
+    
     public static DynamicThreatResponseRequest createUrgent(DynamicThreatResponseContext context) {
         DynamicThreatResponseRequest request = new DynamicThreatResponseRequest(context);
         request.withParameter("priority", RequestPriority.CRITICAL);
@@ -62,15 +46,13 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         return request;
     }
     
-    /**
-     * DynamicThreatResponseEvent로부터 요청 객체 생성
-     */
+    
     public static DynamicThreatResponseRequest fromEvent(DynamicThreatResponseEvent event) {
-        // 컨텍스트 생성
+        
         DynamicThreatResponseContext context = new DynamicThreatResponseContext();
         context.setEventId(event.getEventId());
         
-        // 위협 정보 설정
+        
         DynamicThreatResponseContext.ThreatInfo threatInfo = new DynamicThreatResponseContext.ThreatInfo();
         threatInfo.setThreatType(event.getThreatType());
         threatInfo.setAttackVector(event.getAttackVector());
@@ -80,7 +62,7 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         threatInfo.setOccurredAt(event.getOccurredAt());
         context.setThreatInfo(threatInfo);
         
-        // 대응 정보 설정
+        
         DynamicThreatResponseContext.ResponseInfo responseInfo = new DynamicThreatResponseContext.ResponseInfo();
         responseInfo.setMitigationAction(event.getMitigationAction());
         responseInfo.setSuccessful(event.isResponseSuccessful());
@@ -89,7 +71,7 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         responseInfo.setSoarWorkflowId(event.getSoarWorkflowId());
         context.setResponseInfo(responseInfo);
         
-        // 정책 생성 힌트 설정
+        
         DynamicThreatResponseContext.PolicyGenerationHint hint = new DynamicThreatResponseContext.PolicyGenerationHint();
         hint.setPreferredPolicyType(inferPolicyType(event));
         hint.setScope(inferScope(event));
@@ -98,15 +80,15 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         hint.setTargetAudience(inferTargetAudience(event));
         context.setHint(hint);
         
-        // 추가 컨텍스트 설정
+        
         if (event.getContext() != null) {
             context.setAdditionalContext(event.getContext());
         }
         
-        // 보안 레벨 자동 조정
+        
         context.adjustSecurityLevelBySeverity();
         
-        // 요청 객체 생성
+        
         DynamicThreatResponseRequest request = new DynamicThreatResponseRequest(context);
         request.setEventId(event.getEventId());
         request.requiresApproval = shouldRequireApproval(event);
@@ -134,22 +116,17 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         return "GLOBAL";
     }
     
-    /**
-     * AI Native: LLM이 우선순위 결정
-     * 기본값 반환하여 LLM 분석 유도
-     */
+    
     private static Integer calculatePriority(DynamicThreatResponseEvent event) {
-        // AI Native: Severity 기반 규칙 제거
-        // LLM이 우선순위 결정
+        
+        
         return 50;
     }
 
-    /**
-     * AI Native: LLM이 승인 필요 여부 결정
-     */
+    
     private static Boolean shouldRequireApproval(DynamicThreatResponseEvent event) {
-        // AI Native: Severity 기반 규칙 제거
-        // 기본값으로 승인 필요로 설정 (보수적 접근)
+        
+        
         return true;
     }
     

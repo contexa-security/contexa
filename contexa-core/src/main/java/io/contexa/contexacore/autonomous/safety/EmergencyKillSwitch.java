@@ -18,15 +18,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * 긴급 정지 스위치
- * 
- * AI 정책의 비정상 동작 시 즉시 중단하고 안전 모드로 전환합니다.
- * 실시간 모니터링과 자동 회로 차단 기능을 제공합니다.
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 public class EmergencyKillSwitch {
     
     private static final Logger logger = LoggerFactory.getLogger(EmergencyKillSwitch.class);
@@ -40,19 +32,19 @@ public class EmergencyKillSwitch {
     @Autowired
     private ApplicationEventPublisher eventPublisher;
     
-    // 킬 스위치 상태
+    
     private final AtomicBoolean isActivated = new AtomicBoolean(false);
     
-    // 안전 모드 상태
+    
     private final AtomicBoolean isSafeMode = new AtomicBoolean(false);
     
-    // 정책별 회로 차단기
+    
     private final Map<Long, CircuitBreaker> circuitBreakers = new ConcurrentHashMap<>();
     
-    // 킬 스위치 활성화 이력
+    
     private final List<KillSwitchEvent> activationHistory = Collections.synchronizedList(new ArrayList<>());
     
-    // 임계값 설정
+    
     private static final int ERROR_THRESHOLD = 5;
     private static final int TIME_WINDOW_SECONDS = 60;
     private static final double ERROR_RATE_THRESHOLD = 0.3;
@@ -60,48 +52,37 @@ public class EmergencyKillSwitch {
     @PostConstruct
     public void initialize() {
         logger.info("Emergency Kill Switch initialized");
-        // 시스템 시작 시 안전 검사
+        
         performSafetyCheck();
     }
     
-    /**
-     * 긴급 정지 활성화
-     * 
-     * @param reason 활성화 이유
-     * @param targetProposalId 대상 제안 ID (null이면 전체)
-     * @return 활성화 성공 여부
-     */
+    
     @Transactional
     public boolean activate(String reason, Long targetProposalId) {
         logger.error("EMERGENCY KILL SWITCH ACTIVATED! Reason: {}, Target: {}", 
             reason, targetProposalId != null ? targetProposalId : "ALL");
         
         try {
-            // 킬 스위치 상태 설정
+            
             isActivated.set(true);
             
             if (targetProposalId != null) {
-                // 특정 정책 중단
+                
                 return killSpecificPolicy(targetProposalId, reason);
             } else {
-                // 전체 정책 중단
+                
                 return killAllPolicies(reason);
             }
             
         } catch (Exception e) {
             logger.error("Failed to activate kill switch", e);
-            // 실패해도 안전 모드는 유지
+            
             enterSafeMode();
             return false;
         }
     }
     
-    /**
-     * 킬 스위치 비활성화
-     * 
-     * @param authorizedBy 승인자
-     * @return 비활성화 성공 여부
-     */
+    
     @Transactional
     public boolean deactivate(String authorizedBy) {
         logger.info("Attempting to deactivate kill switch. Authorized by: {}", authorizedBy);
@@ -112,19 +93,19 @@ public class EmergencyKillSwitch {
         }
         
         try {
-            // 안전 검사 수행
+            
             if (!performSafetyCheck()) {
                 logger.error("Safety check failed. Cannot deactivate kill switch");
                 return false;
             }
             
-            // 킬 스위치 비활성화
+            
             isActivated.set(false);
             
-            // 안전 모드 해제
+            
             exitSafeMode();
             
-            // 이벤트 발행
+            
             publishKillSwitchEvent(KillSwitchEventType.DEACTIVATED, null, 
                 "Deactivated by " + authorizedBy);
             
@@ -137,12 +118,7 @@ public class EmergencyKillSwitch {
         }
     }
     
-    /**
-     * 정책 실행 모니터링
-     * 
-     * @param proposalId 제안 ID
-     * @param success 실행 성공 여부
-     */
+    
     public void monitorExecution(Long proposalId, boolean success) {
         CircuitBreaker breaker = circuitBreakers.computeIfAbsent(proposalId, 
             id -> new CircuitBreaker(id));
@@ -152,57 +128,49 @@ public class EmergencyKillSwitch {
         } else {
             breaker.recordFailure();
             
-            // 회로 차단기 확인
+            
             if (breaker.shouldTrip()) {
                 logger.error("Circuit breaker tripped for proposal: {}", proposalId);
                 activate("Circuit breaker threshold exceeded", proposalId);
             }
         }
         
-        // 전체 시스템 상태 확인
+        
         checkSystemHealth();
     }
     
-    /**
-     * 안전 모드 진입
-     */
+    
     public void enterSafeMode() {
         if (isSafeMode.compareAndSet(false, true)) {
             logger.warn("System entering SAFE MODE");
             
-            // 모든 자동 정책 실행 중단
+            
             disableAutomaticPolicies();
             
-            // 수동 승인 모드 활성화
+            
             enableManualApprovalMode();
             
-            // 이벤트 발행
+            
             publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_ENTERED, null, 
                 "System protection activated");
         }
     }
     
-    /**
-     * 안전 모드 해제
-     */
+    
     public void exitSafeMode() {
         if (isSafeMode.compareAndSet(true, false)) {
             logger.info("System exiting safe mode");
             
-            // 자동 정책 실행 재개
+            
             enableAutomaticPolicies();
             
-            // 이벤트 발행
+            
             publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_EXITED, null, 
                 "Normal operation resumed");
         }
     }
     
-    /**
-     * 현재 상태 조회
-     * 
-     * @return 킬 스위치 상태
-     */
+    
     public KillSwitchStatus getStatus() {
         return KillSwitchStatus.builder()
             .isActivated(isActivated.get())
@@ -213,22 +181,16 @@ public class EmergencyKillSwitch {
             .build();
     }
     
-    /**
-     * 정책 롤백
-     * 
-     * @param proposalId 제안 ID
-     * @param targetVersion 대상 버전 (null이면 이전 버전)
-     * @return 롤백 성공 여부
-     */
+    
     @Transactional
     public boolean rollbackPolicy(Long proposalId, Long targetVersion) {
         logger.info("Rolling back policy {} to version {}", proposalId, targetVersion);
         
         try {
-            // 버전 관리자를 통한 롤백
+            
             Long rolledBackVersion = versionManager.rollback(proposalId, targetVersion);
             
-            // 롤백 이벤트 기록
+            
             publishKillSwitchEvent(KillSwitchEventType.POLICY_ROLLED_BACK, proposalId,
                 "Rolled back to version " + rolledBackVersion);
             
@@ -240,13 +202,13 @@ public class EmergencyKillSwitch {
         }
     }
     
-    // ==================== Private Methods ====================
+    
     
     private boolean killSpecificPolicy(Long proposalId, String reason) {
         logger.info("Killing specific policy: {}", proposalId);
         
         try {
-            // 정책 상태를 DEACTIVATED로 변경
+            
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
             
@@ -256,10 +218,10 @@ public class EmergencyKillSwitch {
             
             proposalRepository.save(proposal);
             
-            // 활성화 이력 기록
+            
             recordActivation(proposalId, reason);
             
-            // 이벤트 발행
+            
             publishKillSwitchEvent(KillSwitchEventType.POLICY_KILLED, proposalId, reason);
             
             return true;
@@ -284,10 +246,10 @@ public class EmergencyKillSwitch {
         
         logger.info("Killed {} out of {} active policies", killedCount, activeProposals.size());
         
-        // 안전 모드 진입
+        
         enterSafeMode();
         
-        // 전체 킬 이벤트 발행
+        
         publishKillSwitchEvent(KillSwitchEventType.ALL_POLICIES_KILLED, null, 
             String.format("Killed %d policies: %s", killedCount, reason));
         
@@ -298,11 +260,11 @@ public class EmergencyKillSwitch {
         logger.debug("Performing safety check");
         
         try {
-            // 활성 정책 검사
+            
             List<PolicyEvolutionProposal> activeProposals = proposalRepository.findActiveProposals();
             
             for (PolicyEvolutionProposal proposal : activeProposals) {
-                // 고위험 정책 검사
+                
                 if (proposal.getRiskLevel() == PolicyEvolutionProposal.RiskLevel.CRITICAL) {
                     CircuitBreaker breaker = circuitBreakers.get(proposal.getId());
                     if (breaker != null && breaker.getErrorRate() > ERROR_RATE_THRESHOLD) {
@@ -312,7 +274,7 @@ public class EmergencyKillSwitch {
                 }
             }
             
-            // 시스템 상태 검사
+            
             SystemHealth health = calculateSystemHealth();
             if (health == SystemHealth.CRITICAL) {
                 logger.warn("System health is critical");
@@ -353,17 +315,17 @@ public class EmergencyKillSwitch {
     
     private void disableAutomaticPolicies() {
         logger.info("Disabling automatic policy execution");
-        // 자동 정책 실행 비활성화 로직
+        
     }
     
     private void enableAutomaticPolicies() {
         logger.info("Enabling automatic policy execution");
-        // 자동 정책 실행 활성화 로직
+        
     }
     
     private void enableManualApprovalMode() {
         logger.info("Enabling manual approval mode for all policies");
-        // 수동 승인 모드 활성화 로직
+        
     }
     
     private void recordActivation(Long proposalId, String reason) {
@@ -387,7 +349,7 @@ public class EmergencyKillSwitch {
         
         activationHistory.add(event);
         
-        // Spring 이벤트 발행
+        
         eventPublisher.publishEvent(event);
     }
     
@@ -404,16 +366,14 @@ public class EmergencyKillSwitch {
         return new ArrayList<>(activationHistory.subList(fromIndex, size));
     }
     
-    // ==================== Inner Classes ====================
     
-    /**
-     * 회로 차단기
-     */
+    
+    
     private static class CircuitBreaker {
         private final Long proposalId;
         private final AtomicInteger successCount = new AtomicInteger(0);
         private final AtomicInteger failureCount = new AtomicInteger(0);
-        // Phase 3: 동시성 문제 수정 - LinkedList -> ConcurrentLinkedQueue
+        
         private final ConcurrentLinkedQueue<Long> errorTimestamps = new ConcurrentLinkedQueue<>();
         private volatile boolean isOpen = false;
         
@@ -423,7 +383,7 @@ public class EmergencyKillSwitch {
         
         public void recordSuccess() {
             successCount.incrementAndGet();
-            // 성공 시 회로 차단기 재설정 고려
+            
             if (isOpen && getErrorRate() < 0.1) {
                 reset();
             }
@@ -433,7 +393,7 @@ public class EmergencyKillSwitch {
             failureCount.incrementAndGet();
             errorTimestamps.add(System.currentTimeMillis());
             
-            // 오래된 타임스탬프 제거
+            
             long cutoff = System.currentTimeMillis() - (TIME_WINDOW_SECONDS * 1000);
             errorTimestamps.removeIf(ts -> ts < cutoff);
         }
@@ -470,9 +430,7 @@ public class EmergencyKillSwitch {
         }
     }
     
-    /**
-     * 킬 스위치 상태
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class KillSwitchStatus {
@@ -483,9 +441,7 @@ public class EmergencyKillSwitch {
         private SystemHealth systemHealth;
     }
     
-    /**
-     * 킬 스위치 이벤트
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class KillSwitchEvent {
@@ -495,9 +451,7 @@ public class EmergencyKillSwitch {
         private LocalDateTime timestamp;
     }
     
-    /**
-     * 킬 스위치 이벤트 타입
-     */
+    
     public enum KillSwitchEventType {
         ACTIVATED,
         DEACTIVATED,
@@ -508,9 +462,7 @@ public class EmergencyKillSwitch {
         SAFE_MODE_EXITED
     }
     
-    /**
-     * 시스템 상태
-     */
+    
     public enum SystemHealth {
         HEALTHY,
         WARNING,

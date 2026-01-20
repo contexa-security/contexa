@@ -22,10 +22,10 @@ public class BusinessAction implements Serializable {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String name; // 사용자에게 표시될 행위 이름 (예: 조회하기)
+    private String name; 
 
     @Column(nullable = false)
-    private String actionType; // Permission의 actionType과 매핑될 기술적 타입 (예: READ)
+    private String actionType; 
 
     @Column(length = 1024)
     private String description;

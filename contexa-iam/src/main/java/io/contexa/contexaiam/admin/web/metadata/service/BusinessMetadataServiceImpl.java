@@ -52,7 +52,7 @@ public class BusinessMetadataServiceImpl implements BusinessMetadataService {
 
         Optional<BusinessResource> resourceOptional = businessResourceRepository.findById(businessResourceId);
 
-        // [핵심 수정] 조인 엔티티(BusinessResourceAction)에서 실제 BusinessAction을 추출하여 리스트로 반환
+        
         return resourceOptional.map(businessResource -> businessResource.getAvailableActions().stream()
                 .map(BusinessResourceAction::getBusinessAction)
                 .collect(Collectors.toList())).orElseGet(Collections::emptyList);

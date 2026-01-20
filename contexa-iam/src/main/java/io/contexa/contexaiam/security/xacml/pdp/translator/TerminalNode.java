@@ -5,15 +5,13 @@ import lombok.Getter;
 import java.util.Collections;
 import java.util.Set;
 
-/**
- * SpEL 표현식의 가장 마지막 단말 노드 (Leaf).
- */
+
 @Getter
 public class TerminalNode implements ExpressionNode {
 
     private final String description;
     private final String authority;
-    private final boolean authenticationRequired; // [추가] 인증 필요 여부 필드
+    private final boolean authenticationRequired; 
 
     public TerminalNode(String description, String authority, boolean authenticationRequired) {
         this.description = description;
@@ -26,7 +24,7 @@ public class TerminalNode implements ExpressionNode {
     }
 
     public TerminalNode(String description) {
-        this(description, null, false); // 기본적으로 인증 불필요
+        this(description, null, false); 
     }
 
     @Override

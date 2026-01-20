@@ -4,40 +4,28 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-/**
- * Security Event 설정
- */
+
 @Data
 @ConfigurationProperties(prefix = "security.event")
 public class SecurityEventProperties {
 
-    /**
-     * 퍼블리싱 설정
-     */
+    
     @NestedConfigurationProperty
     private PublishingSettings publishing = new PublishingSettings();
 
-    /**
-     * Executor 설정
-     */
+    
     @NestedConfigurationProperty
     private ExecutorSettings executor = new ExecutorSettings();
 
-    /**
-     * Tier 설정
-     */
+    
     @NestedConfigurationProperty
     private TierSettings tier = new TierSettings();
 
-    /**
-     * 중복 제거 설정
-     */
+    
     @NestedConfigurationProperty
     private DeduplicationSettings deduplication = new DeduplicationSettings();
 
-    /**
-     * 퍼블리싱 설정
-     */
+    
     @Data
     public static class PublishingSettings {
         private boolean enabled = true;
@@ -52,9 +40,7 @@ public class SecurityEventProperties {
         }
     }
 
-    /**
-     * Executor 설정
-     */
+    
     @Data
     public static class ExecutorSettings {
         private int corePoolSize = Runtime.getRuntime().availableProcessors() * 2;
@@ -62,9 +48,7 @@ public class SecurityEventProperties {
         private int queueCapacity = 10000;
     }
 
-    /**
-     * Tier 설정
-     */
+    
     @Data
     public static class TierSettings {
         @NestedConfigurationProperty
@@ -93,9 +77,7 @@ public class SecurityEventProperties {
         }
     }
 
-    /**
-     * 중복 제거 설정
-     */
+    
     @Data
     public static class DeduplicationSettings {
         private int windowMinutes = 5;

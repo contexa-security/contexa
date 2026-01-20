@@ -19,15 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Realtime Block 처리 전략
- *
- * 극도로 높은 위험 이벤트를 즉시 차단
- * Critical 위협에 대한 즉각적인 대응
- *
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class RealtimeBlockStrategy implements ProcessingStrategy {
@@ -50,28 +42,28 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         Map<String, Object> metadata = new HashMap<>();
 
         try {
-            // 1. 사용자 계정 차단
+            
             if (event.getUserId() != null) {
                 blockUserAccount(event.getUserId());
                 executedActions.add("USER_BLOCKED");
                 context.addResponseAction("USER_BLOCKED", "User account blocked: " + event.getUserId());
             }
 
-            // 2. IP 차단
+            
             if (event.getSourceIp() != null) {
                 blockIpAddress(event.getSourceIp());
                 executedActions.add("IP_BLOCKED");
                 context.addResponseAction("IP_BLOCKED", "IP address blocked: " + event.getSourceIp());
             }
 
-            // 3. 세션 무효화
+            
             if (event.getSessionId() != null) {
                 invalidateSession(event.getSessionId(), event.getUserId());
                 executedActions.add("SESSION_INVALIDATED");
                 context.addResponseAction("SESSION_INVALIDATED", "Session invalidated: " + event.getSessionId());
             }
 
-            // 4. 긴급 알림 발송
+            
             if (soarNotifier != null) {
                 NotificationResult notifyResult = sendCriticalAlert(event, context);
                 if (notifyResult.isSuccess()) {
@@ -80,7 +72,7 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
                 }
             }
 
-            // 5. 격리 조치
+            
             isolateThreat(event, context);
             executedActions.add("THREAT_ISOLATED");
             context.addResponseAction("THREAT_ISOLATED", "Threat isolated and contained");
@@ -92,7 +84,7 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
             log.info("[RealtimeBlockStrategy] Critical threat blocked - eventId: {}, actions: {}",
                     event.getEventId(), executedActions);
 
-            // AI Native: HOT_PATH 제거, COLD_PATH 사용
+            
             return ProcessingResult.builder()
                     .success(true)
                     .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
@@ -112,15 +104,13 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    /**
-     * 사용자 계정 차단
-     */
+    
     private void blockUserAccount(String userId) {
         try {
             String blockKey = "security:blocked:users:" + userId;
             redisTemplate.opsForValue().set(blockKey, true);
 
-            // Trust Score를 0으로 설정
+            
             String trustKey = "security:user:trust:" + userId;
             redisTemplate.opsForValue().set(trustKey, 0.0);
 
@@ -130,9 +120,7 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    /**
-     * IP 주소 차단
-     */
+    
     private void blockIpAddress(String ip) {
         try {
             String blockKey = "security:blocked:ips:" + ip;
@@ -144,16 +132,14 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    /**
-     * 세션 무효화
-     */
+    
     private void invalidateSession(String sessionId, String userId) {
         try {
-            // 1. 세션 삭제
+            
             String sessionKey = "security:sessions:" + sessionId;
             redisTemplate.delete(sessionKey);
 
-            // 2. 세션 하이재킹 채널로 이벤트 발행 (SecurityPlaneAgentOld 로직 복구)
+            
             Map<String, Object> invalidationEvent = new HashMap<>();
             invalidationEvent.put("sessionId", sessionId);
             invalidationEvent.put("userId", userId);
@@ -169,15 +155,13 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    /**
-     * 긴급 알림 발송
-     */
+    
     private NotificationResult sendCriticalAlert(SecurityEvent event, SecurityEventContext context) {
         try {
             Map<String, Object> notificationData = new HashMap<>();
             notificationData.put("severity", "CRITICAL");
             notificationData.put("eventId", event.getEventId());
-            // AI Native v4.0.0: eventType 제거 - severity 기반
+            
             notificationData.put("eventSeverity", event.getSeverity());
             notificationData.put("userId", event.getUserId());
             notificationData.put("sourceIp", event.getSourceIp());
@@ -190,12 +174,10 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    /**
-     * 위협 격리
-     */
+    
     private void isolateThreat(SecurityEvent event, SecurityEventContext context) {
         try {
-            // 격리 네임스페이스에 이벤트 정보 저장
+            
             String isolationKey = "security:isolation:" + event.getEventId();
             Map<String, Object> isolationData = new HashMap<>();
             isolationData.put("event", event);

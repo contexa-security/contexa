@@ -17,10 +17,7 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
     @Query("SELECT DISTINCT g FROM Group g LEFT JOIN FETCH g.groupRoles gr LEFT JOIN FETCH gr.role LEFT JOIN FETCH g.userGroups ug ORDER BY g.name ASC")
     List<Group> findAllWithRolesAndUsers();
 
-    /**
-     * [오류 수정] 누락되었던 findAllWithRolesAndPermissions 메서드를 N+1 문제 해결을 위한 Fetch Join 쿼리와 함께 추가합니다.
-     * 그룹-역할-권한의 전체 연관관계를 한번의 쿼리로 조회합니다.
-     */
+    
     @Query("SELECT DISTINCT g FROM Group g " +
             "LEFT JOIN FETCH g.groupRoles gr " +
             "LEFT JOIN FETCH gr.role r " +

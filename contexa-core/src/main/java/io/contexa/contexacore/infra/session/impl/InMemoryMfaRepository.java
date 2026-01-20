@@ -17,9 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * InMemory 기반 MFA 세션 Repository - 개발/테스트 환경 최적화
- */
+
 @Slf4j
 @ConditionalOnProperty(name = "security.mfa.session.storage-type", havingValue = "memory")
 public class InMemoryMfaRepository implements MfaSessionRepository {

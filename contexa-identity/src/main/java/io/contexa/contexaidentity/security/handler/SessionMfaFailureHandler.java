@@ -14,15 +14,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * MFA 인증용 세션 기반 실패 핸들러
- *
- * FORM, REST, OTT, PASSKEY MFA 공용으로 사용
- * OAuth2/JWT 토큰이 아닌 세션 기반 인증 처리
- * MFA 과정에서 발생한 실패 처리
- *
- * Spring Security의 SimpleUrlAuthenticationFailureHandler 참고
- */
+
 @Slf4j
 public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
 
@@ -53,24 +45,24 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
 
         log.debug("Processing session MFA authentication failure: {}", exception.getMessage());
 
-        // 에러 코드 및 메시지 결정
+        
         String errorCode = determineErrorCode(failureType, factorContext);
         String errorMessage = determineErrorMessage(failureType, exception);
 
-        // 실패 리다이렉트 URL - AuthContextProperties에서 가져오기
+        
         String mfaFailureUrl = authContextProperties.getUrls().getMfa().getFailure();
         String failureUrl = request.getContextPath() + mfaFailureUrl;
 
-        // 에러 코드를 쿼리 파라미터로 추가
+        
         if (!mfaFailureUrl.contains("?")) {
             failureUrl += "?error=" + errorCode.toLowerCase();
         } else {
             failureUrl += "&error=" + errorCode.toLowerCase();
         }
 
-        // API 요청과 일반 요청 구분 처리
+        
         if (isApiRequest(request)) {
-            // JSON 응답
+            
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("authenticated", false);
             responseData.put("mfaCompleted", false);
@@ -78,7 +70,7 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
             responseData.put("errorCode", errorCode);
             responseData.put("nextStepUrl", failureUrl);
 
-            // FactorContext 정보 추가
+            
             if (factorContext != null) {
                 responseData.put("mfaSessionId", factorContext.getMfaSessionId());
                 responseData.put("currentState", factorContext.getCurrentState());
@@ -94,15 +86,13 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
 
             log.debug("Session MFA failure (JSON): errorCode={}", errorCode);
         } else {
-            // 리다이렉트
+            
             response.sendRedirect(failureUrl);
             log.debug("Session MFA failure (redirect) to: {}", failureUrl);
         }
     }
 
-    /**
-     * 실패 유형에 따른 에러 코드 결정
-     */
+    
     private String determineErrorCode(FailureType failureType, FactorContext factorContext) {
         if (failureType == null) {
             return "MFA_FAILED";
@@ -124,9 +114,7 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
         }
     }
 
-    /**
-     * 실패 유형에 따른 에러 메시지 결정
-     */
+    
     private String determineErrorMessage(FailureType failureType, AuthenticationException exception) {
         if (failureType == null) {
             return exception.getMessage() != null ? exception.getMessage() : "MFA 인증에 실패했습니다.";

@@ -9,10 +9,7 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 리소스 네이밍 AI 진단을 위한 특화된 IAM 컨텍스트
- * 리소스 친화적 이름 생성에 필요한 모든 컨텍스트 정보를 포함
- */
+
 @Getter
 @Setter
 public class ResourceNamingContext extends IAMContext {
@@ -40,18 +37,12 @@ public class ResourceNamingContext extends IAMContext {
         return "RESOURCE_NAMING";
     }
     
-    /**
-     * 리소스 네이밍에 필요한 모든 컨텍스트가 완전한지 확인합니다
-     * @return 완전성 여부
-     */
+    
     public boolean isComplete() {
         return resourceBatch != null && !resourceBatch.isEmpty();
     }
     
-    /**
-     * 네이밍 복잡도를 계산합니다
-     * @return 복잡도 점수 (1-10)
-     */
+    
     public int calculateComplexity() {
         int complexity = 1;
         
@@ -74,7 +65,7 @@ public class ResourceNamingContext extends IAMContext {
         return Math.min(complexity, 10);
     }
     
-    // Builder 패턴 지원
+    
     public static class Builder {
         private final ResourceNamingContext context;
         

@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-public class MfaSupportService { // 클래스명 변경
+public class MfaSupportService { 
 
     private final UserRepository userRepository;
 

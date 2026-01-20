@@ -20,12 +20,7 @@ import org.springframework.util.backoff.FixedBackOff;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Kafka Configuration
- * 
- * Apache Kafka 메시징 설정을 제공합니다.
- * 보안 이벤트 수집 및 처리를 위한 배치 처리 기능을 포함합니다.
- */
+
 @Configuration
 @EnableKafka
 public class KafkaConfiguration {
@@ -34,7 +29,7 @@ public class KafkaConfiguration {
     private String bootstrapServers;
 
     @Value("${spring.kafka.consumer.group-id:security-plane-consumer}")
-    private String groupId;  // Listener와 통일
+    private String groupId;  
 
     @Value("${spring.kafka.consumer.auto-offset-reset:earliest}")
     private String autoOffsetReset;
@@ -48,9 +43,7 @@ public class KafkaConfiguration {
     @Value("${spring.kafka.listener.concurrency:3}")
     private int concurrency;
 
-    /**
-     * Kafka Consumer 설정
-     */
+    
     @Bean
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();
@@ -62,16 +55,14 @@ public class KafkaConfiguration {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, enableAutoCommit);
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollRecords);
         
-        // JSON 역직렬화 설정
+        
         props.put(JsonDeserializer.TRUSTED_PACKAGES, "io.contexa.contexacore.*");
         props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "io.contexa.contexacore.plane.domain.SecurityEvent");
         
         return props;
     }
 
-    /**
-     * Kafka Producer 설정
-     */
+    
     @Bean
     public Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<>();
@@ -87,22 +78,13 @@ public class KafkaConfiguration {
         return props;
     }
 
-    /**
-     * Consumer Factory
-     */
+    
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
         return new DefaultKafkaConsumerFactory<>(consumerConfigs());
     }
 
-    /**
-     * Producer Factory
-     *
-     * AI Native v14.2: ObjectMapper 주입으로 Instant 직렬화 일관성 보장
-     * - ApplicationConfig ObjectMapper 사용 (JavaTimeModule 등록, WRITE_DATES_AS_TIMESTAMPS=false)
-     * - Consumer와 동일한 ObjectMapper 사용으로 ISO-8601 문자열 형식 일관성 보장
-     * - 타입 정보 제거 (addTypeInfo=false)로 메시지 크기 최적화
-     */
+    
     @Bean
     public ProducerFactory<String, Object> producerFactory(ObjectMapper objectMapper) {
         Map<String, Object> props = new HashMap<>(producerConfigs());
@@ -111,20 +93,13 @@ public class KafkaConfiguration {
         return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), serializer);
     }
 
-    /**
-     * Kafka Template for sending messages
-     *
-     * AI Native v14.2: ProducerFactory Bean 주입으로 ISO-8601 직렬화 일관성 보장
-     */
+    
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
         return new KafkaTemplate<>(producerFactory);
     }
 
-    /**
-     * 기본 Kafka Listener Container Factory
-     * 단일 메시지 처리용
-     */
+    
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = 
@@ -133,53 +108,40 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(consumerFactory());
         factory.setConcurrency(concurrency);
 
-        // 수동 즉시 커밋 모드로 변경 (MANUAL은 비동기 커밋이라 메시지가 남을 수 있음)
-        // MANUAL_IMMEDIATE: acknowledge() 호출 시 즉시 동기 커밋 → 메시지 확실히 삭제
+        
+        
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
-        // 에러 핸들러 설정 (3회 재시도, 1초 간격)
+        
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(1000L, 3));
         factory.setCommonErrorHandler(errorHandler);
 
         return factory;
     }
 
-    /**
-     * 배치 처리용 Kafka Listener Container Factory
-     * 보안 이벤트 배치 처리용 (BlockingQueue 대체)
-     *
-     * AI Native 비동기 구조 최적화 (Phase 1):
-     * - 기존 BlockingQueue(10개, 100ms) 배치 처리를 Kafka Batch Listener로 대체
-     * - max-poll-records: 10 (기존 배치 크기 유지)
-     * - fetch-min-bytes: 1 (즉시 처리 - 최소 1바이트)
-     * - fetch-max-wait: 100ms (기존 타임아웃 유지)
-     *
-     * MANUAL_IMMEDIATE ACK 모드:
-     * - acknowledge() 호출 시 즉시 동기 커밋
-     * - 메시지 손실 방지 (배치 전체 처리 후 ACK)
-     */
+    
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> batchKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
 
-        // 배치 리스너 활성화
+        
         factory.setBatchListener(true);
         factory.setConcurrency(concurrency);
 
-        // 배치 처리 설정 - MANUAL_IMMEDIATE로 즉시 동기 커밋
+        
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.getContainerProperties().setPollTimeout(3000);
 
-        // 에러 핸들러 설정 (배치 처리 실패시 3회 재시도, 2초 간격)
+        
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(2000L, 3));
         factory.setCommonErrorHandler(errorHandler);
 
-        // 배치 처리 Consumer 설정 (BlockingQueue 대체)
+        
         Map<String, Object> props = new HashMap<>(consumerConfigs());
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);       // 기존 배치 크기 유지
-        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1);         // 즉시 처리 (최소 1바이트)
-        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 100);     // 기존 타임아웃 유지 (100ms)
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);       
+        props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1);         
+        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 100);     
 
         ConsumerFactory<String, String> batchConsumerFactory =
             new DefaultKafkaConsumerFactory<>(props);
@@ -188,10 +150,7 @@ public class KafkaConfiguration {
         return factory;
     }
 
-    /**
-     * JSON 메시지용 Kafka Listener Container Factory
-     * JSON 형식의 보안 이벤트 처리용
-     */
+    
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> jsonKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
@@ -206,7 +165,7 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(jsonConsumerFactory);
         factory.setConcurrency(concurrency);
 
-        // JSON 메시지도 MANUAL_IMMEDIATE로 즉시 동기 커밋
+        
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         return factory;

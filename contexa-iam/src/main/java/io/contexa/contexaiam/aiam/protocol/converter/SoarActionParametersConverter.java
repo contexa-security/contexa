@@ -23,7 +23,7 @@ public class SoarActionParametersConverter implements AttributeConverter<Map<Str
             return objectMapper.writeValueAsString(attribute);
         } catch (JsonProcessingException e) {
             log.error("Error converting map to JSON string", e);
-            return null; // 또는 예외를 다시 던질 수 있습니다.
+            return null; 
         }
     }
 
@@ -36,11 +36,11 @@ public class SoarActionParametersConverter implements AttributeConverter<Map<Str
             return objectMapper.readValue(dbData, Map.class);
         } catch (JsonProcessingException e) {
             log.error("Error converting JSON string to map", e);
-            return null; // 또는 예외를 다시 던질 수 있습니다.
+            return null; 
         }
     }
 
-    // SoarAction에서 직접 호출할 수 있도록 static 헬퍼 메서드 추가
+    
     public static String toJson(Map<String, Object> map) {
         if (map == null) {
             return null;

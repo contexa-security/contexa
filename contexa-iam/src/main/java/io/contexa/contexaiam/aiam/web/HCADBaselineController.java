@@ -17,43 +17,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * HCAD BaselineVector 조회 API
- *
- * 실제 요청 기반 테스트를 위한 Baseline 실시간 조회 엔드포인트
- *
- * @author contexa
- * @since 3.0.0
- */
+
 @RequestMapping("/api/hcad")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Slf4j
 public class HCADBaselineController {
 
-    // AI Native: HCADBaselineCacheService 제거 (삭제된 Hot Path 서비스)
+    
     private final RedisTemplate<String, Object> redisTemplate;
     private final HCADContextExtractor hcadContextExtractor;
 
-    // Redis 키 직접 정의 (HCADRedisKeys 제거)
+    
     private static final String BASELINE_VECTOR_KEY_PREFIX = "security:baseline:vector:";
 
-    /**
-     * 현재 요청의 실제 사용자 ID 반환
-     *
-     * 익명 사용자는 "anonymous:{IP}" 형식으로 반환
-     * 인증 사용자는 실제 username 반환
-     *
-     * @param request HTTP 요청
-     * @param authentication 인증 정보
-     * @return 사용자 ID 정보
-     */
+    
     @GetMapping("/current-user")
     public ResponseEntity<Map<String, String>> getCurrentUser(
             HttpServletRequest request,
             Authentication authentication) {
         try {
-            // HCADContextExtractor를 사용하여 서버와 동일한 로직으로 userId 생성
+            
             HCADContext context = hcadContextExtractor.extractContext(request, authentication);
             String userId = context.getUserId();
 
@@ -77,16 +61,11 @@ public class HCADBaselineController {
         }
     }
 
-    /**
-     * 사용자별 BaselineVector 조회
-     *
-     * @param userId 사용자 ID
-     * @return BaselineVector 정보
-     */
+    
     @GetMapping("/baseline/{userId}")
     public ResponseEntity<Map<String, Object>> getBaseline(@PathVariable String userId) {
         try {
-            // AI Native: HCADRedisKeys 대신 직접 키 생성
+            
             String key = BASELINE_VECTOR_KEY_PREFIX + userId;
             Object value = redisTemplate.opsForValue().get(key);
 
@@ -99,7 +78,7 @@ public class HCADBaselineController {
                 response.put("lastUpdated", baseline.getLastUpdated());
                 response.put("avgRequestCount", baseline.getAvgRequestCount());
                 response.put("avgTrustScore", baseline.getAvgTrustScore());
-                // AI Native v3.1: LLM 분석에 필요한 필드 추가
+                
                 response.put("normalIpRanges", baseline.getNormalIpRanges());
                 response.put("normalAccessHours", baseline.getNormalAccessHours());
                 response.put("frequentPaths", baseline.getFrequentPaths());
@@ -127,11 +106,7 @@ public class HCADBaselineController {
         }
     }
 
-    /**
-     * 모든 사용자 BaselineVector 목록 조회
-     *
-     * @return BaselineVector 목록
-     */
+    
     @GetMapping("/baseline/all")
     public ResponseEntity<List<Map<String, Object>>> getAllBaselines() {
         try {
@@ -164,11 +139,7 @@ public class HCADBaselineController {
         }
     }
 
-    /**
-     * Redis BaselineVector 키 목록 조회
-     *
-     * @return Redis 키 목록
-     */
+    
     @GetMapping("/baseline/keys")
     public ResponseEntity<Map<String, Object>> getBaselineKeys() {
         try {
@@ -189,7 +160,7 @@ public class HCADBaselineController {
         }
     }
 
-    // AI Native v3.1: calculateVectorNorm() 메서드 삭제
-    // - vector 필드 삭제됨 (LLM 분석에 불필요)
-    // - vectorNorm은 관리자 UI에서 표시하지 않음
+    
+    
+    
 }

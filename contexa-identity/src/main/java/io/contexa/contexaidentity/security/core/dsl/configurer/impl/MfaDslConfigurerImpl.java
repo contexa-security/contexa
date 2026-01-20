@@ -50,10 +50,10 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private MfaAsepAttributes mfaAsepAttributes;
     private MfaPageConfig mfaPageConfig;
 
-    // ⭐ MFA AuthenticationEntryPoint (Spring Security 패턴)
+    
     private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
 
-    private final String mfaFlowTypeName = AuthType.MFA.name().toLowerCase(); // MFA 플로우 식별용 이름
+    private final String mfaFlowTypeName = AuthType.MFA.name().toLowerCase(); 
 
     public MfaDslConfigurerImpl(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null");
@@ -85,17 +85,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         throw new UnsupportedOperationException("Use .primaryAuthentication(primary -> primary.restLogin(...)) for MFA flow's primary auth.");
     }
 
-    /*@Override
-    public MfaDslConfigurerImpl<H> form(Customizer<FormDslConfigurer> formConfigurerCustomizer) {
-        this.primaryAuthConfigurer.formLogin(formConfigurerCustomizer);
-        return this;
-    }
-
-    @Override
-    public MfaDslConfigurerImpl<H> rest(Customizer<RestDslConfigurer> restConfigurerCustomizer) {
-        this.primaryAuthConfigurer.restLogin(restConfigurerCustomizer);
-        return this;
-    }*/
+    
 
     private <O_FACTOR extends AuthenticationProcessingOptions,
             A_FACTOR extends BaseAsepAttributes,
@@ -175,9 +165,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         return this;
     }
 
-    /**
-     * MfaPageConfig 조회 (SecurityPlatformConfiguration에서 사용)
-     */
+    
     public MfaPageConfig getMfaPageConfig() {
         return this.mfaPageConfig;
     }
@@ -193,19 +181,19 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                     primaryAuthOptionsForFlow.getFormOptions() : primaryAuthOptionsForFlow.getRestOptions();
             AuthType primaryAuthType = primaryAuthOptionsForFlow.isFormLogin() ? AuthType.MFA_FORM : AuthType.MFA_REST;
 
-            // 기존 order 0 스텝 제거 (중복 방지)
+            
             configuredSteps.removeIf(s -> s.getOrder() == 0);
 
-            // 1차 인증 스텝 생성 및 configuredSteps 리스트의 맨 앞에 추가
+            
             AuthenticationStepConfig primaryAuthStep = new AuthenticationStepConfig(this.mfaFlowTypeName, primaryAuthType.name(), 0, true);
             primaryAuthStep.getOptions().put("_options", primaryConcreteOptions);
             configuredSteps.addFirst(primaryAuthStep);
             log.debug("MFA Flow [{}]: Added primary authentication step (id='{}', type: {}) from primaryAuthentication() DSL.",
                     this.mfaFlowTypeName, primaryAuthStep.getStepId(), primaryAuthType);
         } else {
-            // primaryAuthentication() DSL이 호출되지 않은 경우, 첫번째로 추가된 step (order 0)이 1차 인증으로 간주되어야 함.
-            // 또는, primaryAuthentication()을 필수로 만들 수 있음.
-            // 여기서는 configuredSteps의 첫번째가 1차 인증이라고 가정 (만약 있다면).
+            
+            
+            
             if (configuredSteps.isEmpty() || configuredSteps.getFirst().getOrder() != 0) {
                 throw new DslConfigurationException("MFA flow [" + this.mfaFlowTypeName + "] must have a primary authentication step (order 0) or use .primaryAuthentication() DSL.");
             }
@@ -231,12 +219,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         if (primaryAuthOptionsForFlow == null) {
             Object firstStepRawOptions = firstConfiguredStep.getOptions().get("_options");
             if (firstStepRawOptions instanceof FormOptions fo) {
-                // ⭐ FormOptions에서 loginPage, failureUrl도 추출
+                
                 primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder()
                     .formOptions(fo)
                     .loginProcessingUrl(fo.getLoginProcessingUrl())
-                    .loginPage(fo.getLoginPage())           // 추가
-                    .failureUrl(fo.getFailureUrl())         // 추가
+                    .loginPage(fo.getLoginPage())           
+                    .failureUrl(fo.getFailureUrl())         
                     .build();
             } else if (firstStepRawOptions instanceof RestOptions ro) {
                 primaryAuthOptionsForFlow = PrimaryAuthenticationOptions.builder()
@@ -249,7 +237,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             }
         }
 
-        // ⭐ primaryAuthOptionsForFlow NULL 체크 (EntryPoint 생성 전 필수)
+        
         Assert.notNull(primaryAuthOptionsForFlow,
             "PrimaryAuthenticationOptions must not be null for MFA flow [" + this.mfaFlowTypeName + "]. " +
             "Either configure .primaryAuthentication() DSL or ensure the first step (order=0) has valid FormOptions or RestOptions.");
@@ -258,7 +246,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         for (int i = 1; i < configuredSteps.size(); i++) {
             AuthenticationStepConfig step = configuredSteps.get(i);
             Object stepOptionsObject = step.getOptions().get("_options");
-            if (!(stepOptionsObject instanceof AuthenticationProcessingOptions factorOption)) { // 패턴 변수 바인딩
+            if (!(stepOptionsObject instanceof AuthenticationProcessingOptions factorOption)) { 
                 throw new DslConfigurationException("Options for MFA factor step '" + step.getType() +
                         "' are not of type AuthenticationProcessingOptions. Actual: " + (stepOptionsObject != null ? stepOptionsObject.getClass().getName() : "null"));
             }
@@ -288,19 +276,11 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .build();
     }
 
-    /**
-     * MfaAuthenticationEntryPoint 생성
-     *
-     * Spring Security의 AbstractAuthenticationFilterConfigurer 패턴을 따릅니다.
-     * PrimaryAuthenticationOptions에서 loginPage를 추출하여 EntryPoint를 생성합니다.
-     *
-     * @param primaryAuthOptions 1차 인증 옵션 (Form 또는 REST)
-     * @return 생성된 MfaAuthenticationEntryPoint
-     */
+    
     private MfaAuthenticationEntryPoint createMfaAuthenticationEntryPoint(PrimaryAuthenticationOptions primaryAuthOptions) {
         Assert.notNull(primaryAuthOptions, "PrimaryAuthenticationOptions cannot be null for creating MfaAuthenticationEntryPoint");
 
-        // PrimaryAuthenticationOptions에서 loginPage 가져오기
+        
         String loginPageUrl = primaryAuthOptions.getLoginPage();
 
         if (!StringUtils.hasText(loginPageUrl)) {
@@ -308,7 +288,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             log.warn("loginPage not configured in PrimaryAuthenticationOptions. Using default: /loginForm");
         }
 
-        // ObjectMapper는 ApplicationContext에서 가져오기
+        
         ObjectMapper objectMapper;
         try {
             objectMapper = this.applicationContext.getBean(ObjectMapper.class);

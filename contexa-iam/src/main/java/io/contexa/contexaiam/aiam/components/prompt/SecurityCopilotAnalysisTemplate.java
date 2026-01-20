@@ -9,23 +9,7 @@ import io.contexa.contexaiam.aiam.protocol.response.SecurityCopilotResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-/**
- * SecurityCopilot 포괄적 보안 분석 프롬프트 템플릿
- * 
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환
- * - 표준화된 포맷 지시
- * - 성능 최적화
- *
- * Spring AI 공식 패턴 준수
- * 
- * 통합 보안 분석:
- * - 다중 Lab 결과 통합 분석
- * - 보안 점수 계산 및 위험도 평가
- * - 종합 권장사항 생성
- * - 컴플라이언스 평가
- */
+
 @Slf4j
 @PromptTemplateConfig(
         key = "securityCopilotAnalysis",
@@ -34,7 +18,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
 )
 public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성
+    
     private final BeanOutputConverter<SecurityCopilotResponse> converter = 
         new BeanOutputConverter<>(SecurityCopilotResponse.class);
 
@@ -42,7 +26,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         log.debug("SecurityCopilot 분석 시스템 프롬프트 생성 시작");
         
-        // Spring AI의 포맷 지시사항 자동 생성
+        
         String formatInstructions = converter.getFormat();
 
         return String.format("""
@@ -242,21 +226,19 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         log.debug("SecurityCopilot 분석 사용자 프롬프트 생성 시작");
 
-        // 보안 질의 추출
+        
         String securityQuery = extractSecurityQuery(request);
         
-        // Lab 결과 정보 추출
+        
         String labResultsInfo = extractLabResultsInfo(request);
         
-        // 분석 범위 정보 추출
+        
         String analysisScope = extractAnalysisScope(request);
 
         return buildAnalysisUserPrompt(securityQuery, labResultsInfo, analysisScope, contextInfo);
     }
 
-    /**
-     * 보안 분석 사용자 프롬프트 구성
-     */
+    
     private String buildAnalysisUserPrompt(String securityQuery, String labResultsInfo, 
                                          String analysisScope, String contextInfo) {
         String analysisRequest =  String.format("""
@@ -356,22 +338,20 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
             labResultsInfo, 
             contextInfo);
         
-        // BeanOutputConverter의 포맷 지시사항을 다시 추가 (강조)
+        
         return analysisRequest + "\n\n" + converter.getFormat();
     }
 
-    /**
-     * 요청에서 보안 질의 추출
-     */
+    
     private String extractSecurityQuery(AIRequest<? extends DomainContext> request) {
-        // SecurityCopilotRequest에서 securityQuery 추출
+        
         String securityQuery = request.getParameter("securityQuery", String.class);
         
         if (securityQuery != null && !securityQuery.trim().isEmpty()) {
             return securityQuery;
         }
         
-        // 컨텍스트에서 추출 시도
+        
         if (request.getContext() instanceof SecurityCopilotContext) {
             SecurityCopilotContext context = (SecurityCopilotContext) request.getContext();
             return context.getSecurityQuery();
@@ -380,13 +360,11 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         return "포괄적 보안 분석 요청";
     }
 
-    /**
-     * Lab 결과 정보 추출
-     */
+    
     private String extractLabResultsInfo(AIRequest<? extends DomainContext> request) {
         StringBuilder labResults = new StringBuilder();
         
-        // Lab 협업 정보 추출
+        
         Boolean labCollaborationEnabled = request.getParameter("labCollaborationEnabled", Boolean.class);
         Integer labResultsCount = request.getParameter("labResultsCount", Integer.class);
         String labAnalysisId = request.getParameter("labAnalysisId", String.class);
@@ -408,7 +386,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
                 hasResults = true;
                 labResults.append(labIcons[i]).append(" ").append(labNames[i]).append(" Lab:\n");
                 
-                // 결과 길이 제한 (너무 긴 결과는 요약)
+                
                 String resultStr = labResult.toString();
                 if (resultStr.length() > 500) {
                     labResults.append("   ").append(resultStr.substring(0, 500)).append("...\n");
@@ -419,7 +397,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
             }
         }
         
-        // 오류 정보 추출
+        
         Object labErrors = request.getParameter("labErrors", Object.class);
         if (labErrors != null) {
             labResults.append("Lab 오류 정보:\n");
@@ -430,7 +408,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
             labResults.append("Lab 결과가 제공되지 않았습니다.\n");
         }
         
-        // 처리 모드 및 메타데이터 추가
+        
         String processingMode = request.getParameter("processingMode", String.class);
         String dataSource = request.getParameter("dataSource", String.class);
         String analysisType = request.getParameter("analysisType", String.class);
@@ -443,9 +421,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         return labResults.toString();
     }
 
-    /**
-     * 분석 범위 정보 추출
-     */
+    
     private String extractAnalysisScope(AIRequest<? extends DomainContext> request) {
         String analysisScope = request.getParameter("analysisScope", String.class);
         
@@ -453,7 +429,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
             return analysisScope;
         }
         
-        // 컨텍스트에서 추출 시도
+        
         if (request.getContext() instanceof SecurityCopilotContext) {
             SecurityCopilotContext context = (SecurityCopilotContext) request.getContext();
             return context.getAnalysisScope();
@@ -462,9 +438,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         return "COMPREHENSIVE";
     }
     
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     */
+    
     public BeanOutputConverter<SecurityCopilotResponse> getConverter() {
         return converter;
     }

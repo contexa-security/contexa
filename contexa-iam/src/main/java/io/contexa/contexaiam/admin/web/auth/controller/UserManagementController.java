@@ -31,7 +31,7 @@ public class UserManagementController {
 		return "admin/users";
 	}
 
-	// 새 사용자 등록 폼
+	
 	@GetMapping("/new")
 	public String showCreateForm(Model model) {
 		UserDto userDto = new UserDto();
@@ -46,7 +46,7 @@ public class UserManagementController {
 		return "admin/userdetails";
 	}
 
-	// 사용자 수정 폼
+	
 	@GetMapping("/{id}")
 	public String getUser(@PathVariable Long id, Model model) {
 		UserDto userDto = userManagementService.getUser(id);
@@ -66,7 +66,7 @@ public class UserManagementController {
 		return "admin/userdetails";
 	}
 
-	// 사용자 수정 처리 - PUT 메서드 지원
+	
 	@PutMapping("/{id}")
 	public String updateUser(@PathVariable Long id,
 							 @ModelAttribute("user") UserDto userDto,
@@ -86,7 +86,7 @@ public class UserManagementController {
 		return "redirect:/admin/users";
 	}
 
-	// POST 메서드로도 수정 처리 (HTML form 호환성)
+	
 	@PostMapping("/{id}")
 	public String updateUserPost(@PathVariable Long id,
 								 @ModelAttribute("user") UserDto userDto,
@@ -95,7 +95,7 @@ public class UserManagementController {
 		return updateUser(id, userDto, selectedGroupIds, ra);
 	}
 
-	// 사용자 삭제
+	
 	@DeleteMapping("/{id}")
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
@@ -109,7 +109,7 @@ public class UserManagementController {
 		return "redirect:/admin/users";
 	}
 
-	// GET 메서드로도 삭제 처리 (링크 호환성)
+	
 	@GetMapping("/delete/{id}")
 	public String removeUserGet(@PathVariable Long id, RedirectAttributes ra) {
 		return removeUser(id, ra);

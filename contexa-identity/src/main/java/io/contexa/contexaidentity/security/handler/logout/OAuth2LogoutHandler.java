@@ -19,13 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * OAuth2 기반 LogoutHandler
- * - Refresh Token 무효화 및 블랙리스트 추가
- * - SecurityContext 초기화
- * - 쿠키 삭제
- * - JSON 응답 작성
- */
+
 public class OAuth2LogoutHandler implements LogoutHandler {
 
     private static final Logger log = LoggerFactory.getLogger(OAuth2LogoutHandler.class);
@@ -42,13 +36,13 @@ public class OAuth2LogoutHandler implements LogoutHandler {
         String refreshToken = tokenService.resolveRefreshToken(request);
         String username = (authentication != null) ? authentication.getName() : "UNKNOWN_USER_LOGOUT";
         boolean errorOccurred = false;
-        String errorMessage = "로그아웃 처리 중 오류 발생"; // 기본 오류 메시지
+        String errorMessage = "로그아웃 처리 중 오류 발생"; 
 
         try {
             if (refreshToken != null) {
                 log.debug("Attempting to invalidate and blacklist refresh token for user: {}", username);
-                tokenService.invalidateRefreshToken(refreshToken); // 저장소에서 제거
-                tokenService.blacklistRefreshToken(refreshToken, username, TokenInfo.REASON_LOGOUT); // 블랙리스트 추가
+                tokenService.invalidateRefreshToken(refreshToken); 
+                tokenService.blacklistRefreshToken(refreshToken, username, TokenInfo.REASON_LOGOUT); 
                 log.info("Successfully invalidated and blacklisted refresh token for user: {}", username);
             } else {
                 log.debug("No refresh token found in request for user: {}. Assuming already logged out or token not used.", username);
@@ -57,7 +51,7 @@ public class OAuth2LogoutHandler implements LogoutHandler {
             log.warn("AuthenticationException during logout for user {}: {}", username, ex.getMessage());
             errorOccurred = true;
             errorMessage = "로그아웃 중 인증 오류 발생: " + ex.getMessage();
-            // SecurityContextHolder.clearContext()는 finally에서 처리
+            
         } catch (Exception ex) {
             log.error("Unexpected error during refresh token invalidation/blacklisting for user {}: {}", username, ex.getMessage(), ex);
             errorOccurred = true;
@@ -83,7 +77,7 @@ public class OAuth2LogoutHandler implements LogoutHandler {
                             successBody.put("message", "성공적으로 로그아웃되었습니다.");
                         }
                         successBody.put("status", "LOGGED_OUT");
-                        successBody.put("redirectUrl", "/loginForm"); // 예시
+                        successBody.put("redirectUrl", "/loginForm"); 
                         responseWriter.writeSuccessResponse(response, successBody, HttpServletResponse.SC_OK);
                     }
                 } catch (IOException e) {

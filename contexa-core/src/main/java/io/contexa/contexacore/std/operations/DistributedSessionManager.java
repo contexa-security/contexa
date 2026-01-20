@@ -15,10 +15,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 분산 세션 관리를 담당하는 전용 서비스
- * 마스터 브레인의 지휘 하에 세션 생명주기를 관리
- */
+
 @Slf4j
 public class DistributedSessionManager<T extends DomainContext> {
     
@@ -33,20 +30,18 @@ public class DistributedSessionManager<T extends DomainContext> {
         this.auditLogger = auditLogger;
     }
     
-    /**
-     * 분산 전략 세션 생성
-     */
+    
     public String createDistributedStrategySession(AIRequest<T> request, String strategyId) {
         try {
             String sessionId = UUID.randomUUID().toString();
             
-            // 세션 상태 초기화
+            
             Map<String, Object> initialContext = prepareStrategyContext(request, strategyId);
             
-            // Redis에 세션 저장 (실제 구현 시 sessionRepository 메서드 사용)
+            
             log.info("Creating distributed strategy session: {} for strategy: {}", sessionId, strategyId);
             
-            // 분산 이벤트 발행
+            
             publishSessionCreationEvent(sessionId, strategyId, request);
             
             return sessionId;
@@ -57,9 +52,7 @@ public class DistributedSessionManager<T extends DomainContext> {
         }
     }
     
-    /**
-     * 분산 실행 완료 처리
-     */
+    
     public <R extends AIResponse> void completeDistributedExecution(String sessionId, String auditId,
                                                                      AIRequest<T> request, R result,
                                                                     boolean success) {
@@ -78,7 +71,7 @@ public class DistributedSessionManager<T extends DomainContext> {
             
             updateSessionState(sessionId, "COMPLETED", completionData);
             
-            // 실행 메트릭 저장
+            
             AIExecutionMetrics metrics = createExecutionMetrics(sessionId, success);
             saveExecutionMetrics(sessionId, metrics);
             publishExecutionCompletionEvent(sessionId, request, success);
@@ -90,13 +83,11 @@ public class DistributedSessionManager<T extends DomainContext> {
         }
     }
     
-    /**
-     * 분산 실행 실패 처리
-     */
+    
     public void handleDistributedExecutionFailure(String sessionId, AIRequest<T> request,
                                                  Exception error, String strategyId) {
         try {
-            // 세션 상태를 FAILED로 변경
+            
             Map<String, Object> failureData = Map.of(
                 "error", error.getMessage(),
                 "failureTime", System.currentTimeMillis(),
@@ -105,7 +96,7 @@ public class DistributedSessionManager<T extends DomainContext> {
             
             updateSessionState(sessionId, "FAILED", failureData);
             
-            // 실패 이벤트 발행
+            
             publishExecutionFailureEvent(sessionId, request, error);
             
             log.error("Distributed execution failed for session: {} with error: {}", sessionId, error.getMessage());
@@ -115,15 +106,13 @@ public class DistributedSessionManager<T extends DomainContext> {
         }
     }
     
-    /**
-     * 분산 실행 정리
-     */
+    
     public void cleanupDistributedExecution(String strategyId, String sessionId, String lockKey, String nodeId) {
         try {
-            // 활성 세션에서 제거
+            
             activeStrategySessions.remove(strategyId);
             
-            // 정리 이벤트 발행
+            
             publishCleanupEvent(strategyId, sessionId);
             
             log.info("🧹 Distributed execution cleanup completed for strategy: {} session: {}", strategyId, sessionId);
@@ -133,20 +122,18 @@ public class DistributedSessionManager<T extends DomainContext> {
         }
     }
     
-    /**
-     * 비활성 세션 정리
-     */
+    
     public CleanupResult cleanupInactiveSessions(Duration inactiveThreshold) {
         try {
             List<String> cleanedSessions = new ArrayList<>();
             List<String> failedCleanups = new ArrayList<>();
             
-            // 실제 구현에서는 sessionRepository를 통해 비활성 세션 조회
+            
             Set<String> inactiveSessions = getInactiveSessions(inactiveThreshold);
             
             for (String sessionId : inactiveSessions) {
                 try {
-                    // 세션 정리 로직
+                    
                     cleanupSession(sessionId);
                     cleanedSessions.add(sessionId);
                     
@@ -156,7 +143,7 @@ public class DistributedSessionManager<T extends DomainContext> {
                 }
             }
             
-            // 정리 결과 이벤트 발행
+            
             publishCleanupResultEvent(cleanedSessions, failedCleanups);
             
             return new CleanupResult(cleanedSessions, failedCleanups, System.currentTimeMillis());
@@ -170,10 +157,10 @@ public class DistributedSessionManager<T extends DomainContext> {
 
     private void updateSessionState(String sessionId, String phase, Map<String, Object> phaseData) {
         try {
-            // 실제 구현에서는 sessionRepository.updateExecutionPhase 사용
+            
             log.debug("Updating session {} to phase: {}", sessionId, phase);
 
-            // 분산 이벤트 발행
+            
             eventPublisher.publishEvent("ai:strategy:phase:updated", Map.of(
                 "sessionId", sessionId,
                 "phase", phase,
@@ -196,13 +183,13 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
     
     private AIExecutionMetrics createExecutionMetrics(String sessionId, boolean success) {
-        // 실제 구현에서는 AIExecutionMetrics.builder() 사용
+        
         return new AIExecutionMetrics(sessionId, getNodeId(), System.currentTimeMillis(), success);
     }
     
     private void saveExecutionMetrics(String sessionId, AIExecutionMetrics metrics) {
         try {
-            // 실제 구현에서는 sessionRepository를 통해 메트릭 저장
+            
             log.debug("Saving execution metrics for session: {}", sessionId);
         } catch (Exception e) {
             log.warn("Failed to save execution metrics for session: {}", sessionId, e);
@@ -210,12 +197,12 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
     
     private Set<String> getInactiveSessions(Duration inactiveThreshold) {
-        // 실제 구현에서는 sessionRepository를 통해 비활성 세션 조회
+        
         return Set.of();
     }
     
     private void cleanupSession(String sessionId) {
-        // 실제 세션 정리 로직
+        
         log.debug("🧹 Cleaning up session: {}", sessionId);
     }
     
@@ -223,7 +210,7 @@ public class DistributedSessionManager<T extends DomainContext> {
         return System.getProperty("node.id", "node-" + UUID.randomUUID().toString().substring(0, 8));
     }
     
-    // ==================== Event Publishing Methods ====================
+    
     
     private void publishSessionCreationEvent(String sessionId, String strategyId, AIRequest<T> request) {
         eventPublisher.publishEvent("ai:strategy:session:created", Map.of(
@@ -270,9 +257,7 @@ public class DistributedSessionManager<T extends DomainContext> {
         ));
     }
     
-    /**
-     * 임시 AIExecutionMetrics 클래스 (실제 구현에서는 별도 파일로 분리)
-     */
+    
     public static class AIExecutionMetrics {
         private final String sessionId;
         private final String nodeId;
@@ -286,7 +271,7 @@ public class DistributedSessionManager<T extends DomainContext> {
             this.success = success;
         }
         
-        // getters
+        
         public String getSessionId() { return sessionId; }
         public String getNodeId() { return nodeId; }
         public long getExecutionTime() { return executionTime; }

@@ -12,16 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * 동적 파이프라인 구성 빌더
- *
- * 요청 특성에 따라 파이프라인 단계를 동적으로 선택하고 재구성합니다.
- *
- * 주요 기능:
- * - 조건부 단계 추가 (복잡도 기반, 속도 기반 등)
- * - 커스텀 단계 삽입 (특정 위치에 동적 삽입)
- * - 단계 실행 순서 자동 정렬
- */
+
 @Slf4j
 public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
 
@@ -35,13 +26,7 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         this.stepRegistry = stepRegistry;
     }
 
-    /**
-     * 표준 단계 추가 (기본 순서 사용)
-     *
-     * @param step 파이프라인 단계
-     * @param condition 실행 조건
-     * @return Builder
-     */
+    
     public DynamicPipelineConfigurationBuilder<T> addStandardStep(
             PipelineStep step,
             PipelineStepCondition<T> condition) {
@@ -54,30 +39,18 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         return this;
     }
 
-    /**
-     * 표준 단계 추가 (항상 실행)
-     *
-     * @param step 파이프라인 단계
-     * @return Builder
-     */
+    
     public DynamicPipelineConfigurationBuilder<T> addStandardStep(PipelineStep step) {
         return addStandardStep(step, new AlwaysExecuteCondition<>());
     }
 
-    /**
-     * 커스텀 단계 추가
-     *
-     * @param customStepName 커스텀 단계 이름
-     * @param order 실행 순서 (0~100, 낮을수록 먼저 실행)
-     * @param condition 실행 조건
-     * @return Builder
-     */
+    
     public DynamicPipelineConfigurationBuilder<T> addCustomStep(
             String customStepName,
             int order,
             PipelineStepCondition<T> condition) {
 
-        // 레지스트리에서 커스텀 단계 조회
+        
         Optional<io.contexa.contexacore.std.pipeline.step.PipelineStep> stepOpt =
                 stepRegistry.getCustomStep(customStepName);
 
@@ -94,56 +67,38 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         return this;
     }
 
-    /**
-     * 특정 표준 단계 이전에 커스텀 단계 삽입
-     *
-     * @param existingStep 기존 표준 단계
-     * @param customStepName 삽입할 커스텀 단계 이름
-     * @param condition 실행 조건
-     * @return Builder
-     */
+    
     public DynamicPipelineConfigurationBuilder<T> insertCustomStepBefore(
             PipelineStep existingStep,
             String customStepName,
             PipelineStepCondition<T> condition) {
 
         int existingOrder = getStandardStepOrder(existingStep);
-        int insertOrder = existingOrder - 1; // 바로 앞에 삽입
+        int insertOrder = existingOrder - 1; 
 
         return addCustomStep(customStepName, insertOrder, condition);
     }
 
-    /**
-     * 특정 표준 단계 이후에 커스텀 단계 삽입
-     *
-     * @param existingStep 기존 표준 단계
-     * @param customStepName 삽입할 커스텀 단계 이름
-     * @param condition 실행 조건
-     * @return Builder
-     */
+    
     public DynamicPipelineConfigurationBuilder<T> insertCustomStepAfter(
             PipelineStep existingStep,
             String customStepName,
             PipelineStepCondition<T> condition) {
 
         int existingOrder = getStandardStepOrder(existingStep);
-        int insertOrder = existingOrder + 1; // 바로 뒤에 삽입
+        int insertOrder = existingOrder + 1; 
 
         return addCustomStep(customStepName, insertOrder, condition);
     }
 
-    /**
-     * 파이프라인 구성 빌드
-     *
-     * @return 완성된 파이프라인 구성
-     */
+    
     public PipelineConfiguration<T> build() {
-        // 순서대로 정렬
+        
         orderedSteps.sort(Comparator.comparingInt(StepWithOrder::getOrder));
 
         PipelineConfiguration.Builder<T> builder = PipelineConfiguration.builder();
 
-        // 표준 단계 및 커스텀 단계 추가
+        
         for (StepWithOrder stepWithOrder : orderedSteps) {
             if (stepWithOrder.isStandardStep()) {
                 PipelineStep step = stepWithOrder.getStandardStep();
@@ -167,9 +122,7 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         return builder.build();
     }
 
-    /**
-     * 표준 단계의 기본 순서 반환
-     */
+    
     private int getStandardStepOrder(PipelineStep step) {
         switch (step) {
             case PREPROCESSING:
@@ -187,13 +140,11 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
             case POSTPROCESSING:
                 return 70;
             default:
-                return 50; // 기본값
+                return 50; 
         }
     }
 
-    /**
-     * 내부 클래스: 순서를 가진 단계
-     */
+    
     private static class StepWithOrder {
         private final PipelineStep standardStep;
         private final String customStepName;

@@ -19,9 +19,7 @@ public class WebUtil {
                 || uri.startsWith("/api/");
     }
 
-    /**
-     * JSON 오류 응답 헬퍼
-     */
+    
     public static void writeError(HttpServletResponse res, int status, String code, String message) throws IOException {
         res.setStatus(status);
         res.setContentType("application/json");

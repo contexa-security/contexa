@@ -7,17 +7,7 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 
-/**
- * 최적화된 실시간 위험 평가 템플릿
- *
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환
- * - 표준화된 포맷 지시
- * - 성능 최적화 (5-10초 목표)
- *
- * Spring AI 공식 패턴 준수
- */
+
 @PromptTemplateConfig(
         key = "riskAssessment",
         aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessment"},
@@ -25,7 +15,7 @@ import org.springframework.stereotype.Component;
 )
 public class RiskAssessmentTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성 - TrustAssessment만 생성
+    
     private final BeanOutputConverter<TrustAssessment> converter = new BeanOutputConverter<>(TrustAssessment.class);
 
     @Override
@@ -41,11 +31,9 @@ public class RiskAssessmentTemplate implements PromptTemplate {
         throw new IllegalArgumentException("Unsupported context type: " + request.getContext().getClass());
     }
 
-    /**
-     * ⚡ Spring AI BeanOutputConverter를 활용한 시스템 프롬프트
-     */
+    
     private String buildSystemPrompt(String systemMetadata) {
-        // Spring AI의 포맷 지시사항 자동 생성
+        
         String formatInstructions = converter.getFormat();
         
         return String.format("""
@@ -76,11 +64,9 @@ public class RiskAssessmentTemplate implements PromptTemplate {
             """, formatInstructions, systemMetadata != null ? systemMetadata : "");
     }
 
-    /**
-     * ⚡ 구조화된 사용자 프롬프트 (Spring AI 표준)
-     */
+    
     private String buildUserPrompt(RiskAssessmentContext ctx, AIRequest<? extends DomainContext> request, String contextInfo) {
-        // TrustAssessment 객체에 맞는 JSON 형식으로 응답하도록 요청
+        
         String assessmentRequest = String.format("""
                 Assess the following access request and provide risk assessment:
                 
@@ -115,29 +101,21 @@ public class RiskAssessmentTemplate implements PromptTemplate {
                     contextInfo.substring(0, 200) + "..." : contextInfo)
         );
         
-        // BeanOutputConverter의 포맷 지시사항을 다시 추가 (강조)
+        
         return assessmentRequest + "\n\n" + converter.getFormat();
     }
     
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     * TrustAssessment만 반환하도록 변경
-     */
+    
     public BeanOutputConverter<TrustAssessment> getConverter() {
         return converter;
     }
     
-    /**
-     * 템플릿 키 반환 (PostProcessor가 사용)
-     */
+    
     public String getTemplateKey() {
         return "riskAssessment";
     }
     
-    /**
-     * AI가 실제로 생성할 타입 반환
-     * RiskAssessmentResponse가 아닌 TrustAssessment를 생성
-     */
+    
     @Override
     public Class<?> getAIGenerationType() {
         return TrustAssessment.class;

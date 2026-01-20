@@ -6,12 +6,7 @@ import lombok.*;
 
 import java.util.Map;
 
-/**
- * AI 보안 어드바이저 (Security Copilot) 요청 클래스
- * 
- * 기존 프로토콜 구조 완전 준수
- * 다중 Lab 협업을 위한 포괄적 보안 분석 요청
- */
+
 @Getter
 @Setter
 public class SecurityCopilotRequest extends IAMRequest<SecurityCopilotContext> {

@@ -16,20 +16,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * SecurityPlane 전용 감사 로거
- *
- * 기존 AuditLogger를 확장하여 보안 이벤트, 위협 평가, 처리 결정에 대한
- * 상세한 감사 로깅을 제공합니다.
- *
- * 특징:
- * - 기존 AuditLog 엔티티와 Repository 활용
- * - 보안 전용 필드 매핑
- * - JSON 형태의 상세 정보 저장
- * - 실시간 보안 이벤트 추적
- *
- * @since 1.0
- */
+
 @Slf4j
 public class SecurityPlaneAuditLogger {
 
@@ -46,12 +33,10 @@ public class SecurityPlaneAuditLogger {
         this.objectMapper.registerModule(new JavaTimeModule());
     }
 
-    /**
-     * 보안 이벤트 감사 기록
-     */
+    
     public void auditSecurityEvent(SecurityEvent event, String agentId, String context) {
         try {
-            // AI Native: eventType, targetResource 필드 제거 - metadata 또는 eventId 사용
+            
             String resourceId = getResourceFromMetadata(event);
             AuditLog auditLog = AuditLog.builder()
                 .timestamp(LocalDateTime.now())
@@ -79,13 +64,11 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    /**
-     * 위협 평가 감사 기록
-     */
+    
     public void auditThreatAssessment(SecurityEvent event, ThreatAssessment assessment,
                                     String evaluator, String strategy, long processingTimeMs) {
         try {
-            // AI Native: threatLevel -> action 전환
+            
             String action = assessment.getAction() != null ? assessment.getAction() : "ESCALATE";
 
             AuditLog auditLog = AuditLog.builder()
@@ -93,13 +76,13 @@ public class SecurityPlaneAuditLogger {
                 .principalName(event.getUserId() != null ? event.getUserId() : "SYSTEM")
                 .resourceIdentifier(event.getEventId())
                 .action("THREAT_ASSESSMENT")
-                .decision(action)  // AI Native: action 사용
+                .decision(action)  
                 .reason(String.format("Evaluated by %s using %s strategy", evaluator, strategy))
                 .outcome(String.format("Risk: %.2f, Confidence: %.2f", assessment.getRiskScore(), assessment.getConfidence()))
                 .resourceUri(getResourceFromMetadata(event))
                 .clientIp(event.getSourceIp())
                 .sessionId(event.getSessionId())
-                .status(action)  // AI Native: action 사용
+                .status(action)  
                 .parameters(createThreatAssessmentParams(assessment, evaluator, strategy, processingTimeMs))
                 .details(createThreatAssessmentDetails(assessment, evaluator, strategy, processingTimeMs))
                 .build();
@@ -115,9 +98,7 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    /**
-     * 처리 결정 감사 기록
-     */
+    
     public void auditProcessingDecision(SecurityEvent event, ProcessingMode mode, String router,
                                       String reason, Map<String, Object> decisionContext) {
         try {
@@ -148,9 +129,7 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    /**
-     * 에이전트 상태 변경 감사 기록
-     */
+    
     public void auditAgentStateChange(String agentId, String previousState, String newState,
                                     String reason, Map<String, Object> stateContext) {
         try {
@@ -180,9 +159,7 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    /**
-     * 성능 메트릭 감사 기록
-     */
+    
     public void auditPerformanceMetrics(String component, Map<String, Object> metrics,
                                       long measurementPeriodMs) {
         try {
@@ -212,9 +189,7 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    /**
-     * 에러 감사 기록
-     */
+    
     public void auditError(String component, String operation, Exception exception,
                          Map<String, Object> errorContext) {
         try {
@@ -244,10 +219,10 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    // ==================== Private Helper Methods ====================
+    
 
     private String createSecurityEventParams(SecurityEvent event) {
-        // AI Native: eventType 필드 제거 - severity, source 기반 파라미터
+        
         return String.format("severity=%s,source=%s,userId=%s",
             event.getSeverity() != null ? event.getSeverity() : "INFO",
             event.getSource() != null ? event.getSource() : "UNKNOWN",
@@ -256,7 +231,7 @@ public class SecurityPlaneAuditLogger {
 
     private String createSecurityEventDetails(SecurityEvent event, String agentId, String context) {
         Map<String, Object> details = new HashMap<>();
-        // AI Native: eventType, targetResource 필드 제거 - metadata 기반
+        
         details.put("auditType", "SECURITY_EVENT");
         details.put("eventId", event.getEventId());
         details.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
@@ -264,7 +239,7 @@ public class SecurityPlaneAuditLogger {
         details.put("context", context);
         details.put("timestamp", event.getTimestamp() != null ? event.getTimestamp().toString() : null);
         details.put("userAgent", event.getUserAgent());
-        // targetResource는 metadata에서 가져옴
+        
         String resourceFromMeta = getResourceFromMetadata(event);
         if (resourceFromMeta != null) {
             details.put("targetResource", resourceFromMeta);
@@ -290,7 +265,7 @@ public class SecurityPlaneAuditLogger {
         details.put("assessmentId", assessment.getAssessmentId());
         details.put("evaluator", evaluator);
         details.put("strategy", strategy);
-        // AI Native: threatLevel -> action 전환
+        
         details.put("action", assessment.getAction() != null ? assessment.getAction() : "ESCALATE");
         details.put("riskScore", assessment.getRiskScore());
         details.put("confidence", assessment.getConfidence());
@@ -298,7 +273,7 @@ public class SecurityPlaneAuditLogger {
         details.put("assessedAt", assessment.getAssessedAt().toString());
         details.put("recommendedActions", assessment.getRecommendedActions());
 
-        // AI Native v3.1: ThreatAssessment.metadata 제거됨 - 죽은 필드
+        
 
         return toJsonString(details);
     }
@@ -391,9 +366,7 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    /**
-     * SecurityEvent metadata에서 targetResource 추출 (AI Native: targetResource 필드 제거)
-     */
+    
     private String getResourceFromMetadata(SecurityEvent event) {
         if (event == null || event.getMetadata() == null) {
             return null;

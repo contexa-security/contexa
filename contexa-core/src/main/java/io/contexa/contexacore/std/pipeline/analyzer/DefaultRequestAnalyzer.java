@@ -9,12 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 기본 요청 분석기
- *
- * AI 요청의 복잡도, 컨텍스트 검색 필요성, 응답 속도 요구사항 등을 분석합니다.
- * 분석 결과는 파이프라인 최적화에 사용됩니다.
- */
+
 @Slf4j
 public class DefaultRequestAnalyzer implements RequestAnalyzer {
 
@@ -32,7 +27,7 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
                 .complexity(complexity)
                 .requiresContextRetrieval(requiresContext)
                 .requiresFastResponse(fastPath)
-                .requiresHighAccuracy(!fastPath) // 빠른 응답 필요하면 정확도 낮춤
+                .requiresHighAccuracy(!fastPath) 
                 .estimatedDataVolume(dataVolume)
                 .requestType(requestType)
                 .metadata(extractMetadata(request))
@@ -43,35 +38,31 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
         return characteristics;
     }
 
-    /**
-     * 요청 복잡도 계산
-     */
+    
     private <T extends DomainContext> double calculateComplexity(AIRequest<T> request) {
         double complexity = 0.0;
 
-        // 1. 프롬프트 길이 기반 (0 ~ 0.3)
+        
         String prompt = request.getPromptTemplate();
         if (prompt != null) {
             int promptLength = prompt.length();
             complexity += Math.min(promptLength / 1000.0, 0.3);
         }
 
-        // 2. 컨텍스트 존재 여부 (0 ~ 0.3)
+        
         T context = request.getContext();
         if (context != null) {
-            // Context 객체가 있으면 복잡도 증가
+            
             complexity += 0.2;
         }
 
-        // 3. 진단 타입 기반 복잡도 (0 ~ 0.4)
+        
         complexity += getDiagnosisTypeComplexity(request.getDiagnosisType());
 
         return Math.min(complexity, 1.0);
     }
 
-    /**
-     * 진단 타입별 복잡도
-     */
+    
     private double getDiagnosisTypeComplexity(DiagnosisType type) {
         if (type == null) {
             return 0.2;
@@ -81,31 +72,29 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
             case POLICY_GENERATION:
             case ACCESS_GOVERNANCE:
             case BEHAVIORAL_ANALYSIS:
-                return 0.4; // 높은 복잡도
+                return 0.4; 
             case RISK_ASSESSMENT:
             case RESOURCE_NAMING:
             case SECURITY_COPILOT:
             case DYNAMIC_THREAT_RESPONSE:
-                return 0.3; // 중간 복잡도
+                return 0.3; 
             case CONDITION_TEMPLATE:
             case STUDIO_QUERY:
-                return 0.2; // 낮은 복잡도
+                return 0.2; 
             default:
                 return 0.2;
         }
     }
 
-    /**
-     * 컨텍스트 검색 필요성 판단
-     */
+    
     private <T extends DomainContext> boolean shouldUseContextRetrieval(AIRequest<T> request) {
-        // 명시적으로 컨텍스트 검색 불필요 표시가 있는 경우
+        
         Boolean skipContext = request.getParameter("skipContextRetrieval", Boolean.class);
         if (skipContext != null && skipContext) {
             return false;
         }
 
-        // 프롬프트에서 분류/조회 키워드 확인
+        
         String prompt = request.getPromptTemplate();
         if (prompt != null) {
             String lowerPrompt = prompt.toLowerCase();
@@ -118,21 +107,19 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
             }
         }
 
-        // 대부분의 경우 컨텍스트 검색 필요
+        
         return true;
     }
 
-    /**
-     * 빠른 응답 필요성 판단
-     */
+    
     private <T extends DomainContext> boolean requiresFastResponse(AIRequest<T> request) {
-        // 파라미터에서 명시적 지정 확인
+        
         Boolean fastMode = request.getParameter("fastMode", Boolean.class);
         if (fastMode != null && fastMode) {
             return true;
         }
 
-        // 스트리밍 요청은 빠른 응답 필요
+        
         Boolean streaming = request.getParameter("streaming", Boolean.class);
         if (streaming != null && streaming) {
             return true;
@@ -141,9 +128,7 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
         return false;
     }
 
-    /**
-     * 요청 타입 분류
-     */
+    
     private <T extends DomainContext> String classifyRequestType(AIRequest<T> request) {
         String prompt = request.getPromptTemplate();
         if (prompt == null) {
@@ -168,28 +153,24 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
         return "GENERAL";
     }
 
-    /**
-     * 데이터 볼륨 추정
-     */
+    
     private <T extends DomainContext> int estimateDataVolume(AIRequest<T> request) {
         int volume = 0;
 
-        // 프롬프트 크기
+        
         if (request.getPromptTemplate() != null) {
             volume += request.getPromptTemplate().length();
         }
 
-        // 컨텍스트 크기 추정
+        
         if (request.getContext() != null) {
-            volume += 500; // 평균 컨텍스트 크기
+            volume += 500; 
         }
 
         return volume;
     }
 
-    /**
-     * 메타데이터 추출
-     */
+    
     private <T extends DomainContext> Map<String, Object> extractMetadata(AIRequest<T> request) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("diagnosis_type", request.getDiagnosisType());

@@ -10,18 +10,18 @@ public class JsonExtractor {
 
         String searchText = rawText;
 
-        // 마커 제거
+        
         if (searchText.contains("###FINAL_RESPONSE###")) {
             searchText = searchText.substring(searchText.indexOf("###FINAL_RESPONSE###") + "###FINAL_RESPONSE###".length());
         }
 
         searchText = searchText.trim();
 
-        // JSON 시작 위치 찾기
+        
         int startIndex = searchText.indexOf('{');
         if (startIndex == -1) return "{}";
 
-        // 스택 기반 파싱으로 JSON 끝 찾기
+        
         int braceDepth = 0;
         int bracketDepth = 0;
         boolean inString = false;
@@ -31,7 +31,7 @@ public class JsonExtractor {
         for (int i = startIndex; i < searchText.length(); i++) {
             char c = searchText.charAt(i);
 
-            // 이스케이프 문자 처리
+            
             if (escaped) {
                 escaped = false;
                 continue;
@@ -42,7 +42,7 @@ public class JsonExtractor {
                 continue;
             }
 
-            // 문자열 내부 체크
+            
             if (c == '"' && !escaped) {
                 inString = !inString;
                 continue;

@@ -22,11 +22,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * Ollama 모델 제공자 구현
- *
- * 로컬 Ollama 서버와 통신하여 모델을 관리하고 제공합니다.
- */
+
 @Slf4j
 public class OllamaModelProvider implements ModelProvider {
 
@@ -47,9 +43,7 @@ public class OllamaModelProvider implements ModelProvider {
     private final Map<String, OllamaModelDetails> discoveredModels = new ConcurrentHashMap<>();
     private boolean ready = false;
 
-    /**
-     * Ollama API 응답 모델
-     */
+    
     @Data
     public static class OllamaTagsResponse {
         private List<OllamaModel> models;
@@ -87,7 +81,7 @@ public class OllamaModelProvider implements ModelProvider {
     public List<ModelDescriptor> getAvailableModels() {
         List<ModelDescriptor> models = new ArrayList<>();
 
-        // 1. 설정 파일에서 정의된 모델들
+        
         ModelProviderProperties.OllamaConfig ollamaConfig = modelProviderProperties.getOllama();
         if (ollamaConfig != null && ollamaConfig.getModels() != null) {
             for (Map.Entry<String, ModelProviderProperties.ModelSpec> entry :
@@ -103,7 +97,7 @@ public class OllamaModelProvider implements ModelProvider {
             }
         }
 
-        // 2. 동적으로 발견된 모델들 (Ollama API에서 조회)
+        
         for (Map.Entry<String, OllamaModelDetails> entry : discoveredModels.entrySet()) {
             String modelId = entry.getKey();
             if (!modelCache.containsKey(modelId)) {
@@ -122,7 +116,7 @@ public class OllamaModelProvider implements ModelProvider {
             return modelCache.get(modelId);
         }
 
-        // 1. 설정 파일에서 찾기
+        
         ModelProviderProperties.OllamaConfig ollamaConfig = modelProviderProperties.getOllama();
         if (ollamaConfig != null && ollamaConfig.getModels() != null) {
             ModelProviderProperties.ModelSpec spec = ollamaConfig.getModels().get(modelId);
@@ -133,7 +127,7 @@ public class OllamaModelProvider implements ModelProvider {
             }
         }
 
-        // 2. 동적으로 발견된 모델에서 찾기
+        
         OllamaModelDetails details = discoveredModels.get(modelId);
         if (details != null) {
             ModelDescriptor descriptor = createModelDescriptorFromDiscovery(modelId, details);
@@ -141,7 +135,7 @@ public class OllamaModelProvider implements ModelProvider {
             return descriptor;
         }
 
-        // 3. Ollama API에서 직접 조회 시도
+        
         loadModelsFromOllama();
         details = discoveredModels.get(modelId);
         if (details != null) {
@@ -157,17 +151,17 @@ public class OllamaModelProvider implements ModelProvider {
     public ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config) {
         String modelId = descriptor.getModelId();
 
-        // 캐시 확인
+        
         if (modelInstances.containsKey(modelId)) {
             return modelInstances.get(modelId);
         }
 
         try {
-            // OllamaOptions 생성
+            
             OllamaOptions.Builder optionsBuilder = OllamaOptions.builder()
                 .model(modelId);
 
-            // 설정 적용
+            
             if (descriptor.getOptions() != null) {
                 ModelDescriptor.ModelOptions options = descriptor.getOptions();
                 if (options.getTemperature() != null) {
@@ -184,7 +178,7 @@ public class OllamaModelProvider implements ModelProvider {
                 }
             }
 
-            // 추가 설정 적용
+            
             if (config != null) {
                 if (config.containsKey("temperature")) {
                     optionsBuilder.temperature((Double) config.get("temperature"));
@@ -196,7 +190,7 @@ public class OllamaModelProvider implements ModelProvider {
 
             OllamaOptions ollamaOptions = optionsBuilder.build();
 
-            // OllamaChatModel 생성
+            
             OllamaChatModel chatModel = OllamaChatModel.builder()
                 .ollamaApi(getOllamaApi())
                 .defaultOptions(ollamaOptions)
@@ -221,14 +215,14 @@ public class OllamaModelProvider implements ModelProvider {
 
     @Override
     public boolean supportsModel(String modelId) {
-        // 설정 파일에서 확인
+        
         ModelProviderProperties.OllamaConfig ollamaConfig = modelProviderProperties.getOllama();
         if (ollamaConfig != null && ollamaConfig.getModels() != null &&
             ollamaConfig.getModels().containsKey(modelId)) {
             return true;
         }
 
-        // 캐시에서 확인
+        
         return modelCache.containsKey(modelId) ||
                discoveredModels.containsKey(modelId);
     }
@@ -240,7 +234,7 @@ public class OllamaModelProvider implements ModelProvider {
                 return HealthStatus.unhealthy("Ollama not initialized");
             }
 
-            // Ollama API 헬스 체크 - /api/version 엔드포인트 호출
+            
             String versionUrl = baseUrl + "/api/version";
             ResponseEntity<Map> response = restTemplate.getForEntity(versionUrl, Map.class);
 
@@ -252,7 +246,7 @@ public class OllamaModelProvider implements ModelProvider {
                     details.put("version", response.getBody().get("version"));
                 }
 
-                // 특정 모델이 지정된 경우 해당 모델 존재 여부 확인
+                
                 if (modelId != null && !modelId.isEmpty()) {
                     boolean modelExists = discoveredModels.containsKey(modelId) ||
                                         (modelProviderProperties.getOllama() != null &&
@@ -280,7 +274,7 @@ public class OllamaModelProvider implements ModelProvider {
         log.info("OllamaModelProvider 초기화 시작");
 
         try {
-            // 설정에서 baseUrl 가져오기
+            
             ModelProviderProperties.OllamaConfig ollamaConfig = modelProviderProperties.getOllama();
             if (ollamaConfig != null && ollamaConfig.isEnabled()) {
                 this.baseUrl = ollamaConfig.getBaseUrl();
@@ -290,20 +284,20 @@ public class OllamaModelProvider implements ModelProvider {
                 return;
             }
 
-            // RestTemplate 및 ObjectMapper 초기화
+            
             this.restTemplate = new RestTemplate();
             this.objectMapper = new ObjectMapper();
 
-            // 모델 목록 로드 시도
+            
             boolean modelsLoaded = loadModelsFromOllama();
 
-            // Ollama 연결 실패해도 설정 파일의 모델은 사용 가능하도록
+            
             if (!modelsLoaded) {
                 log.warn("Ollama 서버에서 모델을 로드하지 못했지만, 설정 파일의 모델 정의를 사용합니다");
-                // 설정 파일에 정의된 모델만 사용 가능
+                
             }
 
-            ready = true; // 설정 파일에 모델이 정의되어 있으면 ready
+            ready = true; 
             log.info("OllamaModelProvider 초기화 완료 - baseUrl: {}, 모델 로드: {}", baseUrl, modelsLoaded);
         } catch (Exception e) {
             log.error("OllamaModelProvider 초기화 실패", e);
@@ -332,7 +326,7 @@ public class OllamaModelProvider implements ModelProvider {
 
     @Override
     public int getPriority() {
-        return 10; // 로컬 모델이므로 높은 우선순위
+        return 10; 
     }
 
     @Override
@@ -345,9 +339,7 @@ public class OllamaModelProvider implements ModelProvider {
         return metrics;
     }
 
-    /**
-     * Ollama에서 실제 모델 목록 로드
-     */
+    
     private boolean loadModelsFromOllama() {
         if (restTemplate == null || baseUrl == null) {
             log.warn("RestTemplate 또는 baseUrl이 설정되지 않아 모델 목록을 로드할 수 없습니다");
@@ -355,7 +347,7 @@ public class OllamaModelProvider implements ModelProvider {
         }
 
         try {
-            // Ollama API를 통해 실제 설치된 모델 목록 조회
+            
             String tagsUrl = baseUrl + "/api/tags";
             log.debug("Ollama API 호출: {}", tagsUrl);
 
@@ -396,9 +388,7 @@ public class OllamaModelProvider implements ModelProvider {
         return false;
     }
 
-    /**
-     * 설정 스펙으로부터 모델 디스크립터 생성
-     */
+    
     private ModelDescriptor createModelDescriptorFromSpec(String modelId, ModelProviderProperties.ModelSpec spec) {
         var capBuilder = ModelDescriptor.ModelCapabilities.builder()
             .streaming(spec.getCapabilities().getStreaming())
@@ -451,19 +441,17 @@ public class OllamaModelProvider implements ModelProvider {
             .build();
     }
 
-    /**
-     * 동적으로 발견된 모델로부터 디스크립터 생성
-     */
+    
     private ModelDescriptor createModelDescriptorFromDiscovery(String modelId, OllamaModelDetails details) {
-        // 모델 크기에서 tier 추정
+        
         int tier = estimateTierFromSize(details.getParameter_size());
 
-        // 설정에서 기본값 가져오기 (null일 경우 기본값 생성)
+        
         ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
             modelProviderProperties.getTierDefaults(tier);
 
         if (tierDefaults == null) {
-            // 기본값 생성
+            
             tierDefaults = new ModelProviderProperties.DefaultSpecs.TierDefaults();
             tierDefaults.setTimeoutMs(5000);
             tierDefaults.setTemperature(0.5);
@@ -521,15 +509,13 @@ public class OllamaModelProvider implements ModelProvider {
             .build();
     }
 
-    /**
-     * 모델 크기로부터 Tier 추정
-     */
+    
     private int estimateTierFromSize(String parameterSize) {
         if (parameterSize == null || parameterSize.equals("unknown")) {
-            return 2; // 기본값
+            return 2; 
         }
 
-        // 파라미터 크기에서 숫자 추출
+        
         String sizeStr = parameterSize.toLowerCase()
             .replace("b", "")
             .replace("billion", "")
@@ -540,28 +526,26 @@ public class OllamaModelProvider implements ModelProvider {
         try {
             double size = Double.parseDouble(sizeStr);
 
-            // million 단위인 경우 billion으로 변환
+            
             if (parameterSize.toLowerCase().contains("m")) {
                 size = size / 1000.0;
             }
 
-            // 크기에 따른 Tier 분류
+            
             if (size < 5) {
-                return 1; // 소형 모델 (< 5B)
+                return 1; 
             } else if (size < 20) {
-                return 2; // 중형 모델 (5B - 20B)
+                return 2; 
             } else {
-                return 3; // 대형 모델 (> 20B)
+                return 3; 
             }
         } catch (NumberFormatException e) {
             log.debug("파라미터 크기 파싱 실패: {}", parameterSize);
-            return 2; // 기본값
+            return 2; 
         }
     }
 
-    /**
-     * OllamaApi 인스턴스 반환
-     */
+    
     private OllamaApi getOllamaApi() {
         if (ollamaApi == null) {
             throw new IllegalStateException("OllamaApi not available. Please check Ollama configuration.");

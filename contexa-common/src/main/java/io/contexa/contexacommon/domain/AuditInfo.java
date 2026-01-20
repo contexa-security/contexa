@@ -4,10 +4,7 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 
-/**
- * 감사 정보 클래스
- * SRP 준수: 감사 정보 관리만 담당
- */
+
 @Getter
 public class AuditInfo {
     private final LocalDateTime auditTimestamp;

@@ -12,7 +12,7 @@ public class DefaultStepExecutionHandler implements StepExecutionHandler {
     @Override
     public boolean canHandle(PipelineStep step) {
         return true;
-//        return !(step instanceof PostprocessingStep);
+
     }
 
     @Override

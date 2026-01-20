@@ -13,9 +13,7 @@ import org.springframework.lang.Nullable;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * HTTP Session 기반 MFA 세션 Repository - 단일서버 최적화
- */
+
 @Slf4j
 @ConditionalOnProperty(name = "security.mfa.session.storage-type", havingValue = "http-session", matchIfMissing = true)
 public class HttpSessionMfaRepository implements MfaSessionRepository {

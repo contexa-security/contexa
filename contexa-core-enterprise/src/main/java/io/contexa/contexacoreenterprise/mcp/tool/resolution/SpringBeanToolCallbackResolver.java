@@ -9,12 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * SpringBeanToolCallbackResolver
- * 
- * Spring ApplicationContext 에서 ToolCallback 빈을 검색합니다.
- * Spring AI 표준 Resolver 구현입니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SpringBeanToolCallbackResolver implements ToolCallbackResolver {
@@ -27,11 +22,11 @@ public class SpringBeanToolCallbackResolver implements ToolCallbackResolver {
         log.trace("Spring Bean 도구 검색: {}", toolName);
         
         try {
-            // ApplicationContext 에서 모든 ToolCallback 빈 검색
+            
             Map<String, ToolCallback> toolBeans = 
                 applicationContext.getBeansOfType(ToolCallback.class);
             
-            // 이름으로 매칭
+            
             for (Map.Entry<String, ToolCallback> entry : toolBeans.entrySet()) {
                 ToolCallback tool = entry.getValue();
                 if (tool.getToolDefinition().name().equals(toolName)) {
@@ -41,7 +36,7 @@ public class SpringBeanToolCallbackResolver implements ToolCallbackResolver {
                 }
             }
             
-            // Bean 이름으로도 검색 시도
+            
             if (applicationContext.containsBean(toolName)) {
                 Object bean = applicationContext.getBean(toolName);
                 if (bean instanceof ToolCallback) {
@@ -57,16 +52,12 @@ public class SpringBeanToolCallbackResolver implements ToolCallbackResolver {
         return null;
     }
     
-    /**
-     * 등록된 도구 개수 반환
-     */
+    
     public int getToolCount() {
         return applicationContext.getBeansOfType(ToolCallback.class).size();
     }
     
-    /**
-     * 모든 도구 이름 반환
-     */
+    
     public String[] getToolNames() {
         return applicationContext.getBeansOfType(ToolCallback.class).values()
             .stream()
@@ -74,9 +65,7 @@ public class SpringBeanToolCallbackResolver implements ToolCallbackResolver {
             .toArray(String[]::new);
     }
     
-    /**
-     * 모든 도구 반환
-     */
+    
     public Map<String, ToolCallback> getAllTools() {
         return applicationContext.getBeansOfType(ToolCallback.class);
     }

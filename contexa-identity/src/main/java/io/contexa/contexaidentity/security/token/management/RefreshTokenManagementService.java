@@ -14,17 +14,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * 리프레시 토큰 관리 서비스
- *
- * 관리자 및 사용자를 위한 토큰 관리 기능 제공:
- * - 활성 세션 조회 및 관리
- * - 토큰 사용 통계
- * - 보안 감사 로그
- * - 자동 정리 작업
- *
- * @since 2024.12
- */
+
 @Slf4j
 public class RefreshTokenManagementService {
 
@@ -44,20 +34,18 @@ public class RefreshTokenManagementService {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 사용자 토큰 대시보드 정보 조회
-     */
+    
     public UserTokenDashboard getUserTokenDashboard(String username) {
-        // 활성 세션 조회
+        
         List<EnhancedRefreshTokenStore.ActiveSession> activeSessions = enhancedTokenStore.getActiveSessions(username);
 
-        // 토큰 통계 조회
+        
         TokenStatistics statistics = getTokenStatistics(username);
 
-        // 최근 보안 이벤트 조회
+        
         List<SecurityEvent> recentEvents = getRecentSecurityEvents(username, 10);
 
-        // 토큰 사용 이력
+        
         List<EnhancedRefreshTokenStore.TokenUsageHistory> usageHistory = enhancedTokenStore.getTokenHistory(username, 20);
 
         return new UserTokenDashboard(
@@ -70,49 +58,43 @@ public class RefreshTokenManagementService {
         );
     }
 
-    /**
-     * 특정 세션 종료
-     */
+    
     public void terminateSession(String username, String deviceId, String reason) {
         log.info("Terminating session for user: {}, device: {}, reason: {}",
                 username, deviceId, reason);
 
-        // 토큰 무효화
+        
         enhancedTokenStore.revokeDeviceTokens(username, deviceId, reason);
 
-        // 감사 로그 기록
+        
         recordAuditLog(username, "SESSION_TERMINATED", Map.of(
                 "deviceId", deviceId,
                 "reason", reason,
                 "terminatedBy", getCurrentUser()
         ));
 
-        // 이벤트 발행
+        
         publishManagementEvent("SESSION_TERMINATED", username, deviceId, reason);
     }
 
-    /**
-     * 사용자의 모든 세션 종료
-     */
+    
     public void terminateAllSessions(String username, String reason) {
         log.info("Terminating all sessions for user: {}, reason: {}", username, reason);
 
-        // 모든 토큰 무효화
+        
         enhancedTokenStore.revokeAllUserTokens(username, reason);
 
-        // 감사 로그 기록
+        
         recordAuditLog(username, "ALL_SESSIONS_TERMINATED", Map.of(
                 "reason", reason,
                 "terminatedBy", getCurrentUser()
         ));
 
-        // 이벤트 발행
+        
         publishManagementEvent("ALL_SESSIONS_TERMINATED", username, null, reason);
     }
 
-    /**
-     * 토큰 통계 조회
-     */
+    
     private TokenStatistics getTokenStatistics(String username) {
         String statsKey = STATS_KEY_PREFIX + username;
         Map<Object, Object> stats = redisTemplate.opsForHash().entries(statsKey);
@@ -127,9 +109,7 @@ public class RefreshTokenManagementService {
         );
     }
 
-    /**
-     * 평균 세션 지속 시간 계산
-     */
+    
     private Duration getAverageSessionDuration(String username) {
         String pattern = SESSION_KEY_PREFIX + username + ":*:duration";
         Set<String> durationKeys = redisTemplate.keys(pattern);
@@ -156,9 +136,7 @@ public class RefreshTokenManagementService {
         return Duration.ofMillis(averageMillis);
     }
 
-    /**
-     * 최근 보안 이벤트 조회
-     */
+    
     private List<SecurityEvent> getRecentSecurityEvents(String username, int limit) {
         String auditKey = AUDIT_LOG_PREFIX + username;
         List<String> events = redisTemplate.opsForList().range(auditKey, 0, limit - 1);
@@ -173,9 +151,7 @@ public class RefreshTokenManagementService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 보안 이벤트 파싱
-     */
+    
     private SecurityEvent parseSecurityEvent(String eventJson) {
         try {
             return objectMapper.readValue(eventJson, SecurityEvent.class);
@@ -185,9 +161,7 @@ public class RefreshTokenManagementService {
         }
     }
 
-    /**
-     * 감사 로그 기록
-     */
+    
     private void recordAuditLog(String username, String action, Map<String, Object> details) {
         String auditKey = AUDIT_LOG_PREFIX + username;
 
@@ -196,18 +170,16 @@ public class RefreshTokenManagementService {
         auditEntry.put("timestamp", Instant.now().toString());
         auditEntry.put("details", details);
 
-        // JSON으로 직렬화하여 저장
+        
         String auditJson = serializeToJson(auditEntry);
         redisTemplate.opsForList().leftPush(auditKey, auditJson);
 
-        // 최근 1000개만 유지
+        
         redisTemplate.opsForList().trim(auditKey, 0, 999);
         redisTemplate.expire(auditKey, 90, TimeUnit.DAYS);
     }
 
-    /**
-     * 관리 이벤트 발행
-     */
+    
     private void publishManagementEvent(String eventType, String username,
                                         String deviceId, String reason) {
         Map<String, Object> eventData = new HashMap<>();
@@ -219,10 +191,8 @@ public class RefreshTokenManagementService {
         eventPublisher.publishSecurityEvent(eventType, username, "management", eventData);
     }
 
-    /**
-     * 토큰 정리 작업 (매일 새벽 2시 실행)
-     */
-//    @Scheduled(cron = "0 0 2 * * *")
+    
+
     public void cleanupExpiredTokens() {
         log.info("Starting token cleanup job");
 
@@ -230,8 +200,8 @@ public class RefreshTokenManagementService {
         int cleanedCount = 0;
 
         try {
-            // 만료된 토큰 정리 로직
-            // 구현 세부사항...
+            
+            
 
             log.info("Token cleanup completed. Cleaned {} tokens in {} ms",
                     cleanedCount, System.currentTimeMillis() - startTime);
@@ -241,9 +211,7 @@ public class RefreshTokenManagementService {
         }
     }
 
-    /**
-     * 토큰 사용 통계 업데이트
-     */
+    
     public void updateTokenStatistics(String username, String action) {
         String statsKey = STATS_KEY_PREFIX + username;
 
@@ -258,11 +226,9 @@ public class RefreshTokenManagementService {
         redisTemplate.expire(statsKey, 90, TimeUnit.DAYS);
     }
 
-    /**
-     * 시스템 전체 토큰 통계
-     */
+    
     public SystemTokenStatistics getSystemStatistics() {
-        // 전체 시스템 통계 조회
+        
         String systemStatsKey = STATS_KEY_PREFIX + "system";
         Map<Object, Object> stats = redisTemplate.opsForHash().entries(systemStatsKey);
 
@@ -277,7 +243,7 @@ public class RefreshTokenManagementService {
         );
     }
 
-    // ===== 유틸리티 메서드 =====
+    
 
     private String getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -309,7 +275,7 @@ public class RefreshTokenManagementService {
 
     private long getActiveUserCount() {
         try {
-            // 활성 세션 키 패턴으로 조회
+            
             Set<String> sessionKeys = redisTemplate.keys(SESSION_KEY_PREFIX + "*");
             return sessionKeys != null ? sessionKeys.size() : 0L;
         } catch (Exception e) {
@@ -320,7 +286,7 @@ public class RefreshTokenManagementService {
 
     private Map<String, Long> getTopAnomalyTypes() {
         try {
-            // 감사 로그에서 이상 유형별 카운트 조회
+            
             Map<String, Long> anomalyTypes = new HashMap<>();
             Set<String> auditKeys = redisTemplate.keys(AUDIT_LOG_PREFIX + "*");
 
@@ -358,7 +324,7 @@ public class RefreshTokenManagementService {
         }
     }
 
-    // ===== DTO 클래스 =====
+    
 
     public record UserTokenDashboard(
             String username,

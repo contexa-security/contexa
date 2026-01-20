@@ -133,8 +133,8 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
                 impacts.add(new SimulationResultDto.ImpactDetail(
                         subjectName,
                         subject.type(),
-                        perm.permissionName(),        // 1. 기술 이름
-                        perm.permissionDescription(), // 2. 사용자 친화적 설명
+                        perm.permissionName(),        
+                        perm.permissionDescription(), 
                         SimulationResultDto.ImpactType.PERMISSION_GAINED,
                         perm.origin()
                 ));
@@ -142,12 +142,12 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
         });
         beforePermMap.forEach((name, perm) -> {
             if (!afterPermMap.containsKey(name)) {
-                // 'perm' 객체는 '변경 전'의 완전한 정보를 담고 있음
+                
                 impacts.add(new SimulationResultDto.ImpactDetail(
                         subjectName,
                         subject.type(),
-                        perm.permissionName(), // 기술 이름
-                        perm.permissionDescription(), // 사용자 친화적 설명
+                        perm.permissionName(), 
+                        perm.permissionDescription(), 
                         SimulationResultDto.ImpactType.PERMISSION_LOST,
                         "멤버십 변경으로 인한 권한 회수"
                 ));

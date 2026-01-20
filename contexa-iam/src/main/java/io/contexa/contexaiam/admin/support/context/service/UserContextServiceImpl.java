@@ -29,7 +29,7 @@ public class UserContextServiceImpl implements UserContextService {
     public void saveWizardProgress(String userSessionId, Long ownerUserId, WizardContext context) {
         try {
             String contextAsJson = objectMapper.writeValueAsString(context);
-            WizardSession session = WizardSession.create(userSessionId, contextAsJson, ownerUserId, 60); // 60분 유효
+            WizardSession session = WizardSession.create(userSessionId, contextAsJson, ownerUserId, 60); 
             wizardSessionRepository.save(session);
             log.info("Wizard progress saved to DB for session ID: {}", userSessionId);
         } catch (JsonProcessingException e) {
@@ -38,9 +38,7 @@ public class UserContextServiceImpl implements UserContextService {
         }
     }
 
-    /**
-     * [최종 구현] DB에서 세션 ID에 해당하는 데이터를 조회하고, JSON을 WizardContext 객체로 역직렬화하여 반환합니다.
-     */
+    
     @Override
     @Transactional(readOnly = true)
     public WizardContext getWizardProgress(String userSessionId) {
@@ -55,9 +53,7 @@ public class UserContextServiceImpl implements UserContextService {
         }
     }
 
-    /**
-     * [최종 구현] 사용이 완료된 세션 데이터를 DB에서 삭제합니다.
-     */
+    
     @Override
     @Transactional
     public void clearWizardProgress(String userSessionId) {
@@ -67,9 +63,7 @@ public class UserContextServiceImpl implements UserContextService {
         }
     }
 
-    /**
-     * [최종 구현] AuditLog 리포지토리를 조회하여 실제 최근 활동 기록을 반환합니다.
-     */
+    
     @Override
     @Transactional(readOnly = true)
     public List<RecentActivityDto> getRecentActivities(String username) {

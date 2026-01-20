@@ -7,13 +7,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.SecurityCopilotContext;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * ��️ Security Copilot 통합 프롬프트 템플릿 - 기준 템플릿
- *
- * 통합 프롬프트: 스트리밍 중 자연어 분석 과정 + 마지막에 JSON 결과
- * 조건부 제거: AI 한 번만 실행하여 효율성 극대화
- * 기준 방식: ###FINAL_RESPONSE### 마커로 구조화 데이터 전송
- */
+
 @Slf4j
 @PromptTemplateConfig(
         key = "securityCopilotStreaming",
@@ -36,9 +30,7 @@ public class SecurityCopilotStreamingTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(securityQuery, analysisScope, currentLabInfo, contextInfo);
     }
 
-    /**
-     * 통합 시스템 프롬프트 - 스트리밍 자연어 분석 과정 + 최종 JSON 결과
-     */
+    
     private String buildUnifiedSystemPrompt(String contextInfo) {
         return String.format("""
             당신은 실시간 보안 전문가 AI입니다.
@@ -130,9 +122,7 @@ public class SecurityCopilotStreamingTemplate implements PromptTemplate {
             """, contextInfo);
     }
 
-    /**
-     * 통합 사용자 프롬프트 - 구체적 요청과 실행 지시
-     */
+    
     private String buildUnifiedUserPrompt(String securityQuery, String analysisScope, String currentLabInfo, String contextInfo) {
         return String.format("""
             **보안 분석 요청:**
@@ -154,9 +144,7 @@ public class SecurityCopilotStreamingTemplate implements PromptTemplate {
             """, securityQuery, analysisScope, currentLabInfo, contextInfo);
     }
 
-    /**
-     * 요청에서 보안 질의 추출
-     */
+    
     private String extractSecurityQuery(AIRequest<? extends DomainContext> request) {
         String securityQuery = request.getParameter("securityQuery", String.class);
         
@@ -172,9 +160,7 @@ public class SecurityCopilotStreamingTemplate implements PromptTemplate {
         return "보안 질의가 제공되지 않았습니다";
     }
 
-    /**
-     * 요청에서 분석 범위 추출
-     */
+    
     private String extractAnalysisScope(AIRequest<? extends DomainContext> request) {
         String analysisScope = request.getParameter("analysisScope", String.class);
         
@@ -190,9 +176,7 @@ public class SecurityCopilotStreamingTemplate implements PromptTemplate {
         return "COMPREHENSIVE";
     }
 
-    /**
-     * 요청에서 현재 Lab 정보 추출
-     */
+    
     private String extractCurrentLabInfo(AIRequest<? extends DomainContext> request) {
         String currentLabInfo = request.getParameter("currentLabInfo", String.class);
         

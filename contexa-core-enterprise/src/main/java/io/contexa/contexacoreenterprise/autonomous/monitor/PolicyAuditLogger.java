@@ -15,28 +15,20 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * 정책 감사 로거
- * 모든 정책 변경사항과 승인 프로세스를 추적하고 컴플라이언스 보고서를 생성
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyAuditLogger {
     
     private final SynthesisPolicyRepository synthesisPolicyRepository;
     
-    // 감사 로그 저장소
+    
     private final Map<String, AuditLogEntry> auditLogs = new ConcurrentHashMap<>();
     
-    // 컴플라이언스 체크포인트
+    
     private final Map<String, ComplianceCheckpoint> complianceCheckpoints = new ConcurrentHashMap<>();
     
-    /**
-     * 감사 로그 엔트리
-     */
+    
     public static class AuditLogEntry {
         private String auditId;
         private LocalDateTime timestamp;
@@ -80,9 +72,7 @@ public class PolicyAuditLogger {
         }
     }
     
-    /**
-     * 컴플라이언스 체크포인트
-     */
+    
     public static class ComplianceCheckpoint {
         private String checkpointId;
         private LocalDateTime timestamp;
@@ -119,9 +109,7 @@ public class PolicyAuditLogger {
         }
     }
     
-    /**
-     * 정책 생성 감사 로그
-     */
+    
     public void logPolicyCreation(Long proposalId, String createdBy, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_CREATION",
@@ -140,13 +128,11 @@ public class PolicyAuditLogger {
         
         log.info("Audit Log - Policy Creation: {}", entry);
         
-        // 컴플라이언스 체크
+        
         checkCreationCompliance(proposalId, createdBy);
     }
     
-    /**
-     * 정책 승인 감사 로그
-     */
+    
     public void logPolicyApproval(Long proposalId, String approvedBy, String approvalLevel, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_APPROVAL",
@@ -166,13 +152,11 @@ public class PolicyAuditLogger {
         
         log.info("Audit Log - Policy Approval: {}", entry);
         
-        // 승인 프로세스 컴플라이언스 체크
+        
         checkApprovalCompliance(proposalId, approvedBy, approvalLevel);
     }
     
-    /**
-     * 정책 거부 감사 로그
-     */
+    
     public void logPolicyRejection(Long proposalId, String rejectedBy, String reason, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_REJECTION",
@@ -193,9 +177,7 @@ public class PolicyAuditLogger {
         log.info("Audit Log - Policy Rejection: {}", entry);
     }
     
-    /**
-     * 정책 활성화 감사 로그
-     */
+    
     public void logPolicyActivation(Long policyId, String activatedBy, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_ACTIVATION",
@@ -214,13 +196,11 @@ public class PolicyAuditLogger {
         
         log.info("Audit Log - Policy Activation: {}", entry);
         
-        // 활성화 컴플라이언스 체크
+        
         checkActivationCompliance(policyId, activatedBy);
     }
     
-    /**
-     * 정책 비활성화 감사 로그
-     */
+    
     public void logPolicyDeactivation(Long policyId, String deactivatedBy, String reason, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_DEACTIVATION",
@@ -241,9 +221,7 @@ public class PolicyAuditLogger {
         log.info("Audit Log - Policy Deactivation: {}", entry);
     }
     
-    /**
-     * 정책 롤백 감사 로그
-     */
+    
     public void logPolicyRollback(Long policyId, int fromVersion, int toVersion, String rolledBackBy, String reason) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_ROLLBACK",
@@ -265,23 +243,21 @@ public class PolicyAuditLogger {
         log.info("Audit Log - Policy Rollback: {}", entry);
     }
     
-    /**
-     * 생성 컴플라이언스 체크
-     */
+    
     private void checkCreationCompliance(Long proposalId, String createdBy) {
         ComplianceCheckpoint checkpoint = new ComplianceCheckpoint("CREATION_COMPLIANCE");
         
-        // 권한 체크
+        
         if (!hasCreationPermission(createdBy)) {
             checkpoint.addViolation("User lacks policy creation permission");
         }
         
-        // 정책 명명 규칙 체크
+        
         if (!validatePolicyNamingConvention(proposalId)) {
             checkpoint.addViolation("Policy naming convention violated");
         }
         
-        // 정책 내용 검증
+        
         if (!validatePolicyContent(proposalId)) {
             checkpoint.addViolation("Policy content validation failed");
         }
@@ -298,23 +274,21 @@ public class PolicyAuditLogger {
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
     }
     
-    /**
-     * 승인 컴플라이언스 체크
-     */
+    
     private void checkApprovalCompliance(Long proposalId, String approvedBy, String approvalLevel) {
         ComplianceCheckpoint checkpoint = new ComplianceCheckpoint("APPROVAL_COMPLIANCE");
         
-        // 승인 권한 체크
+        
         if (!hasApprovalPermission(approvedBy, approvalLevel)) {
             checkpoint.addViolation("User lacks appropriate approval permission for level: " + approvalLevel);
         }
         
-        // 이해 상충 체크
+        
         if (hasConflictOfInterest(proposalId, approvedBy)) {
             checkpoint.addViolation("Conflict of interest detected - approver created the proposal");
         }
         
-        // 승인 타임라인 체크
+        
         if (!withinApprovalTimeline(proposalId)) {
             checkpoint.addViolation("Approval exceeded timeline requirements");
         }
@@ -332,23 +306,21 @@ public class PolicyAuditLogger {
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
     }
     
-    /**
-     * 활성화 컴플라이언스 체크
-     */
+    
     private void checkActivationCompliance(Long policyId, String activatedBy) {
         ComplianceCheckpoint checkpoint = new ComplianceCheckpoint("ACTIVATION_COMPLIANCE");
         
-        // 활성화 권한 체크
+        
         if (!hasActivationPermission(activatedBy)) {
             checkpoint.addViolation("User lacks policy activation permission");
         }
         
-        // 테스트 요구사항 체크
+        
         if (!hasPassedRequiredTests(policyId)) {
             checkpoint.addViolation("Policy has not passed required tests");
         }
         
-        // 문서화 요구사항 체크
+        
         if (!hasRequiredDocumentation(policyId)) {
             checkpoint.addViolation("Policy lacks required documentation");
         }
@@ -365,25 +337,14 @@ public class PolicyAuditLogger {
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
     }
     
-    /**
-     * 권한 검증 헬퍼 메서드들 (AI Native v3.3.0: 실제 권한 검증 구현)
-     *
-     * Zero Trust 원칙:
-     * - 모든 권한은 Spring Security를 통해 검증
-     * - 권한 없으면 컴플라이언스 위반으로 기록
-     * - stub 구현 제거, 실제 보안 검증 수행
-     */
+    
 
     private static final String ROLE_POLICY_CREATOR = "ROLE_POLICY_CREATOR";
     private static final String ROLE_POLICY_APPROVER = "ROLE_POLICY_APPROVER";
     private static final String ROLE_POLICY_ADMIN = "ROLE_POLICY_ADMIN";
     private static final String ROLE_SECURITY_ADMIN = "ROLE_SECURITY_ADMIN";
 
-    /**
-     * 정책 생성 권한 검증 (AI Native v3.3.0)
-     *
-     * 필요 권한: ROLE_POLICY_CREATOR 또는 ROLE_POLICY_ADMIN
-     */
+    
     private boolean hasCreationPermission(String user) {
         if (user == null || user.isEmpty()) {
             log.warn("[Zero Trust] 정책 생성 권한 검증 실패: 사용자 정보 없음");
@@ -396,12 +357,12 @@ public class PolicyAuditLogger {
             return false;
         }
 
-        // 현재 인증된 사용자와 요청 사용자 일치 여부 확인
+        
         if (!user.equals(authentication.getName())) {
             return false;
         }
 
-        // 필요 권한 확인
+        
         boolean hasPermission = hasAnyRole(authentication, ROLE_POLICY_CREATOR, ROLE_POLICY_ADMIN, ROLE_SECURITY_ADMIN);
         if (!hasPermission) {
             log.warn("[Zero Trust] 정책 생성 권한 부족: user={}", user);
@@ -409,14 +370,7 @@ public class PolicyAuditLogger {
         return hasPermission;
     }
 
-    /**
-     * 정책 승인 권한 검증 (AI Native v3.3.0)
-     *
-     * 필요 권한: 레벨별 승인 권한
-     * - L1: ROLE_POLICY_APPROVER
-     * - L2: ROLE_POLICY_ADMIN
-     * - L3: ROLE_SECURITY_ADMIN
-     */
+    
     private boolean hasApprovalPermission(String user, String level) {
         if (user == null || user.isEmpty() || level == null) {
             log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 필수 정보 누락");
@@ -429,13 +383,13 @@ public class PolicyAuditLogger {
             return false;
         }
 
-        // 현재 인증된 사용자와 요청 사용자 일치 여부 확인
+        
         if (!user.equals(authentication.getName())) {
             log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 사용자 불일치");
             return false;
         }
 
-        // 레벨별 필요 권한 결정
+        
         String requiredRole = switch (level.toUpperCase()) {
             case "L1", "LEVEL1", "BASIC" -> ROLE_POLICY_APPROVER;
             case "L2", "LEVEL2", "ADVANCED" -> ROLE_POLICY_ADMIN;
@@ -444,7 +398,7 @@ public class PolicyAuditLogger {
         };
 
         boolean hasPermission = hasRole(authentication, requiredRole) ||
-                                hasRole(authentication, ROLE_SECURITY_ADMIN); // SECURITY_ADMIN은 모든 레벨 승인 가능
+                                hasRole(authentication, ROLE_SECURITY_ADMIN); 
 
         if (!hasPermission) {
             log.warn("[Zero Trust] 정책 승인 권한 부족: level={}, requiredRole={}, user={}",
@@ -453,11 +407,7 @@ public class PolicyAuditLogger {
         return hasPermission;
     }
 
-    /**
-     * 정책 활성화 권한 검증 (AI Native v3.3.0)
-     *
-     * 필요 권한: ROLE_POLICY_ADMIN 또는 ROLE_SECURITY_ADMIN
-     */
+    
     private boolean hasActivationPermission(String user) {
         if (user == null || user.isEmpty()) {
             log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 정보 없음");
@@ -470,7 +420,7 @@ public class PolicyAuditLogger {
             return false;
         }
 
-        // 현재 인증된 사용자와 요청 사용자 일치 여부 확인
+        
         if (!user.equals(authentication.getName())) {
             log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 불일치");
             return false;
@@ -482,18 +432,14 @@ public class PolicyAuditLogger {
         return hasPermission;
     }
 
-    /**
-     * 역할 보유 여부 확인
-     */
+    
     private boolean hasRole(Authentication authentication, String role) {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(authority -> authority.equals(role));
     }
 
-    /**
-     * 주어진 역할 중 하나라도 보유하는지 확인
-     */
+    
     private boolean hasAnyRole(Authentication authentication, String... roles) {
         Set<String> requiredRoles = Set.of(roles);
         return authentication.getAuthorities().stream()
@@ -501,17 +447,13 @@ public class PolicyAuditLogger {
                 .anyMatch(requiredRoles::contains);
     }
 
-    /**
-     * 이해 상충 검사 (AI Native v3.3.0)
-     *
-     * 제안자와 승인자가 동일하면 이해 상충
-     */
+    
     private boolean hasConflictOfInterest(Long proposalId, String approver) {
         if (proposalId == null || approver == null) {
             return false;
         }
 
-        // DB에서 제안자 조회
+        
         Optional<String> creatorOpt = synthesisPolicyRepository.findById(proposalId)
                 .map(policy -> policy.getCreatedBy())
                 .filter(creator -> creator != null);
@@ -530,49 +472,37 @@ public class PolicyAuditLogger {
         return conflict;
     }
 
-    /**
-     * 승인 타임라인 검사 (stub - 향후 구현)
-     */
+    
     private boolean withinApprovalTimeline(Long proposalId) {
-        // TODO: 실제 구현 필요 - 승인 요청 후 72시간 이내 처리 등
+        
         return true;
     }
 
-    /**
-     * 정책 명명 규칙 검증 (stub - 향후 구현)
-     */
+    
     private boolean validatePolicyNamingConvention(Long proposalId) {
-        // TODO: 실제 구현 필요 - 정책명 패턴 검증
+        
         return true;
     }
 
-    /**
-     * 정책 내용 검증 (stub - 향후 구현)
-     */
+    
     private boolean validatePolicyContent(Long proposalId) {
-        // TODO: 실제 구현 필요 - 정책 내용 유효성 검증
+        
         return true;
     }
 
-    /**
-     * 테스트 통과 여부 검사 (stub - 향후 구현)
-     */
+    
     private boolean hasPassedRequiredTests(Long policyId) {
-        // TODO: 실제 구현 필요 - 테스트 결과 확인
+        
         return true;
     }
 
-    /**
-     * 문서화 요구사항 검사 (stub - 향후 구현)
-     */
+    
     private boolean hasRequiredDocumentation(Long policyId) {
-        // TODO: 실제 구현 필요 - 문서화 완료 여부 확인
+        
         return true;
     }
     
-    /**
-     * 컴플라이언스 보고서 생성
-     */
+    
     public ComplianceReport generateComplianceReport(LocalDateTime startDate, LocalDateTime endDate) {
         ComplianceReport report = new ComplianceReport();
         report.setReportId(UUID.randomUUID().toString());
@@ -580,14 +510,14 @@ public class PolicyAuditLogger {
         report.setStartDate(startDate);
         report.setEndDate(endDate);
         
-        // 기간 내 감사 로그 필터링
+        
         List<AuditLogEntry> periodLogs = auditLogs.values().stream()
             .filter(log -> log.timestamp.isAfter(startDate) && log.timestamp.isBefore(endDate))
             .collect(Collectors.toList());
         
         report.setTotalEvents(periodLogs.size());
         
-        // 이벤트 타입별 집계
+        
         Map<String, Long> eventTypeCounts = periodLogs.stream()
             .collect(Collectors.groupingBy(
                 log -> log.eventType,
@@ -595,7 +525,7 @@ public class PolicyAuditLogger {
             ));
         report.setEventTypeCounts(eventTypeCounts);
         
-        // 컴플라이언스 위반 집계
+        
         List<ComplianceCheckpoint> periodCheckpoints = complianceCheckpoints.values().stream()
             .filter(cp -> cp.timestamp.isAfter(startDate) && cp.timestamp.isBefore(endDate))
             .collect(Collectors.toList());
@@ -605,7 +535,7 @@ public class PolicyAuditLogger {
             .count();
         report.setTotalViolations(totalViolations);
         
-        // 위반 유형별 집계
+        
         Map<String, List<String>> violationsByType = periodCheckpoints.stream()
             .filter(cp -> !cp.isCompliant())
             .collect(Collectors.groupingBy(
@@ -614,12 +544,12 @@ public class PolicyAuditLogger {
             ));
         report.setViolationsByType(violationsByType);
         
-        // 컴플라이언스 점수 계산 (0-100)
+        
         double complianceScore = periodCheckpoints.isEmpty() ? 100.0 :
             (double)(periodCheckpoints.size() - totalViolations) / periodCheckpoints.size() * 100;
         report.setComplianceScore(complianceScore);
         
-        // 권장사항 생성
+        
         List<String> recommendations = generateRecommendations(violationsByType);
         report.setRecommendations(recommendations);
         
@@ -629,9 +559,7 @@ public class PolicyAuditLogger {
         return report;
     }
     
-    /**
-     * 권장사항 생성
-     */
+    
     private List<String> generateRecommendations(Map<String, List<String>> violationsByType) {
         List<String> recommendations = new ArrayList<>();
         
@@ -654,9 +582,7 @@ public class PolicyAuditLogger {
         return recommendations;
     }
     
-    /**
-     * 컴플라이언스 보고서 클래스
-     */
+    
     public static class ComplianceReport {
         private String reportId;
         private LocalDateTime generatedAt;
@@ -669,7 +595,7 @@ public class PolicyAuditLogger {
         private double complianceScore;
         private List<String> recommendations;
         
-        // Getters and Setters
+        
         public String getReportId() { return reportId; }
         public void setReportId(String reportId) { this.reportId = reportId; }
         
@@ -701,10 +627,8 @@ public class PolicyAuditLogger {
         public void setRecommendations(List<String> recommendations) { this.recommendations = recommendations; }
     }
     
-    /**
-     * 주기적 컴플라이언스 체크 (매일 자정)
-     */
-//    @Scheduled(cron = "0 0 0 * * *")
+    
+
     public void performDailyComplianceCheck() {
         log.info("Starting daily compliance check...");
         
@@ -715,16 +639,14 @@ public class PolicyAuditLogger {
         
         if (dailyReport.getComplianceScore() < 80.0) {
             log.warn("Daily compliance score below threshold: {:.2f}%", dailyReport.getComplianceScore());
-            // 알림 발송 로직
+            
         }
         
-        // 오래된 로그 정리 (30일 이상)
+        
         cleanupOldLogs();
     }
     
-    /**
-     * 오래된 로그 정리
-     */
+    
     private void cleanupOldLogs() {
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(30);
         
@@ -739,9 +661,7 @@ public class PolicyAuditLogger {
         log.info("Cleaned up logs older than {}", cutoffDate);
     }
     
-    /**
-     * 감사 로그 검색
-     */
+    
     public List<AuditLogEntry> searchAuditLogs(String eventType, String actor, 
                                                LocalDateTime startDate, LocalDateTime endDate) {
         return auditLogs.values().stream()
@@ -753,9 +673,7 @@ public class PolicyAuditLogger {
             .collect(Collectors.toList());
     }
     
-    /**
-     * 컴플라이언스 체크포인트 검색
-     */
+    
     public List<ComplianceCheckpoint> searchComplianceCheckpoints(String complianceType, 
                                                                   boolean violationsOnly) {
         return complianceCheckpoints.values().stream()

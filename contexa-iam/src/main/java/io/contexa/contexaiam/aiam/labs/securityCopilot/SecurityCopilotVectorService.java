@@ -15,14 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 
-/**
- * Security Copilot 전용 벡터 저장소 서비스
- * 
- * SecurityCopilotLab을 위한 Spring AI 표준 준수 벡터 저장소 서비스입니다.
- * 보안 통합 분석, 위협 평가, 권고사항을 벡터화하여 저장하고 학습합니다.
- * 
- * @since 1.0.0
- */
+
 @Slf4j
 public class SecurityCopilotVectorService extends AbstractVectorLabService {
     
@@ -43,7 +36,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
-    // 보안 위협 유형 분류 패턴
+    
     private static final Map<String, Pattern> THREAT_TYPE_PATTERNS = Map.of(
         "UNAUTHORIZED_ACCESS", Pattern.compile("unauthorized|illegal|forbidden|무단|불법", Pattern.CASE_INSENSITIVE),
         "DATA_BREACH", Pattern.compile("breach|leak|exposure|유출|노출", Pattern.CASE_INSENSITIVE),
@@ -55,7 +48,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         "CONFIGURATION_ERROR", Pattern.compile("misconfiguration|config.*error|설정.*오류", Pattern.CASE_INSENSITIVE)
     );
     
-    // 보안 영역 분류 패턴
+    
     private static final Map<String, Pattern> SECURITY_DOMAIN_PATTERNS = Map.of(
         "IDENTITY", Pattern.compile("identity|authentication|인증|신원", Pattern.CASE_INSENSITIVE),
         "ACCESS", Pattern.compile("access|authorization|permission|접근|권한", Pattern.CASE_INSENSITIVE),
@@ -67,7 +60,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         "COMPLIANCE", Pattern.compile("compliance|regulation|audit|준수|규정", Pattern.CASE_INSENSITIVE)
     );
     
-    // 공격 단계 (MITRE ATT&CK 기반)
+    
     private static final Map<String, Pattern> ATTACK_STAGE_PATTERNS = Map.of(
         "RECONNAISSANCE", Pattern.compile("recon|scanning|discovery|정찰|스캔", Pattern.CASE_INSENSITIVE),
         "INITIAL_ACCESS", Pattern.compile("initial.*access|entry.*point|초기.*접근", Pattern.CASE_INSENSITIVE),
@@ -100,34 +93,34 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         Map<String, Object> metadata = new HashMap<>(document.getMetadata());
         
         try {
-            // 1. 위협 유형 분류
+            
             Set<String> threatTypes = classifyThreatTypes(document.getText());
             metadata.put("threatTypes", new ArrayList<>(threatTypes));
             metadata.put("threatTypeCount", threatTypes.size());
             
-            // 2. 보안 영역 분석
+            
             Set<String> securityDomains = analyzeSecurityDomains(document.getText());
             metadata.put("securityDomains", new ArrayList<>(securityDomains));
             metadata.put("crossDomainThreat", securityDomains.size() > 1);
             
-            // 3. 공격 단계 식별
+            
             Set<String> attackStages = identifyAttackStages(document.getText());
             metadata.put("attackStages", new ArrayList<>(attackStages));
             metadata.put("multiStageAttack", attackStages.size() > 1);
             
-            // 4. 위협 심각도 평가
+            
             ThreatSeverity severity = evaluateThreatSeverity(metadata);
             metadata.put("threatSeverity", severity.getLevel());
             metadata.put("threatScore", severity.getScore());
             metadata.put("severityFactors", severity.getFactors());
             
-            // 5. 영향 분석
+            
             ImpactAnalysis impact = analyzeImpact(document.getText(), metadata);
             metadata.put("impactScope", impact.getScope());
             metadata.put("impactLevel", impact.getLevel());
             metadata.put("affectedAssets", impact.getAffectedAssets());
             
-            // 6. 이상 징후 감지
+            
             if (anomalyDetection) {
                 AnomalyIndicators anomalies = detectAnomalies(document.getText(), metadata);
                 metadata.put("anomalyScore", anomalies.getScore());
@@ -135,19 +128,19 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
                 metadata.put("isAnomaly", anomalies.getScore() > 0.7);
             }
             
-            // 7. 위협 인텔리전스 상관관계
+            
             if (threatIntelligence) {
                 Map<String, Object> threatIntel = correlateThreatIntelligence(metadata);
                 metadata.put("threatIntelligence", threatIntel);
             }
             
-            // 8. 인시던트 상관관계 분석
+            
             if (incidentCorrelation) {
                 Map<String, Object> correlations = analyzeIncidentCorrelations(metadata);
                 metadata.put("incidentCorrelations", correlations);
             }
             
-            // 9. 예측 분석
+            
             if (predictiveAnalysis) {
                 PredictiveInsights predictions = generatePredictiveInsights(metadata);
                 metadata.put("predictedThreats", predictions.getThreats());
@@ -155,15 +148,15 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
                 metadata.put("mitigationUrgency", predictions.getUrgency());
             }
             
-            // 10. 보안 시그니처 생성
+            
             String securitySignature = generateSecuritySignature(metadata);
             metadata.put("securitySignature", securitySignature);
             
-            // 11. 권고사항 우선순위
+            
             List<String> prioritizedRecommendations = prioritizeRecommendations(metadata);
             metadata.put("prioritizedRecommendations", prioritizedRecommendations);
             
-            // 12. 메타데이터 버전 정보
+            
             metadata.put("enrichmentVersion", "2.0");
             metadata.put("enrichedByService", "SecurityCopilotVectorService");
             metadata.put("analysisTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
@@ -181,7 +174,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
         
-        // 필수 필드 검증
+        
         if (!metadata.containsKey("userId") && 
             !metadata.containsKey("analysisType") && 
             !metadata.containsKey("organizationId")) {
@@ -189,13 +182,13 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
                 "Security Copilot 문서는 userId, analysisType, organizationId 중 최소 하나는 포함해야 합니다");
         }
         
-        // 분석 내용 검증
+        
         String text = document.getText();
         if (text == null || text.trim().length() < 10) {
             throw new IllegalArgumentException("보안 분석 내용이 너무 짧습니다 (최소 10자 필요)");
         }
         
-        // 분석 길이 제한
+        
         if (text.length() > 10000) {
             throw new IllegalArgumentException("보안 분석 내용이 너무 깁니다 (최대 10000자)");
         }
@@ -207,7 +200,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
             Map<String, Object> metadata = document.getMetadata();
             
             if (operationType == OperationType.STORE) {
-                // 고위험 위협 감지 시 알림
+                
                 Double threatScore = (Double) metadata.get("threatScore");
                 if (threatScore != null && threatScore >= threatThreshold) {
                     log.warn("[SecurityCopilotVectorService] 고위험 위협 감지: 점수={}, 유형={}", 
@@ -217,18 +210,18 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
                     metadata.put("threatAlertTriggered", true);
                     metadata.put("alertTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
                     
-                    // 인시던트 응답 프로세스 트리거
+                    
                     triggerIncidentResponse(metadata);
                 }
                 
-                // 이상 징후 알림
+                
                 if (Boolean.TRUE.equals(metadata.get("isAnomaly"))) {
                     log.warn("[SecurityCopilotVectorService] 이상 징후 감지: {}", 
                             metadata.get("anomalyIndicators"));
                     metadata.put("anomalyAlertTriggered", true);
                 }
                 
-                // 다단계 공격 감지 알림
+                
                 if (Boolean.TRUE.equals(metadata.get("multiStageAttack"))) {
                     log.warn("[SecurityCopilotVectorService] 다단계 공격 패턴 감지: {}", 
                             metadata.get("attackStages"));
@@ -263,11 +256,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return filters;
     }
     
-    /**
-     * 보안 분석 요청을 벡터 저장소에 저장
-     * 
-     * @param request Security Copilot 요청
-     */
+    
     public void storeSecurityAnalysisRequest(SecurityCopilotRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -278,7 +267,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
             metadata.put("documentType", "security_copilot_request");
             metadata.put("requestId", UUID.randomUUID().toString());
             
-            // 분석 옵션
+            
             metadata.put("enableThreatHunting", request.isEnableThreatHunting());
             metadata.put("enableComplianceCheck", request.isEnableComplianceCheck());
             metadata.put("enableVulnerabilityAssessment", request.isEnableVulnerabilityAssessment());
@@ -304,12 +293,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * 보안 분석 결과를 벡터 저장소에 저장
-     * 
-     * @param request 원본 요청
-     * @param response 분석 결과
-     */
+    
     public void storeSecurityAnalysisResult(SecurityCopilotRequest request, SecurityCopilotResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -320,20 +304,20 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
             metadata.put("documentType", "security_copilot_result");
             metadata.put("analysisId", response.getAnalysisId());
             
-            // 분석 결과 정보
+            
             metadata.put("overallSecurityScore", response.getOverallSecurityScore());
             metadata.put("criticalFindingsCount", response.getCriticalFindings() != null ? response.getCriticalFindings().size() : 0);
             metadata.put("recommendationsCount", response.getRecommendations() != null ? response.getRecommendations().size() : 0);
             metadata.put("complianceStatus", response.getComplianceStatus());
             
-            // 위협 분석 결과
+            
             if (response.getThreatAnalysis() != null) {
                 metadata.put("identifiedThreats", response.getThreatAnalysis().getIdentifiedThreats());
                 metadata.put("threatLevel", response.getThreatAnalysis().getThreatLevel());
                 metadata.put("attackVectors", response.getThreatAnalysis().getAttackVectors());
             }
             
-            // 취약점 평가 결과
+            
             if (response.getVulnerabilityAssessment() != null) {
                 metadata.put("vulnerabilityCount", response.getVulnerabilityAssessment().getVulnerabilities().size());
                 metadata.put("criticalVulnerabilities", response.getVulnerabilityAssessment().getCriticalCount());
@@ -352,7 +336,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
             Document resultDoc = new Document(resultText, metadata);
             storeDocument(resultDoc);
             
-            // 각 Lab 결과 별도 저장
+            
             storeIndividualLabResults(response, metadata);
             
             log.debug("[SecurityCopilotVectorService] 보안 분석 결과 저장 완료: 분석ID={}", response.getAnalysisId());
@@ -363,11 +347,9 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * 개별 Lab 결과를 별도로 저장
-     */
+    
     private void storeIndividualLabResults(SecurityCopilotResponse response, Map<String, Object> baseMetadata) {
-        // 각 Lab 결과를 개별적으로 저장하여 상세 분석 가능하도록 함
+        
         if (response.getIndividualResults() != null) {
             response.getIndividualResults().forEach((labName, result) -> {
                 try {
@@ -392,9 +374,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         }
     }
     
-    /**
-     * 위협 유형 분류
-     */
+    
     private Set<String> classifyThreatTypes(String content) {
         Set<String> threatTypes = new HashSet<>();
         
@@ -413,9 +393,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return threatTypes;
     }
     
-    /**
-     * 보안 영역 분석
-     */
+    
     private Set<String> analyzeSecurityDomains(String content) {
         Set<String> domains = new HashSet<>();
         
@@ -434,9 +412,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return domains;
     }
     
-    /**
-     * 공격 단계 식별
-     */
+    
     private Set<String> identifyAttackStages(String content) {
         Set<String> stages = new HashSet<>();
         
@@ -451,15 +427,13 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return stages;
     }
     
-    /**
-     * 위협 심각도 평가
-     */
+    
     private ThreatSeverity evaluateThreatSeverity(Map<String, Object> metadata) {
         ThreatSeverity severity = new ThreatSeverity();
         double score = 0.0;
         List<String> factors = new ArrayList<>();
         
-        // 위협 유형 수에 따른 점수
+        
         List<String> threatTypes = (List<String>) metadata.get("threatTypes");
         if (threatTypes != null) {
             score += threatTypes.size() * 15.0;
@@ -468,26 +442,26 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
             }
         }
         
-        // 다단계 공격 여부
+        
         if (Boolean.TRUE.equals(metadata.get("multiStageAttack"))) {
             score += 25.0;
             factors.add("다단계 공격");
         }
         
-        // 교차 도메인 위협
+        
         if (Boolean.TRUE.equals(metadata.get("crossDomainThreat"))) {
             score += 20.0;
             factors.add("교차 도메인 위협");
         }
         
-        // 공격 단계 수
+        
         List<String> attackStages = (List<String>) metadata.get("attackStages");
         if (attackStages != null && attackStages.size() > 3) {
             score += 20.0;
             factors.add("고급 공격 패턴");
         }
         
-        // 특정 위협 유형 가중치
+        
         if (threatTypes != null) {
             if (threatTypes.contains("DATA_BREACH")) {
                 score += 15.0;
@@ -515,13 +489,11 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return severity;
     }
     
-    /**
-     * 영향 분석
-     */
+    
     private ImpactAnalysis analyzeImpact(String content, Map<String, Object> metadata) {
         ImpactAnalysis impact = new ImpactAnalysis();
         
-        // 영향 범위 결정
+        
         List<String> domains = (List<String>) metadata.get("securityDomains");
         if (domains != null && domains.size() > 3) {
             impact.setScope("ENTERPRISE");
@@ -531,7 +503,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
             impact.setScope("LOCAL");
         }
         
-        // 영향 수준
+        
         String threatLevel = (String) metadata.get("threatSeverity");
         if ("CRITICAL".equals(threatLevel)) {
             impact.setLevel("SEVERE");
@@ -543,7 +515,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
             impact.setLevel("MINOR");
         }
         
-        // 영향받는 자산 식별
+        
         List<String> affectedAssets = new ArrayList<>();
         if (content.contains("database") || content.contains("데이터베이스")) {
             affectedAssets.add("DATABASE");
@@ -563,35 +535,33 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return impact;
     }
     
-    /**
-     * 이상 징후 감지
-     */
+    
     private AnomalyIndicators detectAnomalies(String content, Map<String, Object> metadata) {
         AnomalyIndicators anomalies = new AnomalyIndicators();
         double score = 0.0;
         List<String> indicators = new ArrayList<>();
         
-        // 비정상 패턴 감지
+        
         if (content.contains("unusual") || content.contains("비정상") || content.contains("이상")) {
             score += 0.3;
             indicators.add("비정상 패턴 언급");
         }
         
-        // 시간 기반 이상
+        
         LocalDateTime now = LocalDateTime.now();
         if (now.getHour() < 6 || now.getHour() > 22) {
             score += 0.2;
             indicators.add("비정상 시간대 활동");
         }
         
-        // 다중 위협 동시 발생
+        
         List<String> threatTypes = (List<String>) metadata.get("threatTypes");
         if (threatTypes != null && threatTypes.size() > 3) {
             score += 0.3;
             indicators.add("다중 위협 동시 발생");
         }
         
-        // 급격한 활동 증가
+        
         if (content.contains("spike") || content.contains("surge") || content.contains("급증")) {
             score += 0.2;
             indicators.add("활동 급증");
@@ -603,19 +573,17 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return anomalies;
     }
     
-    /**
-     * 위협 인텔리전스 상관관계 분석
-     */
+    
     private Map<String, Object> correlateThreatIntelligence(Map<String, Object> metadata) {
         Map<String, Object> threatIntel = new HashMap<>();
         
         List<String> threatTypes = (List<String>) metadata.get("threatTypes");
         if (threatTypes != null) {
-            // 알려진 위협 패턴과 매칭
+            
             threatIntel.put("knownThreatPatterns", threatTypes.size());
             threatIntel.put("threatCategories", threatTypes);
             
-            // IOC (Indicators of Compromise) 상관관계
+            
             List<String> iocs = new ArrayList<>();
             if (threatTypes.contains("MALWARE")) {
                 iocs.add("MALICIOUS_FILE_HASH");
@@ -629,13 +597,11 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return threatIntel;
     }
     
-    /**
-     * 인시던트 상관관계 분석
-     */
+    
     private Map<String, Object> analyzeIncidentCorrelations(Map<String, Object> metadata) {
         Map<String, Object> correlations = new HashMap<>();
         
-        // 관련 인시던트 패턴
+        
         List<String> relatedPatterns = new ArrayList<>();
         
         List<String> attackStages = (List<String>) metadata.get("attackStages");
@@ -653,13 +619,11 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return correlations;
     }
     
-    /**
-     * 예측 분석 인사이트 생성
-     */
+    
     private PredictiveInsights generatePredictiveInsights(Map<String, Object> metadata) {
         PredictiveInsights insights = new PredictiveInsights();
         
-        // 예측된 위협
+        
         List<String> predictedThreats = new ArrayList<>();
         
         List<String> attackStages = (List<String>) metadata.get("attackStages");
@@ -677,7 +641,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         
         insights.setThreats(predictedThreats);
         
-        // 위험 추세
+        
         Double threatScore = (Double) metadata.get("threatScore");
         if (threatScore != null) {
             if (threatScore > 70) {
@@ -695,9 +659,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return insights;
     }
     
-    /**
-     * 보안 시그니처 생성
-     */
+    
     private String generateSecuritySignature(Map<String, Object> metadata) {
         StringBuilder signature = new StringBuilder();
         
@@ -724,9 +686,7 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return signature.toString();
     }
     
-    /**
-     * 권고사항 우선순위 지정
-     */
+    
     private List<String> prioritizeRecommendations(Map<String, Object> metadata) {
         List<String> recommendations = new ArrayList<>();
         
@@ -747,17 +707,15 @@ public class SecurityCopilotVectorService extends AbstractVectorLabService {
         return recommendations;
     }
     
-    /**
-     * 인시던트 응답 프로세스 트리거
-     */
+    
     private void triggerIncidentResponse(Map<String, Object> metadata) {
         log.info("[SecurityCopilotVectorService] 인시던트 응답 프로세스 시작");
-        // 실제 구현에서는 인시던트 응답 시스템과 통합
+        
         metadata.put("incidentResponseTriggered", true);
         metadata.put("incidentId", UUID.randomUUID().toString());
     }
     
-    // 내부 클래스들
+    
     
     private static class ThreatSeverity {
         private String level;

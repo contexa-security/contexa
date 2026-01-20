@@ -20,16 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Kafka 기반 보안 이벤트 수집기
- *
- * AI Native v14.0: ZeroTrustSpringEvent로 통일
- *
- * 모든 보안 이벤트를 ZeroTrustSpringEvent 형식으로 수신합니다.
- * - 인가 이벤트: security.events.authorization.*
- * - 인증 성공 이벤트: security.events.authentication.success
- * - 인증 실패 이벤트: security.events.authentication.failure
- */
+
 @Slf4j
 public class KafkaSecurityEventCollector {
 
@@ -68,19 +59,9 @@ public class KafkaSecurityEventCollector {
         running = false;
     }
 
-    // ========== ZeroTrustSpringEvent 수신 ==========
+    
 
-    /**
-     * Zero Trust 공통 이벤트 수신
-     *
-     * AI Native v14.0: 모든 보안 이벤트는 이 리스너로 통일
-     *
-     * 토픽 패턴: security.events.authorization.*, security.events.authentication.*
-     * - security.events.authorization.web
-     * - security.events.authorization.method
-     * - security.events.authentication.success
-     * - security.events.authentication.failure
-     */
+    
     @KafkaListener(
         topicPattern = "security\\.events\\.(authorization|authentication)\\..*",
         groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
@@ -142,19 +123,17 @@ public class KafkaSecurityEventCollector {
         log.info("Unregistered security event listener: {}", listener.getListenerName());
     }
 
-    /**
-     * 이벤트 처리 - 즉시 리스너 호출
-     */
+    
     private void processEvent(SecurityEvent event) {
         if (event.getEventId() == null) {
             event.setEventId(UUID.randomUUID().toString());
             log.debug("[KafkaCollector] Generated eventId: {}", event.getEventId());
         }
 
-        // Add to cache
+        
         eventCache.put(event.getEventId(), event);
 
-        // Limit cache size
+        
         if (eventCache.size() > 10000) {
             eventCache.entrySet().stream()
                 .sorted(Map.Entry.comparingByValue(
@@ -164,7 +143,7 @@ public class KafkaSecurityEventCollector {
                 .forEach(eventCache::remove);
         }
 
-        // 모든 리스너가 처리 완료된 후에만 상위로 리턴
+        
         if (!listeners.isEmpty()) {
             for (SecurityEventListener listener : listeners) {
                 try {
@@ -188,9 +167,7 @@ public class KafkaSecurityEventCollector {
         }
     }
 
-    /**
-     * 통계 조회
-     */
+    
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("total_events", eventCount.get());
@@ -200,32 +177,28 @@ public class KafkaSecurityEventCollector {
         return stats;
     }
 
-    // ========== 변환 메서드 ==========
+    
 
-    /**
-     * ZeroTrustSpringEvent를 SecurityEvent로 변환
-     *
-     * AI Native v14.0: 모든 이벤트 타입을 ZeroTrustSpringEvent의 payload에서 추출
-     */
+    
     private SecurityEvent convertZeroTrustToSecurityEvent(ZeroTrustSpringEvent zeroTrustEvent) {
         Map<String, Object> payload = zeroTrustEvent.getPayload();
 
-        // payload에서 eventId 추출 (없으면 새로 생성)
+        
         String eventId = payload != null && payload.get("eventId") != null
             ? String.valueOf(payload.get("eventId"))
             : UUID.randomUUID().toString();
 
-        // payload에서 userName 추출
+        
         String userName = payload != null && payload.get("userName") != null
             ? String.valueOf(payload.get("userName"))
             : null;
 
-        // payload에서 description 추출 또는 기본값 생성
+        
         String description = payload != null && payload.get("description") != null
             ? String.valueOf(payload.get("description"))
             : zeroTrustEvent.getCategory() + " event: " + zeroTrustEvent.getEventType();
 
-        // payload에서 severity 추출 또는 기본값
+        
         SecurityEvent.Severity severity = determineSeverityFromPayload(payload);
 
         SecurityEvent event = SecurityEvent.builder()
@@ -241,7 +214,7 @@ public class KafkaSecurityEventCollector {
             .userAgent(zeroTrustEvent.getUserAgent())
             .build();
 
-        // payload를 메타데이터로 복사
+        
         if (payload != null) {
             payload.forEach((key, value) -> {
                 if (value != null && !key.equals("eventId") && !key.equals("userName") && !key.equals("description")) {
@@ -250,7 +223,7 @@ public class KafkaSecurityEventCollector {
             });
         }
 
-        // 리소스 정보
+        
         if (zeroTrustEvent.getResource() != null) {
             event.addMetadata("requestPath", zeroTrustEvent.getResource());
         }
@@ -258,15 +231,13 @@ public class KafkaSecurityEventCollector {
         return event;
     }
 
-    /**
-     * payload에서 severity 결정
-     */
+    
     private SecurityEvent.Severity determineSeverityFromPayload(Map<String, Object> payload) {
         if (payload == null) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        // 브루트포스 또는 Credential Stuffing 감지 시 HIGH
+        
         Object bruteForce = payload.get("bruteForceDetected");
         Object credentialStuffing = payload.get("credentialStuffingDetected");
         if ((bruteForce != null && Boolean.parseBoolean(String.valueOf(bruteForce))) ||
@@ -274,27 +245,25 @@ public class KafkaSecurityEventCollector {
             return SecurityEvent.Severity.HIGH;
         }
 
-        // 이상 탐지 시 MEDIUM
+        
         Object anomaly = payload.get("anomalyDetected");
         if (anomaly != null && Boolean.parseBoolean(String.valueOf(anomaly))) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        // 인증 실패 시 MEDIUM
+        
         Object failureReason = payload.get("failureReason");
         if (failureReason != null) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        // 기본값
+        
         return SecurityEvent.Severity.LOW;
     }
 
-    // ========== DLQ 처리 ==========
+    
 
-    /**
-     * Dead Letter Queue로 실패한 메시지 전송
-     */
+    
     private void sendToDeadLetterQueue(String message, String topic, int partition, long offset, Exception exception) {
         try {
             Map<String, Object> dlqMessage = new HashMap<>();

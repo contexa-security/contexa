@@ -7,8 +7,8 @@ import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
-@Table(name = "USER_GROUPS") // User와 Group의 조인 테이블
-@IdClass(UserGroupId.class) // 복합 PK를 위한 @IdClass 사용
+@Table(name = "USER_GROUPS") 
+@IdClass(UserGroupId.class) 
 @Getter
 @Setter
 @Builder
@@ -19,17 +19,17 @@ public class UserGroup implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     @ToString.Exclude
-    private Users user; // 사용자 엔티티
+    private Users user; 
 
     @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id")
     @ToString.Exclude
-    private Group group; // 그룹 엔티티
+    private Group group; 
 
-    // 추가 속성 (예: 그룹 가입일, 그룹 내 직위 등)
-    // @Column(name = "joined_at")
-    // private Instant joinedAt;
+    
+    
+    
 
     @Override
     public boolean equals(Object o) {
@@ -46,12 +46,12 @@ public class UserGroup implements Serializable {
     }
 }
 
-// 복합 PK를 위한 ID 클래스
+
 @NoArgsConstructor
 @AllArgsConstructor
 class UserGroupId implements Serializable {
-    private Long user;  // Users 엔티티의 ID 타입과 일치해야 함
-    private Long group; // Group 엔티티의 ID 타입과 일치해야 함
+    private Long user;  
+    private Long group; 
 
     @Override
     public boolean equals(Object o) {

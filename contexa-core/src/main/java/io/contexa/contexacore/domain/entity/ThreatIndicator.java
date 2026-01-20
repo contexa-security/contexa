@@ -11,11 +11,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Threat Indicator Domain Entity
- * 
- * Represents IoC (Indicators of Compromise) and threat intelligence information.
- */
+
 @Entity
 @Table(name = "threat_indicators")
 @Getter
@@ -155,9 +151,7 @@ public class ThreatIndicator {
     @Builder.Default
     private Set<ThreatIndicator> relatedIndicators = new HashSet<>();
     
-    /**
-     * Indicator Type
-     */
+    
     public enum IndicatorType {
         IP_ADDRESS("IP Address"),
         DOMAIN("Domain"),
@@ -189,9 +183,7 @@ public class ThreatIndicator {
         }
     }
     
-    /**
-     * Severity Levels
-     */
+    
     public enum Severity {
         CRITICAL("Critical", 5),
         HIGH("High", 4),
@@ -220,9 +212,7 @@ public class ThreatIndicator {
         }
     }
     
-    /**
-     * Indicator Status
-     */
+    
     public enum IndicatorStatus {
         ACTIVE("Active"),
         INACTIVE("Inactive"),
@@ -241,9 +231,7 @@ public class ThreatIndicator {
         }
     }
     
-    /**
-     * Add metadata entry
-     */
+    
     public void addMetadata(String key, String value) {
         if (metadata == null) {
             metadata = new HashMap<>();
@@ -251,9 +239,7 @@ public class ThreatIndicator {
         metadata.put(key, value);
     }
     
-    /**
-     * Add tag
-     */
+    
     public void addTag(String tag) {
         if (tags == null) {
             tags = new HashSet<>();
@@ -261,17 +247,13 @@ public class ThreatIndicator {
         tags.add(tag);
     }
     
-    /**
-     * Increment detection count
-     */
+    
     public void incrementDetectionCount() {
         this.detectionCount++;
         this.lastSeen = LocalDateTime.now();
     }
     
-    /**
-     * Increment false positive count
-     */
+    
     public void incrementFalsePositiveCount() {
         this.falsePositiveCount++;
         if (this.falsePositiveCount > 10) {
@@ -279,9 +261,7 @@ public class ThreatIndicator {
         }
     }
     
-    /**
-     * Check if expired
-     */
+    
     @JsonIgnore
     public boolean isExpired() {
         if (expiresAt == null) {
@@ -290,26 +270,20 @@ public class ThreatIndicator {
         return LocalDateTime.now().isAfter(expiresAt);
     }
 
-    /**
-     * Check if active
-     */
+    
     @JsonIgnore
     public boolean isActive() {
         return active && status == IndicatorStatus.ACTIVE && !isExpired();
     }
 
-    /**
-     * Set MITRE ATT&CK mapping
-     */
+    
     public void setMitreMapping(String attackId, String tactic, String technique) {
         this.mitreAttackId = attackId;
         this.mitreTactic = tactic;
         this.mitreTechnique = technique;
     }
     
-    /**
-     * Update confidence score
-     */
+    
     public void updateConfidence(double newConfidence) {
         this.confidence = Math.max(0.0, Math.min(1.0, newConfidence));
     }

@@ -23,11 +23,11 @@ public final class AuthMethodConfigurerFactory {
     public <O extends AuthenticationProcessingOptions,
             A extends BaseAsepAttributes,
             S extends AuthenticationFactorConfigurer<O, A, S>>
-    S createFactorConfigurer(AuthType authType, Class<S> configurerInterfaceType) { // HttpSecurityBuilder 인자 제거
+    S createFactorConfigurer(AuthType authType, Class<S> configurerInterfaceType) { 
         Objects.requireNonNull(authType, "AuthType cannot be null");
         Objects.requireNonNull(configurerInterfaceType, "ConfigurerInterfaceType cannot be null");
 
-        // 각 Configurer는 ApplicationContext를 필요로 할 수 있음 (예: 빈 이름으로 핸들러 참조)
+        
         Object concreteConfigurerLogic = switch (authType) {
             case FORM -> {
                 yield new FormConfigurerConfigurerImpl(this.applicationContext);
@@ -54,7 +54,7 @@ public final class AuthMethodConfigurerFactory {
             case MFA_PASSKEY -> {
                 yield new PasskeyConfigurerConfigurerImpl(this.applicationContext, true);
             }
-            // case RECOVERY_CODE -> { ... }
+            
             default -> {
                 log.error("AuthMethodConfigurerFactory: Unsupported AuthType for AuthenticationFactorConfigurer: {}", authType);
                 throw new IllegalArgumentException("Unsupported AuthType for AuthenticationFactorConfigurer: " + authType);
@@ -72,10 +72,10 @@ public final class AuthMethodConfigurerFactory {
     }
 
     public <H extends HttpSecurityBuilder<H>> PrimaryAuthDslConfigurerImpl<H> createPrimaryAuthConfigurer(ApplicationContext context) {
-        return new PrimaryAuthDslConfigurerImpl<>(context); // HttpSecurityBuilder 인자 제거
+        return new PrimaryAuthDslConfigurerImpl<>(context); 
     }
 
     public <H extends HttpSecurityBuilder<H>> MfaDslConfigurerImpl<H> createMfaConfigurer(ApplicationContext context) {
-        return new MfaDslConfigurerImpl<>(context); // HttpSecurityBuilder 인자 제거
+        return new MfaDslConfigurerImpl<>(context); 
     }
 }

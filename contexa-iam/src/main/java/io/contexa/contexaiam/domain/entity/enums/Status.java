@@ -1,9 +1,6 @@
 package io.contexa.contexaiam.domain.entity.enums;
 
-/**
- * 상태
- * SRP 준수: 상태 정의만 담당
- */
+
 public enum Status {
     ACTIVE("활성"),
     INACTIVE("비활성"),

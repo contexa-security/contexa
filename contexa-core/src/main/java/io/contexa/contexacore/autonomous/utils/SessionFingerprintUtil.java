@@ -9,31 +9,13 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 
-/**
- * 세션 지문 생성 유틸리티
- *
- * SecurityEvent와 HCADContext 모두에서 일관된 세션 지문을 생성합니다.
- * 지문 구성 요소:
- * - 디바이스 지문 (Device Fingerprint): User-Agent 해시
- * - 네트워크 지문 (Network Fingerprint): Source IP 해시
- * - 시간 패턴 지문 (Time Pattern): Hour of day
- * - 행동 패턴 지문 (Behavioral Pattern): Event/Request type
- * - 메타데이터 지문 (Metadata Fingerprint): Additional context 해시
- *
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 public class SessionFingerprintUtil {
 
     private static final HexFormat HEX_FORMAT = HexFormat.of();
 
-    /**
-     * SecurityEvent 로부터 세션 지문 생성
-     *
-     * @param event 보안 이벤트
-     * @return 세션 지문 해시
-     */
+    
     public static String generateFingerprint(SecurityEvent event) {
         if (event == null) {
             log.warn("[SessionFingerprint] Event is null, returning default fingerprint");
@@ -42,32 +24,32 @@ public class SessionFingerprintUtil {
 
         StringBuilder fingerprint = new StringBuilder();
 
-        // 1. 디바이스 지문 (Device Fingerprint)
+        
         if (event.getUserAgent() != null) {
             fingerprint.append("UA:").append(hashString(event.getUserAgent())).append("|");
         }
 
-        // 2. 네트워크 지문 (Network Fingerprint)
+        
         if (event.getSourceIp() != null) {
             fingerprint.append("IP:").append(hashString(event.getSourceIp())).append("|");
         }
 
-        // 3. 시간 패턴 지문 (Time Pattern Fingerprint)
+        
         int hourOfDay = event.getTimestamp().getHour();
         fingerprint.append("TH:").append(hourOfDay).append("|");
 
-        // 4. 이벤트 심각도 패턴 (AI Native v4.0.0: eventType 제거 - severity 기반)
+        
         fingerprint.append("SV:").append(event.getSeverity() != null ? event.getSeverity().toString() : "INFO").append("|");
 
-        // 5. 메타데이터 지문 (Metadata Fingerprint)
+        
         if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
             String metadataHash = hashString(event.getMetadata().toString());
             fingerprint.append("MD:").append(metadataHash).append("|");
         }
 
-        // AI Native v3.1: sourcePort 필드 제거됨 - metadata로 이동 (네트워크 이벤트 전용)
+        
 
-        // 최종 지문 해시 생성
+        
         String finalFingerprint = hashString(fingerprint.toString());
 
         log.debug("[SessionFingerprint] Generated from SecurityEvent - userId: {}, sessionId: {}, fingerprint: {}",
@@ -76,12 +58,7 @@ public class SessionFingerprintUtil {
         return finalFingerprint;
     }
 
-    /**
-     * HCADContext로부터 세션 지문 생성
-     *
-     * @param context HCAD 컨텍스트
-     * @return 세션 지문 해시
-     */
+    
     public static String generateFingerprint(HCADContext context) {
         if (context == null) {
             log.warn("[SessionFingerprint] Context is null, returning default fingerprint");
@@ -90,17 +67,17 @@ public class SessionFingerprintUtil {
 
         StringBuilder fingerprint = new StringBuilder();
 
-        // 1. 디바이스 지문 (Device Fingerprint)
+        
         if (context.getUserAgent() != null) {
             fingerprint.append("UA:").append(hashString(context.getUserAgent())).append("|");
         }
 
-        // 2. 네트워크 지문 (Network Fingerprint)
+        
         if (context.getRemoteIp() != null) {
             fingerprint.append("IP:").append(hashString(context.getRemoteIp())).append("|");
         }
 
-        // 3. 시간 패턴 지문 (Time Pattern Fingerprint)
+        
         if (context.getTimestamp() != null) {
             LocalDateTime dateTime = LocalDateTime.ofInstant(context.getTimestamp(),
                 java.time.ZoneId.systemDefault());
@@ -108,7 +85,7 @@ public class SessionFingerprintUtil {
             fingerprint.append("TH:").append(hourOfDay).append("|");
         }
 
-        // 4. 요청 패턴 (Request Pattern Fingerprint)
+        
         if (context.getHttpMethod() != null && context.getRequestPath() != null) {
             fingerprint.append("RT:")
                 .append(context.getHttpMethod())
@@ -117,13 +94,13 @@ public class SessionFingerprintUtil {
                 .append("|");
         }
 
-        // 5. 메타데이터 지문 (Metadata Fingerprint)
+        
         if (context.getAdditionalAttributes() != null && !context.getAdditionalAttributes().isEmpty()) {
             String metadataHash = hashString(context.getAdditionalAttributes().toString());
             fingerprint.append("MD:").append(metadataHash).append("|");
         }
 
-        // 최종 지문 해시 생성
+        
         String finalFingerprint = hashString(fingerprint.toString());
 
         log.debug("[SessionFingerprint] Generated from HCADContext - userId: {}, sessionId: {}, fingerprint: {}",
@@ -132,12 +109,7 @@ public class SessionFingerprintUtil {
         return finalFingerprint;
     }
 
-    /**
-     * 문자열을 SHA-256 해시로 변환 (앞 8자리만 사용)
-     *
-     * @param input 입력 문자열
-     * @return 해시 값 (8자리)
-     */
+    
     private static String hashString(String input) {
         if (input == null || input.isEmpty()) {
             return "00000000";
@@ -154,13 +126,7 @@ public class SessionFingerprintUtil {
         }
     }
 
-    /**
-     * 두 지문 간 유사도 계산 (Levenshtein Distance 기반)
-     *
-     * @param fp1 지문 1
-     * @param fp2 지문 2
-     * @return 유사도 (0.0 ~ 1.0)
-     */
+    
     public static double calculateSimilarity(String fp1, String fp2) {
         if (fp1 == null || fp2 == null) {
             return 0.0;
@@ -180,13 +146,7 @@ public class SessionFingerprintUtil {
         return 1.0 - ((double) distance / maxLength);
     }
 
-    /**
-     * Levenshtein Distance 계산
-     *
-     * @param s1 문자열 1
-     * @param s2 문자열 2
-     * @return 편집 거리
-     */
+    
     private static int levenshteinDistance(String s1, String s2) {
         int len1 = s1.length();
         int len2 = s2.length();
@@ -207,10 +167,10 @@ public class SessionFingerprintUtil {
 
                 dp[i][j] = Math.min(
                     Math.min(
-                        dp[i - 1][j] + 1,      // 삭제
-                        dp[i][j - 1] + 1       // 삽입
+                        dp[i - 1][j] + 1,      
+                        dp[i][j - 1] + 1       
                     ),
-                    dp[i - 1][j - 1] + cost    // 교체
+                    dp[i - 1][j - 1] + cost    
                 );
             }
         }

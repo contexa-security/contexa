@@ -11,11 +11,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * 도메인별 컨텍스트
- * 
- * 도메인 내에서 공유되는 상태와 데이터를 관리합니다.
- */
+
 @Getter
 @Setter
 public class AdvisorContext {
@@ -39,56 +35,42 @@ public class AdvisorContext {
         this.lastAccessTime = System.currentTimeMillis();
     }
     
-    /**
-     * 속성 설정
-     */
+    
     public void setAttribute(String key, Object value) {
         attributes.put(key, value);
     }
     
-    /**
-     * 속성 조회
-     */
+    
     public Object getAttribute(String key) {
         return attributes.get(key);
     }
     
-    /**
-     * 속성 제거
-     */
+    
     public Object removeAttribute(String key) {
         return attributes.remove(key);
     }
     
-    /**
-     * 호출 횟수 증가
-     */
+    
     public long incrementCallCount() {
         return callCount.incrementAndGet();
     }
     
-    /**
-     * 호출 횟수 조회
-     */
+    
     public long getCallCount() {
         return callCount.get();
     }
     
-    /**
-     * 크로스 도메인 메시지 추가
-     */
+    
     public void addCrossDomainMessage(Map<String, Object> message) {
         crossDomainMessages.add(message);
         
-        // 메시지 수 제한 (최근 100개만 유지)
+        
         if (crossDomainMessages.size() > 100) {
             crossDomainMessages.remove(0);
         }
     }
     
-    /**
-     * 컨텍스트 초기화
-     */
+    
     public void clear() {
         attributes.clear();
         crossDomainMessages.clear();
@@ -98,9 +80,7 @@ public class AdvisorContext {
         sessionId = null;
     }
     
-    /**
-     * 컨텍스트 복제
-     */
+    
     public AdvisorContext copy() {
         AdvisorContext copy = new AdvisorContext(domain);
         copy.attributes.putAll(this.attributes);

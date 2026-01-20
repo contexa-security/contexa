@@ -5,8 +5,8 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.strategy.CompositeEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
-// AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
-// LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
+
+
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,25 +19,16 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-/**
- * IntegratedThreatEvaluator - 통합 위협 평가기
- *
- * 여러 전략을 병렬로 실행하고 가중 평균을 통해 정밀한 위협 평가를 수행합니다.
- * 최소 3개 이상의 전략이 동의해야 최종 결정을 신뢰합니다.
- *
- * <p>ThreatEvaluator 인터페이스를 구현하여 Core 모듈과의 인터페이스 계약을 준수합니다.</p>
- *
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class IntegratedThreatEvaluator implements ThreatEvaluator {
 
-    // 전략 컴포넌트
-    // SessionThreatEvaluationStrategy removed - handled by SecurityEventProcessingOrchestrator
+    
+    
 
-    // AI Native: MitreAttackEvaluationStrategy, NistCsfEvaluationStrategy, CisControlsEvaluationStrategy 제거
-    // LLM과 연동되지 않는 규칙 기반 Strategy는 AI Native 아키텍처에서 사용하지 않음
+    
+    
 
     @Autowired(required = false)
     private CompositeEvaluationStrategy compositeStrategy;
@@ -45,11 +36,11 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     @Autowired(required = false)
     private BehavioralAnalysisLabConnector behavioralConnector;
 
-    // Redis 컴포넌트
+    
     private final RedisAtomicOperations redisAtomicOperations;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    // 설정값
+    
     @Value("${security.evaluator.consensus.threshold:0.75}")
     private double consensusThreshold;
 
@@ -62,24 +53,17 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     @Value("${security.evaluator.parallel.enabled:true}")
     private boolean parallelEvaluationEnabled;
 
-    // 전략 가중치 설정
-    // sessionStrategyWeight removed - SecurityEventProcessingOrchestrator로 이관
-    // AI Native: mitre, nist, cis 가중치 제거 - 규칙 기반 Strategy 미사용
+    
+    
+    
 
     @Value("${security.evaluator.weight.behavioral:0.3}")
     private double behavioralStrategyWeight;
 
-    // 실행자 서비스
+    
     private final ExecutorService executorService = Executors.newFixedThreadPool(10);
 
-    /**
-     * 통합 위협 평가 - 메인 메서드
-     *
-     * 모든 가용한 전략을 병렬로 실행하고 가중 평균을 계산합니다.
-     *
-     * @param event 보안 이벤트
-     * @return 통합 위협 평가 결과
-     */
+    
     @Override
     public ThreatAssessment evaluateIntegrated(SecurityEvent event) {
         String evaluationId = UUID.randomUUID().toString();
@@ -89,22 +73,22 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             evaluationId, event.getEventId());
 
         try {
-            // 1. 모든 전략 병렬 실행
+            
             Map<String, CompletableFuture<StrategyResult>> futures = executeStrategiesInParallel(event);
 
-            // 2. 결과 수집 (타임아웃 적용)
+            
             Map<String, StrategyResult> results = collectResults(futures, evaluationTimeoutMs);
 
-            // 3. 유효성 검증
+            
             validateResults(results);
 
-            // 4. 가중 평균 계산
+            
             ThreatAssessment finalAssessment = calculateWeightedAssessment(event, results, evaluationId);
 
-            // 5. 감사 로그 기록
+            
             recordAuditLog(evaluationId, event, results, finalAssessment);
 
-            // 6. Redis에 평가 결과 저장
+            
             storeEvaluationResult(evaluationId, finalAssessment);
 
             long elapsedMs = java.time.Duration.between(startTime, LocalDateTime.now()).toMillis();
@@ -119,25 +103,20 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    /**
-     * 전략들을 병렬로 실행
-     */
+    
     private Map<String, CompletableFuture<StrategyResult>> executeStrategiesInParallel(SecurityEvent event) {
         Map<String, CompletableFuture<StrategyResult>> futures = new HashMap<>();
 
-        // SessionThreatStrategy - SecurityEventProcessingOrchestrator로 이관됨
-        // 세션 위협 처리는 더 이상 여기서 직접 실행하지 않음
+        
+        
 
-        // BehavioralAnalysis - 두 번째 중요
-       /* if (behavioralConnector != null && behavioralConnector.isEnabled()) {
-            futures.put("BEHAVIORAL", CompletableFuture.supplyAsync(() ->
-                executeBehavioralAnalysis(event), executorService));
-        }*/
+        
+       
 
-        // AI Native: MITRE, NIST, CIS 규칙 기반 전략 제거
-        // LLM이 직접 위협 평가를 수행하므로 하드코딩된 규칙 전략 불필요
+        
+        
 
-        // Composite Strategy
+        
         if (compositeStrategy != null && compositeStrategy.isEnabled()) {
             futures.put("COMPOSITE", CompletableFuture.supplyAsync(() ->
                 executeStrategy("COMPOSITE", compositeStrategy, event), executorService));
@@ -148,9 +127,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         return futures;
     }
 
-    /**
-     * 단일 전략 실행
-     */
+    
     private StrategyResult executeStrategy(String name, ThreatEvaluationStrategy strategy, SecurityEvent event) {
         long startTime = System.currentTimeMillis();
 
@@ -177,9 +154,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    /**
-     * 행동 분석 실행 (BehavioralAnalysisLab 연동)
-     */
+    
     private StrategyResult executeBehavioralAnalysis(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
 
@@ -206,9 +181,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    /**
-     * 결과 수집 (타임아웃 적용)
-     */
+    
     private Map<String, StrategyResult> collectResults(
             Map<String, CompletableFuture<StrategyResult>> futures, long timeoutMs) {
 
@@ -233,9 +206,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         return results;
     }
 
-    /**
-     * 결과 유효성 검증
-     */
+    
     private void validateResults(Map<String, StrategyResult> results) throws IllegalStateException {
         if (results.size() < minStrategiesRequired) {
             throw new IllegalStateException(
@@ -244,7 +215,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             );
         }
 
-        // 신뢰도 검증
+        
         double avgConfidence = results.values().stream()
             .mapToDouble(StrategyResult::getConfidence)
             .average()
@@ -255,9 +226,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    /**
-     * 가중 평균 계산
-     */
+    
     private ThreatAssessment calculateWeightedAssessment(
             SecurityEvent event, Map<String, StrategyResult> results, String evaluationId) {
 
@@ -267,7 +236,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         List<String> allRecommendedActions = new ArrayList<>();
         Map<String, Object> combinedDetails = new HashMap<>();
 
-        // 각 전략별 가중치 적용
+        
         for (Map.Entry<String, StrategyResult> entry : results.entrySet()) {
             String strategyName = entry.getKey();
             StrategyResult result = entry.getValue();
@@ -279,12 +248,12 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             weightedRiskSum += assessment.getRiskScore() * weight;
             weightedConfidenceSum += assessment.getConfidence() * weight;
 
-            // 추천 액션 수집
+            
             if (assessment.getRecommendedActions() != null) {
                 allRecommendedActions.addAll(assessment.getRecommendedActions());
             }
 
-            // 상세 정보 병합
+            
             combinedDetails.put(strategyName, Map.of(
                 "riskScore", assessment.getRiskScore(),
                 "confidence", assessment.getConfidence(),
@@ -292,25 +261,25 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             ));
         }
 
-        // 최종 점수 계산
+        
         double finalRiskScore = totalWeight > 0 ? weightedRiskSum / totalWeight : 0.5;
         double finalConfidence = totalWeight > 0 ? weightedConfidenceSum / totalWeight : 0.5;
 
-        // AI Native v3.1.0: threatLevel -> action 전환
+        
         String action = determineAction(finalRiskScore);
 
-        // 중복 제거된 추천 액션
+        
         List<String> uniqueActions = allRecommendedActions.stream()
             .distinct()
             .collect(Collectors.toList());
 
-        // 합의 달성 및 전략 정보를 메타데이터에 추가
+        
         combinedDetails.put("consensusAchieved", results.size() >= minStrategiesRequired);
         combinedDetails.put("strategiesUsed", new ArrayList<>(results.keySet()));
         combinedDetails.put("totalStrategies", results.size());
         combinedDetails.put("minRequiredStrategies", minStrategiesRequired);
 
-        // AI Native v3.1: metadata 필드 제거됨 - 상세 정보는 로그로 출력
+        
         log.debug("[IntegratedEvaluator] Combined details - evaluationId: {}, totalStrategies: {}, minRequired: {}",
             evaluationId, results.size(), minStrategiesRequired);
 
@@ -322,44 +291,34 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .riskScore(finalRiskScore)
             .confidence(finalConfidence)
             .recommendedActions(uniqueActions)
-            // AI Native v3.1: metadata 필드 제거됨
-            .action(action)  // AI Native: action 사용
+            
+            .action(action)  
             .build();
     }
 
-    /**
-     * 전략별 가중치 반환
-     */
+    
     private double getStrategyWeight(String strategyName) {
         switch (strategyName) {
             case "SESSION":
-                // SESSION 전략은 SecurityEventProcessingOrchestrator로 이관됨
+                
                 return 0.0;
             case "BEHAVIORAL":
                 return behavioralStrategyWeight;
-            // AI Native: MITRE, NIST, CIS 규칙 기반 전략 제거
-            // LLM이 직접 위협 평가를 수행하므로 가중치 불필요
+            
+            
             default:
-                return 0.05; // 기본 가중치
+                return 0.05; 
         }
     }
 
-    /**
-     * AI Native v3.3.0: Fallback action 결정
-     *
-     * LLM이 action을 결정하지 못한 경우 상위 계층에 결정 위임
-     * 점수 기반 분기 제거 - Action 기반 원칙 준수
-     * INVESTIGATE 제거 - 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
-     */
+    
     private String determineAction(double riskScore) {
-        // AI Native: LLM action 없을 시 상위 계층에 결정 위임
-        // 점수 기반 분기 제거
+        
+        
         return "ESCALATE";
     }
 
-    /**
-     * 감사 로그 기록
-     */
+    
     private void recordAuditLog(String evaluationId, SecurityEvent event,
                                 Map<String, StrategyResult> results, ThreatAssessment finalAssessment) {
 
@@ -371,10 +330,10 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         auditEntry.put("strategiesExecuted", results.keySet());
         auditEntry.put("finalRiskScore", finalAssessment.getRiskScore());
         auditEntry.put("finalConfidence", finalAssessment.getConfidence());
-        // AI Native v3.1: metadata 필드 제거됨 - consensus는 confidence 값으로 대체
+        
         auditEntry.put("consensusAchieved", finalAssessment.getConfidence() >= 0.6);
 
-        // 각 전략의 결과
+        
         Map<String, Map<String, Object>> strategyDetails = new HashMap<>();
         for (Map.Entry<String, StrategyResult> entry : results.entrySet()) {
             StrategyResult result = entry.getValue();
@@ -387,24 +346,20 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
         auditEntry.put("strategyDetails", strategyDetails);
 
-        // Redis에 감사 로그 저장
+        
         String auditKey = "security:audit:evaluation:" + evaluationId;
         redisTemplate.opsForValue().set(auditKey, auditEntry, java.time.Duration.ofDays(30));
 
         log.info("[IntegratedEvaluator] 감사 로그 저장 - Key: {}", auditKey);
     }
 
-    /**
-     * 평가 결과 Redis 저장
-     */
+    
     private void storeEvaluationResult(String evaluationId, ThreatAssessment assessment) {
         String resultKey = "security:evaluation:result:" + evaluationId;
         redisTemplate.opsForValue().set(resultKey, assessment, java.time.Duration.ofHours(24));
     }
 
-    /**
-     * 폴백 평가 생성 (AI Native v3.1.0)
-     */
+    
     private ThreatAssessment createFallbackAssessment(SecurityEvent event, String evaluationId, String error) {
         log.warn("[IntegratedEvaluator] 폴백 평가 사용 - Error: {}", error);
 
@@ -416,15 +371,13 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .riskScore(0.5)
             .confidence(0.3)
             .recommendedActions(List.of("ESCALATE", "LLM_ANALYSIS_REQUIRED"))
-            // AI Native v3.1: metadata 필드 제거됨 - error는 description에 포함
+            
             .description("Fallback assessment - Error: " + error)
-            .action("ESCALATE")  // AI Native: 폴백 시 상위 검토 필요
+            .action("ESCALATE")  
             .build();
     }
 
-    /**
-     * 평가기 종료
-     */
+    
     public void shutdown() {
         try {
             executorService.shutdown();
@@ -437,9 +390,7 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    /**
-     * 전략 결과 내부 클래스
-     */
+    
     @lombok.Builder
     @lombok.Getter
     private static class StrategyResult {

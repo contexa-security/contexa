@@ -8,12 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * 정책 DTO
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -30,7 +25,7 @@ public class PolicyDTO {
     private LocalDateTime createdAt;
     private LocalDateTime activatedAt;
 
-    // PolicyChangeEvent에서 사용하는 추가 필드들
+    
     private Long id;
     private String name;
     private String description;
@@ -43,20 +38,16 @@ public class PolicyDTO {
     private Boolean isActive;
     private PolicyEffect effect;
 
-    /**
-     * 정책 소스 열거형
-     */
+    
     public enum PolicySource {
         AI_GENERATED,
         MANUAL,
         IMPORTED,
         EVOLVED,
-        AI_EVOLVED  // PolicyChangeEvent에서 사용
+        AI_EVOLVED  
     }
 
-    /**
-     * 승인 상태 열거형
-     */
+    
     public enum ApprovalStatus {
         PENDING,
         APPROVED,
@@ -64,9 +55,7 @@ public class PolicyDTO {
         AUTO_APPROVED
     }
 
-    /**
-     * 정책 효과 열거형
-     */
+    
     public enum PolicyEffect {
         PERMIT,
         DENY

@@ -18,17 +18,7 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.Map;
 
-/**
- * 사용자 식별 서비스
- * 
- * 모든 시나리오에서 사용자 ID를 안정적으로 추출합니다.
- * - 로그인 성공
- * - 로그인 실패
- * - 인가 실패
- * - JWT 토큰
- * - OAuth2
- * - Anonymous
- */
+
 @Slf4j
 public class UserIdentificationService {
 
@@ -37,85 +27,71 @@ public class UserIdentificationService {
     private static final String USER_ID_PARAM = "userId";
     private static final String LOGIN_ID_PARAM = "loginId";
 
-    /**
-     * JWT 서명 검증을 위한 JwtDecoder (AI Native v3.3.0)
-     *
-     * Spring Security OAuth2 Resource Server가 설정되어 있으면 자동 주입됨
-     * 없는 경우 null이며, extractFromJwtToken()에서 검증 없이 fallback 처리
-     */
+    
     @Autowired(required = false)
     private JwtDecoder jwtDecoder;
     
-    /**
-     * 모든 가능한 소스에서 사용자 ID 추출
-     * 
-     * @param request HTTP 요청
-     * @param authentication 인증 객체 (nullable)
-     * @param exception 예외 (로그인 실패시)
-     * @return 사용자 ID 또는 null
-     */
+    
     public String extractUserId(HttpServletRequest request, 
                                 Authentication authentication, 
                                 Exception exception) {
         
-        // 1. Authentication 객체에서 추출 시도
+        
         String userId = extractFromAuthentication(authentication);
         if (userId != null) {
             log.trace("Authentication에서 userId 추출: {}", userId);
             return userId;
         }
         
-        // 2. Request Principal 에서 추출 시도
+        
         userId = extractFromPrincipal(request);
         if (userId != null) {
             log.trace("Principal에서 userId 추출: {}", userId);
             return userId;
         }
         
-        // 3. Request Parameter 에서 추출 시도 (로그인 실패시)
+        
         userId = extractFromRequestParameters(request);
         if (userId != null) {
             log.trace("Request Parameter에서 userId 추출: {}", userId);
             return userId;
         }
         
-        // 4. Request Body 에서 추출 시도 (JSON 로그인)
+        
         userId = extractFromRequestBody(request);
         if (userId != null) {
             log.trace("Request Body에서 userId 추출: {}", userId);
             return userId;
         }
         
-        // 5. Session 에서 추출 시도
+        
         userId = extractFromSession(request);
         if (userId != null) {
             log.trace("Session에서 userId 추출: {}", userId);
             return userId;
         }
         
-        // 6. JWT Token 에서 추출 시도
+        
         userId = extractFromJwtToken(request);
         if (userId != null) {
             log.trace("JWT Token에서 userId 추출: {}", userId);
             return userId;
         }
         
-        // 7. Exception 메시지에서 추출 시도 (최후의 수단)
+        
         userId = extractFromException(exception);
         if (userId != null) {
             log.trace("Exception에서 userId 추출: {}", userId);
             return userId;
         }
         
-        // 8. Anonymous 사용자 처리
+        
         String anonymousId = generateAnonymousId(request);
         log.debug("Anonymous userId 생성: {}", anonymousId);
         return anonymousId;
     }
     
-    /**
-     * Authentication 객체에서 사용자 ID 추출
-     */
+    
     private String extractFromAuthentication(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return null;
@@ -123,12 +99,12 @@ public class UserIdentificationService {
         
         Object principal = authentication.getPrincipal();
         
-        // UserDetails 타입 (Spring Security 표준)
+        
         if (principal instanceof UserDetails userDetails) {
             return userDetails.getUsername();
         }
         
-        // Custom User DTO 타입 (리플렉션으로 처리)
+        
         if (principal.getClass().getSimpleName().contains("UserDto")) {
             try {
                 Method getUsernameMethod = principal.getClass().getMethod("getUsername");
@@ -141,12 +117,12 @@ public class UserIdentificationService {
             }
         }
         
-        // JWT Authentication
+        
         if (authentication instanceof JwtAuthenticationToken) {
             JwtAuthenticationToken jwtAuth = (JwtAuthenticationToken) authentication;
             Jwt jwt = jwtAuth.getToken();
             
-            // JWT claims 에서 추출
+            
             String userId = jwt.getClaimAsString("sub");
             if (userId != null) return userId;
             
@@ -157,23 +133,21 @@ public class UserIdentificationService {
             if (userId != null) return userId;
         }
         
-        // Username Password Authentication
+        
         if (authentication instanceof UsernamePasswordAuthenticationToken) {
             return authentication.getName();
         }
         
-        // String principal
+        
         if (principal instanceof String) {
             return (String) principal;
         }
         
-        // 기본값
+        
         return authentication.getName();
     }
     
-    /**
-     * Request Principal에서 추출
-     */
+    
     private String extractFromPrincipal(HttpServletRequest request) {
         Principal principal = request.getUserPrincipal();
         if (principal != null) {
@@ -182,29 +156,27 @@ public class UserIdentificationService {
         return null;
     }
     
-    /**
-     * Request Parameter에서 추출 (Form 로그인)
-     */
+    
     private String extractFromRequestParameters(HttpServletRequest request) {
-        // username 파라미터
+        
         String username = request.getParameter(USERNAME_PARAM);
         if (username != null && !username.isEmpty()) {
             return username;
         }
         
-        // email 파라미터
+        
         String email = request.getParameter(EMAIL_PARAM);
         if (email != null && !email.isEmpty()) {
             return email;
         }
         
-        // userId 파라미터
+        
         String userId = request.getParameter(USER_ID_PARAM);
         if (userId != null && !userId.isEmpty()) {
             return userId;
         }
         
-        // loginId 파라미터
+        
         String loginId = request.getParameter(LOGIN_ID_PARAM);
         if (loginId != null && !loginId.isEmpty()) {
             return loginId;
@@ -213,17 +185,15 @@ public class UserIdentificationService {
         return null;
     }
     
-    /**
-     * Request Body에서 추출 (JSON 로그인)
-     */
+    
     private String extractFromRequestBody(HttpServletRequest request) {
-        // Content-Type 확인
+        
         String contentType = request.getContentType();
         if (contentType == null || !contentType.contains("application/json")) {
             return null;
         }
         
-        // Request Attribute에서 파싱된 body 확인
+        
         Object body = request.getAttribute("parsedBody");
         if (body instanceof Map) {
             Map<String, Object> bodyMap = (Map<String, Object>) body;
@@ -241,9 +211,7 @@ public class UserIdentificationService {
         return null;
     }
     
-    /**
-     * Session에서 추출
-     */
+    
     private String extractFromSession(HttpServletRequest request) {
         if (request.getSession(false) != null) {
             Object userId = request.getSession().getAttribute("userId");
@@ -259,17 +227,7 @@ public class UserIdentificationService {
         return null;
     }
     
-    /**
-     * JWT Token에서 추출 (AI Native v3.3.0: 서명 검증 추가)
-     *
-     * 보안 강화:
-     * - JwtDecoder가 주입된 경우: JWT 서명 검증 후 클레임 추출
-     * - JwtDecoder가 없는 경우: 경고 로그 + Base64 디코딩만 수행 (fallback)
-     *
-     * Zero Trust 원칙:
-     * - 서명 검증 없이 추출된 userId는 신뢰할 수 없음
-     * - 가능한 한 Spring Security 인증 경로 사용 권장
-     */
+    
     private String extractFromJwtToken(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -278,12 +236,12 @@ public class UserIdentificationService {
 
         String token = authHeader.substring(7);
 
-        // 1. JwtDecoder가 있으면 서명 검증 후 클레임 추출 (권장)
+        
         if (jwtDecoder != null) {
             try {
                 Jwt jwt = jwtDecoder.decode(token);
 
-                // 클레임에서 사용자 ID 추출
+                
                 String userId = jwt.getClaimAsString("sub");
                 if (userId != null && !userId.isEmpty()) {
                     log.trace("JWT 서명 검증 성공, sub 클레임에서 userId 추출: {}", userId);
@@ -306,7 +264,7 @@ public class UserIdentificationService {
                 return null;
 
             } catch (JwtException e) {
-                // JWT 검증 실패 - 위조되었거나 만료된 토큰
+                
                 log.warn("[Zero Trust] JWT 서명 검증 실패 - 위조 또는 만료된 토큰: {}", e.getMessage());
                 return null;
             } catch (Exception e) {
@@ -315,8 +273,8 @@ public class UserIdentificationService {
             }
         }
 
-        // 2. JwtDecoder가 없는 경우: 경고 + Base64 디코딩 fallback
-        // 주의: 이 경로는 서명 검증 없이 페이로드만 디코딩하므로 보안상 취약함
+        
+        
         log.warn("[Zero Trust] JwtDecoder가 설정되지 않음 - JWT 서명 검증 없이 페이로드만 디코딩 (보안 취약)");
 
         try {
@@ -326,7 +284,7 @@ public class UserIdentificationService {
                 java.util.Base64.Decoder decoder = java.util.Base64.getUrlDecoder();
                 String json = new String(decoder.decode(payload));
 
-                // 간단한 JSON 파싱 (정규식)
+                
                 java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"sub\"\\s*:\\s*\"([^\"]+)\"");
                 java.util.regex.Matcher matcher = pattern.matcher(json);
                 if (matcher.find()) {
@@ -348,9 +306,7 @@ public class UserIdentificationService {
         return null;
     }
     
-    /**
-     * Exception 메시지에서 추출
-     */
+    
     private String extractFromException(Exception exception) {
         if (exception == null) {
             return null;
@@ -358,14 +314,14 @@ public class UserIdentificationService {
         
         String message = exception.getMessage();
         if (message != null) {
-            // "User 'username' not found" 패턴
+            
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("User '([^']+)'");
             java.util.regex.Matcher matcher = pattern.matcher(message);
             if (matcher.find()) {
                 return matcher.group(1);
             }
             
-            // "Username: xxx" 패턴
+            
             pattern = java.util.regex.Pattern.compile("Username:\\s*(\\S+)");
             matcher = pattern.matcher(message);
             if (matcher.find()) {
@@ -376,9 +332,7 @@ public class UserIdentificationService {
         return null;
     }
     
-    /**
-     * Anonymous 사용자 ID 생성
-     */
+    
     private String generateAnonymousId(HttpServletRequest request) {
         String ip = getClientIp(request);
         String userAgent = request.getHeader("User-Agent");
@@ -386,16 +340,14 @@ public class UserIdentificationService {
         if (ip == null) ip = "unknown";
         if (userAgent == null) userAgent = "unknown";
         
-        // IP + UserAgent 해시
+        
         String combined = ip + ":" + userAgent;
         int hash = combined.hashCode();
         
         return "anonymous_" + Integer.toHexString(hash);
     }
     
-    /**
-     * 클라이언트 IP 추출
-     */
+    
     private String getClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
@@ -410,38 +362,34 @@ public class UserIdentificationService {
         return request.getRemoteAddr();
     }
     
-    /**
-     * WebAuthenticationDetails에서 사용자 정보 추출
-     */
+    
     public String extractFromWebDetails(WebAuthenticationDetails details) {
         if (details == null) {
             return null;
         }
         
-        // Session ID를 기반으로 사용자 추적
+        
         String sessionId = details.getSessionId();
         if (sessionId != null) {
-            // Session ID를 해시하여 익명 ID 생성
+            
             return "session_" + Integer.toHexString(sessionId.hashCode());
         }
         
         return null;
     }
     
-    /**
-     * OAuth2 인증에서 사용자 ID 추출
-     */
+    
     public String extractFromOAuth2(Authentication authentication) {
         if (authentication == null) {
             return null;
         }
         
-        // OAuth2 principal 처리
+        
         Object principal = authentication.getPrincipal();
         if (principal instanceof Map) {
             Map<String, Object> attributes = (Map<String, Object>) principal;
             
-            // 다양한 OAuth2 provider의 ID 필드 확인
+            
             Object id = attributes.get("id");
             if (id != null) return id.toString();
             

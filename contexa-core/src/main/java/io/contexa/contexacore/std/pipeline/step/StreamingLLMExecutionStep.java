@@ -14,9 +14,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * LLMExecutionStep을 확장한 스트리밍 지원 버전
- */
+
 @Slf4j
 @Qualifier("streamingLLMExecutionStep")
 public class StreamingLLMExecutionStep extends LLMExecutionStep {
@@ -47,7 +45,7 @@ public class StreamingLLMExecutionStep extends LLMExecutionStep {
                 Thread.currentThread().getName());
 
         return Mono.fromCallable(() -> {
-                    // 프롬프트 가져오기
+                    
                     StreamingPipelineExecutionContext executionContext = (StreamingPipelineExecutionContext) context;
 
                     PromptGenerator.PromptGenerationResult promptResult =
@@ -62,16 +60,16 @@ public class StreamingLLMExecutionStep extends LLMExecutionStep {
 
                     return promptResult.getPrompt();
                 })
-                // 프롬프트 준비를 Virtual Thread 에서 실행
+                
                 .flatMap(prompt -> {
                     StringBuilder rawResponseCollector = new StringBuilder();
 
-                    // LLM 스트림도 독립적인 스케줄러에서 실행
+                    
                     Flux<String> llmStream = getLlmClient().stream(prompt);
 
                     return llmStream
                             .doOnNext(chunk -> {
-                                // 청크 처리 로직...
+                                
                                 if (chunk.startsWith("###STREAMING###")) {
                                     String streamingText = chunk.substring(15);
                                     rawResponseCollector.append(streamingText);

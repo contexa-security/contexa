@@ -19,12 +19,7 @@ import org.springframework.util.Assert;
 
 import java.util.Objects;
 
-/**
- * Form 인증 설정을 위한 추상 기반 클래스 (MFA 전용)
- * 공통 기능을 제공하고 템플릿 메서드 패턴을 사용하여 확장 가능
- *
- * Note: Single Form 인증은 Spring Security 기본 FormLoginConfigurer 사용
- */
+
 public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFormAuthenticationConfigurer<T, H>, H extends HttpSecurityBuilder<H>>
         extends AbstractHttpConfigurer<T, H> {
 
@@ -61,19 +56,14 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
         http.addFilterBefore(postProcess(filter), UsernamePasswordAuthenticationFilter.class);
     }
 
-    /**
-     * 하위 클래스에서 구현해야 할 추상 메서드
-     * 특정 타입의 인증 필터를 생성
-     */
+    
     protected abstract BaseAuthenticationFilter createAuthenticationFilter(
             H http,
             AuthenticationManager authenticationManager,
             ApplicationContext applicationContext,
             AuthContextProperties properties);
 
-    /**
-     * 필터에 공통 설정을 적용하는 메서드
-     */
+    
     protected void configureFilter(BaseAuthenticationFilter filter, HttpSecurity http) {
         if (successHandler != null) {
             filter.setSuccessHandler(successHandler);
@@ -82,10 +72,10 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
             filter.setFailureHandler(failureHandler);
         }
 
-        // SecurityContextRepository 결정 우선순위:
-        // 1. HttpSecurity SharedObject (Adapter에서 설정)
-        // 2. Configurer 필드 (사용자가 명시적으로 설정)
-        // 3. 기본값 (RequestAttributeSecurityContextRepository)
+        
+        
+        
+        
         SecurityContextRepository resolvedRepository = http.getSharedObject(SecurityContextRepository.class);
         if (resolvedRepository == null) {
             resolvedRepository = this.securityContextRepository;

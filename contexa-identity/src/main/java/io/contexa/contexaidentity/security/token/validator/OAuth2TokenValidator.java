@@ -20,17 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * OAuth2 토큰 검증자 (RSA 기반)
- * <p>
- * Spring Security OAuth2 표준을 준수하는 토큰 검증을 수행합니다.
- * - Access Token: JwtDecoder 사용 (RSA 공개키 검증)
- * - Refresh Token: RefreshTokenStore + OAuth2AuthorizationService 이중 검증
- * <p>
- * TokenValidator 인터페이스를 구현하여 OAuth2TokenService와 동일한 방식으로 사용됩니다.
- *
- * @since 2025.01 - OAuth2 마이그레이션, RSA 기반 검증
- */
+
 @Slf4j
 public class OAuth2TokenValidator implements TokenValidator {
 
@@ -39,14 +29,7 @@ public class OAuth2TokenValidator implements TokenValidator {
     private final OAuth2AuthorizationService authorizationService;
     private final long rotationThresholdMillis;
 
-    /**
-     * OAuth2TokenValidator 생성자
-     *
-     * @param jwtDecoder             Access Token 검증용 JwtDecoder (RSA 공개키 사용)
-     * @param refreshTokenStore      Refresh Token 저장소 (블랙리스트 포함)
-     * @param authorizationService   OAuth2 Authorization 서비스
-     * @param rotateThresholdMillis  Refresh Token 회전 임계값 (밀리초)
-     */
+    
     public OAuth2TokenValidator(JwtDecoder jwtDecoder,
                                  RefreshTokenStore refreshTokenStore,
                                  OAuth2AuthorizationService authorizationService,
@@ -59,11 +42,7 @@ public class OAuth2TokenValidator implements TokenValidator {
         log.info("OAuth2TokenValidator initialized (RSA-based) with rotation threshold: {} ms", rotateThresholdMillis);
     }
 
-    /**
-     * Access Token 검증 (JwtDecoder 사용)
-     * <p>
-     * Spring Security OAuth2 표준 RSA 검증
-     */
+    
     @Override
     public boolean validateAccessToken(String token) {
         try {
@@ -75,31 +54,24 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    /**
-     * Refresh Token 검증 (4단계 검증)
-     * <p>
-     * 1. 블랙리스트 확인
-     * 2. RefreshTokenStore 존재 여부
-     * 3. OAuth2AuthorizationService 존재 여부
-     * 4. 만료 여부
-     */
+    
     @Override
     public boolean validateRefreshToken(String token) {
         try {
-            // 1. 블랙리스트 검증
+            
             if (refreshTokenStore.isBlacklisted(token)) {
                 log.warn("Refresh token is blacklisted");
                 return false;
             }
 
-            // 2. RefreshTokenStore 에서 조회
+            
             String username = refreshTokenStore.getUsername(token);
             if (username == null) {
                 log.warn("Refresh token not found in RefreshTokenStore or expired");
                 return false;
             }
 
-            // 3. OAuth2AuthorizationService 에서 조회
+            
             OAuth2Authorization authorization = authorizationService.findByToken(
                     token, OAuth2TokenType.REFRESH_TOKEN);
 
@@ -108,7 +80,7 @@ public class OAuth2TokenValidator implements TokenValidator {
                 return false;
             }
 
-            // 4. Refresh Token 만료 검증
+            
             OAuth2Authorization.Token<OAuth2RefreshToken> tokenMetadata = authorization.getRefreshToken();
             if (tokenMetadata != null && tokenMetadata.isExpired()) {
                 log.warn("Refresh token is expired");
@@ -124,16 +96,11 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    /**
-     * Refresh Token 무효화 (2단계 제거)
-     * <p>
-     * 1. RefreshTokenStore에서 제거
-     * 2. OAuth2AuthorizationService에서 제거
-     */
+    
     @Override
     public void invalidateRefreshToken(String refreshToken) {
         try {
-            // 1. RefreshTokenStore에서 사용자 정보 조회 및 제거
+            
             String username = refreshTokenStore.getUsername(refreshToken);
             if (username != null) {
                 refreshTokenStore.remove(refreshToken);
@@ -142,7 +109,7 @@ public class OAuth2TokenValidator implements TokenValidator {
                 log.debug("Refresh token not found in RefreshTokenStore");
             }
 
-            // 2. OAuth2AuthorizationService에서 제거
+            
             OAuth2Authorization authorization = authorizationService.findByToken(
                     refreshToken, OAuth2TokenType.REFRESH_TOKEN);
 
@@ -163,11 +130,7 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    /**
-     * Refresh Token 회전 필요 여부 판단
-     * <p>
-     * 만료 시간까지 남은 시간이 임계값 이하이면 회전
-     */
+    
     @Override
     public boolean shouldRotateRefreshToken(String refreshToken) {
         try {
@@ -200,21 +163,17 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    /**
-     * Authentication 객체 생성 (JWT에서 추출)
-     * <p>
-     * OAuth2의 JwtAuthenticationToken을 반환
-     */
+    
     @Override
     public Authentication getAuthentication(String token) {
         try {
-            // JwtDecoder로 토큰 검증 (RSA 공개키 사용)
+            
             Jwt jwt = jwtDecoder.decode(token);
 
-            // JWT에서 권한 추출
+            
             Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
 
-            // JwtAuthenticationToken 생성
+            
             JwtAuthenticationToken authentication =
                     new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
 
@@ -228,13 +187,9 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    /**
-     * JWT에서 권한 추출
-     * <p>
-     * OAuth2의 "scope", "roles", "authorities" 클레임을 모두 확인
-     */
+    
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
-        // 1. scope 클레임 (OAuth2 표준)
+        
         List<String> scopes = jwt.getClaimAsStringList("scope");
         Collection<GrantedAuthority> scopeAuthorities = scopes != null ?
                 scopes.stream()
@@ -242,7 +197,7 @@ public class OAuth2TokenValidator implements TokenValidator {
                         .collect(Collectors.toList()) :
                 List.of();
 
-        // 2. roles 클레임 (AIDC 프레임워크)
+        
         List<String> roles = jwt.getClaimAsStringList("roles");
         Collection<GrantedAuthority> roleAuthorities = roles != null ?
                 roles.stream()
@@ -250,7 +205,7 @@ public class OAuth2TokenValidator implements TokenValidator {
                         .collect(Collectors.toList()) :
                 List.of();
 
-        // 3. authorities 클레임 (명시적 권한)
+        
         List<String> authorities = jwt.getClaimAsStringList("authorities");
         Collection<GrantedAuthority> explicitAuthorities = authorities != null ?
                 authorities.stream()
@@ -258,7 +213,7 @@ public class OAuth2TokenValidator implements TokenValidator {
                         .collect(Collectors.toList()) :
                 List.of();
 
-        // 모든 권한 병합
+        
         return List.of(scopeAuthorities, roleAuthorities, explicitAuthorities).stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());

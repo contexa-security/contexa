@@ -19,9 +19,7 @@ import org.springframework.messaging.support.ExecutorSubscribableChannel;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-/**
- * 애플리케이션 전체 설정
- */
+
 @Slf4j
 @EnableConfigurationProperties({TieredLLMProperties.class, ModelProviderProperties.class, SecurityMappingProperties.class})
 @Configuration
@@ -34,13 +32,13 @@ public class ApplicationConfig {
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
 
-        // JSR310 모듈 등록 (LocalDateTime 직렬화 지원)
+        
         mapper.registerModule(new JavaTimeModule());
 
-        // Custom 모듈 등록 (Duration 등 커스텀 직렬화/역직렬화 지원)
+        
         mapper.registerModule(new CustomJacksonModule());
 
-        // 기본 설정
+        
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 

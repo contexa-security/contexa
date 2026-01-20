@@ -20,10 +20,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-/**
- * SOAR 승인 알림 처리기 구현체
- * 다중 채널(WebSocket, Email, SSE)을 통한 승인 알림을 처리합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
@@ -45,27 +42,25 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     @Value("${soar.notification.websocket.topic-prefix:/topic/soar}")
     private String topicPrefix;
 
-    /**
-     * 승인 요청 알림 전송 (모든 채널)
-     */
+    
     @Async
     public void notifyApprovalRequest(ApprovalNotification notification) {
         log.info("다중 채널 승인 요청 알림 시작: {}", notification.getApprovalId());
         
-        // 알림 대상 결정
+        
         List<NotificationTarget> targets = determineNotificationTargets(notification);
         
         if (targets.isEmpty()) {
             log.warn("알림 대상이 없습니다: {}", notification.getApprovalId());
-            // 기본 대상에게 알림
+            
             targets = getDefaultTargets();
         }
         
-        // 위험도별 채널 결정
+        
         Set<NotificationTarget.NotificationChannel> channels = 
             determineChannelsByRiskLevel(notification.getRiskLevel());
         
-        // 각 채널별 알림 전송
+        
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         
         if (channels.contains(NotificationTarget.NotificationChannel.WEBSOCKET)) {
@@ -73,14 +68,14 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         }
         
         if (channels.contains(NotificationTarget.NotificationChannel.EMAIL)) {
-//            futures.add(sendEmailNotifications(notification, targets));
+
         }
         
         if (channels.contains(NotificationTarget.NotificationChannel.SSE)) {
             futures.add(sendSSENotification(notification));
         }
         
-        // 모든 알림 완료 대기
+        
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
             .whenComplete((result, error) -> {
                 if (error != null) {
@@ -91,9 +86,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             });
     }
     
-    /**
-     * WebSocket 알림 전송
-     */
+    
     private CompletableFuture<Void> sendWebSocketNotification(ApprovalNotification notification, 
                                                               List<NotificationTarget> targets) {
         return CompletableFuture.runAsync(() -> {
@@ -103,15 +96,15 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             }
             
             try {
-                // 승인 요청 메시지 생성
+                
                 Map<String, Object> message = buildApprovalRequestMessage(notification);
                 
-                // 브로드캐스트 (모든 구독자에게)
+                
                 String topic = topicPrefix + "/approvals";
                 brokerMessagingTemplate.convertAndSend(topic, (Object)message);
                 log.info("WebSocket 알림 전송: {} -> {}", notification.getApprovalId(), topic);
                 
-                // 특정 사용자에게 개별 알림
+                
                 for (NotificationTarget target : targets) {
                     if (target.canReceiveWebSocket()) {
                         String userTopic = "/user/" + target.getTargetId() + "/queue/approval";
@@ -127,9 +120,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         });
     }
     
-    /**
-     * 이메일 알림 전송
-     */
+    
     private CompletableFuture<Void> sendEmailNotifications(ApprovalNotification notification,
                                                           List<NotificationTarget> targets) {
         return CompletableFuture.runAsync(() -> {
@@ -153,9 +144,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         });
     }
     
-    /**
-     * SSE 알림 전송
-     */
+    
     private CompletableFuture<Void> sendSSENotification(ApprovalNotification notification) {
         return CompletableFuture.runAsync(() -> {
             if (!sseEnabled) {
@@ -164,7 +153,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             }
             
             try {
-                // McpApprovalNotificationService를 통한 SSE 전송
+                
                 io.contexa.contexacore.domain.ApprovalRequest request = convertToApprovalRequest(notification);
                 mcpNotificationService.sendApprovalRequest(request);
                 log.info("📻 SSE 알림 전송: {}", notification.getApprovalId());
@@ -174,14 +163,12 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         });
     }
     
-    /**
-     * 승인 완료 알림 전송
-     */
+    
     @Async
     public void notifyApprovalCompleted(String approvalId, boolean approved, String reason) {
         log.info("승인 완료 알림: {} - 승인: {}, 사유: {}", approvalId, approved, reason);
         
-        // WebSocket 알림
+        
         if (webSocketEnabled) {
             Map<String, Object> message = Map.of(
                 "type", "APPROVAL_COMPLETED",
@@ -195,7 +182,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
         
-        // SSE 알림
+        
         if (sseEnabled) {
             if (approved) {
                 mcpNotificationService.sendApprovalGranted(approvalId);
@@ -204,18 +191,16 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             }
         }
         
-        // 이메일 알림 (요청자에게만)
-        // TODO: 원래 요청자 정보를 저장하고 조회하는 로직 필요
+        
+        
     }
     
-    /**
-     * 승인 타임아웃 알림 전송
-     */
+    
     @Async
     public void notifyApprovalTimeout(String approvalId) {
         log.warn("⏰ 승인 타임아웃 알림: {}", approvalId);
         
-        // WebSocket 알림
+        
         if (webSocketEnabled) {
             Map<String, Object> message = Map.of(
                 "type", "APPROVAL_TIMEOUT",
@@ -227,47 +212,43 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
         
-        // SSE 알림
+        
         if (sseEnabled) {
             mcpNotificationService.sendApprovalTimeout(approvalId);
         }
     }
     
-    /**
-     * 알림 대상 결정
-     */
+    
     private List<NotificationTarget> determineNotificationTargets(ApprovalNotification notification) {
         List<NotificationTarget> targets = new ArrayList<>();
         
-        // 1. 조직 관리자
+        
         NotificationTarget adminTarget = targetManager.getTarget("admin");
         if (adminTarget != null) {
             targets.add(adminTarget);
         }
         
-        // 2. 위험도별 대상
+        
         String riskLevel = notification.getRiskLevel();
         if ("CRITICAL".equals(riskLevel) || "HIGH".equals(riskLevel)) {
-            // 보안팀 추가
+            
             targets.addAll(targetManager.getTargetsByRole("ROLE_SECURITY"));
-            // SOC팀 추가
+            
             targets.addAll(targetManager.getTargetsByRole("ROLE_SOC"));
         }
         
-        // 3. 승인자 역할을 가진 모든 사용자
+        
         targets.addAll(targetManager.getTargetsByRole("ROLE_APPROVER"));
         
-        // 중복 제거
+        
         return targets.stream()
             .distinct()
             .collect(Collectors.toList());
     }
     
-    /**
-     * 기본 알림 대상
-     */
+    
     private List<NotificationTarget> getDefaultTargets() {
-        // 초기화되지 않은 경우를 대비한 기본 타겟
+        
         NotificationTarget defaultTarget = NotificationTarget.createDefault(
             "system",
             "System Administrator",
@@ -276,9 +257,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         return List.of(defaultTarget);
     }
     
-    /**
-     * 위험도별 알림 채널 결정
-     */
+    
     private Set<NotificationTarget.NotificationChannel> determineChannelsByRiskLevel(String riskLevel) {
         return switch (riskLevel) {
             case "CRITICAL", "HIGH" -> 
@@ -293,9 +272,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         };
     }
     
-    /**
-     * 승인 요청 메시지 생성
-     */
+    
     private Map<String, Object> buildApprovalRequestMessage(ApprovalNotification notification) {
         Map<String, Object> message = new HashMap<>();
         message.put("type", "APPROVAL_REQUEST");
@@ -313,21 +290,16 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         return message;
     }
     
-    /**
-     * Redis Pub/Sub 메시지 수신 핸들러
-     * UnifiedRedisConfiguration에서 호출됩니다.
-     */
+    
     public void receiveApprovalNotification(ApprovalNotification notification) {
         log.info("Redis Pub/Sub으로 승인 알림 수신: {}", notification.getApprovalId());
-        // 비동기로 알림 처리
+        
         notifyApprovalRequest(notification);
     }
     
-    /**
-     * ApprovalNotification을 ApprovalRequest로 변환
-     */
+    
     private io.contexa.contexacore.domain.ApprovalRequest convertToApprovalRequest(ApprovalNotification notification) {
-        // Factory를 사용하여 ApprovalRequest 생성
+        
         ApprovalRequest request = approvalRequestFactory.createFromNotification(
             notification.getToolName(),
             notification.getDescription(),
@@ -336,12 +308,12 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             notification.getToolArguments()
         );
         
-        // 추가 필드 설정
+        
         request.setRequestId(notification.getApprovalId());
         request.setOrganizationId(notification.getOrganizationId());
         request.setRequestedBy(notification.getRequestedBy());
         
-        // status 확인 (Factory에서 이미 설정되지만 확실히 함)
+        
         if (request.getStatus() == null) {
             request.setStatus(ApprovalStatus.PENDING);
             log.debug("Set status to PENDING for notification conversion");
@@ -350,10 +322,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         return request;
     }
 
-    /**
-     * Core 인터페이스 구현: Redis 메시지를 수신하여 SOAR 승인 알림 처리
-     * JSON 메시지를 파싱하여 ApprovalNotification 객체로 변환 후 처리
-     */
+    
     @Override
     public void receiveApprovalNotification(String message) {
         try {
@@ -365,9 +334,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         }
     }
 
-    /**
-     * Core 인터페이스 구현: 승인 대기 중인 요청에 대해 재알림 전송
-     */
+    
     @Override
     public void sendApprovalReminder(String approvalId) {
         log.info("승인 재알림 전송: {}", approvalId);

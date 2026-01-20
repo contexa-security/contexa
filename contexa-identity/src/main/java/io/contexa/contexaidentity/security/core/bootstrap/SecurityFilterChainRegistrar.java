@@ -30,19 +30,14 @@ import org.springframework.util.StringUtils;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * SecurityFilterChainRegistrar 리팩토링 버전
- * - stepToFilter를 Class가 아닌 실제 Filter 인스턴스 맵으로 주입
- * - buildChain 책임 분리
- * - BeanDefinition 생성 로직 분리로 가독성 향상
- */
+
 @Slf4j
 public class SecurityFilterChainRegistrar {
     private final ConfiguredFactorFilterProvider configuredFactorFilterProvider;
     private final Map<String, Class<? extends Filter>> stepFilterClasses;
     private final AdapterRegistry adapterRegistry;
 
-    // 기본 팩터 타입들 정의
+    
     private static final Set<String> DEFAULT_FACTOR_TYPES = Set.of(
             AuthType.OTT.name().toLowerCase(),
             AuthType.PASSKEY.name().toLowerCase()
@@ -66,7 +61,7 @@ public class SecurityFilterChainRegistrar {
         BeanDefinitionRegistry registry = (BeanDefinitionRegistry) cac.getBeanFactory();
         AtomicInteger idx = new AtomicInteger(0);
 
-        // 1. 명시적으로 설정된 팩터들 먼저 등록
+        
         Set<String> configuredFactorTypes = new HashSet<>();
 
         for (FlowContext fc : flows) {
@@ -74,7 +69,7 @@ public class SecurityFilterChainRegistrar {
             AuthenticationFlowConfig flowConfig = Objects.requireNonNull(fc.flow(), "AuthenticationFlowConfig in FlowContext cannot be null.");
             String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null.");
 
-            // 설정된 팩터 타입 수집
+            
             if (AuthType.MFA.name().equalsIgnoreCase(flowTypeName)) {
                 flowConfig.getStepConfigs().stream()
                         .map(step -> step.getType().toLowerCase())
@@ -92,13 +87,13 @@ public class SecurityFilterChainRegistrar {
             registry.registerBeanDefinition(beanName, bd);
             log.info("Registered SecurityFilterChain bean: {} for flow type: {}", beanName, flowTypeName);
         }
-        // 2. 설정되지 않은 기본 팩터들에 대한 SecurityFilterChain 생성
-        DefaultFactorChainProvider defaultProvider = new DefaultFactorChainProvider(context, this, adapterRegistry); // this 전달
-//        defaultProvider.registerDefaultFactorChains(configuredFactorTypes, registry, idx);
+        
+        DefaultFactorChainProvider defaultProvider = new DefaultFactorChainProvider(context, this, adapterRegistry); 
+
 
     }
 
-    // 메소드명 변경 및 fc를 인자로 받음
+    
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {
         try {
             AuthenticationFlowConfig flowConfig = fc.flow();
@@ -122,7 +117,7 @@ public class SecurityFilterChainRegistrar {
                     continue;
                 }
 
-                // 1차 인증 스텝은 MfaStepFilterWrapper의 위임 대상이 아니므로 등록 불필요
+                
                 if (AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName()) && step.getOrder() == 0) {
                     log.trace("Skipping filter registration for primary auth step '{}' (id: {}) in MFA flow '{}'",
                             pureFactorType, stepId, flowConfig.getTypeName());
@@ -147,7 +142,7 @@ public class SecurityFilterChainRegistrar {
                 }
 
                 Filter actualFilterInstance = foundFilterOptional.get();
-                // FactorIdentifier 생성: flowConfig의 typeName과 step의 stepId 사용
+                
                 FactorIdentifier registrationKey = FactorIdentifier.of(flowConfig.getTypeName(), stepId);
 
                 configuredFactorFilterProvider.registerFilter(registrationKey, actualFilterInstance);
@@ -164,41 +159,11 @@ public class SecurityFilterChainRegistrar {
         }
     }
 
-    /**
-     * Passkey (WebAuthn) 인증 핸들러 교체
-     *
-     * <p>
-     * Spring Security의 WebAuthn DSL은 커스텀 Success/Failure Handler 등록 API를 제공하지 않습니다.
-     * WebAuthnAuthenticationFilter 생성자에서 기본 핸들러를 설정하기 때문입니다:
-     * <ul>
-     *   <li>Success: HttpMessageConverterAuthenticationSuccessHandler (토큰 발급 없음)</li>
-     *   <li>Failure: AuthenticationEntryPointFailureHandler</li>
-     * </ul>
-     * </p>
-     *
-     * <p>
-     * 하지만 AbstractAuthenticationProcessingFilter의 setter는 public이므로,
-     * Filter Chain 빌드 후 WebAuthnAuthenticationFilter를 찾아서 우리의 커스텀 핸들러로 교체합니다.
-     * </p>
-     *
-     * <p>
-     * 이를 통해:
-     * <ul>
-     *   <li>MFA State Machine 자동 통합</li>
-     *   <li>OAuth2 토큰 자동 발급</li>
-     *   <li>OTT와 동일한 인증 플로우</li>
-     * </ul>
-     * 를 구현합니다.
-     * </p>
-     *
-     * @param builtChain 빌드된 SecurityFilterChain
-     * @param flowConfig 현재 Flow 설정
-     * @param appContext Spring ApplicationContext for retrieving handler beans
-     */
+    
     private void replaceWebAuthnHandlersIfNeeded(DefaultSecurityFilterChain builtChain,
                                                   AuthenticationFlowConfig flowConfig,
                                                   ApplicationContext appContext) {
-        // Passkey 스텝이 있는지 확인 (단일: PASSKEY, MFA: MFA_PASSKEY)
+        
         AuthenticationStepConfig passkeyStep = flowConfig.getStepConfigs().stream()
                 .filter(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()) ||
                                AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()))
@@ -217,43 +182,43 @@ public class SecurityFilterChainRegistrar {
 
                 if (filterClassName.contains("WebAuthn")) {
                     try {
-                        // StateType 결정
+                        
                         AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
                         StateType stateType = (flowConfig.getStateConfig() != null && flowConfig.getStateConfig().stateType() != null) ?
                                 flowConfig.getStateConfig().stateType() : authProps.getStateType();
 
-                        // 핸들러 선택 로직
+                        
                         PlatformAuthenticationSuccessHandler customSuccessHandler = null;
                         PlatformAuthenticationFailureHandler customFailureHandler = null;
 
                         if (isMfaFlow) {
-                            // MFA 인증
+                            
                             if (stateType == StateType.SESSION) {
                                 customSuccessHandler = appContext.getBean(SessionMfaSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(SessionMfaFailureHandler.class);
                                 log.debug("MFA Passkey + SESSION: Using SessionMfa* handlers");
                             } else {
-                                // OAuth2/JWT
+                                
                                 customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
                                 log.debug("MFA Passkey + OAuth2/JWT: Using MfaFactorProcessing* + Unified* handlers");
                             }
                         } else {
-                            // 단일 인증
+                            
                             if (stateType == StateType.SESSION) {
-                                // SESSION 모드는 Spring Security 기본 핸들러 사용 (null)
+                                
                                 customSuccessHandler = null;
                                 customFailureHandler = null;
                                 log.debug("Single Passkey + SESSION: Using Spring Security default handlers (null)");
                             } else {
-                                // OAuth2/JWT
+                                
                                 customSuccessHandler = appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(OAuth2SingleAuthFailureHandler.class);
                                 log.debug("Single Passkey + OAuth2/JWT: Using OAuth2SingleAuth* handlers");
                             }
                         }
 
-                        // 핸들러 설정 (null이 아닌 경우만)
+                        
                         if (customSuccessHandler != null) {
                             authFilter.setAuthenticationSuccessHandler(customSuccessHandler);
                         }
@@ -261,7 +226,7 @@ public class SecurityFilterChainRegistrar {
                             authFilter.setAuthenticationFailureHandler(customFailureHandler);
                         }
 
-                        // loginProcessingUrl 변경 (MFA인 경우만)
+                        
                         if (isMfaFlow) {
                             String customLoginProcessingUrl = authProps.getUrls().getFactors().getPasskey().getLoginProcessing();
                             if (customLoginProcessingUrl != null && !customLoginProcessingUrl.isEmpty()) {

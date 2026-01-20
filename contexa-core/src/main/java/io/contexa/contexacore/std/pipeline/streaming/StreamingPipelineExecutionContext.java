@@ -5,9 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import reactor.core.publisher.Sinks;
 
-/**
- * PipelineExecutionContext를 확장한 스트리밍 전용 컨텍스트
- */
+
 @Getter
 @Setter
 public class StreamingPipelineExecutionContext extends PipelineExecutionContext

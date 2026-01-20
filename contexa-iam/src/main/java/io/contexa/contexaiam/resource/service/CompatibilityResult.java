@@ -5,10 +5,7 @@ import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import java.util.Collections;
 import java.util.Set;
 
-/**
- * 호환성 검사 결과 클래스
- * SRP 준수: 호환성 결과 정보만 담당
- */
+
 public class CompatibilityResult {
     private final boolean compatible;
     private final String reason;

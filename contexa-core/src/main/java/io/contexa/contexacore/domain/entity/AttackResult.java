@@ -15,15 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 공격 결과 엔티티 (단순화)
- *
- * 시뮬레이션 공격의 핵심 결과만 저장합니다.
- * 복잡한 데이터는 JSON 필드에 저장합니다.
- *
- * @author contexa
- * @since 1.0.0
- */
+
 @Entity
 @Table(name = "attack_results", indexes = {
     @Index(name = "idx_attack_campaign_id", columnList = "campaign_id"),
@@ -94,15 +86,15 @@ public class AttackResult {
     @Column(name = "breached_record_count")
     private Integer breachedRecordCount;
 
-    // 나머지 모든 복잡한 데이터는 JSON으로 저장
+    
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "additional_data", columnDefinition = "jsonb")
     @Builder.Default
     private Map<String, Object> additionalData = new HashMap<>();
 
-    // Transient 필드들 - 기존 코드 호환성을 위해 유지
+    
     @Transient
-    private AttackType type;  // alias for attackType
+    private AttackType type;  
     @Transient
     private LocalDateTime timestamp;
     @Transient
@@ -180,7 +172,7 @@ public class AttackResult {
     @Transient
     private Double estimatedDamage;
     
-    // 빌더 패턴을 위한 추가 메서드
+    
     public String getRiskLevel() {
         if (riskLevelString != null) return riskLevelString;
         if (riskLevel != null) return riskLevel.name();
@@ -192,11 +184,11 @@ public class AttackResult {
         try {
             this.riskLevel = RiskLevel.valueOf(riskLevel);
         } catch (Exception e) {
-            // 문자열로만 저장
+            
         }
     }
     
-    // 메트릭 (Transient)
+    
     @Transient
     private Integer httpStatusCode;
     @Transient
@@ -206,7 +198,7 @@ public class AttackResult {
     @Transient
     private Integer privilegeEscalationLevel;
 
-    // 검증 결과 (Transient)
+    
     @Transient
     private VerificationStatus verificationStatus;
     @Transient
@@ -215,11 +207,9 @@ public class AttackResult {
     @Builder.Default
     private List<String> verificationFailures = new ArrayList<>();
     
-    /**
-     * 공격 유형
-     */
+    
     public enum AttackType {
-        // 인증 공격
+        
         BRUTE_FORCE("Brute Force Attack"),
         CREDENTIAL_STUFFING("Credential Stuffing"),
         PASSWORD_SPRAY("Password Spray"),
@@ -229,7 +219,7 @@ public class AttackResult {
         TOKEN_REPLAY("Token Replay Attack"),
         ACCOUNT_ENUMERATION("Account Enumeration"),
 
-        // 인가 공격
+        
         PRIVILEGE_ESCALATION("Privilege Escalation"),
         IDOR("Insecure Direct Object Reference"),
         API_BYPASS("API Bypass Attack"),
@@ -237,7 +227,7 @@ public class AttackResult {
         HORIZONTAL_PRIVILEGE_ESCALATION("Horizontal Privilege Escalation"),
         ROLE_MANIPULATION("Role Manipulation"),
 
-        // 행동 기반 공격
+        
         IMPOSSIBLE_TRAVEL("Impossible Travel"),
         ABNORMAL_BEHAVIOR("Abnormal Behavior Pattern"),
         BEHAVIORAL("Behavioral Anomaly"),
@@ -248,25 +238,25 @@ public class AttackResult {
         NETWORK_ANOMALY("Network Anomaly"),
         TIME_BASED_ANOMALY("Time-based Anomaly"),
 
-        // API 공격
+        
         API_ABUSE("API Abuse Attack"),
         GRAPHQL_INJECTION("GraphQL Injection Attack"),
         RATE_LIMIT_BYPASS("Rate Limit Bypass Attack"),
         API_KEY_EXPOSURE("API Key Exposure Attack"),
 
-        // AI/ML 공격
+        
         MODEL_POISONING("Model Poisoning Attack"),
         ADVERSARIAL_EVASION("Adversarial Evasion Attack"),
         PROMPT_INJECTION("Prompt Injection Attack"),
         MODEL_EXTRACTION("Model Extraction Attack"),
 
-        // 계정 탈취
+        
         ACCOUNT_TAKEOVER("Account Takeover"),
         INSIDER_THREAT("Insider Threat"),
         DORMANT_ACCOUNT_ABUSE("Dormant Account Abuse"),
         SERVICE_ACCOUNT_ABUSE("Service Account Abuse"),
 
-        // 추가 공격 유형
+        
         UNKNOWN("Unknown Attack Type"),
         INJECTION("Injection Attack"),
         DOS("Denial of Service Attack"),
@@ -285,9 +275,7 @@ public class AttackResult {
         }
     }
     
-    /**
-     * 위험 수준
-     */
+    
     public enum RiskLevel {
         LOW(0.0, 0.3),
         MEDIUM(0.3, 0.6),
@@ -313,9 +301,7 @@ public class AttackResult {
         }
     }
     
-    /**
-     * 검증 상태
-     */
+    
     public enum VerificationStatus {
         NOT_VERIFIED,
         PARTIALLY_VERIFIED,
@@ -323,44 +309,40 @@ public class AttackResult {
         VERIFICATION_FAILED
     }
     
-    /**
-     * 증거
-     */
+    
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Evidence {
-        private String type; // log, screenshot, network_trace, memory_dump
+        private String type; 
         private LocalDateTime timestamp;
         private String source;
         private String content;
         private Map<String, Object> metadata;
     }
     
-    /**
-     * 탐지 효과성 계산
-     */
+    
     public double calculateDetectionEffectiveness() {
         if (!detected) {
             return 0.0;
         }
         
-        double score = 0.5; // 기본 탐지 점수
+        double score = 0.5; 
         
-        // 빠른 탐지 보너스
+        
         if (detectionTimeMs != null && detectionTimeMs < 1000) {
             score += 0.2;
         } else if (detectionTimeMs != null && detectionTimeMs < 5000) {
             score += 0.1;
         }
         
-        // AI 신뢰도 보너스
+        
         if (aiConfidenceScore != null && aiConfidenceScore > 0.8) {
             score += 0.2;
         }
         
-        // 자동 차단 보너스
+        
         if (blocked) {
             score += 0.1;
         }
@@ -368,17 +350,13 @@ public class AttackResult {
         return Math.min(score, 1.0);
     }
     
-    /**
-     * 공격 성공 여부 판단
-     */
+    
     @JsonIgnore
     public boolean isAttackSuccessful() {
         return attackSuccessful && !blocked && !sessionTerminated;
     }
 
-    /**
-     * 데이터 유출 영향도 계산
-     */
+    
     public String calculateBreachImpact() {
         if (!dataBreached || breachedRecordCount == null) {
             return "No data breach";
@@ -395,36 +373,30 @@ public class AttackResult {
         }
     }
 
-    /**
-     * 공격 성공 여부 판단 (alias)
-     */
+    
     @JsonIgnore
     public boolean isSuccessful() {
         return successful || isAttackSuccessful();
     }
 
-    /**
-     * 플랫폼이 적절히 대응했는지 판단
-     */
+    
     @JsonIgnore
     public boolean isPlatformResponseAdequate() {
-        // 고위험 공격은 반드시 차단되어야 함
+        
         if (riskLevel == RiskLevel.CRITICAL || riskLevel == RiskLevel.HIGH) {
             return blocked || sessionTerminated;
         }
         
-        // 중간 위험은 MFA나 정책 트리거
+        
         if (riskLevel == RiskLevel.MEDIUM) {
             return requiresMfa || !triggeredPolicies.isEmpty();
         }
         
-        // 저위험은 탐지만 되어도 OK
+        
         return detected;
     }
     
-    /**
-     * MITRE ATT&CK 매핑
-     */
+    
     public String getMitreTactic() {
         switch (type) {
             case BRUTE_FORCE:
@@ -449,9 +421,7 @@ public class AttackResult {
         }
     }
     
-    /**
-     * 보고서용 요약 생성
-     */
+    
     public String generateSummary() {
         StringBuilder summary = new StringBuilder();
         summary.append(String.format("Attack: %s (%s)\n", attackName, type.getDescription()));

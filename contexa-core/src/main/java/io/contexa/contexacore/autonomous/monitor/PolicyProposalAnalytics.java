@@ -16,13 +16,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * 정책 제안 분석 시스템
- * 통계 생성, 트렌드 분석, 대시보드 데이터 제공
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyProposalAnalytics {
@@ -30,12 +24,10 @@ public class PolicyProposalAnalytics {
     private final PolicyEvolutionProposalRepository proposalRepository;
     private final PolicyEffectivenessMonitor effectivenessMonitor;
     
-    // 분석 데이터 캐시
+    
     private final Map<String, AnalyticsSnapshot> analyticsCache = new ConcurrentHashMap<>();
     
-    /**
-     * 분석 스냅샷
-     */
+    
     public static class AnalyticsSnapshot {
         private LocalDateTime timestamp;
         private Map<String, Object> metrics;
@@ -67,9 +59,7 @@ public class PolicyProposalAnalytics {
         public LocalDateTime getTimestamp() { return timestamp; }
     }
     
-    /**
-     * 데이터 포인트
-     */
+    
     public static class DataPoint {
         private LocalDateTime timestamp;
         private double value;
@@ -86,17 +76,15 @@ public class PolicyProposalAnalytics {
         public String getLabel() { return label; }
     }
     
-    /**
-     * 대시보드 통계 생성
-     */
+    
     public DashboardStatistics generateDashboardStatistics() {
         DashboardStatistics stats = new DashboardStatistics();
         
-        // 전체 제안 통계
+        
         List<PolicyEvolutionProposal> allProposals = proposalRepository.findAll();
         stats.setTotalProposals(allProposals.size());
         
-        // 상태별 통계
+        
         Map<ProposalStatus, Long> statusCounts = allProposals.stream()
             .collect(Collectors.groupingBy(
                 PolicyEvolutionProposal::getStatus,
@@ -104,7 +92,7 @@ public class PolicyProposalAnalytics {
             ));
         stats.setProposalsByStatus(statusCounts);
         
-        // 타입별 통계
+        
         Map<ProposalType, Long> typeCounts = allProposals.stream()
             .collect(Collectors.groupingBy(
                 PolicyEvolutionProposal::getProposalType,
@@ -112,7 +100,7 @@ public class PolicyProposalAnalytics {
             ));
         stats.setProposalsByType(typeCounts);
         
-        // 위험 레벨별 통계
+        
         Map<RiskLevel, Long> riskCounts = allProposals.stream()
             .collect(Collectors.groupingBy(
                 PolicyEvolutionProposal::getRiskLevel,
@@ -120,31 +108,31 @@ public class PolicyProposalAnalytics {
             ));
         stats.setProposalsByRiskLevel(riskCounts);
         
-        // 승인율 계산
+        
         long approvedCount = statusCounts.getOrDefault(ProposalStatus.APPROVED, 0L);
         long rejectedCount = statusCounts.getOrDefault(ProposalStatus.REJECTED, 0L);
         double approvalRate = (approvedCount + rejectedCount) > 0 ?
             (double) approvedCount / (approvedCount + rejectedCount) * 100 : 0;
         stats.setApprovalRate(approvalRate);
         
-        // 평균 처리 시간 계산
+        
         double avgProcessingTime = calculateAverageProcessingTime(allProposals);
         stats.setAverageProcessingTime(avgProcessingTime);
         
-        // 활성 정책 수
+        
         long activePolicies = allProposals.stream()
             .filter(p -> p.getStatus() == ProposalStatus.APPROVED)
             .filter(p -> p.getPolicyId() != null)
             .count();
         stats.setActivePolicies(activePolicies);
         
-        // 이번 주 제안 수
+        
         long weeklyProposals = allProposals.stream()
             .filter(p -> p.getCreatedAt().isAfter(LocalDateTime.now().minusWeeks(1)))
             .count();
         stats.setWeeklyProposals(weeklyProposals);
         
-        // 이번 달 제안 수
+        
         long monthlyProposals = allProposals.stream()
             .filter(p -> p.getCreatedAt().isAfter(LocalDateTime.now().minusMonths(1)))
             .count();
@@ -156,9 +144,7 @@ public class PolicyProposalAnalytics {
         return stats;
     }
     
-    /**
-     * 트렌드 분석
-     */
+    
     public TrendAnalysis analyzeTrends(int days) {
         TrendAnalysis analysis = new TrendAnalysis();
         LocalDateTime startDate = LocalDateTime.now().minusDays(days);
@@ -167,27 +153,27 @@ public class PolicyProposalAnalytics {
             .filter(p -> p.getCreatedAt().isAfter(startDate))
             .collect(Collectors.toList());
         
-        // 일별 제안 트렌드
+        
         List<DataPoint> dailyProposals = generateDailyTrend(proposals, days);
         analysis.setDailyProposalTrend(dailyProposals);
         
-        // 타입별 트렌드
+        
         Map<ProposalType, List<DataPoint>> typesTrend = generateTypeTrends(proposals, days);
         analysis.setTypesTrend(typesTrend);
         
-        // 위험 레벨 트렌드
+        
         Map<RiskLevel, List<DataPoint>> riskTrend = generateRiskTrends(proposals, days);
         analysis.setRiskLevelTrend(riskTrend);
         
-        // 승인율 트렌드
+        
         List<DataPoint> approvalRateTrend = generateApprovalRateTrend(proposals, days);
         analysis.setApprovalRateTrend(approvalRateTrend);
         
-        // 효과성 트렌드
+        
         List<DataPoint> effectivenessTrend = generateEffectivenessTrend(proposals, days);
         analysis.setEffectivenessTrend(effectivenessTrend);
         
-        // 트렌드 인사이트 생성
+        
         TrendInsights insights = generateTrendInsights(analysis);
         analysis.setInsights(insights);
         
@@ -196,9 +182,7 @@ public class PolicyProposalAnalytics {
         return analysis;
     }
     
-    /**
-     * 일별 제안 트렌드 생성
-     */
+    
     private List<DataPoint> generateDailyTrend(List<PolicyEvolutionProposal> proposals, int days) {
         List<DataPoint> trend = new ArrayList<>();
         
@@ -216,9 +200,7 @@ public class PolicyProposalAnalytics {
         return trend;
     }
     
-    /**
-     * 타입별 트렌드 생성
-     */
+    
     private Map<ProposalType, List<DataPoint>> generateTypeTrends(List<PolicyEvolutionProposal> proposals, int days) {
         Map<ProposalType, List<DataPoint>> trends = new HashMap<>();
         
@@ -243,9 +225,7 @@ public class PolicyProposalAnalytics {
         return trends;
     }
     
-    /**
-     * 위험 레벨 트렌드 생성
-     */
+    
     private Map<RiskLevel, List<DataPoint>> generateRiskTrends(List<PolicyEvolutionProposal> proposals, int days) {
         Map<RiskLevel, List<DataPoint>> trends = new HashMap<>();
         
@@ -270,9 +250,7 @@ public class PolicyProposalAnalytics {
         return trends;
     }
     
-    /**
-     * 승인율 트렌드 생성
-     */
+    
     private List<DataPoint> generateApprovalRateTrend(List<PolicyEvolutionProposal> proposals, int days) {
         List<DataPoint> trend = new ArrayList<>();
         
@@ -301,9 +279,7 @@ public class PolicyProposalAnalytics {
         return trend;
     }
     
-    /**
-     * 효과성 트렌드 생성
-     */
+    
     private List<DataPoint> generateEffectivenessTrend(List<PolicyEvolutionProposal> proposals, int days) {
         List<DataPoint> trend = new ArrayList<>();
         
@@ -327,13 +303,11 @@ public class PolicyProposalAnalytics {
         return trend;
     }
     
-    /**
-     * 트렌드 인사이트 생성
-     */
+    
     private TrendInsights generateTrendInsights(TrendAnalysis analysis) {
         TrendInsights insights = new TrendInsights();
         
-        // 제안 증가/감소 트렌드
+        
         List<DataPoint> dailyTrend = analysis.getDailyProposalTrend();
         if (!dailyTrend.isEmpty()) {
             double firstWeekAvg = dailyTrend.stream()
@@ -360,7 +334,7 @@ public class PolicyProposalAnalytics {
             }
         }
         
-        // 가장 활발한 정책 타입
+        
         Map<ProposalType, Double> typeActivity = new HashMap<>();
         for (Map.Entry<ProposalType, List<DataPoint>> entry : analysis.getTypesTrend().entrySet()) {
             double total = entry.getValue().stream()
@@ -379,7 +353,7 @@ public class PolicyProposalAnalytics {
             insights.addInsight("Most active policy type: " + mostActiveType);
         }
         
-        // 위험 레벨 분포 변화
+        
         Map<RiskLevel, List<DataPoint>> riskTrends = analysis.getRiskLevelTrend();
         double highRiskIncrease = calculateTrendSlope(riskTrends.get(RiskLevel.HIGH));
         
@@ -388,7 +362,7 @@ public class PolicyProposalAnalytics {
             insights.setHighRiskAlert(true);
         }
         
-        // 승인율 변화
+        
         List<DataPoint> approvalTrend = analysis.getApprovalRateTrend();
         double approvalSlope = calculateTrendSlope(approvalTrend);
         
@@ -397,7 +371,7 @@ public class PolicyProposalAnalytics {
             insights.setApprovalRateDeclining(true);
         }
         
-        // 효과성 트렌드
+        
         List<DataPoint> effectivenessTrend = analysis.getEffectivenessTrend();
         double avgEffectiveness = effectivenessTrend.stream()
             .mapToDouble(DataPoint::getValue)
@@ -415,9 +389,7 @@ public class PolicyProposalAnalytics {
         return insights;
     }
     
-    /**
-     * 트렌드 기울기 계산 (선형 회귀)
-     */
+    
     private double calculateTrendSlope(List<DataPoint> trend) {
         if (trend == null || trend.size() < 2) {
             return 0;
@@ -440,9 +412,7 @@ public class PolicyProposalAnalytics {
         return slope;
     }
     
-    /**
-     * 평균 처리 시간 계산
-     */
+    
     private double calculateAverageProcessingTime(List<PolicyEvolutionProposal> proposals) {
         return proposals.stream()
             .filter(p -> p.getStatus() == ProposalStatus.APPROVED || 
@@ -453,9 +423,7 @@ public class PolicyProposalAnalytics {
             .orElse(0);
     }
     
-    /**
-     * 성능 메트릭 생성
-     */
+    
     public PerformanceMetrics generatePerformanceMetrics() {
         PerformanceMetrics metrics = new PerformanceMetrics();
         
@@ -463,14 +431,14 @@ public class PolicyProposalAnalytics {
             .filter(p -> p.getStatus() == ProposalStatus.APPROVED)
             .collect(Collectors.toList());
         
-        // 평균 효과성
+        
         double avgEffectiveness = approvedProposals.stream()
             .mapToDouble(p -> effectivenessMonitor.calculateActualImpact(p.getId()))
             .average()
             .orElse(0);
         metrics.setAverageEffectiveness(avgEffectiveness);
         
-        // 최고/최저 성과 정책
+        
         PolicyEvolutionProposal bestPerformer = approvedProposals.stream()
             .max(Comparator.comparingDouble(p -> effectivenessMonitor.calculateActualImpact(p.getId())))
             .orElse(null);
@@ -489,7 +457,7 @@ public class PolicyProposalAnalytics {
             metrics.setWorstPerformanceScore(effectivenessMonitor.calculateActualImpact(worstPerformer.getId()));
         }
         
-        // 타입별 성과
+        
         Map<ProposalType, Double> performanceByType = approvedProposals.stream()
             .collect(Collectors.groupingBy(
                 PolicyEvolutionProposal::getProposalType,
@@ -497,7 +465,7 @@ public class PolicyProposalAnalytics {
             ));
         metrics.setPerformanceByType(performanceByType);
         
-        // 위험 레벨별 성과
+        
         Map<RiskLevel, Double> performanceByRisk = approvedProposals.stream()
             .collect(Collectors.groupingBy(
                 PolicyEvolutionProposal::getRiskLevel,
@@ -510,9 +478,7 @@ public class PolicyProposalAnalytics {
         return metrics;
     }
     
-    /**
-     * 대시보드 통계 클래스
-     */
+    
     public static class DashboardStatistics {
         private long totalProposals;
         private Map<ProposalStatus, Long> proposalsByStatus;
@@ -524,7 +490,7 @@ public class PolicyProposalAnalytics {
         private long weeklyProposals;
         private long monthlyProposals;
         
-        // Getters and Setters
+        
         public long getTotalProposals() { return totalProposals; }
         public void setTotalProposals(long totalProposals) { this.totalProposals = totalProposals; }
         
@@ -561,9 +527,7 @@ public class PolicyProposalAnalytics {
         public void setMonthlyProposals(long monthlyProposals) { this.monthlyProposals = monthlyProposals; }
     }
     
-    /**
-     * 트렌드 분석 클래스
-     */
+    
     public static class TrendAnalysis {
         private List<DataPoint> dailyProposalTrend;
         private Map<ProposalType, List<DataPoint>> typesTrend;
@@ -572,7 +536,7 @@ public class PolicyProposalAnalytics {
         private List<DataPoint> effectivenessTrend;
         private TrendInsights insights;
         
-        // Getters and Setters
+        
         public List<DataPoint> getDailyProposalTrend() { return dailyProposalTrend; }
         public void setDailyProposalTrend(List<DataPoint> dailyProposalTrend) { 
             this.dailyProposalTrend = dailyProposalTrend; 
@@ -602,9 +566,7 @@ public class PolicyProposalAnalytics {
         public void setInsights(TrendInsights insights) { this.insights = insights; }
     }
     
-    /**
-     * 트렌드 인사이트 클래스
-     */
+    
     public static class TrendInsights {
         private double proposalGrowthRate;
         private ProposalType mostActiveType;
@@ -617,7 +579,7 @@ public class PolicyProposalAnalytics {
             insights.add(insight);
         }
         
-        // Getters and Setters
+        
         public double getProposalGrowthRate() { return proposalGrowthRate; }
         public void setProposalGrowthRate(double proposalGrowthRate) { 
             this.proposalGrowthRate = proposalGrowthRate; 
@@ -644,9 +606,7 @@ public class PolicyProposalAnalytics {
         public List<String> getInsights() { return insights; }
     }
     
-    /**
-     * 성능 메트릭 클래스
-     */
+    
     public static class PerformanceMetrics {
         private double averageEffectiveness;
         private String bestPerformingPolicy;
@@ -656,7 +616,7 @@ public class PolicyProposalAnalytics {
         private Map<ProposalType, Double> performanceByType;
         private Map<RiskLevel, Double> performanceByRisk;
         
-        // Getters and Setters
+        
         public double getAverageEffectiveness() { return averageEffectiveness; }
         public void setAverageEffectiveness(double averageEffectiveness) { 
             this.averageEffectiveness = averageEffectiveness; 
@@ -693,49 +653,45 @@ public class PolicyProposalAnalytics {
         }
     }
     
-    /**
-     * 주기적 분석 업데이트 (매시간)
-     */
-//    @Scheduled(fixedDelay = 3600000) // 1시간마다
+    
+
     public void updateAnalytics() {
         log.info("Updating analytics cache...");
         
         AnalyticsSnapshot snapshot = new AnalyticsSnapshot();
         
-        // 대시보드 통계 업데이트
+        
         DashboardStatistics stats = generateDashboardStatistics();
         snapshot.addMetric("dashboardStats", stats);
         
-        // 7일 트렌드 업데이트
+        
         TrendAnalysis weeklyTrend = analyzeTrends(7);
         snapshot.addTrend("weekly", weeklyTrend.getDailyProposalTrend());
         
-        // 30일 트렌드 업데이트
+        
         TrendAnalysis monthlyTrend = analyzeTrends(30);
         snapshot.addTrend("monthly", monthlyTrend.getDailyProposalTrend());
         
-        // 성능 메트릭 업데이트
+        
         PerformanceMetrics performance = generatePerformanceMetrics();
         snapshot.addMetric("performance", performance);
         
-        // 인사이트 업데이트
+        
         snapshot.addInsight("weekly", weeklyTrend.getInsights());
         snapshot.addInsight("monthly", monthlyTrend.getInsights());
         
-        // 캐시 저장
+        
         analyticsCache.put("latest", snapshot);
         
         log.info("Analytics cache updated successfully");
     }
     
-    /**
-     * 캐시된 분석 데이터 조회
-     */
+    
     public AnalyticsSnapshot getCachedAnalytics() {
         AnalyticsSnapshot cached = analyticsCache.get("latest");
         
         if (cached == null || cached.getTimestamp().isBefore(LocalDateTime.now().minusHours(1))) {
-            // 캐시가 없거나 오래된 경우 새로 생성
+            
             updateAnalytics();
             cached = analyticsCache.get("latest");
         }

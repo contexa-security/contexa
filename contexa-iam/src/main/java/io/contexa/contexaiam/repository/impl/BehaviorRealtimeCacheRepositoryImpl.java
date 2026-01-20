@@ -6,10 +6,7 @@ import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Custom implementation for BehaviorRealtimeCacheRepository
- * Handles JSON column type conversion for PostgreSQL
- */
+
 @Repository
 @Transactional
 public class BehaviorRealtimeCacheRepositoryImpl {
@@ -17,14 +14,12 @@ public class BehaviorRealtimeCacheRepositoryImpl {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /**
-     * Save or update BehaviorRealtimeCache with proper JSON handling
-     */
+    
     public BehaviorRealtimeCache saveWithJsonHandling(BehaviorRealtimeCache cache) {
         String recentActivities = cache.getRecentActivities();
         String riskFactors = cache.getRiskFactors();
 
-        // Ensure JSON format
+        
         if (recentActivities == null || recentActivities.isEmpty()) {
             recentActivities = "[]";
         }

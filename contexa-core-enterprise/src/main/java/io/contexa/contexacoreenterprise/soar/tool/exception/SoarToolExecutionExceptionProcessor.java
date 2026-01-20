@@ -13,16 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 
-/**
- * SOAR 도구 실행 예외 처리기
- * Spring AI의 ToolExecutionExceptionProcessor를 확장하여 보안 도구 특화 처리
- * 
- * 특징:
- * - 보안 도구 특화 예외 처리 (승인 타임아웃, 권한 거부 등)
- * - 에스컬레이션 및 복구 전략
- * - 구조화된 JSON 오류 응답
- * - DefaultToolExecutionExceptionProcessor와 통합
- */
+
 @Slf4j
 public class SoarToolExecutionExceptionProcessor implements ToolExecutionExceptionProcessor {
     
@@ -46,19 +37,19 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         
         log.error("도구 실행 예외 발생 - 도구: {}, 예외: {}", toolName, cause != null ? cause.getMessage() : "Unknown", cause);
         
-        // throwOnError가 true면 예외를 다시 던짐
+        
         if (throwOnError) {
-            // 보안 관련 예외는 무조건 던짐
+            
             if (cause instanceof PermissionDeniedException || 
                 cause instanceof ApprovalTimeoutException) {
                 throw new SecurityToolExecutionException(
                     "보안 도구 실행 실패: " + cause.getMessage(), exception);
             }
-            // 기본 처리기에 위임
+            
             return defaultProcessor.process(exception);
         }
         
-        // throwOnError가 false면 구조화된 오류 메시지 반환
+        
         if (cause instanceof TimeoutException) {
             return handleTimeoutException(toolName, exception);
         } else if (cause instanceof ApprovalTimeoutException) {
@@ -76,9 +67,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         }
     }
     
-    /**
-     * 타임아웃 예외 처리
-     */
+    
     private String handleTimeoutException(String toolName, ToolExecutionException exception) {
         log.warn("⏰ 도구 실행 타임아웃: {}", toolName);
         
@@ -95,13 +84,11 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         );
     }
     
-    /**
-     * 승인 타임아웃 처리
-     */
+    
     private String handleApprovalTimeout(String toolName, ToolExecutionException exception) {
         log.warn("⏰ 승인 타임아웃: {} - 에스컬레이션 진행", toolName);
         
-        // 에스컬레이션 로직
+        
         escalateToSupervisor(toolName);
         
         return createErrorResponse(
@@ -117,9 +104,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         );
     }
     
-    /**
-     * Rate Limit 초과 처리
-     */
+    
     private String handleRateLimitExceeded(String toolName, ToolExecutionException exception) {
         log.warn("🚫 Rate limit 초과: {}", toolName);
         
@@ -137,9 +122,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         );
     }
     
-    /**
-     * 권한 거부 처리
-     */
+    
     private String handlePermissionDenied(String toolName, ToolExecutionException exception) {
         log.error("권한 거부: {}", toolName);
         
@@ -156,9 +139,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         );
     }
     
-    /**
-     * 네트워크 예외 처리
-     */
+    
     private String handleNetworkException(String toolName, ToolExecutionException exception) {
         log.warn("네트워크 예외: {} - 복구 전략 적용", toolName);
         
@@ -179,9 +160,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         );
     }
     
-    /**
-     * 검증 예외 처리
-     */
+    
     private String handleValidationException(String toolName, ToolExecutionException exception) {
         log.warn("입력 검증 실패: {}", toolName);
         
@@ -198,9 +177,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         );
     }
     
-    /**
-     * 일반 예외 처리
-     */
+    
     private String handleGenericException(String toolName, ToolExecutionException exception, Throwable cause) {
         log.error("💥 일반 예외 발생: {} - {}", toolName, cause.getMessage());
         
@@ -221,9 +198,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         );
     }
     
-    /**
-     * JSON 형태의 오류 응답 생성
-     */
+    
     private String createErrorResponse(String errorType, String errorMessage, Map<String, Object> details) {
         StringBuilder json = new StringBuilder();
         json.append("{\n");
@@ -252,25 +227,19 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         return json.toString();
     }
     
-    /**
-     * 에스컬레이션 처리
-     */
+    
     private void escalateToSupervisor(String toolName) {
         log.info("에스컬레이션 시작: {} -> 상위 관리자", toolName);
-        // 실제 구현에서는 알림 서비스 호출
+        
     }
     
-    /**
-     * 복구 전략 조회
-     */
+    
     private RecoveryStrategy getRecoveryStrategy(String toolName) {
         return recoveryStrategies.getOrDefault(toolName, 
             new RecoveryStrategy(true, 3, 1000L));
     }
     
-    /**
-     * 대체 액션 조회
-     */
+    
     private String getAlternativeAction(String toolName) {
         if ("network_isolation".equals(toolName)) {
             return "방화벽 규칙으로 대체 실행";
@@ -278,16 +247,12 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         return "재시도 또는 수동 처리";
     }
     
-    /**
-     * 재시도 횟수 조회
-     */
+    
     private int getRetryCount(String toolName) {
         return retryCounters.getOrDefault(toolName, 0);
     }
     
-    /**
-     * 재시도 가능 예외 판단
-     */
+    
     private boolean isRetryableException(Throwable cause) {
         return !(cause instanceof IllegalArgumentException ||
                 cause instanceof IllegalStateException ||
@@ -295,9 +260,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
                 cause instanceof PermissionDeniedException);
     }
     
-    /**
-     * 복구 전략
-     */
+    
     public static class RecoveryStrategy {
         private final boolean retryable;
         private final int maxRetries;
@@ -314,9 +277,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         public long getRetryDelayMs() { return retryDelayMs; }
     }
     
-    /**
-     * 보안 도구 실행 예외
-     */
+    
     public static class SecurityToolExecutionException extends RuntimeException {
         private final ToolExecutionException originalException;
         
@@ -330,9 +291,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         }
     }
     
-    /**
-     * 커스텀 예외 클래스들
-     */
+    
     public static class ApprovalTimeoutException extends RuntimeException {
         public ApprovalTimeoutException(String message) {
             super(message);

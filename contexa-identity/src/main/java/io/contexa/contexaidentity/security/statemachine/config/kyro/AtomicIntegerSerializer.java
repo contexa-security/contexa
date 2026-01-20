@@ -10,12 +10,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AtomicIntegerSerializer extends Serializer<AtomicInteger> {
     @Override
     public void write(Kryo kryo, Output output, AtomicInteger value) {
-        kryo.writeClassAndObject(output, value.get()); // 내부 값만 직렬화
+        kryo.writeClassAndObject(output, value.get()); 
     }
 
     @Override
     public AtomicInteger read(Kryo kryo, Input input, Class<? extends AtomicInteger> type) {
-        int value = (int)kryo.readClassAndObject(input); // 내부 값 역직렬화
+        int value = (int)kryo.readClassAndObject(input); 
         return new AtomicInteger(value);
     }
 }

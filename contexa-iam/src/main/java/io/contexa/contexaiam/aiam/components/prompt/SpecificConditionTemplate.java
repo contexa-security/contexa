@@ -8,22 +8,7 @@ import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationR
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-/**
- * 특화 조건 템플릿 생성 프롬프트
- * 
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환
- * - 표준화된 포맷 지시
- * - 성능 최적화
- *
- * Spring AI 공식 패턴 준수
- * 
- * 특화 조건 생성:
- * - Java 메서드 시그니처 분석
- * - SpEL 기반 hasPermission 조건문 생성
- * - 컨텍스트 의존적 조건 처리
- */
+
 @Slf4j
 @PromptTemplateConfig(
     key = "generateSpecificConditionTemplates",
@@ -32,13 +17,13 @@ import org.springframework.ai.converter.BeanOutputConverter;
 )
 public class SpecificConditionTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성
+    
     private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter = 
         new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
     
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        // Spring AI의 포맷 지시사항 자동 생성
+        
         String formatInstructions = converter.getFormat();
         
         return String.format("""
@@ -145,13 +130,11 @@ public class SpecificConditionTemplate implements PromptTemplate {
             Generate complete ConditionTemplateGenerationResponse in JSON format.
             """, methodSignature);
         
-        // BeanOutputConverter의 포맷 지시사항을 다시 추가 (강조)
+        
         return conditionRequest + "\n\n" + converter.getFormat();
     }
     
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     */
+    
     public BeanOutputConverter<ConditionTemplateGenerationResponse> getConverter() {
         return converter;
     }

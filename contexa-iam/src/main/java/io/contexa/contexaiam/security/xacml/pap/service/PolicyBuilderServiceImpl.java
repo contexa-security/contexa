@@ -34,9 +34,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/**
- * [최종 구현] 모든 Mock 및 Placeholder를 제거하고, 실제 DB 연동 및 비즈니스 로직을 포함한 완전한 구현체입니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyBuilderServiceImpl implements PolicyBuilderService {
@@ -74,7 +72,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
                 .collect(Collectors.joining(" or "));
         if (!subjectExpr.isEmpty()) conditions.add("(" + subjectExpr + ")");
 
-        // VisualPolicyDto에서 전달된 permissionId로 Permission 목록을 조회합니다.
+        
         Set<Long> permissionIds = dto.permissions().stream()
                 .map(VisualPolicyDto.PermissionIdentifier::id)
                 .collect(Collectors.toSet());
@@ -88,10 +86,10 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
                 .description("Visually built rule").build();
         rule.setConditions(conditions.stream().map(expr -> PolicyCondition.builder().expression(expr).rule(rule).build()).collect(Collectors.toSet()));
 
-        // [오류 수정] getFunctions() 대신 getManagedResource()를 직접 사용하여 PolicyTarget 생성
+        
         Set<PolicyTarget> targets = perms.stream()
-                .map(Permission::getManagedResource) // 각 Permission에 직접 연결된 ManagedResource를 가져옴
-                .filter(Objects::nonNull) // 혹시 모를 null 값 방지
+                .map(Permission::getManagedResource) 
+                .filter(Objects::nonNull) 
                 .map(mr -> PolicyTarget.builder()
                         .policy(policy)
                         .targetType(mr.getResourceType().name())
@@ -103,14 +101,12 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
         policy.setRules(Set.of(rule));
         policy.setTargets(targets);
 
-        // PolicyService를 통해 DTO로 변환하여 생성 요청
+        
         PolicyDto policyDto = modelMapper.map(policy, PolicyDto.class);
         return policyService.createPolicy(policyDto);
     }
 
-    /**
-     * [최종 로직 구현] 실제 DB 조회 및 SpEL 평가를 통해 정책 변경의 영향을 시뮬레이션합니다.
-     */
+    
     @Override
     @Transactional(readOnly = true)
     public SimulationResultDto simulatePolicy(Policy policyToSimulate, SimulationContext context) {
@@ -131,15 +127,15 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
             Set<String> gained = new HashSet<>(afterPermissions);
             gained.removeAll(beforePermissions);
             gained.forEach(permName -> {
-                // 권한 이름으로 Permission 엔티티를 조회하여 상세 정보 획득
+                
                 Permission p = permissionRepository.findByName(permName).orElse(null);
                 String description = (p != null && p.getDescription() != null) ? p.getDescription() : permName;
 
                 allImpacts.add(new SimulationResultDto.ImpactDetail(
                         user.getName(),
                         "USER",
-                        permName,       // 기술 이름 전달
-                        description,    // 사용자 친화적 설명 전달
+                        permName,       
+                        description,    
                         SimulationResultDto.ImpactType.PERMISSION_GAINED,
                         policyToSimulate.getName()
                 ));
@@ -148,17 +144,17 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
             Set<String> lost = new HashSet<>(beforePermissions);
             lost.removeAll(afterPermissions);
 
-            // [수정] 상실(LOST) 권한 처리 로직
+            
             lost.forEach(permName -> {
-                // 권한 이름으로 Permission 엔티티를 조회하여 상세 정보 획득
+                
                 Permission p = permissionRepository.findByName(permName).orElse(null);
                 String description = (p != null && p.getDescription() != null) ? p.getDescription() : permName;
 
                 allImpacts.add(new SimulationResultDto.ImpactDetail(
                         user.getName(),
                         "USER",
-                        permName,       // 기술 이름 전달
-                        description,    // 사용자 친화적 설명 전달
+                        permName,       
+                        description,    
                         SimulationResultDto.ImpactType.PERMISSION_LOST,
                         policyToSimulate.getName()
                 ));
@@ -169,9 +165,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
         return new SimulationResultDto(summary, allImpacts);
     }
 
-    /**
-     * [최종 로직 구현] 실제 DB 조회를 통해 정책 충돌을 감지합니다.
-     */
+    
     @Override
     public List<PolicyConflictDto> detectConflicts(Policy newPolicy) {
         List<PolicyConflictDto> conflicts = new ArrayList<>();

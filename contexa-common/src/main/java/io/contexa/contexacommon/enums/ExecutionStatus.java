@@ -2,10 +2,7 @@ package io.contexa.contexacommon.enums;
 
 import lombok.Getter;
 
-/**
- * 실행 상태
- * SRP 준수: 실행 상태 정의만 담당
- */
+
 @Getter
 public enum ExecutionStatus {
     PENDING("대기중", "요청이 대기 중입니다"),

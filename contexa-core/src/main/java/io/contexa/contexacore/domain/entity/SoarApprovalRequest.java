@@ -27,20 +27,20 @@ public class SoarApprovalRequest {
     private String requestId;
 
     @Column(nullable = false, updatable = false)
-    private String playbookInstanceId;  // TODO: Migrate to incidentId
+    private String playbookInstanceId;  
     
-    // 새로운 필드들 - 도메인 모델과 일치
+    
     @Column(name = "incident_id")
-    private String incidentId;  // playbookInstanceId 대체 예정
+    private String incidentId;  
     
     @Column(name = "session_id")
     private String sessionId;
     
     @Column(name = "risk_level")
-    private String riskLevel;  // CRITICAL/HIGH/MEDIUM/LOW/INFO
+    private String riskLevel;  
     
     @Column(name = "approval_type")
-    private String approvalType;  // AUTO/MANUAL/SINGLE/MULTI/UNANIMOUS/EMERGENCY
+    private String approvalType;  
     
     @Column(name = "requested_by")
     private String requestedBy;
@@ -58,7 +58,7 @@ public class SoarApprovalRequest {
     private String actionName;
     
     @Column(name = "tool_name")
-    private String toolName;  // actionName 대체 예정
+    private String toolName;  
 
     @Lob
     @Column(updatable = false)
@@ -73,19 +73,19 @@ public class SoarApprovalRequest {
     private String status;
 
     @Column
-    private String reviewerId;  // TODO: Migrate to approvedBy
+    private String reviewerId;  
     
     @Column(name = "approved_by")
-    private String approvedBy;  // reviewerId 대체 예정
+    private String approvedBy;  
     
     private String organizationId;
 
     @Lob
-    private String reviewerComment;  // TODO: Migrate to approvalComment
+    private String reviewerComment;  
     
     @Column(name = "approval_comment")
     @Lob
-    private String approvalComment;  // reviewerComment 대첲 예정
+    private String approvalComment;  
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

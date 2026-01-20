@@ -15,13 +15,7 @@ public class ValidationReportReporter {
     private static final String WARNING_PREFIX = "  [경고] ";
     private static final String FIX_PREFIX = "    >> 제안: ";
 
-    /**
-     * ValidationResult를 기반으로 콘솔에 보고서를 출력합니다.
-     * 오류가 있을 경우 DslConfigurationException을 발생시켜 서버 기동을 중단합니다.
-     * @param result 검증 결과
-     * @param dslSourceName DSL 설정 출처 (예: "PlatformSecurityConfig.java")
-     * @throws DslConfigurationException 치명적인 오류가 있을 경우
-     */
+    
     public static void reportAndPotentiallyExit(ValidationResult result, String dslSourceName) throws DslConfigurationException {
         if (result == null) {
             log.error("ValidationResult is null. Cannot report validation status for DSL source: {}", dslSourceName);

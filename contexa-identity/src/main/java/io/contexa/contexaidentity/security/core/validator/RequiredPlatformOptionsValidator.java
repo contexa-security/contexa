@@ -26,13 +26,13 @@ public class RequiredPlatformOptionsValidator implements Validator<Authenticatio
                 if (!StringUtils.hasText(passkeyOptions.getRpId())) {
                     result.addError(String.format("치명적 오류: %s에 필수 플랫폼 옵션인 'rpId'가 설정되지 않았습니다. Passkey 인증은 Relying Party ID가 반드시 필요합니다.", stepIdentifier));
                 }
-                // rpName은 필수는 아니지만 없으면 경고
+                
                 if (!StringUtils.hasText(passkeyOptions.getRpName())) {
                     result.addWarning(String.format("설정 경고: %s에 'rpName'이 설정되지 않았습니다. 사용자에게 표시될 Relying Party 이름입니다.", stepIdentifier));
                 }
             }
         }
-        // 다른 인증 방식에 대한 플랫폼 필수 옵션 검사 추가 (예: OAuth2 클라이언트 ID/Secret 등)
+        
 
         if (result.hasErrors() || result.hasWarnings()){
             log.warn("DSL VALIDATION for {}: Errors: {}, Warnings: {}", stepIdentifier, result.getErrors(), result.getWarnings());

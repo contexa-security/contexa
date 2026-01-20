@@ -25,7 +25,7 @@ public class SoarActionController {
     }
 
     @PostMapping("/api/soar/actions/approvals/{approvalId}")
-//    @PreAuthorize("hasRole('ROLE_SOAR_ADMIN')")
+
     @ResponseBody
     public ResponseEntity<Void> handleApproval(
             @PathVariable String approvalId,

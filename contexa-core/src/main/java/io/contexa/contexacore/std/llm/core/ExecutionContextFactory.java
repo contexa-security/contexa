@@ -6,21 +6,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Component;
 
-/**
- * ExecutionContext 생성 팩토리
- * 설정 파일(TieredLLMProperties)을 기반으로 ExecutionContext를 생성
- * 하드코딩 제거 및 설정 기반 동작
- */
+
 @RequiredArgsConstructor
 public class ExecutionContextFactory {
 
     private final TieredLLMProperties tieredLLMProperties;
     private final SecurityMappingProperties securityMappingProperties;
 
-    /**
-     * AnalysisLevel 기반 컨텍스트 생성
-     * 설정 파일의 값을 사용하여 하드코딩 제거
-     */
+    
     public ExecutionContext forAnalysisLevel(ExecutionContext.AnalysisLevel level, Prompt prompt) {
         int tier = level.getDefaultTier();
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
@@ -36,7 +29,7 @@ public class ExecutionContextFactory {
                 .temperature(temperature)
                 .advisorEnabled(true);
 
-        // 분석 수준별 추가 설정 (2-Tier 시스템)
+        
         switch (level) {
             case QUICK -> {
                 builder.requireFastResponse(true)
@@ -46,7 +39,7 @@ public class ExecutionContextFactory {
                 builder.preferLocalModel(true);
             }
             case DEEP -> {
-                // Layer 2 고성능 모델 사용 (2-Tier 시스템)
+                
                 builder.preferCloudModel(tieredLLMProperties.isCloudModel(modelName))
                        .toolExecutionEnabled(tieredLLMProperties.getTiered().getLayer2().isEnableSoar());
             }
@@ -55,10 +48,7 @@ public class ExecutionContextFactory {
         return builder.build();
     }
 
-    /**
-     * Tier 기반 컨텍스트 생성
-     * 설정 파일의 값을 사용하여 하드코딩 제거
-     */
+    
     public ExecutionContext forTier(int tier, Prompt prompt) {
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
         Integer timeout = tieredLLMProperties.getTimeoutForTier(tier);
@@ -72,22 +62,22 @@ public class ExecutionContextFactory {
                 .temperature(temperature)
                 .advisorEnabled(true);
 
-        // 계층별 추가 설정 (2-Tier 시스템)
+        
         switch (tier) {
             case 1 -> {
-                // Layer 1: 경량 모델 - 빠른 응답, 위협 필터링
+                
                 builder.securityTaskType(ExecutionContext.SecurityTaskType.THREAT_FILTERING)
                        .requireFastResponse(true)
                        .preferLocalModel(tieredLLMProperties.isOllamaModel(modelName));
             }
             case 2 -> {
-                // Layer 2: 고성능 모델 - 심층 분석, 전문가 조사
+                
                 builder.securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
                        .preferCloudModel(tieredLLMProperties.isCloudModel(modelName))
                        .toolExecutionEnabled(tieredLLMProperties.getTiered().getLayer2().isEnableSoar());
             }
             default -> {
-                // 유효하지 않은 tier인 경우 기본값 사용 (Layer 1)
+                
                 builder.tier(1)
                        .preferredModel(tieredLLMProperties.getModelNameForTier(1));
             }
@@ -96,15 +86,13 @@ public class ExecutionContextFactory {
         return builder.build();
     }
 
-    /**
-     * SecurityTaskType 기반 컨텍스트 생성
-     */
+    
     public ExecutionContext forSecurityTask(ExecutionContext.SecurityTaskType taskType, Prompt prompt) {
-        // SecurityMappingProperties를 사용하여 tier 결정
+        
         int tier = securityMappingProperties.getTierForSecurityTask(taskType);
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
 
-        // TaskConfig 가져오기
+        
         SecurityMappingProperties.TaskConfig taskConfig = securityMappingProperties.getTaskConfig(taskType);
 
         ExecutionContext.ExecutionContextBuilder builder = ExecutionContext.builder()
@@ -119,7 +107,7 @@ public class ExecutionContextFactory {
                     taskConfig.getTemperature() : tieredLLMProperties.getTemperatureForTier(tier))
                 .advisorEnabled(true);
 
-        // TaskConfig에서 추가 설정 적용
+        
         if (taskConfig.getToolExecutionEnabled() != null) {
             builder.toolExecutionEnabled(taskConfig.getToolExecutionEnabled());
         }
@@ -136,17 +124,13 @@ public class ExecutionContextFactory {
         return builder.build();
     }
 
-    /**
-     * 기본 컨텍스트 생성 (설정 기반)
-     */
+    
     public ExecutionContext createDefault(Prompt prompt) {
-        // 기본값은 Layer 2 (균형)
+        
         return forTier(2, prompt);
     }
 
-    /**
-     * 백업 모델을 고려한 컨텍스트 생성
-     */
+    
     public ExecutionContext withFallbackModel(ExecutionContext original) {
         if (original.getTier() == null) {
             return original;
@@ -154,7 +138,7 @@ public class ExecutionContextFactory {
 
         String backupModel = tieredLLMProperties.getBackupModelNameForTier(original.getTier());
         if (backupModel != null && !backupModel.equals(original.getPreferredModel())) {
-            // 백업 모델로 새 컨텍스트 생성
+            
             return ExecutionContext.builder()
                     .prompt(original.getPrompt())
                     .tier(original.getTier())

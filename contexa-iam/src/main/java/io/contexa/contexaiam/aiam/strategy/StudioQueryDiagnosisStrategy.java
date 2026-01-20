@@ -22,15 +22,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Studio Query 진단 전략 (리팩토링 버전)
- *
- * 정책 생성 진단과 완전히 동일한 패턴!
- * 단일 책임: Studio Query 진단 요청을 적절한 Lab으로 라우팅
- *
- * 기존 StudioQueryDiagnosisStrategy의 모든 기능을 유지하면서
- * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
- */
+
 @Slf4j
 public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQueryContext, StudioQueryResponse> {
 
@@ -171,7 +163,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
 
     @Override
     protected PipelineConfig getPipelineConfig() {
-        // Studio Query는 자연어 쿼리 분석 및 정확한 응답 생성이 필요하므로 전체 파이프라인 실행
+        
         return PipelineConfig.fullPipeline();
     }
 }

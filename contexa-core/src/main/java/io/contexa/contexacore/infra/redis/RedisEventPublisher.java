@@ -10,12 +10,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Redis 기반 이벤트 발행 서비스
- * 분산 환경에서 서버 간 이벤트 공유
- *
- * eventRedisTemplate을 사용하여 타입 정보 없이 깔끔한 JSON으로 직렬화합니다.
- */
+
 @Slf4j
 public class RedisEventPublisher {
 
@@ -29,18 +24,14 @@ public class RedisEventPublisher {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 인증 이벤트 발행
-     */
+    
     public void publishAuthenticationEvent(String eventType, String username,
                                            Map<String, Object> additionalData) {
         Map<String, Object> event = createEvent("AUTHENTICATION", eventType, username, additionalData);
         publishEvent("authentication-events", event);
     }
 
-    /**
-     * MFA 이벤트 발행
-     */
+    
     public void publishMfaEvent(String eventType, String sessionId,
                                 String username, Map<String, Object> additionalData) {
         Map<String, Object> data = new HashMap<>(additionalData);
@@ -50,9 +41,7 @@ public class RedisEventPublisher {
         publishEvent("mfa-events", event);
     }
 
-    /**
-     * 보안 이벤트 발행
-     */
+    
     public void publishSecurityEvent(String eventType, String username,
                                      String ipAddress, Map<String, Object> additionalData) {
         Map<String, Object> data = new HashMap<>(additionalData);
@@ -62,9 +51,7 @@ public class RedisEventPublisher {
         publishEvent("security-events", event);
     }
 
-    /**
-     * 이벤트 생성
-     */
+    
     private Map<String, Object> createEvent(String category, String eventType,
                                             String username, Map<String, Object> data) {
         Map<String, Object> event = new HashMap<>();
@@ -78,9 +65,7 @@ public class RedisEventPublisher {
         return event;
     }
 
-    /**
-     * 이벤트 발행
-     */
+    
     public void publishEvent(String topicName, Map<String, Object> event) {
         try {
             ChannelTopic topic = new ChannelTopic(topicName);
@@ -94,11 +79,9 @@ public class RedisEventPublisher {
         }
     }
 
-    /**
-     * 서버 ID 가져오기
-     */
+    
     private String getServerId() {
-        // 실제로는 서버 인스턴스 ID나 호스트명을 사용
+        
         return System.getenv("HOSTNAME") != null ?
                 System.getenv("HOSTNAME") : "server-" + System.currentTimeMillis();
     }

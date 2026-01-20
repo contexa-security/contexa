@@ -5,13 +5,7 @@ import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import org.springframework.stereotype.Component;
 
-/**
- * 위험 평가 통합 템플릿 - SecurityCopilot 방식
- *
- * 통합 프롬프트: 스트리밍 중 자연어 분석 과정 + 마지막에 JSON 결과
- * 조건부 제거: AI 한 번만 실행하여 효율성 극대화
- * SecurityCopilot 방식: ###FINAL_RESPONSE### 마커로 구조화 데이터 전송
- */
+
 @PromptTemplateConfig(
         key = "riskAssessmentStreaming",
         aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessmentStreaming"},
@@ -32,11 +26,9 @@ public class RiskAssessmentStreamingTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(null, contextInfo);
     }
 
-    /**
-     * 통합 시스템 프롬프트 - 스트리밍 자연어 분석 과정 + 최종 JSON 결과
-     */
+    
     private String buildUnifiedSystemPrompt(String systemMetadata) {
-        // [개선] AI 역할을 API로 명확히 하고, JSON 출력 규칙을 강화
+        
         return String.format("""
             당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 보안 위험 평가 API입니다.
 
@@ -83,11 +75,9 @@ public class RiskAssessmentStreamingTemplate implements PromptTemplate {
             """, systemMetadata);
     }
 
-    /**
-     * 통합 사용자 프롬프트 - 구체적 요청과 실행 지시
-     */
+    
     private String buildUnifiedUserPrompt(RiskAssessmentContext context, String contextInfo) {
-        // [개선] 사용자 프롬프트에서도 규칙을 다시 한번 강조
+        
         String requestDetails = (context != null) ?
                 String.format("""
                 - 사용자 ID: %s

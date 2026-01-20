@@ -31,7 +31,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
     private final List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers;
     private final List<SecurityHandlerMethodReturnValueHandler> defaultReturnValueHandlers;
     private final List<HttpMessageConverter<?>> messageConverters;
-    private final Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping; // 파라미터 및 필드 복원
+    private final Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping; 
     private int order;
 
     public AsepConfigurer(
@@ -39,19 +39,19 @@ public final class AsepConfigurer implements SecurityConfigurer {
             List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers,
             List<SecurityHandlerMethodReturnValueHandler> defaultReturnValueHandlers,
             HttpMessageConverters httpMessageConverters,
-            Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) { // 파라미터 복원
+            Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) { 
 
         this.methodRegistry = Objects.requireNonNull(methodRegistry, "SecurityExceptionHandlerMethodRegistry cannot be null");
         this.defaultArgumentResolvers = defaultArgumentResolvers != null ? List.copyOf(defaultArgumentResolvers) : Collections.emptyList();
         this.defaultReturnValueHandlers = defaultReturnValueHandlers != null ? List.copyOf(defaultReturnValueHandlers) : Collections.emptyList();
         this.messageConverters = Objects.requireNonNull(httpMessageConverters, "HttpMessageConverters cannot be null").getConverters();
-        this.dslAttributesMapping = dslAttributesMapping != null ? Map.copyOf(dslAttributesMapping) : Collections.emptyMap(); // 필드 복원
+        this.dslAttributesMapping = dslAttributesMapping != null ? Map.copyOf(dslAttributesMapping) : Collections.emptyMap(); 
         this.order = Ordered.LOWEST_PRECEDENCE - 1000;
 
         if (this.messageConverters.isEmpty()) {
             log.warn("ASEP: HttpMessageConverter list is empty in AsepConfigurer. Body processing for ASEP responses may not work as expected.");
         }
-        if (this.dslAttributesMapping.isEmpty()) { // 복원된 필드 사용
+        if (this.dslAttributesMapping.isEmpty()) { 
             log.warn("ASEP: dslAttributesMapping is empty. DSL-specific ASEP settings might not load correctly if HttpSecurity shared objects are used for attributes.");
         }
     }
@@ -66,7 +66,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
         log.info("ASEP: AsepConfigurer (Singleton Bean) initializing... Effective order: {}", this.order);
         log.debug("  - Default ArgumentResolvers count: {}", this.defaultArgumentResolvers.size());
         log.debug("  - Default ReturnValueHandlers count: {}", this.defaultReturnValueHandlers.size());
-        log.debug("  - DSL Attributes Mapping count: {}", this.dslAttributesMapping.size()); // 복원된 필드 사용
+        log.debug("  - DSL Attributes Mapping count: {}", this.dslAttributesMapping.size()); 
         log.debug("  - MessageConverters count: {}", this.messageConverters.size());
 
         if (this.methodRegistry == null || !this.methodRegistry.hasAnyMappings()) {
@@ -85,7 +85,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
         Objects.requireNonNull(flowCtx, "FlowContext cannot be null");
         HttpSecurity http = Objects.requireNonNull(flowCtx.http(), "HttpSecurity from FlowContext cannot be null");
         AuthenticationFlowConfig flowConfig = Objects.requireNonNull(flowCtx.flow(), "AuthenticationFlowConfig from FlowContext cannot be null");
-        String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null").toLowerCase(); // 일관성을 위해 소문자 사용
+        String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null").toLowerCase(); 
 
         log.debug("ASEP: Applying AsepConfigurer to flow: {} (HttpSecurity hash: {})", flowTypeName, http.hashCode());
 
@@ -94,17 +94,17 @@ public final class AsepConfigurer implements SecurityConfigurer {
 
         BaseAsepAttributes flowSpecificAsepAttributes = null;
 
-        // 방법 1: dslAttributesMapping과 HttpSecurity.getSharedObject() 사용 (이전 방식)
-        // Class<? extends BaseAsepAttributes> attributesClassKey = this.dslAttributesMapping.get(flowTypeName);
-        // if (attributesClassKey != null) {
-        //     Object attributesObject = http.getSharedObject(attributesClassKey);
-        //     if (attributesObject instanceof BaseAsepAttributes) {
-        //         flowSpecificAsepAttributes = (BaseAsepAttributes) attributesObject;
-        //         log.info("ASEP: Loaded ASEP attributes from HttpSecurity.sharedObject (type: {}) for flow [{}].", attributesClassKey.getSimpleName(), flowTypeName);
-        //     }
-        // }
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
-        // 방법 2: FlowConfig의 Options 객체에서 ASEP 속성을 직접 가져오기 (권장된 최신 방식)
+        
         if ("mfa".equalsIgnoreCase(flowTypeName)) {
             flowSpecificAsepAttributes = flowConfig.getMfaAsepAttributes();
             if (flowSpecificAsepAttributes != null) {
@@ -114,13 +114,13 @@ public final class AsepConfigurer implements SecurityConfigurer {
             AuthenticationStepConfig mainStep = flowConfig.getStepConfigs().get(0);
             Object optionsObject = mainStep.getOptions().get("_options");
 
-            // 각 XxxOptions 클래스에 getAsepAttributes() 메서드가 정의되어 있다고 가정
+            
             if (optionsObject instanceof FormOptions fo) flowSpecificAsepAttributes = fo.getAsepAttributes();
             else if (optionsObject instanceof RestOptions ro) flowSpecificAsepAttributes = ro.getAsepAttributes();
             else if (optionsObject instanceof OttOptions oo) flowSpecificAsepAttributes = oo.getAsepAttributes();
             else if (optionsObject instanceof PasskeyOptions po) flowSpecificAsepAttributes = po.getAsepAttributes();
-//            else if (optionsObject instanceof RecoveryCodeOptions rco) flowSpecificAsepAttributes = rco.getAsepAttributes();
-            // ... 다른 XxxOptions 타입에 대한 처리
+
+            
             if (flowSpecificAsepAttributes != null) {
                 log.info("ASEP: Loaded ASEP attributes from Options object ({}) for flow [{}].", optionsObject.getClass().getSimpleName(), flowTypeName);
             }
@@ -137,7 +137,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
             log.debug("ASEP: No specific ASEP attributes found for flow [{}]. Using defaults only.", flowTypeName);
         }
 
-        // 최종 Resolver/Handler 리스트 구성
+        
         List<SecurityHandlerMethodArgumentResolver> finalArgumentResolvers = new ArrayList<>(this.defaultArgumentResolvers);
         collectedCustomArgumentResolvers.forEach(customRes -> {
             finalArgumentResolvers.removeIf(defaultRes -> defaultRes.getClass().equals(customRes.getClass()));
@@ -162,7 +162,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
         SecurityExceptionHandlerInvoker handlerInvoker = new SecurityExceptionHandlerInvoker(finalArgumentResolvers, finalReturnValueHandlers);
         ASEPFilter asepFilter = new ASEPFilter(this.methodRegistry, handlerInvoker, this.messageConverters);
 
-//        http.addFilterAfter(asepFilter, SecurityContextHolderFilter.class);
+
         log.info("ASEP: ASEPFilter added by AsepConfigurer for flow: {}", flowTypeName);
     }
 

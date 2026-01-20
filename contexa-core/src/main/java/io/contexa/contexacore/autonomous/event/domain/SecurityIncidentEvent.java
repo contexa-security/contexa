@@ -11,9 +11,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * 보안 사고 이벤트 도메인 모델
- */
+
 @Data
 @Builder
 @NoArgsConstructor

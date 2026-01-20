@@ -12,11 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * SOAR (Security Orchestration, Automation and Response) 컨텍스트 객체.
- * AI 기반 SOAR 분석에 필요한 모든 관련 정보를 캡슐화합니다.
- * PipelineExecutionContext를 포함하여 파이프라인 실행 상태와 SOAR 도메인 상태를 함께 관리합니다.
- */
+
 @Getter
 @Setter
 public class SoarContext extends DomainContext {
@@ -31,10 +27,10 @@ public class SoarContext extends DomainContext {
     private String recommendedActions;
     private String organizationId;
 
-    // PipelineExecutionContext를 포함하는 컴포지션 관계
+    
     private PipelineExecutionContext pipelineExecutionContext;
     
-    // 추가 SOAR 필드들
+    
     private String sessionId;
     private SessionState sessionState;
     private LocalDateTime createdAt;
@@ -45,17 +41,17 @@ public class SoarContext extends DomainContext {
     private LocalDateTime detectedAt;
     private Map<String, Object> additionalInfo;
 
-    // SOAR 프로세스의 동적인 상태를 관리하기 위한 필드들
-    private List<io.contexa.contexacore.domain.Message> conversationHistory; // LLM과의 대화 기록 및 Tool 호출/결과 저장
-    private AssistantMessage.ToolCall requiredToolCall; // LLM이 요청한 Tool 호출 정보
-    private boolean humanApprovalNeeded; // 사람의 승인이 필요한지 여부
-    private String humanApprovalMessage; // 사람에게 보여줄 승인 요청 메시지
-    private String lastLlmResponse; // LLM의 마지막 응답
     
-    // 실행 모드 (동기/비동기)
+    private List<io.contexa.contexacore.domain.Message> conversationHistory; 
+    private AssistantMessage.ToolCall requiredToolCall; 
+    private boolean humanApprovalNeeded; 
+    private String humanApprovalMessage; 
+    private String lastLlmResponse; 
+    
+    
     private SoarExecutionMode executionMode = SoarExecutionMode.AUTO;
 
-    // 기본 생성자
+    
     public SoarContext() {
         this.conversationHistory = new ArrayList<>();
     }
@@ -70,7 +66,7 @@ public class SoarContext extends DomainContext {
         this.severity = severity;
         this.recommendedActions = recommendedActions;
         super.setOrganizationId(organizationId);
-        this.conversationHistory = new ArrayList<>(); // 초기화
+        this.conversationHistory = new ArrayList<>(); 
     }
 
     public SoarContext(String incidentId, String threatType, String description, List<String> affectedAssets, String currentStatus, String detectedSource, String severity, String recommendedActions, String organizationId, PipelineExecutionContext pipelineExecutionContext) {
@@ -78,7 +74,7 @@ public class SoarContext extends DomainContext {
         this.pipelineExecutionContext = pipelineExecutionContext;
     }
     
-    // SecurityPlaneAgent에서 사용하는 9개 파라미터 생성자
+    
     public SoarContext(String incidentId, String threatType, String severity, String description, String currentStatus, LocalDateTime detectedAt, List<String> affectedSystems, Map<String, Object> additionalInfo, String organizationId) {
         this.incidentId = incidentId;
         this.threatType = threatType;
@@ -102,9 +98,7 @@ public class SoarContext extends DomainContext {
         return 10;
     }
     
-    /**
-     * 위협 수준
-     */
+    
     public enum ThreatLevel {
         CRITICAL("치명적", 10),
         HIGH("높음", 8),
@@ -130,7 +124,7 @@ public class SoarContext extends DomainContext {
         }
     }
     
-    // 누락된 메서드들 추가
+    
     private List<io.contexa.contexacore.domain.ApprovalRequest> approvalRequests = new ArrayList<>();
     private java.util.Set<String> approvedTools = new java.util.HashSet<>();
     
@@ -166,9 +160,9 @@ public class SoarContext extends DomainContext {
         this.sessionState = newState;
     }
     
-    // 추가 getter들
+    
     public String getUserId() {
-        // 실제 구현에서는 SecurityContext에서 가져오거나 별도 필드 사용
+        
         return "system-user";
     }
     
@@ -181,32 +175,32 @@ public class SoarContext extends DomainContext {
         this.conversationHistory.add(entry);
     }
     
-    // 추가로 필요한 메서드들
+    
     public String getIncidentStatus() {
         return this.currentStatus;
     }
     
     public LocalDateTime getUpdatedAt() {
-        return this.createdAt; // 임시로 createdAt 사용
+        return this.createdAt; 
     }
     
     public void setUpdatedAt(LocalDateTime updatedAt) {
-        // 별도 updatedAt 필드가 없으므로 무시하거나 createdAt을 업데이트
+        
     }
     
     public void setLastActivity(LocalDateTime lastActivity) {
-        // 별도 lastActivity 필드가 없으므로 무시하거나 createdAt을 업데이트
+        
     }
     
     public String getCurrentApprovalId() {
-        // 현재 진행 중인 승인 요청의 ID 반환
+        
         if (approvalRequests != null && !approvalRequests.isEmpty()) {
             return approvalRequests.get(approvalRequests.size() - 1).getRequestId();
         }
         return null;
     }
     
-    // Query Intent 필드 추가
+    
     private String queryIntent;
     
     public String getQueryIntent() {
@@ -217,7 +211,7 @@ public class SoarContext extends DomainContext {
         this.queryIntent = queryIntent;
     }
     
-    // Tool Execution 관련 필드 추가
+    
     private boolean requiresToolExecution = false;
     private List<String> executedTools = new ArrayList<>();
 
@@ -244,7 +238,7 @@ public class SoarContext extends DomainContext {
         this.executedTools.add(toolName);
     }
     
-    // Extracted Entities 필드 추가  
+    
     private Map<String, Object> extractedEntities = new java.util.HashMap<>();
     
     public Map<String, Object> getExtractedEntities() {
@@ -261,7 +255,7 @@ public class SoarContext extends DomainContext {
         this.extractedEntities.put(key, value);
     }
     
-    // isRequiresApproval 메서드 추가
+    
     @JsonIgnore
     public boolean isRequiresApproval() {
         return this.humanApprovalNeeded;
@@ -271,12 +265,12 @@ public class SoarContext extends DomainContext {
         this.humanApprovalNeeded = requiresApproval;
     }
 
-    // setIncidentStatus 메서드 추가
+    
     public void setIncidentStatus(SoarIncident.IncidentStatus status) {
         this.currentStatus = status.name();
     }
 
-    // addToolExecutionResult 메서드 추가
+    
     public void addToolExecutionResult(String toolName, Object result) {
         if (this.extractedEntities == null) {
             this.extractedEntities = new java.util.HashMap<>();
@@ -284,7 +278,7 @@ public class SoarContext extends DomainContext {
         this.extractedEntities.put("tool_result_" + toolName, result);
     }
 
-    // isEmergencyMode 메서드 추가
+    
     private boolean emergencyMode = false;
 
     @JsonIgnore
@@ -296,7 +290,7 @@ public class SoarContext extends DomainContext {
         this.emergencyMode = emergencyMode;
     }
     
-    // getLastActivity 메서드 추가
+    
     private LocalDateTime lastActivity;
     
     public LocalDateTime getLastActivity() {

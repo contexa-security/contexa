@@ -7,14 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-/**
- * IAM 도메인 Lab 팩토리 구현체
- *
- * 기존 LabAccessor와 IAMLabRegistry의 기능을 통합하여
- * 새로운 AILabFactory 인터페이스를 구현
- *
- * 마이그레이션 기간 동안 기존 시스템과의 호환성 유지
- */
+
 @Slf4j
 public class DefaultAILabFactory implements AILabFactory {
 

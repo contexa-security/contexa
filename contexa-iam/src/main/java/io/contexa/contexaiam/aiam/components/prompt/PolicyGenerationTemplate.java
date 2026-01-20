@@ -8,23 +8,7 @@ import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-/**
- * IAM 정책 생성 프롬프트 템플릿
- *
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환
- * - 표준화된 포맷 지시
- * - 성능 최적화
- *
- * Spring AI 공식 패턴 준수
- * 
- * 정책 생성:
- * - 자연어 요구사항을 IAM 정책으로 변환
- * - 역할(Role), 권한(Permission), 조건(Condition) 매핑
- * - AI 위험 평가 통합
- * - SpEL 조건식 생성
- */
+
 @Slf4j
 @PromptTemplateConfig(
     key = "generatePolicyFromText",
@@ -33,13 +17,13 @@ import org.springframework.ai.converter.BeanOutputConverter;
 )
 public class PolicyGenerationTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성
+    
     private final BeanOutputConverter<PolicyResponse> converter = 
         new BeanOutputConverter<>(PolicyResponse.class);
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        // Spring AI의 포맷 지시사항 자동 생성
+        
         String formatInstructions = converter.getFormat();
         
         return String.format("""
@@ -134,18 +118,18 @@ public class PolicyGenerationTemplate implements PromptTemplate {
             Generate complete PolicyResponse in JSON format.
             """, naturalLanguageQuery, contextInfo);
         
-        // BeanOutputConverter의 포맷 지시사항을 다시 추가 (강조)
+        
         return policyRequest + "\n\n" + converter.getFormat();
     }
 
     private String extractQueryFromRequest(AIRequest<? extends DomainContext> request) {
-        // naturalLanguageQuery 파라미터 추출
+        
         String naturalLanguageQuery = request.getParameter("naturalLanguageQuery", String.class);
         if (naturalLanguageQuery != null) {
             return naturalLanguageQuery;
         }
 
-        // 폴백: 컨텍스트에서 추출 시도
+        
         if (request.getContext() != null) {
             return request.getContext().toString();
         }
@@ -153,9 +137,7 @@ public class PolicyGenerationTemplate implements PromptTemplate {
         return "자연어 요구사항이 제공되지 않았습니다";
     }
     
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     */
+    
     public BeanOutputConverter<PolicyResponse> getConverter() {
         return converter;
     }

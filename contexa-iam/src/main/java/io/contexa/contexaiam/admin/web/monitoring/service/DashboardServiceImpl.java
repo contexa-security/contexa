@@ -20,10 +20,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final SecurityScoreCalculator securityScoreCalculator;
     private final PermissionMatrixService permissionMatrixService;
 
-    /**
-     * [최종 구현] 대시보드에 필요한 모든 데이터를 각 서비스와 리포지토리에서 취합하여
-     * 최종 DashboardDto를 구성합니다.
-     */
+    
     @Override
     @Transactional(readOnly = true)
     public DashboardDto getDashboardData() {
@@ -31,7 +28,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         return new DashboardDto(
                 userRepository.count(),
-                ThreadLocalRandom.current().nextLong(10, 51), // 활성 세션은 임시 랜덤값
+                ThreadLocalRandom.current().nextLong(10, 51), 
                 userRepository.countByMfaEnabled(false),
                 userRepository.findAdminsWithMfaDisabled().size(),
                 userContextService.getRecentActivities(currentUsername),

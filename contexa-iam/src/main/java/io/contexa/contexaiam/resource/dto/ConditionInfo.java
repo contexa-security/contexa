@@ -3,10 +3,7 @@ package io.contexa.contexaiam.resource.dto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.resource.service.CompatibilityResult;
 
-/**
- * 조건 정보 DTO
- * SRP 준수: 조건 정보 전달만 담당
- */
+
 public class ConditionInfo {
     public final Long id;
     public final String name;

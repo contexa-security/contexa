@@ -13,12 +13,7 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * OAuth2 Resource Server 에서 권한 부족으로 접근이 거부되었을 때 처리하는 Handler입니다.
- *
- * <p>인증은 성공했지만 해당 리소스에 접근할 권한이 없을 때 호출됩니다.
- * HTTP 403 Forbidden 응답을 JSON 형식으로 반환합니다.
- */
+
 @Slf4j
 public class OAuth2AccessDeniedHandler implements AccessDeniedHandler {
 

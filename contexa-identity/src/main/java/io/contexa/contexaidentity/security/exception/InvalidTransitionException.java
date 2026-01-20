@@ -3,9 +3,7 @@ package io.contexa.contexaidentity.security.exception;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 
-/**
- * FSM 전이 불가 시 던져지는 예외
- */
+
 public class InvalidTransitionException extends RuntimeException {
     private final MfaState state;
     private final MfaEvent event;

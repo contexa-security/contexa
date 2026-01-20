@@ -12,15 +12,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 정책 버전 관리자
- * 
- * 정책의 버전 이력을 관리하고 롤백 기능을 제공합니다.
- * 버전 충돌을 방지하고 정책 변경 추적을 가능하게 합니다.
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 public class PolicyVersionManager {
     
     private static final Logger logger = LoggerFactory.getLogger(PolicyVersionManager.class);
@@ -28,30 +20,25 @@ public class PolicyVersionManager {
     @Autowired
     private PolicyProposalRepository proposalRepository;
     
-    // 버전 체인 저장소
+    
     private final Map<Long, PolicyVersionChain> versionChains = new ConcurrentHashMap<>();
     
-    // 활성 버전 추적
+    
     private final Map<String, Long> activePolicies = new ConcurrentHashMap<>();
     
-    // 롤백 이력
+    
     private final List<RollbackHistory> rollbackHistories = Collections.synchronizedList(new ArrayList<>());
     
-    /**
-     * 새로운 정책 버전 생성
-     * 
-     * @param proposal 정책 제안
-     * @return 버전 ID
-     */
+    
     @Transactional
     public Long createVersion(PolicyEvolutionProposal proposal) {
         logger.info("Creating new policy version for proposal: {}", proposal.getId());
         
         try {
-            // 버전 체인 생성 또는 가져오기
+            
             PolicyVersionChain chain = getOrCreateChain(proposal);
             
-            // 새 버전 추가
+            
             PolicyVersion version = PolicyVersion.builder()
                 .versionId(generateVersionId())
                 .proposalId(proposal.getId())
@@ -62,7 +49,7 @@ public class PolicyVersionManager {
             
             chain.addVersion(version);
             
-            // 버전 체인 저장
+            
             versionChains.put(proposal.getId(), chain);
             
             logger.info("Created version {} for proposal {}", version.getVersionId(), proposal.getId());
@@ -74,12 +61,7 @@ public class PolicyVersionManager {
         }
     }
     
-    /**
-     * 정책 활성화
-     * 
-     * @param proposalId 제안 ID
-     * @param versionId 버전 ID
-     */
+    
     @Transactional
     public void activateVersion(Long proposalId, Long versionId) {
         logger.info("Activating version {} for proposal {}", versionId, proposalId);
@@ -89,23 +71,17 @@ public class PolicyVersionManager {
             throw new PolicyVersionException("Version chain not found for proposal: " + proposalId);
         }
         
-        // 기존 활성 버전 비활성화
+        
         deactivateCurrentVersion(proposalId);
         
-        // 새 버전 활성화
+        
         chain.setCurrentVersion(versionId);
         activePolicies.put(getPolicyKey(proposalId), versionId);
         
         logger.info("Activated version {} for proposal {}", versionId, proposalId);
     }
     
-    /**
-     * 정책 롤백
-     * 
-     * @param proposalId 제안 ID
-     * @param targetVersionId 대상 버전 ID (null이면 이전 버전)
-     * @return 롤백된 버전 ID
-     */
+    
     @Transactional
     public Long rollback(Long proposalId, Long targetVersionId) {
         logger.warn("Rolling back proposal {} to version {}", proposalId, targetVersionId);
@@ -122,10 +98,10 @@ public class PolicyVersionManager {
             throw new PolicyVersionException("No previous version available for rollback");
         }
         
-        // 롤백 실행
+        
         activateVersion(proposalId, rollbackTarget);
         
-        // 롤백 이력 기록
+        
         recordRollback(proposalId, currentVersion, rollbackTarget);
         
         logger.info("Rolled back proposal {} from version {} to {}", 
@@ -134,12 +110,7 @@ public class PolicyVersionManager {
         return rollbackTarget;
     }
     
-    /**
-     * 버전 이력 조회
-     * 
-     * @param proposalId 제안 ID
-     * @return 버전 이력 목록
-     */
+    
     public List<PolicyVersion> getVersionHistory(Long proposalId) {
         PolicyVersionChain chain = versionChains.get(proposalId);
         if (chain == null) {
@@ -149,14 +120,7 @@ public class PolicyVersionManager {
         return chain.getVersionHistory();
     }
     
-    /**
-     * 버전 비교
-     * 
-     * @param proposalId 제안 ID
-     * @param versionId1 첫 번째 버전
-     * @param versionId2 두 번째 버전
-     * @return 버전 차이점
-     */
+    
     public VersionDiff compareVersions(Long proposalId, Long versionId1, Long versionId2) {
         PolicyVersionChain chain = versionChains.get(proposalId);
         if (chain == null) {
@@ -179,11 +143,7 @@ public class PolicyVersionManager {
             .build();
     }
     
-    /**
-     * 버전 정리 (오래된 버전 제거)
-     * 
-     * @param retainCount 유지할 버전 수
-     */
+    
     @Transactional
     public void pruneOldVersions(int retainCount) {
         logger.info("Pruning old versions, retaining {} versions per chain", retainCount);
@@ -197,29 +157,18 @@ public class PolicyVersionManager {
         logger.info("Pruned {} old versions across all chains", totalPruned);
     }
     
-    /**
-     * 활성 정책 확인
-     * 
-     * @param proposalId 제안 ID
-     * @return 활성 상태 여부
-     */
+    
     public boolean isActive(Long proposalId) {
         String key = getPolicyKey(proposalId);
         return activePolicies.containsKey(key);
     }
     
-    /**
-     * 버전 충돌 검사
-     * 
-     * @param proposalId 제안 ID
-     * @param versionId 버전 ID
-     * @return 충돌 여부
-     */
+    
     public boolean hasConflict(Long proposalId, Long versionId) {
-        // 다른 활성 정책과의 충돌 검사
+        
         for (Map.Entry<String, Long> entry : activePolicies.entrySet()) {
             if (!entry.getKey().equals(getPolicyKey(proposalId))) {
-                // 실제 충돌 검사 로직 (PolicyConflictDetector에서 수행)
+                
                 if (checkVersionConflict(versionId, entry.getValue())) {
                     return true;
                 }
@@ -228,7 +177,7 @@ public class PolicyVersionManager {
         return false;
     }
     
-    // ==================== Private Methods ====================
+    
     
     private PolicyVersionChain getOrCreateChain(PolicyEvolutionProposal proposal) {
         return versionChains.computeIfAbsent(proposal.getId(), 
@@ -277,7 +226,7 @@ public class PolicyVersionManager {
     private Map<String, Object> calculateChanges(PolicyVersion v1, PolicyVersion v2) {
         Map<String, Object> changes = new HashMap<>();
         
-        // 메타데이터 비교
+        
         Map<String, Object> meta1 = v1.getMetadata();
         Map<String, Object> meta2 = v2.getMetadata();
         
@@ -294,15 +243,13 @@ public class PolicyVersionManager {
     }
     
     private boolean checkVersionConflict(Long versionId1, Long versionId2) {
-        // 간단한 충돌 검사 (실제로는 PolicyConflictDetector에서 상세 검사)
+        
         return false;
     }
     
-    // ==================== Inner Classes ====================
     
-    /**
-     * 정책 버전 체인
-     */
+    
+    
     private static class PolicyVersionChain {
         private final Long proposalId;
         private final List<PolicyVersion> versions;
@@ -357,9 +304,7 @@ public class PolicyVersionManager {
         }
     }
     
-    /**
-     * 정책 버전
-     */
+    
     @lombok.Builder
     @lombok.Data
     private static class PolicyVersion {
@@ -370,9 +315,7 @@ public class PolicyVersionManager {
         private Map<String, Object> metadata;
     }
     
-    /**
-     * 버전 차이점
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class VersionDiff {
@@ -383,9 +326,7 @@ public class PolicyVersionManager {
         private LocalDateTime timestamp;
     }
     
-    /**
-     * 롤백 이력
-     */
+    
     @lombok.Builder
     @lombok.Data
     private static class RollbackHistory {
@@ -396,9 +337,7 @@ public class PolicyVersionManager {
         private String reason;
     }
     
-    /**
-     * 정책 버전 예외
-     */
+    
     public static class PolicyVersionException extends RuntimeException {
         public PolicyVersionException(String message) {
             super(message);

@@ -24,12 +24,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 완전 일원화된 State Machine 기반 MFA 요청 처리기
- * - State Machine이 유일한 상태 저장소
- * - 모든 상태 변경은 State Machine을 통해서만 처리
- * - Context Persistence 완전 제거
- */
+
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
@@ -66,11 +61,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         log.debug("Unified State Machine handling {} request for session: {}", requestType, sessionId);
 
         try {
-            // Step 1: 요청 타입별 처리
+            
             processRequestByType(requestType, request, response, context, filterChain);
 
-            // ✅ Medium 수정 1: finalizeRequestProcessing() 호출 제거
-            // 각 핸들러 메서드가 이미 이벤트를 전송하여 내부에서 저장하므로 중복 저장 불필요
+            
+            
             long processingTime = System.currentTimeMillis() - startTime;
             log.debug("Request processing completed for session: {} in {}ms", sessionId, processingTime);
 
@@ -89,7 +84,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         log.info("Handling terminal context for session: {}, state: {} via unified State Machine",
                 sessionId, currentState);
 
-        // State Machine에서 최신 상태 확인
+        
         MfaState latestState = stateMachineIntegrator.getCurrentState(sessionId);
         if (latestState != currentState) {
             log.warn("State mismatch detected: context={}, stateMachine={}", currentState, latestState);
@@ -101,16 +96,14 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         responseBody.put("terminal", true);
         responseBody.put("finalState", currentState.name());
 
-        // Map 기반 터미널 상태 처리
+        
         handleTerminalState(currentState, request, response, responseBody);
 
-        // 터미널 상태 도달 시 State Machine 정리
+        
         scheduleStateMachineCleanup(sessionId);
     }
 
-    /**
-     * Map 기반 터미널 상태 처리 - 7개 메서드 통합
-     */
+    
     private void handleTerminalState(MfaState state, HttpServletRequest request,
                                      HttpServletResponse response, Map<String, Object> responseBody) throws IOException {
         String contextPath = request.getContextPath();
@@ -172,7 +165,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String sessionId = context != null ? context.getMfaSessionId() : "unknown";
         log.error("Generic error in unified State Machine MFA handling for session: {}", sessionId, error);
 
-        // State Machine에 시스템 에러 이벤트 전송
+        
         if (context != null) {
             try {
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, context, request);
@@ -195,15 +188,10 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 "MFA_PROCESSING_ERROR", error.getMessage(), request.getRequestURI(), errorResponse);
     }
 
-    // === 핵심 처리 메서드들 ===
+    
 
 
-    /**
-     * Phase 6: 요청 타입별 처리 - 원본 복원
-     *
-     * CHALLENGE_INITIATION과 OTT_CODE_REQUEST는 모두 handleChallengeInitiation()을 호출합니다.
-     * hasActiveChallengeForFactor() 로직이 중복 이벤트 전송을 방지하며, 클라이언트 응답은 항상 전송됩니다.
-     */
+    
     private void processRequestByType(MfaRequestType requestType, HttpServletRequest request,
                                       HttpServletResponse response, FactorContext context,
                                       FilterChain filterChain) throws ServletException, IOException {
@@ -217,7 +205,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 break;
 
             case OTT_CODE_REQUEST:
-                // OTT 코드 생성 요청 - FilterChain 통과하여 OneTimeTokenGenerationFilter 실행
+                
                 filterChain.doFilter(request, response);
                 break;
 
@@ -244,21 +232,19 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
     }
 
-    // === 개별 요청 처리기들 (State Machine 이벤트 전송만) ===
+    
 
-    /**
-     * 팩터 선택 처리 - 향상된 상태 검증
-     */
+    
     private void handleFactorSelection(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context) throws IOException {
         String sessionId = context.getMfaSessionId();
         log.debug("Handling factor selection for session: {}", sessionId);
 
-        // 선택된 팩터 추출 및 검증 (입력 검증만)
+        
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
-        if (selectedFactor == null) return; // 오류 응답 이미 처리됨
+        if (selectedFactor == null) return; 
 
-        // State Machine 이벤트 전송 (Guard가 모든 검증 수행)
+        
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
             handleFactorSelectionSuccess(request, response, context, selectedFactor);
         } else {
@@ -266,9 +252,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
     }
 
-    /**
-     * 챌린지 시작 처리 - 원래 로직 복원
-     */
+    
     private void handleChallengeInitiation(HttpServletRequest request, HttpServletResponse response,
                                            FactorContext context) throws IOException {
         String sessionId = context.getMfaSessionId();
@@ -276,25 +260,25 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         log.debug("Handling challenge initiation for session: {}", sessionId);
 
-        // 포괄적인 상태 검증
+        
         if (!isValidStateForChallengeInitiation(context)) {
             handleInvalidStateError(request, response, context, "INVALID_STATE_FOR_CHALLENGE",
                     "챌린지 시작이 불가능한 상태입니다. 현재 상태: " + context.getCurrentState());
             return;
         }
 
-        // 현재 처리 팩터 확인
+        
         if (context.getCurrentProcessingFactor() == null) {
             handleInvalidStateError(request, response, context, "NO_PROCESSING_FACTOR",
                     "처리할 팩터가 선택되지 않았습니다.");
             return;
         }
 
-        // 이전 챌린지가 아직 유효한지 확인
+        
         if (hasActiveChallengeForFactor(context)) {
             log.info("Active challenge exists for session: {}, reusing existing challenge", sessionId);
 
-            // 기존 챌린지 정보로 응답
+            
             Object challengeTime = context.getAttribute("challengeInitiatedAt");
             Instant challengeStart = MfaTimeUtils.fromMillis((Long) challengeTime);
             Duration remaining = MfaTimeUtils.getRemainingChallengeTime(challengeStart, mfaSettings);
@@ -307,18 +291,18 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             reuseResponse.put("challengeReused", true);
 
             responseWriter.writeSuccessResponse(response, reuseResponse, HttpServletResponse.SC_OK);
-            return; // 상태는 그대로 유지
+            return; 
         }
 
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
 
         if (accepted) {
-            // 챌린지 시작 시간 기록
+            
             Instant challengeStartTime = MfaTimeUtils.nowInstant();
             context.setAttribute("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
-            context.setAttribute("ottCodeSent", true); // OTT의 경우
+            context.setAttribute("ottCodeSent", true); 
 
-            // 챌린지 만료 시간 계산
+            
             Instant challengeExpiryTime = MfaTimeUtils.calculateChallengeExpiry(challengeStartTime, mfaSettings);
             Duration challengeDuration = MfaTimeUtils.getRemainingChallengeTime(challengeStartTime, mfaSettings);
 
@@ -343,39 +327,32 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private boolean isValidStateForChallengeInitiation(FactorContext context) {
         MfaState currentState = context.getCurrentState();
-        // AWAITING_FACTOR_CHALLENGE_INITIATION: OTT 챌린지 시작에서 사용
-        // FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION: 내부 전이(챌린지 재시작)에서 사용
+        
+        
         return currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
                currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
     }
 
-    /**
-     * 활성 챌린지 존재 여부 확인
-     *
-     * 팩터 타입별 챌린지 재사용 정책 적용:
-     * - OTT: 이메일 발송 비용 있음 → 재사용 허용 (중복 발송 방지)
-     * - Passkey: UI 페이지 표시 비용 없음 → 재사용 불가 (매번 상태 전이 필요)
-     * - 향후 팩터: AuthType enum에 정책 정의
-     */
+    
     private boolean hasActiveChallengeForFactor(FactorContext context) {
         AuthType currentFactor = context.getCurrentProcessingFactor();
         if (currentFactor == null) {
             return false;
         }
 
-        // 팩터 타입별 챌린지 재사용 정책 확인
-        // 챌린지 재사용을 허용하지 않는 팩터는 항상 false 반환
+        
+        
         if (!currentFactor.isAllowChallengeReuse()) {
             return false;
         }
 
-        // 챌린지 재사용을 허용하는 팩터만 만료 시간 확인
+        
         Object challengeTime = context.getAttribute("challengeInitiatedAt");
         if (!(challengeTime instanceof Long)) {
             return false;
         }
 
-        // 챌린지가 만료되지 않았다면 활성 상태
+        
         return !mfaSettings.isChallengeExpired((Long) challengeTime);
     }
 
@@ -384,7 +361,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String sessionId = context.getMfaSessionId();
         log.info("Handling MFA cancellation for session: {}", sessionId);
 
-        // State Machine Guard가 취소 가능 여부 검증
+        
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.USER_ABORTED_MFA, context, request);
 
         if (accepted) {
@@ -395,7 +372,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
             responseWriter.writeSuccessResponse(response, cancelResponse, HttpServletResponse.SC_OK);
 
-            // 세션 정리 스케줄링
+            
             scheduleStateMachineCleanup(sessionId);
         } else {
             handleInvalidStateError(request, response, context, "CANCELLATION_FAILED",
@@ -403,7 +380,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
     }
 
-    // === 유틸리티 메서드들 ===
+    
 
     private String extractAndValidateSelectedFactor(HttpServletRequest request, HttpServletResponse response,
                                                     FactorContext context) throws IOException {
@@ -420,25 +397,25 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private boolean sendFactorSelectionEvent(FactorContext context, HttpServletRequest request, String selectedFactor) {
         try {
-            // 선택된 팩터 정보 설정
+            
             context.setAttribute("selectedFactor", selectedFactor);
             request.setAttribute("selectedFactor", selectedFactor);
 
-            // 사용자가 선택한 OTT 전송 방법 파라미터 전달
+            
             String ottDeliveryMethod = request.getParameter("ottDeliveryMethod");
             if (ottDeliveryMethod != null) {
                 context.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
                 request.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
             }
 
-            // 사용자가 선택한 Passkey 타입 파라미터 전달
+            
             String passkeyType = request.getParameter("passkeyType");
             if (passkeyType != null) {
                 context.setAttribute("passkeyType", passkeyType);
                 request.setAttribute("passkeyType", passkeyType);
             }
 
-            // State Machine 이벤트 전송
+            
             return stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
         } catch (Exception e) {
             log.error("Failed to send factor selection event", e);
@@ -520,11 +497,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     }
 
     private void scheduleStateMachineCleanup(String sessionId) {
-        // 비동기로 State Machine 정리 스케줄링
+        
         applicationContext.getBean("taskExecutor", java.util.concurrent.Executor.class)
                 .execute(() -> {
                     try {
-                        Thread.sleep(5000); // 5초 후 정리
+                        Thread.sleep(5000); 
                         stateMachineIntegrator.releaseStateMachine(sessionId);
                         log.info("State Machine cleanup completed for session: {}", sessionId);
                     } catch (Exception e) {

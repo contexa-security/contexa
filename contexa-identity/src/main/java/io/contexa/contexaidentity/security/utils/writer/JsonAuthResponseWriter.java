@@ -26,10 +26,10 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        // JSON 직렬화를 먼저 완료
+        
         String jsonResponse = objectMapper.writeValueAsString(data);
 
-        // getWriter() 호출 (Spring Session 커밋 트리거)
+        
         PrintWriter writer = response.getWriter();
         writer.write(jsonResponse);
         writer.flush();
@@ -50,7 +50,7 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
                            String message, String path, Map<String, Object> additionalData)
             throws IOException {
 
-        // additionalData가 불변 Map인 경우를 대비
+        
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("status", status);
@@ -58,7 +58,7 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
         errorResponse.put("message", message);
         errorResponse.put("path", path);
 
-        // 안전하게 추가 데이터 병합
+        
         if (additionalData != null) {
             errorResponse.putAll(additionalData);
         }

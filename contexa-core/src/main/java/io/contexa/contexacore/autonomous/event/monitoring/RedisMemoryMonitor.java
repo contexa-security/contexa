@@ -14,15 +14,7 @@ import jakarta.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Redis 메모리 모니터링 시스템
- *
- * 기능:
- * - 실시간 메모리 사용량 추적
- * - 키 개수 모니터링
- * - 경고 임계값 체크
- * - 메트릭 수집 및 알림
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class RedisMemoryMonitor {
@@ -39,14 +31,14 @@ public class RedisMemoryMonitor {
     @Value("${security.redis.memory.critical-threshold:0.9}")
     private double criticalThreshold;
 
-    // Metrics
+    
     private final AtomicLong usedMemoryBytes = new AtomicLong(0);
     private final AtomicLong totalKeys = new AtomicLong(0);
     private final AtomicLong peakMemoryBytes = new AtomicLong(0);
 
     @PostConstruct
     public void initialize() {
-        // Metrics 등록
+        
         Gauge.builder("redis.memory.used.bytes", usedMemoryBytes, AtomicLong::get)
             .description("Redis used memory in bytes")
             .register(meterRegistry);
@@ -75,15 +67,13 @@ public class RedisMemoryMonitor {
             maxMemoryMb, warningThreshold, criticalThreshold);
     }
 
-    /**
-     * 메모리 모니터링 (5분마다)
-     */
-//    @Scheduled(fixedRate = 300000)
+    
+
     public void monitorMemory() {
         try {
             RedisMemoryInfo memoryInfo = getMemoryInfo();
 
-            // Metrics 업데이트
+            
             usedMemoryBytes.set(memoryInfo.getUsedMemory());
             totalKeys.set(memoryInfo.getTotalKeys());
 
@@ -91,7 +81,7 @@ public class RedisMemoryMonitor {
                 peakMemoryBytes.set(memoryInfo.getUsedMemory());
             }
 
-            // 사용률 계산
+            
             double utilizationRatio = (double) memoryInfo.getUsedMemory() / (maxMemoryMb * 1024 * 1024);
 
             log.info("=== Redis Memory Report ===");
@@ -104,11 +94,11 @@ public class RedisMemoryMonitor {
             log.info("Fragmentation Ratio: {:.2f}", memoryInfo.getFragmentationRatio());
             log.info("Evicted Keys: {}", memoryInfo.getEvictedKeys());
 
-            // 키 패턴 분석
+            
             Map<String, Long> keysByPattern = analyzeKeyPatterns();
             log.info("Keys by pattern: {}", keysByPattern);
 
-            // 임계값 체크
+            
             checkThresholds(utilizationRatio, memoryInfo);
 
         } catch (Exception e) {
@@ -116,9 +106,7 @@ public class RedisMemoryMonitor {
         }
     }
 
-    /**
-     * Redis 메모리 정보 조회
-     */
+    
     private RedisMemoryInfo getMemoryInfo() {
         return redisTemplate.execute((RedisConnection connection) -> {
             Properties info = connection.info("memory");
@@ -141,9 +129,7 @@ public class RedisMemoryMonitor {
         });
     }
 
-    /**
-     * 키 패턴별 분석
-     */
+    
     private Map<String, Long> analyzeKeyPatterns() {
         Map<String, Long> patternCounts = new HashMap<>();
 
@@ -153,7 +139,7 @@ public class RedisMemoryMonitor {
                 return patternCounts;
             }
 
-            // 상위 100개만 샘플링 (성능 고려)
+            
             List<String> sampleKeys = keys.stream()
                 .limit(100)
                 .toList();
@@ -163,7 +149,7 @@ public class RedisMemoryMonitor {
                 patternCounts.merge(pattern, 1L, Long::sum);
             }
 
-            // 전체 키 수로 확장 (추정)
+            
             long totalKeys = keys.size();
             long sampleSize = sampleKeys.size();
             if (sampleSize > 0) {
@@ -178,15 +164,13 @@ public class RedisMemoryMonitor {
         return patternCounts;
     }
 
-    /**
-     * 키에서 패턴 추출
-     */
+    
     private String extractPattern(String key) {
         if (key == null || key.isEmpty()) {
             return "UNKNOWN";
         }
 
-        // "security:auth:denied:*:*" → "security:auth:denied"
+        
         String[] parts = key.split(":");
         if (parts.length >= 3) {
             return parts[0] + ":" + parts[1] + ":" + parts[2];
@@ -197,9 +181,7 @@ public class RedisMemoryMonitor {
         }
     }
 
-    /**
-     * 임계값 체크 및 알림
-     */
+    
     private void checkThresholds(double utilizationRatio, RedisMemoryInfo memoryInfo) {
         if (utilizationRatio >= criticalThreshold) {
             log.error("CRITICAL: Redis memory usage at {:.1f}% (threshold: {:.1f}%)",
@@ -212,52 +194,46 @@ public class RedisMemoryMonitor {
             sendWarningAlert(utilizationRatio, memoryInfo);
         }
 
-        // Eviction 발생 시 경고
+        
         if (memoryInfo.getEvictedKeys() > 0) {
             log.warn("Redis is evicting keys: evictedKeys={}", memoryInfo.getEvictedKeys());
         }
 
-        // Fragmentation 높을 시 경고
+        
         if (memoryInfo.getFragmentationRatio() > 1.5) {
             log.warn("High memory fragmentation detected: ratio={:.2f}", memoryInfo.getFragmentationRatio());
         }
     }
 
-    /**
-     * 경고 알림
-     */
+    
     private void sendWarningAlert(double utilizationRatio, RedisMemoryInfo memoryInfo) {
         log.warn("ALERT: Redis memory warning - utilization={:.1f}%, keys={}, fragmentation={:.2f}",
             utilizationRatio * 100, memoryInfo.getTotalKeys(), memoryInfo.getFragmentationRatio());
 
-        // TODO: Slack, Email 등 실제 알림 구현
+        
     }
 
-    /**
-     * 심각 알림
-     */
+    
     private void sendCriticalAlert(double utilizationRatio, RedisMemoryInfo memoryInfo) {
         log.error("ALERT: Redis memory CRITICAL - utilization={:.1f}%, keys={}, evicted={}",
             utilizationRatio * 100, memoryInfo.getTotalKeys(), memoryInfo.getEvictedKeys());
 
-        // TODO: PagerDuty 등 긴급 알림 구현
+        
     }
 
-    /**
-     * 수동 메모리 정리 (선택적)
-     */
+    
     public void cleanupExpiredKeys() {
         try {
             log.info("Starting Redis expired keys cleanup");
 
-            // 샘플링으로 만료된 키 정리
+            
             Set<String> keys = redisTemplate.keys("*");
             if (keys != null) {
                 long cleaned = keys.stream()
-                    .limit(1000)  // 최대 1000개
+                    .limit(1000)  
                     .filter(key -> {
                         Long ttl = redisTemplate.getExpire(key);
-                        return ttl != null && ttl == -1;  // TTL 없는 키
+                        return ttl != null && ttl == -1;  
                     })
                     .peek(key -> log.debug("Cleaning key without TTL: {}", key))
                     .count();
@@ -270,9 +246,7 @@ public class RedisMemoryMonitor {
         }
     }
 
-    /**
-     * Redis 메모리 정보 모델
-     */
+    
     @lombok.Data
     @lombok.Builder
     private static class RedisMemoryInfo {

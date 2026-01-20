@@ -6,7 +6,7 @@ import java.util.List;
 
 public class ValidationResult {
     private final List<String> errors;
-    private final List<String> warnings; // 경고 메시지 추가
+    private final List<String> warnings; 
 
     public ValidationResult() {
         this.errors = new ArrayList<>();
@@ -17,11 +17,11 @@ public class ValidationResult {
         errors.add(msg);
     }
 
-    public void addWarning(String msg) { // 경고 추가 메서드
+    public void addWarning(String msg) { 
         warnings.add(msg);
     }
 
-    public boolean hasErrors() { // 실제 오류가 있는지 확인
+    public boolean hasErrors() { 
         return !errors.isEmpty();
     }
 
@@ -29,7 +29,7 @@ public class ValidationResult {
         return !warnings.isEmpty();
     }
 
-    public boolean isValid() { // 오류가 없을 때만 유효
+    public boolean isValid() { 
         return errors.isEmpty();
     }
 

@@ -32,19 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 정책 생성 컨텍스트 검색기 - 구버전 완전 이식
- * 
- * ConditionTemplateContextRetriever와 동일한 패턴 적용:
- * - RAG 검색 (VectorStore)
- * - 시스템 메타데이터 구성 (buildSystemMetadata)
- * - ContextRetrieverRegistry 자동 등록
- * 
- * 역할:
- * 1. RAG 기반 관련 문서 검색
- * 2. availableItems 기반 시스템 메타데이터 구성
- * 3. 컨텍스트 정보 조합 및 반환
- */
+
 @Slf4j
 public class PolicyGenerationContextRetriever extends ContextRetriever {
 
@@ -80,12 +68,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
         this.vectorService = vectorService;
     }
 
-    /**
-     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
-     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
-     *
-     * @param event ContextRefreshedEvent
-     */
+    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
         log.info("ApplicationContext refreshed. Initializing PolicyGenerationContextRetriever...");
@@ -93,7 +76,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
     }
 
     private void registerSelf() {
-        // RAG Advisor 생성 (사용 가능한 경우)
+        
         if (chatClientBuilder != null && vectorStore != null) {
             createPolicyAdvisor();
         }
@@ -102,21 +85,19 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
         log.info("PolicyGenerationContextRetriever 자동 등록 완료 (Spring AI RAG 지원)");
     }
     
-    /**
-     * 정책 생성 전용 RAG Advisor 생성
-     */
+    
     private void createPolicyAdvisor() {
-        // 정책 쿼리 변환기
+        
         QueryTransformer policyQueryTransformer = new PolicyQueryTransformer(chatClientBuilder);
         
-        // 정책 필터 구성
+        
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
             filterBuilder.in("documentType", "policy", "rule", "rbac", "abac", "permission"),
             filterBuilder.gte("relevanceScore", 0.7)
         ).build();
         
-        // VectorStoreDocumentRetriever 구성
+        
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(policySimilarityThreshold)
@@ -124,13 +105,13 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
             .filterExpression(filter)
             .build();
         
-        // Policy RAG Advisor 생성
+        
         policyAdvisor = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
             .queryTransformers(policyQueryTransformer)
             .build();
         
-        // 부모 클래스에 Advisor 등록
+        
         registerDomainAdvisor(PolicyContext.class, policyAdvisor);
     }
 
@@ -138,9 +119,9 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
     public ContextRetrievalResult retrieveContext(AIRequest<?> request) {
         log.debug("PolicyGenerationContextRetriever.retrieveContext 호출됨");
         
-        // PolicyContext 타입인 경우 특화 처리
+        
         if (request.getContext() instanceof PolicyContext) {
-            // RAG 기반 검색 시도
+            
             ContextRetrievalResult ragResult = null;
             if (policyAdvisor != null) {
                 ragResult = super.retrieveContext(request);
@@ -166,25 +147,23 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
             );
         }
         
-        // 그 외의 경우 상위 클래스의 기본 처리
+        
         return super.retrieveContext(request);
     }
 
-    /**
-     * 정책 생성 컨텍스트 검색 (구버전 generatePolicyFromTextStream 로직 완전 이식)
-     */
+    
     public String retrievePolicyGenerationContext(AIRequest<PolicyContext> request, List<Document> ragDocuments) {
         log.info("정책 생성 컨텍스트 검색 시작: {}", request.getRequestId());
 
         try {
-            // 1. 자연어 쿼리 추출
+            
             String naturalLanguageQuery = request.getParameter("naturalLanguageQuery", String.class);
             if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
                 log.warn("naturalLanguageQuery 파라미터가 없습니다");
                 return buildSystemMetadata(null);
             }
             
-            // VectorService에 정책 요청 저장
+            
             try {
                 PolicyContext context = request.getContext();
                 if (context != null) {
@@ -195,7 +174,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
                 log.warn("VectorService 정책 요청 저장 실패: {}", e.getMessage());
             }
 
-            // 2. VectorService를 통한 유사 정책 패턴 검색
+            
             List<Document> similarPolicies = List.of();
             try {
                 similarPolicies = vectorService.findSimilarPolicies(naturalLanguageQuery, 5);
@@ -204,7 +183,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
                 log.warn("VectorService 정책 검색 실패: {}", e.getMessage());
             }
             
-            // 3. RAG 기반 검색 결과와 병합
+            
             List<Document> allDocuments = new ArrayList<>();
             allDocuments.addAll(similarPolicies);
             
@@ -225,22 +204,22 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
                         .collect(Collectors.joining("\n"));
             }
 
-            // 3. 사용 가능한 항목들 추출 (파라미터에서)
+            
             PolicyGenerationItem.AvailableItems availableItems =
                 request.getParameter("availableItems", PolicyGenerationItem.AvailableItems.class);
 
-            // 4. 시스템 메타데이터 구성 (구버전 buildSystemMetadata 로직 완전 이식)
+            
             String systemMetadata = buildSystemMetadata(availableItems);
             
-            // 5. 컨텍스트 조합
+            
             StringBuilder combinedContext = new StringBuilder();
             
-            // 시스템 메타데이터 (구버전 방식)
+            
             combinedContext.append("시스템 정보:\n")
                           .append(systemMetadata)
                           .append("\n\n");
 
-            // RAG 컨텍스트 (있는 경우만)
+            
             if (!contextInfo.trim().isEmpty()) {
                 combinedContext.append("**참고 컨텍스트:**\n")
                               .append(contextInfo)
@@ -251,7 +230,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
             log.info("정책 생성 컨텍스트 검색 완료 - 길이: {}, 문서: {}개", 
                     result.length(), allDocuments.size());
             
-            // VectorService에 정책 결과 저장
+            
             try {
                 vectorService.storePolicyResult(request.getRequestId(), result);
                 log.debug("💾 VectorService에 정책 결과 저장 완료");
@@ -263,22 +242,20 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
 
         } catch (Exception e) {
             log.error("정책 생성 컨텍스트 검색 실패", e);
-            // 폴백: 기본 시스템 메타데이터만 반환
+            
             return buildSystemMetadata(null);
         }
     }
 
-    /**
-     * availableItems 기반 시스템 메타데이터 구성
-     */
+    
     private String buildSystemMetadata(PolicyGenerationItem.AvailableItems availableItems) {
         StringBuilder metadata = new StringBuilder();
 
         if (availableItems != null) {
-            // 프론트엔드에서 제공된 사용 가능한 항목들 사용
+            
             metadata.append("현재 사용 가능한 항목들 (반드시 이 ID들만 사용하세요):\n\n");
             
-            // 역할 정보
+            
             if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
                 metadata.append("사용 가능한 역할:\n");
                 availableItems.roles().forEach(role ->
@@ -288,7 +265,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
                 metadata.append("사용 가능한 역할: 없음\n");
             }
 
-            // 권한 정보
+            
             if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
                 metadata.append("\n🔑 사용 가능한 권한:\n");
                 availableItems.permissions().forEach(perm ->
@@ -298,7 +275,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
                 metadata.append("\n🔑 사용 가능한 권한: 없음\n");
             }
 
-            // 조건 템플릿 정보
+            
             if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
                 metadata.append("\n⏰ 사용 가능한 조건 템플릿:\n");
                 availableItems.conditions().forEach(cond ->
@@ -313,22 +290,22 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
             metadata.append("\n경고: 위에 나열된 ID들 외의 다른 ID는 절대 사용하지 마세요. 존재하지 않는 ID를 사용하면 시스템 오류가 발생합니다.\n");
             
         } else {
-            // 기존 방식: DB에서 모든 항목 조회 (구버전과 완전히 동일)
+            
             log.info("availableItems가 null, DB에서 모든 항목 조회");
             
-            // 역할 정보
+            
             List<Role> roles = roleRepository.findAll();
             metadata.append("사용 가능한 역할:\n");
             roles.forEach(role ->
                     metadata.append(String.format("- ID: %d, 이름: %s\n", role.getId(), role.getRoleName())));
 
-            // 권한 정보
+            
             List<Permission> permissions = permissionRepository.findAll();
             metadata.append("\n🔑 사용 가능한 권한:\n");
             permissions.forEach(perm ->
                     metadata.append(String.format("- ID: %d, 이름: %s\n", perm.getId(), perm.getFriendlyName())));
 
-            // 조건 템플릿 정보
+            
             List<ConditionTemplate> conditions = conditionTemplateRepository.findAll();
             metadata.append("\n⏰ 사용 가능한 조건 템플릿:\n");
             conditions.forEach(cond ->
@@ -339,9 +316,7 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
         return metadata.toString();
     }
     
-    /**
-     * 정책 쿼리 변환기
-     */
+    
     private static class PolicyQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

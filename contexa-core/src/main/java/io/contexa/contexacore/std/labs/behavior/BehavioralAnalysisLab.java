@@ -22,28 +22,22 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-/**
- * 사용자 행동 패턴 학습 Lab - Vector + LLM 기반
- *
- * 실시간 이상 탐지 + 지속적 학습
- * Vector DB에 모든 행동 저장하여 패턴 자동 형성
- * 관리자 피드백을 통한 자가 학습
- */
+
 @Slf4j
 public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisRequest, BehavioralAnalysisResponse> {
 
     private final PipelineOrchestrator orchestrator;
     private final BehaviorVectorService behaviorVectorService;
-    private final AINativeProcessor aiNativeProcessor; // 추가
+    private final AINativeProcessor aiNativeProcessor; 
 
     public BehavioralAnalysisLab(
             Tracer tracer,
-            AINativeProcessor aiNativeProcessor, // 추가
+            AINativeProcessor aiNativeProcessor, 
             PipelineOrchestrator orchestrator,
             BehavioralAnalysisContextRetriever contextRetriever,
             BehaviorVectorService behaviorVectorService) {
         super("BehavioralAnalysis", tracer);
-        this.aiNativeProcessor = aiNativeProcessor; // 추가
+        this.aiNativeProcessor = aiNativeProcessor; 
         this.orchestrator = orchestrator;
         this.behaviorVectorService = behaviorVectorService;
     }
@@ -68,9 +62,7 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
         return processStreamingRequest(request);
     }
 
-    /**
-     * 핵심: 실시간 행동 분석 + Vector DB 저장
-     */
+    
     private Mono<BehavioralAnalysisResponse> performBehavioralAnalysis(AIRequest<BehavioralAnalysisContext> request) {
         log.info("[DIAGNOSIS] ===== 사용자 행동 패턴 분석 시작 ===== User: {}", request.getContext().getUserId());
 
@@ -85,12 +77,12 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 })
                 .flatMap(response -> response)
                 .doOnSuccess(response -> {
-                    // 6. 분석 결과도 Vector DB에 저장 (메타데이터로 활용)
+                    
                     behaviorVectorService.storeAnalysisResult(request.getContext(), (BehavioralAnalysisResponse)response);
 
                     double riskScore = ((BehavioralAnalysisResponse)response).getBehavioralRiskScore();
 
-                    // 고위험 행동을 위협 패턴으로 저장 (공격 탐지용)
+                    
                     if (riskScore >= 70.0) {
                         behaviorVectorService.storeThreatPattern(request.getContext(), (BehavioralAnalysisResponse)response);
                         log.warn("[ThreatPattern] 고위험 패턴 벡터 저장소 저장 완료: userId={}, riskScore={}",
@@ -99,8 +91,8 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
 
                     log.info("[DIAGNOSIS] ===== 행동 분석 완료 ===== 위험도: {}", riskScore);
 
-                    // SOAR 연동 로직 추가
-                    if (riskScore >= 70.0) { // 고위험 임계값 설정
+                    
+                    if (riskScore >= 70.0) { 
                         log.warn("[DIAGNOSIS] 고위험 행동 감지! SOAR 워크플로우 트리거: User={}, RiskScore={}",
                                  request.getContext().getUserId(), riskScore);
                         try {
@@ -118,9 +110,7 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 .doOnError(error -> log.error("[DIAGNOSIS] ===== 행동 분석 실패 =====", error));
     }
 
-    /**
-     * 스트리밍 처리 (실시간 분석 과정 전달)
-     */
+    
     private Flux<String> processStreamingRequest(BehavioralAnalysisRequest request) {
         log.info("[STREAMING] 사용자 행동 분석 스트리밍 시작 - User: {}", request.getContext().getUserId());
 
@@ -137,21 +127,17 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 .doOnError(error -> log.error("[STREAMING] 행동 분석 스트리밍 오류", error));
     }
 
-    // 벡터 저장 관련 메서드들은 BehaviorVectorService로 이관됨
+    
 
-    /**
-     * 주기적 배치 학습 (매일 새벽 2시)
-     */
-//    @Scheduled(cron = "0 0 2 * * *")
-//    @Async
+    
+
+
     public CompletableFuture<Void> performBatchLearning() {
         log.info("배치 학습 시작...");
         return behaviorVectorService.runBatchLearning();
     }
 
-    /**
-     * 관리자 피드백 학습
-     */
+    
     public void learnFromFeedback(String analysisId, boolean isCorrect, String feedback) {
         log.info("피드백 학습: analysisId={}, correct={}", analysisId, isCorrect);
         behaviorVectorService.storeFeedback(analysisId, isCorrect, feedback);
@@ -196,7 +182,7 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
         return "OTHER";
     }
 
-    // SOAR 요청 생성을 위한 헬퍼 메서드 추가
+    
     private SoarRequest createSoarRequestFromBehavioralAnalysis(BehavioralAnalysisContext behavioralContext, BehavioralAnalysisResponse behavioralResponse) {
         String incidentId = "BA-" + behavioralResponse.getAnalysisId();
         String threatType = "Behavioral Anomaly: " + behavioralResponse.getRiskLevel().name();
@@ -223,12 +209,12 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
         soarRequest.setIncidentId(incidentId);
         soarRequest.setThreatType(threatType);
         soarRequest.setDescription(description);
-        soarRequest.setInitialQuery(description); // securityQuery 필드도 설정
+        soarRequest.setInitialQuery(description); 
 
         return soarRequest;
     }
 
-    // 위험도 레벨을 SOAR 심각도로 매핑하는 헬퍼 메서드 추가
+    
     private String mapRiskLevelToSoarSeverity(BehavioralAnalysisResponse.RiskLevel riskLevel) {
         return switch (riskLevel) {
             case LOW -> "LOW";

@@ -37,15 +37,8 @@ public class Permission implements Serializable {
     private String conditionExpression;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "managed_resource_id", unique = true) // 외래 키 컬럼 지정
+    @JoinColumn(name = "managed_resource_id", unique = true) 
     private ManagedResource managedResource;
 
-    /*@ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "PERMISSION_FUNCTIONS",
-            joinColumns = @JoinColumn(name = "permission_id"),
-            inverseJoinColumns = @JoinColumn(name = "function_catalog_id")
-    )
-    @Builder.Default
-    private Set<FunctionCatalog> functions = new HashSet<>();*/
+    
 }

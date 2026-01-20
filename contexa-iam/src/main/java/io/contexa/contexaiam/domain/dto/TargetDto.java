@@ -5,10 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * 정책 대상 DTO
- * SRP 준수: 정책 대상 데이터만 담당
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

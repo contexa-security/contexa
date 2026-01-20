@@ -28,10 +28,10 @@ import java.util.EnumSet;
 @RequiredArgsConstructor
 public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdapter<MfaState, MfaEvent> {
 
-    // P1: StateMachineProperties 주입
+    
     private final StateMachineProperties properties;
 
-    // Actions
+    
     private final InitializeMfaAction initializeMfaAction;
     private final SelectFactorAction selectFactorAction;
     private final InitiateChallengeAction initiateChallengeAction;
@@ -40,27 +40,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     private final HandleFailureAction handleFailureAction;
     private final DetermineNextFactorAction determineNextFactorAction;
 
-    // Guards
+    
     private final AllFactorsCompletedGuard allFactorsCompletedGuard;
     private final RetryLimitGuard retryLimitGuard;
 
-    /**
-     * P1: StateMachine 설정 개선
-     *
-     * Factory 기반 패턴:
-     * - autoStartup(false): Factory에서 명시적 start() 제어
-     * - machineId 제거: sessionId 기반 동적 ID 사용
-     *
-     * P1 Properties 활용:
-     * - MFA 관련 설정 로깅 (최대 재시도, 세션 타임아웃, 전이 타임아웃)
-     *
-     * P1 Policy 설정:
-     * - StateDoActionPolicy.TIMEOUT_CANCEL: Action 실행 타임아웃 시 취소
-     * - TransitionConflictPolicy.PARENT: 전이 충돌 시 부모 우선
-     */
+    
     @Override
     public void configure(StateMachineConfigurationConfigurer<MfaState, MfaEvent> config) throws Exception {
-        // P1: Properties 로깅 (Guard 및 Handler에서 활용)
+        
         log.info("===================================================");
         log.info("MFA StateMachine Configuration (Properties-based)");
         log.info("  - MFA 최대 재시도: {}", properties.getMfa().getMaxRetries());
@@ -98,7 +85,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     @Override
     public void configure(StateMachineTransitionConfigurer<MfaState, MfaEvent> transitions) throws Exception {
         transitions
-                // 초기 전이 - PRIMARY_AUTHENTICATION_COMPLETED로 직접 이동
+                
                 .withExternal()
                 .source(MfaState.NONE)
                 .target(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
@@ -106,21 +93,21 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initializeMfaAction)
                 .and()
 
-                // MFA 정책 평가 결과 - MFA 불필요
+                
                 .withExternal()
                 .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
                 .target(MfaState.MFA_NOT_REQUIRED)
                 .event(MfaEvent.MFA_NOT_REQUIRED)
                 .and()
 
-                // MFA 정책 평가 결과 - MFA 필요
+                
                 .withExternal()
                 .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
                 .and()
 
-                // 팩터 선택 후 챌린지 준비 상태로
+                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)
                 .target(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
@@ -128,7 +115,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(selectFactorAction)
                 .and()
 
-                // 자동 선택 경로 (PRIMARY_AUTHENTICATION_COMPLETED → 바로 챌린지)
+                
                 .withExternal()
                 .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -136,7 +123,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initiateChallengeAction)
                 .and()
 
-                // 일반 경로 (팩터 선택 후 → 챌린지)
+                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -144,21 +131,21 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initiateChallengeAction)
                 .and()
 
-                // Phase 6: 챌린지 만료 후 재시작 허용 (내부 전이 - 상태 변경 없이 액션만 실행)
+                
                 .withInternal()
                 .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
                 .event(MfaEvent.INITIATE_CHALLENGE)
                 .action(initiateChallengeAction)
                 .and()
 
-                // 검증 시도
+                
                 .withExternal()
                 .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
                 .target(MfaState.FACTOR_VERIFICATION_PENDING)
                 .event(MfaEvent.SUBMIT_FACTOR_CREDENTIAL)
                 .and()
 
-                // 검증 성공
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.FACTOR_VERIFICATION_COMPLETED)
@@ -166,16 +153,16 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(verifyFactorAction)
                 .and()
 
-                // Phase 2: 내부 전이 - 다음 팩터 결정 (상태 변경 없이 Action만 실행)
+                
                 .withInternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .event(MfaEvent.DETERMINE_NEXT_FACTOR)
                 .action(determineNextFactorAction)
                 .and()
 
-                // Phase 3: CHECK_COMPLETION 전이 제거됨 (Handler에서 직접 평가)
+                
 
-                // 검증 실패 (재시도 가능)
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -184,22 +171,22 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(handleFailureAction)
                 .and()
 
-                // 재시도 한계 초과
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
                 .event(MfaEvent.RETRY_LIMIT_EXCEEDED)
                 .and()
 
-                // 모든 팩터 완료 확인 - 성공
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.ALL_FACTORS_COMPLETED)
                 .event(MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED)
-//                .guard(allFactorsCompletedGuard)
+
                 .and()
 
-                // 추가 팩터 필요
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
@@ -207,14 +194,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .guard(allFactorsCompletedGuard.negate())
                 .and()
 
-                // Phase 2: 팩터 선택 필요 시 전송 (수동 선택)
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
                 .and()
 
-                // Phase 2: 다음 팩터 자동 선택됨
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
@@ -222,7 +209,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(selectFactorAction)
                 .and()
 
-                // Phase 2.3: Option 2 - 다음 팩터 자동 선택 후 바로 챌린지 (2차 → 3차 전이)
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -230,7 +217,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initiateChallengeAction)
                 .and()
 
-                // 최종 성공
+                
                 .withExternal()
                 .source(MfaState.ALL_FACTORS_COMPLETED)
                 .target(MfaState.MFA_SUCCESSFUL)
@@ -238,7 +225,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(completeMfaAction)
                 .and()
 
-                // 사용자 취소 (다양한 상태에서)
+                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)
                 .target(MfaState.MFA_CANCELLED)
@@ -255,7 +242,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.USER_ABORTED_MFA)
                 .and()
 
-                // 세션 타임아웃 (다양한 상태에서)
+                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)
                 .target(MfaState.MFA_SESSION_EXPIRED)
@@ -272,14 +259,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.SESSION_TIMEOUT)
                 .and()
 
-                // 챌린지 타임아웃
+                
                 .withExternal()
                 .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.CHALLENGE_TIMEOUT)
                 .and()
 
-                // 시스템 에러 처리 (다양한 상태에서)
+                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.MFA_SYSTEM_ERROR)
@@ -311,22 +298,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.SYSTEM_ERROR)
                 .and()
 
-                // 재시도 한계 초과에서 실패로
+                
                 .withExternal()
                 .source(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
                 .target(MfaState.MFA_FAILED_TERMINAL)
                 .event(MfaEvent.SYSTEM_ERROR);
     }
 
-    /**
-     * P1: Error Handling Listener
-     *
-     * StateMachine 실행 중 발생하는 오류를 감지하고 로깅합니다:
-     * - stateChanged: 상태 전이 로깅
-     * - stateMachineError: 오류 발생 시 상세 로깅
-     * - eventNotAccepted: 이벤트 거부 시 로깅
-     * - stateMachineStopped: 인스턴스 종료 로깅
-     */
+    
     @Bean
     public StateMachineListener<MfaState, MfaEvent> listener() {
         return new StateMachineListenerAdapter<MfaState, MfaEvent>() {

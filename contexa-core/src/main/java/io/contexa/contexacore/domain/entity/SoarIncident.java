@@ -44,9 +44,9 @@ public class SoarIncident {
     @Column(columnDefinition = "TEXT")
     private String metadata;
 
-    // @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
-    // @JoinColumn(name = "playbook_context_id")
-    // private PlaybookContextEntity playbookContext; // 필드 제거
+    
+    
+    
 
     @Convert(converter = JpaListConverter.class)
     @Lob
@@ -68,7 +68,7 @@ public class SoarIncident {
         this.history.add(new IncidentHistoryLog(LocalDateTime.now(), log));
     }
 
-    // Getters and Setters
+    
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
     public String getTitle() { return title; }
@@ -95,7 +95,7 @@ public class SoarIncident {
             }
         }
     }
-    // getPlaybookContext() 및 setPlaybookContext() 메서드 제거
+    
     public List<IncidentHistoryLog> getHistory() { return history; }
     public void setHistory(List<IncidentHistoryLog> history) { this.history = history; }
     public LocalDateTime getCreatedAt() { return createdAt; }

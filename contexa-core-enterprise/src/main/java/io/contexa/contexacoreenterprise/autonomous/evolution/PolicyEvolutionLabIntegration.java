@@ -13,13 +13,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * 정책 진화 시스템과 AI Lab 통합 서비스
- * Lab의 분석 결과를 정책 진화 제안으로 변환하고 제출
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionLabIntegration {
@@ -27,9 +21,7 @@ public class PolicyEvolutionLabIntegration {
     private final IPolicyProposalManagementService proposalManagementService;
     private final ApplicationEventPublisher eventPublisher;
     
-    /**
-     * Lab 분석 결과를 정책 제안으로 변환
-     */
+    
     public PolicyEvolutionProposal convertLabAnalysisToProposal(
             String labName, 
             Map<String, Object> analysisResult) {
@@ -38,41 +30,39 @@ public class PolicyEvolutionLabIntegration {
         
         PolicyEvolutionProposal proposal = new PolicyEvolutionProposal();
         
-        // 기본 정보 설정
+        
         proposal.setTitle(generateTitle(labName, analysisResult));
         proposal.setDescription(generateDescription(labName, analysisResult));
         proposal.setCreatedBy(labName);
         proposal.setCreatedAt(LocalDateTime.now());
         
-        // Lab별 특화 설정
+        
         configureProposalByLab(proposal, labName, analysisResult);
         
-        // 위험 수준 평가
+        
         RiskLevel riskLevel = assessRiskLevel(labName, analysisResult);
         proposal.setRiskLevel(riskLevel);
         
-        // 제안 타입 결정
+        
         ProposalType proposalType = determineProposalType(labName, analysisResult);
         proposal.setProposalType(proposalType);
         
-        // 정책 내용 생성
+        
         String policyContent = generatePolicyContent(labName, analysisResult);
         proposal.setPolicyContent(policyContent);
         
-        // 예상 영향도 계산
+        
         double expectedImpact = calculateExpectedImpact(labName, analysisResult);
         proposal.setExpectedImpact(expectedImpact);
         
-        // 근거 생성
+        
         String rationale = generateRationale(labName, analysisResult);
         proposal.setRationale(rationale);
         
         return proposal;
     }
     
-    /**
-     * Lab 분석 결과를 비동기로 제출
-     */
+    
     public CompletableFuture<Long> submitLabAnalysisAsync(
             String labName, 
             Map<String, Object> analysisResult) {
@@ -84,7 +74,7 @@ public class PolicyEvolutionLabIntegration {
 
                 log.info("Lab analysis from {} submitted as proposal {}", labName, proposalId);
 
-                // 이벤트 발행
+                
                 publishLabProposalEvent(labName, proposalId, proposal);
 
                 return proposalId;
@@ -96,9 +86,7 @@ public class PolicyEvolutionLabIntegration {
         });
     }
     
-    /**
-     * 다중 Lab 분석 결과 병합 및 제출
-     */
+    
     public CompletableFuture<List<Long>> submitMultipleLabAnalyses(
             Map<String, Map<String, Object>> labAnalyses) {
         
@@ -118,15 +106,13 @@ public class PolicyEvolutionLabIntegration {
                 .collect(java.util.stream.Collectors.toList()));
     }
     
-    /**
-     * 스트리밍 분석 결과 처리
-     */
+    
     public Flux<PolicyEvolutionProposal> processStreamingAnalysis(
             String labName,
             Flux<Map<String, Object>> analysisStream) {
         
         return analysisStream
-            .buffer(10) // 10개씩 배치 처리
+            .buffer(10) 
             .flatMap(batch -> {
                 List<PolicyEvolutionProposal> proposals = new ArrayList<>();
                 
@@ -151,9 +137,7 @@ public class PolicyEvolutionLabIntegration {
             });
     }
     
-    /**
-     * Lab별 특화 처리기 등록
-     */
+    
     public static class LabHandlerRegistry {
         private final Map<String, LabHandler> handlers = new HashMap<>();
         
@@ -166,9 +150,7 @@ public class PolicyEvolutionLabIntegration {
         }
     }
     
-    /**
-     * Lab 처리기 인터페이스
-     */
+    
     public interface LabHandler {
         ProposalType determineProposalType(Map<String, Object> analysisResult);
         RiskLevel assessRiskLevel(Map<String, Object> analysisResult);
@@ -176,9 +158,7 @@ public class PolicyEvolutionLabIntegration {
         double calculateExpectedImpact(Map<String, Object> analysisResult);
     }
     
-    /**
-     * 기본 Lab 처리기
-     */
+    
     public static class DefaultLabHandler implements LabHandler {
         @Override
         public ProposalType determineProposalType(Map<String, Object> analysisResult) {
@@ -201,9 +181,7 @@ public class PolicyEvolutionLabIntegration {
         }
     }
     
-    /**
-     * 특화 Lab 처리기들
-     */
+    
     public static class ThreatDetectionLabHandler implements LabHandler {
         @Override
         public ProposalType determineProposalType(Map<String, Object> analysisResult) {
@@ -315,9 +293,7 @@ public class PolicyEvolutionLabIntegration {
         }
     }
     
-    /**
-     * Helper 메서드들
-     */
+    
     private String generateTitle(String labName, Map<String, Object> analysisResult) {
         String baseTitle = labName.replace("Lab", "") + " Policy Proposal";
         String context = (String) analysisResult.getOrDefault("context", "");
@@ -339,7 +315,7 @@ public class PolicyEvolutionLabIntegration {
     private void configureProposalByLab(PolicyEvolutionProposal proposal, 
                                        String labName, 
                                        Map<String, Object> analysisResult) {
-        // Lab별 특화 설정
+        
         switch (labName) {
             case "ThreatDetectionLab":
                 proposal.getMetadata().put("threatIndicators", 
@@ -362,7 +338,7 @@ public class PolicyEvolutionLabIntegration {
     }
     
     private RiskLevel assessRiskLevel(String labName, Map<String, Object> analysisResult) {
-        // Lab별 위험 수준 평가 로직
+        
         Object severityObj = analysisResult.get("severity");
         if (severityObj instanceof Number) {
             int severity = ((Number) severityObj).intValue();
@@ -372,12 +348,12 @@ public class PolicyEvolutionLabIntegration {
             return RiskLevel.LOW;
         }
         
-        // 기본값
+        
         return RiskLevel.MEDIUM;
     }
     
     private ProposalType determineProposalType(String labName, Map<String, Object> analysisResult) {
-        // Lab 이름 기반 타입 결정
+        
         if (labName.contains("Threat")) return ProposalType.THREAT_RESPONSE;
         if (labName.contains("Compliance")) return ProposalType.COMPLIANCE;
         if (labName.contains("Behavior")) return ProposalType.USER_BEHAVIOR;
@@ -392,7 +368,7 @@ public class PolicyEvolutionLabIntegration {
         StringBuilder content = new StringBuilder();
         content.append("Policy generated by ").append(labName).append("\n\n");
         
-        // 분석 결과 주요 항목 포함
+        
         content.append("Key Findings:\n");
         for (Map.Entry<String, Object> entry : analysisResult.entrySet()) {
             if (isKeyFinding(entry.getKey())) {
@@ -401,7 +377,7 @@ public class PolicyEvolutionLabIntegration {
             }
         }
         
-        // SpEL 표현식 예시
+        
         content.append("\nPolicy Rules:\n");
         content.append("- hasRole('ADMIN') or hasAuthority('POLICY_OVERRIDE')\n");
         content.append("- @securityService.validateAccess(#request)\n");
@@ -419,16 +395,16 @@ public class PolicyEvolutionLabIntegration {
     }
     
     private double calculateExpectedImpact(String labName, Map<String, Object> analysisResult) {
-        // 기본 영향도 계산
+        
         double baseImpact = 50.0;
         
-        // 심각도 기반 조정
+        
         Object severityObj = analysisResult.get("severity");
         if (severityObj instanceof Number) {
             baseImpact += ((Number) severityObj).doubleValue() * 5;
         }
         
-        // 영향 범위 기반 조정
+        
         Object scopeObj = analysisResult.get("affectedScope");
         if (scopeObj instanceof Number) {
             baseImpact += ((Number) scopeObj).doubleValue() * 3;
@@ -442,13 +418,13 @@ public class PolicyEvolutionLabIntegration {
         rationale.append("This policy proposal is based on automated analysis by ")
                 .append(labName).append(". ");
         
-        // 주요 근거 추가
+        
         Object mainReason = analysisResult.get("primaryReason");
         if (mainReason != null) {
             rationale.append("Primary reason: ").append(mainReason).append(". ");
         }
         
-        // 증거 기반 근거
+        
         Object evidence = analysisResult.get("evidence");
         if (evidence instanceof List) {
             List<?> evidenceList = (List<?>) evidence;
@@ -466,9 +442,7 @@ public class PolicyEvolutionLabIntegration {
         eventPublisher.publishEvent(event);
     }
     
-    /**
-     * Lab 제안 이벤트
-     */
+    
     public static class LabProposalEvent {
         private final Object source;
         private final String labName;
@@ -484,7 +458,7 @@ public class PolicyEvolutionLabIntegration {
             this.timestamp = LocalDateTime.now();
         }
         
-        // Getters
+        
         public Object getSource() { return source; }
         public String getLabName() { return labName; }
         public Long getProposalId() { return proposalId; }

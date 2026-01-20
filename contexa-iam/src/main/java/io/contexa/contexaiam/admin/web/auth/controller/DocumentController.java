@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 @Slf4j
-@RequestMapping("/admin/docs") // 그룹 관리를 위한 공통 경로 설정
+@RequestMapping("/admin/docs") 
 @RequiredArgsConstructor
 public class DocumentController {
 

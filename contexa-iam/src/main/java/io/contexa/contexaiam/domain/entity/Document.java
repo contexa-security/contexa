@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
-@Table(name = "DOCUMENT") // 테이블 이름은 'DOCUMENT'
+@Table(name = "DOCUMENT") 
 @Getter
 @Setter
 @Builder
@@ -23,10 +23,10 @@ public class Document implements Serializable {
     @Column(name = "title", nullable = false)
     private String title;
 
-    @Column(name = "content", columnDefinition = "TEXT") // 긴 텍스트를 위해 TEXT 타입
+    @Column(name = "content", columnDefinition = "TEXT") 
     private String content;
 
-    @Column(name = "owner_username", nullable = false) // 문서 소유자 (Users.username과 매핑)
+    @Column(name = "owner_username", nullable = false) 
     private String ownerUsername;
 
     @Column(name = "created_at", nullable = false)
@@ -38,12 +38,12 @@ public class Document implements Serializable {
     @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime updatedAt;
 
-    @PrePersist // 엔티티 저장 전 호출
+    @PrePersist 
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
 
-    @PreUpdate // 엔티티 업데이트 전 호출
+    @PreUpdate 
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -53,7 +53,7 @@ public class Document implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Document document = (Document) o;
-        return id != null && Objects.equals(id, document.id); // ID 기반 동등성 (영속성 컨텍스트 고려)
+        return id != null && Objects.equals(id, document.id); 
     }
 
     @Override

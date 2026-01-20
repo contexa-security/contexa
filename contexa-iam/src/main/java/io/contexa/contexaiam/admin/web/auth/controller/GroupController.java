@@ -17,19 +17,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequestMapping("/admin/groups") // 그룹 관리를 위한 공통 경로 설정
+@RequestMapping("/admin/groups") 
 @RequiredArgsConstructor
 public class GroupController {
 
     private final GroupService groupService;
-    private final RoleService roleService; // RoleService 주입
+    private final RoleService roleService; 
     private final ModelMapper modelMapper;
 
     @GetMapping
     public String getGroups(Model model) {
-        // 서비스는 엔티티 리스트를 반환
+        
         List<Group> groups = groupService.getAllGroups();
-        // [수정] 컨트롤러에서 DTO 리스트로 변환
+        
         List<GroupDto> groupListDtos = groups.stream().map(group -> {
             GroupDto dto = modelMapper.map(group, GroupDto.class);
             dto.setRoleCount(group.getGroupRoles() != null ? group.getGroupRoles().size() : 0);
@@ -41,9 +41,9 @@ public class GroupController {
     }
     @GetMapping("/register")
     public String registerGroupForm(Model model) {
-        model.addAttribute("group", new GroupDto()); // 빈 DTO 객체 전달
-        model.addAttribute("roleList", roleService.getRoles()); // 모든 Role 목록
-        model.addAttribute("selectedRoleIds", new HashSet<Long>()); // 선택된 역할 ID 목록 초기화
+        model.addAttribute("group", new GroupDto()); 
+        model.addAttribute("roleList", roleService.getRoles()); 
+        model.addAttribute("selectedRoleIds", new HashSet<Long>()); 
         log.info("Displaying new group registration form.");
         return "admin/groupdetails";
     }
@@ -54,7 +54,7 @@ public class GroupController {
                               RedirectAttributes ra) {
         try {
             Group group = modelMapper.map(groupDto, Group.class);
-            groupService.createGroup(group, selectedRoleIds); // Service에 selectedRoleIds 전달
+            groupService.createGroup(group, selectedRoleIds); 
 
             ra.addFlashAttribute("message", "그룹 '" + group.getName() + "'이 성공적으로 생성되었습니다.");
             log.info("Group created: {}", group.getName());
@@ -70,11 +70,11 @@ public class GroupController {
 
     @GetMapping("/{id}")
     public String getGroupDetails(@PathVariable Long id, Model model) {
-        // 서비스는 엔티티를 반환
+        
         Group group = groupService.getGroup(id).orElseThrow(() -> new IllegalArgumentException("Invalid group ID: " + id));
         List<Role> roles = roleService.getRoles();
 
-        // [수정] 컨트롤러에서 DTO로 변환
+        
         GroupDto groupDto = modelMapper.map(group, GroupDto.class);
         List<Long> selectedRoleIds = group.getGroupRoles().stream().map(gr -> gr.getRole().getId()).collect(Collectors.toList());
         groupDto.setSelectedRoleIds(selectedRoleIds);
@@ -94,9 +94,9 @@ public class GroupController {
                               @RequestParam(value = "selectedRoleIds", required = false) List<Long> selectedRoleIds,
                               RedirectAttributes ra) {
         try {
-            groupDto.setId(id); // URL 경로에서 받은 ID를 DTO에 설정
+            groupDto.setId(id); 
             Group group = modelMapper.map(groupDto, Group.class);
-            groupService.updateGroup(group, selectedRoleIds); // Service에 selectedRoleIds 전달
+            groupService.updateGroup(group, selectedRoleIds); 
 
             ra.addFlashAttribute("message", "그룹 '" + group.getName() + "'이 성공적으로 업데이트되었습니다!");
             log.info("Group updated: {}", group.getName());

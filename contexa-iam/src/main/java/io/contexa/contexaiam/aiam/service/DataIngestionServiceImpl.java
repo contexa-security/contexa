@@ -18,12 +18,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-//@Transactional(readOnly = true)
+
 @RequiredArgsConstructor
 public class DataIngestionServiceImpl implements DataIngestionService {
 
     private final VectorStore vectorStore;
-    private final PolicyRepository policyRepository; // 데이터 조회를 위해 Repository 주입
+    private final PolicyRepository policyRepository; 
     private final ObjectMapper objectMapper;
 
     @Async
@@ -76,7 +76,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
     }
 
     private Map<String, Object> createMetadata(Object entity) {
-        // 엔티티의 주요 정보를 메타데이터로 추출하는 헬퍼 메서드
+        
         if (entity instanceof Policy policy) {
             return Map.of(
                     "entityType", "Policy",

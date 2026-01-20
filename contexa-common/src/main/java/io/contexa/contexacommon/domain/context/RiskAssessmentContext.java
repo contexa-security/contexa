@@ -8,44 +8,39 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 위험 평가 컨텍스트
- * 
- * 제로 트러스트 기반 위험 평가를 위한 모든 필요한 정보를 담는 컨텍스트입니다.
- * CustomWebSecurityExpressionRoot에서 사용되며 실시간 위험 평가에 활용됩니다.
- */
+
 @Getter
 @Setter
 public class RiskAssessmentContext extends IAMContext {
     
     private static final String IAM_CONTEXT_TYPE = "RISK_ASSESSMENT";
     
-    // 기본 인증 정보
+    
     private String userId;
     private String userName;
     private String sessionId;
     
-    // 접근 대상 정보
+    
     private String resourceIdentifier;
     private String actionType;
     private String methodName;
     
-    // 네트워크 정보
+    
     private String remoteIp;
     private String userAgent;
     private String location;
     
-    // 사용자 권한 정보
+    
     private List<String> userRoles;
     private List<String> userGroups;
     private List<String> userPermissions;
     
-    // 컨텍스트 분석을 위한 추가 정보
-    private String historyContext; // 과거 접근 패턴 요약
-    private Map<String, Object> behaviorMetrics; // 행동 분석 메트릭
-    private Map<String, Object> environmentAttributes; // 환경 속성
     
-    // 위험 평가 설정
+    private String historyContext; 
+    private Map<String, Object> behaviorMetrics; 
+    private Map<String, Object> environmentAttributes; 
+    
+    
     private boolean enableHistoryAnalysis = true;
     private boolean enableBehaviorAnalysis = true;
     private int maxHistoryRecords = 5;
@@ -66,9 +61,7 @@ public class RiskAssessmentContext extends IAMContext {
         this.environmentAttributes = new java.util.HashMap<>();
     }
     
-    /**
-     * 기본 위험 평가 컨텍스트 생성
-     */
+    
     public static RiskAssessmentContext create(String userId, String resourceIdentifier, String actionType) {
         RiskAssessmentContext context = new RiskAssessmentContext();
         context.setUserId(userId);
@@ -79,9 +72,7 @@ public class RiskAssessmentContext extends IAMContext {
         return context;
     }
     
-    /**
-     * 상세 위험 평가 컨텍스트 생성
-     */
+    
     public static RiskAssessmentContext createDetailed(String userId, String userName, String sessionId,
                                                       String resourceIdentifier, String actionType,
                                                       String remoteIp, List<String> userRoles) {
@@ -95,9 +86,7 @@ public class RiskAssessmentContext extends IAMContext {
         return context;
     }
     
-    /**
-     * 긴급 위험 평가 컨텍스트 생성
-     */
+    
     public static RiskAssessmentContext createUrgent(String userId, String resourceIdentifier, 
                                                     String actionType, String reason) {
         RiskAssessmentContext context = create(userId, resourceIdentifier, actionType);
@@ -107,25 +96,19 @@ public class RiskAssessmentContext extends IAMContext {
         return context;
     }
     
-    /**
-     * 히스토리 컨텍스트 설정
-     */
+    
     public RiskAssessmentContext withHistoryContext(String historyContext) {
         this.historyContext = historyContext;
         return this;
     }
     
-    /**
-     * 행동 메트릭 설정
-     */
+    
     public RiskAssessmentContext withBehaviorMetrics(Map<String, Object> behaviorMetrics) {
         this.behaviorMetrics = behaviorMetrics;
         return this;
     }
     
-    /**
-     * 환경 속성 설정
-     */
+    
     public RiskAssessmentContext withEnvironmentAttribute(String key, Object value) {
         if (this.environmentAttributes == null) {
             this.environmentAttributes = new java.util.HashMap<>();
@@ -134,9 +117,7 @@ public class RiskAssessmentContext extends IAMContext {
         return this;
     }
     
-    /**
-     * 복잡도 계산 (위험 평가용)
-     */
+    
     public int calculateRiskComplexity() {
         int complexity = 0;
         

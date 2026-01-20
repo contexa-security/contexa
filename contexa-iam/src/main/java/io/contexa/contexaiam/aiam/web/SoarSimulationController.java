@@ -19,11 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * SOAR 시뮬레이션 컨트롤러
- * 
- * AI + MCP + SOAR 통합 시뮬레이션을 위한 REST 및 WebSocket 엔드포인트 제공
- */
+
 @Slf4j
 @RequestMapping("/api/soar/simulation")
 public class SoarSimulationController {
@@ -37,10 +33,7 @@ public class SoarSimulationController {
         this.brokerTemplate = brokerTemplate;
     }
 
-    /**
-     * SOAR 시뮬레이션 시작
-     * AI 진단 프로세스와 통합된 SOAR 워크플로우 실행
-     */
+    
     @PostMapping("/start")
     public Mono<ResponseEntity<SimulationStartResponse>> startSimulation(@RequestBody SimulationStartRequest request) {
         log.info("SOAR 시뮬레이션 시작 요청: incidentId={}, threatType={}", 
@@ -48,14 +41,14 @@ public class SoarSimulationController {
         
         return simulationService.startSimulation(request)
             .map(result -> {
-                // notifySimulationStart 제거 - SoarSimulationService에서 처리
+                
                 
                 return ResponseEntity.ok(SimulationStartResponse.builder()
                     .sessionId(result.getSessionId())
                     .conversationId(result.getConversationId())
-                    .status("COMPLETED")  // STARTED가 아닌 COMPLETED로 변경
+                    .status("COMPLETED")  
                     .message("SOAR 분석이 완료되었습니다.")
-                    .finalResponse(result.getFinalResponse())  // finalResponse 추가
+                    .finalResponse(result.getFinalResponse())  
                     .pipelineStages(List.of(
                         "PREPROCESSING",
                         "CONTEXT_RETRIEVAL",
@@ -78,9 +71,7 @@ public class SoarSimulationController {
             });
     }
     
-    /**
-     * 세션 상태 조회
-     */
+    
     @GetMapping("/session/{sessionId}")
     public ResponseEntity<SessionStatusResponse> getSessionStatus(@PathVariable String sessionId) {
         log.debug("세션 상태 조회: sessionId={}", sessionId);
@@ -99,9 +90,7 @@ public class SoarSimulationController {
             .orElse(ResponseEntity.notFound().build());
     }
     
-    /**
-     * 도구 실행 승인
-     */
+    
     @PostMapping("/approve")
     public ResponseEntity<ApprovalResponse> approveToolExecution(@RequestBody ApprovalRequest request) {
         log.info("도구 실행 승인 요청: sessionId={}, toolName={}, approved={}",
@@ -114,7 +103,7 @@ public class SoarSimulationController {
             request.getReason()
         );
         
-        // WebSocket으로 승인 결과 브로드캐스트
+        
         notifyApprovalResult(request);
         
         return ResponseEntity.ok(ApprovalResponse.builder()
@@ -125,9 +114,7 @@ public class SoarSimulationController {
             .build());
     }
     
-    /**
-     * MCP 서버 상태 조회
-     */
+    
     @GetMapping("/mcp-status")
     public ResponseEntity<McpStatusResponse> getMcpServerStatus() {
         Map<String, Boolean> mcpStatus = simulationService.getMcpServerStatus();
@@ -141,11 +128,9 @@ public class SoarSimulationController {
             .build());
     }
     
-    // WebSocket 메시지 핸들러
     
-    /**
-     * 파이프라인 진행 상황 업데이트 수신
-     */
+    
+    
     @MessageMapping("/soar/pipeline/update")
     @SendTo("/topic/soar/pipeline")
     public PipelineUpdateMessage handlePipelineUpdate(@Payload PipelineUpdateMessage update) {
@@ -154,9 +139,7 @@ public class SoarSimulationController {
         return update;
     }
     
-    /**
-     * 도구 실행 요청 수신
-     */
+    
     @MessageMapping("/soar/tool/request")
     @SendTo("/topic/soar/tools")
     public ToolExecutionMessage handleToolRequest(@Payload ToolExecutionMessage request) {
@@ -193,7 +176,7 @@ public class SoarSimulationController {
         brokerTemplate.convertAndSend("/topic/soar/approvals", event);
     }
     
-    // Request/Response DTOs
+    
     
     @Data
     @Builder
@@ -207,7 +190,7 @@ public class SoarSimulationController {
         private String detectedSource;
         private String severity;
         private String organizationId;
-        private String userQuery; // 사용자의 자연어 질의
+        private String userQuery; 
         private Map<String, Object> metadata;
     }
     
@@ -220,7 +203,7 @@ public class SoarSimulationController {
         private String conversationId;
         private String status;
         private String message;
-        private String finalResponse;  // 최종 응답 추가
+        private String finalResponse;  
         private List<String> pipelineStages;
         private LocalDateTime timestamp;
     }

@@ -12,15 +12,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * File Quarantine Tool
- *
- * 악성 파일을 안전한 격리 영역으로 이동시키는 도구입니다.
- * 격리된 파일은 실행 불가능한 상태로 보관되며, 필요시 복원할 수 있습니다.
- *
- * Spring AI @Tool 어노테이션 기반 구현
- * 고위험 도구 - 승인 필요
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -37,23 +29,11 @@ import java.util.*;
 )
 public class FileQuarantineTool {
     
-    // 격리된 파일 저장소 (시뮬레이션)
+    
     private static final Map<String, QuarantinedFile> QUARANTINE_VAULT = new HashMap<>();
     private static final String QUARANTINE_PATH = "/var/quarantine/";
     
-    /**
-     * 파일 격리 작업 실행
-     * 
-     * @param action 작업 유형 (quarantine, restore, delete, list)
-     * @param filePath 파일 경로
-     * @param reason 격리 사유
-     * @param createBackup 백업 생성 여부
-     * @param permanentQuarantine 영구 격리 여부
-     * @param validateBeforeRestore 복원 전 검증 수행
-     * @param confirmDelete 삭제 확인
-     * @param forceAction 시스템 파일 강제 처리
-     * @return 격리 작업 결과
-     */
+    
     @Tool(
         name = "file_quarantine",
         description = """
@@ -90,10 +70,10 @@ public class FileQuarantineTool {
     ) {
         long startTime = System.currentTimeMillis();
         
-        // SOAR 시스템: filePath가 없으면 기본값 사용
+        
         if (!"list".equals(action.toLowerCase()) && (filePath == null || filePath.trim().isEmpty())) {
             log.warn("파일 경로가 지정되지 않음 - SOAR 시스템 기본 처리");
-            filePath = "C:\\Windows\\Temp\\cryptominer.exe"; // 프롬프트에서 언급된 악성 파일
+            filePath = "C:\\Windows\\Temp\\cryptominer.exe"; 
             log.info("📁 의심스러운 파일로 기본 경로 사용: {}", filePath);
         }
         
@@ -101,15 +81,15 @@ public class FileQuarantineTool {
             action, filePath, reason);
         
         try {
-            // 입력 검증
+            
             validateRequest(action, filePath, forceAction);
             
-            // 권한 확인 (시뮬레이션)
+            
             if (!hasRequiredPermissions()) {
                 throw new SecurityException("Insufficient permissions for file quarantine");
             }
             
-            // 작업 수행
+            
             QuarantineResult result = switch (action.toLowerCase()) {
                 case "quarantine" -> performQuarantine(filePath, reason, createBackup, permanentQuarantine);
                 case "restore" -> performRestore(filePath, validateBeforeRestore);
@@ -118,7 +98,7 @@ public class FileQuarantineTool {
                 default -> throw new IllegalArgumentException("Unknown action: " + action);
             };
             
-            // 감사 로깅
+            
             SecurityToolUtils.auditLog(
                 "file_quarantine",
                 action,
@@ -128,7 +108,7 @@ public class FileQuarantineTool {
                 "SUCCESS"
             );
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("file_quarantine", "execution_count", 1);
             SecurityToolUtils.recordMetric("file_quarantine", action + "_count", 1);
             SecurityToolUtils.recordMetric("file_quarantine", "execution_time_ms", 
@@ -159,7 +139,7 @@ public class FileQuarantineTool {
         } catch (Exception e) {
             log.error("파일 격리 실패", e);
             
-            // 에러 메트릭
+            
             SecurityToolUtils.recordMetric("file_quarantine", "error_count", 1);
             
             return Response.builder()
@@ -170,9 +150,7 @@ public class FileQuarantineTool {
         }
     }
     
-    /**
-     * 요청 검증
-     */
+    
     private void validateRequest(String action, String filePath, Boolean forceAction) {
         if (action == null || action.trim().isEmpty()) {
             throw new IllegalArgumentException("Action is required");
@@ -185,12 +163,10 @@ public class FileQuarantineTool {
         }
     }
     
-    /**
-     * 파일 격리 수행
-     */
+    
     private QuarantineResult performQuarantine(String filePath, String reason, 
                                                Boolean createBackup, Boolean permanentQuarantine) {
-        // 이미 격리된 파일인지 확인
+        
         if (QUARANTINE_VAULT.containsKey(filePath)) {
             return QuarantineResult.builder()
                 .status("already_quarantined")
@@ -199,10 +175,10 @@ public class FileQuarantineTool {
                 .build();
         }
         
-        // 파일 메타데이터 수집
+        
         FileMetadata metadata = collectFileMetadata(filePath);
         
-        // 격리 수행 (시뮬레이션)
+        
         String quarantineId = UUID.randomUUID().toString();
         String quarantinePath = QUARANTINE_PATH + quarantineId;
         
@@ -216,10 +192,10 @@ public class FileQuarantineTool {
             .canRestore(!Boolean.TRUE.equals(permanentQuarantine))
             .build();
         
-        // 파일 이동 시뮬레이션
+        
         QUARANTINE_VAULT.put(filePath, quarantinedFile);
         
-        // 백업 생성 (선택적)
+        
         if (Boolean.TRUE.equals(createBackup)) {
             createBackup(quarantinedFile);
         }
@@ -233,9 +209,7 @@ public class FileQuarantineTool {
             .build();
     }
     
-    /**
-     * 파일 복원 수행
-     */
+    
     private QuarantineResult performRestore(String filePath, Boolean validateBeforeRestore) {
         QuarantinedFile quarantinedFile = QUARANTINE_VAULT.get(filePath);
         if (quarantinedFile == null) {
@@ -246,14 +220,14 @@ public class FileQuarantineTool {
             throw new SecurityException("File cannot be restored (permanent quarantine): " + filePath);
         }
         
-        // 복원 전 검증
+        
         if (Boolean.TRUE.equals(validateBeforeRestore)) {
             if (!validateFile(quarantinedFile)) {
                 throw new SecurityException("File validation failed, cannot restore: " + filePath);
             }
         }
         
-        // 복원 수행 (시뮬레이션)
+        
         QUARANTINE_VAULT.remove(filePath);
         
         return QuarantineResult.builder()
@@ -265,21 +239,19 @@ public class FileQuarantineTool {
             .build();
     }
     
-    /**
-     * 격리 파일 영구 삭제
-     */
+    
     private QuarantineResult performDelete(String filePath, Boolean confirmDelete) {
         QuarantinedFile quarantinedFile = QUARANTINE_VAULT.get(filePath);
         if (quarantinedFile == null) {
             throw new IllegalArgumentException("File not found in quarantine: " + filePath);
         }
         
-        // 영구 삭제 확인
+        
         if (!Boolean.TRUE.equals(confirmDelete)) {
             throw new SecurityException("Delete confirmation required for permanent deletion");
         }
         
-        // 삭제 수행 (시뮬레이션)
+        
         QUARANTINE_VAULT.remove(filePath);
         
         return QuarantineResult.builder()
@@ -290,9 +262,7 @@ public class FileQuarantineTool {
             .build();
     }
     
-    /**
-     * 격리된 파일 목록 조회
-     */
+    
     private QuarantineResult listQuarantined() {
         List<QuarantineInfo> quarantineList = new ArrayList<>();
         
@@ -317,14 +287,14 @@ public class FileQuarantineTool {
             .build();
     }
     
-    // 헬퍼 메서드들
+    
     private boolean hasRequiredPermissions() {
-        // 권한 확인 시뮬레이션
-        return true; // 실제로는 시스템 권한 확인
+        
+        return true; 
     }
     
     private boolean isSystemFile(String filePath) {
-        // 시스템 파일 판단
+        
         return filePath.startsWith("/etc/") || 
                filePath.startsWith("/usr/") || 
                filePath.startsWith("/bin/") ||
@@ -334,7 +304,7 @@ public class FileQuarantineTool {
     private FileMetadata collectFileMetadata(String filePath) {
         return FileMetadata.builder()
             .path(filePath)
-            .size((long)(Math.random() * 1000000)) // 시뮬레이션
+            .size((long)(Math.random() * 1000000)) 
             .hash(generateHash())
             .type(detectFileType(filePath))
             .permissions("rw-r--r--")
@@ -358,17 +328,15 @@ public class FileQuarantineTool {
     
     private void createBackup(QuarantinedFile file) {
         log.info("백업 생성: {}", file.getOriginalPath());
-        // 백업 로직 (시뮬레이션)
+        
     }
     
     private boolean validateFile(QuarantinedFile file) {
-        // 파일 검증 로직 (시뮬레이션)
-        return Math.random() > 0.2; // 80% 성공률
+        
+        return Math.random() > 0.2; 
     }
     
-    /**
-     * Response DTO
-     */
+    
     @Data
     @Builder
     public static class Response {
@@ -378,9 +346,7 @@ public class FileQuarantineTool {
         private String error;
     }
     
-    /**
-     * 격리 결과 DTO
-     */
+    
     @Data
     @Builder
     public static class QuarantineResult {
@@ -392,9 +358,7 @@ public class FileQuarantineTool {
         private List<QuarantineInfo> quarantineList;
     }
     
-    /**
-     * 파일 메타데이터
-     */
+    
     @Data
     @Builder
     public static class FileMetadata {
@@ -408,9 +372,7 @@ public class FileQuarantineTool {
         private String modifiedTime;
     }
     
-    /**
-     * 격리된 파일 정보
-     */
+    
     @Data
     @Builder
     private static class QuarantinedFile {
@@ -423,9 +385,7 @@ public class FileQuarantineTool {
         private boolean canRestore;
     }
     
-    /**
-     * 격리 정보 (목록 조회용)
-     */
+    
     @Data
     @Builder
     public static class QuarantineInfo {

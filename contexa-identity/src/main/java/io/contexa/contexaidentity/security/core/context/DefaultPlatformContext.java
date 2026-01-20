@@ -12,11 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 플랫폼 컨텍스트: DSL로 수집된 설정과
- * 스프링이 주입한 HttpSecurity 인스턴스를 보관하며,
- * AuthenticationFeature 및 SecurityFeature 구현체에게 공유합니다.
- */
+
 public class DefaultPlatformContext implements PlatformContext{
 
     private final ApplicationContext applicationContext;

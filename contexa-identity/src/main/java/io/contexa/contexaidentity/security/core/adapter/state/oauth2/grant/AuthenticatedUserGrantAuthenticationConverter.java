@@ -17,25 +17,7 @@ import org.springframework.util.StringUtils;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Authenticated User Grant Type을 위한 AuthenticationConverter
- *
- * <p>/oauth2/token 엔드포인트의 요청을 파싱하여
- * {@link AuthenticatedUserGrantAuthenticationToken}을 생성합니다.
- *
- * <p>필수 파라미터:
- * <ul>
- *   <li>grant_type: "urn:ietf:params:oauth:grant-type:authenticated-user"</li>
- *   <li>username: 인증된 사용자 이름</li>
- * </ul>
- *
- * <p>선택 파라미터:
- * <ul>
- *   <li>device_id: 디바이스 식별자</li>
- * </ul>
- *
- * @since 2024.12
- */
+
 @Slf4j
 public class AuthenticatedUserGrantAuthenticationConverter implements AuthenticationConverter {
 
@@ -44,13 +26,13 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
     @Nullable
     @Override
     public Authentication convert(HttpServletRequest request) {
-        // grant_type 파라미터 확인
+        
         String grantType = request.getParameter(OAuth2ParameterNames.GRANT_TYPE);
         if (!GRANT_TYPE_VALUE.equals(grantType)) {
             return null;
         }
 
-        // 클라이언트 인증 정보 추출 및 검증
+        
         Authentication clientPrincipal = SecurityContextHolder.getContext().getAuthentication();
 
         if (log.isDebugEnabled()) {
@@ -58,7 +40,7 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
                     clientPrincipal != null ? clientPrincipal.getClass().getSimpleName() : "null");
         }
 
-        // OAuth2ClientAuthenticationToken 타입 검증
+        
         if (clientPrincipal == null) {
             log.error("Client authentication is null - OAuth2ClientAuthenticationFilter may not have executed");
             throwError(OAuth2ErrorCodes.INVALID_CLIENT,
@@ -86,19 +68,19 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
                     clientAuth.getRegisteredClient().getClientId() : "unknown");
         }
 
-        // 파라미터 추출
+        
         MultiValueMap<String, String> parameters = OAuth2EndpointUtils.getParameters(request);
 
-        // username 필수 검증
+        
         String username = parameters.getFirst("username");
         if (!StringUtils.hasText(username)) {
             throwError(OAuth2ErrorCodes.INVALID_REQUEST, "OAuth 2.0 Parameter: username");
         }
 
-        // device_id (선택적)
+        
         String deviceId = parameters.getFirst("device_id");
 
-        // 추가 파라미터
+        
         Map<String, Object> additionalParameters = new HashMap<>();
         parameters.forEach((key, value) -> {
             if (!key.equals(OAuth2ParameterNames.GRANT_TYPE) &&
@@ -119,9 +101,7 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
         throw new OAuth2AuthenticationException(error);
     }
 
-    /**
-     * OAuth2 엔드포인트 유틸리티 클래스
-     */
+    
     private static class OAuth2EndpointUtils {
         static MultiValueMap<String, String> getParameters(HttpServletRequest request) {
             Map<String, String[]> parameterMap = request.getParameterMap();

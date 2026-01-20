@@ -33,32 +33,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 통합 3계층 보안 시스템 LLM Configuration
- *
- * 모든 AI/LLM 관련 설정의 중앙 진입점
- * UnifiedAIConfiguration의 기능을 통합하여 단일 Configuration으로 관리
- *
- * SOLID 원칙 준수:
- * - 단일 책임: 각 Configuration은 명확한 역할 담당
- * - 개방-폐쇄: 새로운 Configuration 추가 시 기존 코드 수정 불필요
- * - 의존성 역전: 인터페이스 기반 설계로 구체적 구현에 의존하지 않음
- *
- * 통합 구조:
- * 1. 3계층 ChatModel 생성 (Layer 1, 2, 3)
- * 2. UnifiedLLMOrchestrator를 @Primary로 설정
- * 3. AdvisorConfiguration - Advisor 시스템 통합
- * 4. ToolCallingConfiguration - 도구 실행 시스템 (Enterprise에서 제공)
- *
- * @since 3.0.0
- */
+
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 @AutoConfigureBefore(ChatClientAutoConfiguration.class)
 public class TieredSecurityLLMConfiguration {
 
-    // 설정 파일에서 우선순위 읽기 (LlmConfig 기능 통합)
+    
     @Value("${spring.ai.chat.model.priority:ollama,anthropic,openai}")
     private String chatModelPriority;
 
@@ -68,19 +50,12 @@ public class TieredSecurityLLMConfiguration {
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
     
-    // =====================================
-    // 3계층 시스템 전용 ChatModel 구성
-    // =====================================
     
-    /**
-     * Layer 1: TinyLlama (초고속 필터링 - 20-50ms)
-     * 별도의 OllamaChatModel 인스턴스를 생성하여 tinyllama 모델 사용
-     */
-    /**
-     * Layer 1: TinyLlama ChatModel
-     * 동일한 OllamaChatModel을 사용하되, 실행 시점에 모델 지정
-     * Ollama가 없을 경우 폴백 전략 적용
-     */
+    
+    
+    
+    
+    
     @Bean(name = "tinyLlamaChatModel")
     @ConditionalOnMissingBean(name = "tinyLlamaChatModel")
     public ChatModel tinyLlamaChatModel(
@@ -91,13 +66,13 @@ public class TieredSecurityLLMConfiguration {
         log.info("Layer 1 TinyLlama ChatModel 구성");
 
         if (ollamaChatModel != null) {
-            // 동일한 OllamaChatModel 인스턴스 사용
-            // 실제 모델 선택은 UnifiedLLMOrchestrator에서 OllamaOptions로 처리
+            
+            
             log.info("  ✓ Layer 1 ChatModel 준비 완료 (런타임에 tinyllama 모델 사용)");
             return ollamaChatModel;
         }
 
-        // Ollama가 없을 경우 폴백 전략
+        
         log.warn("  ⚠ Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
 
         if (anthropicChatModel != null) {
@@ -114,15 +89,8 @@ public class TieredSecurityLLMConfiguration {
         return null;
     }
     
-    /**
-     * Layer 2: Llama3.1:8b (컨텍스트 분석 - 100-300ms)
-     * 별도의 OllamaChatModel 인스턴스를 생성하여 llama3.1:8b 모델 사용
-     */
-    /**
-     * Layer 2: Llama3.1:8b ChatModel
-     * 동일한 OllamaChatModel을 사용하되, 실행 시점에 모델 지정
-     * Ollama가 없을 경우 폴백 전략 적용
-     */
+    
+    
     @Bean(name = "llama31ChatModel")
     @ConditionalOnMissingBean(name = "llama31ChatModel")
     public ChatModel llama31ChatModel(
@@ -133,13 +101,13 @@ public class TieredSecurityLLMConfiguration {
         log.info("Layer 2 Llama3.1:8b ChatModel 구성");
 
         if (ollamaChatModel != null) {
-            // 동일한 OllamaChatModel 인스턴스 사용
-            // 실제 모델 선택은 UnifiedLLMOrchestrator에서 OllamaOptions로 처리
+            
+            
             log.info("  ✓ Layer 2 ChatModel 준비 완료 (런타임에 llama3.1:8b 모델 사용)");
             return ollamaChatModel;
         }
 
-        // Ollama가 없을 경우 폴백 전략
+        
         log.warn("  ⚠ Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
 
         if (anthropicChatModel != null) {
@@ -156,10 +124,7 @@ public class TieredSecurityLLMConfiguration {
         return null;
     }
     
-    /**
-     * Anthropic Claude 모델 (Layer 2 클라우드 백업 옵션)
-     * 사용자가 spring.ai.security.layer2.model 설정으로 오버라이드 가능
-     */
+    
     @Bean(name = "claudeOpusChatModel")
     @ConditionalOnMissingBean(name = "claudeOpusChatModel")
     public ChatModel claudeOpusChatModel(
@@ -177,10 +142,7 @@ public class TieredSecurityLLMConfiguration {
         return null;
     }
 
-    /**
-     * OpenAI GPT 모델 (Layer 2 클라우드 백업 옵션)
-     * 사용자가 spring.ai.security.layer2.backup.model 설정으로 오버라이드 가능
-     */
+    
     @Bean(name = "gpt4ChatModel")
     @ConditionalOnMissingBean(name = "gpt4ChatModel")
     public ChatModel gpt4ChatModel(
@@ -198,10 +160,7 @@ public class TieredSecurityLLMConfiguration {
         return null;
     }
 
-    /**
-     * Primary ChatModel - ChatClientAutoConfiguration을 위한 기본 모델
-     * 설정된 우선순위에 따라 모델 선택 (LlmConfig 기능 통합)
-     */
+    
     @Bean
     @Primary
     public ChatModel primaryChatModel(
@@ -213,7 +172,7 @@ public class TieredSecurityLLMConfiguration {
 
         Map<String, ChatModel> availableModels = new HashMap<>();
 
-        // 사용 가능한 모델들을 맵에 저장
+        
         OllamaChatModel ollamaModel = ollamaChatModelProvider.getIfAvailable();
         if (ollamaModel != null) {
             availableModels.put("ollama", ollamaModel);
@@ -229,7 +188,7 @@ public class TieredSecurityLLMConfiguration {
             availableModels.put("openai", openAiModel);
         }
 
-        // 우선순위에 따라 모델 선택
+        
         List<String> priorities = List.of(chatModelPriority.split(","));
         for (String modelName : priorities) {
             String trimmedName = modelName.trim().toLowerCase();
@@ -240,7 +199,7 @@ public class TieredSecurityLLMConfiguration {
             }
         }
 
-        // 우선순위에 있는 모델이 모두 없을 경우, 사용 가능한 첫 번째 모델 사용
+        
         if (!availableModels.isEmpty()) {
             Map.Entry<String, ChatModel> firstEntry = availableModels.entrySet().iterator().next();
             log.warn("  ⚠ 우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
@@ -251,15 +210,13 @@ public class TieredSecurityLLMConfiguration {
         throw new IllegalStateException("No ChatModel available. Please configure at least one AI provider.");
     }
     
-    // =====================================
-    // 통합 LLM 아키텍처 컴포넌트들
-    // =====================================
     
     
     
-    /**
-     * 스트리밍 핸들러
-     */
+    
+    
+    
+    
     @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
     public StreamingHandler streamingHandler() {
@@ -268,14 +225,11 @@ public class TieredSecurityLLMConfiguration {
     }
     
     
-    // =====================================
-    // UnifiedLLMOrchestrator - 핵심 통합 포인트
-    // =====================================
+    
+    
+    
 
-    /**
-     * UnifiedLLMOrchestrator - 모든 LLM 호출의 단일 진입점
-     * @Primary로 설정하여 모든 LLMClient/ToolCapableLLMClient 주입 시 자동 사용
-     */
+    
     @Bean
     @Primary
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
@@ -290,44 +244,32 @@ public class TieredSecurityLLMConfiguration {
         return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties);
     }
 
-    /**
-     * 새로운 LLMOperations 인터페이스 구현체
-     */
+    
     @Bean
     public LLMOperations llmOperations(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         log.info("LLMOperations 인터페이스 제공");
         return unifiedLLMOrchestrator;
     }
 
-    /**
-     * 기존 LLMClient 인터페이스의 기본 구현체
-     * 기존 코드와의 호환성을 위해 유지
-     */
+    
     @Bean(name = "llmClient")
     public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         log.info("LLMClient 인터페이스 제공 (하위 호환성)");
         return unifiedLLMOrchestrator;
     }
 
-    /**
-     * 기존 ToolCapableLLMClient 인터페이스의 기본 구현체
-     * SOAR 및 도구 실행을 위해 제공
-     */
+    
     @Bean(name = "toolCapableLLMClient")
     public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         log.info("ToolCapableLLMClient 인터페이스 제공 (도구 실행 지원)");
         return unifiedLLMOrchestrator;
     }
     
-    // =====================================
-    // LlmConfig 기능 통합 - EmbeddingModel 및 ChatClient
-    // =====================================
+    
+    
+    
 
-    /**
-     * Primary EmbeddingModel Bean을 생성합니다.
-     * application.yml의 spring.ai.embedding.model.priority 설정에 따라 우선순위가 결정됩니다.
-     * (LlmConfig에서 통합된 기능)
-     */
+    
     @Bean(name = "primaryEmbeddingModel")
     @Primary
     @ConditionalOnMissingBean(name = "primaryEmbeddingModel")
@@ -339,7 +281,7 @@ public class TieredSecurityLLMConfiguration {
 
         Map<String, EmbeddingModel> availableModels = new HashMap<>();
 
-        // 사용 가능한 모델들을 맵에 저장 (ObjectProvider를 통한 지연 로딩)
+        
         OllamaEmbeddingModel ollamaEmbedding = ollamaEmbeddingModelProvider.getIfAvailable();
         if (ollamaEmbedding != null) {
             availableModels.put("ollama", ollamaEmbedding);
@@ -350,7 +292,7 @@ public class TieredSecurityLLMConfiguration {
             availableModels.put("openai", openAiEmbedding);
         }
 
-        // 우선순위에 따라 모델 선택
+        
         List<String> priorities = List.of(embeddingModelPriority.split(","));
         for (String modelName : priorities) {
             String trimmedName = modelName.trim().toLowerCase();
@@ -361,7 +303,7 @@ public class TieredSecurityLLMConfiguration {
             }
         }
 
-        // 우선순위에 있는 모델이 모두 없을 경우, 사용 가능한 첫 번째 모델 사용
+        
         if (!availableModels.isEmpty()) {
             Map.Entry<String, EmbeddingModel> firstEntry = availableModels.entrySet().iterator().next();
             log.warn("  ⚠ 우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
@@ -371,12 +313,7 @@ public class TieredSecurityLLMConfiguration {
         throw new IllegalStateException("No EmbeddingModel available. Please configure at least one embedding provider.");
     }
 
-    /**
-     * ChatClient.Builder Bean을 생성합니다.
-     * AdvisorAutoConfiguration이 활성화되어 있으면 그쪽에서 생성된 Builder를 사용합니다.
-     * 그렇지 않으면 기본 Builder를 생성합니다.
-     * (LlmConfig에서 통합된 기능)
-     */
+    
     @Bean
     @ConditionalOnMissingBean(ChatClient.Builder.class)
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = true)
@@ -385,11 +322,7 @@ public class TieredSecurityLLMConfiguration {
         return ChatClient.builder(primaryChatModel);
     }
 
-    /**
-     * 기본 ChatClient Bean을 생성합니다.
-     * SpringAiChatClient가 Advisor를 사용하지 않는 경우를 위한 폴백입니다.
-     * (LlmConfig에서 통합된 기능)
-     */
+    
     @Bean
     @ConditionalOnMissingBean(name = "defaultChatClient")
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false")
@@ -398,25 +331,21 @@ public class TieredSecurityLLMConfiguration {
         return builder.build();
     }
 
-    // =====================================
-    // 성능 및 모니터링 설정
-    // =====================================
     
-    /**
-     * 3계층 시스템 메트릭 수집기 (미래 구현)
-     */
-    // @Bean
-    // public TieredSecurityMCPToolMetrics metricsCollector() {
-    //     return new TieredSecurityMetricsCollector();
-    // }
     
-    /**
-     * LLM 캐시 매니저 (미래 구현)
-     */
-    // @Bean
-    // public LLMCacheManager cacheManager() {
-    //     return new RedisCacheManager();
-    // }
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     @PostConstruct
     public void init() {

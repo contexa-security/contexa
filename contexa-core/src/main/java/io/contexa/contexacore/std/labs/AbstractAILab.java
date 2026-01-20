@@ -10,15 +10,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
-/**
- * AI Lab 추상 클래스
- *
- * 모든 AI Lab의 공통 로직을 포함하는 Template Method Pattern 구현
- * 기존 AbstractIAMLab의 기능을 포함하면서 새로운 표준 API 제공
- *
- * @param <Req> 요청 타입
- * @param <Res> 응답 타입
- */
+
 @Slf4j
 public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
 
@@ -48,15 +40,12 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         return labName;
     }
 
-    /**
-     * Template Method: 동기 처리
-     * 공통 전처리/후처리 로직을 포함
-     */
+    
     @Override
     public Res process(Req request) {
         long startTime = System.currentTimeMillis();
 
-        // OpenTelemetry Span 시작
+        
         Span span = tracer.spanBuilder("lab.process")
                 .setAttribute("lab.id", labId)
                 .setAttribute("lab.name", labName)
@@ -66,14 +55,14 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         log.info("{} processing request synchronously", labName);
 
         try (Scope scope = span.makeCurrent()) {
-            // 전처리
+            
             validateRequest(request);
             preProcess(request);
 
-            // 실제 처리 (하위 클래스에서 구현)
+            
             Res result = doProcess(request);
 
-            // 후처리
+            
             postProcess(request, result);
 
             long duration = System.currentTimeMillis() - startTime;
@@ -96,14 +85,12 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         }
     }
 
-    /**
-     * Template Method: 비동기 처리
-     */
+    
     @Override
     public Mono<Res> processAsync(Req request) {
         long startTime = System.currentTimeMillis();
 
-        // OpenTelemetry Span 시작
+        
         Span span = tracer.spanBuilder("lab.processAsync")
                 .setAttribute("lab.id", labId)
                 .setAttribute("lab.name", labName)
@@ -138,9 +125,7 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         }
     }
 
-    /**
-     * Template Method: 스트리밍 처리
-     */
+    
     @Override
     public Flux<String> processStream(Req request) {
         if (!supportsStreaming()) {
@@ -149,7 +134,7 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
 
         long startTime = System.currentTimeMillis();
 
-        // OpenTelemetry Span 시작
+        
         Span span = tracer.spanBuilder("lab.processStream")
                 .setAttribute("lab.id", labId)
                 .setAttribute("lab.name", labName)
@@ -188,57 +173,41 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         }
     }
 
-    // ==================== 하위 클래스에서 구현해야 하는 추상 메서드 ====================
+    
 
-    /**
-     * 실제 동기 처리 로직
-     */
+    
     protected abstract Res doProcess(Req request) throws Exception;
 
-    /**
-     * 실제 비동기 처리 로직
-     * 기본 구현은 동기 메서드를 Mono로 래핑
-     */
+    
     protected Mono<Res> doProcessAsync(Req request) {
         return Mono.fromCallable(() -> doProcess(request));
     }
 
-    /**
-     * 실제 스트리밍 처리 로직
-     * 스트리밍을 지원하는 Lab만 구현
-     */
+    
     protected Flux<String> doProcessStream(Req request) {
         return Flux.error(new UnsupportedOperationException("Streaming not implemented"));
     }
 
-    // ==================== 선택적 오버라이드 메서드 ====================
+    
 
-    /**
-     * 요청 검증
-     */
+    
     protected void validateRequest(Req request) {
         if (request == null) {
             throw new IllegalArgumentException("Request cannot be null");
         }
     }
 
-    /**
-     * 전처리 로직
-     */
+    
     protected void preProcess(Req request) {
-        // 하위 클래스에서 필요시 오버라이드
+        
     }
 
-    /**
-     * 후처리 로직
-     */
+    
     protected void postProcess(Req request, Res result) {
-        // 하위 클래스에서 필요시 오버라이드
+        
     }
 
-    /**
-     * Lab 처리 중 발생하는 예외
-     */
+    
     public static class LabProcessingException extends RuntimeException {
         public LabProcessingException(String message) {
             super(message);

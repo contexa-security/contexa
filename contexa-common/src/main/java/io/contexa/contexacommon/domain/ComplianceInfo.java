@@ -5,10 +5,7 @@ import lombok.Getter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 컴플라이언스 정보 클래스
- * SRP 준수: 컴플라이언스 정보 관리만 담당
- */
+
 @Getter
 public class ComplianceInfo {
     private final Map<String, Boolean> complianceChecks;

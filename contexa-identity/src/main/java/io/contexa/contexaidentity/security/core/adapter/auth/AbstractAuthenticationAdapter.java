@@ -84,14 +84,14 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         ApplicationContext appContext = platformContext.applicationContext();
         Objects.requireNonNull(appContext, "ApplicationContext from PlatformContext cannot be null");
 
-        // StateConfig 결정
+        
         StateConfig resolvedStateConfig = (stateConfig != null) ? stateConfig :
                 (currentFlow != null && currentFlow.getStateConfig() != null) ? currentFlow.getStateConfig() : null;
 
-        // StateType 결정
+        
         StateType stateType = determineStateType(resolvedStateConfig, appContext);
 
-        // SecurityContextRepository 결정 및 HttpSecurity SharedObject로 설정
+        
         SecurityContextRepository securityContextRepository = resolveSecurityContextRepository(
                 stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow
         );
@@ -102,8 +102,8 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         log.debug("AuthenticationFeature [{}]: SecurityContextRepository set to: {}",
                 getId(), securityContextRepository.getClass().getSimpleName());
 
-        // OAUTH2/JWT 모드에서 세션 생성 정책을 STATELESS로 설정
-        // SESSION 모드가 아닌 경우, 세션을 생성하지 않도록 명시적으로 설정
+        
+        
         if (stateType != StateType.SESSION) {
             http.sessionManagement(session -> session
                     .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -112,11 +112,11 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                     getId(), stateType);
         }
 
-        // 핸들러 결정 (단일 인증일 때도 StateType에 따라 핸들러 선택)
+        
         PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, resolvedStateConfig, appContext);
         PlatformAuthenticationFailureHandler failureHandler = resolveFailureHandler(options, currentFlow, resolvedStateConfig, appContext);
 
-        // 위임 핸들러 설정 (모든 토큰 기반 핸들러)
+        
         if (successHandler instanceof AbstractTokenBasedSuccessHandler tokenBasedSuccessHandler) {
             if (options.getSuccessHandler() != null) {
                 tokenBasedSuccessHandler.setDelegateHandler(options.getSuccessHandler());
@@ -159,7 +159,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             @Nullable StateConfig stateConfig,
             ApplicationContext appContext) {
 
-        // StateType 결정 (stateConfig → AuthContextProperties)
+        
         StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
@@ -167,13 +167,13 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 getId(), isMfaFlow, stateType);
 
         if (isMfaFlow) {
-            // MFA 인증 핸들러 선택
+            
             if (stateType == StateType.SESSION) {
                 log.debug("AuthenticationFeature [{}]: MFA + SESSION mode - using SessionMfaSuccessHandler", getId());
                 return appContext.getBean(SessionMfaSuccessHandler.class);
             } else {
-                // OAuth2 또는 JWT 모드
-                // 1차/2차 구분
+                
+                
                 if (allSteps != null) {
                     int currentStepIndex = allSteps.indexOf(myStepConfig);
                     boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
@@ -190,13 +190,13 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
             }
         } else {
-            // 단일 인증 핸들러 선택
+            
             if (stateType == StateType.SESSION) {
-                // SESSION 모드는 Spring Security 기본 핸들러 사용 (null 반환)
+                
                 log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using Spring Security default handler (null)", getId());
                 return null;
             } else {
-                // OAuth2 또는 JWT 모드
+                
                 log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthSuccessHandler", getId());
                 return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
             }
@@ -208,7 +208,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             @Nullable StateConfig stateConfig,
             ApplicationContext appContext) {
 
-        // StateType 결정
+        
         StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
@@ -216,43 +216,37 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 getId(), isMfaFlow, stateType);
 
         if (isMfaFlow) {
-            // MFA 인증 실패 핸들러 선택
+            
             if (stateType == StateType.SESSION) {
                 log.debug("AuthenticationFeature [{}]: MFA + SESSION mode - using SessionMfaFailureHandler", getId());
                 return appContext.getBean(SessionMfaFailureHandler.class);
             } else {
-                // OAuth2 또는 JWT 모드 - UnifiedAuthenticationFailureHandler 사용
+                
                 log.debug("AuthenticationFeature [{}]: MFA + OAuth2/JWT mode - using UnifiedAuthenticationFailureHandler", getId());
                 return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
             }
         } else {
-            // 단일 인증 실패 핸들러 선택
+            
             if (stateType == StateType.SESSION) {
-                // SESSION 모드는 Spring Security 기본 핸들러 사용 (null 반환)
+                
                 log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using Spring Security default handler (null)", getId());
                 return null;
             } else {
-                // OAuth2 또는 JWT 모드
+                
                 log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthFailureHandler", getId());
                 return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
             }
         }
     }
 
-    /**
-     * StateType 결정 메서드
-     *
-     * @param stateConfig StateConfig (nullable)
-     * @param appContext ApplicationContext
-     * @return StateType
-     */
+    
     protected StateType determineStateType(@Nullable StateConfig stateConfig, ApplicationContext appContext) {
-        // 1. StateConfig에서 가져오기
+        
         if (stateConfig != null && stateConfig.stateType() != null) {
             return stateConfig.stateType();
         }
 
-        // 2. AuthContextProperties에서 전역 기본값 가져오기
+        
         try {
             AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
             return properties.getStateType();
@@ -262,26 +256,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         }
     }
 
-    /**
-     * SecurityContextRepository 결정 메서드
-     *
-     * StateType과 AuthType(단일/MFA)에 따라 적절한 SecurityContextRepository를 선택합니다.
-     *
-     * 단일 인증:
-     * - SESSION 모드: HttpSessionSecurityContextRepository (세션에 저장)
-     * - OAUTH2/JWT 모드: NullSecurityContextRepository (세션에 저장하지 않음)
-     *
-     * MFA 인증:
-     * - 1차 인증: NullSecurityContextRepository (세션에 저장하지 않음)
-     * - 최종 인증 SESSION 모드: HttpSessionSecurityContextRepository (세션에 저장)
-     * - 최종 인증 OAUTH2/JWT 모드: NullSecurityContextRepository (세션에 저장하지 않음)
-     *
-     * @param stateType 상태 타입 (SESSION, OAUTH2, JWT)
-     * @param currentFlow 현재 인증 플로우 (nullable)
-     * @param myStepConfig 현재 인증 단계 설정
-     * @param allSteps 모든 인증 단계 목록 (nullable)
-     * @return 결정된 SecurityContextRepository
-     */
+    
     protected SecurityContextRepository resolveSecurityContextRepository(
             StateType stateType,
             @Nullable AuthenticationFlowConfig currentFlow,
@@ -291,18 +266,18 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
-            // MFA 인증 흐름
+            
             if (allSteps != null) {
                 int currentStepIndex = allSteps.indexOf(myStepConfig);
                 boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
                 boolean isFinalStepInMfaFlow = (currentStepIndex == allSteps.size() - 1);
 
                 if (isFirstStepInMfaFlow && !isFinalStepInMfaFlow) {
-                    // 1차 인증 (최종 인증이 아님): 세션에 저장하지 않음
+                    
                     log.debug("AuthenticationFeature [{}]: MFA primary step (not final) - using NullSecurityContextRepository", getId());
                     return new NullSecurityContextRepository();
                 } else if (isFinalStepInMfaFlow) {
-                    // 최종 인증: StateType에 따라 결정
+                    
                     if (stateType == StateType.SESSION) {
                         log.debug("AuthenticationFeature [{}]: MFA final step + SESSION mode - using HttpSessionSecurityContextRepository", getId());
                         return new HttpSessionSecurityContextRepository();
@@ -311,16 +286,16 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                         return new NullSecurityContextRepository();
                     }
                 } else {
-                    // 중간 인증 단계: 세션에 저장하지 않음
+                    
                     log.debug("AuthenticationFeature [{}]: MFA intermediate step - using NullSecurityContextRepository", getId());
                     return new NullSecurityContextRepository();
                 }
             }
-            // allSteps가 null인 경우: Fallback - 세션에 저장하지 않음
+            
             log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using NullSecurityContextRepository as fallback", getId());
             return new NullSecurityContextRepository();
         } else {
-            // 단일 인증: StateType에 따라 결정
+            
             if (stateType == StateType.SESSION) {
                 log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using HttpSessionSecurityContextRepository", getId());
                 return new HttpSessionSecurityContextRepository();
@@ -331,11 +306,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         }
     }
 
-    /**
-     * OTT 기능에 대한 기본 {@link OneTimeTokenGenerationSuccessHandler}를 결정합니다.
-     * 이 메서드는 {@link OttAuthenticationAdapter}에서 반드시 재정의되어야 하며,
-     * null을 반환해서는 안 됩니다.
-     */
+    
     protected OneTimeTokenGenerationSuccessHandler determineDefaultOttGenerationSuccessHandler(ApplicationContext appContext) {
         log.debug("AuthenticationFeature [{}]: Determining default OTT success handler. This should be overridden in OttAuthenticationAdapter.", getId());
         try {

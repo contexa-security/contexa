@@ -34,10 +34,10 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     private AtomicReference<MfaState> currentMfaState;
     private final AtomicInteger version = new AtomicInteger(0);
 
-    // 읽기 전용 플래그 (Single Source of Truth 패턴)
+    
     private boolean readOnly = false;
 
-    // 동시성 제어를 위한 ReadWriteLock 추가
+    
     private transient ReadWriteLock stateLock;
     private transient ReadWriteLock factorsLock;
 
@@ -87,15 +87,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return this.currentMfaState.get();
     }
 
-    /**
-     * 상태 변경 - 동시성 안전 보장
-     * Single Source of Truth 패턴: State Machine을 통해서만 상태 변경 권장
-     *
-     * <p>
-     * <strong>Phase 5 개선:</strong> 버전 관리는 MfaStateMachineService에서 단독으로 수행합니다.
-     * 이 메서드는 상태 변경만 담당하며, 버전 증가는 수행하지 않습니다.
-     * </p>
-     */
+    
     public void changeState(MfaState newState) {
         if (readOnly) {
             throw new IllegalStateException(
@@ -107,7 +99,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         try {
             MfaState previousState = this.currentMfaState.getAndSet(newState);
             if (previousState != newState) {
-                // Phase 5: 버전 자동 증가 제거 - MfaStateMachineService에서 명시적으로 관리
+                
                 log.info("FactorContext (ID: {}) state changed from {} to {} for user '{}'. Version: {} (버전 증가는 MfaStateMachineService에서 수행)",
                         mfaSessionId, previousState, newState, this.username, this.version.get());
                 updateLastActivityTimestamp();
@@ -117,12 +109,9 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         }
     }
 
-    /**
-     * 버전 증가 - 스레드 안전
-     * @return 증가된 버전 번호
-     */
+    
     public int incrementVersion() {
-        // P2-1 수정: readOnly 체크 추가
+        
         if (readOnly) {
             throw new IllegalStateException(
                 "FactorContext is read-only. Cannot increment version."
@@ -135,20 +124,14 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return newVersion;
     }
 
-    /**
-     * 현재 버전 조회 - 스레드 안전
-     * @return 현재 버전 번호
-     */
+    
     public int getVersion() {
         return this.version.get();
     }
 
-    /**
-     * 버전을 특정 값으로 설정 (테스트 또는 복원 시 사용)
-     * @param newVersion 설정할 버전 번호
-     */
+    
     public void setVersion(int newVersion) {
-        // P2-1 수정: readOnly 체크 추가
+        
         if (readOnly) {
             throw new IllegalStateException(
                 "FactorContext is read-only. Cannot set version."
@@ -165,12 +148,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         }
     }
 
-    /**
-     * 버전을 원자적으로 비교하고 설정
-     * @param expectedVersion 예상 버전
-     * @param newVersion 새 버전
-     * @return 성공 여부
-     */
+    
     public boolean compareAndSetVersion(int expectedVersion, int newVersion) {
         boolean success = this.version.compareAndSet(expectedVersion, newVersion);
         if (success) {
@@ -184,9 +162,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return success;
     }
 
-    /**
-     * 완료된 팩터 추가 - 개선된 동시성 제어
-     */
+    
     public void addCompletedFactor(AuthenticationStepConfig completedFactor) {
         if (readOnly) {
             throw new IllegalStateException(
@@ -203,7 +179,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
             if (!alreadyExists) {
                 this.completedFactors.add(completedFactor);
-                // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
+                
                 log.debug("FactorContext (ID: {}): Factor '{}' (StepId: {}) marked as completed for user {}. Total completed: {}",
                         mfaSessionId, completedFactor.getType(), completedFactor.getStepId(), this.username, this.completedFactors.size());
                 updateLastActivityTimestamp();
@@ -246,7 +222,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public int incrementAttemptCount(@Nullable AuthType factorType) {
-        // P2-1 수정: readOnly 체크 추가
+        
         if (readOnly) {
             throw new IllegalStateException(
                 "FactorContext is read-only. Cannot increment attempt count."
@@ -261,7 +237,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
         int newCount = factorAttemptCounts.compute(factorType, (key, val) -> (val == null) ? 1 : val + 1);
         updateLastActivityTimestamp();
-        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
+        
 
         log.debug("FactorContext (ID: {}): Attempt count for {} incremented to {} for user {}.",
                 mfaSessionId, factorType, newCount, this.username);
@@ -274,7 +250,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public void recordAttempt(@Nullable AuthType factorType, boolean success, String detail) {
-        // P2-1 수정: readOnly 체크 추가
+        
         if (readOnly) {
             throw new IllegalStateException(
                 "FactorContext is read-only. Cannot record attempt."
@@ -282,13 +258,13 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         }
         this.mfaAttemptHistory.add(new MfaAttemptDetail(factorType, success, detail));
         updateLastActivityTimestamp();
-        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
+        
         log.info("FactorContext (ID: {}): MFA attempt recorded: Factor={}, Success={}, Detail='{}' for user {}",
                 mfaSessionId, factorType, success, detail, this.username);
     }
 
     public int incrementFailedAttempts(String factorTypeOrStepId) {
-        // P2-1 수정: readOnly 체크 추가
+        
         if (readOnly) {
             throw new IllegalStateException(
                 "FactorContext is read-only. Cannot increment failed attempts."
@@ -302,7 +278,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         log.debug("FactorContext (ID: {}): Failed attempt for factor/step '{}' incremented to {}. User: {}",
                 mfaSessionId, factorTypeOrStepId, attempts, this.username);
         updateLastActivityTimestamp();
-        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
+        
         return attempts;
     }
 
@@ -311,7 +287,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     }
 
     public void resetFailedAttempts(String factorTypeOrStepId) {
-        // P2-1 수정: readOnly 체크 추가
+        
         if (readOnly) {
             throw new IllegalStateException(
                 "FactorContext is read-only. Cannot reset failed attempts."
@@ -321,11 +297,11 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         log.debug("FactorContext (ID: {}): Failed attempts for factor/step '{}' reset. User: {}",
                 mfaSessionId, factorTypeOrStepId, this.username);
         updateLastActivityTimestamp();
-        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
+        
     }
 
     public void resetAllFailedAttempts() {
-        // P2-1 수정: readOnly 체크 추가
+        
         if (readOnly) {
             throw new IllegalStateException(
                 "FactorContext is read-only. Cannot reset all failed attempts."
@@ -334,7 +310,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         this.failedAttempts.clear();
         log.debug("FactorContext (ID: {}): All failed attempts reset. User: {}", mfaSessionId, this.username);
         updateLastActivityTimestamp();
-        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
+        
     }
 
     public void setAttribute(String name, Object value) {
@@ -344,7 +320,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             );
         }
 
-        // Phase 3.4: Serializable 검증 (Redis 직렬화를 위해)
+        
         if (value != null && !(value instanceof Serializable)) {
             throw new IllegalArgumentException(
                 "Attribute must be Serializable for Redis persistence: " +
@@ -367,7 +343,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             );
         }
         this.attributes.remove(name);
-        // Phase 1.1: 버전 증가는 MfaStateMachineService에서만 수행
+        
     }
 
     public boolean isFullyAuthenticated() {
@@ -386,10 +362,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return this.retryCount;
     }
 
-    /**
-     * DSL에서 정의된 사용 가능한 팩터를 반환합니다.
-     * @return DSL 정의 팩터 집합
-     */
+    
     @Override
     public Set<AuthType> getAvailableFactors() {
         Object availableFactorsObj = getAttribute("availableFactors");
@@ -417,18 +390,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    /**
-     * 특정 팩터가 DSL에 정의되어 있는지 확인합니다.
-     * @param factorType 확인할 팩터 타입
-     * @return DSL에 정의되어 있으면 true
-     */
+    
     public boolean isFactorAvailable(AuthType factorType) {
         return getAvailableFactors().contains(factorType);
     }
 
-    /**
-     * 완료된 팩터 목록 조회 - 읽기 전용 복사본 반환
-     */
+    
     @Override
     public List<AuthenticationStepConfig> getCompletedFactors() {
         factorsLock.readLock().lock();
@@ -450,10 +417,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return this.createdAt;
     }
 
-    /**
-     * 상태 및 주요 정보 변경 감지를 위한 해시 계산
-     * @return 현재 상태의 해시값
-     */
+    
     public String calculateStateHash() {
         StringBuilder sb = new StringBuilder();
         sb.append(mfaSessionId).append(":");
@@ -466,10 +430,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return Integer.toHexString(sb.toString().hashCode());
     }
 
-    /**
-     * 디버깅을 위한 상태 스냅샷
-     * @return 현재 상태의 스냅샷
-     */
+    
     public Map<String, Object> getStateSnapshot() {
         Map<String, Object> snapshot = new HashMap<>();
         snapshot.put("mfaSessionId", mfaSessionId);
@@ -539,9 +500,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         this.version.incrementAndGet();
     }
 
-    /**
-     * 팩터 완료 여부 확인 - 스레드 안전
-     */
+    
     public boolean isFactorCompleted(String stepId) {
         if (!StringUtils.hasText(stepId)) {
             return false;
@@ -556,14 +515,9 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         }
     }
 
-    // ===== Phase 3.3: Type-safe Attribute Getters =====
+    
 
-    /**
-     * Type-safe String 속성 조회
-     *
-     * @param key 속성 키
-     * @return String 값 또는 null
-     */
+    
     @Nullable
     public String getStringAttribute(String key) {
         Object value = getAttribute(key);
@@ -576,12 +530,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    /**
-     * Type-safe Long 속성 조회
-     *
-     * @param key 속성 키
-     * @return Long 값 또는 null
-     */
+    
     @Nullable
     public Long getLongAttribute(String key) {
         Object value = getAttribute(key);
@@ -597,12 +546,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    /**
-     * Type-safe Boolean 속성 조회
-     *
-     * @param key 속성 키
-     * @return Boolean 값 또는 null
-     */
+    
     @Nullable
     public Boolean getBooleanAttribute(String key) {
         Object value = getAttribute(key);
@@ -615,12 +559,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    /**
-     * Type-safe Integer 속성 조회
-     *
-     * @param key 속성 키
-     * @return Integer 값 또는 null
-     */
+    
     @Nullable
     public Integer getIntegerAttribute(String key) {
         Object value = getAttribute(key);
@@ -636,13 +575,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    /**
-     * Type-safe Set 속성 조회
-     *
-     * @param key 속성 키
-     * @param <T> Set 원소 타입
-     * @return Set 값 또는 empty Set
-     */
+    
     public <T> Set<T> getSetAttribute(String key) {
         Object value = getAttribute(key);
         if (value instanceof Set) {
@@ -659,13 +592,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return new HashSet<>();
     }
 
-    /**
-     * Type-safe List 속성 조회
-     *
-     * @param key 속성 키
-     * @param <T> List 원소 타입
-     * @return List 값 또는 empty List
-     */
+    
     public <T> List<T> getListAttribute(String key) {
         Object value = getAttribute(key);
         if (value instanceof List) {
@@ -682,14 +609,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return new ArrayList<>();
     }
 
-    /**
-     * Type-safe Map 속성 조회
-     *
-     * @param key 속성 키
-     * @param <K> Map 키 타입
-     * @param <V> Map 값 타입
-     * @return Map 값 또는 empty Map
-     */
+    
     public <K, V> Map<K, V> getMapAttribute(String key) {
         Object value = getAttribute(key);
         if (value instanceof Map) {

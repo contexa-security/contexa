@@ -7,12 +7,7 @@ import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.NotBlank;
 
-/**
- * 비활성화 요청 DTO
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Data
 @Builder
 @NoArgsConstructor

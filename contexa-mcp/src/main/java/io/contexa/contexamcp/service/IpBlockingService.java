@@ -17,10 +17,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * IP Blocking Service
- * IP 주소 차단 관리 서비스
- */
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -34,12 +31,10 @@ public class IpBlockingService {
     private static final String BLOCKED_RANGE_SET_KEY = "blocked:range:set";
     private static final String WHITELIST_IP_KEY = "whitelist:ip:set";
     
-    /**
-     * IP 차단
-     */
+    
     public BlockResult blockIp(String ipAddress, String reason, Duration duration, String blockedBy) {
         try {
-            // 화이트리스트 확인
+            
             if (isWhitelisted(ipAddress)) {
                 log.warn("Cannot block whitelisted IP: {}", ipAddress);
                 return BlockResult.builder()
@@ -49,7 +44,7 @@ public class IpBlockingService {
                     .build();
             }
             
-            // 이미 차단된 IP인지 확인
+            
             if (isBlocked(ipAddress)) {
                 log.info("IP already blocked: {}", ipAddress);
                 return BlockResult.builder()
@@ -68,7 +63,7 @@ public class IpBlockingService {
                 .active(true)
                 .build();
             
-            // Redis에 차단 정보 저장
+            
             String blockKey = BLOCKED_IP_KEY_PREFIX + ipAddress;
             if (duration != null) {
                 redisTemplate.opsForValue().set(blockKey, blockInfo, duration.toSeconds(), TimeUnit.SECONDS);
@@ -76,7 +71,7 @@ public class IpBlockingService {
                 redisTemplate.opsForValue().set(blockKey, blockInfo);
             }
             
-            // 차단 IP 집합에 추가
+            
             redisTemplate.opsForSet().add(BLOCKED_IP_SET_KEY, ipAddress);
             
             log.info("IP blocked: {} for reason: {} by: {}", ipAddress, reason, blockedBy);
@@ -98,12 +93,10 @@ public class IpBlockingService {
         }
     }
     
-    /**
-     * IP 범위 차단 (CIDR)
-     */
+    
     public BlockResult blockIpRange(String cidrRange, String reason, Duration duration, String blockedBy) {
         try {
-            // CIDR 유효성 검증
+            
             if (!isValidCidr(cidrRange)) {
                 return BlockResult.builder()
                     .success(false)
@@ -121,7 +114,7 @@ public class IpBlockingService {
                 .active(true)
                 .build();
             
-            // Redis에 범위 차단 정보 저장
+            
             String rangeKey = BLOCKED_RANGE_KEY_PREFIX + cidrRange.replace("/", "_");
             if (duration != null) {
                 redisTemplate.opsForValue().set(rangeKey, rangeInfo, duration.toSeconds(), TimeUnit.SECONDS);
@@ -129,7 +122,7 @@ public class IpBlockingService {
                 redisTemplate.opsForValue().set(rangeKey, rangeInfo);
             }
             
-            // 차단 범위 집합에 추가
+            
             redisTemplate.opsForSet().add(BLOCKED_RANGE_SET_KEY, cidrRange);
             
             log.info("IP range blocked: {} for reason: {} by: {}", cidrRange, reason, blockedBy);
@@ -151,9 +144,7 @@ public class IpBlockingService {
         }
     }
     
-    /**
-     * IP 차단 해제
-     */
+    
     public boolean unblockIp(String ipAddress) {
         try {
             String blockKey = BLOCKED_IP_KEY_PREFIX + ipAddress;
@@ -174,17 +165,15 @@ public class IpBlockingService {
         }
     }
     
-    /**
-     * IP 차단 여부 확인
-     */
+    
     public boolean isBlocked(String ipAddress) {
-        // 개별 IP 차단 확인
+        
         String blockKey = BLOCKED_IP_KEY_PREFIX + ipAddress;
         if (Boolean.TRUE.equals(redisTemplate.hasKey(blockKey))) {
             return true;
         }
         
-        // 범위 차단 확인
+        
         Set<Object> blockedRanges = redisTemplate.opsForSet().members(BLOCKED_RANGE_SET_KEY);
         if (blockedRanges != null) {
             for (Object range : blockedRanges) {
@@ -197,26 +186,20 @@ public class IpBlockingService {
         return false;
     }
     
-    /**
-     * 화이트리스트 확인
-     */
+    
     public boolean isWhitelisted(String ipAddress) {
         return Boolean.TRUE.equals(
             redisTemplate.opsForSet().isMember(WHITELIST_IP_KEY, ipAddress)
         );
     }
     
-    /**
-     * 화이트리스트에 IP 추가
-     */
+    
     public void addToWhitelist(String ipAddress) {
         redisTemplate.opsForSet().add(WHITELIST_IP_KEY, ipAddress);
         log.info("IP added to whitelist: {}", ipAddress);
     }
     
-    /**
-     * 차단된 IP 목록 조회
-     */
+    
     public List<BlockedIpInfo> getBlockedIps() {
         Set<Object> blockedIps = redisTemplate.opsForSet().members(BLOCKED_IP_SET_KEY);
         if (blockedIps == null) {
@@ -233,9 +216,7 @@ public class IpBlockingService {
             .collect(Collectors.toList());
     }
     
-    /**
-     * 차단된 IP 범위 목록 조회
-     */
+    
     public List<BlockedRangeInfo> getBlockedRanges() {
         Set<Object> blockedRanges = redisTemplate.opsForSet().members(BLOCKED_RANGE_SET_KEY);
         if (blockedRanges == null) {
@@ -252,9 +233,7 @@ public class IpBlockingService {
             .collect(Collectors.toList());
     }
     
-    /**
-     * 차단 통계 조회
-     */
+    
     public BlockingStatistics getStatistics() {
         int blockedIps = getBlockedIps().size();
         int blockedRanges = getBlockedRanges().size();
@@ -268,9 +247,7 @@ public class IpBlockingService {
             .build();
     }
     
-    /**
-     * CIDR 유효성 검증
-     */
+    
     private boolean isValidCidr(String cidr) {
         if (cidr == null || !cidr.contains("/")) {
             return false;
@@ -281,12 +258,12 @@ public class IpBlockingService {
             return false;
         }
         
-        // IP 부분 검증
+        
         if (!isValidIpAddress(parts[0])) {
             return false;
         }
         
-        // 서브넷 마스크 검증
+        
         try {
             int mask = Integer.parseInt(parts[1]);
             return mask >= 0 && mask <= 32;
@@ -295,9 +272,7 @@ public class IpBlockingService {
         }
     }
     
-    /**
-     * IP 주소 유효성 검증
-     */
+    
     private boolean isValidIpAddress(String ip) {
         if (ip == null) {
             return false;
@@ -322,9 +297,7 @@ public class IpBlockingService {
         return true;
     }
     
-    /**
-     * IP가 특정 범위에 포함되는지 확인
-     */
+    
     private boolean isIpInRange(String ip, String cidr) {
         try {
             String[] cidrParts = cidr.split("/");
@@ -342,9 +315,7 @@ public class IpBlockingService {
         }
     }
     
-    /**
-     * IP 주소를 long으로 변환
-     */
+    
     private long ipToLong(String ip) {
         String[] parts = ip.split("\\.");
         long result = 0;
@@ -354,9 +325,7 @@ public class IpBlockingService {
         return result;
     }
     
-    /**
-     * Block Result
-     */
+    
     @Data
     @Builder
     public static class BlockResult {
@@ -366,9 +335,7 @@ public class IpBlockingService {
         private Instant blockedUntil;
     }
     
-    /**
-     * Blocked IP Info
-     */
+    
     @Data
     @Builder
     public static class BlockedIpInfo implements Serializable {
@@ -380,9 +347,7 @@ public class IpBlockingService {
         private boolean active;
     }
     
-    /**
-     * Blocked Range Info
-     */
+    
     @Data
     @Builder
     public static class BlockedRangeInfo implements Serializable {
@@ -394,9 +359,7 @@ public class IpBlockingService {
         private boolean active;
     }
     
-    /**
-     * Blocking Statistics
-     */
+    
     @Data
     @Builder
     public static class BlockingStatistics {

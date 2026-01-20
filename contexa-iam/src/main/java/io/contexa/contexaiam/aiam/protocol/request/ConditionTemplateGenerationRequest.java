@@ -8,18 +8,13 @@ import lombok.Getter;
 import java.util.Map;
 
 
-/**
- * 조건 템플릿 생성 요청 DTO
- * 
- * 타입 안전성: 구체적인 요청 타입
- * 범용/특화 조건 템플릿 생성 지원
- */
+
 @Getter
 public class ConditionTemplateGenerationRequest extends IAMRequest<ConditionTemplateContext> {
     
-    private final String templateType; // "universal" 또는 "specific"
-    private final String resourceIdentifier; // 특화 조건용 (선택적)
-    private final String methodInfo; // 특화 조건용 (선택적)
+    private final String templateType; 
+    private final String resourceIdentifier; 
+    private final String methodInfo; 
     private final Map<String, Object> additionalParameters;
     private final boolean isUniversal;
 
@@ -49,29 +44,23 @@ public class ConditionTemplateGenerationRequest extends IAMRequest<ConditionTemp
             this.withParameter("methodInfo", methodInfo);
         }
         
-        // 컨텍스트에 추가 파라미터 설정
+        
         if (additionalParameters != null) {
             additionalParameters.forEach(this.getContext()::putTemplateMetadata);
         }
     }
     
-    /**
-     * 범용 조건 템플릿 생성 요청
-     */
+    
     public static ConditionTemplateGenerationRequest forUniversalTemplate() {
         return new ConditionTemplateGenerationRequest(true);
     }
     
-    /**
-     * 특화 조건 템플릿 생성 요청
-     */
+    
     public static ConditionTemplateGenerationRequest forSpecificTemplate(String resourceIdentifier, String methodInfo) {
         return new ConditionTemplateGenerationRequest(true, "specific", resourceIdentifier, methodInfo);
     }
     
-    /**
-     * 컨텍스트 생성 헬퍼 메서드
-     */
+    
     private static ConditionTemplateContext createContext(String templateType, String resourceIdentifier, String methodInfo) {
         if ("universal".equals(templateType)) {
             return ConditionTemplateContext.forUniversalTemplate();

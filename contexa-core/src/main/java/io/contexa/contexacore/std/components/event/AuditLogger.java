@@ -14,15 +14,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- * IAM 감사 로거
- * 
- * 완전한 감사 추적 시스템
- * - 모든 IAM 작업 로깅
- * - 성능 메트릭 수집
- * - 보안 이벤트 추적
- * - 규정 준수 지원
- */
+
 public class AuditLogger {
     
     private static final Logger log = LoggerFactory.getLogger(AuditLogger.class);
@@ -30,9 +22,7 @@ public class AuditLogger {
     
     private final ConcurrentMap<String, AuditEntry> activeAudits = new ConcurrentHashMap<>();
     
-    /**
-     * 감사 시작
-     */
+    
     public <T extends DomainContext> String startAudit(AIRequest<T> request) {
         String auditId = generateAuditId();
         
@@ -53,9 +43,7 @@ public class AuditLogger {
         return auditId;
     }
     
-    /**
-     * 감사 완료
-     */
+    
     public <T extends DomainContext, R extends AIResponse> void completeAudit(
             String auditId, AIRequest<T> request, R response) {
         
@@ -73,13 +61,11 @@ public class AuditLogger {
         auditLog.info("AUDIT_SUCCESS: {} - Duration: {}ms - Response: {} - Status: {}", 
                      auditId, entry.duration, entry.responseType, response.getStatus());
         
-        // 메트릭 수집
+        
         collectMetrics(entry, request, response);
     }
     
-    /**
-     * 감사 실패
-     */
+    
     public <T extends DomainContext> void failAudit(String auditId, AIRequest<T> request, Exception error) {
         AuditEntry entry = activeAudits.remove(auditId);
         if (entry == null) {
@@ -96,11 +82,11 @@ public class AuditLogger {
         auditLog.error("AUDIT_FAILED: {} - Duration: {}ms - Error: {} - Message: {}", 
                       auditId, entry.duration, entry.errorType, entry.errorMessage);
         
-        // 보안 이벤트 체크
+        
         checkSecurityEvent(entry, request, error);
     }
     
-    // ==================== Private Methods ====================
+    
     
     private String generateAuditId() {
         return "AUDIT-" + UUID.randomUUID().toString().substring(0, 8);
@@ -116,7 +102,7 @@ public class AuditLogger {
     }
     
     private String getClientInfo() {
-        // HTTP 요청에서 클라이언트 정보 추출
+        
         try {
             RequestAttributes attrs =
                 RequestContextHolder.getRequestAttributes();
@@ -126,30 +112,30 @@ public class AuditLogger {
                 return remoteAddr + ":" + remotePort;
             }
         } catch (Exception e) {
-            // TODO  웹 컨텍스트가 없는 경우 (배치 작업 등)
+            
         }
         return "INTERNAL";
     }
     
     private <T extends DomainContext, R extends AIResponse> void collectMetrics(
             AuditEntry entry, AIRequest<T> request, R response) {
-        // 성능 메트릭 수집
+        
         log.debug("Metrics - Operation: {} - Duration: {}ms - Success: true", 
                  entry.operationType, entry.duration);
         
-        // TODO 추가 메트릭 수집 로직...
+        
     }
     
     private <T extends DomainContext> void checkSecurityEvent(
             AuditEntry entry, AIRequest<T> request, Exception error) {
-        // 보안 이벤트 감지
+        
         if (error instanceof SecurityException || error.getMessage().contains("access denied")) {
             auditLog.warn("SECURITY_EVENT: {} - Potential security violation detected - User: {} - Operation: {}", 
                          entry.auditId, entry.userId, entry.operationType);
         }
     }
     
-    // ==================== Inner Classes ====================
+    
     
     private static class AuditEntry {
         final String auditId;

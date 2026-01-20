@@ -24,31 +24,23 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * UnifiedNotificationService - 통합 알림 서비스
- * 
- * Email, WebSocket, SMS, Slack 등 다양한 채널을 통해
- * 보안 알림을 전송하는 통합 서비스입니다.
- * 
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedNotificationService {
     
-    // 기존 서비스 재사용
+    
     private final SoarEmailService emailService;
     private final McpApprovalNotificationService websocketService;
     
-    // 새로운 어댑터
+    
     private final SlackNotificationAdapter slackAdapter;
     private final SmsNotificationAdapter smsAdapter;
     
-    // Redis Template
+    
     private final RedisTemplate<String, Object> redisTemplate;
     
-    // 설정값
+    
     @Value("${notification.enabled.email:true}")
     private boolean emailEnabled;
     
@@ -76,50 +68,45 @@ public class UnifiedNotificationService {
     @Value("${notification.batch.delay-ms:1000}")
     private int batchDelayMs;
     
-    // 알림 채널 우선순위
+    
     private final Map<NotificationChannel, Integer> channelPriorities = new ConcurrentHashMap<>();
     
-    // 알림 템플릿
+    
     private final Map<String, NotificationTemplate> templates = new ConcurrentHashMap<>();
     
-    // 메트릭
+    
     private final AtomicLong totalNotificationsSent = new AtomicLong(0);
     private final AtomicLong failedNotifications = new AtomicLong(0);
     private final Map<NotificationChannel, AtomicLong> channelMetrics = new ConcurrentHashMap<>();
     
-    // 알림 큐 (배치 처리용)
+    
     private final List<PendingNotification> notificationQueue = Collections.synchronizedList(new ArrayList<>());
     
     @PostConstruct
     public void initialize() {
         log.info("통합 알림 서비스 초기화 시작");
         
-        // 채널 우선순위 설정
+        
         initializeChannelPriorities();
         
-        // 기본 템플릿 로드
+        
         loadNotificationTemplates();
         
-        // 배치 프로세서 시작
+        
         startBatchProcessor();
         
         log.info("통합 알림 서비스 초기화 완료 - Email: {}, WebSocket: {}, Slack: {}, SMS: {}", 
             emailEnabled, websocketEnabled, slackEnabled, smsEnabled);
     }
     
-    /**
-     * 승인 요청 알림 발송 (모든 채널)
-     * 
-     * @param request 승인 요청
-     * @return 발송 결과
-     */
+    
     public Mono<NotificationResult> sendApprovalRequest(ApprovalRequest request) {
         log.info("승인 요청 알림 발송 시작 - Request ID: {}, Tool: {}", 
             request.getRequestId(), request.getToolName());
         
         List<Mono<ChannelResult>> notifications = new ArrayList<>();
         
-        // 이메일 발송
+        
         if (emailEnabled && shouldNotifyByEmail(request)) {
             notifications.add(
                 sendEmailNotification(request)
@@ -131,7 +118,7 @@ public class UnifiedNotificationService {
             );
         }
         
-        // WebSocket 발송
+        
         if (websocketEnabled) {
             notifications.add(
                 sendWebSocketNotification(request)
@@ -143,7 +130,7 @@ public class UnifiedNotificationService {
             );
         }
         
-        // Slack 발송
+        
         if (slackEnabled && shouldNotifyBySlack(request)) {
             notifications.add(
                 sendSlackNotification(request)
@@ -155,7 +142,7 @@ public class UnifiedNotificationService {
             );
         }
         
-        // SMS 발송 (긴급한 경우만)
+        
         if (smsEnabled && isUrgentRequest(request)) {
             notifications.add(
                 sendSmsNotification(request)
@@ -167,7 +154,7 @@ public class UnifiedNotificationService {
             );
         }
         
-        // 모든 채널 결과 수집
+        
         return Flux.merge(notifications)
             .collectList()
             .map(results -> {
@@ -177,16 +164,14 @@ public class UnifiedNotificationService {
                 result.setChannelResults(results);
                 result.setSuccess(results.stream().anyMatch(ChannelResult::isSuccess));
                 
-                // 메트릭 업데이트
+                
                 updateMetrics(results);
                 
                 return result;
             });
     }
     
-    /**
-     * 보안 이벤트 알림
-     */
+    
     public Mono<NotificationResult> sendSecurityEventNotification(SecurityEvent event, ThreatIndicators indicators) {
         log.info("보안 이벤트 알림 발송 - Event: {}, Risk Level: {}", 
             event.getEventId(), indicators.getRiskLevel());
@@ -208,9 +193,7 @@ public class UnifiedNotificationService {
             .map(results -> createNotificationResult(event.getEventId(), results));
     }
     
-    /**
-     * 완료 알림
-     */
+    
     public Mono<NotificationResult> sendCompletionNotification(String requestId, SoarResponse response) {
         log.info("SOAR 분석 완료 알림 발송 - Request ID: {}", requestId);
         
@@ -228,9 +211,7 @@ public class UnifiedNotificationService {
         );
     }
     
-    /**
-     * 배치 알림 발송
-     */
+    
     public Mono<List<NotificationResult>> sendBatchNotifications(List<NotificationRequest> requests) {
         log.info("배치 알림 발송 시작 - {} 건", requests.size());
         
@@ -247,9 +228,7 @@ public class UnifiedNotificationService {
             .collectList();
     }
     
-    /**
-     * 개별 알림 발송
-     */
+    
     private Mono<NotificationResult> sendNotification(NotificationRequest request) {
         return sendMultiChannelNotification(
             request.getType(),
@@ -259,9 +238,7 @@ public class UnifiedNotificationService {
         );
     }
     
-    /**
-     * 멀티채널 알림 발송
-     */
+    
     private Mono<NotificationResult> sendMultiChannelNotification(
         String type, 
         String subject, 
@@ -290,9 +267,7 @@ public class UnifiedNotificationService {
             .map(results -> createNotificationResult(UUID.randomUUID().toString(), results));
     }
     
-    /**
-     * 채널별 발송
-     */
+    
     private Mono<ChannelResult> sendToChannel(
         NotificationChannel channel,
         SecurityEvent event,
@@ -313,9 +288,7 @@ public class UnifiedNotificationService {
         return sendToChannel(channel, subject, content, context, priority);
     }
     
-    /**
-     * 채널별 발송 구현
-     */
+    
     private Mono<ChannelResult> sendToChannel(
         NotificationChannel channel,
         String subject,
@@ -351,9 +324,7 @@ public class UnifiedNotificationService {
         });
     }
     
-    /**
-     * 이메일 발송
-     */
+    
     private Mono<Boolean> sendEmailNotification(ApprovalRequest request) {
         return Mono.fromRunnable(() -> {
             String subject = String.format("승인 요청: %s", request.getToolName());
@@ -375,9 +346,7 @@ public class UnifiedNotificationService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * WebSocket 발송
-     */
+    
     private Mono<Boolean> sendWebSocketNotification(ApprovalRequest request) {
         return Mono.fromRunnable(() -> 
             websocketService.sendApprovalRequest(request)
@@ -386,9 +355,7 @@ public class UnifiedNotificationService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * Slack 발송
-     */
+    
     private Mono<Boolean> sendSlackNotification(ApprovalRequest request) {
         Map<String, Object> slackContext = new HashMap<>();
         slackContext.put("requestId", request.getRequestId());
@@ -404,9 +371,7 @@ public class UnifiedNotificationService {
         );
     }
     
-    /**
-     * SMS 발송
-     */
+    
     private Mono<Boolean> sendSmsNotification(ApprovalRequest request) {
         String message = String.format(
             "[긴급] %s 도구 실행 승인 필요. 위험도: %s. ID: %s",
@@ -422,9 +387,7 @@ public class UnifiedNotificationService {
         );
     }
     
-    /**
-     * 일반 이메일 발송
-     */
+    
     private Mono<Boolean> sendEmail(String subject, String content, Map<String, Object> context) {
         String recipients = (String) context.getOrDefault("recipients", "security@contexa.com");
         
@@ -435,9 +398,7 @@ public class UnifiedNotificationService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * WebSocket 메시지 발송
-     */
+    
     private Mono<Boolean> sendWebSocket(String subject, String content, Map<String, Object> context) {
         return Mono.fromRunnable(() -> {
             Map<String, Object> message = new HashMap<>();
@@ -453,9 +414,7 @@ public class UnifiedNotificationService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * 우선순위 계산
-     */
+    
     private NotificationPriority calculatePriority(ThreatIndicators indicators) {
         int urgency = indicators.getUrgencyLevel();
         
@@ -466,32 +425,30 @@ public class UnifiedNotificationService {
         return NotificationPriority.INFO;
     }
     
-    /**
-     * 채널 선택
-     */
+    
     private Set<NotificationChannel> selectChannels(NotificationPriority priority, String eventType) {
         Set<NotificationChannel> channels = new HashSet<>();
         
-        // 우선순위에 따른 채널 선택
+        
         switch (priority) {
             case URGENT:
                 if (smsEnabled) channels.add(NotificationChannel.SMS);
                 if (slackEnabled) channels.add(NotificationChannel.SLACK);
-                // fall through
+                
             case HIGH:
                 if (emailEnabled) channels.add(NotificationChannel.EMAIL);
-                // fall through
+                
             case MEDIUM:
                 if (websocketEnabled) channels.add(NotificationChannel.WEBSOCKET);
-                // fall through
+                
             case LOW:
             case INFO:
-                // 최소한 WebSocket은 항상 사용
+                
                 if (websocketEnabled) channels.add(NotificationChannel.WEBSOCKET);
                 break;
         }
         
-        // 이벤트 타입별 추가 채널
+        
         if (eventType != null) {
             if (eventType.contains("CRITICAL") || eventType.contains("BREACH")) {
                 if (smsEnabled) channels.add(NotificationChannel.SMS);
@@ -504,32 +461,24 @@ public class UnifiedNotificationService {
         return channels;
     }
     
-    /**
-     * 긴급 요청 판별
-     */
+    
     private boolean isUrgentRequest(ApprovalRequest request) {
         return "CRITICAL".equals(request.getRiskLevel()) || 
                "HIGH".equals(request.getRiskLevel());
     }
     
-    /**
-     * 이메일 알림 필요 여부
-     */
+    
     private boolean shouldNotifyByEmail(ApprovalRequest request) {
         return request.getRequesterEmail() != null && !request.getRequesterEmail().isEmpty();
     }
     
-    /**
-     * Slack 알림 필요 여부
-     */
+    
     private boolean shouldNotifyBySlack(ApprovalRequest request) {
         return request.getRiskLevel() != null && 
                (request.getRiskLevel().equals("HIGH") || request.getRiskLevel().equals("CRITICAL"));
     }
     
-    /**
-     * 기본 컨텐츠 생성
-     */
+    
     private String createDefaultContent(SecurityEvent event, ThreatIndicators indicators) {
         StringBuilder content = new StringBuilder();
         content.append("보안 이벤트 상세:\n");
@@ -549,25 +498,19 @@ public class UnifiedNotificationService {
         return content.toString();
     }
     
-    /**
-     * 승인 알림 재전송
-     * SecurityPlaneAgent에서 호출되어 대기 중인 승인을 재알림합니다.
-     * 
-     * @param approvalId 승인 요청 ID
-     * @return 알림 발송 성공 여부
-     */
+    
     public Mono<Boolean> sendApprovalReminder(String approvalId) {
         log.info("승인 알림 재전송 시작: approvalId={}", approvalId);
         
         return Mono.fromCallable(() -> {
-            // ApprovalRequest 조회 (Repository를 통해 조회해야 하지만, 현재는 간단히 처리)
+            
             Map<String, Object> reminderContext = new HashMap<>();
             reminderContext.put("approvalId", approvalId);
             reminderContext.put("type", "APPROVAL_REMINDER");
             reminderContext.put("timestamp", LocalDateTime.now());
             reminderContext.put("reminderCount", getReminderCount(approvalId));
             
-            // 알림 채널 선택 (리마인더는 높은 우선순위)
+            
             Set<NotificationChannel> channels = selectChannels(NotificationPriority.HIGH, "APPROVAL_REMINDER");
             
             String subject = String.format("[재알림] 승인 요청 대기 중 - ID: %s", 
@@ -582,14 +525,14 @@ public class UnifiedNotificationService {
                 getReminderCount(approvalId)
             );
             
-            // 각 채널로 알림 발송
+            
             List<Mono<Boolean>> notifications = new ArrayList<>();
             
             for (NotificationChannel channel : channels) {
                 notifications.add(sendReminderToChannel(channel, subject, content, reminderContext));
             }
             
-            // 리마인더 카운터 증가
+            
             incrementReminderCount(approvalId);
             
             return true;
@@ -609,9 +552,7 @@ public class UnifiedNotificationService {
         });
     }
     
-    /**
-     * 리마인더를 특정 채널로 발송
-     */
+    
     private Mono<Boolean> sendReminderToChannel(NotificationChannel channel, String subject, 
                                                 String content, Map<String, Object> context) {
         return (switch (channel) {
@@ -627,9 +568,7 @@ public class UnifiedNotificationService {
         });
     }
     
-    /**
-     * 리마인더 카운트 조회
-     */
+    
     private int getReminderCount(String approvalId) {
         String key = "approval:reminder:count:" + approvalId;
         Object countObj = redisTemplate.opsForValue().get(key);
@@ -637,30 +576,24 @@ public class UnifiedNotificationService {
         return count != null ? Integer.parseInt(count) : 0;
     }
     
-    /**
-     * 리마인더 카운트 증가
-     */
+    
     private void incrementReminderCount(String approvalId) {
         String key = "approval:reminder:count:" + approvalId;
         redisTemplate.opsForValue().increment(key);
         redisTemplate.expire(key, Duration.ofHours(24));
     }
     
-    /**
-     * 채널 우선순위 초기화
-     */
+    
     private void initializeChannelPriorities() {
-        channelPriorities.put(NotificationChannel.SMS, 1);        // 가장 높은 우선순위
+        channelPriorities.put(NotificationChannel.SMS, 1);        
         channelPriorities.put(NotificationChannel.SLACK, 2);
         channelPriorities.put(NotificationChannel.EMAIL, 3);
-        channelPriorities.put(NotificationChannel.WEBSOCKET, 4);  // 가장 낮은 우선순위
+        channelPriorities.put(NotificationChannel.WEBSOCKET, 4);  
     }
     
-    /**
-     * 알림 템플릿 로드
-     */
+    
     private void loadNotificationTemplates() {
-        // 보안 이벤트 템플릿
+        
         templates.put("SECURITY_EVENT", new NotificationTemplate(
             "보안 이벤트 알림",
             "이벤트 ID: ${event.eventId}\n" +
@@ -669,7 +602,7 @@ public class UnifiedNotificationService {
             "권장사항: ${indicators.recommendations}"
         ));
         
-        // SOAR 완료 템플릿
+        
         templates.put("SOAR_COMPLETION", new NotificationTemplate(
             "SOAR 분석 완료",
             "요청 ID: ${requestId}\n" +
@@ -678,7 +611,7 @@ public class UnifiedNotificationService {
             "완료 시간: ${completedAt}"
         ));
         
-        // 승인 요청 템플릿
+        
         templates.put("APPROVAL_REQUEST", new NotificationTemplate(
             "도구 실행 승인 요청",
             "도구: ${toolName}\n" +
@@ -688,9 +621,7 @@ public class UnifiedNotificationService {
         ));
     }
     
-    /**
-     * 기본 템플릿 생성
-     */
+    
     private NotificationTemplate createDefaultTemplate(String type) {
         return new NotificationTemplate(
             type,
@@ -698,9 +629,7 @@ public class UnifiedNotificationService {
         );
     }
     
-    /**
-     * 배치 프로세서 시작
-     */
+    
     private void startBatchProcessor() {
         Schedulers.parallel().schedulePeriodically(() -> {
             if (!notificationQueue.isEmpty()) {
@@ -715,9 +644,7 @@ public class UnifiedNotificationService {
         }, batchDelayMs, batchDelayMs, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
     
-    /**
-     * 배치 처리
-     */
+    
     private void processBatch(List<PendingNotification> batch) {
         log.debug("배치 알림 처리 시작 - {} 건", batch.size());
         
@@ -736,9 +663,7 @@ public class UnifiedNotificationService {
             );
     }
     
-    /**
-     * 알림 결과 생성
-     */
+    
     private NotificationResult createNotificationResult(String id, List<ChannelResult> channelResults) {
         NotificationResult result = new NotificationResult();
         result.setRequestId(id);
@@ -749,9 +674,7 @@ public class UnifiedNotificationService {
         return result;
     }
     
-    /**
-     * 메트릭 업데이트
-     */
+    
     private void updateMetrics(List<ChannelResult> results) {
         results.forEach(result -> {
             if (result.isSuccess()) {
@@ -764,9 +687,7 @@ public class UnifiedNotificationService {
         });
     }
     
-    /**
-     * 메트릭 조회
-     */
+    
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("totalSent", totalNotificationsSent.get());
@@ -783,25 +704,19 @@ public class UnifiedNotificationService {
         return metrics;
     }
     
-    // 내부 클래스들
     
-    /**
-     * 알림 채널
-     */
+    
+    
     public enum NotificationChannel {
         EMAIL, WEBSOCKET, SLACK, SMS
     }
     
-    /**
-     * 알림 우선순위
-     */
+    
     public enum NotificationPriority {
         URGENT, HIGH, MEDIUM, LOW, INFO
     }
     
-    /**
-     * 알림 결과
-     */
+    
     @lombok.Data
     public static class NotificationResult {
         private String requestId;
@@ -811,9 +726,7 @@ public class UnifiedNotificationService {
         private Map<String, Object> metadata;
     }
     
-    /**
-     * 채널별 결과
-     */
+    
     @lombok.Data
     @lombok.AllArgsConstructor
     public static class ChannelResult {
@@ -822,9 +735,7 @@ public class UnifiedNotificationService {
         private String errorMessage;
     }
     
-    /**
-     * 알림 요청
-     */
+    
     @lombok.Data
     @lombok.Builder
     public static class NotificationRequest {
@@ -835,9 +746,7 @@ public class UnifiedNotificationService {
         private Set<NotificationChannel> channels;
     }
     
-    /**
-     * 대기 중인 알림
-     */
+    
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class PendingNotification {
@@ -847,9 +756,7 @@ public class UnifiedNotificationService {
         private NotificationPriority priority;
     }
     
-    /**
-     * 알림 템플릿
-     */
+    
     @lombok.AllArgsConstructor
     private static class NotificationTemplate {
         private final String name;
@@ -858,7 +765,7 @@ public class UnifiedNotificationService {
         public String render(Map<String, Object> context) {
             String rendered = template;
             
-            // 간단한 템플릿 렌더링 (실제로는 더 복잡한 템플릿 엔진 사용)
+            
             for (Map.Entry<String, Object> entry : context.entrySet()) {
                 String placeholder = "${" + entry.getKey() + "}";
                 rendered = rendered.replace(placeholder, String.valueOf(entry.getValue()));

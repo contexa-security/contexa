@@ -1,8 +1,6 @@
 package io.contexa.contexacore.std.llm.exception;
 
-/**
- * 모델 선택 실패 시 발생하는 예외
- */
+
 public class ModelSelectionException extends RuntimeException {
 
     private final String modelName;

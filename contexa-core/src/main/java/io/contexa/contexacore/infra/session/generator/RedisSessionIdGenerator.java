@@ -15,9 +15,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Redis 분산 환경에 최적화된 세션 ID 생성기
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class RedisSessionIdGenerator implements SessionIdGenerator {

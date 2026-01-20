@@ -19,29 +19,11 @@ import org.springframework.web.client.RestClientException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * vLLM 모델 제공자 구현
- *
- * vLLM은 OpenAI 호환 API를 제공하므로 Spring AI의 OpenAiChatModel을 재사용합니다.
- * PagedAttention 기반의 고처리량 추론 엔진으로 Ollama 대비 약 10배의 처리량을 제공합니다.
- *
- * 특징:
- * - OpenAI 호환 API (/v1/chat/completions, /v1/models 등)
- * - PagedAttention: KV 캐시 메모리 낭비 60-80% → 4% 미만으로 감소
- * - Continuous Batching: 동적 배치로 GPU 활용률 극대화
- * - 로컬 실행: API 키 불필요, 무료 사용
- *
- * Zero Trust 아키텍처에서의 역할:
- * - 초당 수백~수천 건의 보안 이벤트 분석 처리
- * - Ollama 대비 10배 처리량으로 지연 시간 최소화
- * - 로컬 실행으로 데이터 보안 유지
- *
- * @since 3.0.0
- */
+
 @Slf4j
 public class VLLMModelProvider implements ModelProvider {
 
-    // baseUrl은 ModelProviderProperties.VLLMConfig에서 가져옴
+    
     private String baseUrl;
 
     @Autowired
@@ -54,9 +36,7 @@ public class VLLMModelProvider implements ModelProvider {
     private final Map<String, VLLMModelInfo> discoveredModels = new ConcurrentHashMap<>();
     private boolean ready = false;
 
-    /**
-     * vLLM API 응답 모델 (OpenAI 호환)
-     */
+    
     @Data
     public static class VLLMModelsResponse {
         private List<VLLMModelInfo> data;
@@ -87,7 +67,7 @@ public class VLLMModelProvider implements ModelProvider {
     public List<ModelDescriptor> getAvailableModels() {
         List<ModelDescriptor> models = new ArrayList<>();
 
-        // 설정 파일에서 정의된 모델들
+        
         ModelProviderProperties.VLLMConfig vllmConfig = modelProviderProperties.getVllm();
         if (vllmConfig != null && vllmConfig.getModels() != null) {
             for (Map.Entry<String, ModelProviderProperties.ModelSpec> entry :
@@ -103,7 +83,7 @@ public class VLLMModelProvider implements ModelProvider {
             }
         }
 
-        // 동적으로 발견된 모델들
+        
         for (Map.Entry<String, VLLMModelInfo> entry : discoveredModels.entrySet()) {
             String modelId = entry.getKey();
             if (!modelCache.containsKey(modelId)) {
@@ -122,7 +102,7 @@ public class VLLMModelProvider implements ModelProvider {
             return modelCache.get(modelId);
         }
 
-        // 설정 파일에서 찾기
+        
         ModelProviderProperties.VLLMConfig vllmConfig = modelProviderProperties.getVllm();
         if (vllmConfig != null && vllmConfig.getModels() != null) {
             ModelProviderProperties.ModelSpec spec = vllmConfig.getModels().get(modelId);
@@ -133,7 +113,7 @@ public class VLLMModelProvider implements ModelProvider {
             }
         }
 
-        // 동적으로 발견된 모델에서 찾기
+        
         VLLMModelInfo info = discoveredModels.get(modelId);
         if (info != null) {
             ModelDescriptor descriptor = createModelDescriptorFromDiscovery(modelId, info);
@@ -141,7 +121,7 @@ public class VLLMModelProvider implements ModelProvider {
             return descriptor;
         }
 
-        // vLLM API에서 직접 조회 시도
+        
         loadModelsFromVLLM();
         info = discoveredModels.get(modelId);
         if (info != null) {
@@ -157,17 +137,17 @@ public class VLLMModelProvider implements ModelProvider {
     public ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config) {
         String modelId = descriptor.getModelId();
 
-        // 캐시 확인
+        
         if (modelInstances.containsKey(modelId)) {
             return modelInstances.get(modelId);
         }
 
         try {
-            // OpenAiChatOptions 생성 (vLLM은 OpenAI 호환)
+            
             OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(modelId);
 
-            // 설정 적용
+            
             if (descriptor.getOptions() != null) {
                 ModelDescriptor.ModelOptions options = descriptor.getOptions();
                 if (options.getTemperature() != null) {
@@ -178,12 +158,12 @@ public class VLLMModelProvider implements ModelProvider {
                 }
             }
 
-            // 최대 토큰 설정
+            
             if (descriptor.getCapabilities() != null) {
                 optionsBuilder.maxTokens(descriptor.getCapabilities().getMaxOutputTokens());
             }
 
-            // 추가 설정 적용
+            
             if (config != null) {
                 if (config.containsKey("temperature")) {
                     optionsBuilder.temperature((Double) config.get("temperature"));
@@ -198,15 +178,15 @@ public class VLLMModelProvider implements ModelProvider {
 
             OpenAiChatOptions vllmOptions = optionsBuilder.build();
 
-            // API 사용 가능 여부 체크
+            
             if (!isReady()) {
                 throw new ModelSelectionException("vLLM server not available at " + baseUrl, modelId);
             }
 
-            // vLLM용 OpenAiApi 생성 (baseUrl만 다름, API 키 불필요)
+            
             OpenAiApi api = getVLLMApi();
 
-            // OpenAiChatModel 생성 (vLLM은 OpenAI 호환 API)
+            
             OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .openAiApi(api)
                 .defaultOptions(vllmOptions)
@@ -231,19 +211,19 @@ public class VLLMModelProvider implements ModelProvider {
 
     @Override
     public boolean supportsModel(String modelId) {
-        // 설정 파일 확인
+        
         ModelProviderProperties.VLLMConfig vllmConfig = modelProviderProperties.getVllm();
         if (vllmConfig != null && vllmConfig.getModels() != null &&
             vllmConfig.getModels().containsKey(modelId)) {
             return true;
         }
 
-        // 캐시 확인
+        
         if (modelCache.containsKey(modelId)) {
             return true;
         }
 
-        // 동적으로 발견된 모델 확인
+        
         return discoveredModels.containsKey(modelId);
     }
 
@@ -254,7 +234,7 @@ public class VLLMModelProvider implements ModelProvider {
                 return HealthStatus.unhealthy("vLLM not initialized");
             }
 
-            // vLLM 헬스 체크 - /health 엔드포인트 또는 /v1/models
+            
             String healthUrl = baseUrl + "/health";
 
             try {
@@ -267,7 +247,7 @@ public class VLLMModelProvider implements ModelProvider {
                     details.put("provider", "vLLM");
                     details.put("feature", "PagedAttention high-throughput inference");
 
-                    // 특정 모델 사용 가능 여부 확인
+                    
                     if (modelId != null && !modelId.isEmpty()) {
                         boolean modelExists = discoveredModels.containsKey(modelId) ||
                                             (modelProviderProperties.getVllm() != null &&
@@ -281,7 +261,7 @@ public class VLLMModelProvider implements ModelProvider {
                 return HealthStatus.unhealthy("vLLM API returned status: " + response.getStatusCode());
 
             } catch (RestClientException e) {
-                // /health가 없으면 /v1/models로 폴백
+                
                 return checkHealthViaModels(modelId);
             }
         } catch (Exception e) {
@@ -289,9 +269,7 @@ public class VLLMModelProvider implements ModelProvider {
         }
     }
 
-    /**
-     * /v1/models 엔드포인트로 헬스 체크 (폴백)
-     */
+    
     private HealthStatus checkHealthViaModels(String modelId) {
         try {
             String modelsUrl = baseUrl + "/v1/models";
@@ -322,7 +300,7 @@ public class VLLMModelProvider implements ModelProvider {
         log.info("VLLMModelProvider 초기화 시작");
 
         try {
-            // 설정에서 baseUrl 가져오기
+            
             ModelProviderProperties.VLLMConfig vllmConfig = modelProviderProperties.getVllm();
             if (vllmConfig != null && vllmConfig.isEnabled()) {
                 this.baseUrl = vllmConfig.getBaseUrl();
@@ -332,16 +310,16 @@ public class VLLMModelProvider implements ModelProvider {
                 return;
             }
 
-            // RestTemplate 초기화
+            
             this.restTemplate = new RestTemplate();
 
-            // vLLM API 초기화 (OpenAI 호환, API 키 불필요)
+            
             this.vllmApi = OpenAiApi.builder()
                 .baseUrl(baseUrl)
-                .apiKey("dummy-key-for-local-vllm")  // vLLM은 API 키 불필요하지만 Spring AI가 요구
+                .apiKey("dummy-key-for-local-vllm")  
                 .build();
 
-            // 모델 목록 로드 시도
+            
             boolean modelsLoaded = loadModelsFromVLLM();
 
             if (!modelsLoaded) {
@@ -378,8 +356,8 @@ public class VLLMModelProvider implements ModelProvider {
 
     @Override
     public int getPriority() {
-        // vLLM은 Ollama보다 높은 우선순위 (고처리량)
-        // Ollama: 10, vLLM: 5 (낮을수록 높은 우선순위)
+        
+        
         return 5;
     }
 
@@ -397,9 +375,7 @@ public class VLLMModelProvider implements ModelProvider {
         return metrics;
     }
 
-    /**
-     * vLLM에서 실제 모델 목록 로드
-     */
+    
     private boolean loadModelsFromVLLM() {
         if (restTemplate == null || baseUrl == null) {
             log.warn("RestTemplate 또는 baseUrl이 설정되지 않아 모델 목록을 로드할 수 없습니다");
@@ -407,7 +383,7 @@ public class VLLMModelProvider implements ModelProvider {
         }
 
         try {
-            // vLLM API를 통해 모델 목록 조회 (OpenAI 호환)
+            
             String modelsUrl = baseUrl + "/v1/models";
             log.debug("vLLM API 호출: {}", modelsUrl);
 
@@ -440,9 +416,7 @@ public class VLLMModelProvider implements ModelProvider {
         return false;
     }
 
-    /**
-     * 설정 스펙으로부터 모델 디스크립터 생성
-     */
+    
     private ModelDescriptor createModelDescriptorFromSpec(String modelId, ModelProviderProperties.ModelSpec spec) {
         var capBuilder = ModelDescriptor.ModelCapabilities.builder()
             .streaming(spec.getCapabilities().getStreaming())
@@ -497,14 +471,12 @@ public class VLLMModelProvider implements ModelProvider {
             .build();
     }
 
-    /**
-     * 동적으로 발견된 모델로부터 디스크립터 생성
-     */
+    
     private ModelDescriptor createModelDescriptorFromDiscovery(String modelId, VLLMModelInfo info) {
-        // 모델 이름에서 tier 추정
+        
         int tier = estimateTierFromModelId(modelId);
 
-        // 설정에서 기본값 가져오기
+        
         ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
             modelProviderProperties.getTierDefaults(tier);
 
@@ -514,9 +486,9 @@ public class VLLMModelProvider implements ModelProvider {
             tierDefaults.setTemperature(0.5);
             tierDefaults.setMaxTokens(4096);
             tierDefaults.setContextWindow(4096);
-            tierDefaults.setPerformanceScore(90.0);  // vLLM은 고성능
-            tierDefaults.setLatencyMs(50);  // vLLM은 저지연
-            tierDefaults.setConcurrency(200);  // vLLM은 고처리량
+            tierDefaults.setPerformanceScore(90.0);  
+            tierDefaults.setLatencyMs(50);  
+            tierDefaults.setConcurrency(200);  
         }
 
         return ModelDescriptor.builder()
@@ -528,7 +500,7 @@ public class VLLMModelProvider implements ModelProvider {
             .tier(tier)
             .capabilities(ModelDescriptor.ModelCapabilities.builder()
                 .streaming(true)
-                .toolCalling(true)  // vLLM은 대부분 도구 호출 지원
+                .toolCalling(true)  
                 .functionCalling(true)
                 .vision(modelId.toLowerCase().contains("vision"))
                 .multiModal(false)
@@ -539,13 +511,13 @@ public class VLLMModelProvider implements ModelProvider {
                 .build())
             .performance(ModelDescriptor.PerformanceProfile.builder()
                 .latency(tierDefaults.getLatencyMs())
-                .throughput(ModelDescriptor.ThroughputLevel.HIGH)  // vLLM은 항상 고처리량
+                .throughput(ModelDescriptor.ThroughputLevel.HIGH)  
                 .concurrency(tierDefaults.getConcurrency())
                 .recommendedTimeout(tierDefaults.getTimeoutMs())
                 .performanceScore(tierDefaults.getPerformanceScore())
                 .build())
             .cost(ModelDescriptor.CostProfile.builder()
-                .costPerInputToken(0.0)  // 로컬 실행이므로 무료
+                .costPerInputToken(0.0)  
                 .costPerOutputToken(0.0)
                 .costEfficiency(100.0)
                 .build())
@@ -564,39 +536,35 @@ public class VLLMModelProvider implements ModelProvider {
             .build();
     }
 
-    /**
-     * 모델 ID로부터 Tier 추정
-     */
+    
     private int estimateTierFromModelId(String modelId) {
         if (modelId == null) return 2;
 
         String lower = modelId.toLowerCase();
 
-        // 대형 모델 (70B+)
+        
         if (lower.contains("70b") || lower.contains("72b") || lower.contains("llama-3.1-70b")) {
             return 3;
         }
 
-        // 중형 모델 (7B-30B)
+        
         if (lower.contains("7b") || lower.contains("8b") || lower.contains("13b") ||
             lower.contains("llama-3") || lower.contains("mistral")) {
             return 2;
         }
 
-        // 소형 모델
+        
         if (lower.contains("3b") || lower.contains("1b") || lower.contains("tiny") || lower.contains("small")) {
             return 1;
         }
 
-        return 2;  // 기본값
+        return 2;  
     }
 
-    /**
-     * vLLM API 인스턴스 반환
-     */
+    
     private OpenAiApi getVLLMApi() {
         if (vllmApi == null) {
-            // 지연 초기화
+            
             this.vllmApi = OpenAiApi.builder()
                 .baseUrl(baseUrl)
                 .apiKey("dummy-key-for-local-vllm")

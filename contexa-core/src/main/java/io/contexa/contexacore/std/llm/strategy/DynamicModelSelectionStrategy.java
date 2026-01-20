@@ -17,12 +17,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * 동적 모델 선택 전략
- *
- * DynamicModelRegistry를 활용하여 런타임에 동적으로 모델을 선택합니다.
- * 설정 파일 변경만으로 새로운 모델을 추가할 수 있습니다.
- */
+
 @Slf4j
 @Primary
 @RequiredArgsConstructor
@@ -40,7 +35,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             context.getRequestId(), context.getTier(), context.getPreferredModel());
 
         try {
-            // 1. 명시적으로 지정된 모델이 있으면 우선 선택
+            
             if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
                 ChatModel model = tryGetModel(context.getPreferredModel());
                 if (model != null) {
@@ -49,7 +44,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
-            // 2. AnalysisLevel 기반 선택
+            
             if (context.getAnalysisLevel() != null) {
                 ChatModel model = selectByAnalysisLevel(context);
                 if (model != null) {
@@ -57,7 +52,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
-            // 3. Tier 기반 선택
+            
             if (context.getTier() != null) {
                 ChatModel model = selectByTier(context);
                 if (model != null) {
@@ -65,7 +60,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
-            // 4. SecurityTaskType 기반 선택
+            
             if (context.getSecurityTaskType() != null) {
                 ChatModel model = selectBySecurityTaskType(context.getSecurityTaskType());
                 if (model != null) {
@@ -73,13 +68,13 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
-            // 5. 성능 요구사항 기반 선택
+            
             ChatModel model = selectByPerformanceRequirements(context);
             if (model != null) {
                 return model;
             }
 
-            // 6. 기본 모델 선택 (Layer 2)
+            
             return selectDefaultModel();
 
         } catch (Exception e) {
@@ -88,14 +83,12 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         }
     }
 
-    /**
-     * AnalysisLevel 기반 모델 선택
-     */
+    
     private ChatModel selectByAnalysisLevel(ExecutionContext context) {
         int tier = context.getAnalysisLevel().getDefaultTier();
         log.debug("AnalysisLevel {} -> Tier {} 로 매핑", context.getAnalysisLevel(), tier);
 
-        // ExecutionContextFactory의 설정 사용
+        
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
         ChatModel model = tryGetModelWithFallback(modelName, tier);
 
@@ -107,13 +100,11 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         return model;
     }
 
-    /**
-     * Tier 기반 모델 선택
-     */
+    
     private ChatModel selectByTier(ExecutionContext context) {
         int tier = context.getTier();
 
-        // 설정에서 해당 tier의 기본 모델 가져오기
+        
         String primaryModelName = tieredLLMProperties.getModelNameForTier(tier);
         ChatModel model = tryGetModelWithFallback(primaryModelName, tier);
 
@@ -122,7 +113,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             return model;
         }
 
-        // Tier에 해당하는 다른 사용 가능한 모델 찾기
+        
         List<ModelDescriptor> tierModels = modelRegistry.getModelsByTier(tier);
         for (ModelDescriptor descriptor : tierModels) {
             if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
@@ -138,9 +129,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         return null;
     }
 
-    /**
-     * SecurityTaskType 기반 모델 선택
-     */
+    
     private ChatModel selectBySecurityTaskType(ExecutionContext.SecurityTaskType taskType) {
         int tier = taskType.getDefaultTier();
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
@@ -154,13 +143,11 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         return model;
     }
 
-    /**
-     * 성능 요구사항 기반 모델 선택
-     */
+    
     private ChatModel selectByPerformanceRequirements(ExecutionContext context) {
         Collection<ModelDescriptor> allModels = modelRegistry.getAllModels();
 
-        // 빠른 응답 요구 시
+        
         if (Boolean.TRUE.equals(context.getRequireFastResponse())) {
             ModelDescriptor fastModel = allModels.stream()
                 .filter(m -> m.isFastResponse())
@@ -177,7 +164,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             }
         }
 
-        // 로컬 모델 선호
+        
         if (Boolean.TRUE.equals(context.getPreferLocalModel())) {
             ModelDescriptor localModel = allModels.stream()
                 .filter(m -> "ollama".equals(m.getProvider()))
@@ -194,7 +181,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             }
         }
 
-        // 클라우드 모델 선호
+        
         if (Boolean.TRUE.equals(context.getPreferCloudModel())) {
             ModelDescriptor cloudModel = allModels.stream()
                 .filter(m -> !"ollama".equals(m.getProvider()))
@@ -215,11 +202,9 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         return null;
     }
 
-    /**
-     * 기본 모델 선택
-     */
+    
     private ChatModel selectDefaultModel() {
-        // Layer 2 모델을 기본으로
+        
         String defaultModel = tieredLLMProperties.getModelNameForTier(2);
         ChatModel model = tryGetModelWithFallback(defaultModel, 2);
 
@@ -244,9 +229,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             + "등록된 모델 수: " + allModels.size());
     }
 
-    /**
-     * 모델 가져오기 시도
-     */
+    
     private ChatModel tryGetModel(String modelId) {
         try {
             return modelRegistry.getModel(modelId);
@@ -256,17 +239,15 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         }
     }
 
-    /**
-     * 폴백과 함께 모델 가져오기
-     */
+    
     private ChatModel tryGetModelWithFallback(String modelId, int tier) {
-        // 기본 모델 시도
+        
         ChatModel model = tryGetModel(modelId);
         if (model != null) {
             return model;
         }
 
-        // 백업 모델 시도
+        
         String backupModelId = tieredLLMProperties.getBackupModelNameForTier(tier);
         if (backupModelId != null && !backupModelId.equals(modelId)) {
             log.info("백업 모델로 전환: {} -> {}", modelId, backupModelId);
@@ -304,7 +285,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
         metric.recordExecution(responseTime, success);
 
-        // 성능이 너무 나쁜 모델은 비활성화
+        
         if (metric.getSuccessRate() < 0.3 && metric.getTotalExecutions() > 10) {
             log.warn("모델 {} 성능 불량으로 비활성화: 성공률 {}%",
                 modelName, metric.getSuccessRate() * 100);
@@ -316,9 +297,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             metric.getAverageResponseTime(), metric.getSuccessRate() * 100);
     }
 
-    /**
-     * 모델 등록 정보 새로고침
-     */
+    
     public void refreshModels() {
         modelRegistry.refreshModels();
         log.info("모델 목록 새로고침 완료");

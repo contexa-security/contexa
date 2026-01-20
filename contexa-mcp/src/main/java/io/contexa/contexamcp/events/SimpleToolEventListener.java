@@ -8,10 +8,7 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Simple Tool Event Listener
- * 도구 실행 이벤트를 로깅하고 간단한 메트릭 수집
- */
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -21,14 +18,12 @@ public class SimpleToolEventListener {
     private final ConcurrentHashMap<String, AtomicLong> successCounts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicLong> failureCounts = new ConcurrentHashMap<>();
     
-    /**
-     * 도구 실행 이벤트 처리
-     */
+    
     @EventListener
     public void onToolExecuted(ToolExecutedEvent event) {
         String toolName = event.getToolName();
         
-        // 실행 카운트 증가
+        
         executionCounts.computeIfAbsent(toolName, k -> new AtomicLong(0)).incrementAndGet();
         
         if (event.isSuccess()) {
@@ -49,7 +44,7 @@ public class SimpleToolEventListener {
                 event.getUserId());
         }
         
-        // Critical 도구 실행 시 추가 로깅
+        
         if (event.isCritical()) {
             log.warn("CRITICAL: High-risk tool executed - Name: {}, User: {}, Success: {}",
                 toolName,
@@ -58,9 +53,7 @@ public class SimpleToolEventListener {
         }
     }
     
-    /**
-     * 도구별 통계 조회 (디버깅용)
-     */
+    
     public ToolStatistics getToolStatistics(String toolName) {
         long executions = executionCounts.getOrDefault(toolName, new AtomicLong(0)).get();
         long successes = successCounts.getOrDefault(toolName, new AtomicLong(0)).get();
@@ -77,9 +70,7 @@ public class SimpleToolEventListener {
             .build();
     }
     
-    /**
-     * 도구 통계 DTO
-     */
+    
     @lombok.Data
     @lombok.Builder
     public static class ToolStatistics {

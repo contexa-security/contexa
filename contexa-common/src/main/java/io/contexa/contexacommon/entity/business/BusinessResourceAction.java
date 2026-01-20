@@ -20,21 +20,21 @@ public class BusinessResourceAction {
     private BusinessResourceActionId id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("businessResourceId") // 복합 키의 businessResourceId 필드에 매핑
+    @MapsId("businessResourceId") 
     @JoinColumn(name = "business_resource_id")
     private BusinessResource businessResource;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("businessActionId") // 복합 키의 businessActionId 필드에 매핑
+    @MapsId("businessActionId") 
     @JoinColumn(name = "business_action_id")
     private BusinessAction businessAction;
 
     @Column(name = "mapped_permission_name", nullable = false)
     private String mappedPermissionName;
 
-    //======================================================================
-    //          << public static 내부 복합 키 ID 클래스 >>
-    //======================================================================
+    
+    
+    
     @Embeddable
     @Getter
     @Setter

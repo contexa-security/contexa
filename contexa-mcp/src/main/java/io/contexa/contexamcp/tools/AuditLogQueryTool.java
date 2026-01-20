@@ -14,14 +14,7 @@ import org.springframework.util.StringUtils;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Audit Log Query Tool
- *
- * 감사 로그를 조회하여 보안 위협을 분석합니다.
- * 사용자 ID 또는 IP 주소로 로그를 검색할 수 있습니다.
- *
- * Spring AI @Tool 어노테이션 기반 구현
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -40,16 +33,7 @@ public class AuditLogQueryTool {
 
     private final AuditLogService auditLogService;
 
-    /**
-     * 감사 로그 조회 및 분석
-     * 
-     * @param userId 조회할 사용자 ID
-     * @param ipAddress 조회할 IP 주소
-     * @param dateFrom 조회 시작 날짜 (ISO-8601 형식)
-     * @param dateTo 조회 종료 날짜 (ISO-8601 형식)
-     * @param limit 최대 결과 개수
-     * @return 조회된 로그와 위협 분석 결과
-     */
+    
     @Tool(
         name = "queryAuditLogs",
         description = """
@@ -58,7 +42,7 @@ public class AuditLogQueryTool {
             자동으로 위협 레벨을 분석하여 제공합니다.
             """
     )
-    // 감사 로그는 보안/법규 준수상 캐싱 금지 - 항상 실시간 데이터 조회 필요
+    
     public Response queryAuditLogs(
         @ToolParam(description = "조회할 사용자 ID", required = false) 
         String userId,
@@ -81,7 +65,7 @@ public class AuditLogQueryTool {
             userId, ipAddress, dateFrom, dateTo, limit);
         
         try {
-            // 입력 검증
+            
             if (!StringUtils.hasText(userId) && !StringUtils.hasText(ipAddress)) {
                 log.warn("No search criteria provided");
                 return Response.builder()
@@ -92,10 +76,10 @@ public class AuditLogQueryTool {
                     .build();
             }
             
-            // limit 검증 및 기본값 설정
+            
             int effectiveLimit = (limit != null && limit > 0 && limit <= 1000) ? limit : 100;
             
-            // 로그 조회
+            
             List<AuditLogService.AuditLog> logs;
             String searchCriteria;
             
@@ -112,11 +96,11 @@ public class AuditLogQueryTool {
             
             log.info("Found {} audit logs for criteria: {}", logs.size(), searchCriteria);
             
-            // 위협 분석
+            
             String threatLevel = analyzeThreatLevel(logs);
             ThreatAnalysis analysis = performDetailedAnalysis(logs);
             
-            // 감사 로깅
+            
             SecurityToolUtils.auditLog(
                 "audit_log_query",
                 "query",
@@ -126,7 +110,7 @@ public class AuditLogQueryTool {
                 "SUCCESS"
             );
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("audit_log_query", "execution_count", 1);
             SecurityToolUtils.recordMetric("audit_log_query", "results_count", logs.size());
             SecurityToolUtils.recordMetric("audit_log_query", "execution_time_ms", 
@@ -144,7 +128,7 @@ public class AuditLogQueryTool {
         } catch (Exception e) {
             log.error("Failed to query audit logs", e);
             
-            // 에러 메트릭
+            
             SecurityToolUtils.recordMetric("audit_log_query", "error_count", 1);
             
             return Response.builder()
@@ -156,25 +140,23 @@ public class AuditLogQueryTool {
         }
     }
     
-    /**
-     * 위협 레벨 분석
-     */
+    
     private String analyzeThreatLevel(List<AuditLogService.AuditLog> logs) {
         if (logs.isEmpty()) {
             return "NONE";
         }
         
-        // 실패한 시도 카운트
+        
         long failedAttempts = logs.stream()
             .filter(log -> "FAILURE".equals(log.getResult()))
             .count();
         
-        // 에러 카운트
+        
         long errorCount = logs.stream()
             .filter(log -> log.getErrorMessage() != null)
             .count();
         
-        // 위협 레벨 계산
+        
         if (failedAttempts > 10 || errorCount > 5) {
             return "HIGH";
         } else if (failedAttempts > 5 || errorCount > 2) {
@@ -186,9 +168,7 @@ public class AuditLogQueryTool {
         return "NONE";
     }
     
-    /**
-     * 상세 위협 분석
-     */
+    
     private ThreatAnalysis performDetailedAnalysis(List<AuditLogService.AuditLog> logs) {
         if (logs.isEmpty()) {
             return ThreatAnalysis.builder()
@@ -200,7 +180,7 @@ public class AuditLogQueryTool {
                 .build();
         }
         
-        // 각종 위협 지표 계산
+        
         long failedLogins = logs.stream()
             .filter(log -> "LOGIN".equals(log.getAction()) && "FAILURE".equals(log.getResult()))
             .count();
@@ -223,7 +203,7 @@ public class AuditLogQueryTool {
                            log.getAction().contains("DOWNLOAD")))
             .count();
         
-        // 리스크 점수 계산 (0.0 ~ 1.0)
+        
         double riskScore = Math.min(1.0, 
             (failedLogins * 0.1 + 
              suspiciousActivities * 0.3 + 
@@ -239,9 +219,7 @@ public class AuditLogQueryTool {
             .build();
     }
 
-    /**
-     * Response DTO
-     */
+    
     @Data
     @Builder
     public static class Response {
@@ -253,9 +231,7 @@ public class AuditLogQueryTool {
         private ThreatAnalysis threatAnalysis;
     }
     
-    /**
-     * 위협 분석 결과 DTO
-     */
+    
     @Data
     @Builder
     public static class ThreatAnalysis {

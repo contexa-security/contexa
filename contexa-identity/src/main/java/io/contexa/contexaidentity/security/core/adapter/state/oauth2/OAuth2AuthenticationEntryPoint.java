@@ -13,12 +13,7 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * OAuth2 Resource Server 에서 인증 실패 시 처리하는 EntryPoint입니다.
- *
- * <p>Bearer 토큰이 없거나 유효하지 않을 때 호출됩니다.
- * HTTP 401 Unauthorized 응답을 JSON 형식으로 반환합니다.
- */
+
 @Slf4j
 public class OAuth2AuthenticationEntryPoint implements AuthenticationEntryPoint {
 

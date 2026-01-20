@@ -57,8 +57,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     @Value("${spring.ai.security.layer1.model:llama3.1:8b}")
     private String modelName;
 
-    // AI Native v4.3.0: @Value 타임아웃 제거 - TieredStrategyProperties.Layer1.Timeout 사용
-    // 레거시 호환성을 위해 vectorSearchLimit만 유지
+    
+    
     @Value("${spring.ai.security.tiered.layer1.vector-search-limit:10}")
     private int vectorSearchLimit;
 
@@ -82,7 +82,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.postProcessor = postProcessor;
         this.tieredStrategyProperties = tieredStrategyProperties;
 
-        // Phase 2-5: 메모리 누수 수정 - Caffeine TTL 캐시로 교체
+        
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
                 .maximumSize(cacheConfig.getMaxSize())
@@ -92,7 +92,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         log.info("Layer 1 Contextual Strategy initialized with UnifiedLLMOrchestrator");
         log.info("  - Model: {}", modelName);
-        // AI Native v4.3.0: 타임아웃 설정 로깅
+        
         TieredStrategyProperties.Layer1.Timeout timeout = tieredStrategyProperties.getLayer1().getTimeout();
         log.info("  - Timeout: total={}ms, llm={}ms, vector={}ms, redis={}ms, baseline={}ms",
             timeout.getTotalMs(), timeout.getLlmMs(), timeout.getVectorSearchMs(),
@@ -105,12 +105,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     public ThreatAssessment evaluate(SecurityEvent event) {
         log.info("Layer 1 Contextual Strategy evaluating event: {}", event.getEventId());
 
-        // AI Native v4.2.0: Layer1이 첫 번째 레이어이므로 이전 레이어 결과 없음
+        
         SecurityDecision decision = analyzeWithContext(event);
         boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
         String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
-        // AI Native v4.3.0: eventId, assessedAt 추가 (null 필드 정리)
-        // AI Native v8.12: LLM reasoning을 ThreatAssessment에 전달 (TIPS 데모용)
+        
+        
         return ThreatAssessment.builder()
                 .eventId(event.getEventId())
                 .assessedAt(LocalDateTime.now())
@@ -120,8 +120,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer1-Contextual")
                 .shouldEscalate(shouldEscalate)
-                .action(action)  // AI Native: LLM action 직접 저장
-                .reasoning(decision.getReasoning())  // AI Native v8.12: LLM 분석 근거
+                .action(action)  
+                .reasoning(decision.getReasoning())  
                 .build();
     }
 
@@ -129,28 +129,28 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
 
         try {
-            // 1. 세션 컨텍스트 수집
+            
             SessionContext sessionContext = buildSessionContext(event);
 
-            // 2. 행동 패턴 분석
+            
             BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatterns(event);
 
-            // 3. 벡터 스토어에서 관련 컨텍스트 검색
+            
             List<Document> relatedDocuments = searchRelatedContext(event);
 
-            // 4. PromptTemplate을 통한 프롬프트 구성
+            
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
-            // AI Native v8.9: SecurityEvent 파라미터 추가 (OS 필드 설정용)
+            
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
 
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
-            // AI Native v4.3.0: 설정에서 타임아웃 가져오기
+            
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
-                // AI Native v6.0: temperature=0.0 for deterministic output (consistent LLM responses)
+                
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(1)
@@ -159,7 +159,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         .timeoutMs((int)llmTimeoutMs)
                         .requestId(event.getEventId())
                         .temperature(0.0)
-                        .topP(1.0)  // 결정적 출력을 위한 top-p 파라미터
+                        .topP(1.0)  
                         .build();
 
                 String jsonResponse = llmOrchestrator.execute(context)
@@ -178,25 +178,25 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SecurityDecision decision = convertToSecurityDecision(response, event);
 
-            // AI Native v6.6: ESCALATE 시 L2를 위한 컨텍스트 캐싱
-            // L1과 L2는 동일한 프롬프트 데이터를 사용하므로 중복 수집 방지
+            
+            
             if (decision.getAction() == SecurityDecision.Action.ESCALATE) {
                 Layer2ExpertStrategy.cachePromptContext(
                     event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
                 log.debug("[Layer1] ESCALATE - L2를 위한 컨텍스트 캐싱 완료: eventId={}", event.getEventId());
             }
 
-            // 6. 메타데이터 추가
+            
             enrichDecisionWithContext(decision, sessionContext, behaviorAnalysis);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
-            // 7. 세션 컨텍스트 업데이트 (AI Native v6.8: 공통 서비스 사용)
+            
             if (postProcessor != null) {
                 postProcessor.updateSessionContext(event, decision);
             }
 
-            // 8. 벡터 스토어에 저장 (학습용) (AI Native v6.8: 공통 서비스 사용)
+            
             if (postProcessor != null) {
                 postProcessor.storeInVectorDatabase(event, decision);
             }
@@ -212,13 +212,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    /**
-     * 비동기 컨텍스트 분석
-     *
-     * AI Native v4.3.0: 전체 분석 타임아웃 적용
-     * - 모든 작업(Redis, Vector, Baseline, LLM)을 포함한 총 처리 시간 제한
-     * - 개별 작업은 각자의 타임아웃으로 보호됨
-     */
+    
     public Mono<SecurityDecision> analyzeWithContextAsync(SecurityEvent event) {
         long totalTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getTotalMs();
         return Mono.fromCallable(() -> analyzeWithContext(event))
@@ -230,23 +224,20 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 });
     }
 
-    /**
-     * 세션 컨텍스트 구축
-     * PRIMARY: SecurityEvent → SECONDARY: Redis (보강)
-     */
+    
     private SessionContext buildSessionContext(SecurityEvent event) {
         String sessionId = event.getSessionId();
 
-        // 캐시 확인 (Caffeine: getIfPresent 사용)
+        
         if (sessionId != null) {
             SessionContext cached = sessionContextCache.getIfPresent(sessionId);
             if (cached != null && cached.isValid()) {
-                // Zero Trust: 컨텍스트 변화 검증 (세션 하이재킹 탐지)
+                
                 if (isSessionContextChanged(cached, event)) {
                     log.warn("[Layer1][Zero Trust] Context change detected: session={}, IP={}->{}",
                         sessionId, cached.getIpAddress(), event.getSourceIp());
                     sessionContextCache.invalidate(sessionId);
-                    // 캐시 무효화 후 새 컨텍스트 생성으로 진행
+                    
                 } else {
                     cached.addEvent(event);
                     return cached;
@@ -254,38 +245,38 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }
         }
 
-        // PRIMARY SOURCE: SecurityEvent
+        
         SessionContext context = new SessionContext();
         context.setSessionId(sessionId);
-        context.setUserId(event.getUserId());  // ⭐ event에서 직접
-        context.setIpAddress(event.getSourceIp());  // ⭐ event에서 직접
-        // M1: Zero Trust - 서버 타임스탬프만 사용 (클라이언트 시간 조작 방지)
+        context.setUserId(event.getUserId());  
+        context.setIpAddress(event.getSourceIp());  
+        
         context.setStartTime(LocalDateTime.now());
 
-        // AI Native v6.0: metadata에서 authMethod, recentRequestCount 추출
-        // ZeroTrustEventListener.java:610에서 "authMethod" 키로 저장됨
+        
+        
         if (event.getMetadata() != null) {
-            // authMethod 추출 (Zero Trust: 인증 방식은 위험 판단의 핵심 정보)
+            
             Object authMethodObj = event.getMetadata().get("authMethod");
             if (authMethodObj instanceof String) {
                 context.setAuthMethod((String) authMethodObj);
             }
-            // AI Native v4.3.0: metadata.recentRequestCount를 accessFrequency로 사용
-            // HCADFilter에서 Redis 기반으로 정확하게 추적한 값이므로 SessionContext 내부 카운터보다 신뢰도 높음
+            
+            
             Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
             if (recentRequestCountObj instanceof Number) {
                 context.setAccessFrequency(((Number) recentRequestCountObj).intValue());
             }
         }
 
-        // AI Native v6.0: User-Agent 설정 (세션 하이재킹 탐지용)
+        
         if (event.getUserAgent() != null) {
             context.setUserAgent(event.getUserAgent());
         }
 
-        // SECONDARY SOURCE: Redis (보강만, 실패해도 무시)
-        // AI Native v6.0: CompletableFuture 제거 - Redis 클라이언트 레벨 타임아웃 사용
-        // spring.data.redis.timeout 설정으로 타임아웃 관리
+        
+        
+        
         if (sessionId != null && redisTemplate != null) {
             try {
                 @SuppressWarnings("unchecked")
@@ -301,7 +292,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         context.addEvent(event);
 
-        // 캐시 저장 (유효한 userId가 있는 경우만)
+        
         if (sessionId != null && context.getUserId() != null) {
             sessionContextCache.put(sessionId, context);
         }
@@ -309,22 +300,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return context;
     }
 
-    /**
-     * AbstractTieredStrategy 추상 메서드 구현
-     * Layer1 유사 이벤트 검색 (벡터 서비스 + Redis SCAN 폴백)
-     */
+    
     @Override
     protected List<String> findSimilarEventsForLayer(SecurityEvent event) {
         return findSimilarEvents(event);
     }
 
-    /**
-     * 행동 패턴 분석
-     *
-     * AI Native v6.0: AbstractTieredStrategy.analyzeBehaviorPatternsBase() 호출로 통합
-     * - 중복 코드 제거, 공통 로직 재사용
-     * - Zero Trust / AI Native 원칙 유지
-     */
+    
     private BaseBehaviorAnalysis analyzeBehaviorPatterns(SecurityEvent event) {
         return analyzeBehaviorPatternsBase(event, baselineLearningService);
     }
@@ -334,19 +316,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             return findSimilarEventsFallback(event);
         }
 
-        // H3: 인증 사용자 전용 플랫폼 - userId null은 시스템 오류
+        
         String userId = event.getUserId();
         if (userId == null) {
             log.error("[Layer1][SYSTEM_ERROR] userId null in findSimilarEvents");
             return Collections.emptyList();
         }
 
-        // AI Native v8.6: IP/Path로 검색 (Document-Query 형식 100% 통일)
-        // - 기존: 한글 쿼리 "사용자 admin의 활동 패턴" vs 영어 문서 "User: admin, IP: x.x.x.x"
-        // - 변경: 영어 쿼리 "User: admin, IP: x.x.x.x, Path: /api/xxx" = 문서 형식 동일
-        // - 효과: 유사도 52% -> 90%+ 기대
+        
+        
+        
+        
         final String currentIp = event.getSourceIp();
-        // AI Native v8.10: requestPath로 통일 (HCADContext 도메인 객체 기준)
+        
         final String currentPath = event.getMetadata() != null ?
                 (String) event.getMetadata().get("requestPath") : null;
 
@@ -362,7 +344,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     .map(doc -> {
                         Map<String, Object> meta = doc.getMetadata();
 
-                        // Similarity 계산 (0.0-1.0 -> %)
+                        
                         double score = 0.0;
                         Object scoreObj = meta.get("similarityScore");
                         if (scoreObj instanceof Number) {
@@ -370,12 +352,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         }
                         int similarityPct = (int) (score * 100);
 
-                        // AI Native v11.4: SimilarEvents 유사도만 표시
-                        // - PRE-COMPUTED COMPARISON이 Known Set 기반 비교의 단일 진실 공급원
-                        // - IP/Hour도 개별 문서 비교 시 Known Set과 충돌 가능
-                        //   (예: Known IP={loopback, 192.168.1.1}인데 개별 loopback 문서와 비교하면
-                        //    192.168.1.1 요청이 MISMATCH로 표시됨)
-                        // - SimilarEvents는 순수하게 "과거 이벤트와 얼마나 유사한가"만 표시
+                        
+                        
+                        
+                        
+                        
+                        
                         return String.format("EventID:%s, Similarity:%d%%",
                                 meta.get("eventId"), similarityPct);
                     })
@@ -387,20 +369,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    /**
-     * Redis SCAN을 사용한 유사 이벤트 검색 (Fallback)
-     *
-     * AI Native v4.3.0: 타임아웃 및 시간 제한 적용
-     * - Redis SCAN 무한 루프 방지
-     * - 설정된 시간 초과 시 현재까지 수집된 결과 반환
-     */
+    
     private List<String> findSimilarEventsFallback(SecurityEvent event) {
         List<String> similar = new ArrayList<>();
         if (redisTemplate == null) {
             return similar;
         }
 
-        // H3: 인증 사용자 전용 플랫폼 - userId null은 시스템 오류
+        
         String userId = event.getUserId();
         if (userId == null) {
             log.error("[Layer1][SYSTEM_ERROR] userId null in findSimilarEventsFallback");
@@ -412,15 +388,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
 
         try {
-            // Redis SCAN: 점진적 스캔으로 블로킹 방지
+            
             ScanOptions scanOptions = ScanOptions.scanOptions()
                     .match(pattern)
-                    .count(100)  // 배치 크기 (한 번에 스캔할 키 수)
+                    .count(100)  
                     .build();
 
             try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
                 while (cursor.hasNext() && similar.size() < limit) {
-                    // AI Native v4.3.0: 시간 제한 체크
+                    
                     if (System.currentTimeMillis() - startTime > redisTimeoutMs) {
                         log.warn("[Layer1][AI Native v4.3.0] Redis SCAN timeout ({}ms), returning {} events",
                             redisTimeoutMs, similar.size());
@@ -438,26 +414,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return similar;
     }
 
-    /**
-     * 벡터 스토어에서 관련 문서 검색 (확장된 RAG 검색)
-     *
-     * AI Native v6.0: AbstractTieredStrategy.searchRelatedContextBase() 호출로 통합
-     * - 중복 코드 제거, 공통 로직 재사용
-     * - AI Native / Zero Trust 원칙 유지
-     */
+    
     private List<Document> searchRelatedContext(SecurityEvent event) {
         double similarityThreshold = tieredStrategyProperties.getLayer1().getRag().getSimilarityThreshold();
         int topK = Math.min(15, vectorSearchLimit * 2);
         return searchRelatedContextBase(event, unifiedVectorService, eventEnricher, topK, similarityThreshold);
     }
 
-    /**
-     * SessionContext 변환
-     *
-     * AI Native v6.6: SESSION 의미화
-     * - sessionAgeMinutes: 세션 시작 후 경과 시간 (분)
-     * - requestCount: 현재 세션의 요청 횟수
-     */
+    
     private SecurityPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
         SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
         ctx.setSessionId(sessionContext.getSessionId());
@@ -465,8 +429,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setAuthMethod(sessionContext.getAuthMethod());
         ctx.setRecentActions(sessionContext.getRecentActions());
 
-        // AI Native v6.6: SESSION 의미화 - LLM에 유용한 컨텍스트 제공
-        // 세션 경과 시간 계산
+        
+        
         if (sessionContext.getStartTime() != null) {
             long minutes = java.time.Duration.between(
                 sessionContext.getStartTime(),
@@ -474,17 +438,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             ).toMinutes();
             ctx.setSessionAgeMinutes((int) Math.max(0, minutes));
         }
-        // 요청 횟수
+        
         ctx.setRequestCount(sessionContext.getAccessFrequency());
 
         return ctx;
     }
 
-    /**
-     * AI Native v8.9: SecurityEvent 파라미터 추가
-     * - currentUserAgentOS: 현재 요청의 OS (event.getUserAgent()에서 추출)
-     * - previousUserAgentOS: Baseline의 OS (baselineContext에서 추출)
-     */
+    
     private SecurityPromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(
             BaseBehaviorAnalysis behaviorAnalysis,
             SecurityEvent event) {
@@ -494,14 +454,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
 
-        // AI Native v8.9: UserAgent OS 필드 설정 (LLM이 디바이스 변경 패턴 분석용)
-        // 1. 현재 요청의 UserAgent OS
+        
+        
         if (event != null && event.getUserAgent() != null) {
             String currentOS = extractOSFromUserAgent(event.getUserAgent());
             ctx.setCurrentUserAgentOS(currentOS);
         }
 
-        // 2. Baseline의 UserAgent OS (baselineContext에서 추출)
+        
         if (behaviorAnalysis.getBaselineContext() != null) {
             String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
             ctx.setPreviousUserAgentOS(baselineOS);
@@ -510,45 +470,37 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return ctx;
     }
 
-    /**
-     * AI Native v9.1: Baseline 컨텍스트에서 UserAgent OS 추출
-     *
-     * 테이블 형식:
-     * | Factor | Current           | Baseline          | Status  |
-     * | UA     | Chrome/120 (And..)| Chrome/143 (Win..)| MISMATCH|
-     *
-     * Baseline 열에서 "(...)" 안의 OS 추출
-     */
+    
     private String extractOSFromBaselineContext(String baselineContext) {
         if (baselineContext == null || baselineContext.isEmpty()) {
             return null;
         }
 
         try {
-            // 방법 1: 테이블 형식 - "| UA" 행에서 Baseline 열의 OS 추출
+            
             int uaRowIdx = baselineContext.indexOf("| UA");
             if (uaRowIdx != -1) {
-                // UA 행의 끝까지 찾기
+                
                 int rowEndIdx = baselineContext.indexOf("\n", uaRowIdx);
                 if (rowEndIdx == -1) rowEndIdx = baselineContext.length();
                 String uaRow = baselineContext.substring(uaRowIdx, rowEndIdx);
 
-                // 파이프(|)로 열 분리: [empty, UA, Current, Baseline, Status, empty]
+                
                 String[] columns = uaRow.split("\\|");
                 if (columns.length >= 4) {
-                    // columns[3]이 Baseline 열: "Chrome/143 (Windows)" 형태
+                    
                     String baselineColumn = columns[3].trim();
                     int startParen = baselineColumn.lastIndexOf("(");
                     int endParen = baselineColumn.lastIndexOf(")");
                     if (startParen != -1 && endParen > startParen) {
                         String os = baselineColumn.substring(startParen + 1, endParen);
-                        // 말줄임표 처리: "Win..." -> "Windows" 매핑 불가, 있는 그대로 반환
+                        
                         return os.replace("...", "");
                     }
                 }
             }
 
-            // 방법 2: 레거시 JSON 형식 폴백 - "baseline": "Chrome/143 (Windows)"
+            
             int baselineIdx = baselineContext.indexOf("\"baseline\":");
             if (baselineIdx != -1) {
                 int startParen = baselineContext.indexOf("(", baselineIdx);
@@ -564,18 +516,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return null;
     }
 
-    /**
-     * AI Native v6.6: SecurityResponse를 SecurityDecision으로 변환
-     *
-     * 통합된 응답 형식 (5필드):
-     * - riskScore, confidence, action, reasoning, mitre
-     * - threatCategory, mitigationActions 등은 제거됨 (프롬프트 미요청)
-     */
+    
     private SecurityDecision convertToSecurityDecision(SecurityResponse response,
                                                        SecurityEvent event) {
         SecurityDecision.Action action = mapStringToAction(response.getAction());
 
-        // AI Native: Layer1 점수 폴백 금지 - LLM이 분석 못하면 NaN
+        
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
                 .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
@@ -585,7 +531,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .analysisTime(System.currentTimeMillis())
                 .build();
 
-        // AI Native v6.6: mitre 필드를 threatCategory로 매핑 (호환성 유지)
+        
         if (response.getMitre() != null && !response.getMitre().isBlank()) {
             decision.setThreatCategory(response.getMitre());
         }
@@ -593,19 +539,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return decision;
     }
 
-    /**
-     * AI Native v6.6: JSON 응답 파싱
-     *
-     * SecurityResponse.fromJson()을 사용하여 축약/전체 JSON 모두 지원
-     * - 축약 형식: {"r":0.75,"c":0.85,"a":"E","d":"..."}
-     * - 전체 형식: {"riskScore":0.75,"confidence":0.85,"action":"ESCALATE","reasoning":"..."}
-     */
+    
     private SecurityResponse parseJsonResponse(String jsonResponse) {
         try {
-            // JSON 문자열에서 {}만 추출
+            
             String cleanedJson = extractJsonObject(jsonResponse);
 
-            // SecurityResponse.fromJson()으로 파싱 (축약/전체 모두 지원)
+            
             SecurityResponse response = SecurityResponse.fromJson(cleanedJson);
 
             if (response != null && response.isValid()) {
@@ -622,14 +562,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    /**
-     * AI Native v6.6: 기본 응답 생성
-     *
-     * LLM 분석 불가 시 ESCALATE로 상위 Layer에 위임
-     */
+    
     private SecurityResponse createDefaultResponse() {
         return SecurityResponse.builder()
-                .riskScore(null)  // AI Native: NaN 대신 null (fromJson 호환성)
+                .riskScore(null)  
                 .confidence(null)
                 .action("ESCALATE")
                 .reasoning("[AI Native] Layer 1 LLM analysis unavailable - escalating to Layer 2")
@@ -637,16 +573,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    // mapStringToAction()은 AbstractTieredStrategy로 이동됨
+    
 
-    /**
-     * 결정에 컨텍스트 정보 추가
-     */
+    
     private void enrichDecisionWithContext(SecurityDecision decision,
                                            SessionContext sessionContext,
                                            BaseBehaviorAnalysis behaviorAnalysis) {
 
-        // 세션 컨텍스트를 메타데이터로 추가
+        
         Map<String, Object> sessionData = new HashMap<>();
         sessionData.put("sessionId", sessionContext.getSessionId());
         sessionData.put("userId", sessionContext.getUserId());
@@ -660,10 +594,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         decision.getBehaviorPatterns().addAll(behaviorAnalysis.getSimilarEvents());
     }
 
-    /**
-     * Layer 1 분석 실패 시 기본 결정 생성
-     * AI Native: 분석 실패 시 ESCALATE로 상위 Layer에 위임
-     */
+    
     private SecurityDecision createFallbackDecision(long startTime) {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.ESCALATE)
@@ -676,19 +607,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    // AI Native v6.8: updateSessionContext(), storeInVectorDatabase() 메서드 삭제
-    // - SecurityDecisionPostProcessor 서비스로 이동
-    // - 코드 중복 제거, ZeroTrustEventListener와 일관성 유지
+    
+    
+    
     @Override
     protected String getLayerName() {
         return "Layer1";
     }
 
-    /**
-     * AI Native v3.3.0: MONITOR deprecated
-     * - MONITOR_USER_BEHAVIOR 제거
-     * - LLM이 결정한 action 기반 권장 조치
-     */
+    
     @Override
     public List<String> getRecommendedActions(SecurityEvent event) {
         List<String> actions = new ArrayList<>();
@@ -703,9 +630,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return Double.NaN;
     }
 
-    /**
-     * Action을 권장 조치 문자열로 변환 (AI Native v3.3.0 - 4개 Action)
-     */
+    
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         return switch (action) {
             case ALLOW -> "ALLOW";
@@ -715,56 +640,36 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         };
     }
 
-    /**
-     * AI Native v6.0: BaseSessionContext를 확장한 Layer1 전용 SessionContext
-     *
-     * BaseSessionContext의 모든 필드와 메서드를 상속받고,
-     * Layer1 전용 기능인 addEvent()만 추가합니다.
-     *
-     * 공통화 효과:
-     * - 중복 코드 ~60줄 제거
-     * - 세션 하이재킹 탐지 로직 통합
-     */
+    
     private class SessionContext extends BaseSessionContext {
 
-        /**
-         * Layer1 전용: 이벤트 발생 시 세션 컨텍스트 업데이트
-         *
-         * - accessFrequency 증가
-         * - recentActions에 행동 기록 추가
-         *
-         * @param event SecurityEvent
-         */
+        
         public void addEvent(SecurityEvent event) {
             accessFrequency++;
-            // 설정에서 최대 액션 수 가져오기
+            
             int maxRecentActions = tieredStrategyProperties.getLayer1().getSession().getMaxRecentActions();
             if (recentActions.size() > maxRecentActions) {
                 recentActions.remove(0);
             }
-            // AI Native v6.0: httpMethod 제거 - LLM 분석에 불필요 (Description에서 유추 가능)
+            
             recentActions.add(event.getDescription() != null ? event.getDescription() : "action");
         }
     }
 
-    /**
-     * AI Native v6.6: 응답 검증 및 수정
-     *
-     * 통합된 SecurityResponse 형식 검증
-     */
+    
     private SecurityResponse validateAndFixResponse(SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
         }
 
-        // AI Native v6.0: AbstractTieredStrategy.validateResponseBase() 공통 메서드 활용
-        // - 중복 코드 제거, AI Native 원칙 일관성 유지
-        // - null인 경우 NaN으로 변환 (플랫폼이 임의 값 설정 금지)
+        
+        
+        
         double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
         response.setRiskScore(validated[0]);
         response.setConfidence(validated[1]);
 
-        // AI Native v6.6: action이 null이면 ESCALATE로 설정
+        
         if (response.getAction() == null || response.getAction().isBlank()) {
             response.setAction("ESCALATE");
             log.warn("[Layer1][Fallback] action 누락, ESCALATE로 설정");
@@ -773,10 +678,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return response;
     }
 
-    // AI Native v6.0: isSessionContextChanged() 삭제
-    // - SessionContext가 BaseSessionContext를 extends
-    // - AbstractTieredStrategy.isSessionContextChanged(BaseSessionContext, SecurityEvent) 공통 메서드 사용
-    // - 세션 하이재킹 탐지 로직 통합 완료
+    
+    
+    
+    
 
-    // AI Native v6.0: BehaviorAnalysis 클래스 삭제 - AbstractTieredStrategy.BaseBehaviorAnalysis 사용
+    
 }

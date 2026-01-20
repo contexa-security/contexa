@@ -10,27 +10,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * 관리자 개입 Redis 저장소 (AI Native v3.4.0)
- *
- * AI Native 원칙:
- * - BLOCK 판정된 요청에 대한 관리자 검토 이력을 영구 저장
- * - 모든 관리자 개입은 감사 로그로 30일간 보존
- * - 대기 중인 요청은 7일간 유지
- *
- * Redis 스키마:
- * - Key: security:admin:override:{requestId}
- * - TTL: 30일 (감사 목적)
- *
- * 조회 인덱스:
- * - security:admin:override:user:{userId} (사용자별 개입 이력)
- * - security:admin:override:pending:{requestId} (대기 중인 요청)
- *
- * Bean 등록: CoreAutonomousAutoConfiguration에서 @Bean으로 등록
- *
- * @author contexa
- * @since 3.4.0
- */
+
 @Slf4j
 public class AdminOverrideRepository {
 
@@ -47,16 +27,7 @@ public class AdminOverrideRepository {
     private static final Duration TTL = Duration.ofDays(30);
     private static final Duration PENDING_TTL = Duration.ofDays(7);
 
-    /**
-     * 관리자 개입 저장
-     *
-     * 저장 시:
-     * 1. 개입 데이터를 Hash로 저장
-     * 2. 사용자별 인덱스 업데이트
-     * 3. 30일 TTL 설정
-     *
-     * @param override 관리자 개입 객체
-     */
+    
     public void save(AdminOverride override) {
         if (override == null || override.getRequestId() == null) {
             log.warn("[AdminOverrideRepository] null override 또는 requestId로 저장 시도");
@@ -70,7 +41,7 @@ public class AdminOverrideRepository {
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, TTL);
 
-            // 사용자별 인덱스 업데이트
+            
             if (override.getUserId() != null) {
                 String userIndexKey = USER_INDEX_PREFIX + override.getUserId();
                 redisTemplate.opsForSet().add(userIndexKey, override.getRequestId());
@@ -88,16 +59,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * 대기 중인 요청 저장 (BLOCK 판정 시)
-     *
-     * LLM이 BLOCK 판정을 내리면 해당 요청을 대기 목록에 저장합니다.
-     * 관리자가 검토할 수 있도록 7일간 유지됩니다.
-     *
-     * @param requestId 요청 ID
-     * @param userId 사용자 ID
-     * @param analysisData LLM 분석 결과 데이터
-     */
+    
     public void savePending(String requestId, String userId, Map<String, Object> analysisData) {
         if (requestId == null) {
             log.warn("[AdminOverrideRepository] null requestId로 pending 저장 시도");
@@ -127,15 +89,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * SecurityEvent 저장 (AI Native v3.5.0)
-     *
-     * BLOCK 판정 시 SecurityEvent를 함께 저장하여
-     * 관리자 승인 시 Baseline 학습에 활용합니다.
-     *
-     * @param requestId 요청 ID
-     * @param event SecurityEvent 객체
-     */
+    
     public void saveSecurityEvent(String requestId, SecurityEvent event) {
         if (requestId == null || event == null) {
             log.warn("[AdminOverrideRepository] null requestId 또는 event로 saveSecurityEvent 시도");
@@ -157,15 +111,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * SecurityEvent 조회 (AI Native v3.5.0)
-     *
-     * 관리자 승인 시 저장된 SecurityEvent를 조회하여
-     * Baseline 학습에 활용합니다.
-     *
-     * @param requestId 요청 ID
-     * @return SecurityEvent 객체 (없으면 Optional.empty())
-     */
+    
     public Optional<SecurityEvent> findSecurityEvent(String requestId) {
         if (requestId == null) {
             return Optional.empty();
@@ -188,13 +134,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * SecurityEvent 삭제 (AI Native v3.5.0)
-     *
-     * 관리자 처리 완료 후 SecurityEvent 삭제
-     *
-     * @param requestId 요청 ID
-     */
+    
     public void deleteSecurityEvent(String requestId) {
         if (requestId == null) {
             return;
@@ -213,12 +153,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * 관리자 개입 조회
-     *
-     * @param requestId 요청 ID
-     * @return 관리자 개입 객체 (없으면 Optional.empty())
-     */
+    
     public Optional<AdminOverride> findByRequestId(String requestId) {
         if (requestId == null) {
             return Optional.empty();
@@ -241,12 +176,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * 대기 중인 요청 조회
-     *
-     * @param requestId 요청 ID
-     * @return 대기 중인 요청 데이터 (없으면 Optional.empty())
-     */
+    
     public Optional<Map<Object, Object>> findPending(String requestId) {
         if (requestId == null) {
             return Optional.empty();
@@ -264,11 +194,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * 대기 중인 요청 삭제 (관리자 처리 완료 시)
-     *
-     * @param requestId 요청 ID
-     */
+    
     public void deletePending(String requestId) {
         if (requestId == null) {
             return;
@@ -287,12 +213,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * 사용자별 관리자 개입 이력 조회
-     *
-     * @param userId 사용자 ID
-     * @return 해당 사용자의 모든 관리자 개입 목록
-     */
+    
     public List<AdminOverride> findByUserId(String userId) {
         if (userId == null) {
             return Collections.emptyList();
@@ -320,9 +241,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * AdminOverride 객체를 Redis Hash용 Map으로 변환
-     */
+    
     private Map<String, Object> toMap(AdminOverride override) {
         Map<String, Object> map = new HashMap<>();
         map.put("overrideId", override.getOverrideId());
@@ -340,9 +259,7 @@ public class AdminOverrideRepository {
         return map;
     }
 
-    /**
-     * Redis Hash Map을 AdminOverride 객체로 변환
-     */
+    
     private AdminOverride fromMap(Map<Object, Object> data) {
         return AdminOverride.builder()
             .overrideId(getStringFromMap(data, "overrideId"))
@@ -393,12 +310,7 @@ public class AdminOverrideRepository {
         }
     }
 
-    /**
-     * SecurityEvent 객체를 Redis Hash용 Map으로 변환 (AI Native v3.5.0)
-     *
-     * SecurityEvent v3.0.0 필드 구조:
-     * - resourceType, resourceId, action 필드는 제거됨 (metadata로 이동)
-     */
+    
     @SuppressWarnings("unchecked")
     private Map<String, Object> securityEventToMap(SecurityEvent event) {
         Map<String, Object> map = new HashMap<>();
@@ -415,7 +327,7 @@ public class AdminOverrideRepository {
         map.put("description", event.getDescription());
         map.put("timestamp", event.getTimestamp() != null ? event.getTimestamp().toString() : null);
 
-        // metadata는 JSON 문자열로 저장
+        
         if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
             try {
                 StringBuilder sb = new StringBuilder("{");
@@ -436,12 +348,7 @@ public class AdminOverrideRepository {
         return map;
     }
 
-    /**
-     * Redis Hash Map을 SecurityEvent 객체로 변환 (AI Native v3.5.0)
-     *
-     * SecurityEvent v3.0.0 필드 구조:
-     * - resourceType, resourceId, action 필드는 제거됨 (metadata로 이동)
-     */
+    
     private SecurityEvent securityEventFromMap(Map<Object, Object> data) {
         SecurityEvent.SecurityEventBuilder builder = SecurityEvent.builder()
             .eventId(getStringFromMap(data, "eventId"))
@@ -454,7 +361,7 @@ public class AdminOverrideRepository {
             .blocked(parseBoolean(getStringFromMap(data, "blocked")))
             .description(getStringFromMap(data, "description"));
 
-        // source 파싱
+        
         String sourceStr = getStringFromMap(data, "source");
         if (sourceStr != null && !sourceStr.isEmpty()) {
             try {
@@ -464,7 +371,7 @@ public class AdminOverrideRepository {
             }
         }
 
-        // severity 파싱
+        
         String severityStr = getStringFromMap(data, "severity");
         if (severityStr != null && !severityStr.isEmpty()) {
             try {
@@ -474,7 +381,7 @@ public class AdminOverrideRepository {
             }
         }
 
-        // timestamp 파싱
+        
         String timestampStr = getStringFromMap(data, "timestamp");
         if (timestampStr != null && !timestampStr.isEmpty()) {
             try {
@@ -484,7 +391,7 @@ public class AdminOverrideRepository {
             }
         }
 
-        // metadata 파싱 (간단한 JSON 파싱)
+        
         String metadataStr = getStringFromMap(data, "metadata");
         if (metadataStr != null && !metadataStr.isEmpty() && metadataStr.startsWith("{")) {
             try {

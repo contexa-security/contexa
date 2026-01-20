@@ -10,9 +10,7 @@ import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
-/**
- * MFA(Multi-Factor Authentication)를 지원하는 REST 인증 설정 클래스
- */
+
 public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder<H>>
         extends AbstractRestAuthenticationConfigurer<MfaRestAuthenticationConfigurer<H>, H> {
 
@@ -20,7 +18,7 @@ public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder
 
     @Override
     public void init(H http){
-        // MFA 설정 초기화
+        
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         if (platformContext != null) {
             AuthContextProperties authProps = platformContext.getShared(AuthContextProperties.class);
@@ -29,7 +27,7 @@ public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder
             }
         }
         if (this.mfaInitiateUrl == null) {
-            this.mfaInitiateUrl = "/mfa"; // 기본값 설정
+            this.mfaInitiateUrl = "/mfa"; 
         }
     }
 

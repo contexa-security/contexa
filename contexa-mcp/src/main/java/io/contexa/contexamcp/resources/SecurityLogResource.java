@@ -20,37 +20,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * Security Log Resource
- * MCP를 통해 보안 로그를 리소스로 노출
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SecurityLogResource {
     
     private final ObjectMapper objectMapper;
     
-    // 로그 파일 경로 (실제 환경에서는 설정으로 관리)
+    
     private static final String LOG_PATH = "./logs/security";
     
-    /**
-     * 보안 로그 리소스 정의
-     */
+    
     public McpSchema.Resource getResourceDefinition() {
-        // Annotations의 실제 시그니처에 맞게 수정
-        // Annotations(List<Role> roles, Double priority)로 보임
+        
+        
         return new McpSchema.Resource(
-            "security://logs/current",  // uri
-            "Security Logs",  // name
-            "Current security logs from the last 24 hours",  // description
-            "text/plain",  // mimeType
-            null  // annotations - 사용하지 않음
+            "security://logs/current",  
+            "Security Logs",  
+            "Current security logs from the last 24 hours",  
+            "text/plain",  
+            null  
         );
     }
     
-    /**
-     * 보안 로그 리소스 Specification 생성
-     */
+    
     public McpServerFeatures.SyncResourceSpecification createSpecification() {
         return new McpServerFeatures.SyncResourceSpecification(
             getResourceDefinition(),
@@ -58,15 +51,15 @@ public class SecurityLogResource {
                 try {
                     log.info("보안 로그 리소스 요청: {}", request.uri());
                     
-                    // URI 파싱 (예: security://logs/current?severity=high&limit=100)
+                    
                     Map<String, String> params = parseUriParameters(request.uri());
                     String severity = params.getOrDefault("severity", "all");
                     int limit = Integer.parseInt(params.getOrDefault("limit", "1000"));
                     
-                    // 로그 데이터 읽기
+                    
                     String logContent = readSecurityLogs(severity, limit);
                     
-                    // MCP 리소스 응답 생성
+                    
                     return new McpSchema.ReadResourceResult(
                         List.of(new McpSchema.TextResourceContents(
                             request.uri(),
@@ -83,32 +76,30 @@ public class SecurityLogResource {
         );
     }
     
-    /**
-     * 보안 로그 읽기
-     */
+    
     private String readSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
         try {
-            // 실제 로그 파일에서 데이터 읽기 시도
+            
             List<String> actualLogs = readActualSecurityLogs(severity, limit);
             if (!actualLogs.isEmpty()) {
                 logs.addAll(actualLogs);
                 return String.join("\n", logs);
             }
             
-            // 실제 로그 파일이 없거나 읽기 실패시 Windows/Linux 시스템 로그 확인
+            
             List<String> systemLogs = readSystemSecurityLogs(severity, limit);
             if (!systemLogs.isEmpty()) {
                 logs.addAll(systemLogs);
                 return String.join("\n", logs);
             }
             
-            // 모든 실제 소스가 실패한 경우만 샘플 데이터 생성
+            
             LocalDateTime now = LocalDateTime.now();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
             
-            // 샘플 로그 엔트리 생성
+            
             for (int i = 0; i < Math.min(limit, 10); i++) {
                 LocalDateTime timestamp = now.minusMinutes(i * 5);
                 String logEntry = String.format(
@@ -124,7 +115,7 @@ public class SecurityLogResource {
                 }
             }
             
-            // 실제 로그 파일이 있다면 읽기 시도
+            
             Path logFile = Paths.get(LOG_PATH, "security.log");
             if (Files.exists(logFile)) {
                 try (BufferedReader reader = new BufferedReader(new FileReader(logFile.toFile()))) {
@@ -142,9 +133,7 @@ public class SecurityLogResource {
         return String.join("\n", logs);
     }
     
-    /**
-     * URI 파라미터 파싱
-     */
+    
     private Map<String, String> parseUriParameters(String uri) {
         Map<String, String> params = new java.util.HashMap<>();
         
@@ -183,16 +172,14 @@ public class SecurityLogResource {
         return events[index % events.length];
     }
     
-    // ====== 실제 로그 읽기 구현 메서드들 ======
     
-    /**
-     * 실제 보안 로그 파일에서 데이터 읽기
-     */
+    
+    
     private List<String> readActualSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
         try {
-            // 여러 가능한 로그 파일 경로 시도
+            
             List<String> logPaths = Arrays.asList(
                 LOG_PATH + "/security.log",
                 LOG_PATH + "/audit.log", 
@@ -221,9 +208,7 @@ public class SecurityLogResource {
         return logs;
     }
     
-    /**
-     * 시스템 보안 로그 읽기 (OS별)
-     */
+    
     private List<String> readSystemSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
@@ -249,9 +234,7 @@ public class SecurityLogResource {
         return logs;
     }
     
-    /**
-     * 로그 파일 읽기 및 필터링
-     */
+    
     private List<String> readLogFile(Path logFile, String severity, int limit) throws Exception {
         List<String> logs = new ArrayList<>();
         
@@ -260,7 +243,7 @@ public class SecurityLogResource {
             int count = 0;
             
             while ((line = reader.readLine()) != null && count < limit) {
-                // 심각도 필터링
+                
                 if (severity.equals("all") || containsSeverity(line, severity)) {
                     logs.add(line);
                     count++;
@@ -271,14 +254,12 @@ public class SecurityLogResource {
         return logs;
     }
     
-    /**
-     * Windows 시스템 보안 로그 읽기
-     */
+    
     private List<String> readWindowsSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
         try {
-            // Windows Event Log를 PowerShell로 읽기
+            
             ProcessBuilder pb = new ProcessBuilder("powershell", 
                 "Get-WinEvent -FilterHashtable @{LogName='Security'; ID=4625,4624,4648,4720,4726} -MaxEvents " + limit + 
                 " | Select-Object TimeCreated, Id, LevelDisplayName, Message | Format-Table -Wrap");
@@ -305,14 +286,12 @@ public class SecurityLogResource {
         return logs;
     }
     
-    /**
-     * Linux 시스템 보안 로그 읽기
-     */
+    
     private List<String> readLinuxSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
         try {
-            // 여러 Linux 로그 소스 시도
+            
             String[] logSources = {
                 "/var/log/secure",
                 "/var/log/auth.log", 
@@ -322,7 +301,7 @@ public class SecurityLogResource {
             for (String logSource : logSources) {
                 Path path = Paths.get(logSource);
                 if (Files.exists(path)) {
-                    // tail을 사용해서 최근 로그만 읽기
+                    
                     ProcessBuilder pb = new ProcessBuilder("tail", "-n", String.valueOf(limit), logSource);
                     Process process = pb.start();
                     
@@ -338,7 +317,7 @@ public class SecurityLogResource {
                     }
                     
                     if (!logs.isEmpty()) {
-                        break; // 첫 번째로 성공한 로그 소스 사용
+                        break; 
                     }
                 }
             }
@@ -350,14 +329,12 @@ public class SecurityLogResource {
         return logs;
     }
     
-    /**
-     * macOS 시스템 보안 로그 읽기
-     */
+    
     private List<String> readMacSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
         try {
-            // macOS unified logging system 사용
+            
             ProcessBuilder pb = new ProcessBuilder("log", "show", 
                 "--predicate", "category == 'security'", 
                 "--last", "1h", 
@@ -386,9 +363,7 @@ public class SecurityLogResource {
         return logs;
     }
     
-    /**
-     * 로그 라인에 특정 심각도가 포함되어 있는지 확인
-     */
+    
     private boolean containsSeverity(String logLine, String severity) {
         if (severity.equals("all")) {
             return true;
@@ -397,7 +372,7 @@ public class SecurityLogResource {
         String lowerLine = logLine.toLowerCase();
         String lowerSeverity = severity.toLowerCase();
         
-        // 다양한 심각도 표현 확인
+        
         switch (lowerSeverity) {
             case "critical":
                 return lowerLine.contains("critical") || lowerLine.contains("crit") || 

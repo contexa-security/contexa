@@ -11,16 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * 정적 권한 분석 이벤트
- * 
- * AccessGovernanceLab이 권한 감사를 수행하고 문제점을 발견한 경우 발생하는 이벤트
- * 이 이벤트는 AutonomousPolicySynthesizer에 의해 수신되어
- * StaticAccessOptimizationLab으로 라우팅되어 최적화 정책 생성으로 이어짐
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Data
 @EqualsAndHashCode(callSuper = false)
 public class StaticAccessAnalysisEvent extends ApplicationEvent implements LearnableEvent {
@@ -35,7 +26,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
     private final boolean responseSuccessful;
     private final String responseDescription;
     
-    // 권한 분석 관련 추가 정보
+    
     private final AnalysisType analysisType;
     private final List<AccessFinding> findings;
     private final String analyzedResource;
@@ -45,21 +36,17 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
     private final Integer overPrivilegedCount;
     private final Map<String, Object> recommendations;
     
-    /**
-     * 분석 유형
-     */
+    
     public enum AnalysisType {
-        UNUSED_PERMISSIONS,      // 미사용 권한
-        OVER_PRIVILEGED,        // 과도한 권한
-        SEPARATION_OF_DUTIES,   // 직무 분리 위반
-        LEAST_PRIVILEGE,        // 최소 권한 원칙 위반
-        ACCESS_REVIEW,          // 접근 권한 검토
-        COMPLIANCE_CHECK        // 규정 준수 확인
+        UNUSED_PERMISSIONS,      
+        OVER_PRIVILEGED,        
+        SEPARATION_OF_DUTIES,   
+        LEAST_PRIVILEGE,        
+        ACCESS_REVIEW,          
+        COMPLIANCE_CHECK        
     }
     
-    /**
-     * 권한 분석 발견 사항
-     */
+    
     @Data
     @Builder
     public static class AccessFinding {
@@ -75,7 +62,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         private LocalDateTime lastUsed;
         private Integer riskScore;
         
-        // Getter 메서드 (Lombok이 자동 생성하지만 명시적으로 추가)
+        
         public String getFindingType() {
             return type;
         }
@@ -114,40 +101,38 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         this.unusedPermissions = unusedPermissions;
         this.overPrivilegedCount = overPrivilegedCount;
         this.recommendations = recommendations != null ? recommendations : new HashMap<>();
-        this.responseSuccessful = true;  // 분석은 항상 성공
+        this.responseSuccessful = true;  
         this.responseDescription = "권한 분석 완료";
         
-        // 컨텍스트 구성
+        
         this.context = buildContext(additionalContext);
     }
     
-    /**
-     * 이벤트 컨텍스트 구성
-     */
+    
     private Map<String, Object> buildContext(Map<String, Object> additionalContext) {
         Map<String, Object> ctx = new HashMap<>();
         
-        // 분석 정보
+        
         ctx.put("analysisType", analysisType);
         ctx.put("analyzedResource", analyzedResource);
         ctx.put("analyzedUser", analyzedUser);
         
-        // 통계 정보
+        
         ctx.put("totalPermissions", totalPermissions);
         ctx.put("unusedPermissions", unusedPermissions);
         ctx.put("overPrivilegedCount", overPrivilegedCount);
         
-        // 발견 사항 요약
+        
         if (findings != null && !findings.isEmpty()) {
             ctx.put("findingsCount", findings.size());
             ctx.put("criticalFindings", countCriticalFindings());
             ctx.put("highRiskFindings", countHighRiskFindings());
         }
         
-        // 권장 사항
+        
         ctx.put("recommendations", recommendations);
         
-        // 추가 컨텍스트
+        
         if (additionalContext != null) {
             ctx.putAll(additionalContext);
         }
@@ -155,9 +140,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         return ctx;
     }
     
-    /**
-     * 정책 생성을 위한 자연어 설명 생성
-     */
+    
     public String generateNaturalLanguageDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("분석 유형: ").append(getAnalysisTypeDescription()).append("\n");
@@ -180,9 +163,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         return sb.toString();
     }
     
-    /**
-     * 학습을 위한 핵심 정보 추출
-     */
+    
     public Map<String, String> extractLearningFeatures() {
         Map<String, String> features = new HashMap<>();
         features.put("analysis_type", analysisType.toString());

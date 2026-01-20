@@ -7,8 +7,8 @@ import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
-@Table(name = "GROUP_ROLES") // Group과 Role의 조인 테이블
-@IdClass(GroupRoleId.class) // 복합 PK를 위한 @IdClass 사용
+@Table(name = "GROUP_ROLES") 
+@IdClass(GroupRoleId.class) 
 @Getter
 @Setter
 @Builder
@@ -19,17 +19,17 @@ public class GroupRole implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id")
     @ToString.Exclude
-    private Group group; // 그룹 엔티티
+    private Group group; 
 
     @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id")
     @ToString.Exclude
-    private Role role; // 역할 엔티티
+    private Role role; 
 
-    // 추가 속성 (예: 역할 할당일, 역할 유효기간 등)
-    // @Column(name = "assigned_at")
-    // private Instant assignedAt;
+    
+    
+    
 
     @Override
     public boolean equals(Object o) {
@@ -46,11 +46,11 @@ public class GroupRole implements Serializable {
     }
 }
 
-// 복합 PK를 위한 ID 클래스
+
 @NoArgsConstructor
 @AllArgsConstructor
 class GroupRoleId implements Serializable {
-    private Long group; // Group 엔티티의 ID 타입과 일치해야 함
-    private Long role;  // Role 엔티티의 ID 타입과 일치해야 함
+    private Long group; 
+    private Long role;  
 
 }

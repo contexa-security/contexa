@@ -68,7 +68,7 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
         for (Object adviceBean : adviceBeans) {
             Class<?> beanType = ClassUtils.getUserClass(adviceBean);
             ExceptionHandlerMethodResolver resolver = this.methodResolverCache.computeIfAbsent(beanType, ExceptionHandlerMethodResolver::new);
-            if (resolver.hasExceptionMappings()) { // ExceptionHandlerMethodResolver에 hasExceptionMappings()가 이미 있음
+            if (resolver.hasExceptionMappings()) { 
                 this.adviceToResolverCache.put(adviceBean, resolver);
                 log.debug("ASEP: Detected @SecurityExceptionHandler methods in advice bean: {}", beanType.getName());
             }
@@ -76,11 +76,8 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
         log.info("ASEP: Initialized SecurityExceptionHandlerAdviceCache with {} advice beans.", this.adviceToResolverCache.size());
     }
 
-    /**
-     * 등록된 예외 처리 메서드 매핑이 하나라도 있는지 확인합니다.
-     * @return 매핑이 있으면 true, 없으면 false
-     */
-    public boolean hasAnyMappings() { // <<-- 추가된 메서드
+    
+    public boolean hasAnyMappings() { 
         return !this.adviceToResolverCache.isEmpty();
     }
 
@@ -99,7 +96,7 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
             acceptedMediaTypes = this.contentNegotiationManager.resolveMediaTypes(webRequest);
             if (CollectionUtils.isEmpty(acceptedMediaTypes) ||
                     (acceptedMediaTypes.size() == 1 && MediaType.ALL.equals(acceptedMediaTypes.get(0)))) {
-                acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON); // 기본값을 JSON으로 명시
+                acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON); 
                 log.trace("ASEP: No specific Accept header, defaulting to application/json for exception handling.");
             }
         } catch (Exception ex) {
@@ -170,7 +167,7 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
                         method,
                         ann.priority()
                 );
-                this.methodMappings.put(method, mappingInfo); // 같은 메소드에 대해 덮어쓰기 가능 (보통은 메소드별로 고유)
+                this.methodMappings.put(method, mappingInfo); 
             }
         }
 
@@ -233,10 +230,10 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
                     return mappingInfo.handlerMethod();
                 }
             }
-            // Content Negotiation에 맞는 것이 없을 경우, produces가 없는 (모든 타입을 허용하는) 가장 우선순위 높은 핸들러를 고려
-            // 또는, acceptedMediaType이 와일드카드일 경우 첫번째 후보 반환 등
-            // 현재 로직은 produces가 명시적으로 매칭되거나, produces가 아예 없는 경우를 찾지 않음.
-            // -> 수정: produces가 없거나 MediaType.ALL을 포함하는 경우도 고려
+            
+            
+            
+            
             for (ExceptionHandlerMappingInfo mappingInfo : candidates) {
                 if (mappingInfo.producibleMediaTypes().isEmpty() ||
                         mappingInfo.producibleMediaTypes().stream().anyMatch(mt -> acceptedMediaType.isCompatibleWith(mt) || mt.isCompatibleWith(MediaType.ALL))) {
@@ -256,7 +253,7 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
         ) {
             public boolean matches(MediaType acceptedMediaType) {
                 if (this.producibleMediaTypes.isEmpty()) {
-                    return true; // produces 명시 안하면 모든 타입 수용
+                    return true; 
                 }
                 for (MediaType producible : this.producibleMediaTypes) {
                     if (acceptedMediaType.isCompatibleWith(producible)) {
@@ -279,9 +276,9 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
                 int depth1 = getDepth(o1.exceptionTypes(), this.exceptionType);
                 int depth2 = getDepth(o2.exceptionTypes(), this.exceptionType);
                 if (depth1 != depth2) {
-                    return Integer.compare(depth1, depth2); // 더 구체적인 예외 (낮은 깊이) 우선
+                    return Integer.compare(depth1, depth2); 
                 }
-                return Integer.compare(o1.priority(), o2.priority()); // 우선순위 (낮은 값) 우선
+                return Integer.compare(o1.priority(), o2.priority()); 
             }
 
             private int getDepth(Set<Class<? extends Throwable>> mappedTypes, Class<?> targetExceptionType) {
@@ -294,7 +291,7 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
                             current = current.getSuperclass();
                             depth++;
                         }
-                        if (current != null) { // mappedType에 도달함
+                        if (current != null) { 
                             minDepth = Math.min(minDepth, depth);
                         }
                     }

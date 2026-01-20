@@ -7,12 +7,7 @@ import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
 
-/**
- * WebSecurityConfiguration이 PlatformBootstrap에 의존하도록 설정하는 BeanFactoryPostProcessor입니다.
- *
- * <p>이를 통해 PlatformBootstrap.afterPropertiesSet()이 WebSecurityConfiguration보다 먼저 실행되어
- * SecurityFilterChain 빈들을 등록한 후, WebSecurityConfiguration이 이를 주입받을 수 있도록 합니다.</p>
- */
+
 @Slf4j
 public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPostProcessor {
 
@@ -21,7 +16,7 @@ public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPo
         log.info("WebSecurityConfigurationDependencyInjector: Adding 'platformBootstrap' dependency to WebSecurityConfiguration...");
 
         try {
-            // WebSecurityConfiguration 빈 이름 찾기
+            
             String[] webSecurityConfigNames = beanFactory.getBeanNamesForType(
                     WebSecurityConfiguration.class, false, false);
 
@@ -33,15 +28,15 @@ public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPo
             for (String beanName : webSecurityConfigNames) {
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
 
-                // 기존 dependsOn 가져오기
+                
                 String[] existingDependsOn = bd.getDependsOn();
 
-                // platformBootstrap 추가
+                
                 String[] newDependsOn;
                 if (existingDependsOn == null || existingDependsOn.length == 0) {
                     newDependsOn = new String[]{"platformBootstrap"};
                 } else {
-                    // 이미 platformBootstrap이 있는지 확인
+                    
                     boolean alreadyExists = false;
                     for (String dep : existingDependsOn) {
                         if ("platformBootstrap".equals(dep)) {

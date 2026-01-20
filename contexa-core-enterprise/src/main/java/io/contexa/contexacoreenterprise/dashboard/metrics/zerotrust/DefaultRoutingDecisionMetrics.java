@@ -12,36 +12,25 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Routing Decision 메트릭 구현체
- *
- * Hot/Cold Path 라우팅 결정 및 Processing Mode별 통계 수집
- *
- * Hot/Cold Path 기준:
- * - Hot Path: AI Native 빠른 처리 (PASS_THROUGH)
- * - Cold Path: AI Native 심층 분석 (AI_ANALYSIS)
- *
- * @author contexa
- * @since 3.1.0
- */
+
 @Slf4j
 public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics implements RoutingDecisionMetrics {
 
-    // 라우팅 경로 카운터
+    
     private Counter hotPathCounter;
     private Counter coldPathCounter;
 
-    // Processing Mode별 카운터
+    
     private Counter passThroughCounter;
     private Counter aiAnalysisCounter;
     private Counter realtimeBlockCounter;
     private Counter soarOrchestrationCounter;
     private Counter awaitApprovalCounter;
 
-    // 라우팅 결정 시간
+    
     private Timer routingDecisionTimer;
 
-    // Hot Path 비율 계산용
+    
     private final AtomicLong hotPathCount = new AtomicLong(0);
     private final AtomicLong totalRoutingCount = new AtomicLong(0);
 
@@ -51,7 +40,7 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
 
     @Override
     protected void initializeCounters() {
-        // 라우팅 경로 카운터
+        
         hotPathCounter = counterBuilder("routing.decision", "Hot Path 라우팅 횟수")
                 .tag("path", "hot")
                 .register(meterRegistry);
@@ -60,7 +49,7 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
                 .tag("path", "cold")
                 .register(meterRegistry);
 
-        // Processing Mode별 카운터
+        
         passThroughCounter = counterBuilder("routing.mode", "PASS_THROUGH 모드")
                 .tag("mode", "pass_through")
                 .register(meterRegistry);
@@ -94,11 +83,9 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
                 count -> totalRoutingCount.get() > 0 ? (count.get() / (double) totalRoutingCount.get()) * 100.0 : 0.0);
     }
 
-    // ===== Public API =====
+    
 
-    /**
-     * Hot Path 라우팅 기록
-     */
+    
     @Override
     public void recordHotPath(long durationNanos, String processingMode) {
         hotPathCounter.increment();
@@ -109,9 +96,7 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
         recordProcessingMode(processingMode);
     }
 
-    /**
-     * Cold Path 라우팅 기록
-     */
+    
     @Override
     public void recordColdPath(long durationNanos, String processingMode) {
         coldPathCounter.increment();
@@ -155,7 +140,7 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
 
     @Override
     public double getHealthScore() {
-        // Hot Path 비율이 적절한지 확인 (50-90% 권장)
+        
         double hotRatio = getHotPathRatio();
         if (hotRatio < 50.0 || hotRatio > 90.0) {
             return 0.8;

@@ -12,13 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * SOAR AI 연구소 기본 구현체
- *
- * PipelineOrchestrator를 통한 6단계 파이프라인을 활용하여
- * 보안 위협 분석과 대응 전략을 수립합니다.
- * AbstractAILab을 상속하여 Template Method Pattern과 Pipeline Pattern을 결합
- */
+
 @Slf4j
 public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
@@ -62,7 +56,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
         return Flux.defer(() -> {
             try {
-                // 파이프라인 구성 생성 (request 전달하여 도구 실행 필요 여부 판단)
+                
                 PipelineConfiguration<SoarContext> config = createPipelineConfiguration(request);
 
                 return orchestrator.executeStream(request, config)

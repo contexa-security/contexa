@@ -41,7 +41,7 @@ public class DefaultPolicyService implements PolicyService {
     private final IntegrationEventBus eventBus;
     private final PermissionRepository permissionRepository;
 
-    //SpEL 에서 hasAuthority('PERMISSION_NAME') 형태의 권한 이름을 추출하기 위한 정규표현식
+    
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
 
@@ -59,12 +59,12 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
-    public Policy createPolicy(PolicyDto policyDto) { // DTO를 받는 시그니처 유지
+    public Policy createPolicy(PolicyDto policyDto) { 
         Policy policy = convertDtoToEntity(policyDto);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
         Policy savedPolicy = policyRepository.save(policy);
 
-        // [수정] 정책에 포함된 권한 ID를 추출하여 이벤트를 발행합니다.
+        
         publishPolicyChangedEvent(savedPolicy);
 
         reloadAuthorizationSystem();
@@ -75,11 +75,11 @@ public class DefaultPolicyService implements PolicyService {
     @Override
     public void updatePolicy(PolicyDto policyDto) {
         Policy existingPolicy = findById(policyDto.getId());
-        updateEntityFromDto(existingPolicy, policyDto); // 친화적 설명 생성 로직은 updateEntityFromDto 내부 또는 이후 호출
+        updateEntityFromDto(existingPolicy, policyDto); 
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
         Policy updatedPolicy = policyRepository.save(existingPolicy);
 
-        // [수정] 정책에 포함된 권한 ID를 추출하여 이벤트를 발행합니다.
+        
         publishPolicyChangedEvent(updatedPolicy);
 
         reloadAuthorizationSystem();
@@ -117,12 +117,12 @@ public class DefaultPolicyService implements PolicyService {
         String policyName = "AUTO_POLICY_FOR_PERM_" + permission.getName();
         String expression = String.format("hasAuthority('%s')", permission.getName());
 
-        // 정책의 '명세'인 PolicyDto 생성
+        
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
                 .description(String.format("'%s' 권한에 대한 자동 생성 정책", permission.getFriendlyName()))
                 .effect(Policy.Effect.ALLOW)
-                .priority(500) // 자동 생성 정책은 중간 우선순위
+                .priority(500) 
                 .targets(List.of(new TargetDto(
                         resource.getResourceType().name(),
                         resource.getResourceIdentifier(),
@@ -134,10 +134,10 @@ public class DefaultPolicyService implements PolicyService {
                 )))
                 .build();
 
-        // 기존 정책이 있는지 확인하여 ID 설정 (업데이트를 위함)
+        
         policyRepository.findByName(policyName).ifPresent(p -> policyDto.setId(p.getId()));
 
-        // DTO를 사용하여 정책 생성 또는 업데이트
+        
         if (policyDto.getId() != null) {
             this.updatePolicy(policyDto);
         } else {
@@ -148,22 +148,20 @@ public class DefaultPolicyService implements PolicyService {
     @Override
     public void deletePolicy(Long id) {
         policyRepository.deleteById(id);
-        // 삭제 시에는 빈 권한 ID 목록으로 이벤트를 발행하여, 관련된 연결이 없음을 알릴 수 있습니다.
+        
         eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
         reloadAuthorizationSystem();
         log.info("Policy deleted and authorization system reloaded. Policy ID: {}", id);
     }
 
-    /**
-     * 정책 변경 후 인가 시스템을 다시 로드하는 중앙화된 메서드.
-     */
+    
     private void reloadAuthorizationSystem() {
         policyRetrievalPoint.clearUrlPoliciesCache();
-        policyRetrievalPoint.clearMethodPoliciesCache(); // 메서드 정책 캐시도 클리어
+        policyRetrievalPoint.clearMethodPoliciesCache(); 
         authorizationManager.reload();
     }
 
-    // --- DTO <-> Entity 변환 헬퍼 메서드 ---
+    
     private Policy convertDtoToEntity(PolicyDto dto) {
         Policy policy = Policy.builder()
                 .name(dto.getName())
@@ -172,30 +170,30 @@ public class DefaultPolicyService implements PolicyService {
                 .priority(dto.getPriority())
                 .build();
 
-        // Target 파싱 로직 (안정성 강화)
+        
         if (dto.getTargets() != null) {
             Set<PolicyTarget> targets = dto.getTargets().stream().map(targetDto ->
                     PolicyTarget.builder()
                             .policy(policy)
                             .targetType(targetDto.getTargetType())
                             .targetIdentifier(targetDto.getTargetIdentifier())
-                            .httpMethod("ALL".equals(targetDto.getHttpMethod()) ? null : targetDto.getHttpMethod()) // "ALL"은 null로 저장
+                            .httpMethod("ALL".equals(targetDto.getHttpMethod()) ? null : targetDto.getHttpMethod()) 
                             .build()
             ).collect(Collectors.toSet());
             policy.setTargets(targets);
         }
 
-        // 여러 규칙(Rule)을 처리하는 로직
+        
         if (dto.getRules() != null) {
             Set<PolicyRule> policyRules = dto.getRules().stream().map(ruleDto -> {
                 PolicyRule rule = PolicyRule.builder().policy(policy).description(ruleDto.getDescription()).build();
 
-                // [수정] ConditionDto를 순회하며 PolicyCondition 엔티티 생성
+                
                 Set<PolicyCondition> conditions = ruleDto.getConditions().stream()
                         .map(condDto -> PolicyCondition.builder()
                                 .rule(rule)
                                 .expression(condDto.getExpression())
-                                .authorizationPhase(condDto.getAuthorizationPhase()) // phase 정보 추가
+                                .authorizationPhase(condDto.getAuthorizationPhase()) 
                                 .build())
                         .collect(Collectors.toSet());
 
@@ -214,11 +212,11 @@ public class DefaultPolicyService implements PolicyService {
         policy.setEffect(dto.getEffect());
         policy.setPriority(dto.getPriority());
 
-        // "clear and add all" 전략 사용
+        
         policy.getTargets().clear();
         policy.getRules().clear();
 
-        // Target 변환 로직
+        
         if (dto.getTargets() != null) {
             dto.getTargets().forEach(targetDto -> {
                 policy.getTargets().add(PolicyTarget.builder()
@@ -230,7 +228,7 @@ public class DefaultPolicyService implements PolicyService {
             });
         }
 
-        // 여러 규칙(Rule)을 처리하는 로직
+        
         if (dto.getRules() != null) {
             dto.getRules().forEach(ruleDto -> {
                 PolicyRule rule = PolicyRule.builder()

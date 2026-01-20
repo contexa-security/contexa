@@ -11,24 +11,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-/**
- * 단일 REST 인증용 기본 로그인 페이지 생성 필터
- *
- * <p>
- * Spring Security의 DefaultLoginPageGeneratingFilter와 유사하게 동작하지만,
- * REST API 기반 비동기 인증을 위한 페이지를 생성합니다.
- * </p>
- *
- * <p>
- * 주요 기능:
- * <ul>
- *   <li>contexa-mfa-sdk.js 사용</li>
- *   <li>비동기 REST 인증</li>
- *   <li>CSRF 토큰 처리</li>
- *   <li>에러 처리 및 차단 상태 감지</li>
- * </ul>
- * </p>
- */
+
 @Slf4j
 public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
@@ -77,9 +60,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         return uri.equals(request.getContextPath() + url);
     }
 
-    /**
-     * REST 로그인 페이지 생성
-     */
+    
     private void generateLoginPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter writer = response.getWriter();
@@ -87,7 +68,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        // CSRF 토큰 추출
+        
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);

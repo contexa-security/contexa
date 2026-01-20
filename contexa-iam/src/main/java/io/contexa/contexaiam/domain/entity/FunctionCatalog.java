@@ -33,8 +33,8 @@ public class FunctionCatalog {
     private CatalogStatus status = CatalogStatus.UNCONFIRMED;
 
     public enum CatalogStatus {
-        UNCONFIRMED, // 미확인 (개발자 등록 대기)
-        ACTIVE,      // 활성 (정책 설정에 사용 가능)
-        INACTIVE     // 비활성
+        UNCONFIRMED, 
+        ACTIVE,      
+        INACTIVE     
     }
 }

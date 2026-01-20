@@ -8,10 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * 권한 할당 정보
- * SRP 준수: 할당 정보만 담당
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

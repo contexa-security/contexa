@@ -20,19 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 권한 거버넌스 분석 Lab
- *
- * 시스템 전체 권한 분포와 사용 현황을 분석하여 잠재적 이상 징후를 탐지하는 AI Lab
- * 예방적 보안을 구현하여 위협이 발생하기 전에 시스템이 가진 잠재적 위험 요소를 AI가 미리 찾아내어 보고
- * 
- * Lab 목표:
- * - 권한 배분 최적화: "우리 시스템의 권한 배분 상태가 전반적으로 건강하고 최적화되어 있는가?"
- * - 과도한 권한 탐지: "과도한 권한을 가진 사용자를 찾아줘"
- * - 미사용 권한 식별: "사용하지 않는 권한이 있나?"
- * - 권한 상속 경로 추적: "권한 상속 구조가 올바른가?"
- * - 업무 분리 위반 검사: "업무 분리 원칙에 위반되는 권한 배분이 있는가?"
- */
+
 @Slf4j
 public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest, AccessGovernanceResponse> {
 
@@ -72,13 +60,7 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return processStreamingRequest(request);
     }
 
-    /**
-     * 핵심: 권한 거버넌스 분석 + Vector DB 저장 + StaticAccessAnalysisEvent 발행
-     *
-     * 의미 있는 문제점 발견 시 StaticAccessAnalysisEvent를 발행하여
-     * AutonomousPolicySynthesizer가 수신하여 StaticAccessOptimizationLab으로 라우팅,
-     * 권한 최적화 정책 생성으로 이어집니다.
-     */
+    
     private Mono<AccessGovernanceResponse> performAccessGovernanceAnalysis(AIRequest<AccessGovernanceContext> request) {
         log.info("[DIAGNOSIS] ===== 권한 거버넌스 분석 시작 ===== Scope: {}, Type: {}",
                 request.getContext().getAuditScope(),
@@ -97,7 +79,7 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
                     log.info("[DIAGNOSIS] ===== 권한 거버넌스 분석 완료 ===== 점수: {}, 위험도: {}",
                             accessGovernanceResponse.getOverallGovernanceScore(), accessGovernanceResponse.getRiskLevel());
 
-                    // StaticAccessAnalysisEvent 발행 (조건부: 의미 있는 문제점 발견 시)
+                    
                     if (hasSignificantFindings(accessGovernanceResponse)) {
                         publishStaticAccessAnalysisEvent(request.getContext(), accessGovernanceResponse);
                     }
@@ -105,25 +87,14 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
                 .doOnError(error -> log.error("[DIAGNOSIS] ===== 권한 거버넌스 분석 실패 =====", error));
     }
 
-    /**
-     * 의미 있는 문제점 발견 여부 확인
-     *
-     * 발행 조건:
-     * - 분석 결과에 문제점 존재 (findings.size() > 0)
-     * - 미사용 권한 발견 (dormantPermissions > 0)
-     * - 과도한 권한 탐지 (excessivePermissions > 0)
-     * - 직무 분리 위반 (sodViolations > 0)
-     *
-     * @param response 권한 거버넌스 분석 응답
-     * @return 의미 있는 문제점이 있으면 true
-     */
+    
     private boolean hasSignificantFindings(AccessGovernanceResponse response) {
-        // 발견 사항 체크
+        
         if (response.getFindings() != null && !response.getFindings().isEmpty()) {
             return true;
         }
 
-        // 통계 정보 체크
+        
         AccessGovernanceResponse.Statistics stats = response.getStatistics();
         if (stats != null) {
             return stats.getDormantPermissions() > 0 ||
@@ -134,30 +105,22 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return false;
     }
 
-    /**
-     * StaticAccessAnalysisEvent 발행
-     *
-     * AutonomousPolicySynthesizer가 수신하여 StaticAccessOptimizationLab으로 라우팅,
-     * 권한 감사 결과를 바탕으로 최적화 정책 생성으로 이어집니다.
-     *
-     * @param context 분석 컨텍스트
-     * @param response 분석 응답
-     */
+    
     private void publishStaticAccessAnalysisEvent(AccessGovernanceContext context, AccessGovernanceResponse response) {
         try {
-            // 분석 유형 결정
+            
             StaticAccessAnalysisEvent.AnalysisType analysisType = determineAnalysisType(response);
 
-            // Finding 변환
+            
             List<StaticAccessAnalysisEvent.AccessFinding> findings = convertToAccessFindings(response);
 
-            // Statistics에서 수치 추출
+            
             AccessGovernanceResponse.Statistics stats = response.getStatistics();
             Integer totalPermissions = stats != null ? stats.getTotalPermissions() : null;
             Integer unusedPermissions = stats != null ? stats.getDormantPermissions() : null;
             Integer overPrivilegedCount = stats != null ? stats.getExcessivePermissions() : null;
 
-            // Recommendations 변환
+            
             Map<String, Object> recommendations = convertRecommendations(response);
 
             StaticAccessAnalysisEvent analysisEvent = StaticAccessAnalysisEvent.builder()
@@ -167,7 +130,7 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
                 .analysisType(analysisType)
                 .findings(findings)
                 .analyzedResource(context.getAuditScope())
-                .analyzedUser(null) // 전체 사용자 분석
+                .analyzedUser(null) 
                 .totalPermissions(totalPermissions)
                 .unusedPermissions(unusedPermissions)
                 .overPrivilegedCount(overPrivilegedCount)
@@ -186,16 +149,14 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         }
     }
 
-    /**
-     * 분석 유형 결정
-     */
+    
     private StaticAccessAnalysisEvent.AnalysisType determineAnalysisType(AccessGovernanceResponse response) {
         AccessGovernanceResponse.Statistics stats = response.getStatistics();
         if (stats == null) {
             return StaticAccessAnalysisEvent.AnalysisType.ACCESS_REVIEW;
         }
 
-        // 우선순위에 따라 분석 유형 결정
+        
         if (stats.getSodViolations() > 0) {
             return StaticAccessAnalysisEvent.AnalysisType.SEPARATION_OF_DUTIES;
         }
@@ -209,9 +170,7 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return StaticAccessAnalysisEvent.AnalysisType.ACCESS_REVIEW;
     }
 
-    /**
-     * Finding 변환
-     */
+    
     private List<StaticAccessAnalysisEvent.AccessFinding> convertToAccessFindings(AccessGovernanceResponse response) {
         List<StaticAccessAnalysisEvent.AccessFinding> findings = new ArrayList<>();
 
@@ -237,19 +196,14 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return findings;
     }
 
-    /**
-     * AI Native: LLM이 riskScore 직접 제공
-     * Finding에 riskScore가 있으면 사용, 없으면 기본값
-     */
+    
     private Integer mapSeverityToRiskScore(String severity) {
-        // AI Native: Severity 기반 규칙 제거
-        // LLM이 Finding.riskScore를 직접 제공
+        
+        
         return 50;
     }
 
-    /**
-     * Recommendations 변환
-     */
+    
     private Map<String, Object> convertRecommendations(AccessGovernanceResponse response) {
         Map<String, Object> recommendations = new HashMap<>();
 
@@ -270,9 +224,7 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return recommendations;
     }
 
-    /**
-     * 추가 컨텍스트 빌드
-     */
+    
     private Map<String, Object> buildAdditionalContext(AccessGovernanceContext context, AccessGovernanceResponse response) {
         Map<String, Object> additionalContext = new HashMap<>();
         additionalContext.put("organizationId", context.getOrganizationId());
@@ -283,9 +235,7 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return additionalContext;
     }
 
-    /**
-     * 스트리밍 처리 (실시간 분석 과정 전달)
-     */
+    
     private Flux<String> processStreamingRequest(AccessGovernanceRequest request) {
         log.info("[STREAMING] 권한 거버넌스 분석 스트리밍 시작 - Scope: {}, Type: {}", 
                 request.getContext().getAuditScope(), 
@@ -300,11 +250,9 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
                 .doOnError(error -> log.error("[STREAMING] 권한 거버넌스 분석 스트리밍 오류", error));
     }
 
-    // 벡터 저장 관련 메서드들은 AccessVectorService로 이관됨
+    
 
-    /**
-     * 관리자 피드백 학습
-     */
+    
     public void learnFromFeedback(String reportId, boolean isCorrect, String feedback) {
         log.info("피드백 학습: reportId={}, correct={}", reportId, isCorrect);
         accessVectorService.storeFeedback(reportId, isCorrect, feedback);

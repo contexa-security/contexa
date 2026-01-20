@@ -25,17 +25,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 
 import java.util.Objects;
 
-/**
- * OAuth2 기반 상태 관리 기능을 HttpSecurity에 적용하는 StateAdapter 구현체입니다.
- * IdentityStateDsl의 oauth2() 메소드에서 사용됩니다.
- *
- * <p>Spring Authorization Server와 Resource Server를 지원하며,
- * <ul>
- *   <li>RESOURCE_SERVER: 외부 Authorization Server 에서 발급한 JWT 토큰 검증</li>
- *   <li>AUTHORIZATION_SERVER: OAuth2/OIDC 표준에 따라 토큰 발급</li>
- *   <li>BOTH: Authorization Server + Resource Server 통합 모드</li>
- * </ul>
- */
+
 @Slf4j
 public final class OAuth2StateAdapter implements StateAdapter {
 
@@ -55,7 +45,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
         log.debug("OAuth2StateAdapter [{}]: Applying to HttpSecurity (hash: {}) with mode: {}", getId(), http.hashCode());
 
-        // 공통 빈
+        
         ObjectMapper objectMapper;
         JsonAuthResponseWriter jsonAuthResponseWriter;
         try {
@@ -88,9 +78,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
         log.info("OAuth2StateAdapter [{}]: Applied OAuth2 state configurations (mode: {}) to HttpSecurity.", getId());
     }
 
-    /**
-     * Resource Server 모드 설정
-     */
+    
     private void configureResourceServer(HttpSecurity http, ApplicationContext appContext) {
         try {
             JwtDecoder jwtDecoder = appContext.getBean(JwtDecoder.class);
@@ -103,9 +91,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
         }
     }
 
-    /**
-     * Authorization Server 모드 설정
-     */
+    
     private void configureAuthorizationServer(HttpSecurity http, ApplicationContext appContext) {
         try {
             JwtEncoder jwtEncoder = appContext.getBean(JwtEncoder.class);
@@ -130,9 +116,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
         }
     }
 
-    /**
-     * Logout 설정
-     */
+    
     private void configureLogout(HttpSecurity http, ApplicationContext appContext) throws Exception {
         try {
             LogoutHandler logoutHandler = appContext.getBean("oauth2LogoutHandler", LogoutHandler.class);
@@ -145,7 +129,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
                     .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/auth/logout"))
                     .addLogoutHandler(logoutHandler)
                     .logoutSuccessHandler(logoutSuccessHandler)
-                    .invalidateHttpSession(false) // OAuth2는 주로 Stateless
+                    .invalidateHttpSession(false) 
                     .clearAuthentication(true)
             );
 

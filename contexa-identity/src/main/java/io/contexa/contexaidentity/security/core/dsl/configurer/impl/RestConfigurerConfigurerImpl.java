@@ -12,23 +12,17 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.web.context.SecurityContextRepository;
 
 @Slf4j
-public final class RestConfigurerConfigurerImpl // <H extends HttpSecurityBuilder<H>> 제네릭 제거 또는 유지
+public final class RestConfigurerConfigurerImpl 
         extends AbstractOptionsBuilderConfigurer<RestConfigurerConfigurerImpl, RestOptions, RestOptions.Builder, RestConfigurerConfigurer>
         implements RestConfigurerConfigurer {
 
-    /**
-     * 단일 인증용 생성자 (기본)
-     */
+    
     public RestConfigurerConfigurerImpl(ApplicationContext applicationContext) {
         super(RestOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 
-    /**
-     * MFA 1차 인증용 생성자
-     * @param applicationContext ApplicationContext
-     * @param isMfaMode true: MFA 1차 인증, false: 단일 인증 (사용하지 않음)
-     */
+    
     public RestConfigurerConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
         super(isMfaMode ? RestOptions.builderForMfa(applicationContext) : RestOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
@@ -36,13 +30,13 @@ public final class RestConfigurerConfigurerImpl // <H extends HttpSecurityBuilde
 
     @Override
     public RestConfigurerConfigurer order(int order) {
-        getOptionsBuilder().order(order); // AuthenticationProcessingOptions.Builder의 order 사용
+        getOptionsBuilder().order(order); 
         return self();
     }
 
     @Override
     public RestConfigurerConfigurer loginProcessingUrl(String url) {
-        super.loginProcessingUrl(url); // AbstractOptionsBuilderConfigurer의 메서드 호출
+        super.loginProcessingUrl(url); 
         return self();
     }
 
@@ -66,13 +60,13 @@ public final class RestConfigurerConfigurerImpl // <H extends HttpSecurityBuilde
 
     @Override
     public RestConfigurerConfigurer asep(Customizer<RestAsepAttributes> restAsepAttributesCustomizer){
-        // H builder = getBuilder(); // 제거
+        
         RestAsepAttributes attributes = new RestAsepAttributes();
         if (restAsepAttributesCustomizer != null) {
             restAsepAttributesCustomizer.customize(attributes);
         }
-        // builder.setSharedObject(RestAsepAttributes.class, attributes); // 제거
-        getOptionsBuilder().asepAttributes(attributes); // RestOptions.Builder에 저장
+        
+        getOptionsBuilder().asepAttributes(attributes); 
         log.debug("ASEP: RestAsepAttributes configured and will be stored within RestOptions.");
         return self();
     }
@@ -82,6 +76,6 @@ public final class RestConfigurerConfigurerImpl // <H extends HttpSecurityBuilde
         return this;
     }
 
-    // configure(H builder) 메서드는 AbstractOptionsBuilderConfigurer에서 제거되었으므로 여기서도 불필요
+    
 }
 

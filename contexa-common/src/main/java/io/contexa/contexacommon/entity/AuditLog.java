@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EntityListeners(AuditingEntityListener.class) // 생성일자 자동 기록을 위해 추가
+@EntityListeners(AuditingEntityListener.class) 
 public class AuditLog {
 
     @Id
@@ -21,35 +21,35 @@ public class AuditLog {
     private Long id;
 
     @Column(nullable = false, updatable = false)
-    @CreatedDate // 엔티티 생성 시각 자동 저장
+    @CreatedDate 
     private LocalDateTime timestamp;
 
     @Column(nullable = false)
-    private String principalName; // 요청 주체 (사용자 이름)
+    private String principalName; 
 
     @Column(nullable = false, length = 512)
-    private String resourceIdentifier; // 접근 대상 자원 (URL 또는 메서드명)
+    private String resourceIdentifier; 
 
-    private String action; // 요청 행위 (HTTP Method 등)
+    private String action; 
 
     @Column(nullable = false)
-    private String decision; // 인가 결정 (ALLOW / DENY)
+    private String decision; 
 
     @Column(length = 1024)
-    private String reason; // 결정 근거 (예: Policy ID: 1, 에러 메시지)
+    private String reason; 
 
     private String outcome;
 
     @Column(length = 1024)
     private String resourceUri;
 
-    private String clientIp; // 요청 클라이언트 IP
-    private String sessionId; // 요청 클라이언트 IP
-    private String status; // 요청 클라이언트 IP
-    private String parameters; // 요청 클라이언트 IP
+    private String clientIp; 
+    private String sessionId; 
+    private String status; 
+    private String parameters; 
 
     @Column(columnDefinition = "TEXT")
-    private String details; // AI의 판단 근거 등 상세 정보를 JSON 형태로 저장
+    private String details; 
 
     @PrePersist
     protected void onCreate() {

@@ -13,7 +13,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import java.util.Objects;
 
 @Slf4j
-public final class IdentityDslRegistry<H extends HttpSecurityBuilder<H>> // H는 형식적으로 유지
+public final class IdentityDslRegistry<H extends HttpSecurityBuilder<H>> 
         extends AbstractFlowRegistrar<H> implements IdentityAuthDsl {
 
     public IdentityDslRegistry(ApplicationContext applicationContext) {
@@ -26,7 +26,7 @@ public final class IdentityDslRegistry<H extends HttpSecurityBuilder<H>> // H는
     @Override
     public IdentityAuthDsl global(SafeHttpCustomizer<HttpSecurity> customizer) {
         Objects.requireNonNull(customizer, "global customizer cannot be null");
-        platformBuilder.global(customizer); // PlatformConfig.Builder에 저장
+        platformBuilder.global(customizer); 
         log.debug("Global HttpSecurity customizer registered in PlatformConfig.Builder.");
         return this;
     }

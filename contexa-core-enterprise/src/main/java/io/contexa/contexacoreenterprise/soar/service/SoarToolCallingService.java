@@ -25,15 +25,7 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 import java.util.*;
 
-/**
- * SOAR Tool Calling Service V2
- * Spring AI 공식 tool 패키지를 활용한 Human-in-the-Loop 구현
- * 
- * 핵심 기능:
- * - Spring AI의 ToolCallingChatOptions와 ToolCallingManager 활용
- * - internalToolExecutionEnabled(false)로 외부 제어
- * - 고위험 도구에 대한 승인 프로세스
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SoarToolCallingService {
@@ -43,10 +35,7 @@ public class SoarToolCallingService {
     private final ChainedToolResolver toolResolver;
     private final UnifiedApprovalService unifiedApprovalService;
 
-    /**
-     * Human-in-the-Loop가 적용된 SOAR Tool 실행
-     * AI 진단 프로세스를 통한 통합 실행
-     */
+    
     public Mono<SoarExecutionResult> executeWithApproval(
             String userPrompt,
             String incidentId,
@@ -60,13 +49,13 @@ public class SoarToolCallingService {
         Instant startTime = Instant.now();
         
         return Mono.fromCallable(() -> {
-            // 1. SoarContext 준비 및 세션 생성
+            
             if (soarContext.getSessionId() == null) {
                 String sessionId = interactionManager.createSession(soarContext);
                 soarContext.setSessionId(sessionId);
             }
             
-            // 도구 실행 플래그 설정
+            
             soarContext.setRequiresToolExecution(true);
             soarContext.setOriginalQuery(userPrompt);
             soarContext.setIncidentId(incidentId);
@@ -91,7 +80,7 @@ public class SoarToolCallingService {
             soarRequest.withParameter("incidentId", incidentId);
             soarRequest.withDiagnosisType(DiagnosisType.SOAR);
 
-            // 추가 메타데이터
+            
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("sessionState", soarContext.getSessionState());
             metadata.put("approvalRequests", soarContext.getApprovalRequests());
@@ -102,25 +91,25 @@ public class SoarToolCallingService {
             return soarRequest;
         })
         .flatMap(aiRequest -> {
-            // 4. PipelineOrchestrator를 통한 실행 (AI 진단 프로세스)
+            
             log.info("PipelineOrchestrator 실행 시작");
             return aiNativeProcessor.process(aiRequest, SoarResponse.class
             );
         })
         .map(response -> {
-            // 5. 실행 결과 변환
+            
             long duration = Instant.now().toEpochMilli() - startTime.toEpochMilli();
             
-            // 실행된 도구 목록 수집
+            
             List<String> executedTools = new ArrayList<>();
             if (response.getExecutedTools() != null) {
                 executedTools.addAll(response.getExecutedTools());
             }
             
-            // 결과 생성 - 전체 SoarResponse를 JSON으로 변환
+            
             String finalResponse = "";
             try {
-                // SoarResponse 전체를 JSON으로 변환하여 완전한 정보 전달
+                
                 ObjectMapper mapper = new ObjectMapper();
                 mapper.registerModule(new JavaTimeModule());
                 finalResponse = mapper.writeValueAsString(response);
@@ -156,13 +145,10 @@ public class SoarToolCallingService {
         });
     }
     
-    /**
-     * ChatResponse에 도구 호출이 있는지 확인
-     * 실제 Spring AI 구현에 맞게 조정 필요
-     */
+    
     private boolean hasToolCalls(ChatResponse chatResponse) {
-        // ChatResponse의 실제 구조에 따라 구현
-        // 예: content에 function_call이나 tool_use 패턴 확인
+        
+        
         String content = chatResponse.getResult().getOutput().getText();
         return content != null && 
                (content.contains("function_call") || 
@@ -170,17 +156,15 @@ public class SoarToolCallingService {
                 content.contains("<tool>"));
     }
     
-    /**
-     * ChatResponse에서 도구 호출 추출
-     */
+    
     private List<SoarToolCall> extractToolCalls(ChatResponse chatResponse) {
         List<SoarToolCall> toolCalls = new ArrayList<>();
         
-        // 실제 구현은 AI 모델의 응답 형식에 따라 조정
-        // JSON 파싱이나 특정 패턴 매칭 필요
+        
+        
         String content = chatResponse.getResult().getOutput().getText();
         
-        // 간단한 예시 - 실제로는 JSON 파싱 필요
+        
         if (content.contains("scan_network")) {
             toolCalls.add(SoarToolCall.builder()
                 .name("scan_network")
@@ -192,11 +176,9 @@ public class SoarToolCallingService {
         return toolCalls;
     }
     
-    /**
-     * 도구 위험도 평가
-     */
+    
     private String assessRiskLevel(String toolName) {
-        // 도구 이름 기반 위험도 평가
+        
         if (toolName.contains("isolation") || 
             toolName.contains("block") || 
             toolName.contains("kill") ||
@@ -219,16 +201,12 @@ public class SoarToolCallingService {
         return "MEDIUM";
     }
     
-    /**
-     * 승인 필요 여부 판단
-     */
+    
     private boolean isApprovalRequired(String riskLevel) {
         return "HIGH".equals(riskLevel) || "CRITICAL".equals(riskLevel);
     }
     
-    /**
-     * 도구 실행 승인 요청 (비동기 - 폴링 없음)
-     */
+    
     private CompletableFuture<Boolean> requestApprovalAsync(
             SoarToolCall toolCall,
             SoarContext soarContext,
@@ -236,10 +214,10 @@ public class SoarToolCallingService {
             String approvalId) {
         
         try {
-            // 파라미터 파싱
+            
             Map<String, Object> parameters = parseToolArguments(toolCall.getArguments());
             
-            // ApprovalRequest 객체 생성
+            
             io.contexa.contexacore.domain.ApprovalRequest request = 
                 io.contexa.contexacore.domain.ApprovalRequest.builder()
                     .requestId(approvalId)
@@ -252,7 +230,7 @@ public class SoarToolCallingService {
                     .requestedBy("system")
                     .build();
             
-            // UnifiedApprovalService를 통한 비동기 승인 요청
+            
             return unifiedApprovalService.requestApproval(request)
                 .exceptionally(throwable -> {
                     log.error("승인 요청 실패: {}", toolCall.getName(), throwable);
@@ -265,9 +243,7 @@ public class SoarToolCallingService {
         }
     }
     
-    /**
-     * 위험도 문자열을 Enum으로 변환
-     */
+    
     private io.contexa.contexacore.domain.ApprovalRequest.RiskLevel determineRiskLevelEnum(String riskLevel) {
         return switch (riskLevel) {
             case "CRITICAL" -> io.contexa.contexacore.domain.ApprovalRequest.RiskLevel.CRITICAL;
@@ -278,9 +254,7 @@ public class SoarToolCallingService {
         };
     }
     
-    /**
-     * 시스템 프롬프트 생성
-     */
+    
     private String buildSystemPrompt(SoarContext soarContext) {
         return String.format("""
             You are a Security Orchestration, Automation and Response (SOAR) assistant.
@@ -305,16 +279,12 @@ public class SoarToolCallingService {
         );
     }
     
-    /**
-     * 사용자 프롬프트 향상
-     */
+    
     private String enhanceUserPrompt(String userPrompt, String incidentId) {
         return String.format("[Incident: %s] %s", incidentId, userPrompt);
     }
     
-    /**
-     * SOAR 도구 콜백 목록 조회
-     */
+    
     private List<ToolCallback> getSoarToolCallbacks() {
         return toolResolver.getRegisteredToolNames()
             .stream()
@@ -323,9 +293,7 @@ public class SoarToolCallingService {
             .toList();
     }
     
-    /**
-     * SOAR 실행 결과
-     */
+    
     @Builder
     @Getter
     public static class SoarExecutionResult {
@@ -360,26 +328,24 @@ public class SoarToolCallingService {
         }
     }
     
-    /**
-     * 도구 인수를 파싱합니다.
-     */
+    
     private Map<String, Object> parseToolArguments(String arguments) {
         if (arguments == null || arguments.isEmpty()) {
             return new HashMap<>();
         }
         
         try {
-            // JSON 문자열을 Map으로 파싱
+            
             ObjectMapper mapper = new ObjectMapper();
             Map<String, Object> parsed = mapper.readValue(arguments, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
             
-            // 파싱 성공 시 결과 반환
+            
             log.debug("도구 인수 파싱 성공: {}", parsed);
             return parsed;
             
         } catch (Exception e) {
-            // Spring AI가 자동으로 처리하도록 빈 Map 반환
-            // "raw"로 감싸지 않음 - 이것이 Spring AI 자동 바인딩을 방해함
+            
+            
             log.error("도구 인수 파싱 실패 - 빈 Map 반환: arguments={}", arguments, e);
             return new HashMap<>();
         }

@@ -9,26 +9,16 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * ApprovalRequest 유효성 검증 클래스
- * 
- * ApprovalRequest의 필수 필드를 검증하고, 누락된 필드를 기본값으로 채우며,
- * 비즈니스 규칙을 적용합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalRequestValidator {
     
     private static final String DEFAULT_ORGANIZATION_ID = "default-org";
     private static final String DEFAULT_REQUESTED_BY = "system";
-    private static final Integer DEFAULT_APPROVAL_TIMEOUT = 300; // 5분
+    private static final Integer DEFAULT_APPROVAL_TIMEOUT = 300; 
     
-    /**
-     * ApprovalRequest 검증 및 sanitize
-     * 
-     * @param request 검증할 요청
-     * @return 검증 결과
-     */
+    
     public ValidationResult validateAndSanitize(ApprovalRequest request) {
         if (request == null) {
             return ValidationResult.failure("ApprovalRequest is null");
@@ -39,19 +29,19 @@ public class ApprovalRequestValidator {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         
-        // 1. 필수 필드 검증
+        
         validateRequiredFields(request, errors);
         
-        // 2. 누락된 필드 기본값 설정
+        
         sanitizeFields(request, warnings);
         
-        // 3. 비즈니스 규칙 검증
+        
         validateBusinessRules(request, errors, warnings);
         
-        // 4. 데이터 일관성 검증
+        
         validateDataConsistency(request, errors, warnings);
         
-        // 결과 생성
+        
         if (!errors.isEmpty()) {
             log.error("Validation failed for request {}: {}", 
                 request.getRequestId(), errors);
@@ -67,96 +57,86 @@ public class ApprovalRequestValidator {
         return ValidationResult.success(warnings);
     }
     
-    /**
-     * 필수 필드 검증
-     * 
-     * @param request 검증할 요청
-     * @param errors 에러 목록
-     */
+    
     private void validateRequiredFields(ApprovalRequest request, List<String> errors) {
-        // requestId 검증
+        
         if (request.getRequestId() == null || request.getRequestId().trim().isEmpty()) {
             errors.add("requestId is required");
         }
         
-        // toolName 검증
+        
         if (request.getToolName() == null || request.getToolName().trim().isEmpty()) {
             errors.add("toolName is required");
         }
         
-        // status 검증
+        
         if (request.getStatus() == null) {
             errors.add("status is required");
         }
         
-        // riskLevel 검증
+        
         if (request.getRiskLevel() == null) {
             errors.add("riskLevel is required");
         }
         
-        // requestedAt 검증
+        
         if (request.getRequestedAt() == null) {
             errors.add("requestedAt is required");
         }
     }
     
-    /**
-     * 누락된 필드를 기본값으로 설정
-     * 
-     * @param request 처리할 요청
-     * @param warnings 경고 목록
-     */
+    
     private void sanitizeFields(ApprovalRequest request, List<String> warnings) {
-        // requestId 생성 (필요시)
+        
         if (request.getRequestId() == null || request.getRequestId().trim().isEmpty()) {
             String newId = UUID.randomUUID().toString();
             request.setRequestId(newId);
             warnings.add("Generated new requestId: " + newId);
         }
         
-        // status 기본값 설정
+        
         if (request.getStatus() == null) {
             request.setStatus(ApprovalStatus.PENDING);
             warnings.add("Set default status: PENDING");
         }
         
-        // riskLevel 기본값 설정
+        
         if (request.getRiskLevel() == null) {
             request.setRiskLevel(RiskLevel.MEDIUM);
             warnings.add("Set default riskLevel: MEDIUM");
         }
         
-        // requestedAt 기본값 설정
+        
         if (request.getRequestedAt() == null) {
             request.setRequestedAt(LocalDateTime.now());
             warnings.add("Set requestedAt to current time");
         }
         
-        // requestedBy 기본값 설정
+        
         if (request.getRequestedBy() == null || request.getRequestedBy().trim().isEmpty()) {
             request.setRequestedBy(DEFAULT_REQUESTED_BY);
             warnings.add("Set default requestedBy: " + DEFAULT_REQUESTED_BY);
         }
         
-        // organizationId 기본값 설정
+        
         if (request.getOrganizationId() == null || request.getOrganizationId().trim().isEmpty()) {
             request.setOrganizationId(DEFAULT_ORGANIZATION_ID);
             warnings.add("Set default organizationId: " + DEFAULT_ORGANIZATION_ID);
         }
         
-        // approvalTimeout 기본값 설정
+        
         if (request.getApprovalTimeout() == null || request.getApprovalTimeout() <= 0) {
             request.setApprovalTimeout(DEFAULT_APPROVAL_TIMEOUT);
             warnings.add("Set default approvalTimeout: " + DEFAULT_APPROVAL_TIMEOUT + " seconds");
         }
         
-        // requiredApprovers 기본값 설정
+        
         if (request.getRequiredApprovers() == null || request.getRequiredApprovers() < 1) {
             request.setRequiredApprovers(1);
             warnings.add("Set default requiredApprovers: 1");
         }
         
-        // Collection 타입 필드 null 체크
+        
         if (request.getRequiredRoles() == null) {
             request.setRequiredRoles(new HashSet<>());
             warnings.add("Initialized empty requiredRoles");
@@ -178,38 +158,26 @@ public class ApprovalRequestValidator {
         }
     }
     
-    /**
-     * 비즈니스 규칙 검증
-     * 
-     * @param request 검증할 요청
-     * @param errors 에러 목록
-     * @param warnings 경고 목록
-     */
+    
     private void validateBusinessRules(
             ApprovalRequest request, 
             List<String> errors, 
             List<String> warnings) {
         
-        // 1. 위험 수준에 따른 승인자 수 검증
+        
         validateApproverCount(request, warnings);
         
-        // 2. 위험 수준에 따른 타임아웃 검증
+        
         validateTimeout(request, warnings);
         
-        // 3. 상태별 필수 필드 검증
+        
         validateStatusSpecificFields(request, errors);
         
-        // 4. 역할 검증
+        
         validateRoles(request, warnings);
     }
     
-    /**
-     * 데이터 일관성 검증
-     * 
-     * @param request 검증할 요청
-     * @param errors 에러 목록
-     * @param warnings 경고 목록
-     */
+    
     private void validateDataConsistency(
             ApprovalRequest request,
             List<String> errors,
@@ -217,7 +185,7 @@ public class ApprovalRequestValidator {
         
         ApprovalStatus status = request.getStatus();
         
-        // 1. APPROVED 상태 일관성 검증
+        
         if (status == ApprovalStatus.APPROVED) {
             if (request.getApprovedBy() == null || request.getApprovedBy().trim().isEmpty()) {
                 errors.add("APPROVED status requires approvedBy field");
@@ -231,7 +199,7 @@ public class ApprovalRequestValidator {
             }
         }
         
-        // 2. REJECTED 상태 일관성 검증
+        
         if (status == ApprovalStatus.REJECTED) {
             if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
                 warnings.add("REJECTED status should have rejectionReason");
@@ -242,7 +210,7 @@ public class ApprovalRequestValidator {
             }
         }
         
-        // 3. EXPIRED/CANCELLED 상태 일관성 검증
+        
         if (status == ApprovalStatus.EXPIRED || status == ApprovalStatus.CANCELLED) {
             if (request.isApproved()) {
                 request.setApproved(false);
@@ -250,7 +218,7 @@ public class ApprovalRequestValidator {
             }
         }
         
-        // 4. 시간 일관성 검증
+        
         if (request.getApprovedAt() != null && request.getRequestedAt() != null) {
             if (request.getApprovedAt().isBefore(request.getRequestedAt())) {
                 errors.add("approvedAt cannot be before requestedAt");
@@ -258,12 +226,7 @@ public class ApprovalRequestValidator {
         }
     }
     
-    /**
-     * 승인자 수 검증
-     * 
-     * @param request 검증할 요청
-     * @param warnings 경고 목록
-     */
+    
     private void validateApproverCount(ApprovalRequest request, List<String> warnings) {
         RiskLevel riskLevel = request.getRiskLevel();
         Integer requiredApprovers = request.getRequiredApprovers();
@@ -277,21 +240,16 @@ public class ApprovalRequestValidator {
         }
     }
     
-    /**
-     * 타임아웃 검증
-     * 
-     * @param request 검증할 요청
-     * @param warnings 경고 목록
-     */
+    
     private void validateTimeout(ApprovalRequest request, List<String> warnings) {
         Integer timeout = request.getApprovalTimeout();
         RiskLevel riskLevel = request.getRiskLevel();
         
         if (timeout == null || timeout <= 0) {
-            return; // 이미 sanitize에서 처리됨
+            return; 
         }
         
-        // 위험 수준에 따른 권장 타임아웃
+        
         if (riskLevel == RiskLevel.CRITICAL && timeout > 120) {
             warnings.add("CRITICAL requests should have shorter timeout (recommended: 120 seconds)");
         }
@@ -301,12 +259,7 @@ public class ApprovalRequestValidator {
         }
     }
     
-    /**
-     * 상태별 필수 필드 검증
-     * 
-     * @param request 검증할 요청
-     * @param errors 에러 목록
-     */
+    
     private void validateStatusSpecificFields(ApprovalRequest request, List<String> errors) {
         ApprovalStatus status = request.getStatus();
         
@@ -319,18 +272,18 @@ public class ApprovalRequestValidator {
                 
             case REJECTED:
                 if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
-                    // 경고로 변경 (에러는 너무 엄격할 수 있음)
+                    
                     log.debug("REJECTED status without rejectionReason");
                 }
                 break;
                 
             case EXPIRED:
             case CANCELLED:
-                // 선택적 필드
+                
                 break;
                 
             case PENDING:
-                // PENDING 상태는 추가 필드 불필요
+                
                 break;
                 
             default:
@@ -338,12 +291,7 @@ public class ApprovalRequestValidator {
         }
     }
     
-    /**
-     * 역할 검증
-     * 
-     * @param request 검증할 요청
-     * @param warnings 경고 목록
-     */
+    
     private void validateRoles(ApprovalRequest request, List<String> warnings) {
         Set<String> requiredRoles = request.getRequiredRoles();
         
@@ -355,9 +303,7 @@ public class ApprovalRequestValidator {
         }
     }
     
-    /**
-     * 검증 결과 클래스
-     */
+    
     public static class ValidationResult {
         private final boolean valid;
         private final List<String> errors;

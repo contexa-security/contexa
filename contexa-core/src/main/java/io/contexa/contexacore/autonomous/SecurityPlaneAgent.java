@@ -48,12 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-/**
- * Security Plane Agent 메인 클래스
- *
- * 24시간 자율 운영되는 보안 플레인 에이전트의 진입점입니다.
- * State 패턴과 Template Method 패턴을 사용하여 에이전트 상태를 관리합니다.
- */
+
 
 @RequiredArgsConstructor
 @Slf4j
@@ -65,7 +60,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final ApplicationEventPublisher eventPublisher;
     private final SecurityPlaneAuditLogger auditLogger;
 
-    // Enterprise 기능 - Spring Boot AutoConfiguration을 통한 직접 주입
+    
     @Autowired(required = false)
     private ApprovalService approvalService;
 
@@ -134,7 +129,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     public void initialize() {
         log.info("Initializing Security Plane Agent: {} (AI Native v5.0.0)", agentName);
 
-        // 감사 추적 시스템 초기화
+        
         if (auditLogger != null) {
             auditLogger.auditAgentStateChange(agentName, "UNINITIALIZED", "INITIALIZING",
                 "Security Plane Agent initialization started", null);
@@ -142,11 +137,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         currentState = AgentState.INITIALIZING;
 
-        // AI Native v5.0.0: 배치 프로세서 콜백 등록
-        // SecurityMonitoringService가 Kafka 배치를 수신하면 이 콜백을 호출
+        
+        
         securityMonitor.setBatchProcessor(this::processBatch);
 
-        // 스케줄러 초기화 (정리 작업 및 헬스 체크용)
+        
         scheduler = Executors.newScheduledThreadPool(2, r -> {
             Thread t = new Thread(r, agentName + "-Scheduler");
             t.setDaemon(true);
@@ -156,12 +151,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         log.info("Security Plane Agent {} initialized successfully with batch processor callback", agentName);
     }
 
-    /**
-     * AI Native v5.0.0: Kafka 배치 이벤트 처리 콜백
-     * SecurityMonitoringService의 DirectBatchListener에서 호출
-     *
-     * @param events 전처리된 이벤트 배치 (최대 10개)
-     */
+    
     private void processBatch(List<SecurityEvent> events) {
         if (!running.get()) {
             log.warn("[SecurityPlaneAgent] Agent not running, dropping {} events", events.size());
@@ -171,7 +161,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         log.debug("[SecurityPlaneAgent] Processing batch of {} events", events.size());
 
         for (SecurityEvent event : events) {
-            // LLM Executor에 제출 (비동기)
+            
             llmAnalysisExecutor.execute(() -> {
                 try {
                     processSecurityEvent(event);
@@ -196,13 +186,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * Start the agent
-     *
-     * AI Native v5.0.0: 배경 폴링 루프 제거 -> 콜백 기반 처리로 전환
-     * - startBackgroundMonitoring() 제거
-     * - SecurityMonitoringService가 Kafka 배치를 수신하면 processBatch() 콜백 호출
-     */
+    
     @Override
     public void start() {
         if (running.compareAndSet(false, true)) {
@@ -212,7 +196,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             Map<String, Object> config = createMonitoringConfig();
             securityMonitor.startMonitoring(agentName, config);
 
-            // 스케줄 작업만 유지 (정리 및 헬스 체크)
+            
             scheduler.scheduleWithFixedDelay(
                 this::cleanupIncidentHandlers,
                 5, 5, TimeUnit.MINUTES
@@ -224,26 +208,20 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * Stop the agent
-     *
-     * AI Native v5.0.0: 배경 폴링 루프 제거 -> 콜백 기반 처리
-     * - stopBackgroundMonitoring() 제거
-     * - scheduler만 종료
-     */
+    
     @Override
     public void stop() {
         if (running.compareAndSet(true, false)) {
             log.info("Stopping Security Plane Agent {}", agentName);
             currentState = AgentState.STOPPING;
 
-            // Stop monitoring
+            
             securityMonitor.stopMonitoring(agentName);
 
-            // Wait for active handlers to complete
+            
             waitForActiveHandlers();
 
-            // Shutdown scheduler
+            
             if (scheduler != null) {
                 scheduler.shutdown();
                 try {
@@ -267,22 +245,18 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         stop();
     }
     
-    // checkForIncidents() 제거: startBackgroundMonitoring()과 중복 기능
+    
 
 
-    /**
-     * Check pending approvals - runs every 10 seconds
-     *
-     * Enterprise only - UnifiedApprovalService, McpApprovalNotificationService 사용
-     */
+    
     @Override
-//    @Scheduled(fixedDelayString = "#{${security.plane.agent.approval-check-interval-seconds:10} * 1000}")
+
     public void checkPendingApprovals() {
         if (!isRunning()) {
             return;
         }
 
-        // Enterprise 모듈 없으면 조용히 리턴
+        
         if (approvalService == null || notificationService == null) {
             log.trace("Approval check skipped (Enterprise-only feature not available)");
             return;
@@ -291,23 +265,23 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         try {
             log.debug("Agent {} checking pending approvals", agentName);
 
-            // Get pending approval IDs from UnifiedApprovalService
+            
             Set<String> pendingApprovalIds = approvalService.getPendingApprovalIds();
             int pendingCount = approvalService.getPendingCount();
 
-            // Log pending approvals for visibility
+            
             if (pendingCount > 0) {
                 log.info("Agent {} has {} pending approvals waiting for review",
                     agentName, pendingCount);
 
-                // 비동기 모드에서 알림 전송
+                
                 for (String approvalId : pendingApprovalIds) {
                     log.info("Pending approval ID: {}", approvalId);
 
-                    // Check approval status
+                    
                     ApprovalRequest.ApprovalStatus status = approvalService.getApprovalStatus(approvalId);
                     if (status == ApprovalRequest.ApprovalStatus.PENDING) {
-                        // 알림 서비스를 통해 재알림
+                        
                         if (notificationService != null) {
                             notificationService.sendApprovalReminder(approvalId);
                         }
@@ -320,9 +294,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * Health check - runs every 5 minutes
-     */
+    
     @Override
     @Scheduled(fixedDelayString = "#{${security.plane.agent.health-check-interval-minutes:5} * 60 * 1000}")
     public void performHealthCheck() {
@@ -336,10 +308,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             Map<String, Object> health = getHealthStatus();
             log.info("Agent {} health status: {}", agentName, health);
             
-            // Check if agent needs attention
+            
             if (needsAttention(health)) {
                 log.warn("Agent {} needs attention: {}", agentName, health);
-                // In production, this would trigger alerts
+                
             }
             
         } catch (Exception e) {
@@ -347,12 +319,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * 보안 이벤트를 평가하고 대응 실행
-     *
-     * Clean Code 리팩토링: SecurityEventProcessingOrchestrator를 사용하여
-     * 단일 책임 원칙(SRP)과 개방-폐쇄 원칙(OCP)을 준수
-     */
+    
     public void processSecurityEvent(SecurityEvent event) {
         log.info("[SecurityPlaneAgent]  is SecurityEventProcessingOrchestrator");
         if (processingOrchestrator != null) {
@@ -363,56 +330,51 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * 오케스트레이터를 사용한 클린코드 처리
-     * 모든 처리 로직이 핸들러 체인으로 위임됨
-     *
-     * @Transactional 적용으로 DB + Redis 일관성 보장
-     */
+    
     @Transactional(rollbackFor = Exception.class)
     public void processWithOrchestrator(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
         SecurityEventContext context = null;
 
         try {
-            // 멱등성 체크 (중복 처리 방지)
+            
             if (isEventAlreadyProcessed(event.getEventId())) {
                 log.warn("[SecurityPlaneAgent] Event {} already processed, skipping duplicate",
                     event.getEventId());
                 return;
             }
 
-            // 오케스트레이터를 통한 이벤트 처리
+            
             log.info("[SecurityPlaneAgent] Processing event with orchestrator - eventId: {}",
                 event.getEventId());
             context = processingOrchestrator.process(event);
 
-            // 처리 시간 측정 및 메트릭 업데이트
+            
             long processingTime = System.currentTimeMillis() - startTime;
             if (context.getProcessingMetrics() == null) {
                 context.setProcessingMetrics(new SecurityEventContext.ProcessingMetrics());
             }
             context.getProcessingMetrics().setResponseTimeMs(processingTime);
 
-            // 처리 결과 로깅
+            
             ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
             log.info("[SecurityPlaneAgent] Event {} processed in {}ms with mode: {}, status: {}",
                 event.getEventId(), processingTime, mode, context.getProcessingStatus());
 
-            // 처리 결과 핸들링 (기존 메서드 재사용)
+            
             ProcessingResult result = (ProcessingResult) context.getMetadata().get("processingResult");
             if (result != null) {
                 handleProcessingResult(event, result);
             }
 
-            // 멱등성 마커 저장 (처리 완료 표시)
+            
             markEventAsProcessed(event.getEventId());
 
         } catch (Exception e) {
             log.error("[SecurityPlaneAgent] Error processing event with orchestrator: {}",
                 event.getEventId(), e);
 
-            // 컨텍스트가 없는 경우 생성
+            
             if (context == null) {
                 context = SecurityEventContext.builder()
                     .securityEvent(event)
@@ -423,7 +385,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
             context.markAsFailed("Processing error: " + e.getMessage());
 
-            // 에러 감사 기록 (AI Native: eventType 제거)
+            
             if (auditLogger != null) {
                 Map<String, Object> errorContext = Map.of(
                     "eventId", event.getEventId(),
@@ -434,20 +396,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 auditLogger.auditError("SecurityPlaneAgent", "processWithOrchestrator", e, errorContext);
             }
 
-            // 트랜잭션 롤백을 위해 예외 재발생
+            
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
 
         } finally {
-            // AI Native: 컨텍스트 캐시 저장 제거 (Dead Code - 조회 코드 없음)
+            
         }
     }
 
-    /**
-     * 이벤트 처리 여부 확인 (멱등성 체크)
-     *
-     * @param eventId 이벤트 ID
-     * @return 이미 처리된 경우 true
-     */
+    
     private boolean isEventAlreadyProcessed(String eventId) {
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
@@ -455,19 +412,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return Boolean.TRUE.equals(exists);
         } catch (Exception e) {
             log.warn("[SecurityPlaneAgent] Failed to check event processing status: {}", eventId, e);
-            return false; // 체크 실패 시 재처리 허용
+            return false; 
         }
     }
 
-    /**
-     * 이벤트 처리 완료 마킹 (멱등성 보장)
-     *
-     * @param eventId 이벤트 ID
-     */
+    
     private void markEventAsProcessed(String eventId) {
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
-            // 24시간 동안 처리 완료 상태 유지
+            
             redisTemplate.opsForValue().set(processingKey, "1", Duration.ofHours(24));
             log.debug("[SecurityPlaneAgent] Event marked as processed: {}", eventId);
         } catch (Exception e) {
@@ -475,7 +428,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    // recordProcessingMetrics() 제거: Dead Code - 저장만 하고 조회 코드 없음
+    
 
     public void handleNewIncident(SecurityIncident incident) {
         handleNewIncident(incident, null);
@@ -490,10 +443,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         log.info("Agent {} handling new incident: {}", agentName, incident.getIncidentId());
 
         try {
-            // Create incident handler
+            
             IncidentHandler handler = new IncidentHandler(incident.getIncidentId());
 
-            // SoarIncident 생성 및 저장
+            
             SoarIncident soarIncident = new SoarIncident();
             soarIncident.setIncidentId(incident.getIncidentId());
             soarIncident.setType(incident.getType().toString());
@@ -504,15 +457,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             soarIncident.setMetadata(new HashMap<>());
             handler.setSoarIncident(soarIncident);
 
-            // SecurityEvent 저장 (있는 경우)
+            
             if (sourceEvent != null) {
                 handler.setSecurityEvent(sourceEvent);
             }
 
             activeIncidentHandlers.put(incident.getIncidentId(), handler);
             
-            // 인시던트에서 학습 (Learning Capability)
-            // AI Native v4.0.0: eventType 제거 - source 기반
+            
+            
             if (incident.getAffectedUser() != null) {
                 SecurityEvent relatedEvent = new SecurityEvent();
                 relatedEvent.setUserId(incident.getAffectedUser());
@@ -524,7 +477,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 String response = "INCIDENT_" + incident.getType();
                 double effectiveness = incident.getRiskScore();
 
-                // Learning Engine을 통한 학습 호출
+                
                 if (learningEngine != null) {
                     try {
                         learningEngine.learnFromEvent(relatedEvent, response, effectiveness).subscribe(
@@ -534,7 +487,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                                 incident.getIncidentId(), error.getMessage(), error)
                         );
                     } catch (Exception e) {
-                        // 학습 실패가 메인 흐름을 중단하면 안 됨
+                        
                         log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
                             incident.getIncidentId(), e.getMessage(), e);
                     }
@@ -543,13 +496,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 }
             }
             
-            // 메모리에 인시던트 저장 (Memory Capability)
+            
             String key = "incident:" + incident.getIncidentId();
             storeInMemory(key, incident);
             
-            // Create SOAR context from incident - ONLY FOR HIGH RISK INCIDENTS
+            
             if (contextProvider != null && soarNotifier != null) {
-                // Check if incident is high risk (CRITICAL or HIGH threat level)
+                
                 if (incident.getThreatLevel() != null &&
                     (incident.getThreatLevel() == SecurityIncident.ThreatLevel.CRITICAL ||
                      incident.getThreatLevel() == SecurityIncident.ThreatLevel.HIGH ||
@@ -560,7 +513,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
                     SoarContext context = contextProvider.createContextFromIncident(incident);
 
-                    // Notify SOAR about the HIGH RISK incident
+                    
                     CompletableFuture<NotificationResult> notificationResult =
                         soarNotifier.notifyIncident(incident, context);
 
@@ -582,7 +535,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 log.warn("SOAR integration not available for incident {}", incident.getIncidentId());
             }
             
-            // Update incident count
+            
             createdIncidents.incrementAndGet();
             
         } catch (Exception e) {
@@ -590,13 +543,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * 인시던트 해결 메소드 - IncidentResolvedEvent 및 DynamicThreatResponseEvent 발행
-     *
-     * DynamicThreatResponseEvent는 고위험(CRITICAL/HIGH) 위협 대응 성공 시 발행되어
-     * AutonomousPolicySynthesizer가 수신하여 DynamicThreatResponseSynthesisLab으로 라우팅,
-     * 자율 정책 생성으로 이어집니다.
-     */
+    
     public void resolveIncident(String incidentId, String resolvedBy, String resolutionMethod, boolean wasSuccessful) {
         IncidentHandler handler = activeIncidentHandlers.get(incidentId);
         if (handler == null) {
@@ -605,10 +552,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
 
         try {
-            // 핸들러 상태 업데이트
+            
             handler.resolveIncident(resolvedBy, resolutionMethod);
 
-            // IncidentResolvedEvent 발행
+            
             IncidentResolvedEvent resolvedEvent = new IncidentResolvedEvent(
                 this,
                 incidentId,
@@ -625,12 +572,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.info("Incident resolved and event published: {} by {} using {} (success: {}, time: {}ms)",
                 incidentId, resolvedBy, resolutionMethod, wasSuccessful, handler.getResolutionTimeMs());
 
-            // DynamicThreatResponseEvent 발행 (조건부: 고위험 위협 대응 성공 시)
+            
             if (wasSuccessful && shouldCreateDynamicThreatResponse(handler)) {
                 publishDynamicThreatResponseEvent(handler, resolutionMethod);
             }
 
-            // 핸들러 제거
+            
             activeIncidentHandlers.remove(incidentId);
 
         } catch (Exception e) {
@@ -638,15 +585,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * DynamicThreatResponseEvent 발행 여부 결정
-     *
-     * 조건: 설정된 최소 심각도(dynamicResponseMinSeverity) 이상인 위협 대응 성공 시만 정책 생성 대상
-     * 심각도 순서: CRITICAL > HIGH > MEDIUM > LOW > INFO
-     *
-     * @param handler 인시던트 핸들러
-     * @return 이벤트 발행 여부
-     */
+    
     private boolean shouldCreateDynamicThreatResponse(IncidentHandler handler) {
         SoarIncident soarIncident = handler.getSoarIncident();
         if (soarIncident == null) {
@@ -658,20 +597,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return false;
         }
 
-        // 심각도 순위 비교 (CRITICAL=5, HIGH=4, MEDIUM=3, LOW=2, INFO=1)
+        
         int incidentSeverityRank = getSeverityRank(severity);
         int minSeverityRank = getSeverityRank(dynamicResponseMinSeverity);
 
         return incidentSeverityRank >= minSeverityRank;
     }
 
-    /**
-     * 심각도 문자열을 순위 숫자로 변환
-     *
-     * @param severity 심각도 문자열
-     * @return 순위 (CRITICAL=5, HIGH=4, MEDIUM=3, LOW=2, INFO=1, UNKNOWN=0)
-     * @deprecated AI Native 원칙 위반 - SecurityDecision.action 기반 판단 권장
-     */
+    
     @Deprecated(since = "3.1.0", forRemoval = true)
     private int getSeverityRank(String severity) {
         if (severity == null) {
@@ -687,22 +620,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         };
     }
 
-    /**
-     * DynamicThreatResponseEvent 발행
-     *
-     * AutonomousPolicySynthesizer가 수신하여 DynamicThreatResponseSynthesisLab으로 라우팅,
-     * 위협 대응 패턴을 학습하여 자율 정책 생성으로 이어집니다.
-     *
-     * @param handler 인시던트 핸들러
-     * @param resolutionMethod 해결 방법
-     */
+    
     private void publishDynamicThreatResponseEvent(IncidentHandler handler, String resolutionMethod) {
         try {
             SoarIncident soarIncident = handler.getSoarIncident();
             SecurityEvent securityEvent = handler.getSecurityEvent();
 
-            // AI Native: SecurityEvent deprecated getAttackVector() 제거
-            // metadata에서 공격 벡터 정보 추출
+            
+            
             String attackVector = null;
             if (securityEvent != null && securityEvent.getMetadata() != null) {
                 Object av = securityEvent.getMetadata().get("attackVector");
@@ -737,10 +662,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * 인시던트 ID를 Long으로 파싱
-     * String 형태의 incidentId를 Long으로 변환, 실패 시 null 반환
-     */
+    
     private Long parseIncidentIdToLong(String incidentId) {
         if (incidentId == null || incidentId.isEmpty()) {
             return null;
@@ -753,18 +675,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * 대상 리소스 추출 (AI Native: SecurityEvent.targetResource 필드 제거됨 - metadata에서 추출)
-     */
+    
     private String extractTargetResource(SoarIncident soarIncident, SecurityEvent securityEvent) {
-        // SecurityEvent metadata에서 targetResource 추출
+        
         if (securityEvent != null && securityEvent.getMetadata() != null) {
             Object resource = securityEvent.getMetadata().get("targetResource");
             if (resource != null) {
                 return resource.toString();
             }
         }
-        // SoarIncident metadata에서 targetResource 추출
+        
         if (soarIncident != null && soarIncident.getMetadata() != null) {
             try {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
@@ -790,31 +710,31 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return;
         }
         
-        // Create context with the recommended action
+        
         Map<String, Object> additionalInfo = new HashMap<>();
         additionalInfo.put("recommendedAction", action);
         additionalInfo.put("eventId", event.getEventId());
-        additionalInfo.put("action", assessment.getAction());  // AI Native: action 사용
+        additionalInfo.put("action", assessment.getAction());  
         additionalInfo.put("riskScore", assessment.getRiskScore());
 
-        // Create context from event
+        
         SoarContext context = contextProvider.createContextFromEvents(List.of(event));
         context = contextProvider.enrichContext(context, additionalInfo);
 
-        // AI Native: BLOCK action에서 SOAR Lab 호출 (Critical 위협)
+        
         if ("BLOCK".equals(assessment.getAction()) || assessment.getRiskScore() >= 0.9) {
             if (soarLab != null) {
-                // SOAR Lab을 통한 AI 기반 분석 및 도구 실행
+                
                 log.info("Invoking SOAR Lab for critical threat analysis");
                 try {
-                    // 비동기 모드로 SOAR 호출
+                    
                     SoarContext finalContext = context;
                     String prompt = String.format(
                         "Critical security event detected: %s with action %s and risk score %.2f. Recommended action: %s. Analyze and determine appropriate SOAR tools to execute.",
                         event.getEventId(), assessment.getAction(), assessment.getRiskScore(), action
                     );
 
-                    // SoarRequest 생성 - ASYNC 모드 명시
+                    
                     finalContext.setExecutionMode(SoarExecutionMode.ASYNC);
                     SoarRequest soarRequest = SoarRequest.builder()
                         .context(finalContext)
@@ -824,28 +744,28 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         .organizationId("security-plane")
                         .build();
 
-                    // SOAR Lab을 통한 비동기 처리
+                    
                     soarLab.processAsync(soarRequest)
                             .subscribe(
                                 soarResponse -> {
                                     log.info("SOAR 분석 완료 - Event: {}", event.getEventId());
 
-                                    // 실행된 액션 카운트 증가
+                                    
                                     executedActions.incrementAndGet();
 
-                                    // 자율 진화형 정책 패브릭 활용
+                                    
                                     evolveThreadEvaluationPolicy(event, assessment);
                                     learnFromSecurityEvent(event, action);
                                     storeInMemory("assessment:" + assessment.getAssessmentId(), assessment);
 
-                                    // 결과 이벤트 발행
+                                    
                                     Map<String, Object> resultData = new HashMap<>();
                                     resultData.put("eventId", event.getEventId());
                                     resultData.put("action", action);
                                     resultData.put("soarResponse", soarResponse);
                                     resultData.put("assessmentId", assessment.getAssessmentId());
 
-                                    // notifyActionExecuted 메서드가 없으므로 notifyHighRiskTool 사용
+                                    
                                     soarNotifier.notifyHighRiskTool(
                                         action,
                                         resultData,
@@ -888,23 +808,21 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * 모니터링 오류 처리 - EmergencyKillSwitch 활용
-     */
+    
     private void handleMonitoringError(Exception e) {
         log.error("Monitoring error in agent {}: {}", agentName, e.getMessage(), e);
         
-        // 오류 카운터 증가
+        
         if (currentState == AgentState.ERROR) {
-            // 이미 ERROR 상태면 종료 고려
+            
             log.error("Agent {} is in ERROR state, considering shutdown", agentName);
-            // EmergencyKillSwitch 트리거 고려
+            
         } else {
-            // 일시적 오류로 처리
+            
             log.warn("Temporary monitoring error in agent {}, will retry", agentName);
         }
         
-        // 오류 발생 시 백오프 전략 적용
+        
         try {
             Thread.sleep(retryBackoffMs);
         } catch (InterruptedException ie) {
@@ -913,7 +831,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
     
     private boolean needsAttention(Map<String, Object> health) {
-        // Check if any health metrics indicate problems
+        
         Long queueSize = (Long) health.get("event_queue_size");
         if (queueSize != null && queueSize > maxQueueSize) {
             return true;
@@ -942,10 +860,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         health.put("executed_actions", executedActions.get());
         health.put("active_incident_handlers", activeIncidentHandlers.size());
         
-        // Add monitoring statistics
+        
         health.putAll(securityMonitor.getMonitoringStatistics());
 
-        // Add pending approvals count from UnifiedApprovalService (Enterprise only)
+        
         if (approvalService != null) {
             health.put("pending_approvals", approvalService.getPendingCount());
         } else {
@@ -956,9 +874,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
     
 
-    /**
-     * Hot/Cold Path 처리 결과를 받아서 인시던트 처리
-     */
+    
     private void handleProcessingResult(SecurityEvent event, ProcessingResult result) {
         if (result == null) {
             log.warn("Processing result is null for event: {}", event.getEventId());
@@ -972,19 +888,19 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         
         try {
 
-            // 인시던트 생성 (필요시)
+            
             if (result.isRequiresIncident()) {
                 createIncidentFromResult(event, result);
             }
             
-            // 추천 액션 실행
+            
             if (result.getRecommendedActions() != null && !result.getRecommendedActions().isEmpty()) {
                 for (String action : result.getRecommendedActions()) {
                     executeRecommendedAction(action, event, null);
                 }
             }
             
-            // 4. 처리 성공 로그
+            
             log.info("Processed event {} via {} - riskScore: {}, processingTime: {}ms",
                     event.getEventId(),
                     result.getProcessingPath(),
@@ -996,19 +912,17 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * ProcessingResult 로부터 인시던트 생성
-     */
+    
     private void createIncidentFromResult(SecurityEvent event, ProcessingResult result) {
         try {
-            // getIncidentSeverity()가 String을 반환하므로 처리
+            
             String severityStr = result.getIncidentSeverity();
             ProcessingResult.IncidentSeverity severity = severityStr != null ?
                 ProcessingResult.IncidentSeverity.valueOf(severityStr) :
                 ProcessingResult.IncidentSeverity.MEDIUM;
             SecurityIncident.ThreatLevel threatLevel = mapSeverityToThreatLevel(severity);
             
-            // AI Native: eventType 제거 - severity 기반으로 인시던트 타입 결정
+            
             SecurityIncident incident = SecurityIncident.builder()
                     .incidentId("INC-" + result.getProcessingPath() + "-" + System.currentTimeMillis())
                     .type(mapSeverityToIncidentType(severity))
@@ -1032,9 +946,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * IncidentSeverity를 ThreatLevel로 매핑
-     */
+    
     private SecurityIncident.ThreatLevel mapSeverityToThreatLevel(ProcessingResult.IncidentSeverity severity) {
         if (severity == null) {
             return SecurityIncident.ThreatLevel.MEDIUM;
@@ -1054,11 +966,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * Severity 기반으로 인시던트 타입으로 매핑 (AI Native: eventType 제거)
-     *
-     * AI Native 원칙: 인시던트 타입은 LLM 분석 결과의 severity/action에서 결정
-     */
+    
     private SecurityIncident.IncidentType mapSeverityToIncidentType(ProcessingResult.IncidentSeverity severity) {
         switch (severity) {
             case CRITICAL:
@@ -1072,14 +980,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * 정책 진화를 통한 위협 평가 개선
-     * Policy Evolution Service를 활용하여 정책을 자율적으로 진화시킵니다.
-     */
+    
     private void evolveThreadEvaluationPolicy(SecurityEvent event, ThreatAssessment assessment) {
         if (policyEvolutionService != null) {
             try {
-                // AI Native: action 기반 정책 학습
+                
                 String decision = assessment.getAction() != null ? assessment.getAction() : "ESCALATE";
                 String outcome = assessment.getRiskScore() > threatThreshold ? "HIGH_RISK" : "NORMAL";
 
@@ -1096,24 +1001,21 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * 학습 엔진을 통한 패턴 학습
-     * Learning Engine을 활용하여 보안 이벤트로부터 패턴을 학습하고 예측을 수행합니다.
-     */
+    
     private void learnFromSecurityEvent(SecurityEvent event, String response) {
         if (learningEngine != null) {
             try {
-                // AI Native: effectiveness는 LLM이 판단해야 함 (-1.0 = 미측정)
-                // calculateResponseEffectiveness() 제거 (규칙 기반 판단 위반)
+                
+                
                 double effectiveness = -1.0;
 
-                // Learning Engine을 통한 학습 수행
+                
                 learningEngine.learnFromEvent(event, response, effectiveness)
                     .subscribe(
                         result -> {
                             log.debug("학습 완료");
 
-                            // 예측 적용
+                            
                             applyLearningPrediction(event);
                         },
                         error -> log.error("학습 실패", error)
@@ -1126,18 +1028,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * 학습된 지식을 적용하여 예측 수행
-     * Learning Engine을 통해 예측을 수행합니다.
-     */
+    
     private void applyLearningPrediction(SecurityEvent event) {
         if (learningEngine != null) {
-            // Learning Engine을 통한 학습 적용 및 예측
+            
             learningEngine.applyLearning(event)
                 .subscribe(
                     prediction -> {
                         log.debug("학습 기반 예측 완료: {}", event.getEventId());
-                        // 예측 결과를 메모리에 저장
+                        
                         storeInMemory("prediction:" + event.getEventId(), prediction);
                     },
                     error -> log.error("예측 적용 실패: {}", event.getEventId(), error)
@@ -1147,10 +1046,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * 메모리 시스템에 중요 정보 저장
-     * Memory System을 통해 WM 및 STM에 저장합니다.
-     */
+    
     private void storeInMemory(String key, Object value) {
         if (memorySystem != null) {
             try {
@@ -1158,20 +1054,20 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 metadata.put("timestamp", LocalDateTime.now().toString());
                 metadata.put("agentName", agentName);
 
-                // SecurityIncident는 DTO로 변환하여 저장 (lazy loading 문제 방지)
+                
                 Object valueToStore = value;
                 if (value instanceof SecurityIncident) {
                     valueToStore = SecurityIncidentDTO.fromEntity((SecurityIncident) value);
                 }
 
-                // Memory System을 통한 작업 메모리 저장
+                
                 memorySystem.storeInWM(key, valueToStore, "security-plane")
                     .subscribe(
                         result -> log.debug("메모리 저장 완료: {}", key),
                         error -> log.error("메모리 저장 실패", error)
                     );
 
-                // AI Native: BLOCK action 또는 고위험은 단기 메모리에도 저장
+                
                 if (value instanceof ThreatAssessment) {
                     ThreatAssessment ta = (ThreatAssessment) value;
                     if ("BLOCK".equals(ta.getAction()) || ta.getRiskScore() >= 0.9) {
@@ -1187,17 +1083,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    // AI Native: calculateResponseEffectiveness() 제거됨
-    // 규칙 기반 판단(문자열 포함 여부로 점수 결정)은 AI Native 원칙 위반
-    // effectiveness는 LLM이 판단해야 함
+    
+    
+    
 
 
-    /**
-     * ThreatLevel을 Severity로 매핑
-     *
-     * @deprecated JPA 호환성 유지를 위해 임시 유지
-     * 향후 버전에서 SecurityIncident.ThreatLevel도 action 기반으로 대체 예정
-     */
+    
     @Deprecated(since = "3.1.0")
     private SecurityEvent.Severity mapThreatLevelToSeverity(SecurityIncident.ThreatLevel threatLevel) {
         if (threatLevel == null) {
@@ -1221,13 +1112,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Qualifier("llmAnalysisExecutor")
     private Executor llmAnalysisExecutor;
 
-    // AI Native v5.0.0: startBackgroundMonitoring(), stopBackgroundMonitoring() 제거
-    // Kafka Batch Listener -> processBatch() 콜백 방식으로 전환
+    
+    
 
 
-    /**
-     * 인시던트 핸들러 정리 - 메모리 누수 방지
-     */
+    
     private void cleanupIncidentHandlers() {
         try {
             log.debug("Cleaning up incident handlers for agent {}", agentName);
@@ -1253,9 +1142,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
     
-    /**
-     * Incident Handler 내부 클래스
-     */
+    
     private static class IncidentHandler {
         private final String incidentId;
         private final LocalDateTime createdAt;
@@ -1271,7 +1158,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         public IncidentHandler(String incidentId) {
             this.incidentId = incidentId;
             this.createdAt = LocalDateTime.now();
-            this.expiresAt = createdAt.plusHours(24); // 24시간 후 만료
+            this.expiresAt = createdAt.plusHours(24); 
             this.completed = false;
         }
 
@@ -1314,7 +1201,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             this.resolvedAt = LocalDateTime.now();
         }
 
-        // Deprecated - 이전 버전 호환성 유지
+        
         @Deprecated
         public void resolveIncident() {
             resolveIncident("system", "auto-resolved");
@@ -1356,9 +1243,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    /**
-     * Agent states
-     */
+    
     private enum AgentState {
         INITIALIZING,
         RUNNING,

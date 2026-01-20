@@ -1,8 +1,6 @@
 package io.contexa.contexacore.infra.session;
 
-/**
- * 세션 통계 정보 클래스
- */
+
 public class SessionStats {
     private final long activeSessions;
     private final long totalSessionsCreated;
@@ -20,7 +18,7 @@ public class SessionStats {
         this.repositoryType = repositoryType;
     }
 
-    // Getters
+    
     public long getActiveSessions() { return activeSessions; }
     public long getTotalSessionsCreated() { return totalSessionsCreated; }
     public long getSessionCollisions() { return sessionCollisions; }

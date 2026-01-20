@@ -5,15 +5,7 @@ import lombok.Getter;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 연구소 실행 전략
- * 
- * 마스터 브레인이 수립하는 정밀한 실행 전략
- * - 어떤 연구소를 어떤 순서로 실행할지 결정
- * - 각 연구소 간 데이터 흐름 정의
- * - 예외 상황별 대응 전략 수립
- * - 성능 최적화 전략 포함
- */
+
 @Getter
 public class LabExecutionStrategy {
     
@@ -38,9 +30,7 @@ public class LabExecutionStrategy {
         this.qualityGate = qualityGate;
     }
     
-    /**
-     * 연구소 실행 단계
-     */
+    
     public static class LabExecutionStep {
         private final String stepId;
         private final String labType;
@@ -65,9 +55,7 @@ public class LabExecutionStrategy {
         
     }
     
-    /**
-     * 폴백 전략
-     */
+    
     public static class FallbackStrategy {
         private final FallbackType type;
         private final String fallbackLabType;
@@ -82,17 +70,15 @@ public class LabExecutionStrategy {
         }
         
         public enum FallbackType {
-            IMMEDIATE,      // 즉시 폴백
-            GRADUAL,        // 점진적 폴백
-            FULL_RECOVERY,  // 완전 복구
-            EMERGENCY       // 긴급 모드
+            IMMEDIATE,      
+            GRADUAL,        
+            FULL_RECOVERY,  
+            EMERGENCY       
         }
         
     }
     
-    /**
-     * 품질 게이트
-     */
+    
     public static class QualityGate {
         private final double minAccuracyThreshold;
         private final double maxResponseTimeMs;
@@ -109,32 +95,26 @@ public class LabExecutionStrategy {
             this.requiredValidations = requiredValidations;
         }
         
-        /**
-         * 품질 기준을 통과하는지 검증
-         */
+        
         public boolean passesQualityGate(double accuracy, double responseTime, double confidence) {
             return accuracy >= minAccuracyThreshold &&
                    responseTime <= maxResponseTimeMs &&
                    confidence >= minConfidenceScore;
         }
         
-        // Getters
+        
         public double getMinAccuracyThreshold() { return minAccuracyThreshold; }
         public double getMaxResponseTimeMs() { return maxResponseTimeMs; }
         public double getMinConfidenceScore() { return minConfidenceScore; }
         public List<String> getRequiredValidations() { return requiredValidations; }
     }
     
-    /**
-     * Builder 패턴을 위한 정적 메서드
-     */
+    
     public static Builder builder() {
         return new Builder();
     }
     
-    /**
-     * Builder 클래스
-     */
+    
     public static class Builder {
         private String strategyId;
         private String requestType;
@@ -165,29 +145,25 @@ public class LabExecutionStrategy {
             return new LabExecutionStrategy(
                 strategyId != null ? strategyId : "strategy-" + System.currentTimeMillis(),
                 requestType != null ? requestType : "unknown",
-                List.of(), // executionSteps
-                Map.of("complexity", complexity, "priority", priority), // strategyParameters
-                new FallbackStrategy(FallbackStrategy.FallbackType.IMMEDIATE, "default", Map.of()), // fallbackStrategy
-                new QualityGate(0.8, 5000, 0.7, List.of()) // qualityGate
+                List.of(), 
+                Map.of("complexity", complexity, "priority", priority), 
+                new FallbackStrategy(FallbackStrategy.FallbackType.IMMEDIATE, "default", Map.of()), 
+                new QualityGate(0.8, 5000, 0.7, List.of()) 
             );
         }
     }
     
-    /**
-     * 전략 이름을 반환합니다
-     */
+    
     public String getStrategyName() {
         return "Strategy-" + strategyId;
     }
     
-    /**
-     * 예상 실행 시간을 반환합니다
-     */
+    
     public long getExpectedDuration() {
-        return 5000; // 기본 5초
+        return 5000; 
     }
     
-    // Getters
+    
     public String getStrategyId() { return strategyId; }
     public String getOperationType() { return operationType; }
     public List<LabExecutionStep> getExecutionSteps() { return executionSteps; }

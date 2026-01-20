@@ -14,10 +14,7 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * '사용자 행동 분석' 진단 전략.
- * RiskAssessmentDiagnosisStrategy의 구조와 로직을 100% 준수하여 구현합니다.
- */
+
 @Slf4j
 public class BehavioralAnalysisDiagnosisStrategy extends AbstractAIStrategy<BehavioralAnalysisContext, BehavioralAnalysisResponse> {
 

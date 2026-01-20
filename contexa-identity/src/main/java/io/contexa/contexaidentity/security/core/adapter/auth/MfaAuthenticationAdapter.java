@@ -34,7 +34,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(MfaAuthenticationAdapter.class);
     private static final String ID = "mfa";
-    private ApplicationContext applicationContext; // 생성자 주입으로 변경 권장
+    private ApplicationContext applicationContext; 
 
     public MfaAuthenticationAdapter() {
         log.warn("MfaAuthenticationAdapter created using default constructor. ApplicationContext might not be available.");
@@ -65,7 +65,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
         log.info("MfaAuthenticationAdapter: Applying MFA common filters for flow '{}'.", currentFlow.getTypeName());
 
-        // ApplicationContext가 생성자에서 주입되지 않았다면 HttpSecurity의 공유 객체에서 가져오기 시도
+        
         if (this.applicationContext == null) {
             this.applicationContext = http.getSharedObject(ApplicationContext.class);
             Assert.notNull(this.applicationContext, "ApplicationContext not found in HttpSecurity sharedObjects and was not provided via constructor.");
@@ -94,33 +94,33 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                 applicationContext
         );
 
-        // ⭐ Phase 2 & 3: MFA Flow에서 Primary + Factor Options를 AuthUrlProvider에 주입하고 URL Matcher 초기화
+        
         if (currentFlow.getRegisteredFactorOptions() != null && !currentFlow.getRegisteredFactorOptions().isEmpty()) {
             try {
                 AuthUrlProvider authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
-                // P0.4: Primary Authentication Options 주입
+                
                 if (currentFlow.getPrimaryAuthenticationOptions() != null) {
                     authUrlProvider.setPrimaryAuthenticationOptions(currentFlow.getPrimaryAuthenticationOptions());
                     log.info("✅ Primary authentication options injected to AuthUrlProvider");
                 }
 
-                // Factor Options 주입
+                
                 authUrlProvider.updateFactorOptions(currentFlow.getRegisteredFactorOptions());
                 log.info("✅ Factor options injected to AuthUrlProvider: {} factors", currentFlow.getRegisteredFactorOptions().size());
 
-                // URL Matcher 초기화
+                
                 mfaContinuationFilter.initializeUrlMatchers();
                 log.info("✅ MfaContinuationFilter URL matchers initialized");
             } catch (Exception e) {
-                // P0.2: 초기화 실패 시 시스템 시작을 중단하여 잘못된 설정으로 실행되는 것을 방지
+                
                 log.error("🚨 Critical: Failed to inject options or initialize URL matchers", e);
                 throw new IllegalStateException(
                     "MFA initialization failed: Unable to inject authentication options or initialize URL matchers. " +
                     "MFA flow cannot proceed safely. Please check your configuration.", e);
             }
         } else {
-            // P0.2: Factor Options가 없는 경우도 에러로 처리 (MFA flow인데 factor가 없으면 비정상)
+            
             log.error("🚨 Critical: MFA flow has no registered factor options");
             throw new IllegalStateException(
                 "MFA initialization failed: No factor options registered. " +
@@ -129,17 +129,17 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
         http.addFilterBefore(mfaContinuationFilter, LogoutFilter.class);
 
-        // MfaStepFilterWrapper에 필요한 RequestMatcher 생성
+        
         List<RequestMatcher> factorProcessingMatchers = new ArrayList<>();
         if (currentFlow.getStepConfigs() != null) {
             for (AuthenticationStepConfig step : currentFlow.getStepConfigs()) {
-                // 1차 인증 단계(order 0)는 제외하고, 2차 인증 요소들의 처리 URL만 포함
+                
                 if (step.getOrder() > 0) {
                     Object optionsObj = step.getOptions().get("_options");
                     if (optionsObj instanceof AuthenticationProcessingOptions procOpts) {
                         String processingUrl = procOpts.getLoginProcessingUrl();
                         if (processingUrl != null) {
-                            // 일반적으로 MFA Factor 검증은 POST 요청
+                            
                             factorProcessingMatchers.add(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, processingUrl));
                             log.debug("MfaAuthenticationAdapter: Added AntPathRequestMatcher for MFA factor processing URL: POST {}", processingUrl);
                         }
@@ -151,7 +151,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
         RequestMatcher mfaFactorProcessingMatcherForWrapper;
         if (factorProcessingMatchers.isEmpty()) {
             log.warn("MfaAuthenticationAdapter: No specific factor processing URLs found for MfaStepFilterWrapper in flow '{}'. The wrapper might not match any requests.", currentFlow.getTypeName());
-            // 매칭할 URL이 없으면 어떤 요청도 처리하지 않도록 설정
+            
             mfaFactorProcessingMatcherForWrapper = request -> false;
         } else {
             mfaFactorProcessingMatcherForWrapper = new OrRequestMatcher(factorProcessingMatchers);

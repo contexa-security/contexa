@@ -12,10 +12,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
-/**
- * SOAR 승인 컨트롤러
- * WebSocket을 통한 실시간 승인 처리
- */
+
 @Slf4j
 @ResponseBody
 @RequestMapping("/api/soar/approval")
@@ -34,9 +31,7 @@ public class SoarApprovalController {
         this.brokerTemplate = brokerTemplate;
     }
     
-    /**
-     * SOAR Tool 실행 요청 (승인 워크플로우 포함)
-     */
+    
     @PostMapping("/execute")
     public Mono<ResponseEntity<Map<String, Object>>> executeSoarTool(
             @RequestBody Map<String, Object> request) {
@@ -69,9 +64,7 @@ public class SoarApprovalController {
             });
     }
     
-    /**
-     * 승인 요청 처리
-     */
+    
     @PostMapping("/approve/{approvalId}")
     public ResponseEntity<Map<String, Object>> approveRequest(
             @PathVariable String approvalId,
@@ -83,10 +76,10 @@ public class SoarApprovalController {
         log.info("👨‍💼 승인 처리: {} - 승인: {}, 사유: {}", approvalId, approved, reason);
         
         try {
-            // ApprovalService에 승인 결과 전달
+            
             approvalService.processApproval(approvalId, approved, reason);
             
-            // WebSocket으로 승인 결과 브로드캐스트
+            
             Map<String, Object> message = Map.of(
                 "type", "APPROVAL_PROCESSED",
                 "approvalId", approvalId,
@@ -118,9 +111,7 @@ public class SoarApprovalController {
         }
     }
     
-    /**
-     * 대기 중인 승인 목록 조회
-     */
+    
     @GetMapping("/pending-list")
     public ResponseEntity<Map<String, Object>> getPendingApprovals() {
         try {
@@ -147,9 +138,7 @@ public class SoarApprovalController {
         }
     }
     
-    /**
-     * 등록된 도구 목록 조회
-     */
+    
     @GetMapping("/tools")
     public ResponseEntity<Map<String, Object>> getRegisteredTools() {
         try {
@@ -178,16 +167,14 @@ public class SoarApprovalController {
         }
     }
     
-    /**
-     * 도구 실행 상태 조회
-     */
+    
     @GetMapping("/status/{incidentId}")
     public ResponseEntity<Map<String, Object>> getExecutionStatus(@PathVariable String incidentId) {
         try {
-            // 실제 구현에서는 실행 상태를 추적하는 서비스가 필요
+            
             Map<String, Object> status = Map.of(
                 "incidentId", incidentId,
-                "status", "PROCESSING", // PENDING, PROCESSING, COMPLETED, FAILED
+                "status", "PROCESSING", 
                 "lastUpdate", java.time.Instant.now()
             );
             
@@ -213,9 +200,7 @@ public class SoarApprovalController {
         }
     }
     
-    /**
-     * SOAR 도구 실행 통계 조회 (관찰 메트릭 포함)
-     */
+    
     @GetMapping("/statistics")
     public ResponseEntity<Map<String, Object>> getExecutionStatistics() {
         try {
@@ -236,9 +221,7 @@ public class SoarApprovalController {
         }
     }
     
-    /**
-     * 특정 도구의 실행 메트릭 조회
-     */
+    
     @GetMapping("/tools/{toolName}/metrics")
     public ResponseEntity<Map<String, Object>> getToolMetrics(@PathVariable String toolName) {
         try {
@@ -269,20 +252,18 @@ public class SoarApprovalController {
         }
     }
     
-    /**
-     * SOAR 시스템 헬스 체크
-     */
+    
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> healthCheck() {
         try {
-            // 기본 구성 요소들의 상태 확인
+            
             boolean approvalServiceHealthy = (approvalService != null);
             boolean toolExecutionServiceHealthy = (soarToolExecutionService != null);
 
-            // 등록된 도구 수 확인
+            
             int registeredToolCount = soarToolExecutionService.getRegisteredTools().size();
             
-            // 글로벌 통계 확인
+            
             Map<String, Object> globalStats = SoarToolObservationContext.getGlobalExecutionStatistics();
             
             boolean overallHealthy = approvalServiceHealthy && toolExecutionServiceHealthy && registeredToolCount >= 0;

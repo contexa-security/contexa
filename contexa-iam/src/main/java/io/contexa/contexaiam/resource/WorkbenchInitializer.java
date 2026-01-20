@@ -11,10 +11,7 @@ import org.springframework.boot.ApplicationRunner;
 
 import java.util.List;
 
-/**
- * 애플리케이션이 완전히 시작된 후, '통합 워크벤치'에 필요한 초기화 작업을 수행합니다.
- * 이 클래스는 리소스 자동 스캔 및 DB 등록을 보장하는 핵심적인 역할을 합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class WorkbenchInitializer implements ApplicationRunner {
@@ -27,11 +24,11 @@ public class WorkbenchInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) throws Exception {
         log.info("IAM Command Center: Starting resource synchronization on application startup...");
         try {
-            // 1. 리소스 동기화 시작 (비동기)
-//            resourceRegistryService.refreshAndSynchronizeResources();
+            
+
             log.info("IAM Command Center: Resource synchronization started (async).");
 
-            // 2. 정책 설명 강화
+            
             List<Policy> policiesToUpdate = policyRepository.findByFriendlyDescriptionIsNull();
 
             if (policiesToUpdate.isEmpty()) {

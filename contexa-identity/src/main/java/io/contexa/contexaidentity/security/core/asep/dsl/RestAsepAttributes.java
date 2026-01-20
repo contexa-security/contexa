@@ -13,7 +13,7 @@ public final class RestAsepAttributes implements BaseAsepAttributes {
     private final List<SecurityHandlerMethodReturnValueHandler> customReturnValueHandlers = new ArrayList<>();
 
     public RestAsepAttributes() {
-        // 기본 생성자
+        
     }
 
     public RestAsepAttributes exceptionArgumentResolver(SecurityHandlerMethodArgumentResolver resolver) {

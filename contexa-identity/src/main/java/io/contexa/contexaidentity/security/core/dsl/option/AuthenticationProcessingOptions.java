@@ -28,7 +28,7 @@ public abstract class AuthenticationProcessingOptions extends AbstractOptions {
 
     public abstract static class AbstractAuthenticationProcessingOptionsBuilder
             <O extends AuthenticationProcessingOptions, B extends AbstractAuthenticationProcessingOptionsBuilder<O, B>>
-            extends AbstractOptions.Builder<O, B> { // 상속 변경
+            extends AbstractOptions.Builder<O, B> { 
 
         protected String loginProcessingUrl;
         protected int order = 0;

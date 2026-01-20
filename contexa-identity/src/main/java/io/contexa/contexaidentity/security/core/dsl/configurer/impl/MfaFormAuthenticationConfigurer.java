@@ -10,9 +10,7 @@ import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
-/**
- * MFA(Multi-Factor Authentication)를 지원하는 Form 인증 설정 클래스
- */
+
 public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder<H>>
         extends AbstractFormAuthenticationConfigurer<MfaFormAuthenticationConfigurer<H>, H> {
 
@@ -20,7 +18,7 @@ public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder
 
     @Override
     public void init(H http) {
-        // MFA 설정 초기화
+        
         PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
         if (platformContext != null) {
             AuthContextProperties authProps = platformContext.getShared(AuthContextProperties.class);
@@ -49,7 +47,7 @@ public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder
                 requestMatcher
         );
 
-        // Form 전용 파라미터 설정
+        
         filter.setUsernameParameter(usernameParameter);
         filter.setPasswordParameter(passwordParameter);
 

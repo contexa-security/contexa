@@ -27,10 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 리소스 네이밍을 위한 컨텍스트 검색기
- * RAG 패턴으로 관련 리소스 네이밍 히스토리를 검색
- */
+
 @Slf4j
 public class ResourceNamingContextRetriever extends ContextRetriever {
 
@@ -57,12 +54,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
         this.vectorService = vectorService;
     }
 
-    /**
-     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
-     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
-     *
-     * @param event ContextRefreshedEvent
-     */
+    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
         log.info("ApplicationContext refreshed. Initializing ResourceNamingContextRetriever...");
@@ -70,7 +62,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
     }
 
     private void registerSelf() {
-        // RAG Advisor 생성 (사용 가능한 경우)
+        
         if (chatClientBuilder != null && vectorStore != null) {
             createNamingAdvisor();
         }
@@ -79,21 +71,19 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
         log.info("ResourceNamingContextRetriever 자동 등록 완료 (Spring AI RAG 지원)");
     }
     
-    /**
-     * 리소스 네이밍 전용 RAG Advisor 생성
-     */
+    
     private void createNamingAdvisor() {
-        // 네이밍 쿼리 변환기
+        
         QueryTransformer namingQueryTransformer = new NamingQueryTransformer(chatClientBuilder);
         
-        // 네이밍 필터 구성
+        
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
             filterBuilder.in("documentType", "naming", "resource", "identifier", "convention"),
             filterBuilder.gte("relevanceScore", 0.65)
         ).build();
         
-        // VectorStoreDocumentRetriever 구성
+        
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(namingSimilarityThreshold)
@@ -101,13 +91,13 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
             .filterExpression(filter)
             .build();
         
-        // Naming RAG Advisor 생성
+        
         namingAdvisor = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
             .queryTransformers(namingQueryTransformer)
             .build();
         
-        // 부모 클래스에 Advisor 등록
+        
         registerDomainAdvisor(ResourceNamingContext.class, namingAdvisor);
     }
 
@@ -124,7 +114,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
         }
 
         try {
-            // VectorService에 요청 저장
+            
             try {
                 vectorService.storeNamingRequest(request);
                 log.debug("💾 VectorService에 네이밍 요청 저장 완료");
@@ -132,16 +122,16 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
                 log.warn("VectorService 요청 저장 실패: {}", e.getMessage());
             }
             
-            // RAG 기반 검색 시도
+            
             ContextRetrievalResult ragResult = null;
             if (namingAdvisor != null) {
                 ragResult = super.retrieveContext(req);
             }
-            // 모든 리소스 식별자를 조합하여 검색 쿼리 생성
+            
             String searchQuery = buildSearchQuery(request);
             log.debug("RAG 검색 쿼리: {}", searchQuery);
 
-            // 1. VectorService를 통한 유사 네이밍 패턴 검색
+            
             List<Document> vectorServiceDocs = List.of();
             try {
                 String identifier = request.getResources().isEmpty() ? "" : 
@@ -152,7 +142,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
                 log.warn("VectorService 검색 실패: {}", e.getMessage());
             }
             
-            // 2. RAG 결과가 없으면 기본 검색
+            
             List<Document> similarDocs = new ArrayList<>();
             similarDocs.addAll(vectorServiceDocs);
             
@@ -165,7 +155,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
                     }
                 }
             } else {
-                // 폴백: 기본 Vector Store 검색
+                
                 SearchRequest searchRequest = SearchRequest.builder()
                         .query(searchQuery)
                         .topK(namingTopK - vectorServiceDocs.size())
@@ -186,7 +176,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
                 return new ContextRetrievalResult(null, List.of(), Map.of("message", "No similar naming cases found"));
             }
 
-            // 검색된 문서들을 컨텍스트로 변환
+            
             String context = buildContextFromDocuments(similarDocs);
             log.debug("RAG 컨텍스트 검색 완료 - 문서 수: {}, 컨텍스트 길이: {}",
                     similarDocs.size(), context.length());
@@ -207,18 +197,16 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
         }
     }
 
-    /**
-     * 리소스 목록에서 검색 쿼리 생성
-     */
+    
     private String buildSearchQuery(ResourceNamingSuggestionRequest request) {
-        // 리소스 식별자들을 분석하여 검색에 유용한 키워드 추출
+        
         List<String> keywords = request.getResources().stream()
                 .map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier)
                 .flatMap(identifier -> extractKeywords(identifier).stream())
                 .distinct()
                 .collect(Collectors.toList());
 
-        // 서비스 소유자 정보도 추가
+        
         List<String> owners = request.getResources().stream()
                 .map(ResourceNamingSuggestionRequest.ResourceItem::getOwner)
                 .filter(owner -> owner != null && !owner.trim().isEmpty())
@@ -236,39 +224,35 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
         return query.toString();
     }
 
-    /**
-     * 리소스 식별자에서 키워드 추출
-     */
+    
     private List<String> extractKeywords(String identifier) {
         if (identifier == null || identifier.trim().isEmpty()) {
             return List.of();
         }
 
-        // URL 경로에서 키워드 추출
+        
         if (identifier.startsWith("/")) {
             return List.of(identifier.split("/"))
                     .stream()
-                    .filter(part -> !part.isEmpty() && !part.matches("\\{.*\\}")) // 경로 변수 제외
+                    .filter(part -> !part.isEmpty() && !part.matches("\\{.*\\}")) 
                     .collect(Collectors.toList());
         }
 
-        // 메서드명에서 키워드 추출
+        
         if (identifier.contains(".")) {
             String[] parts = identifier.split("\\.");
             String methodName = parts[parts.length - 1].replace("()", "");
             
-            // camelCase 분리
+            
             String[] camelParts = methodName.split("(?=\\p{Upper})");
             return List.of(camelParts);
         }
 
-        // 기본적으로 전체 식별자를 키워드로 사용
+        
         return List.of(identifier);
     }
 
-    /**
-     * 검색된 문서들을 컨텍스트 문자열로 변환
-     */
+    
     private String buildContextFromDocuments(List<Document> documents) {
         StringBuilder context = new StringBuilder();
         context.append("유사한 리소스 네이밍 사례들:\n\n");
@@ -277,7 +261,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
             Document doc = documents.get(i);
             context.append(i + 1).append(". ");
             
-            // 메타데이터가 있으면 활용
+            
             if (doc.getMetadata().containsKey("identifier")) {
                 context.append("식별자: ").append(doc.getMetadata().get("identifier"));
             }
@@ -287,7 +271,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
             
             context.append("\n");
             
-            // 문서 내용 추가 (너무 길면 자르기)
+            
             String content = doc.getText();
             if (content.length() > 200) {
                 content = content.substring(0, 200) + "...";
@@ -302,9 +286,7 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
         return "resource-naming-context";
     }
     
-    /**
-     * 네이밍 쿼리 변환기
-     */
+    
     private static class NamingQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

@@ -9,10 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
-/**
- * Redis Key Cleanup Component
- * Cleans up conflicting key types on startup
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "redis.cleanup.enabled", havingValue = "true", matchIfMissing = true)
@@ -24,7 +21,7 @@ public class RedisKeyCleanup {
     public void cleanupConflictingKeys() {
         log.info("Starting Redis key cleanup for type conflicts...");
 
-        // Clean up known conflicting keys
+        
         Set<String> keysToCheck = Set.of(
             "security:user:context:admin",
             "security:user:context:dev_lead",
@@ -35,15 +32,15 @@ public class RedisKeyCleanup {
 
         for (String key : keysToCheck) {
             try {
-                // Check if key exists and its type
+                
                 Boolean hasKey = redisTemplate.hasKey(key);
                 if (Boolean.TRUE.equals(hasKey)) {
-                    // Try to determine the type and delete if it's not a hash
+                    
                     try {
-                        // Try to access as hash
+                        
                         redisTemplate.opsForHash().size(key);
                     } catch (Exception e) {
-                        // If it's not a hash, delete it
+                        
                         log.warn("Deleting non-hash key: {} to prevent type conflict", key);
                         redisTemplate.delete(key);
                     }

@@ -17,15 +17,7 @@ import org.springframework.util.Assert;
 
 import java.io.IOException;
 
-/**
- * 단일 REST 인증 필터 (MFA 없음)
- *
- * REST API 표준 인증 처리
- * - JSON Body에서 username/password 읽기
- * - RestAuthenticationToken 사용
- * - MFA 로직 없음 (FactorContext, State Machine 제외)
- * - OAuth2 토큰 기반 핸들러 기본 탑재
- */
+
 @Slf4j
 public class RestAuthenticationFilter extends BaseAuthenticationFilter {
 
@@ -44,9 +36,7 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
         log.info("RestAuthenticationFilter initialized with OAuth2 token-based handlers");
     }
 
-    /**
-     * 인증 성공 처리 - 단순 Security Context 저장 (MFA 없음)
-     */
+    
     @Override
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                           Authentication authentication) throws IOException, ServletException {
@@ -60,9 +50,7 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
         successHandler.onAuthenticationSuccess(request, response, authentication);
     }
 
-    /**
-     * 인증 실패 처리
-     */
+    
     @Override
     public void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                             AuthenticationException failed) throws IOException, ServletException {

@@ -4,11 +4,7 @@ import io.contexa.contexacommon.enums.SecurityLevel;
 
 import java.time.LocalDateTime;
 
-/**
- * 위험 이벤트 클래스
- * 
- * 위험 모니터링 시 발생하는 이벤트 정보
- */
+
 public class RiskEvent {
     
     private final String eventType;
@@ -27,7 +23,7 @@ public class RiskEvent {
         this.timestamp = LocalDateTime.now();
     }
     
-    // ==================== Getters ====================
+    
     
     public String getEventType() {
         return eventType;

@@ -13,15 +13,7 @@ import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
 import java.util.List;
 
-/**
- * [템플릿 메서드 패턴] 웹 보안 표현식 루트
- * 
- * AbstractAISecurityExpressionRoot를 상속하여 공통 AI 기능을 활용하고,
- * 웹 보안 특화 기능을 제공합니다.
- * 
- * 상속받은 기능: assessContext(), getAttribute() 등의 AI 진단
- * 특화 기능: 웹 요청 컨텍스트 추출, hasIpAddress() 등의 웹 전용 기능
- */
+
 @Slf4j
 public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressionRoot {
 
@@ -37,22 +29,18 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         log.info("CustomWebSecurityExpressionRoot 초기화 완료 - 템플릿 메서드 패턴 적용");
     }
 
-    /**
-     * [웹 특화 기능] IP 주소 매칭
-     * 
-     * Spring Security의 표준 IP 매칭 기능을 제공합니다.
-     */
+    
     public boolean hasIpAddress(String ipAddress) {
         IpAddressMatcher matcher = new IpAddressMatcher(ipAddress);
         return matcher.matches(this.request);
     }
 
-    // === 템플릿 메서드 패턴 구현 (추상 메서드 구현) ===
+    
 
     @Override
     protected ContextExtractionResult extractCurrentContext() {
         try {
-            // 웹 요청에서 정보 추출
+            
             String remoteIp = extractCurrentRequestIp();
             String userAgent = extractCurrentRequestUserAgent();
             String resourceIdentifier = extractCurrentRequestResource();
@@ -69,15 +57,15 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
     @Override
     protected String calculateContextHash() {
         try {
-            // 웹 요청 기반 해시 계산 (프록시 헤더 지원)
+            
             StringBuilder hashBuilder = new StringBuilder();
             hashBuilder.append(request.getRequestURI());
             hashBuilder.append("|");
             hashBuilder.append(request.getMethod());
             hashBuilder.append("|");
-            hashBuilder.append(extractCurrentRequestIp()); // 프록시 환경에서 올바른 클라이언트 IP 사용
+            hashBuilder.append(extractCurrentRequestIp()); 
             hashBuilder.append("|");
-            hashBuilder.append(System.currentTimeMillis() / 30000); // 30초 단위 캐시
+            hashBuilder.append(System.currentTimeMillis() / 30000); 
 
             return String.valueOf(hashBuilder.toString().hashCode());
 
@@ -86,11 +74,11 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         }
     }
 
-    // === 웹 요청 전용 컨텍스트 추출 메서드들 ===
+    
 
     private String extractCurrentRequestIp() {
         try {
-            // X-Forwarded-For 헤더 처리
+            
             String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
                 return xForwardedFor.split(",")[0].trim();
@@ -135,18 +123,18 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
 
     private String extractCurrentRequestAction() {
         try {
-            return request.getMethod(); // GET, POST, PUT, DELETE 등
+            return request.getMethod(); 
         } catch (Exception e) {
             log.warn("액션 타입 추출 실패: {}", e.getMessage());
             return "UNKNOWN";
         }
     }
 
-    // === 하위 호환성 메서드들 ===
+    
 
     @Override
     protected String getRemoteIp() {
-        // 프록시 환경에서 올바른 클라이언트 IP 반환 (X-Forwarded-For, X-Real-IP 지원)
+        
         return extractCurrentRequestIp();
     }
 
@@ -155,9 +143,7 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         return String.format("HTTP %s %s", request.getMethod(), request.getRequestURI());
     }
 
-    /**
-     * [하위 호환성] 기존 방식의 assessContext 오버라이드
-     */
+    
     @Override
     public TrustAssessment assessContext() {
         try {
@@ -170,7 +156,7 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         } catch (Exception e) {
             log.error("웹 보안 AI 신뢰도 평가 실패: {}", e.getMessage(), e);
             
-            // 실패 시 보수적 기본값 생성
+            
             TrustAssessment fallback = createFallbackTrustAssessment();
             this.authorizationContext.attributes().put("ai_assessment", fallback);
             
@@ -178,26 +164,18 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         }
     }
 
-    /**
-     * (대안) AI 평가 결과에 직접 접근하기 위한 편의 메서드
-     * 
-     * SpEL 표현식 예시:
-     * - #aiScore >= 0.7
-     * - #aiScore < 0.3
-     */
+    
     public double getAiScore() {
         try {
             TrustAssessment assessment = assessContext();
             return assessment.score();
         } catch (Exception e) {
             log.warn("AI 점수 계산 실패, 기본값 반환: {}", e.getMessage());
-            return 0.3; // 보수적 낮은 신뢰도
+            return 0.3; 
         }
     }
 
-    /**
-     * [하위 호환성] 실패 시 기본 TrustAssessment 생성
-     */
+    
     private TrustAssessment createFallbackTrustAssessment() {
         return new TrustAssessment(0.3, List.of("EVALUATION_FAILED", "LOW_TRUST"), "웹 보안 AI 평가 실패 - 보수적 정책 적용");
     }

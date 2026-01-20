@@ -11,11 +11,7 @@ import org.springframework.beans.factory.InitializingBean;
 
 import java.util.List;
 
-/**
- * Auto-bootstrap for security platform:
- * SecurityConfig 에서 정의된 PlatformConfig와 FeatureProvider가
- * 이 클래스에서 SecurityPlatform에 전달되어 초기화됩니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class PlatformBootstrap implements InitializingBean {
@@ -29,15 +25,15 @@ public class PlatformBootstrap implements InitializingBean {
     public void afterPropertiesSet() throws Exception {
         log.info("PlatformBootstrap: Starting DSL configuration validation...");
 
-        // 1. 플랫폼 전역 준비
+        
         List<AuthenticationFlowConfig> flows = config.getFlows();
         List<AuthenticationAdapter> adapters = registry.getAuthAdaptersFor(flows);
         platform.prepareGlobal(config, adapters);
 
-        // 2. 플랫폼 초기화
+        
         platform.initialize();
 
-        // 3. 플랫폼 오류 검증
+        
         try {
             dslValidatorService.validate(config, "PlatformSecurityConfig.java (DSL)");
 

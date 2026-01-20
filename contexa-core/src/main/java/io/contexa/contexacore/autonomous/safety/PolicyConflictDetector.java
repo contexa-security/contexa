@@ -10,15 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * 정책 충돌 감지기
- * 
- * 정책 간 충돌을 감지하고 해결 방안을 제시합니다.
- * 실시간으로 정책 호환성을 검증하고 위험을 평가합니다.
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 public class PolicyConflictDetector {
     
     private static final Logger logger = LoggerFactory.getLogger(PolicyConflictDetector.class);
@@ -29,43 +21,38 @@ public class PolicyConflictDetector {
     @Autowired
     private PolicyVersionManager versionManager;
     
-    // 충돌 규칙 저장소
+    
     private final Map<String, ConflictRule> conflictRules = new ConcurrentHashMap<>();
     
-    // 충돌 이력
+    
     private final List<ConflictRecord> conflictHistory = Collections.synchronizedList(new ArrayList<>());
     
-    // 정책 의존성 그래프
+    
     private final PolicyDependencyGraph dependencyGraph = new PolicyDependencyGraph();
     
-    /**
-     * 정책 충돌 검사
-     * 
-     * @param proposal 검사할 제안
-     * @return 충돌 검사 결과
-     */
+    
     public ConflictCheckResult checkConflicts(PolicyEvolutionProposal proposal) {
         logger.info("Checking conflicts for proposal: {}", proposal.getId());
         
         List<PolicyConflict> conflicts = new ArrayList<>();
         
         try {
-            // 1. 활성 정책과의 충돌 검사
+            
             conflicts.addAll(checkActiveConflicts(proposal));
             
-            // 2. 의존성 충돌 검사
+            
             conflicts.addAll(checkDependencyConflicts(proposal));
             
-            // 3. 리소스 충돌 검사
+            
             conflicts.addAll(checkResourceConflicts(proposal));
             
-            // 4. 규칙 기반 충돌 검사
+            
             conflicts.addAll(checkRuleBasedConflicts(proposal));
             
-            // 충돌 심각도 평가
+            
             ConflictSeverity overallSeverity = evaluateSeverity(conflicts);
             
-            // 해결 방안 생성
+            
             List<ConflictResolution> resolutions = generateResolutions(conflicts);
             
             ConflictCheckResult result = ConflictCheckResult.builder()
@@ -76,7 +63,7 @@ public class PolicyConflictDetector {
                 .canProceed(overallSeverity != ConflictSeverity.CRITICAL)
                 .build();
             
-            // 충돌 이력 기록
+            
             if (!conflicts.isEmpty()) {
                 recordConflicts(proposal, conflicts);
             }
@@ -92,28 +79,22 @@ public class PolicyConflictDetector {
         }
     }
     
-    /**
-     * 정책 호환성 검증
-     * 
-     * @param proposal1 첫 번째 제안
-     * @param proposal2 두 번째 제안
-     * @return 호환성 여부
-     */
+    
     public boolean areCompatible(PolicyEvolutionProposal proposal1, PolicyEvolutionProposal proposal2) {
         logger.debug("Checking compatibility between proposals {} and {}", 
             proposal1.getId(), proposal2.getId());
         
-        // 정책 유형 호환성 검사
+        
         if (!areTypesCompatible(proposal1.getProposalType(), proposal2.getProposalType())) {
             return false;
         }
         
-        // 타겟 리소스 충돌 검사
+        
         if (hasResourceOverlap(proposal1, proposal2)) {
             return false;
         }
         
-        // 의존성 순환 검사
+        
         if (createsCyclicDependency(proposal1, proposal2)) {
             return false;
         }
@@ -121,13 +102,7 @@ public class PolicyConflictDetector {
         return true;
     }
     
-    /**
-     * 충돌 해결
-     * 
-     * @param conflict 충돌
-     * @param resolution 해결 방안
-     * @return 해결 성공 여부
-     */
+    
     public boolean resolveConflict(PolicyConflict conflict, ConflictResolution resolution) {
         logger.info("Attempting to resolve conflict: {} with resolution: {}", 
             conflict.getConflictId(), resolution.getType());
@@ -159,33 +134,24 @@ public class PolicyConflictDetector {
         }
     }
     
-    /**
-     * 충돌 규칙 추가
-     * 
-     * @param rule 충돌 규칙
-     */
+    
     public void addConflictRule(ConflictRule rule) {
         logger.info("Adding conflict rule: {}", rule.getRuleId());
         conflictRules.put(rule.getRuleId(), rule);
     }
     
-    /**
-     * 의존성 추가
-     * 
-     * @param proposalId 제안 ID
-     * @param dependsOn 의존하는 제안 ID
-     */
+    
     public void addDependency(Long proposalId, Long dependsOn) {
         logger.debug("Adding dependency: {} depends on {}", proposalId, dependsOn);
         dependencyGraph.addDependency(proposalId, dependsOn);
     }
     
-    // ==================== Private Methods ====================
+    
     
     private List<PolicyConflict> checkActiveConflicts(PolicyEvolutionProposal proposal) {
         List<PolicyConflict> conflicts = new ArrayList<>();
         
-        // 활성 정책 조회
+        
         List<PolicyEvolutionProposal> activeProposals = proposalRepository.findActiveProposals();
         
         for (PolicyEvolutionProposal active : activeProposals) {
@@ -207,11 +173,11 @@ public class PolicyConflictDetector {
     private List<PolicyConflict> checkDependencyConflicts(PolicyEvolutionProposal proposal) {
         List<PolicyConflict> conflicts = new ArrayList<>();
         
-        // 의존성 체인 검사
+        
         Set<Long> dependencies = dependencyGraph.getDependencies(proposal.getId());
         Set<Long> dependents = dependencyGraph.getDependents(proposal.getId());
         
-        // 순환 의존성 검사
+        
         if (!Collections.disjoint(dependencies, dependents)) {
             conflicts.add(PolicyConflict.builder()
                 .conflictId(generateConflictId())
@@ -228,7 +194,7 @@ public class PolicyConflictDetector {
     private List<PolicyConflict> checkResourceConflicts(PolicyEvolutionProposal proposal) {
         List<PolicyConflict> conflicts = new ArrayList<>();
         
-        // 리소스 사용량 검사
+        
         if (proposal.getExpectedImpact() > 0.8) {
             conflicts.add(PolicyConflict.builder()
                 .conflictId(generateConflictId())
@@ -328,12 +294,12 @@ public class PolicyConflictDetector {
     
     private boolean areTypesCompatible(PolicyEvolutionProposal.ProposalType type1, 
                                       PolicyEvolutionProposal.ProposalType type2) {
-        // 같은 타입의 정책은 충돌 가능성이 높음
+        
         if (type1 == type2) {
             return false;
         }
         
-        // 특정 타입 조합의 비호환성 검사
+        
         if (type1 == PolicyEvolutionProposal.ProposalType.ACCESS_CONTROL && 
             type2 == PolicyEvolutionProposal.ProposalType.ACCESS_CONTROL) {
             return false;
@@ -343,7 +309,7 @@ public class PolicyConflictDetector {
     }
     
     private boolean hasResourceOverlap(PolicyEvolutionProposal p1, PolicyEvolutionProposal p2) {
-        // 메타데이터에서 타겟 리소스 추출
+        
         Map<String, Object> meta1 = p1.getMetadata();
         Map<String, Object> meta2 = p2.getMetadata();
         
@@ -351,7 +317,7 @@ public class PolicyConflictDetector {
             return false;
         }
         
-        // 타겟 리소스 비교
+        
         Object target1 = meta1.get("targetResource");
         Object target2 = meta2.get("targetResource");
         
@@ -364,31 +330,31 @@ public class PolicyConflictDetector {
     
     private boolean mergeConflictingPolicies(PolicyConflict conflict) {
         logger.info("Merging conflicting policies for conflict: {}", conflict.getConflictId());
-        // 실제 병합 로직 구현
+        
         return true;
     }
     
     private boolean prioritizePolicy(PolicyConflict conflict, ConflictResolution resolution) {
         logger.info("Prioritizing policy for conflict: {}", conflict.getConflictId());
-        // 우선순위 조정 로직 구현
+        
         return true;
     }
     
     private boolean deferPolicy(PolicyConflict conflict) {
         logger.info("Deferring policy for conflict: {}", conflict.getConflictId());
-        // 정책 연기 로직 구현
+        
         return true;
     }
     
     private boolean splitPolicy(PolicyConflict conflict) {
         logger.info("Splitting policy for conflict: {}", conflict.getConflictId());
-        // 정책 분할 로직 구현
+        
         return true;
     }
     
     private boolean rejectPolicy(PolicyConflict conflict) {
         logger.info("Rejecting policy for conflict: {}", conflict.getConflictId());
-        // 정책 거부 로직 구현
+        
         return true;
     }
     
@@ -406,11 +372,9 @@ public class PolicyConflictDetector {
         return "CONF_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
     
-    // ==================== Inner Classes ====================
     
-    /**
-     * 충돌 검사 결과
-     */
+    
+    
     @lombok.Builder
     @lombok.Data
     public static class ConflictCheckResult {
@@ -421,9 +385,7 @@ public class PolicyConflictDetector {
         private boolean canProceed;
     }
     
-    /**
-     * 정책 충돌
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class PolicyConflict {
@@ -436,9 +398,7 @@ public class PolicyConflictDetector {
         private String ruleId;
     }
     
-    /**
-     * 충돌 해결 방안
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class ConflictResolution {
@@ -447,9 +407,7 @@ public class PolicyConflictDetector {
         private EffortLevel estimatedEffort;
     }
     
-    /**
-     * 충돌 규칙
-     */
+    
     @lombok.Data
     public static class ConflictRule {
         private String ruleId;
@@ -462,9 +420,7 @@ public class PolicyConflictDetector {
         }
     }
     
-    /**
-     * 충돌 기록
-     */
+    
     @lombok.Builder
     @lombok.Data
     private static class ConflictRecord {
@@ -473,9 +429,7 @@ public class PolicyConflictDetector {
         private Date timestamp;
     }
     
-    /**
-     * 정책 의존성 그래프
-     */
+    
     private static class PolicyDependencyGraph {
         private final Map<Long, Set<Long>> dependencies = new ConcurrentHashMap<>();
         private final Map<Long, Set<Long>> dependents = new ConcurrentHashMap<>();
@@ -494,7 +448,7 @@ public class PolicyConflictDetector {
         }
         
         public boolean wouldCreateCycle(Long from, Long to) {
-            // DFS를 사용한 순환 감지
+            
             Set<Long> visited = new HashSet<>();
             return hasCycle(from, to, visited);
         }
@@ -520,9 +474,7 @@ public class PolicyConflictDetector {
         }
     }
     
-    /**
-     * 충돌 유형
-     */
+    
     public enum ConflictType {
         ACTIVE_POLICY,
         CYCLIC_DEPENDENCY,
@@ -531,9 +483,7 @@ public class PolicyConflictDetector {
         VERSION_MISMATCH
     }
     
-    /**
-     * 충돌 심각도
-     */
+    
     public enum ConflictSeverity {
         NONE,
         LOW,
@@ -542,9 +492,7 @@ public class PolicyConflictDetector {
         CRITICAL
     }
     
-    /**
-     * 해결 유형
-     */
+    
     public enum ResolutionType {
         MERGE,
         PRIORITIZE,
@@ -553,18 +501,14 @@ public class PolicyConflictDetector {
         REJECT
     }
     
-    /**
-     * 노력 수준
-     */
+    
     public enum EffortLevel {
         LOW,
         MEDIUM,
         HIGH
     }
     
-    /**
-     * 충돌 감지 예외
-     */
+    
     public static class ConflictDetectionException extends RuntimeException {
         public ConflictDetectionException(String message) {
             super(message);

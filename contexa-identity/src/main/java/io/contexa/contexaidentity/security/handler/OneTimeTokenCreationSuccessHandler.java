@@ -19,12 +19,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-/**
- * 완전 일원화된 OneTimeTokenCreationSuccessHandler
- * - ContextPersistence 완전 제거
- * - MfaStateMachineService만 사용
- * - State Machine을 단일 진실의 원천으로 사용
- */
+
 @Slf4j
 public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGenerationSuccessHandler {
 
@@ -47,17 +42,17 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
         log.info("OneTimeTokenCreationSuccessHandler: Token generated for user '{}' using {} repository",
                 token.getUsername(), sessionRepository.getRepositoryType());
 
-        // 개선: Repository 패턴을 통한 FactorContext 로드 (HttpSession 직접 접근 제거)
+        
         FactorContext factorContext = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
         String usernameFromToken = token.getUsername();
 
-        // MFA 흐름인지, 단일 OTT 흐름인지 구분
+        
         if (factorContext != null &&
                 AuthType.MFA.name().equalsIgnoreCase(factorContext.getFlowTypeName()) &&
                 Objects.equals(factorContext.getUsername(), usernameFromToken) &&
                 factorContext.getCurrentProcessingFactor() == AuthType.OTT) {
 
-            // 개선: Repository를 통한 세션 검증
+            
             if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) {
                 log.warn("MFA session {} not found in {} repository during OTT generation",
                         factorContext.getMfaSessionId(), sessionRepository.getRepositoryType());
@@ -68,11 +63,11 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             log.debug("MFA OTT code generation successful for user: {}. Session ID: {} using {} repository",
                     factorContext.getUsername(), factorContext.getMfaSessionId(), sessionRepository.getRepositoryType());
 
-            // 챌린지 발송 시간 기록
+            
             factorContext.setAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT,
                                      System.currentTimeMillis());
 
-            // 개선: Repository를 통한 세션 갱신
+            
             sessionRepository.refreshSession(factorContext.getMfaSessionId());
 
             mfaStateMachineIntegrator.saveFactorContext(factorContext);
@@ -89,7 +84,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             return;
         }
 
-        // 단일 OTT 흐름 처리
+        
         if ((factorContext == null || !AuthType.MFA.name().equalsIgnoreCase(factorContext.getFlowTypeName()))) {
             log.info("Single OTT token generated for user {} using {} repository. Redirecting to 'ott/sent' page.",
                     usernameFromToken, sessionRepository.getRepositoryType());
@@ -103,13 +98,13 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                     "?email=" + email +
                     "&type=code_sent" +
                     "&flow=ott_single" +
-                    "&repository=" + sessionRepository.getRepositoryType(); // 추가: Repository 정보
+                    "&repository=" + sessionRepository.getRepositoryType(); 
 
             response.sendRedirect(redirectUrl);
             return;
         }
 
-        // 예외적인 경우
+        
         log.warn("OneTimeTokenCreationSuccessHandler: Unhandled scenario or context mismatch using {} repository. " +
                         "FactorContext flow: {}, FactorContext user: {}, Token user: {}. Redirecting to loginForm.",
                 sessionRepository.getRepositoryType(),
@@ -120,9 +115,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                 sessionRepository.getRepositoryType());
     }
 
-    /**
-     * 개선: Repository 패턴을 통한 세션 미발견 처리
-     */
+    
     private void handleSessionNotFound(HttpServletRequest request, HttpServletResponse response,
                                        String username) throws IOException {
         log.warn("Session not found in {} repository during OTT generation for user: {}",

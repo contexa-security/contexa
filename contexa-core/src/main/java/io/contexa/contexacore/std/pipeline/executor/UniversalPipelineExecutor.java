@@ -22,16 +22,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.stream.Stream;
 
-/**
- * 범용 파이프라인 실행자 (리팩토링 버전)
- *
- * 객체 지향 설계 개선:
- * 핸들러 패턴 (Handler Pattern): 각 Step의 실행 로직을 StepExecutionHandler로 캡슐화하여 분리.
- * - DefaultStepExecutionHandler: 일반적인 Step 실행 담당.
- * - PostprocessingStepExecutionHandler: PostprocessingStep의 특수 로직 전담.
- * 빌더 패턴 (Builder Pattern): 복잡한 최종 응답 생성 로직을 FinalResponseBuilder로 분리.
- * 단일 책임 원칙 (SRP): Executor는 파이프라인 '조율'에만 집중하고, 실제 '실행'과 '생성'은 각 전문 객체에 위임.
- */
+
 @Slf4j
 public class UniversalPipelineExecutor implements PipelineExecutor {
 
@@ -56,7 +47,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         this.llmExecutionStep = llmExecutionStep;
         this.soarToolExecutionStep = soarToolExecutionStep;
 
-        // 1. 단계들을 순서대로 정렬
+        
         this.steps = Stream.of(
                         contextRetrievalStep,
                         preprocessingStep,
@@ -68,13 +59,13 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 .sorted((a, b) -> Integer.compare(a.getOrder(), b.getOrder()))
                 .toList();
 
-        // 2. 단계별 실행을 처리할 핸들러 등록
+        
         this.stepHandlers = List.of(
                 new PostprocessingStepExecutionHandler(),
                 new DefaultStepExecutionHandler()
         );
 
-        // 3. 최종 응답 생성기 초기화
+        
         this.responseBuilder = new FinalResponseBuilder();
 
         log.info("UniversalPipelineExecutor (Refactored) 초기화 완료: {} 단계, {} 핸들러", steps.size(), stepHandlers.size());
@@ -88,7 +79,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
         long pipelineStartTime = System.currentTimeMillis();
 
-        // OpenTelemetry Span 시작
+        
         Span span = tracer.spanBuilder("pipeline.execute")
                 .setAttribute("request.id", request.getRequestId())
                 .setAttribute("domain", getSupportedDomain())
@@ -100,10 +91,10 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         context.addMetadata("targetResponseType", responseType);
 
-        // Span을 Context에 저장하여 하위 단계에서 참조 가능
+        
         try (Scope scope = span.makeCurrent()) {
             return executeStepsSequentially(request, configuration, context, responseType)
-                    .map(ctx -> responseBuilder.build(request, ctx, responseType)) // FinalResponseBuilder 사용
+                    .map(ctx -> responseBuilder.build(request, ctx, responseType)) 
                     .doOnSuccess(response -> {
                         long totalTime = System.currentTimeMillis() - pipelineStartTime;
                         span.setAttribute("duration.ms", totalTime);
@@ -143,10 +134,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                                 getSupportedDomain(), request.getRequestId(), error.getMessage(), error));
     }
 
-    /**
-     * 파이프라인 단계를 순차적으로 실행합니다.
-     * 각 단계에 맞는 StepExecutionHandler를 찾아 실행을 위임합니다.
-     */
+    
     private <T extends DomainContext, R extends AIResponse> Mono<PipelineExecutionContext> executeStepsSequentially(
             AIRequest<T> request,
             PipelineConfiguration<T> configuration,
@@ -155,13 +143,13 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
         log.info("[PIPELINE] ===== 6단계 순차 실행 시작 (Handler 방식) ===== Request: {}", request.getRequestId());
 
-        // 현재 컨텍스트 설정 (SOAR 판별을 위해)
+        
         setCurrentContext(request.getContext());
         
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
         for (PipelineStep step : steps) {
-            // SOAR 컨텍스트에서 LLM_EXECUTION 대신 SOAR_TOOL_EXECUTION 사용
+            
             PipelineStep actualStep;
             if (step == llmExecutionStep && isSoarContext() && soarToolExecutionStep != null) {
                 actualStep = soarToolExecutionStep;
@@ -177,7 +165,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 final String stepName = actualStep.getStepName();
                 final int stepOrder = actualStep.getOrder();
                 pipeline = pipeline.flatMap(ctx -> {
-                    // 동적 파이프라인: 조건부 실행 확인
+                    
                     if (!configuration.shouldExecuteStep(configStep, request, ctx)) {
                         log.info("[PIPELINE] STEP {} 건너뜀 (조건 미충족): {}", stepOrder, stepName);
                         return Mono.just(ctx);
@@ -185,7 +173,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
                     long stepStart = System.currentTimeMillis();
 
-                    // Child Span 생성 (각 파이프라인 단계마다)
+                    
                     Span stepSpan = tracer.spanBuilder("pipeline.step." + stepName)
                             .setAttribute("step.name", stepName)
                             .setAttribute("step.order", stepOrder)
@@ -195,7 +183,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                     log.info("[PIPELINE] STEP {}: {} 시작", stepOrder, stepName);
 
                     try (Scope stepScope = stepSpan.makeCurrent()) {
-//                    StepExecutionHandler handler = findHandlerFor(actualStep);
+
                         StepExecutionHandler handler = new DefaultStepExecutionHandler();
                         return handler.execute(actualStep, request, configuration, ctx, responseType)
                                 .doOnSuccess(c -> {
@@ -220,13 +208,11 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             }
         }
         
-        // 파이프라인 실행 완료 후 컨텍스트 정리
+        
         return pipeline.doFinally(signal -> clearCurrentContext());
     }
 
-    /**
-     * 주어진 Step을 처리할 수 있는 핸들러를 찾습니다.
-     */
+    
     protected StepExecutionHandler findHandlerFor(PipelineStep step) {
         return stepHandlers.stream()
                 .filter(handler -> handler.canHandle(step))
@@ -245,7 +231,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
-        // 첫 3단계를 비동기로 순차 실행
+        
         for (PipelineStep step : steps.subList(0, Math.min(3, steps.size()))) {
             PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step);
 
@@ -272,12 +258,9 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         });
     }
 
-    /**
-     * Step 클래스를 PipelineConfiguration.PipelineStep 으로 매핑합니다.
-     * SOAR 컨텍스트에서는 LLM_EXECUTION을 SOAR_TOOL_EXECUTION 으로 동적 대체합니다.
-     */
+    
     private PipelineConfiguration.PipelineStep getConfigStepForStep(PipelineStep step) {
-        // SOAR 컨텍스트에서 LLM_EXECUTION을 SOAR_TOOL_EXECUTION 으로 대체
+        
         if (step.getStepName().equals("LLM_EXECUTION") && isSoarContext()) {
             return PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION;
         }
@@ -294,22 +277,15 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         };
     }
     
-    /**
-     * 현재 컨텍스트가 SOAR 컨텍스트인지 확인
-     * ThreadLocal을 사용하여 현재 실행 중인 컨텍스트 추적
-     */
+    
     private static final ThreadLocal<DomainContext> currentContext = new ThreadLocal<>();
     
-    /**
-     * 현재 컨텍스트 설정 (executeStepsSequentially 시작 시 호출)
-     */
+    
     private void setCurrentContext(DomainContext context) {
         currentContext.set(context);
     }
     
-    /**
-     * 현재 컨텍스트 정리 (executeStepsSequentially 종료 시 호출)
-     */
+    
     private void clearCurrentContext() {
         currentContext.remove();
     }
@@ -338,6 +314,6 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
     @Override
     public int getPriority() {
-        return 100; // 범용 실행자는 낮은 우선순위
+        return 100; 
     }
 }

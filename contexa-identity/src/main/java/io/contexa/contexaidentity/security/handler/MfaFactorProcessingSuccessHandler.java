@@ -29,12 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * 완전 일원화된 MfaFactorProcessingSuccessHandler
- * - ContextPersistence 완전 제거
- * - MfaStateMachineService만 사용
- * - State Machine 에서 직접 컨텍스트 로드 및 관리
- */
+
 @Slf4j
 public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenticationSuccessHandler {
 
@@ -83,31 +78,31 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             return;
         }
 
-        if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) { // 세션 유효성 검증
+        if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) { 
             log.warn("MFA session {} not found in {} repository during factor processing success",
                     factorContext.getMfaSessionId(), sessionRepository.getRepositoryType());
             handleSessionNotFound(response, request, factorContext);
             return;
         }
 
-        // 2. "팩터 검증 성공" 이벤트 전송.
-        // MfaStateMachineServiceImpl.sendEvent 내부에서 FactorContext 업데이트 및 영속화가 이루어짐.
-        // sendEvent는 업데이트된 FactorContext를 반환하도록 수정하거나, 여기서는 eventAccepted만 확인.
+        
+        
+        
         boolean eventAccepted = stateMachineIntegrator.sendEvent(
                 MfaEvent.FACTOR_VERIFIED_SUCCESS, factorContext, request);
 
         if (!eventAccepted) {
-            // 이벤트가 거부되면 State Machine이 상태를 변경하지 않으므로 기존 context 사용
+            
             handleStateTransitionError(response, request, factorContext);
             return;
         }
 
-        // 3. 현재 상태 및 플래그에 따라 다음 단계 결정
+        
         MfaState currentState = factorContext.getCurrentState();
         log.debug("State after FACTOR_VERIFIED_SUCCESS event: {} for session: {}", currentState, factorContext.getMfaSessionId());
 
         if (currentState == MfaState.FACTOR_VERIFICATION_COMPLETED) {
-            // Phase 3: DetermineNextFactorAction이 완료 체크 및 다음 이벤트 결정
+            
             log.debug("Sending DETERMINE_NEXT_FACTOR event for session: {}", factorContext.getMfaSessionId());
 
             boolean determined = stateMachineIntegrator.sendEvent(MfaEvent.DETERMINE_NEXT_FACTOR, factorContext, request);
@@ -118,29 +113,29 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 return;
             }
 
-            // Phase 4: Action이 설정한 추천 이벤트 전송
+            
             MfaEvent nextEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
             if (nextEvent != null) {
                 log.debug("Processing recommended event: {} for session: {}",
                          nextEvent, factorContext.getMfaSessionId());
 
-                // 이벤트별 처리 로직
+                
                 boolean eventSent;
                 if (nextEvent == MfaEvent.FACTOR_SELECTED && factorContext.getCurrentProcessingFactor() != null) {
-                    // 수동 팩터 선택: SelectFactorAction이 selectedFactor 헤더를 사용
+                    
                     Map<String, Object> headers = new HashMap<>();
                     headers.put("selectedFactor", factorContext.getCurrentProcessingFactor().name());
                     log.debug("Adding selectedFactor header: {} for session: {}",
                              factorContext.getCurrentProcessingFactor().name(), factorContext.getMfaSessionId());
                     eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request, headers);
                 } else if (nextEvent == MfaEvent.INITIATE_CHALLENGE_AUTO) {
-                    // Phase 2.3: 자동 팩터 선택 후 챌린지 시작
-                    // DetermineNextFactorAction이 이미 currentProcessingFactor와 팩터별 속성 설정 완료
+                    
+                    
                     log.debug("Sending INITIATE_CHALLENGE_AUTO event for session: {}, factor: {}",
                              factorContext.getMfaSessionId(), factorContext.getCurrentProcessingFactor());
                     eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
                 } else {
-                    // 기타 이벤트 (ALL_REQUIRED_FACTORS_COMPLETED, MFA_REQUIRED_SELECT_FACTOR 등)
+                    
                     eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
                 }
 
@@ -150,32 +145,32 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     return;
                 }
 
-                // Clear the recommendation after processing
+                
                 factorContext.removeAttribute("nextEventRecommendation");
                 log.debug("Recommended event {} processed successfully for session: {}", nextEvent, factorContext.getMfaSessionId());
             }
 
         }
 
-        // 5. 최종 상태 확인 및 응답
+        
         currentState = factorContext.getCurrentState();
         log.debug("Final state: {} for session: {}", currentState, factorContext.getMfaSessionId());
 
-        // 6. 상태에 따른 응답 처리
+        
         if (currentState == MfaState.ALL_FACTORS_COMPLETED || currentState == MfaState.MFA_SUCCESSFUL) {
-            // 모든 팩터 완료 - 최종 성공 처리
+            
             log.info("All required MFA factors completed for user: {}", factorContext.getUsername());
             handleFinalAuthenticationSuccess(request, response,
                     factorContext.getPrimaryAuthentication(), factorContext);
 
         } else if (currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION &&
                 factorContext.getCurrentProcessingFactor() != null) {
-            // 다음 팩터가 결정됨 - 챌린지로 이동
+            
             AuthType nextFactor = factorContext.getCurrentProcessingFactor();
             log.info("Next factor determined: {} for user: {}", nextFactor, factorContext.getUsername());
 
             String nextUrl = determineNextFactorUrl(nextFactor, request);
-            // 현재 팩터에 따라 단계 결정 (OTT=2, PASSKEY=3)
+            
             int currentStep = (nextFactor == AuthType.OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "다음 인증 단계로 진행합니다: " + nextFactor.name(),
@@ -191,7 +186,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         } else if (currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION &&
                 factorContext.getCurrentProcessingFactor() != null) {
-            // Phase 2.3: 챌린지가 자동으로 준비됨 (Option 2 경로)
+            
             AuthType nextFactor = factorContext.getCurrentProcessingFactor();
             log.info("Challenge automatically initiated for factor: {} for user: {}",
                     nextFactor, factorContext.getUsername());
@@ -209,16 +204,16 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             }
 
         } else if (currentState == MfaState.AWAITING_FACTOR_SELECTION) {
-            // 수동 선택 필요 (정책상 다음 팩터가 필요하지만 자동 선택 불가)
+            
             log.info("Manual factor selection required for user: {}", factorContext.getUsername());
 
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "인증 수단을 선택해주세요.",
                     factorContext,
                     request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
-                    2  // Factor 선택 단계 (OTT 또는 Passkey 선택 중)
+                    2  
             );
-            // DSL 정의 사용 가능한 팩터를 상세 정보로 변환
+            
             java.util.List<Map<String, Object>> factorDetails = factorContext.getAvailableFactors().stream()
                     .map(authType -> createFactorDetail(authType.name()))
                     .toList();
@@ -232,34 +227,28 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             }
 
         } else {
-            // 예상치 못한 상태
+            
             log.error("Unexpected state {} after factor verification", currentState);
             handleGenericError(response, request, factorContext,
                     "예상치 못한 상태: " + currentState);
         }
     }
 
-    /**
-     * MFA 계속 진행 응답 생성 (progress 정보 포함)
-     *
-     * @param currentStep 현재 단계 (2: OTT, 3: Passkey)
-     */
+    
     private Map<String, Object> createMfaContinueResponse(String message, FactorContext factorContext, String nextStepUrl, int currentStep) {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("status", "MFA_CONTINUE");
         responseBody.put("message", message);
-        responseBody.put("authenticated", false); // MFA_CONTINUE는 중간 단계
+        responseBody.put("authenticated", false); 
         responseBody.put("nextStepUrl", nextStepUrl);
-        responseBody.put("nextStepId", factorContext.getCurrentStepId()); // X-MFA-Step-Id 헤더용
+        responseBody.put("nextStepId", factorContext.getCurrentStepId()); 
         responseBody.put("mfaSessionId", factorContext.getMfaSessionId());
-        responseBody.put("progress", createProgressInfo(currentStep, 3)); // 총 3단계
+        responseBody.put("progress", createProgressInfo(currentStep, 3)); 
 
         return responseBody;
     }
 
-    /**
-     * 개선: Repository 패턴을 통한 세션 미발견 처리
-     */
+    
     private void handleSessionNotFound(HttpServletResponse response, HttpServletRequest request,
                                        FactorContext factorContext) throws IOException {
         log.warn("Session not found in {} repository during factor processing success: {}",
@@ -277,9 +266,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         }
     }
 
-    /**
-     * 개선: Repository 패턴을 통한 무효한 컨텍스트 처리 (HttpSession 직접 접근 제거)
-     */
+    
     private void handleInvalidContext(HttpServletResponse response, HttpServletRequest request,
                                       @Nullable Authentication authentication) throws IOException {
         log.warn("MFA Factor Processing Success using {} repository: Invalid FactorContext. Message: {}. User from auth: {}",
@@ -353,9 +340,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         }
     }
 
-    /**
-     * Authentication에서 username 추출 (CustomUserDetails 또는 UserDto 모두 지원)
-     */
+    
     private String getPrincipalUsername(Authentication authentication) {
         Object principal = authentication.getPrincipal();
         if (principal instanceof UnifiedCustomUserDetails customUserDetails) {
@@ -367,22 +352,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         }
     }
 
-    /**
-     * CustomUserDetails Principal을 UserDto로 교체하여 Redis 직렬화 가능한 Authentication 생성
-     *
-     * Spring Security의 AbstractAuthenticationProcessingFilter가 successHandler 호출 전에
-     * SecurityContext에 Authentication을 저장하지만, Spring Session은 response.flush() 시점에
-     * SecurityContext를 Redis에 직렬화합니다.
-     *
-     * OneTimeTokenAuthenticationToken의 Principal은 CustomUserDetails(Users 엔티티 포함)이므로
-     * Redis 직렬화 시 NotSerializableException이 발생합니다.
-     *
-     * 이 메서드는 response.flush() 전에 Authentication을 UserDto 기반으로 교체하여
-     * Redis 직렬화 안전성을 보장합니다.
-     *
-     * @param authentication 원본 Authentication (OneTimeTokenAuthenticationToken with CustomUserDetails)
-     * @return UserDto Principal을 가진 RestAuthenticationToken, 교체 불필요 시 null
-     */
+    
     private Authentication replaceWithSerializableAuthentication(Authentication authentication) {
         Object principal = authentication.getPrincipal();
         if (principal instanceof PublicKeyCredentialUserEntity entity) {

@@ -8,12 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * 대기 중인 승인 DTO
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Data
 @Builder
 @NoArgsConstructor

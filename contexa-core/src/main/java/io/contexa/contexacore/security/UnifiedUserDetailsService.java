@@ -27,22 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 통합 UserDetailsService
- *
- * IdentityUserDetailsService 패턴 채택:
- * 1. Users 엔티티 조회
- * 2. 권한 초기화 (Service 계층)
- * 3. Users → UserDto 변환 (수동 매핑, ModelMapper 제거)
- * 4. UnifiedCustomUserDetails 생성
- *
- * IAM 권한 모델 채택:
- * - RoleAuthority + PermissionAuthority (세밀한 제어)
- *
- * AI 기능:
- * - Trust Tier 동적 권한 조정 (선택적)
- * - HCAD 이상 탐지 (선택적)
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedUserDetailsService implements UserDetailsService {
@@ -50,42 +35,38 @@ public class UnifiedUserDetailsService implements UserDetailsService {
     private final UserRepository userRepository;
     private final SecurityTrustTierProperties trustTierProperties;
     private final SecurityAnomalyDetectionProperties anomalyDetectionProperties;
-    private final RedisTemplate<String, Object> redisTemplate;  // Optional
-    private final NotificationService notificationService;  // Optional
+    private final RedisTemplate<String, Object> redisTemplate;  
+    private final NotificationService notificationService;  
     private final AuditLogRepository auditLogRepository;
 
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // 1. DB에서 사용자 조회 (JOIN FETCH로 그래프 전체 로드)
+        
         Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        // 2. 권한 초기화 (RoleAuthority + PermissionAuthority)
+        
         Set<GrantedAuthority> authorities = initializeAuthorities(user);
 
-        // 3. Users → UserDto 변환 (수동 매핑, Redis 직렬화 안전)
+        
         UserDto userDto = convertToDto(user);
 
-        // 4. HCAD 이상 탐지 (Feature Flag)
+        
         if (anomalyDetectionProperties.isEnabled()) {
             checkAndHandleAnomalyBlocking(username);
         }
 
-        // 5. Trust Tier 권한 조정 (Feature Flag)
+        
         if (trustTierProperties.isEnabled() && redisTemplate != null) {
             adjustAuthoritiesByTrustTier(userDto, authorities);
         }
 
-        // 6. UnifiedCustomUserDetails 생성
+        
         return new UnifiedCustomUserDetails(userDto, authorities);
     }
 
-    /**
-     * Users 엔티티로부터 권한 초기화 (IAM 패턴)
-     *
-     * 엔티티 그래프: Users → UserGroup → Group → GroupRole → Role → RolePermission → Permission
-     */
+    
     private Set<GrantedAuthority> initializeAuthorities(Users user) {
         Set<GrantedAuthority> authorities = new HashSet<>();
 
@@ -99,10 +80,10 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                 .map(GroupRole::getRole)
                 .filter(Objects::nonNull)
                 .forEach(role -> {
-                    // 1. RoleAuthority 추가
+                    
                     authorities.add(new RoleAuthority(role));
 
-                    // 2. Permission 추가
+                    
                     Optional.ofNullable(role.getRolePermissions())
                             .orElse(Collections.emptySet())
                             .stream()
@@ -116,11 +97,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         return authorities;
     }
 
-    /**
-     * Users 엔티티 → UserDto 변환 (수동 매핑, ModelMapper 제거)
-     *
-     * Redis 직렬화 안전을 위해 DTO 사용
-     */
+    
     private UserDto convertToDto(Users user) {
         return UserDto.builder()
                 .id(user.getId())
@@ -136,9 +113,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                 .build();
     }
 
-    /**
-     * HCAD 이상 탐지 및 차단
-     */
+    
     private void checkAndHandleAnomalyBlocking(String username) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getDetails() == null) {
@@ -153,7 +128,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
             if (anomalyData != null) {
                 log.warn("[Zero Trust] Anomaly detected for user: {}", username);
 
-                // Audit Log 기록
+                
                 AuditLog auditLog = AuditLog.builder()
                         .principalName(username)
                         .action("AUTHENTICATION_BLOCKED")
@@ -162,7 +137,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                         .build();
                 auditLogRepository.save(auditLog);
 
-                // 멀티 채널 알림 (Feature Flag)
+                
                 if (anomalyDetectionProperties.getNotification().isEnabled() && notificationService != null) {
                     Map<String, Object> notificationData = new HashMap<>();
                     notificationData.put("username", username);
@@ -177,7 +152,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                     );
                 }
 
-                // 차단 설정이 활성화된 경우에만 차단
+                
                 if (anomalyDetectionProperties.isBlockOnAnomaly()) {
                     throw new AnomalyDetectedException("Authentication blocked due to anomaly");
                 }
@@ -185,11 +160,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         }
     }
 
-    /**
-     * Trust Tier 기반 권한 조정
-     *
-     * UserDto에 조정된 권한을 설정 (Redis 직렬화 안전)
-     */
+    
     private void adjustAuthoritiesByTrustTier(UserDto userDto, Set<GrantedAuthority> originalAuthorities) {
         Double trustScore = getTrustScore(userDto.getUsername());
         if (trustScore == null) {
@@ -199,10 +170,10 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         TrustTier trustTier = determineTrustTier(trustScore);
         Set<GrantedAuthority> adjustedAuthorities = filterAuthoritiesByTier(originalAuthorities, trustTier);
 
-        // UserDto에 Trust Tier 메타데이터 설정
-        userDto.setAuthorities(adjustedAuthorities);  // 조정된 권한으로 덮어쓰기
+        
+        userDto.setAuthorities(adjustedAuthorities);  
         userDto.setTrustScore(trustScore);
-        userDto.setTrustTier(trustTier.name());  // Enum → String 변환
+        userDto.setTrustTier(trustTier.name());  
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("originalAuthorityCount", originalAuthorities.size());
@@ -210,12 +181,12 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         metadata.put("filteredCount", originalAuthorities.size() - adjustedAuthorities.size());
         userDto.setTrustMetadata(metadata);
 
-        // Redis 캐시 (Optional)
+        
         if (redisTemplate != null) {
             String key = String.format("zerotrust:user:trust_tier:%s", userDto.getUsername());
             redisTemplate.opsForValue().set(
                     key,
-                    trustTier.name(),  // Enum → String 변환
+                    trustTier.name(),  
                     trustTierProperties.getCache().getTtlMinutes(),
                     TimeUnit.MINUTES
             );
@@ -225,9 +196,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                 userDto.getUsername(), trustTier, trustScore);
     }
 
-    /**
-     * Trust Score 조회
-     */
+    
     private Double getTrustScore(String username) {
         if (redisTemplate == null) {
             return null;
@@ -241,16 +210,12 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         return 1.0 - threatScore;
     }
 
-    /**
-     * Trust Tier 결정
-     */
+    
     private TrustTier determineTrustTier(Double trustScore) {
         return TrustTier.fromScore(trustScore, trustTierProperties.getThresholds());
     }
 
-    /**
-     * Trust Tier 기반 권한 필터링 (Properties 설정 기반)
-     */
+    
     private Set<GrantedAuthority> filterAuthoritiesByTier(
             Set<GrantedAuthority> authorities, TrustTier tier) {
         Set<GrantedAuthority> filtered = new HashSet<>();
@@ -260,12 +225,12 @@ public class UnifiedUserDetailsService implements UserDetailsService {
 
             switch (tier) {
                 case TIER_1:
-                    // Full Access - 모든 권한 허용
+                    
                     filtered.add(authority);
                     break;
 
                 case TIER_2:
-                    // Limited Sensitive Operations - 민감한 작업 제외
+                    
                     boolean excludedByTier2 = trustTierProperties.getFilterRules().getTier2ExcludeKeywords()
                             .stream()
                             .anyMatch(auth::contains);
@@ -275,7 +240,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                     break;
 
                 case TIER_3:
-                    // Read-Only - 읽기 권한만 허용
+                    
                     boolean allowedByTier3 = trustTierProperties.getFilterRules().getTier3AllowKeywords()
                             .stream()
                             .anyMatch(auth::contains);
@@ -285,7 +250,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                     break;
 
                 case TIER_4:
-                    // Minimal Access - 최소한의 권한만 허용
+                    
                     boolean allowedByTier4 = trustTierProperties.getFilterRules().getTier4AllowAuthorities()
                             .stream()
                             .anyMatch(allowed -> auth.equals(allowed.toUpperCase()));

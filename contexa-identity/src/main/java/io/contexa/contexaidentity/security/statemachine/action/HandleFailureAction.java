@@ -6,9 +6,7 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-/**
- * MFA 실패 처리 액션
- */
+
 @Slf4j
 public class HandleFailureAction extends AbstractMfaStateAction {
 

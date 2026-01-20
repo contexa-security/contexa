@@ -7,9 +7,7 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 정적 접근 최적화 요청
- */
+
 @Data
 @Builder
 public class StaticAccessOptimizationRequest {
@@ -25,9 +23,7 @@ public class StaticAccessOptimizationRequest {
     private Map<String, Object> context;
     private String criticality;
     
-    /**
-     * StaticAccessAnalysisEvent로부터 요청 생성
-     */
+    
     public static StaticAccessOptimizationRequest fromEvent(StaticAccessAnalysisEvent event) {
         return StaticAccessOptimizationRequest.builder()
                 .analysisType(event.getAnalysisType().toString())

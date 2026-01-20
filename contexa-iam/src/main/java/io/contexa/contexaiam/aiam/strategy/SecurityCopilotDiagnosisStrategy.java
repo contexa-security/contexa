@@ -22,12 +22,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * SecurityCopilot 진단 전략 (리팩토링 버전)
- *
- * 기존 SecurityCopilotDiagnosisStrategy의 모든 기능을 유지하면서
- * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
- */
+
 @Slf4j
 public class SecurityCopilotDiagnosisStrategy extends AbstractAIStrategy<SecurityCopilotContext, SecurityCopilotResponse> {
 
@@ -145,7 +140,7 @@ public class SecurityCopilotDiagnosisStrategy extends AbstractAIStrategy<Securit
 
     @Override
     protected PipelineConfig getPipelineConfig() {
-        // Security Copilot은 포괄적인 보안 분석이 필요하므로 전체 파이프라인 실행
+        
         return PipelineConfig.fullPipeline();
     }
 }

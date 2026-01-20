@@ -17,10 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Audit Log Service
- * 감사 로그 조회 및 저장 서비스
- */
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -28,9 +25,7 @@ public class AuditLogService {
     
     private final JdbcTemplate jdbcTemplate;
     
-    /**
-     * 감사 로그 저장
-     */
+    
     @Transactional
     public void saveAuditLog(AuditLog auditLog) {
         String sql = """
@@ -47,7 +42,7 @@ public class AuditLogService {
             auditLog.getUsername() != null ? auditLog.getUsername() : auditLog.getUserId(),
             auditLog.getResourceId(),
             auditLog.getAction(),
-            "ALLOW",  // 기본값
+            "ALLOW",  
             auditLog.getErrorMessage() != null ? auditLog.getErrorMessage() : "N/A",
             auditLog.getIpAddress(),
             auditLog.getErrorMessage(),
@@ -62,9 +57,7 @@ public class AuditLogService {
             auditLog.getAction(), auditLog.getResourceType(), auditLog.getUserId());
     }
     
-    /**
-     * 감사 로그 조회 - 사용자별
-     */
+    
     public List<AuditLog> findByUserId(String userId, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -76,9 +69,7 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), userId, limit);
     }
     
-    /**
-     * 감사 로그 조회 - 액션별
-     */
+    
     public List<AuditLog> findByAction(String action, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -90,9 +81,7 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), action, limit);
     }
     
-    /**
-     * 감사 로그 조회 - 리소스별
-     */
+    
     public List<AuditLog> findByResource(String resourceType, String resourceId, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -104,9 +93,7 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), resourceType, resourceId, limit);
     }
     
-    /**
-     * 감사 로그 조회 - 기간별
-     */
+    
     public List<AuditLog> findByTimeRange(Instant startTime, Instant endTime, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -119,9 +106,7 @@ public class AuditLogService {
             Timestamp.from(startTime), Timestamp.from(endTime), limit);
     }
     
-    /**
-     * 감사 로그 조회 - IP 주소별
-     */
+    
     public List<AuditLog> findByIpAddress(String ipAddress, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -133,9 +118,7 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), ipAddress, limit);
     }
     
-    /**
-     * 실패한 작업 조회
-     */
+    
     public List<AuditLog> findFailedActions(int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -147,9 +130,7 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), limit);
     }
     
-    /**
-     * 보안 이벤트 조회 (특정 액션들)
-     */
+    
     public List<AuditLog> findSecurityEvents(int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -162,9 +143,7 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), limit);
     }
     
-    /**
-     * 통계 조회 - 사용자별 액션 수
-     */
+    
     public List<Map<String, Object>> getUserActionStatistics(Instant startTime, Instant endTime) {
         String sql = """
             SELECT principal_name, action, COUNT(*) as count 
@@ -178,9 +157,7 @@ public class AuditLogService {
             Timestamp.from(startTime), Timestamp.from(endTime));
     }
     
-    /**
-     * 통계 조회 - 시간대별 액션 수
-     */
+    
     public List<Map<String, Object>> getHourlyActionStatistics(Instant startTime, Instant endTime) {
         String sql = """
             SELECT DATE_TRUNC('hour', timestamp) as hour, 
@@ -197,15 +174,13 @@ public class AuditLogService {
             Timestamp.from(startTime), Timestamp.from(endTime));
     }
     
-    /**
-     * 도구 실행 감사 로그 생성
-     */
+    
     public void auditToolExecution(String toolName, String userId, String action, 
                                   boolean success, Map<String, Object> metadata) {
         AuditLog auditLog = AuditLog.builder()
             .timestamp(Instant.now())
             .userId(userId)
-            .username(userId)  // 실제로는 사용자 서비스에서 조회
+            .username(userId)  
             .action("TOOL_EXECUTION")
             .resourceType("TOOL")
             .resourceId(toolName)
@@ -216,9 +191,7 @@ public class AuditLogService {
         saveAuditLog(auditLog);
     }
     
-    /**
-     * Audit Log RowMapper
-     */
+    
     private static class AuditLogRowMapper implements RowMapper<AuditLog> {
         @Override
         public AuditLog mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -231,7 +204,7 @@ public class AuditLogService {
                 .resourceType(rs.getString("resource_uri"))
                 .resourceId(rs.getString("resource_identifier"))
                 .ipAddress(rs.getString("client_ip"))
-                .userAgent(null)  // 컴럼에 없음
+                .userAgent(null)  
                 .result(rs.getString("outcome"))
                 .errorMessage(rs.getString("reason"))
                 .sessionId(rs.getString("session_id"))
@@ -240,18 +213,16 @@ public class AuditLogService {
         }
         
         private Map<String, Object> parseJsonMetadata(String json) {
-            // 간단한 구현 - 실제로는 Jackson을 사용
+            
             if (json == null || json.isEmpty() || "{}".equals(json)) {
                 return Map.of();
             }
-            // TODO: Jackson ObjectMapper로 파싱
+            
             return Map.of("raw", json);
         }
     }
     
-    /**
-     * Audit Log Entity
-     */
+    
     @Data
     @Builder
     public static class AuditLog {
@@ -264,7 +235,7 @@ public class AuditLogService {
         private String resourceId;
         private String ipAddress;
         private String userAgent;
-        private String result;  // SUCCESS, FAILURE
+        private String result;  
         private String errorMessage;
         private String sessionId;
         private Map<String, Object> metadata;

@@ -4,40 +4,28 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-/**
- * Security Redis 설정
- */
+
 @Data
 @ConfigurationProperties(prefix = "security.redis")
 public class SecurityRedisProperties {
 
-    /**
-     * 채널 설정
-     */
+    
     @NestedConfigurationProperty
     private ChannelSettings channel = new ChannelSettings();
 
-    /**
-     * 스트림 설정
-     */
+    
     @NestedConfigurationProperty
     private StreamSettings stream = new StreamSettings();
 
-    /**
-     * TTL 설정
-     */
+    
     @NestedConfigurationProperty
     private TtlSettings ttl = new TtlSettings();
 
-    /**
-     * 메모리 설정
-     */
+    
     @NestedConfigurationProperty
     private MemorySettings memory = new MemorySettings();
 
-    /**
-     * 채널 설정
-     */
+    
     @Data
     public static class ChannelSettings {
         private String authorization = "security:authorization:events";
@@ -48,9 +36,7 @@ public class SecurityRedisProperties {
         private String general = "security:events";
     }
 
-    /**
-     * 스트림 설정
-     */
+    
     @Data
     public static class StreamSettings {
         private String authorization = "security:stream:authorization";
@@ -62,17 +48,13 @@ public class SecurityRedisProperties {
         private int maxlen = 10000;
     }
 
-    /**
-     * TTL 설정
-     */
+    
     @Data
     public static class TtlSettings {
         private int minutes = 60;
     }
 
-    /**
-     * 메모리 설정
-     */
+    
     @Data
     public static class MemorySettings {
         private int maxMb = 1024;

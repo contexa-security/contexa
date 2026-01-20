@@ -12,9 +12,7 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
-    /**
-     * HTML 형식의 이메일을 보냅니다.
-     */
+    
     public void sendHtmlMessage(String to, String subject, String htmlBody) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

@@ -16,16 +16,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * 정책 제안 관리 서비스
- * 정책 제안의 생성, 평가, 승인, 활성화를 관리
- *
- * IPolicyProposalManagementService 인터페이스 구현체
- * NotificationService 패턴 적용: contexa-core에 인터페이스, contexa-core-enterprise에 구현체
- *
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyProposalManagementService implements IPolicyProposalManagementService {
@@ -35,14 +26,12 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
     private final PolicyAuditLogger auditLogger;
     private final ApplicationEventPublisher eventPublisher;
     
-    /**
-     * 정책 제안 제출
-     */
+    
     @Transactional
     public Long submitProposal(PolicyEvolutionProposal proposal) {
         log.info("Submitting policy evolution proposal: {}", proposal.getTitle());
         
-        // 기본값 설정
+        
         if (proposal.getStatus() == null) {
             proposal.setStatus(ProposalStatus.DRAFT);
         }
@@ -51,33 +40,31 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
             proposal.setCreatedAt(LocalDateTime.now());
         }
         
-        // 메타데이터 초기화
+        
         if (proposal.getMetadata() == null) {
             proposal.setMetadata(new HashMap<>());
         }
         
-        // 저장
+        
         PolicyEvolutionProposal savedProposal = proposalRepository.save(proposal);
         
-        // 감사 로그
+        
         Map<String, Object> context = new HashMap<>();
         context.put("title", proposal.getTitle());
         context.put("riskLevel", proposal.getRiskLevel());
         context.put("proposalType", proposal.getProposalType());
         auditLogger.logPolicyCreation(savedProposal.getId(), proposal.getCreatedBy(), context);
         
-        // 거버넌스 평가 시작
+        
         CompletableFuture.runAsync(() -> evaluateProposal(savedProposal.getId()));
         
-        // 이벤트 발행
+        
         publishProposalCreatedEvent(savedProposal);
         
         return savedProposal.getId();
     }
     
-    /**
-     * 제안 평가
-     */
+    
     public void evaluateProposal(Long proposalId) {
         log.info("Evaluating proposal: {}", proposalId);
         
@@ -90,10 +77,10 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
             
             PolicyEvolutionProposal proposal = optionalProposal.get();
             
-            // 거버넌스 평가
+            
             GovernanceDecision decision = governance.evaluateProposal(proposalId);
             
-            // 결정에 따른 상태 업데이트
+            
             switch (decision.getDecision()) {
                 case AUTO_APPROVE:
                     proposal.setStatus(ProposalStatus.APPROVED);
@@ -122,10 +109,10 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
                     break;
             }
             
-            // 저장
+            
             proposalRepository.save(proposal);
             
-            // 이벤트 발행
+            
             publishProposalEvaluatedEvent(proposal, decision);
             
         } catch (Exception e) {
@@ -133,9 +120,7 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         }
     }
     
-    /**
-     * 수동 승인
-     */
+    
     @Transactional
     public void approveProposal(Long proposalId, String approvedBy) {
         log.info("Manually approving proposal {} by {}", proposalId, approvedBy);
@@ -157,18 +142,16 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         
         proposalRepository.save(proposal);
         
-        // 감사 로그
+        
         Map<String, Object> context = new HashMap<>();
         context.put("proposalId", proposalId);
         auditLogger.logPolicyApproval(proposalId, approvedBy, "MANUAL", context);
         
-        // 이벤트 발행
+        
         publishProposalApprovedEvent(proposal);
     }
     
-    /**
-     * 제안 거부
-     */
+    
     @Transactional
     public void rejectProposal(Long proposalId, String rejectedBy, String reason) {
         log.info("Rejecting proposal {} by {}: {}", proposalId, rejectedBy, reason);
@@ -191,47 +174,37 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         
         proposalRepository.save(proposal);
         
-        // 감사 로그
+        
         Map<String, Object> context = new HashMap<>();
         context.put("proposalId", proposalId);
         context.put("reason", reason);
         auditLogger.logPolicyRejection(proposalId, rejectedBy, reason, context);
         
-        // 이벤트 발행
+        
         publishProposalRejectedEvent(proposal);
     }
     
-    /**
-     * 제안 조회
-     */
+    
     public Optional<PolicyEvolutionProposal> getProposal(Long proposalId) {
         return proposalRepository.findById(proposalId);
     }
     
-    /**
-     * 모든 제안 조회
-     */
+    
     public List<PolicyEvolutionProposal> getAllProposals() {
         return proposalRepository.findAll();
     }
     
-    /**
-     * 대기 중인 제안 조회
-     */
+    
     public List<PolicyEvolutionProposal> getPendingProposals() {
         return proposalRepository.findByStatus(ProposalStatus.PENDING_APPROVAL);
     }
     
-    /**
-     * 상태별 제안 조회
-     */
+    
     public List<PolicyEvolutionProposal> getProposalsByStatus(ProposalStatus status) {
         return proposalRepository.findByStatus(status);
     }
     
-    /**
-     * 제안 업데이트
-     */
+    
     @Transactional
     public PolicyEvolutionProposal updateProposal(Long proposalId, PolicyEvolutionProposal updates) {
         Optional<PolicyEvolutionProposal> optionalProposal = proposalRepository.findById(proposalId);
@@ -241,13 +214,13 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         
         PolicyEvolutionProposal existing = optionalProposal.get();
         
-        // 수정 가능한 상태 확인
+        
         if (existing.getStatus() != ProposalStatus.DRAFT && 
             existing.getStatus() != ProposalStatus.PENDING_APPROVAL) {
             throw new IllegalStateException("Cannot update proposal in status: " + existing.getStatus());
         }
         
-        // 업데이트
+        
         if (updates.getTitle() != null) {
             existing.setTitle(updates.getTitle());
         }
@@ -267,9 +240,7 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         return proposalRepository.save(existing);
     }
     
-    /**
-     * 제안 삭제
-     */
+    
     @Transactional
     public void deleteProposal(Long proposalId) {
         Optional<PolicyEvolutionProposal> optionalProposal = proposalRepository.findById(proposalId);
@@ -279,7 +250,7 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         
         PolicyEvolutionProposal proposal = optionalProposal.get();
         
-        // 삭제 가능한 상태 확인
+        
         if (proposal.getStatus() == ProposalStatus.APPROVED && proposal.getPolicyId() != null) {
             throw new IllegalStateException("Cannot delete approved and activated proposal");
         }
@@ -289,9 +260,7 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         log.info("Deleted proposal: {}", proposalId);
     }
     
-    /**
-     * 이벤트 발행 메서드들
-     */
+    
     private void publishProposalCreatedEvent(PolicyEvolutionProposal proposal) {
         ProposalEvent event = new ProposalEvent(this, ProposalEvent.EventType.CREATED, proposal);
         eventPublisher.publishEvent(event);
@@ -313,9 +282,7 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         eventPublisher.publishEvent(event);
     }
     
-    /**
-     * 제안 이벤트
-     */
+    
     public static class ProposalEvent {
         public enum EventType {
             CREATED, EVALUATED, APPROVED, REJECTED, ACTIVATED
@@ -334,7 +301,7 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
             this.timestamp = LocalDateTime.now();
         }
         
-        // Getters and Setters
+        
         public Object getSource() { return source; }
         public EventType getEventType() { return eventType; }
         public PolicyEvolutionProposal getProposal() { return proposal; }

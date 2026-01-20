@@ -25,20 +25,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-/**
- * AsyncResultDeliveryService - 비동기 결과 전달 서비스
- * 
- * SOAR 분석 및 도구 실행 결과를 비동기적으로 전달하는 서비스입니다.
- * DB 저장, 이벤트 발행, 알림 발송, WebSocket 푸시를 통합 관리합니다.
- * 
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class AsyncResultDeliveryService {
     
-    // 기존 컴포넌트 재사용
+    
     private final ToolExecutionContextRepository executionRepository;
     private final RedisEventPublisher eventPublisher;
     private final UnifiedNotificationService notificationService;
@@ -46,7 +38,7 @@ public class AsyncResultDeliveryService {
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper objectMapper;
     
-    // 설정값
+    
     @Value("${result.delivery.retry.max-attempts:3}")
     private int maxRetryAttempts;
     
@@ -71,49 +63,43 @@ public class AsyncResultDeliveryService {
     @Value("${result.delivery.event.enabled:true}")
     private boolean eventPublishingEnabled;
     
-    // 결과 큐 (배치 처리용)
+    
     private final List<PendingResult> resultQueue = Collections.synchronizedList(new ArrayList<>());
     
-    // 전달 상태 추적
+    
     private final Map<String, DeliveryStatus> deliveryStatuses = new ConcurrentHashMap<>();
     
-    // 메트릭
+    
     private final AtomicLong totalDelivered = new AtomicLong(0);
     private final AtomicLong failedDeliveries = new AtomicLong(0);
     private final Map<DeliveryChannel, AtomicLong> channelMetrics = new ConcurrentHashMap<>();
     
-    // 결과 캐시 (빠른 조회용)
+    
     private final Map<String, CachedResult> resultCache = new ConcurrentHashMap<>();
     
     @PostConstruct
     public void initialize() {
         log.info("비동기 결과 전달 서비스 초기화 시작");
         
-        // 배치 프로세서 시작
+        
         startBatchProcessor();
         
-        // 캐시 정리 스케줄러 시작
+        
         startCacheCleaner();
         
-        // 실패한 전달 재시도 스케줄러
+        
         startRetryScheduler();
         
         log.info("비동기 결과 전달 서비스 초기화 완료");
     }
     
-    /**
-     * SOAR 분석 결과 전달 (메인 메서드)
-     * 
-     * @param requestId 요청 ID
-     * @param response SOAR 응답
-     * @return 전달 결과
-     */
+    
     public Mono<DeliveryResult> deliverSoarResult(String requestId, SoarResponse response) {
         log.info("SOAR 결과 전달 시작 - Request ID: {}, Recommendations: {}", 
             requestId, response.getRecommendations().size());
         
         return Mono.fromCallable(() -> {
-            // 1. DB에 결과 저장
+            
             DeliveryStatus status = new DeliveryStatus(requestId);
             deliveryStatuses.put(requestId, status);
             
@@ -125,10 +111,10 @@ public class AsyncResultDeliveryService {
                         status.markDatabaseFailed();
                     }
                     
-                    // 2. 병렬로 다른 채널에 전달
+                    
                     List<Mono<Boolean>> deliveries = new ArrayList<>();
                     
-                    // Redis 이벤트 발행
+                    
                     if (eventPublishingEnabled) {
                         deliveries.add(publishToRedis(requestId, response)
                             .doOnSuccess(success -> {
@@ -137,7 +123,7 @@ public class AsyncResultDeliveryService {
                             }));
                     }
                     
-                    // WebSocket 푸시
+                    
                     if (websocketEnabled) {
                         deliveries.add(pushToWebSocket(requestId, response)
                             .doOnSuccess(success -> {
@@ -146,7 +132,7 @@ public class AsyncResultDeliveryService {
                             }));
                     }
                     
-                    // 알림 발송
+                    
                     if (notificationEnabled) {
                         deliveries.add(sendNotification(requestId, response)
                             .doOnSuccess(success -> {
@@ -155,16 +141,16 @@ public class AsyncResultDeliveryService {
                             }));
                     }
                     
-                    // 모든 전달 완료 대기
+                    
                     return Flux.merge(deliveries)
                         .collectList()
                         .map(results -> {
                             status.setCompleted(true);
                             
-                            // 캐시에 저장
+                            
                             cacheResult(requestId, response);
                             
-                            // 메트릭 업데이트
+                            
                             updateMetrics(status);
                             
                             return createDeliveryResult(requestId, status, response);
@@ -175,7 +161,7 @@ public class AsyncResultDeliveryService {
                     status.setError(error.getMessage());
                     failedDeliveries.incrementAndGet();
                     
-                    // 재시도를 위해 큐에 추가
+                    
                     queueForRetry(requestId, response);
                     
                     return Mono.just(createDeliveryResult(requestId, status, response));
@@ -185,9 +171,7 @@ public class AsyncResultDeliveryService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * 도구 실행 결과 전달
-     */
+    
     public Mono<DeliveryResult> deliverToolExecutionResult(String executionId, Object result, boolean success) {
         log.info("도구 실행 결과 전달 - Execution ID: {}, Success: {}", executionId, success);
         
@@ -197,7 +181,7 @@ public class AsyncResultDeliveryService {
         resultData.put("success", success);
         resultData.put("timestamp", LocalDateTime.now());
         
-        // SoarResponse로 래핑 (builder가 없으므로 setter 사용)
+        
         SoarResponse response = new SoarResponse(executionId, 
             success ? AIResponse.ExecutionStatus.SUCCESS : AIResponse.ExecutionStatus.FAILURE);
         response.setSessionId(executionId);
@@ -212,9 +196,7 @@ public class AsyncResultDeliveryService {
         return deliverSoarResult(executionId, response);
     }
     
-    /**
-     * 배치 결과 전달
-     */
+    
     public Mono<List<DeliveryResult>> deliverBatchResults(Map<String, SoarResponse> results) {
         log.info("배치 결과 전달 시작 - {} 건", results.size());
         
@@ -223,23 +205,21 @@ public class AsyncResultDeliveryService {
             .collectList();
     }
     
-    /**
-     * 결과 조회
-     */
+    
     public Mono<SoarResponse> getResult(String requestId) {
-        // 캐시 확인
+        
         CachedResult cached = resultCache.get(requestId);
         if (cached != null && !cached.isExpired()) {
             return Mono.just(cached.getResponse());
         }
         
-        // DB 조회
+        
         return Mono.fromCallable(() -> {
             Optional<ToolExecutionContext> context = executionRepository.findByRequestId(requestId);
             if (context.isPresent()) {
                 String result = context.get().getExecutionResult();
                 if (result != null && !result.isEmpty()) {
-                    // JSON을 SoarResponse로 변환
+                    
                     try {
                         SoarResponse response = objectMapper.readValue(result, SoarResponse.class);
                         cacheResult(requestId, response);
@@ -254,20 +234,16 @@ public class AsyncResultDeliveryService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * 전달 상태 조회
-     */
+    
     public Mono<DeliveryStatus> getDeliveryStatus(String requestId) {
         return Mono.justOrEmpty(deliveryStatuses.get(requestId));
     }
     
-    /**
-     * DB 저장
-     */
+    
     private Mono<Boolean> saveToDatabase(String requestId, SoarResponse response) {
         return Mono.fromCallable(() -> {
             try {
-                // 기존 컨텍스트 조회 또는 생성
+                
                 ToolExecutionContext context = executionRepository.findByRequestId(requestId)
                     .orElse(new ToolExecutionContext());
                 
@@ -288,9 +264,7 @@ public class AsyncResultDeliveryService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * Redis 이벤트 발행
-     */
+    
     private Mono<Boolean> publishToRedis(String requestId, SoarResponse response) {
         return Mono.fromCallable(() -> {
             try {
@@ -303,7 +277,7 @@ public class AsyncResultDeliveryService {
                 
                 eventPublisher.publishEvent("soar-results", event);
                 
-                // Redis에도 직접 저장 (TTL 설정)
+                
                 String key = "soar:result:" + requestId;
                 redisTemplate.opsForValue().set(key, response, resultTtlHours, TimeUnit.HOURS);
                 
@@ -318,9 +292,7 @@ public class AsyncResultDeliveryService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * WebSocket 푸시
-     */
+    
     private Mono<Boolean> pushToWebSocket(String requestId, SoarResponse response) {
         return Mono.fromCallable(() -> {
             try {
@@ -330,11 +302,11 @@ public class AsyncResultDeliveryService {
                 message.put("response", response);
                 message.put("timestamp", LocalDateTime.now());
                 
-                // 특정 사용자에게 전송
+                
                 String destination = "/queue/soar-results/" + requestId;
                 messagingTemplate.convertAndSend(destination, (Object)message);
                 
-                // 브로드캐스트
+                
                 messagingTemplate.convertAndSend("/topic/soar-results", (Object)message);
                 
                 log.debug("WebSocket 푸시 성공 - Request ID: {}", requestId);
@@ -348,9 +320,7 @@ public class AsyncResultDeliveryService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * 알림 발송
-     */
+    
     private Mono<Boolean> sendNotification(String requestId, SoarResponse response) {
         return notificationService.sendCompletionNotification(requestId, response)
             .map(result -> {
@@ -366,31 +336,25 @@ public class AsyncResultDeliveryService {
             .onErrorReturn(false);
     }
     
-    /**
-     * 결과 캐싱
-     */
+    
     private void cacheResult(String requestId, SoarResponse response) {
         CachedResult cached = new CachedResult(response, LocalDateTime.now().plusHours(1));
         resultCache.put(requestId, cached);
         
-        // 캐시 크기 제한
+        
         if (resultCache.size() > 1000) {
-            // 만료된 엔트리 제거
+            
             resultCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
         }
     }
     
-    /**
-     * 재시도 큐에 추가
-     */
+    
     private void queueForRetry(String requestId, SoarResponse response) {
         PendingResult pending = new PendingResult(requestId, response, 0, LocalDateTime.now());
         resultQueue.add(pending);
     }
     
-    /**
-     * 배치 프로세서
-     */
+    
     private void startBatchProcessor() {
         Schedulers.parallel().schedulePeriodically(() -> {
             if (!resultQueue.isEmpty()) {
@@ -407,9 +371,7 @@ public class AsyncResultDeliveryService {
         }, batchIntervalMs, batchIntervalMs, TimeUnit.MILLISECONDS);
     }
     
-    /**
-     * 배치 처리
-     */
+    
     private void processBatch(List<PendingResult> batch) {
         log.debug("배치 결과 전달 처리 - {} 건", batch.size());
         
@@ -421,12 +383,10 @@ public class AsyncResultDeliveryService {
             );
     }
     
-    /**
-     * 재시도 스케줄러
-     */
+    
     private void startRetryScheduler() {
         Schedulers.parallel().schedulePeriodically(() -> {
-            // 실패한 전달 재시도
+            
             deliveryStatuses.entrySet().stream()
                 .filter(entry -> !entry.getValue().isCompleted() && 
                         entry.getValue().getRetryCount() < maxRetryAttempts)
@@ -434,7 +394,7 @@ public class AsyncResultDeliveryService {
                     String requestId = entry.getKey();
                     DeliveryStatus status = entry.getValue();
                     
-                    // Redis에서 결과 조회
+                    
                     String key = "soar:result:" + requestId;
                     SoarResponse response = (SoarResponse) redisTemplate.opsForValue().get(key);
                     
@@ -450,12 +410,10 @@ public class AsyncResultDeliveryService {
         }, retryDelaySeconds, retryDelaySeconds * 2, TimeUnit.SECONDS);
     }
     
-    /**
-     * 캐시 정리
-     */
+    
     private void startCacheCleaner() {
         Schedulers.parallel().schedulePeriodically(() -> {
-            // 만료된 캐시 엔트리 제거
+            
             int removed = 0;
             for (Iterator<Map.Entry<String, CachedResult>> it = resultCache.entrySet().iterator(); it.hasNext();) {
                 Map.Entry<String, CachedResult> entry = it.next();
@@ -469,18 +427,16 @@ public class AsyncResultDeliveryService {
                 log.debug("캐시 정리 완료 - {} 개 엔트리 제거", removed);
             }
             
-            // 오래된 전달 상태 제거
+            
             LocalDateTime cutoff = LocalDateTime.now().minusHours(resultTtlHours);
             deliveryStatuses.entrySet().removeIf(entry -> 
                 entry.getValue().getCreatedAt().isBefore(cutoff)
             );
             
-        }, 3600, 3600, TimeUnit.SECONDS);  // 1시간마다
+        }, 3600, 3600, TimeUnit.SECONDS);  
     }
     
-    /**
-     * 전달 결과 생성
-     */
+    
     private DeliveryResult createDeliveryResult(String requestId, DeliveryStatus status, SoarResponse response) {
         return DeliveryResult.builder()
             .requestId(requestId)
@@ -492,9 +448,7 @@ public class AsyncResultDeliveryService {
             .build();
     }
     
-    /**
-     * 메트릭 업데이트
-     */
+    
     private void updateMetrics(DeliveryStatus status) {
         if (status.isAllChannelsDelivered()) {
             totalDelivered.incrementAndGet();
@@ -503,9 +457,7 @@ public class AsyncResultDeliveryService {
         }
     }
     
-    /**
-     * 메트릭 조회
-     */
+    
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("totalDelivered", totalDelivered.get());
@@ -524,18 +476,14 @@ public class AsyncResultDeliveryService {
         return metrics;
     }
     
-    // 내부 클래스들
     
-    /**
-     * 전달 채널
-     */
+    
+    
     public enum DeliveryChannel {
         DATABASE, REDIS, WEBSOCKET, NOTIFICATION
     }
     
-    /**
-     * 전달 상태
-     */
+    
     @lombok.Data
     public static class DeliveryStatus {
         private final String requestId;
@@ -619,9 +567,7 @@ public class AsyncResultDeliveryService {
         }
     }
     
-    /**
-     * 전달 결과
-     */
+    
     @lombok.Data
     @lombok.Builder
     public static class DeliveryResult {
@@ -633,9 +579,7 @@ public class AsyncResultDeliveryService {
         private SoarResponse response;
     }
     
-    /**
-     * 대기 중인 결과
-     */
+    
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class PendingResult {
@@ -645,9 +589,7 @@ public class AsyncResultDeliveryService {
         private LocalDateTime queuedAt;
     }
     
-    /**
-     * 캐시된 결과
-     */
+    
     @lombok.AllArgsConstructor
     private static class CachedResult {
         private final SoarResponse response;

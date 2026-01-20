@@ -4,10 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
 
-/**
- * 파이프라인 실행 컨텍스트
- * 파이프라인 실행 중 각 단계 간 데이터를 공유하는 컨텍스트
- */
+
 public class PipelineExecutionContext {
     
     private final String executionId;

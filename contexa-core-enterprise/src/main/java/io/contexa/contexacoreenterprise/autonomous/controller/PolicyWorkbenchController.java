@@ -32,15 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 정책 워크벤치 컨트롤러
- *
- * 정책 제안 관리를 위한 REST API를 제공합니다.
- * 관리자가 제안을 검토, 승인, 거부할 수 있는 엔드포인트를 제공합니다.
- *
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @ResponseBody
 @RequestMapping("/api/policies")
@@ -55,13 +47,7 @@ public class PolicyWorkbenchController {
     private final SynthesisPolicyRepository synthesisPolicyRepository;
     private final PolicyProposalAnalytics analyticsService;
     
-    /**
-     * 제안 목록 조회
-     * 
-     * @param status 상태 필터 (선택)
-     * @param pageable 페이징 정보
-     * @return 제안 목록
-     */
+    
     @GetMapping("/proposals")
     public ResponseEntity<Page<ProposalListDTO>> getProposals(
             @RequestParam(required = false) String status,
@@ -91,12 +77,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 제안 상세 조회
-     * 
-     * @param id 제안 ID
-     * @return 제안 상세 정보
-     */
+    
     @GetMapping("/proposals/{id}")
     public ResponseEntity<ProposalDetailDTO> getProposalDetail(@PathVariable Long id) {
         log.info("Fetching proposal detail for ID: {}", id);
@@ -111,7 +92,7 @@ public class PolicyWorkbenchController {
             
             ProposalDetailDTO dto = toDetailDTO(proposal);
             
-            // 승인 이력 추가
+            
             PolicyApprovalService.ApprovalHistory history = approvalService.getApprovalHistory(id);
             dto.setApprovalHistory(history);
             
@@ -123,13 +104,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 제안 승인
-     * 
-     * @param id 제안 ID
-     * @param request 승인 요청
-     * @return 승인 결과
-     */
+    
     @PostMapping("/proposals/{id}/approve")
     public ResponseEntity<ApprovalResponseDTO> approveProposal(
             @PathVariable Long id,
@@ -138,7 +113,7 @@ public class PolicyWorkbenchController {
         log.info("Approving proposal {} by {}", id, request.getApproverId());
         
         try {
-            // 1. 승인 요청 ID 검증 (거버넌스 우회 방지)
+            
             if (request.getRequestId() == null) {
                 log.warn("승인 요청 ID가 필수입니다. 거버넌스 우회 시도 차단: proposalId={}", id);
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
@@ -150,7 +125,7 @@ public class PolicyWorkbenchController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            // 2. 승인 처리
+            
             PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
                 request.getRequestId(),
                 request.getApproverId(),
@@ -182,13 +157,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 제안 거부
-     * 
-     * @param id 제안 ID
-     * @param request 거부 요청
-     * @return 거부 결과
-     */
+    
     @PostMapping("/proposals/{id}/reject")
     public ResponseEntity<ApprovalResponseDTO> rejectProposal(
             @PathVariable Long id,
@@ -197,7 +166,7 @@ public class PolicyWorkbenchController {
         log.info("Rejecting proposal {} by {}", id, request.getApproverId());
         
         try {
-            // 1. 승인 요청 ID 검증 (거버넌스 우회 방지)
+            
             if (request.getRequestId() == null) {
                 log.warn("승인 요청 ID가 필수입니다. 거버넌스 우회 시도 차단: proposalId={}", id);
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
@@ -209,7 +178,7 @@ public class PolicyWorkbenchController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            // 2. 거부 처리
+            
             PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
                 request.getRequestId(),
                 request.getApproverId(),
@@ -241,12 +210,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 영향도 분석
-     * 
-     * @param id 제안 ID
-     * @return 영향도 분석 결과
-     */
+    
     @GetMapping("/proposals/{id}/impact")
     public ResponseEntity<ImpactAnalysisDTO> analyzeImpact(@PathVariable Long id) {
         log.info("Analyzing impact for proposal: {}", id);
@@ -259,7 +223,7 @@ public class PolicyWorkbenchController {
                 return ResponseEntity.notFound().build();
             }
             
-            // 위험도 재평가
+            
             PolicyEvolutionGovernance.GovernanceDecision decision = 
                 governanceService.evaluateProposal(id);
             
@@ -287,12 +251,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 분석 통계 조회
-     * 
-     * @param period 기간 (DAILY, WEEKLY, MONTHLY)
-     * @return 통계 정보
-     */
+    
     @GetMapping("/analytics")
     public ResponseEntity<AnalyticsDTO> getAnalytics(
             @RequestParam(defaultValue = "WEEKLY") String period) {
@@ -300,8 +259,8 @@ public class PolicyWorkbenchController {
         log.info("Fetching analytics for period: {}", period);
         
         try {
-            // 기간별 분석
-            int days = 7; // 기본값
+            
+            int days = 7; 
             if ("DAILY".equalsIgnoreCase(period)) {
                 days = 1;
             } else if ("WEEKLY".equalsIgnoreCase(period)) {
@@ -310,11 +269,11 @@ public class PolicyWorkbenchController {
                 days = 30;
             }
             
-            // 분석 데이터 생성
+            
             PolicyProposalAnalytics.DashboardStatistics stats = analyticsService.generateDashboardStatistics();
             PolicyProposalAnalytics.TrendAnalysis trends = analyticsService.analyzeTrends(days);
             
-            // 타입 변환
+            
             Map<String, Integer> proposalsByTypeConverted = new HashMap<>();
             if (stats.getProposalsByType() != null) {
                 stats.getProposalsByType().forEach((type, count) -> 
@@ -342,11 +301,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 활성 정책 조회
-     * 
-     * @return 활성 정책 목록
-     */
+    
     @GetMapping("/active")
     public ResponseEntity<List<PolicyDTO>> getActivePolicies() {
         log.info("Fetching active policies");
@@ -366,13 +321,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 정책 비활성화
-     * 
-     * @param policyId 정책 ID
-     * @param request 비활성화 요청
-     * @return 비활성화 결과
-     */
+    
     @PostMapping("/policies/{policyId}/deactivate")
     public ResponseEntity<PolicyOperationResultDTO> deactivatePolicy(
             @PathVariable Long policyId,
@@ -381,14 +330,14 @@ public class PolicyWorkbenchController {
         log.info("Deactivating policy {} by {}", policyId, request.getDeactivatedBy());
         
         try {
-            // 정책 찾기
+            
             SynthesisPolicyRepository.Policy policy = synthesisPolicyRepository.findById(policyId)
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found"));
             
-            // 비활성화
+            
             synthesisPolicyRepository.deactivate(policyId, request.getReason());
 
-            // 제안도 비활성화
+            
             if (policy.getProposalId() != null) {
                 activationService.deactivatePolicy(
                     policy.getProposalId(),
@@ -422,12 +371,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    /**
-     * 대기 중인 승인 요청 조회
-     * 
-     * @param approverId 승인자 ID
-     * @return 승인 요청 목록
-     */
+    
     @GetMapping("/approvals/pending")
     public ResponseEntity<List<PendingApprovalDTO>> getPendingApprovals(
             @RequestParam String approverId) {
@@ -435,7 +379,7 @@ public class PolicyWorkbenchController {
         log.info("Fetching pending approvals for: {}", approverId);
         
         try {
-            // 대기 중인 제안 조회
+            
             List<PolicyEvolutionProposal> pendingProposals = 
                 proposalRepository.findByStatus(PolicyEvolutionProposal.ProposalStatus.PENDING);
             
@@ -444,7 +388,7 @@ public class PolicyWorkbenchController {
                     PolicyApprovalService.ApprovalHistory history = 
                         approvalService.getApprovalHistory(proposal.getId());
                     
-                    // 해당 승인자의 대기 중인 요청 찾기
+                    
                     return history.getRequests().stream()
                         .filter(req -> req.getApprover().getApproverId().equals(approverId))
                         .filter(req -> req.getStatus() == PolicyApprovalService.RequestStatus.PENDING)
@@ -471,7 +415,7 @@ public class PolicyWorkbenchController {
         }
     }
     
-    // ==================== Private Methods ====================
+    
     
     private ProposalListDTO toListDTO(PolicyEvolutionProposal proposal) {
         return ProposalListDTO.builder()

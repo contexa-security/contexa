@@ -55,19 +55,15 @@ public class ResourceAdminController {
         return "redirect:/admin/workbench/resources";
     }
 
-    /**
-     * [신규 및 핵심 수정]
-     * JavaScript의 fetch 요청을 처리하기 위한 API 엔드포인트입니다.
-     * @ResponseBody 를 통해 JSON을 반환합니다.
-     */
+    
     @PostMapping("/{id}/define")
-    @ResponseBody // 이 어노테이션이 JSON 응답을 가능하게 합니다.
+    @ResponseBody 
     public ResponseEntity<Map<String, Object>> defineResourceAsPermissionApi(@PathVariable Long id, @ModelAttribute ResourceMetadataDto metadataDto) {
         try {
-            // 1. 리소스를 권한으로 정의하고, 생성된 Permission 엔티티를 받습니다.
+            
             Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, metadataDto);
 
-            // 2. 클라이언트(JavaScript)에 필요한 정보를 담아 JSON으로 응답합니다.
+            
             Map<String, Object> response = Map.of(
                     "success", true,
                     "message", "리소스가 성공적으로 권한으로 정의되었습니다.",
@@ -82,25 +78,7 @@ public class ResourceAdminController {
         }
     }
 
-   /* @PostMapping("/{id}/define-and-grant")
-    public String defineAndGrantPermission(@PathVariable Long id, @ModelAttribute ResourceMetadataDto metadataDto, RedirectAttributes ra) {
-        Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, metadataDto);
-        log.info("Resource defined as permission '{}'. Initiating grant wizard.", newPermission.getName());
-
-        InitiateGrantRequestDto grantRequest = new InitiateGrantRequestDto();
-        grantRequest.setPermissionIds(Set.of(newPermission.getId()));
-
-        WizardContext createdContext = permissionWizardService.beginCreation(grantRequest,
-                "신규 권한 할당: " + newPermission.getFriendlyName(),
-                "리소스 워크벤치에서 생성된 신규 권한을 역할에 할당합니다.");
-
-        // [수정] RedirectAttributes에 컨텍스트 객체를 flash attribute로 추가
-        ra.addFlashAttribute("wizardContext", createdContext);
-        ra.addFlashAttribute("fromWorkbench", true); // 워크벤치에서 왔다는 플래그 추가
-
-        // [수정] 리다이렉트 URL 수정
-        return "redirect:/admin/policy-wizard/" + createdContext.contextId();
-    }*/
+   
 
     @PostMapping("/{id}/exclude")
     public String excludeResource(@PathVariable Long id, RedirectAttributes ra) {

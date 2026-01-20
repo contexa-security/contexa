@@ -12,14 +12,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * Network Scan Tool
- *
- * 지정된 IP 대역이나 호스트에 대해 네트워크 스캔을 수행합니다.
- * 포트 스캔, 서비스 탐지, 취약점 식별 기능을 제공합니다.
- *
- * Spring AI @Tool 어노테이션 기반 구현
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -36,16 +29,7 @@ import java.util.*;
 )
 public class NetworkScanTool {
     
-    /**
-     * 네트워크 스캔 실행
-     * 
-     * @param target 스캔 대상 (IP 주소 또는 CIDR)
-     * @param scanType 스캔 유형
-     * @param ports 스캔할 포트 목록
-     * @param timeout 타임아웃 (초)
-     * @param verbose 상세 출력 여부
-     * @return 스캔 결과
-     */
+    
     @Tool(
         name = "network_scan",
         description = """
@@ -72,17 +56,17 @@ public class NetworkScanTool {
     ) {
         long startTime = System.currentTimeMillis();
         
-        // AI가 전달한 텍스트에서 실제 IP 추출
+        
         String cleanedTarget = extractIPFromText(target);
         
         log.info("네트워크 스캔 시작: target={} (추출된 IP: {}), scanType={}", 
             target, cleanedTarget, scanType);
         
         try {
-            // 입력 검증 (추출된 IP로)
+            
             validateRequest(cleanedTarget, ports);
             
-            // 스캔 유형에 따른 처리 (추출된 IP 사용)
+            
             String effectiveScanType = scanType != null ? scanType : "basic";
             List<ScanResult> results = switch (effectiveScanType) {
                 case "port" -> performPortScan(cleanedTarget, ports, timeout);
@@ -92,10 +76,10 @@ public class NetworkScanTool {
                 default -> performBasicScan(cleanedTarget, timeout);
             };
             
-            // 위협 분석
+            
             ThreatAnalysis threatAnalysis = analyzeThreat(results);
             
-            // 감사 로깅
+            
             SecurityToolUtils.auditLog(
                 "network_scan",
                 "scan",
@@ -105,7 +89,7 @@ public class NetworkScanTool {
                 "SUCCESS"
             );
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("network_scan", "execution_count", 1);
             SecurityToolUtils.recordMetric("network_scan", "hosts_scanned", results.size());
             SecurityToolUtils.recordMetric("network_scan", "vulnerabilities_found", threatAnalysis.uniqueVulnerabilities);
@@ -124,7 +108,7 @@ public class NetworkScanTool {
         } catch (Exception e) {
             log.error("네트워크 스캔 실패", e);
             
-            // 에러 메트릭
+            
             SecurityToolUtils.recordMetric("network_scan", "error_count", 1);
             
             return Response.builder()
@@ -135,17 +119,15 @@ public class NetworkScanTool {
         }
     }
     
-    /**
-     * 요청 검증
-     */
+    
     private void validateRequest(String target, List<Integer> ports) {
         if (target == null || target.trim().isEmpty()) {
             throw new IllegalArgumentException("Target is required");
         }
         
-        // IP 주소 또는 CIDR 표기법 검증 (이미 추출된 상태)
+        
         if (!isValidTarget(target)) {
-            // 더 친화적인 에러 메시지
+            
             log.warn("유효하지 않은 타겟 형식: '{}'. IP 주소나 CIDR 형식이 필요합니다.", target);
             throw new IllegalArgumentException(
                 String.format("Invalid target format: '%s'. Expected IP address (e.g., 192.168.1.1) or CIDR notation (e.g., 192.168.1.0/24)", 
@@ -153,7 +135,7 @@ public class NetworkScanTool {
             );
         }
         
-        // 포트 범위 검증
+        
         if (ports != null && !ports.isEmpty()) {
             for (Integer port : ports) {
                 if (port < 1 || port > 65535) {
@@ -163,13 +145,11 @@ public class NetworkScanTool {
         }
     }
     
-    /**
-     * 기본 스캔 수행
-     */
+    
     private List<ScanResult> performBasicScan(String target, Integer timeout) {
         List<ScanResult> results = new ArrayList<>();
         
-        // 시뮬레이션: 실제로는 네트워크 스캔 라이브러리 사용
+        
         String[] hosts = expandTargetRange(target);
         
         for (String host : hosts) {
@@ -190,13 +170,11 @@ public class NetworkScanTool {
         return results;
     }
     
-    /**
-     * 포트 스캔 수행
-     */
+    
     private List<ScanResult> performPortScan(String target, List<Integer> ports, Integer timeout) {
         List<ScanResult> results = performBasicScan(target, timeout);
         
-        // 추가 포트 스캔 로직
+        
         for (ScanResult result : results) {
             if ("up".equals(result.status)) {
                 List<Integer> targetPorts = ports != null ? 
@@ -210,13 +188,11 @@ public class NetworkScanTool {
         return results;
     }
     
-    /**
-     * 서비스 스캔 수행
-     */
+    
     private List<ScanResult> performServiceScan(String target, List<Integer> ports, Integer timeout) {
         List<ScanResult> results = performPortScan(target, ports, timeout);
         
-        // 서비스 버전 탐지
+        
         for (ScanResult result : results) {
             if (result.services != null) {
                 for (Map.Entry<Integer, String> entry : result.services.entrySet()) {
@@ -232,13 +208,11 @@ public class NetworkScanTool {
         return results;
     }
     
-    /**
-     * 취약점 스캔 수행
-     */
+    
     private List<ScanResult> performVulnerabilityScan(String target, List<Integer> ports, Integer timeout) {
         List<ScanResult> results = performServiceScan(target, ports, timeout);
         
-        // 취약점 탐지
+        
         for (ScanResult result : results) {
             result.vulnerabilities = new ArrayList<>();
             
@@ -255,16 +229,12 @@ public class NetworkScanTool {
         return results;
     }
     
-    /**
-     * 전체 스캔 수행
-     */
+    
     private List<ScanResult> performFullScan(String target, List<Integer> ports, Integer timeout) {
         return performVulnerabilityScan(target, ports, timeout);
     }
     
-    /**
-     * 위협 분석
-     */
+    
     private ThreatAnalysis analyzeThreat(List<ScanResult> results) {
         ThreatAnalysis analysis = new ThreatAnalysis();
         
@@ -289,22 +259,20 @@ public class NetworkScanTool {
         analysis.vulnerableHosts = vulnerableHosts;
         analysis.uniqueVulnerabilities = allVulnerabilities.size();
         
-        // 위험도 평가
+        
         if (vulnerableHosts > 0) {
             analysis.riskLevel = vulnerableHosts > activeHosts / 2 ? "HIGH" : "MEDIUM";
         } else {
             analysis.riskLevel = "LOW";
         }
         
-        // 권장 사항
+        
         analysis.recommendations = generateRecommendations(analysis);
         
         return analysis;
     }
     
-    /**
-     * 권장 사항 생성
-     */
+    
     private List<String> generateRecommendations(ThreatAnalysis analysis) {
         List<String> recommendations = new ArrayList<>();
         
@@ -323,22 +291,19 @@ public class NetworkScanTool {
         return recommendations;
     }
     
-    // 헬퍼 메서드들
-    /**
-     * 텍스트에서 IP 주소 추출
-     * AI가 자연어로 전달한 내용에서 IP를 찾아냄
-     */
+    
+    
     private String extractIPFromText(String text) {
         if (text == null) {
             return "";
         }
         
-        // 이미 유효한 IP나 CIDR이면 그대로 반환
+        
         if (isValidTarget(text)) {
             return text;
         }
         
-        // IP 패턴 찾기 (IPv4)
+        
         String ipPattern = "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}(?:/[0-9]{1,2})?\\b";
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(ipPattern);
         java.util.regex.Matcher matcher = pattern.matcher(text);
@@ -349,13 +314,13 @@ public class NetworkScanTool {
             return extracted;
         }
         
-        // 특수 케이스 처리: localhost, 로컬 등
+        
         String lowerText = text.toLowerCase();
         if (lowerText.contains("localhost") || lowerText.contains("로컬")) {
             return "127.0.0.1";
         }
         
-        // IP를 찾을 수 없으면 원본 반환
+        
         return text;
     }
     
@@ -364,12 +329,12 @@ public class NetworkScanTool {
             return false;
         }
         
-        // IPv4 주소 검증 (더 정확한 패턴)
+        
         String ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}" +
                             "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" +
                             "(?:/(?:3[0-2]|[12]?[0-9]))?$";
         
-        // 호스트명 패턴 (도메인명)
+        
         String hostnamePattern = "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*" +
                                 "[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$";
         
@@ -377,7 +342,7 @@ public class NetworkScanTool {
     }
     
     private String[] expandTargetRange(String target) {
-        // CIDR을 개별 IP로 확장 (시뮬레이션)
+        
         if (target.contains("/")) {
             return new String[]{"192.168.1.1", "192.168.1.2", "192.168.1.3"};
         }
@@ -400,7 +365,7 @@ public class NetworkScanTool {
     }
     
     private List<Integer> scanPorts(String host, List<Integer> ports) {
-        // 실제 포트 스캔 로직 (시뮬레이션)
+        
         return generateRandomPorts();
     }
     
@@ -430,7 +395,7 @@ public class NetworkScanTool {
     }
     
     private String detectServiceVersion(String host, int port) {
-        // 서비스 버전 탐지 (시뮬레이션)
+        
         return switch (port) {
             case 22 -> "OpenSSH 8.2";
             case 80 -> "Apache 2.4.41";
@@ -450,9 +415,7 @@ public class NetworkScanTool {
         return vulns;
     }
     
-    /**
-     * Response DTO
-     */
+    
     @Data
     @Builder
     public static class Response {
@@ -463,9 +426,7 @@ public class NetworkScanTool {
         private String error;
     }
     
-    /**
-     * 스캔 결과
-     */
+    
     public static class ScanResult {
         public String host;
         public String status;
@@ -476,9 +437,7 @@ public class NetworkScanTool {
         public String scanTime;
     }
     
-    /**
-     * 위협 분석
-     */
+    
     public static class ThreatAnalysis {
         public int totalHosts;
         public int activeHosts;

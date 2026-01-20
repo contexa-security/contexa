@@ -16,15 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Backpressure 관리 시스템
- *
- * 기능:
- * - 시스템 과부하 방지
- * - Circuit Breaker 패턴
- * - 동적 처리량 조절
- * - 리소스 보호
- */
+
 @Slf4j
 public class BackpressureManager {
 
@@ -43,15 +35,15 @@ public class BackpressureManager {
     @Value("${security.backpressure.circuit-breaker.wait-duration-open:60}")
     private int circuitBreakerWaitDurationOpen;
 
-    // Semaphore for concurrency control
+    
     private Semaphore requestSemaphore;
 
-    // Circuit Breakers
+    
     private CircuitBreaker kafkaCircuitBreaker;
     private CircuitBreaker redisCircuitBreaker;
     private CircuitBreaker aiCircuitBreaker;
 
-    // Metrics
+    
     private final AtomicInteger activeRequests = new AtomicInteger(0);
     private final AtomicLong rejectedRequests = new AtomicLong(0);
     private final AtomicLong timeoutRequests = new AtomicLong(0);
@@ -63,10 +55,10 @@ public class BackpressureManager {
 
     @PostConstruct
     public void initialize() {
-        // Semaphore 초기화
+        
         requestSemaphore = new Semaphore(maxConcurrentRequests);
 
-        // Circuit Breaker 설정
+        
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
             .failureRateThreshold(circuitBreakerFailureRate)
             .waitDurationInOpenState(Duration.ofSeconds(circuitBreakerWaitDurationOpen))
@@ -80,7 +72,7 @@ public class BackpressureManager {
         redisCircuitBreaker = circuitBreakerRegistry.circuitBreaker("redis", config);
         aiCircuitBreaker = circuitBreakerRegistry.circuitBreaker("ai-inference", config);
 
-        // Metrics 등록
+        
         Gauge.builder("backpressure.active.requests", activeRequests, AtomicInteger::get)
             .description("Number of active concurrent requests")
             .register(meterRegistry);
@@ -101,11 +93,7 @@ public class BackpressureManager {
             maxConcurrentRequests, timeoutMs, circuitBreakerFailureRate);
     }
 
-    /**
-     * 요청 허용 여부 확인 및 획득
-     *
-     * @return true if permit acquired, false if rejected
-     */
+    
     public boolean tryAcquire() {
         try {
             boolean acquired = requestSemaphore.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
@@ -128,9 +116,7 @@ public class BackpressureManager {
         }
     }
 
-    /**
-     * 요청 완료 시 permit 반환
-     */
+    
     public void release() {
         requestSemaphore.release();
         activeRequests.decrementAndGet();
@@ -138,9 +124,7 @@ public class BackpressureManager {
             activeRequests.get(), requestSemaphore.availablePermits());
     }
 
-    /**
-     * Kafka Circuit Breaker 확인
-     */
+    
     public boolean isKafkaAvailable() {
         CircuitBreaker.State state = kafkaCircuitBreaker.getState();
         boolean available = state == CircuitBreaker.State.CLOSED || state == CircuitBreaker.State.HALF_OPEN;
@@ -152,9 +136,7 @@ public class BackpressureManager {
         return available;
     }
 
-    /**
-     * Redis Circuit Breaker 확인
-     */
+    
     public boolean isRedisAvailable() {
         CircuitBreaker.State state = redisCircuitBreaker.getState();
         boolean available = state == CircuitBreaker.State.CLOSED || state == CircuitBreaker.State.HALF_OPEN;
@@ -166,9 +148,7 @@ public class BackpressureManager {
         return available;
     }
 
-    /**
-     * AI Inference Circuit Breaker 확인
-     */
+    
     public boolean isAIAvailable() {
         CircuitBreaker.State state = aiCircuitBreaker.getState();
         boolean available = state == CircuitBreaker.State.CLOSED || state == CircuitBreaker.State.HALF_OPEN;
@@ -180,51 +160,37 @@ public class BackpressureManager {
         return available;
     }
 
-    /**
-     * Kafka 작업 성공 기록
-     */
+    
     public void recordKafkaSuccess() {
         kafkaCircuitBreaker.onSuccess(0, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * Kafka 작업 실패 기록
-     */
+    
     public void recordKafkaFailure(Throwable throwable) {
         kafkaCircuitBreaker.onError(0, TimeUnit.MILLISECONDS, throwable);
     }
 
-    /**
-     * Redis 작업 성공 기록
-     */
+    
     public void recordRedisSuccess() {
         redisCircuitBreaker.onSuccess(0, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * Redis 작업 실패 기록
-     */
+    
     public void recordRedisFailure(Throwable throwable) {
         redisCircuitBreaker.onError(0, TimeUnit.MILLISECONDS, throwable);
     }
 
-    /**
-     * AI 작업 성공 기록
-     */
+    
     public void recordAISuccess() {
         aiCircuitBreaker.onSuccess(0, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * AI 작업 실패 기록
-     */
+    
     public void recordAIFailure(Throwable throwable) {
         aiCircuitBreaker.onError(0, TimeUnit.MILLISECONDS, throwable);
     }
 
-    /**
-     * Backpressure 상태 확인
-     */
+    
     public BackpressureStatus getStatus() {
         return BackpressureStatus.builder()
             .activeRequests(activeRequests.get())
@@ -239,9 +205,7 @@ public class BackpressureManager {
             .build();
     }
 
-    /**
-     * 동적 Concurrency 조정 (선택적)
-     */
+    
     public void adjustConcurrency(int newMaxConcurrentRequests) {
         if (newMaxConcurrentRequests <= 0 || newMaxConcurrentRequests > 1000) {
             log.warn("Invalid concurrency adjustment: {}", newMaxConcurrentRequests);
@@ -260,9 +224,7 @@ public class BackpressureManager {
             maxConcurrentRequests, activeRequests.get());
     }
 
-    /**
-     * Backpressure 상태 모델
-     */
+    
     @lombok.Data
     @lombok.Builder
     public static class BackpressureStatus {

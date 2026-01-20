@@ -32,21 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * 동적 위협 대응 합성 Lab
- * 
- * 실시간 위협 대응 경험을 학습하여 전략적 보안 원칙을 추론하고
- * 이를 실행 가능한 정책으로 변환하는 AI Lab
- * 
- * 처리 흐름:
- * 1. DynamicThreatResponseEvent 수신
- * 2. AI를 통한 전략적 보안 원칙 추론
- * 3. AdvancedPolicyGenerationLab을 통한 SpEL 표현식 변환
- * 4. PolicyProposal 생성 및 반환
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThreatResponseRequest, DynamicThreatResponseResponse> {
     
@@ -55,7 +41,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
     private final IAMDataCollectionService dataCollectionService;
     private final MeterRegistry meterRegistry;
     
-    // 처리 타이머
+    
     private final Timer processingTimer;
     
     @Autowired
@@ -71,7 +57,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         this.dataCollectionService = dataCollectionService;
         this.meterRegistry = meterRegistry;
         
-        // 메트릭 초기화
+        
         this.processingTimer = Timer.builder("synthesis.dynamic_threat_response.duration")
                 .description("Dynamic threat response processing time")
                 .register(meterRegistry);
@@ -89,21 +75,21 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         log.info("[동적 위협 대응 합성] 처리 시작 - 이벤트 ID: {}", request.getEventId());
         
         try {
-            // 1단계: AI를 통한 전략적 보안 원칙 추론
+            
             String strategicPrinciple = inferStrategicPrinciple(request);
             log.info("[AI 추론] 전략적 원칙: {}", strategicPrinciple);
             
-            // 2단계: AdvancedPolicyGenerationLab을 통한 SpEL 표현식 변환
+            
             String spelExpression = generateSpelExpression(strategicPrinciple, request);
             log.info("[정책 변환] SpEL 표현식: {}", spelExpression);
             
-            // 3단계: PolicyProposal 생성
+            
             PolicyProposal proposal = createPolicyProposal(request, strategicPrinciple, spelExpression);
             
-            // 4단계: 효과 예측
+            
             PolicyEffectPrediction prediction = predictPolicyEffect(request, proposal);
             
-            // 5단계: 응답 생성
+            
             return buildSuccessResponse(request, proposal, strategicPrinciple, spelExpression, prediction);
             
         } catch (Exception e) {
@@ -166,21 +152,18 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         );
     }
     
-    /**
-     * AI를 통한 전략적 보안 원칙 추론
-     * PipelineOrchestrator를 사용하여 AI 진단 수행
-     */
+    
     private String inferStrategicPrinciple(DynamicThreatResponseRequest request) {
         log.info("[AI 추론] 전략적 원칙 추론 시작 - PipelineOrchestrator 사용");
         
         try {
-            // AI Request 생성 - 위협 정보를 자연어로 변환
+            
             AIRequest<DynamicThreatResponseContext> aiRequest = createThreatAnalysisRequest(request);
             
-            // Pipeline Configuration 생성
+            
             PipelineConfiguration config = createThreatResponsePipelineConfig();
             
-            // orchestrator를 통해 AI 진단 수행
+            
             Mono<DynamicThreatResponseResponse> responseMono = orchestrator.execute(
                 aiRequest, 
                 config,
@@ -194,7 +177,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
                 return aiResponse.getStrategicPrinciple();
             }
             
-            // Fallback 원칙 생성
+            
             log.warn("[AI 추론] AI 응답이 없어 Fallback 원칙 사용");
             return generateFallbackPrinciple(request);
             
@@ -204,9 +187,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         }
     }
     
-    /**
-     * 위협 분석을 위한 AIRequest 생성
-     */
+    
     private AIRequest<DynamicThreatResponseContext> createThreatAnalysisRequest(DynamicThreatResponseRequest request) {
         DynamicThreatResponseContext context = request.getContext();
         
@@ -216,7 +197,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
             context.getOrganizationId() != null ? context.getOrganizationId() : "default-org"
         );
         
-        // 위협 정보를 자연어로 변환하여 AI에게 전달
+        
         StringBuilder prompt = new StringBuilder();
         prompt.append("다음 위협 상황에 대한 전략적 보안 원칙을 생성해주세요:\n");
         prompt.append("위협 유형: ").append(context.getThreatInfo().getThreatType()).append("\n");
@@ -232,9 +213,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return aiRequest;
     }
     
-    /**
-     * 위협 대응을 위한 Pipeline Configuration 생성
-     */
+    
     private PipelineConfiguration createThreatResponsePipelineConfig() {
         return PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
@@ -248,32 +227,30 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
                 .build();
     }
     
-    /**
-     * AdvancedPolicyGenerationLab을 통한 SpEL 표현식 생성
-     */
+    
     private String generateSpelExpression(String strategicPrinciple, DynamicThreatResponseRequest request) {
         try {
-            // IAMDataCollectionService에서 AvailableItems 획득
+            
             PolicyGenerationItem.AvailableItems availableItems = dataCollectionService.policyCollectData();
             log.info("[정책 변환] AvailableItems 수집 완료 - 역할: {}, 권한: {}, 조건: {}",
                     availableItems.roles() != null ? availableItems.roles().size() : 0,
                     availableItems.permissions() != null ? availableItems.permissions().size() : 0,
                     availableItems.conditions() != null ? availableItems.conditions().size() : 0);
             
-            // PolicyGenerationRequest 생성 - 자연어 정책과 AvailableItems 모두 전달
+            
             PolicyGenerationRequest policyRequest = new PolicyGenerationRequest(
                     strategicPrinciple,
                     availableItems
             );
             
-            // AdvancedPolicyGenerationLab 실행
+            
             PolicyResponse policyResponse = policyGenerationLab.process(policyRequest);
             
             if (policyResponse != null && policyResponse.getGeneratedPolicy() != null) {
                 return policyResponse.getGeneratedPolicy();
             }
             
-            // Fallback SpEL 생성
+            
             return generateFallbackSpel(request);
             
         } catch (Exception e) {
@@ -282,11 +259,9 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         }
     }
     
-    /**
-     * 비동기 SpEL 표현식 생성
-     */
+    
     private Mono<String> generateSpelExpressionAsync(String strategicPrinciple, DynamicThreatResponseRequest request) {
-        // IAMDataCollectionService에서 AvailableItems 획득
+        
         PolicyGenerationItem.AvailableItems availableItems = dataCollectionService.policyCollectData();
         
         PolicyGenerationRequest policyRequest = new PolicyGenerationRequest(
@@ -304,9 +279,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
                 .onErrorReturn(generateFallbackSpel(request));
     }
     
-    /**
-     * PolicyProposal 생성
-     */
+    
     private PolicyProposal createPolicyProposal(
             DynamicThreatResponseRequest request,
             String strategicPrinciple,
@@ -328,14 +301,12 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
                 .build();
     }
     
-    /**
-     * 정책 효과 예측 (ML 모델 사용)
-     */
+    
     private PolicyEffectPrediction predictPolicyEffect(
             DynamicThreatResponseRequest request,
             PolicyProposal proposal) {
         
-        // ML 모델을 사용한 예측
+        
         Timer.Sample sample = Timer.start(meterRegistry);
         try {
             PolicyEffectPrediction prediction = createPolicyEffectPrediction(request, proposal);
@@ -352,9 +323,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         }
     }
     
-    /**
-     * 정책 효과 예측 생성
-     */
+    
     private PolicyEffectPrediction createPolicyEffectPrediction(
             DynamicThreatResponseRequest request,
             PolicyProposal proposal) {
@@ -382,9 +351,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
                 .build();
     }
     
-    /**
-     * 성공 응답 생성
-     */
+    
     private DynamicThreatResponseResponse buildSuccessResponse(
             DynamicThreatResponseRequest request,
             PolicyProposal proposal,
@@ -412,9 +379,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return response;
     }
     
-    /**
-     * 위협 컨텍스트 분석 (스트리밍용)
-     */
+    
     private String analyzeThreatContext(DynamicThreatResponseRequest request) {
         StringBuilder sb = new StringBuilder();
         sb.append("위협 유형: ").append(request.getContext().getThreatInfo().getThreatType()).append("\n");
@@ -424,9 +389,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return sb.toString();
     }
     
-    /**
-     * Proposal 데이터 빌드 (비동기용)
-     */
+    
     private Map<String, Object> buildProposalData(
             DynamicThreatResponseRequest request,
             String principle,
@@ -439,7 +402,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return data;
     }
     
-    // ==================== Helper Methods ====================
+    
     
     private String generateFallbackPrinciple(DynamicThreatResponseRequest request) {
         return String.format(
@@ -451,14 +414,11 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         );
     }
     
-    /**
-     * AI Native: LLM이 SpEL 표현식 직접 생성하도록 유도
-     * Fallback은 가장 안전한 정책 반환
-     */
+    
     private String generateFallbackSpel(DynamicThreatResponseRequest request) {
-        // AI Native: Severity 기반 switch 제거
-        // LLM이 SpEL 표현식을 직접 생성해야 함
-        // Fallback은 보수적인 기본 정책 반환
+        
+        
+        
         return "#trust.needsChallenge() or #trust.isBlocked()";
     }
     
@@ -494,21 +454,18 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return "LOW";
     }
     
-    /**
-     * AI Native: LLM이 효과 예측 직접 수행
-     * 규칙 기반 계산 제거
-     */
+    
     private double calculateThreatReduction(DynamicThreatResponseRequest request) {
-        // AI Native: Severity 기반 규칙 제거
-        // LLM이 PolicyEffectPrediction에서 직접 결정
-        // 기본값으로 중간 수준 반환
+        
+        
+        
         return 0.70;
     }
     
     private double calculateFalsePositiveRate(PolicyProposal proposal) {
-        // 설정에서 읽기
+        
         String scope = proposal.getScope();
-        // 범위에 따른 오탐율 계산
+        
         switch (scope) {
             case "GLOBAL":
                 return 0.15;
@@ -522,9 +479,9 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
     }
     
     private double calculatePerformanceImpact(PolicyProposal proposal) {
-        // 설정에서 읽기
+        
         String policyType = proposal.getPolicyType();
-        // 정책 타입에 따른 성능 영향도
+        
         switch (policyType) {
             case "BLOCKING":
                 return 0.10;
@@ -538,8 +495,8 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
     }
     
     private int estimateAffectedUsers(DynamicThreatResponseRequest request) {
-        // ML 모델 사용
-        // 범위에 따른 영향받는 사용자 수 추정
+        
+        
         String scope = request.getContext().getHint().getScope();
         switch (scope) {
             case "GLOBAL":
@@ -566,25 +523,25 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
     }
     
     private double calculateConfidenceScore(DynamicThreatResponseRequest request, PolicyEffectPrediction prediction) {
-        double base = 0.7; // 기본 신뢰도
+        double base = 0.7; 
         
         if (request.getContext().getResponseInfo().isSuccessful()) {
-            base += 0.1; // 성공 보너스
+            base += 0.1; 
         }
         if (prediction.getThreatReductionRate() > 0.8) {
-            base += 0.1; // 높은 위협 감소율 보너스
+            base += 0.1; 
         }
         if (prediction.getFalsePositiveRate() < 0.1) {
-            base += 0.1; // 낮은 오탐율 보너스
+            base += 0.1; 
         }
         
-        return Math.min(base, 0.95); // 최대 신뢰도 95%
+        return Math.min(base, 0.95); 
     }
     
     private String extractResourceType(String resource) {
         if (resource == null) return "UNKNOWN";
         
-        // 더 정교한 리소스 타입 추출 로직
+        
         String lowerResource = resource.toLowerCase();
         
         if (lowerResource.matches(".*(/api/|/rest/|/graphql/).*")) return "API";
@@ -597,14 +554,12 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return "SYSTEM";
     }
     
-    /**
-     * Fallback 예측 생성
-     */
+    
     private PolicyEffectPrediction createFallbackPrediction(
             DynamicThreatResponseRequest request,
             PolicyProposal proposal) {
         
-        // 심각도 기반 위협 감소율
+        
         String severity = request.getContext().getThreatInfo().getSeverity();
         double threatReduction = calculateThreatReduction(request);
         
@@ -619,35 +574,31 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
                 .performanceImpact(performanceImpact)
                 .estimatedAffectedUsers(affectedUsers)
                 .impactDescription(generateImpactDescription(threatReduction, falsePositiveRate))
-                .confidenceScore(0.6)  // Fallback은 낮은 신뢰도
+                .confidenceScore(0.6)  
                 .build();
     }
     
-    /**
-     * 토큰 사용량 계산
-     */
+    
     private int calculateTokenUsage(
             DynamicThreatResponseRequest request,
             PolicyEffectPrediction prediction) {
         
-        int baseTokens = 2000; // 기본 토큰 사용량
+        int baseTokens = 2000; 
         
-        // 복잡도에 따른 토큰 조정
+        
         if ("CRITICAL".equals(request.getContext().getThreatInfo().getSeverity())) {
             baseTokens += 500;
         }
         
-        // 예측 신뢰도에 따른 조정
+        
         if (prediction != null && prediction.getConfidenceScore() < 0.7) {
-            baseTokens += 300;  // 낮은 신뢰도는 더 많은 분석 필요
+            baseTokens += 300;  
         }
         
-        return Math.min(baseTokens, 4000); // 최대 4000 토큰
+        return Math.min(baseTokens, 4000); 
     }
     
-    /**
-     * AI 요청 생성
-     */
+    
     private AIRequest<ThreatContext> createAIRequest(DynamicThreatResponseRequest request) {
         ThreatContext context = new ThreatContext(
                 request.getContext().getThreatInfo(),
@@ -667,9 +618,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         return aiRequest;
     }
     
-    /**
-     * Pipeline 구성
-     */
+    
     private PipelineConfiguration createPipelineConfig() {
         return PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
@@ -681,9 +630,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
                 .build();
     }
     
-    /**
-     * 위협 컨텍스트 (내부 클래스)
-     */
+    
     private static class ThreatContext extends DomainContext {
         private final DynamicThreatResponseContext.ThreatInfo threatInfo;
         private final DynamicThreatResponseContext.ResponseInfo responseInfo;
@@ -693,7 +640,7 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         public ThreatContext(
                 DynamicThreatResponseContext.ThreatInfo threatInfo,
                 DynamicThreatResponseContext.ResponseInfo responseInfo) {
-            super("system", "threat-response-session");  // userId, sessionId
+            super("system", "threat-response-session");  
             this.threatInfo = threatInfo;
             this.responseInfo = responseInfo;
             this.securityLevel = SecurityLevel.HIGH;
@@ -708,9 +655,9 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
         @Override
         public int getPriorityLevel() {
             if (threatInfo != null && "CRITICAL".equals(threatInfo.getSeverity())) {
-                return 10;  // URGENT
+                return 10;  
             }
-            return 5;  // NORMAL
+            return 5;  
         }
         
         public SecurityLevel getSecurityLevel() {

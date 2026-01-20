@@ -16,12 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 보안 액션 도메인 엔티티
- * 
- * 보안 인시던트에 대한 대응 액션을 표현합니다.
- * MCP 도구 실행, 승인 상태, 실행 결과를 관리합니다.
- */
+
 @Entity
 @Table(name = "security_actions")
 @Getter
@@ -185,37 +180,35 @@ public class SecurityAction {
     @Builder.Default
     private List<String> auditLog = new ArrayList<>();
     
-    /**
-     * 액션 타입
-     */
+    
     public enum ActionType {
-        // 네트워크 관련
+        
         BLOCK_NETWORK("네트워크 차단"),
         ISOLATE_HOST("호스트 격리"),
         BLOCK_IP("IP 차단"),
         BLOCK_DOMAIN("도메인 차단"),
         
-        // 프로세스 관련
+        
         KILL_PROCESS("프로세스 종료"),
         QUARANTINE_FILE("파일 격리"),
         DELETE_FILE("파일 삭제"),
         
-        // 사용자 관련
+        
         DISABLE_USER("사용자 비활성화"),
         RESET_PASSWORD("비밀번호 재설정"),
         REVOKE_ACCESS("접근 권한 철회"),
         
-        // 시스템 관련
+        
         PATCH_SYSTEM("시스템 패치"),
         RESTART_SERVICE("서비스 재시작"),
         UPDATE_CONFIGURATION("설정 업데이트"),
         
-        // 조사 관련
+        
         COLLECT_LOGS("로그 수집"),
         CAPTURE_MEMORY("메모리 캡처"),
         FORENSIC_ANALYSIS("포렌식 분석"),
         
-        // 알림 관련
+        
         SEND_ALERT("알림 발송"),
         ESCALATE_INCIDENT("인시던트 에스컬레이션"),
         CREATE_TICKET("티켓 생성");
@@ -239,9 +232,7 @@ public class SecurityAction {
         }
     }
     
-    /**
-     * 액션 상태
-     */
+    
     public enum ActionStatus {
         PENDING("대기중"),
         AWAITING_APPROVAL("승인 대기"),
@@ -276,9 +267,7 @@ public class SecurityAction {
         }
     }
     
-    /**
-     * 승인 상태
-     */
+    
     public enum ApprovalStatus {
         NOT_REQUIRED("승인 불필요"),
         PENDING("승인 대기"),
@@ -299,9 +288,7 @@ public class SecurityAction {
         }
     }
     
-    /**
-     * 파라미터 추가
-     */
+    
     public void addParameter(String key, String value) {
         if (parameters == null) {
             parameters = new HashMap<>();
@@ -309,9 +296,7 @@ public class SecurityAction {
         parameters.put(key, value);
     }
     
-    /**
-     * 감사 로그 추가
-     */
+    
     public void addAuditLog(String entry) {
         if (auditLog == null) {
             auditLog = new ArrayList<>();
@@ -319,18 +304,14 @@ public class SecurityAction {
         auditLog.add(String.format("[%s] %s", LocalDateTime.now(), entry));
     }
     
-    /**
-     * 액션 시작
-     */
+    
     public void start() {
         this.status = ActionStatus.IN_PROGRESS;
         this.startedAt = LocalDateTime.now();
         addAuditLog("Action started");
     }
     
-    /**
-     * 액션 완료
-     */
+    
     public void complete(String result) {
         this.status = ActionStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();
@@ -342,9 +323,7 @@ public class SecurityAction {
         addAuditLog("Action completed: " + result);
     }
     
-    /**
-     * 액션 실패
-     */
+    
     public void fail(String errorMessage) {
         this.status = ActionStatus.FAILED;
         this.failedAt = LocalDateTime.now();
@@ -356,9 +335,7 @@ public class SecurityAction {
         addAuditLog("Action failed: " + errorMessage);
     }
     
-    /**
-     * 승인 처리
-     */
+    
     public void approve(String approver, String comment) {
         this.approvalStatus = ApprovalStatus.APPROVED;
         this.approvedBy = approver;
@@ -368,9 +345,7 @@ public class SecurityAction {
         addAuditLog("Approved by " + approver + ": " + comment);
     }
     
-    /**
-     * 거부 처리
-     */
+    
     public void deny(String denier, String reason) {
         this.approvalStatus = ApprovalStatus.DENIED;
         this.approvedBy = denier;
@@ -380,33 +355,25 @@ public class SecurityAction {
         addAuditLog("Denied by " + denier + ": " + reason);
     }
     
-    /**
-     * 재시도 가능 여부
-     */
+    
     @JsonIgnore
     public boolean canRetry() {
         return status.canRetry() && retryCount < maxRetries;
     }
 
-    /**
-     * 재시도 증가
-     */
+    
     public void incrementRetry() {
         this.retryCount++;
         addAuditLog("Retry attempt " + retryCount + " of " + maxRetries);
     }
 
-    /**
-     * 보상 가능 여부
-     */
+    
     @JsonIgnore
     public boolean canCompensate() {
         return isCompensatable && status == ActionStatus.COMPLETED;
     }
 
-    /**
-     * 실행 준비 여부
-     */
+    
     @JsonIgnore
     public boolean isReadyToExecute() {
         if (requiresApproval) {

@@ -1,6 +1,6 @@
 package io.contexa.contexacore.scheduler;
 
-// ParallelExecutionMonitor.java - 병렬 실행 모니터링
+
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,11 +22,11 @@ public class ParallelExecutionMonitor {
         log.info("🏁 [PARALLEL-MONITOR] {} 시작 - 스레드: {} - 시간: {}",
                 labName, threadName, startTime);
 
-        // 다른 Lab들 과의 시간 차이 계산
+        
         labStartTimes.forEach((otherLab, otherStartTime) -> {
             if (!otherLab.equals(labName)) {
                 long diff = Math.abs(startTime - otherStartTime);
-                if (diff < 1000) { // 1초 이내 차이
+                if (diff < 1000) { 
                     log.info("[PARALLEL-MONITOR] {} 와 {} 병렬 실행 중 ({}ms 차이)",
                             labName, otherLab, diff);
                 } else {

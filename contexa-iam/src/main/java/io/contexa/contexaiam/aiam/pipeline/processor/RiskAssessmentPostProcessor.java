@@ -9,12 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * RiskAssessment 도메인 응답 후처리기
- * 
- * AI가 생성한 TrustAssessment를 RiskAssessmentResponse로 래핑하고
- * 필요한 메타데이터를 추가합니다.
- */
+
 @Slf4j
 public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
     
@@ -41,10 +36,10 @@ public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
 
         String requestId = context.getExecutionId();
         
-        // RiskAssessmentResponse 생성
+        
         RiskAssessmentResponse response = new RiskAssessmentResponse(requestId, trustAssessment);
         
-        // 처리 메트릭 설정
+        
         Long startTime = context.getMetadata("startTime", Long.class);
         if (startTime != null) {
             long processingTime = System.currentTimeMillis() - startTime;
@@ -63,7 +58,7 @@ public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
             );
         }
         
-        // AI 처리 상세 정보 설정
+        
         String aiModel = context.getMetadata("aiModel", String.class);
         String templateKey = context.getMetadata("templateKey", String.class);
         
@@ -83,6 +78,6 @@ public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
     
     @Override
     public int getOrder() {
-        return 10; // 기본 우선순위
+        return 10; 
     }
 }

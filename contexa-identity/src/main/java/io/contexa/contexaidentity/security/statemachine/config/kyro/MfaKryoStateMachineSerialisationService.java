@@ -43,7 +43,7 @@ public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSer
         kryo.register(FactorContext.class);
         kryo.register(StateConfig.class);
         kryo.register(StateType.class, new DefaultSerializers.EnumSerializer(StateType.class));
-        // Phase 3.4: MfaDecision은 FactorContext에 저장하지 않으므로 등록 불필요
+        
         if (MfaState.class.isEnum()) {
             kryo.register(MfaState.class, new DefaultSerializers.EnumSerializer(MfaState.class));
         }

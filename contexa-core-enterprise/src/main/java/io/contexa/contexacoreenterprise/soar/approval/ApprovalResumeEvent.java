@@ -6,9 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Event published when an approval is completed and the pipeline needs to resume
- */
+
 @Getter
 @Setter
 @NoArgsConstructor

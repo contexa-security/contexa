@@ -6,13 +6,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexaiam.aiam.protocol.request.DynamicThreatResponseRequest;
 
-/**
- * 동적 위협 대응 통합 템플릿 - SecurityCopilot 방식
- *
- * 통합 프롬프트: 스트리밍 중 자연어 분석 과정 + 마지막에 JSON 결과
- * 조건부 제거: AI 한 번만 실행하여 효율성 극대화
- * SecurityCopilot 방식: ###FINAL_RESPONSE### 마커로 구조화 데이터 전송
- */
+
 @PromptTemplateConfig(
         key = "dynamicThreatResponse",
         aliases = {"threatResponse", "dynamicSecurity", "adaptiveDefense"},
@@ -33,9 +27,7 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(null, contextInfo);
     }
 
-    /**
-     * 통합 시스템 프롬프트 - 스트리밍 자연어 분석 과정 + 최종 JSON 결과
-     */
+    
     private String buildUnifiedSystemPrompt(String systemMetadata) {
         return String.format("""
             당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 동적 위협 대응 정책 생성 API입니다.
@@ -103,9 +95,7 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
             """, systemMetadata);
     }
 
-    /**
-     * 통합 사용자 프롬프트 - 구체적 요청과 실행 지시
-     */
+    
     private String buildUnifiedUserPrompt(DynamicThreatResponseRequest request, String contextInfo) {
         String threatDetails = (request != null && request.getContext() != null && request.getContext().getThreatInfo() != null) ?
                 String.format("""
@@ -161,9 +151,7 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
             """, threatDetails, responseDetails, contextInfo);
     }
 
-    /**
-     * 간단한 스트리밍 프롬프트 생성 (레거시 호환)
-     */
+    
     public String generateStreamingPrompt(DynamicThreatResponseRequest request) {
         if (request == null || request.getContext() == null || request.getContext().getThreatInfo() == null) {
             return "위협 대응 경험을 바탕으로 전략적 보안 원칙을 도출하세요.";
@@ -174,9 +162,7 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
                 request.getContext().getResponseInfo() != null ? request.getContext().getResponseInfo().getMitigationAction() : "대응");
     }
 
-    /**
-     * 정책 생성을 위한 구체적인 프롬프트 (레거시 호환)
-     */
+    
     public String generatePolicyGenerationPrompt(String strategicPrinciple) {
         return String.format("""
             다음 전략적 보안 원칙을 Spring Security SpEL 표현식으로 변환해주세요:

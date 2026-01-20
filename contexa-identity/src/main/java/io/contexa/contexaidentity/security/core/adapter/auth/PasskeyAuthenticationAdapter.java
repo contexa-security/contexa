@@ -2,9 +2,7 @@ package io.contexa.contexaidentity.security.core.adapter.auth;
 
 import io.contexa.contexacommon.enums.AuthType;
 
-/**
- * 단일 Passkey 인증 어댑터
- */
+
 public class PasskeyAuthenticationAdapter extends BasePasskeyAuthenticationAdapter {
 
     @Override

@@ -35,12 +35,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-/**
- * [AI 강화] 커스텀 메서드 보안 표현식 핸들러
- * 
- * 기존 기능 완전 보존하면서 AI-Native 위험 평가 기능을 추가한 핸들러입니다.
- * Zero Trust 지원: TrustSecurityExpressionRoot 또는 RealtimeAISecurityExpressionRoot 선택
- */
+
 @Slf4j
 public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurityExpressionHandler {
 
@@ -50,21 +45,21 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final AttributeInformationPoint attributePIP;
     private final AuditLogService auditLogService;
     
-    // === 신규 AI 의존성 ===
+    
     private final AINativeProcessor aINativeProcessor;
     private final AuditLogRepository auditLogRepository;
     private final ApplicationContext applicationContext;
     
-    // === Repository 의존성 (ID 기반 소유자 확인용) ===
+    
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
     
-    // === Zero Trust 의존성 ===
+    
     private final RedisTemplate<String, Double> redisTemplate;
-    private final StringRedisTemplate stringRedisTemplate;  // 세션-사용자 매핑 조회용
+    private final StringRedisTemplate stringRedisTemplate;  
 
-    // Zero Trust 모드 설정 (생성자 주입 - 초기화 시점에 정확한 값 보장)
-    private final String zeroTrustMode; // STANDARD, TRUST, REALTIME
+    
+    private final String zeroTrustMode; 
 
     public CustomMethodSecurityExpressionHandler(
             @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
@@ -107,20 +102,20 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, MethodInvocation mi) {
 
-        // 1. @Protectable 애노테이션에서 ownerField 추출 (MethodInvocation 활용)
+        
         String ownerField = extractOwnerFieldFromMethod(mi.getMethod());
         log.debug("🏠 @Protectable ownerField 추출: {}", ownerField);
 
-        // 2. Zero Trust 모드에 따라 적절한 Expression Root 선택
+        
         Authentication auth = authentication.get();
         AuthorizationContext authorizationContext = contextHandler.create(auth, mi);
         
         AbstractAISecurityExpressionRoot root;
         
-        // Zero Trust 모드별 Expression Root 생성
+        
         switch (zeroTrustMode) {
             case "TRUST":
-                // Hot Path - Redis 조회만 수행
+                
                 root = new TrustSecurityExpressionRoot(
                     auth, attributePIP, aINativeProcessor, authorizationContext,
                     auditLogRepository, redisTemplate, stringRedisTemplate);
@@ -128,7 +123,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 break;
                 
             case "REALTIME":
-                // 실시간 AI 분석 (고위험 작업)
+                
                 root = new RealtimeAISecurityExpressionRoot(
                     auth, attributePIP, aINativeProcessor, authorizationContext, 
                     auditLogRepository);
@@ -137,7 +132,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 
             case "STANDARD":
             default:
-                // 기존 CustomMethodSecurityExpressionRoot 사용
+                
                 CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot(
                     auth, attributePIP, authorizationContext, aINativeProcessor, auditLogRepository, mi);
                 customRoot.setOwnerField(ownerField);
@@ -155,11 +150,11 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ((CustomMethodSecurityExpressionRoot) root).setThis(mi.getThis());
         }
 
-        // 4. ExpressionRoot를 기반으로 최종 EvaluationContext 생성
+        
         MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(root, mi.getMethod(), mi.getArguments(), getParameterNameDiscoverer());
         ctx.setBeanResolver(getBeanResolver());
 
-        // SpEL 변수 설정 - 모든 모드에서 #ai, #trust 둘 다 설정 (모드 전환 시에도 기존 SpEL 동작 보장)
+        
         ctx.setVariable("ai", root);
         ctx.setVariable("trust", root);
         log.debug("SpEL 변수 설정: #ai, #trust -> {} 인스턴스 (Zero Trust 모드: {})",
@@ -170,29 +165,27 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             log.debug("SpEL 변수 설정: #ownerField -> {}", ownerField);
         }
 
-        // 5. PRP를 통해 phase별 동적 규칙(SpEL) 조회
+        
         Method method = mi.getMethod();
         String params = Arrays.stream(method.getParameterTypes())
                 .map(Class::getSimpleName)
                 .collect(Collectors.joining(","));
         String methodIdentifier = String.format("%s.%s(%s)", method.getDeclaringClass().getName(), method.getName(), params);
 
-        // 5-1. PRE_AUTHORIZE phase 정책 조회
+        
         List<Policy> protectablePolicies = policyRetrievalPoint.findMethodPolicies(methodIdentifier, "PROTECTABLE");
         String protectableExpression = buildExpressionFromPoliciesWithDefault(protectablePolicies);
         Expression protectableRule = getExpressionParser().parseExpression(protectableExpression);
         ctx.setVariable("protectableRule", protectableRule);
 
-        // 6. 감사 로그 기록
+        
         auditLogService.logDecision(auth.getName(), methodIdentifier, "METHOD_INVOCATION", "EVALUATING",
             "Evaluating with protectableRule: " + protectableExpression, null);
 
         return ctx;
     }
     
-    /**
-     * 🏠 MethodInvocation에서 @Protectable 애노테이션의 ownerField 추출 (Spring Security 표준 방식)
-     */
+    
     private String extractOwnerFieldFromMethod(Method method) {
         Protectable protectable = method.getAnnotation(Protectable.class);
         if (protectable != null && StringUtils.hasText(protectable.ownerField())) {
@@ -201,12 +194,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         return null;
     }
 
-    /**
-     * 정책 목록에서 SpEL 표현식 생성 (기본값 처리 포함)
-     *
-     * @param policies 정책 목록
-     * @return SpEL 표현식 문자열
-     */
+    
     private String buildExpressionFromPoliciesWithDefault(List<Policy> policies) {
         if (CollectionUtils.isEmpty(policies)) {
             return "denyAll";
@@ -214,14 +202,9 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         return buildExpressionFromPolicies(policies);
     }
 
-    /**
-     * 정책 목록에서 SpEL 표현식 생성
-     *
-     * @param policies 정책 목록 (비어있지 않음)
-     * @return SpEL 표현식 문자열
-     */
+    
     private String buildExpressionFromPolicies(List<Policy> policies) {
-        // 가장 우선순위가 높은 정책 하나만 사용
+        
         Policy policy = policies.getFirst();
 
         String conditionExpression = policy.getRules().stream()

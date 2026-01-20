@@ -8,10 +8,7 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 정책 관련 응답 클래스
- * 정책 생성, 최적화, 검증 결과를 담는 응답
- */
+
 @Getter
 @Setter
 public class PolicyResponse extends IAMResponse {

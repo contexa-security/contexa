@@ -15,15 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Session Termination Tool
- *
- * 특정 사용자의 모든 활성 세션을 즉시 종료합니다.
- * 계정 탈취가 의심되거나 보안 위협이 감지된 경우 사용됩니다.
- *
- * Spring AI @Tool 어노테이션 기반 구현
- * 고위험 도구 - 승인 필요
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -42,15 +34,7 @@ public class SessionTerminationTool {
 
     private final UserSessionService userSessionService;
 
-    /**
-     * 세션 종료 실행
-     * 
-     * @param userId 대상 사용자 ID
-     * @param reason 종료 사유
-     * @param notifyUser 사용자 알림 여부
-     * @param preserveCurrentSession 현재 세션 유지 여부
-     * @return 종료 결과
-     */
+    
     @Tool(
         name = "session_termination",
         description = """
@@ -79,11 +63,11 @@ public class SessionTerminationTool {
             userId, reason);
         
         try {
-            // 입력 검증
+            
             if (userId == null || userId.trim().isEmpty()) {
-                // SOAR 시스템: 프롬프트에서 언급된 사용자 사용
+                
                 log.warn("사용자 ID가 지정되지 않음 - SOAR 시스템 기본 처리");
-                userId = "admin@company.com"; // 프롬프트에서 언급된 탈취된 계정
+                userId = "admin@company.com"; 
                 log.info("👤 탈취된 계정으로 기본값 사용: {}", userId);
             }
             
@@ -97,9 +81,9 @@ public class SessionTerminationTool {
                     .build();
             }
             
-            // 사용자 ID 검증만 수행 (실제 사용자 존재 여부는 세션 조회로 확인)
             
-            // 활성 세션 조회
+            
+            
             List<UserSessionService.SessionInfo> activeSessions = 
                 userSessionService.findActiveSessionsByUserId(userId);
             
@@ -116,12 +100,12 @@ public class SessionTerminationTool {
             log.info("Found {} active sessions for user: {}", 
                 activeSessions.size(), userId);
             
-            // 세션 종료 실행
+            
             List<String> terminatedSessionIds = new ArrayList<>();
             int terminatedCount = 0;
             
             for (UserSessionService.SessionInfo session : activeSessions) {
-                // 현재 세션 보호 옵션 체크 (첫 번째 세션을 현재 세션으로 간주)
+                
                 if (Boolean.TRUE.equals(preserveCurrentSession) && 
                     activeSessions.indexOf(session) == 0) {
                     log.info("Preserving current session: {}", session.getSessionId());
@@ -145,14 +129,14 @@ public class SessionTerminationTool {
                 }
             }
             
-            // 사용자 알림 (실제 구현 시 알림 서비스 사용)
+            
             if (Boolean.TRUE.equals(notifyUser) && terminatedCount > 0) {
-                // TODO: 알림 서비스 통합 필요
+                
                 log.info("User notification would be sent to: {} (reason: {}, count: {})", 
                     userId, reason, terminatedCount);
             }
             
-            // 감사 로깅
+            
             SecurityToolUtils.auditLog(
                 "session_termination",
                 "terminate",
@@ -162,7 +146,7 @@ public class SessionTerminationTool {
                 terminatedCount > 0 ? "SUCCESS" : "NO_ACTION"
             );
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("session_termination", "execution_count", 1);
             SecurityToolUtils.recordMetric("session_termination", "sessions_terminated", terminatedCount);
             SecurityToolUtils.recordMetric("session_termination", "execution_time_ms", 
@@ -171,7 +155,7 @@ public class SessionTerminationTool {
             log.info("Session termination completed. Terminated {} out of {} sessions",
                 terminatedCount, activeSessions.size());
             
-            // 세션 정보 구성
+            
             List<SessionDetail> sessionDetails = activeSessions.stream()
                 .map(session -> SessionDetail.builder()
                     .sessionId(session.getSessionId())
@@ -197,7 +181,7 @@ public class SessionTerminationTool {
         } catch (Exception e) {
             log.error("Failed to terminate sessions for user: {}", userId, e);
             
-            // 에러 메트릭
+            
             SecurityToolUtils.recordMetric("session_termination", "error_count", 1);
             
             return Response.builder()
@@ -210,9 +194,7 @@ public class SessionTerminationTool {
         }
     }
 
-    /**
-     * Response DTO
-     */
+    
     @Data
     @Builder
     public static class Response {
@@ -226,9 +208,7 @@ public class SessionTerminationTool {
         private String error;
     }
     
-    /**
-     * 세션 상세 정보
-     */
+    
     @Data
     @Builder
     public static class SessionDetail {

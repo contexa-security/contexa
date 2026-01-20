@@ -10,15 +10,13 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@RequestMapping("/api/admin/catalog") // API 전용 경로
+@RequestMapping("/api/admin/catalog") 
 @RequiredArgsConstructor
 public class FunctionCatalogApiController {
 
     private final FunctionCatalogService functionCatalogService;
 
-    /**
-     * [누락 기능 구현] 개별 기능의 상태(ACTIVE/INACTIVE)를 업데이트합니다. (토글 스위치용)
-     */
+    
     @PutMapping("/{catalogId}/status")
     public ResponseEntity<?> updateCatalogStatus(@PathVariable Long catalogId, @RequestBody Map<String, String> payload) {
         try {
@@ -31,9 +29,7 @@ public class FunctionCatalogApiController {
         }
     }
 
-    /**
-     * [누락 기능 구현] 여러 기능의 상태를 일괄 변경합니다. (일괄 작업 버튼용)
-     */
+    
     @PostMapping("/batch-status")
     public ResponseEntity<?> batchUpdateStatus(@RequestBody Map<String, Object> payload) {
         try {
@@ -48,9 +44,7 @@ public class FunctionCatalogApiController {
         }
     }
 
-    /**
-     * [신규] 여러 미확인 기능을 일괄 등록합니다.
-     */
+    
     @PostMapping("/confirm-batch")
     public ResponseEntity<?> confirmBatch(@RequestBody List<Map<String, Long>> payload) {
         try {

@@ -25,13 +25,7 @@ import reactor.core.publisher.Mono;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-/**
- * 고급 정책 생성 실험실 (PipelineOrchestrator 기반)
- *
- * PipelineOrchestrator.executeStream() → StreamingUniversalPipelineExecutor 자동 선택
- * PipelineOrchestrator.execute() → 일반 진단 전용 executor 선택
- * 스트리밍 + 진단 동시 처리 지원
- */
+
 @Slf4j
 public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGenerationRequest,PolicyResponse> {
 
@@ -83,14 +77,12 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         );
     }
 
-    /**
-     * 정책 생성 비동기 처리 (진단 전용 - JSON 응답)
-     */
+    
     private Mono<AiGeneratedPolicyDraftDto> generatePolicyFromTextAsync(String naturalLanguageQuery,
                                                                        PolicyGenerationItem.AvailableItems availableItems) {
         log.info("[DIAGNOSIS] AI 정책 진단 생성 시작: {} (일반 executor 사용)", naturalLanguageQuery);
         
-        // 벡터 저장소에 요청 저장
+        
         PolicyGenerationRequest request = null;
         try {
             request = new PolicyGenerationRequest(naturalLanguageQuery, availableItems);
@@ -114,7 +106,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                     PolicyResponse policyResponse = (PolicyResponse) response;
                     log.info("[DIAGNOSIS] AI 정책 진단 생성 완료: JSON 응답 생성");
                     
-                    // 벡터 저장소에 생성된 정책 저장
+                    
                     try {
                         AiGeneratedPolicyDraftDto policyDto = convertPolicyResponseToDto(policyResponse, naturalLanguageQuery);
                         vectorService.storeGeneratedPolicy(finalRequest, policyDto);
@@ -136,26 +128,24 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 });
     }
 
-    /**
-     * 실제 스트리밍 처리를 위한 메서드 (진단 + 스트리밍 동시 처리)
-     */
+    
     private Flux<String> generateRealPolicyFromTextStream(String naturalLanguageQuery,
                                                          PolicyGenerationItem.AvailableItems availableItems) {
         log.info("[STREAMING] 실제 AI 스트리밍 정책 생성 시작: {} (StreamingUniversalPipelineExecutor 자동선택)", naturalLanguageQuery);
 
         try {
-            // 1. AI 스트리밍 요청 구성
+            
             AIRequest<PolicyContext> aiRequest = createPolicyGenerationStreamingRequest(naturalLanguageQuery, availableItems);
 
             log.info("[STREAMING] PipelineOrchestrator.executeStream() 호출 - Strategy 최적화 파이프라인 사용");
 
-            // 실제 스트리밍 처리 - config 없이 호출하여 Strategy 최적화 파이프라인 사용
+            
             Flux<String> streamingFlux = orchestrator.executeStream(aiRequest);
             return streamingFlux
                     .doOnSubscribe(subscription -> { log.info("[{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
                     .doOnNext(chunk -> {
                         String chunkStr = chunk != null ? chunk.toString() : "";
-//                        log.error("[STREAMING] 청크 수신: {}", Thread.currentThread().threadId());
+
                     })
                     .map(this::cleanStreamingChunk)
                     .concatWith(Mono.just("[DONE]"))
@@ -176,9 +166,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    /**
-     * 동기 버전의 정책 생성 (새로운 구조 지원)
-     */
+    
     private AiGeneratedPolicyDraftDto generatePolicyFromTextSync(String naturalLanguageQuery,
                                                                  PolicyGenerationItem.AvailableItems availableItems) {
         try {
@@ -189,9 +177,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    /**
-     * DTO를 PolicyResponse로 변환 (새로운 구조 지원)
-     */
+    
     private PolicyResponse convertDtoToPolicyResponse(AiGeneratedPolicyDraftDto dto, String requestId) {
         PolicyResponse response = new PolicyResponse(requestId, IAMResponse.ExecutionStatus.SUCCESS);
         response.setPolicyData(dto.policyData());
@@ -201,9 +187,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return response;
     }
 
-    /**
-     * 스트리밍 전용 AIRequest 생성 (기존 코드 그대로)
-     */
+    
     private AIRequest<PolicyContext> createPolicyGenerationStreamingRequest(String naturalLanguageQuery,
                                                                             PolicyGenerationItem.AvailableItems availableItems) {
 
@@ -214,7 +198,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         PolicyContext context = new PolicyContext.Builder(SecurityLevel.STANDARD, AuditRequirement.BASIC)
                 .withNaturalLanguageQuery(naturalLanguageQuery).build();
 
-        // NullPointerException 수정: organizationId null 체크
+        
         String orgId = context.getOrganizationId();
         if (orgId == null || orgId.trim().isEmpty()) {
             orgId = "default-org";
@@ -222,7 +206,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
         AIRequest<PolicyContext> request = new AIRequest<>(context, "policyGenerationStreaming", orgId);
 
-        // NullPointerException 수정: 파라미터 null 체크
+        
         if (naturalLanguageQuery != null) {
             request.withParameter("naturalLanguageQuery", naturalLanguageQuery);
         }
@@ -248,7 +232,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         StringBuilder metadata = new StringBuilder();
         metadata.append("현재 사용 가능한 항목들 (반드시 이 ID들만 사용하세요):\n\n");
 
-        // 역할 정보
+        
         if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
             metadata.append("사용 가능한 역할:\n");
             availableItems.roles().forEach(role ->
@@ -258,7 +242,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             metadata.append("사용 가능한 역할: 없음\n");
         }
 
-        // 권한 정보
+        
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
             metadata.append("\n🔑 사용 가능한 권한:\n");
             availableItems.permissions().forEach(perm ->
@@ -268,7 +252,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             metadata.append("\n🔑 사용 가능한 권한: 없음\n");
         }
 
-        // 조건 템플릿 정보
+        
         if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
             metadata.append("\n⏰ 사용 가능한 조건 템플릿:\n");
             availableItems.conditions().forEach(cond ->
@@ -285,9 +269,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return metadata.toString();
     }
 
-    /**
-     * 스트리밍 청크 정제 (기존 코드 그대로)
-     */
+    
     private String cleanStreamingChunk(String chunk) {
         if (chunk == null || chunk.isEmpty()) {
             return "";
@@ -304,9 +286,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    /**
-     * 도메인 전문성: 정책 생성 AIRequest 생성 (기존 코드 그대로)
-     */
+    
     private AIRequest<PolicyContext> createPolicyGenerationRequest(String naturalLanguageQuery,
                                                                    PolicyGenerationItem.AvailableItems availableItems) {
         PolicyContext context = new PolicyContext.Builder(
@@ -314,7 +294,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 AuditRequirement.BASIC
         ).withNaturalLanguageQuery(naturalLanguageQuery).build();
 
-        // NullPointerException 수정: organizationId null 체크
+        
         String orgId = context.getOrganizationId();
         if (orgId == null || orgId.trim().isEmpty()) {
             orgId = "default-org";
@@ -322,7 +302,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
         AIRequest<PolicyContext> request = new AIRequest<>(context, "policyGeneration", orgId);
 
-        // NullPointerException 수정: 파라미터 null 체크
+        
         if (naturalLanguageQuery != null) {
             request.withParameter("naturalLanguageQuery", naturalLanguageQuery);
         }
@@ -335,9 +315,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return request;
     }
 
-    /**
-     * PolicyResponse를 AiGeneratedPolicyDraftDto로 변환 (기존 코드 그대로)
-     */
+    
     private AiGeneratedPolicyDraftDto convertPolicyResponseToDto(PolicyResponse policyResponse, String naturalLanguageQuery) {
         if (policyResponse == null) {
             log.warn("PolicyResponse가 null, fallback 생성");
@@ -363,9 +341,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return createFallbackPolicyData(naturalLanguageQuery);
     }
 
-    /**
-     * 도메인 전문성: 파이프라인 결과 검증 및 최적화 (기존 코드 그대로)
-     */
+    
     private AiGeneratedPolicyDraftDto validateAndOptimizePolicyResult(String jsonResponse, String naturalLanguageQuery) {
         if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
             log.warn("빈 JSON 응답, fallback 사용");
@@ -387,9 +363,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    /**
-     * 도메인 전문성: 폴백 정책 데이터 생성 (기존 코드 그대로)
-     */
+    
     private AiGeneratedPolicyDraftDto createFallbackPolicyData(String naturalLanguageQuery) {
         log.warn("Fallback 정책 데이터 생성: {}", naturalLanguageQuery);
 
@@ -405,9 +379,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         );
     }
 
-    /**
-     * 도메인 전문성: 스트리밍용 JSON 변환 (기존 코드 그대로)
-     */
+    
     private String convertToStreamingJson(AiGeneratedPolicyDraftDto result) {
         try {
             StringBuilder json = new StringBuilder();
@@ -428,9 +400,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    /**
-     * 도메인 전문성: 전체 rawResponse를 AiGeneratedPolicyDraftDto로 파싱 (SecurityCopilot 방식)
-     */
+    
     private AiGeneratedPolicyDraftDto parseFullRawResponseToDto(String jsonData, String naturalLanguageQuery) {
         if (jsonData == null || jsonData.trim().isEmpty()) {
             log.warn("빈 jsonData, fallback 생성");
@@ -440,14 +410,14 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         try {
             log.info("fullRawResponse JSON 파싱 시작 - 길이: {}", jsonData.length());
 
-            // ObjectMapper를 사용하여 JSON 파싱
+            
             ObjectMapper mapper = new ObjectMapper();
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             
-            // JSON을 Map으로 파싱
+            
             Map<String, Object> responseMap = mapper.readValue(jsonData, Map.class);
             
-            // policyData 추출
+            
             Map<String, Object> policyDataMap = (Map<String, Object>) responseMap.get("policyData");
             
             if (policyDataMap == null) {
@@ -455,12 +425,12 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 return createFallbackPolicyData(naturalLanguageQuery);
             }
 
-            // BusinessPolicyDto 생성
+            
             BusinessPolicyDto policyData = new BusinessPolicyDto();
             policyData.setPolicyName((String) policyDataMap.get("policyName"));
             policyData.setDescription((String) policyDataMap.get("description"));
             
-            // 역할 ID와 권한 ID 추출 및 변환
+            
             Set<Long> roleIds = extractRoleIds(policyDataMap);
             Set<Long> permissionIds = extractPermissionIds(policyDataMap);
             
@@ -470,7 +440,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             policyData.setConditional(true);
             policyData.setConditions(new HashMap<>());
 
-            // 매핑 정보 추출
+            
             Map<String, String> roleIdToNameMap = (Map<String, String>) responseMap.get("roleIdToNameMap");
             Map<String, String> permissionIdToNameMap = (Map<String, String>) responseMap.get("permissionIdToNameMap");
             Map<String, String> conditionIdToNameMap = (Map<String, String>) responseMap.get("conditionIdToNameMap");
@@ -488,9 +458,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    /**
-     * policyData에서 역할 ID 추출
-     */
+    
     private Set<Long> extractRoleIds(Map<String, Object> policyDataMap) {
         Set<Long> roleIds = new HashSet<>();
         
@@ -516,13 +484,11 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return roleIds;
     }
 
-    /**
-     * policyData에서 권한 ID 추출
-     */
+    
     private Set<Long> extractPermissionIds(Map<String, Object> policyDataMap) {
         Set<Long> permissionIds = new HashSet<>();
         
-        // roles 배열에서 permissions 추출
+        
         Object rolesObj = policyDataMap.get("roles");
         if (rolesObj instanceof List) {
             List<Object> rolesList = (List<Object>) rolesObj;
@@ -533,7 +499,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                     if (permissionsObj instanceof List) {
                         List<String> permissionsList = (List<String>) permissionsObj;
                         for (String permission : permissionsList) {
-                            // permission 이름을 ID로 변환 (임시로 해시 코드 사용)
+                            
                             Long permissionId = (long) Math.abs(permission.hashCode()) % 10000;
                             permissionIds.add(permissionId);
                         }
@@ -545,20 +511,14 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return permissionIds;
     }
     
-    /**
-     * 피드백 기반 학습
-     * 
-     * @param request 원본 요청
-     * @param response 생성된 응답
-     * @param feedback 사용자 피드백
-     */
+    
     public void learnFromFeedback(PolicyGenerationRequest request, PolicyResponse response, String feedback) {
         try {
-            // PolicyGenerationVectorService는 현재 storeFeedback 메서드가 없으므로
-            // 생성된 정책을 다시 저장하면서 피드백을 메타데이터로 포함
+            
+            
             log.info("[AdvancedPolicyGenerationLab] 피드백 학습 시작: {}", feedback.substring(0, Math.min(50, feedback.length())));
             
-            // 향후 확장 가능
+            
             AiGeneratedPolicyDraftDto policyDto = convertPolicyResponseToDto(response, request.getNaturalLanguageQuery());
             vectorService.storeGeneratedPolicy(request, policyDto);
             

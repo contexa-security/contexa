@@ -24,13 +24,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * 완전 일원화된 DefaultMfaPolicyProvider
- * 개선사항:
- * - 이벤트 처리 표준화: 1) 상태 업데이트 2) 저장 3) 이벤트 전송 순서 보장
- * - 예외 처리 강화: 각 단계별 실패 처리 로직 추가
- * - 성능 최적화: 불필요한 동기화 호출 최소화
- */
+
 @Slf4j
 public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
@@ -54,10 +48,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         this.platformConfig = platformConfig;
     }
 
-    /**
-     * Phase 2 개선: Bean 초기화 시 MFA FlowConfig를 캐싱 (Blocking 없음)
-     * Reactive context에서 synchronized block 제거
-     */
+    
     @PostConstruct
     public void initializeMfaFlowConfig() {
         try {
@@ -79,9 +70,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     }
 
 
-    /**
-     * Phase 2: 초기 MFA 요구사항 평가 (읽기 전용)
-     */
+    
     @Override
     public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null.");
@@ -89,7 +78,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         String sessionId = ctx.getMfaSessionId();
         log.debug("Evaluating initial MFA requirement for session: {}", sessionId);
 
-        // 읽기 전용 평가
+        
         MfaDecision decision = evaluatePolicy(ctx);
 
         log.info("Initial MFA evaluation completed for session: {}, required: {}, blocked: {}",
@@ -98,11 +87,9 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         return decision;
     }
 
-    /**
-     * MFA 정책을 평가합니다.
-     */
+    
     protected MfaDecision evaluatePolicy(FactorContext ctx) {
-        // 정책 평가자를 사용하여 평가
+        
         MfaDecision decision = policyEvaluator.evaluatePolicy(ctx);
         
         log.info("MFA policy evaluated for user {}: type={}, required={}, factorCount={}",
@@ -116,8 +103,8 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         Assert.hasText(username, "Username cannot be empty.");
         Assert.notNull(factorType, "FactorType cannot be null.");
 
-        // P0-2 개선: FactorContext의 availableFactors는 정책 평가 후 검증된 팩터 목록
-        // 1. FactorContext에서 확인 (우선순위 1 - 가장 신뢰할 수 있음)
+        
+        
         if (ctx != null) {
             Set<AuthType> availableFactors = ctx.getAvailableFactors();
             if (availableFactors != null && !availableFactors.isEmpty()) {
@@ -128,8 +115,8 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             }
         }
 
-        // 2. DSL 설정에서 확인 (폴백 - 컨텍스트가 없거나 초기화되지 않은 경우)
-        // 주의: DSL에만 의존하면 사용자별 실제 가용성을 보장할 수 없음
+        
+        
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
         if (mfaFlowConfig == null) {
             log.warn("MFA flow config not found. Factor {} not available for user: {}", factorType, username);
@@ -142,7 +129,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return false;
         }
 
-        // DSL에 정의되어 있으면 일단 true 반환 (정책 평가 단계에서 추가 검증됨)
+        
         log.debug("Factor {} available from DSL for user {} (requires policy evaluation for full validation)",
                 factorType, username);
         return true;
@@ -153,7 +140,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(userId).orElse(null);
 
         if (user != null) {
-            int baseCount = 1; // 기본값
+            int baseCount = 1; 
             return adjustRequiredFactorCount(baseCount, userId, flowType);
         }
 
@@ -165,9 +152,9 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         };
     }
 
-    // AI 통합을 위한 확장 포인트 (Protected로 오버라이드 가능)
+    
     protected int adjustRequiredFactorCount(int baseCount, String userId, String flowType) {
-        // 기본 구현은 그대로 반환
+        
         return baseCount;
     }
 
@@ -184,7 +171,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
         for (AuthenticationStepConfig requiredStep : requiredSteps) {
 
-            if(requiredStep.isPrimary()) continue; // 1차 인증은 제외
+            if(requiredStep.isPrimary()) continue; 
 
             String requiredStepId = requiredStep.getStepId();
 
@@ -229,9 +216,9 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 .map(AuthenticationStepConfig::getStepId)
                 .collect(Collectors.toSet());
 
-        // DSL 등록 순서 (availableFactors)를 우선 사용
+        
         for (AuthType factor : availableFactors) {
-            // 해당 팩터의 미완료 Step 찾기
+            
             Optional<AuthenticationStepConfig> nextStep = flowSteps.stream()
                     .filter(step -> factor.name().equalsIgnoreCase(step.getType()))
                     .filter(step -> !completedStepIds.contains(step.getStepId()))
@@ -263,7 +250,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return Collections.emptyList();
         }
 
-        // DSL 기반으로 전환 - AuthenticationFlowConfig에서 팩터 조회
+        
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
         if (mfaFlowConfig != null) {
             Map<AuthType, ?> factorOptions = mfaFlowConfig.getRegisteredFactorOptions();
@@ -276,18 +263,13 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         return Collections.emptyList();
     }
 
-    /**
-     * Phase 2 개선: MFA FlowConfig 조회 (Blocking 제거)
-     * @PostConstruct에서 초기화된 캐시만 반환
-     */
+    
     @Nullable
     private AuthenticationFlowConfig findMfaFlowConfig() {
         return cachedMfaFlowConfig;
     }
 
-    /**
-     * 설정 변경 시 캐시 무효화 (Phase 2 개선: synchronized 제거)
-     */
+    
     public void invalidateFlowConfigCache() {
         cachedMfaFlowConfig = null;
         log.info("MFA flow configuration cache invalidated. Re-initializing...");
@@ -300,14 +282,11 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         return attrs != null ? attrs.getRequest() : null;
     }
 
-    // ============================================================
-    // Phase 2: 읽기 전용 평가 메서드 (Single Source of Truth 패턴)
-    // ============================================================
+    
+    
+    
 
-    /**
-     * Phase 2: 다음 팩터 평가 (읽기 전용)
-     * Context를 수정하지 않고 결정만 반환
-     */
+    
     @Override
     public NextFactorDecision evaluateNextFactor(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null.");
@@ -347,10 +326,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         return NextFactorDecision.noMoreFactors();
     }
 
-    /**
-     * Phase 2: 완료 여부 평가 (읽기 전용)
-     * Context를 수정하지 않고 결정만 반환
-     */
+    
     @Override
     public CompletionDecision evaluateCompletion(FactorContext ctx,
                                                  AuthenticationFlowConfig mfaFlowConfig) {
@@ -398,9 +374,9 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         return CompletionDecision.incomplete(status.missingRequiredStepIds);
     }
 
-    // ============================================================
-    // 내부 클래스
-    // ============================================================
+    
+    
+    
 
     private static class CompletionStatus {
         final boolean allRequiredCompleted;

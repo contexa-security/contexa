@@ -48,22 +48,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final EventPublishingMetrics metricsCollector;
 
 
-    /**
-     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
-     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
-     *
-     * @param event ContextRefreshedEvent
-     */
+    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
         log.info("ApplicationContext refreshed. Initializing dynamic authorization mappings...");
         initialize();
     }
 
-    /**
-     * 데이터베이스에서 Policy를 조회하여 동적 Authorization 매핑을 생성합니다.
-     * 이 메서드는 반드시 ApplicationContext가 완전히 초기화된 후 호출되어야 합니다.
-     */
+    
     private void initialize() {
         log.info("Loading dynamic authorization mappings from Policy model...");
         this.mappings = new ArrayList<>();
@@ -133,10 +125,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return authorizationDecision;
     }
 
-    /**
-     * 정책 객체로부터 최종 인가 표현식 문자열을 생성합니다.
-     * 여러 조건은 OR로 결합되며, 순수 권한 문자열은 hasAnyAuthority()로 묶어 효율을 높입니다.
-     */
+    
     public String getExpressionFromPolicy(Policy policy) {
         List<String> conditionExpressions = policy.getRules().stream()
                 .flatMap(rule -> rule.getConditions().stream())
@@ -149,20 +138,20 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         String finalExpression;
 
-        // 1. 조건이 단 하나일 경우
+        
         if (conditionExpressions.size() == 1) {
-            finalExpression = conditionExpressions.getFirst(); // 괄호 없이 순수 표현식(예: 'ROLE_ADMIN' 또는 'hasRole(''USER'')')을 그대로 사용
+            finalExpression = conditionExpressions.getFirst(); 
 
-            // 2. 조건이 여러 개일 경우
+            
         } else {
             boolean allAreSimpleAuthorities = conditionExpressions.stream().allMatch(expr -> AUTHORITY_PATTERN.matcher(expr).matches());
 
-            // 2-1. 모든 조건이 순수 권한 문자열이면 hasAnyAuthority()로 효율적으로 묶음
+            
             if (allAreSimpleAuthorities) {
                 finalExpression = "hasAnyAuthority(" +
                         conditionExpressions.stream().map(auth -> "'" + auth + "'").collect(Collectors.joining(",")) +
                         ")";
-                // 2-2. SpEL이 하나라도 섞여 있으면 or 로 결합
+                
             } else {
                 finalExpression = conditionExpressions.stream()
                         .map(expr -> "(" + expr + ")")
@@ -176,10 +165,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return finalExpression;
     }
 
-    /**
-     * 인가 시도 및 그 결과를 상세히 감사 로그에 기록합니다.
-     * XAI 의 핵심인 AI 평가 근거를 포함합니다.
-     */
+    
     private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context, AuthorizationDecision decision) {
 
         String principal = (authentication != null && authentication.getPrincipal() instanceof UserDto userDto) ? userDto.getName() : "anonymousUser";
@@ -198,7 +184,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 reason = "AI 평가 결과 직렬화 실패. 점수: " + assessment.score();
             }
         } else {
-            reason = "정적 규칙 매칭"; // AI 평가가 없었다면 일반 규칙 매칭
+            reason = "정적 규칙 매칭"; 
         }
 
         auditLogService.logDecision(principal, resource, action, result, reason, clientIp);

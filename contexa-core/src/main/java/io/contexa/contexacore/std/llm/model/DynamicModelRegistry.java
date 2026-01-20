@@ -15,12 +15,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * 동적 모델 레지스트리
- *
- * 모든 사용 가능한 모델을 중앙에서 관리하고,
- * 런타임에 동적으로 모델을 발견, 등록, 생성합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class DynamicModelRegistry {
@@ -29,51 +24,39 @@ public class DynamicModelRegistry {
     private final TieredLLMProperties tieredLLMProperties;
     private final ModelProviderProperties modelProviderProperties;
 
-    /**
-     * 모델 제공자 맵 (provider name -> provider instance)
-     */
+    
     private final Map<String, ModelProvider> providers = new ConcurrentHashMap<>();
 
-    /**
-     * 모델 디스크립터 맵 (model id -> descriptor)
-     */
+    
     private final Map<String, ModelDescriptor> modelDescriptors = new ConcurrentHashMap<>();
 
-    /**
-     * 모델 인스턴스 캐시 (model id -> model instance)
-     */
+    
     private final Map<String, ChatModel> modelInstances = new ConcurrentHashMap<>();
 
-    /**
-     * Tier별 모델 맵핑 (tier -> list of model ids)
-     */
+    
     private final Map<Integer, List<String>> tierModels = new ConcurrentHashMap<>();
 
-    /**
-     * 초기화
-     */
+    
     @PostConstruct
     public void initialize() {
         log.info("DynamicModelRegistry 초기화 시작");
 
-        // 1. 모든 ModelProvider 구현체 자동 발견 및 등록
+        
         discoverAndRegisterProviders();
 
-        // 2. 설정 파일에서 모델 정의 로드
+        
         loadModelsFromConfiguration();
 
-        // 3. Tier별 모델 매핑 구성
+        
         buildTierMapping();
 
-        // 4. 초기 헬스 체크
+        
         performHealthCheck();
 
         log.info("DynamicModelRegistry 초기화 완료 - 등록된 모델: {}", modelDescriptors.size());
     }
 
-    /**
-     * ModelProvider 구현체 자동 발견 및 등록
-     */
+    
     private void discoverAndRegisterProviders() {
         log.info("ModelProvider 구현체 자동 발견 시작");
 
@@ -87,11 +70,11 @@ public class DynamicModelRegistry {
             providers.put(providerName, provider);
             log.info("ModelProvider 등록: {} ({})", providerName, provider.getClass().getSimpleName());
 
-            // 제공자 초기화
+            
             try {
                 provider.initialize(getProviderConfig(providerName));
 
-                // 제공자가 제공하는 모델들 등록
+                
                 List<ModelDescriptor> models = provider.getAvailableModels();
                 for (ModelDescriptor model : models) {
                     registerModel(model);
@@ -104,36 +87,32 @@ public class DynamicModelRegistry {
         log.info("총 {} 개의 ModelProvider 등록됨", providers.size());
     }
 
-    /**
-     * 설정 파일에서 모델 정의 로드
-     */
+    
     private void loadModelsFromConfiguration() {
         log.info("설정 파일에서 모델 정의 로드");
 
-        // Layer 1 모델 (경량 로컬 모델)
+        
         registerModelFromConfig(1, tieredLLMProperties.getLayer1().getModel());
         if (tieredLLMProperties.getLayer1().hasBackupModel()) {
             registerModelFromConfig(1, tieredLLMProperties.getLayer1().getBackup().getModel());
         }
 
-        // Layer 2 모델 (고성능 모델)
+        
         registerModelFromConfig(2, tieredLLMProperties.getLayer2().getModel());
         if (tieredLLMProperties.getLayer2().hasBackupModel()) {
             registerModelFromConfig(2, tieredLLMProperties.getLayer2().getBackup().getModel());
         }
 
-        // 2-Tier 시스템: Layer 3 제거됨
+        
     }
 
-    /**
-     * 설정 파일의 모델 정보로 모델 등록
-     */
+    
     private void registerModelFromConfig(int tier, String modelName) {
         if (modelName == null || modelName.trim().isEmpty()) {
             return;
         }
 
-        // 이미 등록된 모델이면 tier 정보만 업데이트
+        
         if (modelDescriptors.containsKey(modelName)) {
             ModelDescriptor existing = modelDescriptors.get(modelName);
             if (existing.getTier() == null) {
@@ -142,27 +121,25 @@ public class DynamicModelRegistry {
             return;
         }
 
-        // 새로운 모델 디스크립터 생성
+        
         ModelDescriptor descriptor = createDescriptorFromConfig(modelName, tier);
         registerModel(descriptor);
     }
 
-    /**
-     * 설정 기반 모델 디스크립터 생성
-     */
+    
     private ModelDescriptor createDescriptorFromConfig(String modelName, int tier) {
         String provider = modelProviderProperties.getProviderForModel(modelName);
         ModelProviderProperties.ModelSpec spec = modelProviderProperties.getModelSpec(provider, modelName);
 
         if (spec != null) {
-            // 설정에서 스펙이 정의된 경우
+            
             return createDescriptorFromSpec(modelName, spec, provider);
         } else {
-            // 설정에 없는 경우 기본값 사용
+            
             ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
                 modelProviderProperties.getTierDefaults(tier);
 
-            // tierDefaults가 null인 경우 기본값 생성
+            
             if (tierDefaults == null) {
                 tierDefaults = new ModelProviderProperties.DefaultSpecs.TierDefaults();
                 tierDefaults.setTimeoutMs(tier == 1 ? 3000 : tier == 2 ? 10000 : 30000);
@@ -196,9 +173,7 @@ public class DynamicModelRegistry {
         }
     }
 
-    /**
-     * 스펙으로부터 디스크립터 생성
-     */
+    
     private ModelDescriptor createDescriptorFromSpec(String modelName, ModelProviderProperties.ModelSpec spec, String provider) {
         ModelDescriptor.ThroughputLevel throughput = ModelDescriptor.ThroughputLevel.valueOf(
             spec.getPerformance().getThroughputLevel());
@@ -245,9 +220,7 @@ public class DynamicModelRegistry {
     }
 
 
-    /**
-     * 기본값으로부터 기능 빌드
-     */
+    
     private ModelDescriptor.ModelCapabilities buildCapabilitiesFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
         return ModelDescriptor.ModelCapabilities.builder()
             .streaming(true)
@@ -261,9 +234,7 @@ public class DynamicModelRegistry {
             .build();
     }
 
-    /**
-     * 기본값으로부터 성능 프로파일 빌드
-     */
+    
     private ModelDescriptor.PerformanceProfile buildPerformanceFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
         int tier = inferTierFromDefaults(tierDefaults);
 
@@ -280,23 +251,19 @@ public class DynamicModelRegistry {
             .build();
     }
 
-    /**
-     * 기본값으로부터 Tier 추론 (2-Tier 시스템)
-     */
+    
     private int inferTierFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
-        // 성능 점수와 대기시간을 기준으로 Tier 추론 (2-Tier)
+        
         if (tierDefaults.getPerformanceScore() >= 90.0 && tierDefaults.getLatencyMs() <= 100) {
-            return 1;  // Layer 1: 경량 모델
+            return 1;  
         } else {
-            return 2;  // Layer 2: 고성능 모델
+            return 2;  
         }
     }
 
 
 
-    /**
-     * Tier별 모델 매핑 구성
-     */
+    
     private void buildTierMapping() {
         tierModels.clear();
 
@@ -310,9 +277,7 @@ public class DynamicModelRegistry {
         log.info("Tier별 모델 매핑 완료: {}", tierModels);
     }
 
-    /**
-     * 초기 헬스 체크
-     */
+    
     private void performHealthCheck() {
         log.info("모델 헬스 체크 시작");
 
@@ -339,9 +304,7 @@ public class DynamicModelRegistry {
         }
     }
 
-    /**
-     * 모델 등록
-     */
+    
     public void registerModel(ModelDescriptor descriptor) {
         if (descriptor == null || descriptor.getModelId() == null) {
             return;
@@ -352,33 +315,31 @@ public class DynamicModelRegistry {
             descriptor.getModelId(), descriptor.getTier(), descriptor.getProvider());
     }
 
-    /**
-     * 모델 ID로 모델 인스턴스 반환
-     */
+    
     public ChatModel getModel(String modelId) {
         if (modelId == null) {
             throw new ModelSelectionException("모델 ID가 null입니다");
         }
 
-        // 캐시 확인
+        
         if (modelInstances.containsKey(modelId)) {
             return modelInstances.get(modelId);
         }
 
-        // 모델 디스크립터 확인
+        
         ModelDescriptor descriptor = modelDescriptors.get(modelId);
         if (descriptor == null) {
             throw new ModelSelectionException("모델을 찾을 수 없습니다: " + modelId, modelId);
         }
 
-        // 제공자 확인
+        
         ModelProvider provider = providers.get(descriptor.getProvider());
         if (provider == null) {
             throw new ModelSelectionException(
                 "모델 제공자를 찾을 수 없습니다: " + descriptor.getProvider(), modelId);
         }
 
-        // 모델 생성
+        
         try {
             ChatModel model = provider.createModel(descriptor);
             modelInstances.put(modelId, model);
@@ -389,9 +350,7 @@ public class DynamicModelRegistry {
         }
     }
 
-    /**
-     * Tier에 해당하는 모델 목록 반환
-     */
+    
     public List<ModelDescriptor> getModelsByTier(int tier) {
         List<String> modelIds = tierModels.get(tier);
         if (modelIds == null || modelIds.isEmpty()) {
@@ -405,16 +364,12 @@ public class DynamicModelRegistry {
             .collect(Collectors.toList());
     }
 
-    /**
-     * 모든 모델 디스크립터 반환
-     */
+    
     public Collection<ModelDescriptor> getAllModels() {
         return new ArrayList<>(modelDescriptors.values());
     }
 
-    /**
-     * 모델 상태 업데이트
-     */
+    
     public void updateModelStatus(String modelId, ModelDescriptor.ModelStatus status) {
         ModelDescriptor descriptor = modelDescriptors.get(modelId);
         if (descriptor != null) {
@@ -423,18 +378,16 @@ public class DynamicModelRegistry {
         }
     }
 
-    /**
-     * 모델 새로고침
-     */
+    
     public void refreshModels() {
         log.info("모델 목록 새로고침 시작");
 
-        // 각 제공자별로 모델 새로고침
+        
         for (ModelProvider provider : providers.values()) {
             try {
                 provider.refreshModels();
 
-                // 새로운 모델 등록
+                
                 for (ModelDescriptor model : provider.getAvailableModels()) {
                     if (!modelDescriptors.containsKey(model.getModelId())) {
                         registerModel(model);
@@ -445,32 +398,28 @@ public class DynamicModelRegistry {
             }
         }
 
-        // Tier 매핑 재구성
+        
         buildTierMapping();
 
         log.info("모델 목록 새로고침 완료");
     }
 
-    /**
-     * 제공자별 설정 반환
-     */
+    
     private Map<String, Object> getProviderConfig(String providerName) {
         Map<String, Object> config = new HashMap<>();
 
-        // 제공자별 설정을 application.yml에서 로드하는 로직
-        // 예: spring.ai.providers.ollama.*
+        
+        
 
         return config;
     }
 
-    /**
-     * 종료 처리
-     */
+    
     @PreDestroy
     public void shutdown() {
         log.info("DynamicModelRegistry 종료");
 
-        // 모든 제공자 종료
+        
         for (ModelProvider provider : providers.values()) {
             try {
                 provider.shutdown();
@@ -479,7 +428,7 @@ public class DynamicModelRegistry {
             }
         }
 
-        // 캐시 정리
+        
         modelInstances.clear();
         modelDescriptors.clear();
         providers.clear();

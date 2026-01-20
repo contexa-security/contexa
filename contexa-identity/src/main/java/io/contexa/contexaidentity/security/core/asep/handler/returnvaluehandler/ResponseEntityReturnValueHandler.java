@@ -50,10 +50,10 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
                                   @Nullable MediaType resolvedMediaType) throws IOException, HttpMessageNotWritableException {
         if (returnValue == null) {
             if (!response.isCommitted()) {
-                // Spring MVC의 HttpEntityMethodProcessor는 returnValue가 null이면 (HttpEntity 자체가 null)
-                // 헤더만 쓰고 본문은 쓰지 않음. 상태 코드는 ResponseEntity에 명시된 것을 따름.
-                // 만약 ResponseEntity가 아닌 HttpEntity가 null이면, 이 핸들러는 응답을 완료된 것으로 간주.
-                // 여기서는 HttpEntity가 null이면 아무것도 하지 않음 (응답이 이미 처리되었거나, 다른 핸들러가 처리할 수 있도록)
+                
+                
+                
+                
                 log.debug("ASEP: HttpEntity return value is null for method [{}]. Response might have been handled directly or no content to send.",
                         handlerMethod.getMethod().getName());
             }
@@ -64,7 +64,7 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
         HttpEntity<?> responseEntity = (HttpEntity<?>) returnValue;
         ServletServerHttpResponse outputMessage = new ServletServerHttpResponse(response);
 
-        // 상태 코드 설정 (ResponseEntity인 경우에만)
+        
         if (responseEntity instanceof ResponseEntity) {
             int statusCodeValue = ((ResponseEntity<?>) responseEntity).getStatusCode().value();
             if (!response.isCommitted()) {
@@ -75,7 +75,7 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
             }
         }
 
-        // 헤더 설정
+        
         HttpHeaders entityHeaders = responseEntity.getHeaders();
         if (!entityHeaders.isEmpty()) {
             if (!response.isCommitted()) {
@@ -87,36 +87,36 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
 
         Object body = responseEntity.getBody();
         if (body == null) {
-            // Ensure headers are flushed, an I/O call might be needed for some Servlet containers
+            
             if (!response.isCommitted()) {
-                outputMessage.getBody(); // May flush headers
+                outputMessage.getBody(); 
             }
             return;
         }
 
-        // 본문 직렬화
+        
         Class<?> bodyType = body.getClass();
         MediaType selectedMediaType = null;
 
-        // 1. ResponseEntity 헤더에 Content-Type이 명시되어 있으면 그것을 우선 사용
+        
         if (entityHeaders.getContentType() != null) {
             selectedMediaType = entityHeaders.getContentType();
         }
-        // 2. AsepHandlerAdapter에서 전달된 resolvedMediaType (Content Negotiation 결과) 사용
+        
         else if (resolvedMediaType != null && !resolvedMediaType.isWildcardType() && !resolvedMediaType.isWildcardSubtype()) {
             selectedMediaType = resolvedMediaType;
         }
-        // 3. 위 두 경우가 없으면, Accept 헤더와 messageConverters를 기반으로 다시 결정 시도
+        
         else {
-            // 이 로직은 ASEPFilter의 determineBestMediaTypeForDefaultResponse와 유사할 수 있음
-            // 또는 간단히 application/json으로 fallback
+            
+            
             List<MediaType> acceptedMediaTypes = Collections.emptyList();
             String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
             if (StringUtils.hasText(acceptHeader) && !acceptHeader.equals("*/*")) {
                 try {
                     acceptedMediaTypes = MediaType.parseMediaTypes(acceptHeader);
                     MimeTypeUtils.sortBySpecificity(acceptedMediaTypes);
-                } catch (Exception e) { /* log and ignore */ }
+                } catch (Exception e) {  }
             }
 
             for (MediaType accepted : acceptedMediaTypes) {
@@ -128,7 +128,7 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
                 }
                 if (selectedMediaType != null) break;
             }
-            if (selectedMediaType == null) { // 정말 못찾겠으면 JSON 또는 첫번째 컨버터 지원 타입
+            if (selectedMediaType == null) { 
                 for (HttpMessageConverter<?> converter : this.messageConverters) {
                     if (converter.canWrite(bodyType, MediaType.APPLICATION_JSON)) {
                         selectedMediaType = MediaType.APPLICATION_JSON;
@@ -141,7 +141,7 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
                     }
                 }
             }
-            if (selectedMediaType == null) { // 최후의 수단
+            if (selectedMediaType == null) { 
                 selectedMediaType = MediaType.APPLICATION_OCTET_STREAM;
             }
             log.warn("ASEP: ContentType not specified in ResponseEntity and no specific resolvedMediaType. Fallback to [{}].", selectedMediaType);
@@ -164,13 +164,13 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
                                 bodyType.getSimpleName(), selectedMediaType, converter.getClass().getName());
                     }
                     if (!response.isCommitted()) {
-                        outputMessage.getBody(); // Ensure headers are flushed
+                        outputMessage.getBody(); 
                     }
                     return;
                 } catch (IOException | HttpMessageNotWritableException ex) {
                     log.error("ASEP: Could not write ResponseEntity body with HttpMessageConverter [{}]: {}",
                             converter.getClass().getSimpleName(), ex.getMessage(), ex);
-                    throw new HttpMessageNotWritableException( // Spring의 예외 사용
+                    throw new HttpMessageNotWritableException( 
                             "Could not write HttpEntity: " + ex.getMessage(), ex);
                 }
             }

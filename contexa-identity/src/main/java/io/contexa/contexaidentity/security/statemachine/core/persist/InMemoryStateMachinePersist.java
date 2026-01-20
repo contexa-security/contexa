@@ -10,14 +10,12 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * In-Memory State Machine Persister 구현체 (Spring State Machine 4.0.0)
- */
+
 @Slf4j
 @Component
 public class InMemoryStateMachinePersist implements StateMachinePersist<MfaState, MfaEvent, String> {
 
-    // 임시 In-Memory 저장소
+    
     private final Map<String, StateMachineContext<MfaState, MfaEvent>> storage = new ConcurrentHashMap<>();
 
     private static final String KEY_PREFIX = "mfa:statemachine:";
@@ -50,9 +48,7 @@ public class InMemoryStateMachinePersist implements StateMachinePersist<MfaState
         return context;
     }
 
-    /**
-     * 컨텍스트 삭제 (추가 메서드)
-     */
+    
     public void delete(String contextObj) {
         String key = KEY_PREFIX + contextObj;
         log.debug("Deleting State Machine context for key: {}", key);

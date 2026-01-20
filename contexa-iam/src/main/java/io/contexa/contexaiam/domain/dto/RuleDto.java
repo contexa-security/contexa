@@ -8,10 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 정책 규칙 DTO
- * SRP 준수: 정책 규칙 데이터만 담당
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

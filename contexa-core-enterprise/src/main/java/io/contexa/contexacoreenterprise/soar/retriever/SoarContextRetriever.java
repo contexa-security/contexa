@@ -28,14 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * SOAR (Security Orchestration, Automation and Response) 컨텍스트 검색기
- *
- * Spring AI RAG 기반 SOAR 전용 컨텍스트 검색
- * - SOAR 전용 RAG Advisor 사용
- * - 보안 지식베이스 통합
- * - 위협 상관관계 분석
- */
+
 @Slf4j
 public class SoarContextRetriever extends ContextRetriever {
 
@@ -72,12 +65,12 @@ public class SoarContextRetriever extends ContextRetriever {
 
     @PostConstruct
     public void registerSelf() {
-        // SOAR 전용 RAG Advisor 생성 및 등록
+        
         if (chatClientBuilder != null) {
             createSoarAdvisor();
         }
         
-        // 레지스트리에 등록
+        
         registry.registerRetriever(SoarContext.class, this);
         log.info("SoarContextRetriever 자동 등록 완료 (Spring AI RAG Advisor 사용)");
     }
@@ -90,25 +83,23 @@ public class SoarContextRetriever extends ContextRetriever {
         return super.retrieveContext(request);
     }
 
-    /**
-     * SOAR 전용 RAG Advisor 생성
-     */
+    
     private void createSoarAdvisor() {
-        // SOAR 쿼리 변환기
+        
         QueryTransformer soarQueryTransformer = new SoarQueryTransformer(chatClientBuilder);
         
-        // SOAR 필터 구성
+        
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
             filterBuilder.in("documentType",
-                "incident",  // TODO: VectorDocumentType에 추가 필요
+                "incident",  
                 VectorDocumentType.THREAT.getValue(),
-                "security_alert",  // TODO: VectorDocumentType에 추가 필요
-                "soar_playbook"),  // TODO: VectorDocumentType에 추가 필요
+                "security_alert",  
+                "soar_playbook"),  
             filterBuilder.gte("severity", 0.5)
         ).build();
         
-        // VectorStoreDocumentRetriever 구성
+        
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(soarSimilarityThreshold)
@@ -116,36 +107,34 @@ public class SoarContextRetriever extends ContextRetriever {
             .filterExpression(filter)
             .build();
         
-        // SOAR RAG Advisor 생성
+        
         soarAdvisor = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
             .queryTransformers(soarQueryTransformer)
             .build();
         
-        // 부모 클래스에 SOAR Advisor 등록
+        
         registerDomainAdvisor(SoarContext.class, soarAdvisor);
     }
     
-    /**
-     * RAG 기능이 통합된 SOAR 컨텍스트 검색
-     */
+    
     private ContextRetrievalResult retrieveSoarContextWithRAG(AIRequest<SoarContext> request) {
         log.info("SOAR 컨텍스트 분석 시작 (Spring AI RAG): {}", request.getContext().getIncidentId());
 
         try {
-            // 부모 클래스의 RAG 기능 활용
+            
             ContextRetrievalResult baseResult = super.retrieveContext(request);
             
             SoarContext context = request.getContext();
             
-            // SOAR 전용 컨텍스트 강화
+            
             String enhancedContext = buildComprehensiveContext(
                 context, 
                 baseResult.getContextInfo(),
                 baseResult.getDocuments()
             );
 
-            // SOAR 메타데이터 추가
+            
             Map<String, Object> metadata = new HashMap<>(baseResult.getMetadata());
             metadata.put("retrieverType", "SoarContextRetriever");
             metadata.put("incidentId", context.getIncidentId());
@@ -170,20 +159,18 @@ public class SoarContextRetriever extends ContextRetriever {
         }
     }
 
-    /**
-     * 보안 지식베이스에서 관련 문서 검색
-     */
+    
     private List<Document> searchSecurityKnowledge(SoarContext context) {
-        // 검색 쿼리 구성
+        
         String searchQuery = buildSearchQuery(context);
 
         log.debug("🔎 Vector DB 검색 쿼리: {}", searchQuery);
 
-        // Vector Store에서 유사 문서 검색
+        
         SearchRequest searchRequest = SearchRequest.builder()
                 .query(searchQuery)
-                .topK(5)  // 상위 5개 문서
-                .similarityThreshold(0.7)  // 유사도 임계값
+                .topK(5)  
+                .similarityThreshold(0.7)  
                 .build();
 
         List<Document> documents = vectorStore.similaritySearch(searchRequest);
@@ -193,28 +180,26 @@ public class SoarContextRetriever extends ContextRetriever {
         return documents;
     }
 
-    /**
-     * 검색 쿼리 구성
-     */
+    
     private String buildSearchQuery(SoarContext context) {
         StringBuilder query = new StringBuilder();
 
-        // 위협 유형
+        
         if (context.getThreatType() != null) {
             query.append(context.getThreatType()).append(" ");
         }
 
-        // 설명
+        
         if (context.getDescription() != null) {
             query.append(context.getDescription()).append(" ");
         }
 
-        // 쿼리 의도
+        
         if (context.getQueryIntent() != null) {
             query.append(context.getQueryIntent()).append(" ");
         }
 
-        // 추출된 엔티티
+        
         if (!context.getExtractedEntities().isEmpty()) {
             query.append(context.getExtractedEntities().values()).append(" ");
         }
@@ -222,9 +207,7 @@ public class SoarContextRetriever extends ContextRetriever {
         return query.toString().trim();
     }
 
-    /**
-     * RAG 컨텍스트 추출
-     */
+    
     private String extractRagContext(List<Document> documents) {
         if (documents.isEmpty()) {
             return "";
@@ -233,7 +216,7 @@ public class SoarContextRetriever extends ContextRetriever {
         return documents.stream()
                 .map(doc -> {
                     String content = doc.getText();
-                    // 문서 메타데이터가 있으면 포함
+                    
                     if (doc.getMetadata() != null && !doc.getMetadata().isEmpty()) {
                         String source = doc.getMetadata().getOrDefault("source", "unknown").toString();
                         return String.format("[출처: %s]\n%s", source, content);
@@ -243,16 +226,14 @@ public class SoarContextRetriever extends ContextRetriever {
                 .collect(Collectors.joining("\n\n"));
     }
 
-    /**
-     * 종합 컨텍스트 구성
-     */
+    
     private String buildComprehensiveContext(SoarContext context, String baseContext, List<Document> documents) {
         String ragContext = extractRagContext(documents);
         StringBuilder contextBuilder = new StringBuilder();
 
         contextBuilder.append("## SOAR 분석 컨텍스트\n\n");
 
-        // 1. 인시던트 정보
+        
         contextBuilder.append("### 인시던트 정보\n");
         contextBuilder.append(String.format("- 인시던트 ID: %s\n", context.getIncidentId()));
         contextBuilder.append(String.format("- 위협 유형: %s\n", context.getThreatType()));
@@ -264,7 +245,7 @@ public class SoarContextRetriever extends ContextRetriever {
         contextBuilder.append(String.format("- 권장 조치: %s\n", context.getRecommendedActions()));
         contextBuilder.append(String.format("- 분석 시각: %s\n\n", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
 
-        // 2. RAG 기반 보안 지식
+        
         if (ragContext != null && !ragContext.trim().isEmpty()) {
             contextBuilder.append("### 관련 보안 지식 (RAG)\n");
             contextBuilder.append(ragContext);
@@ -272,7 +253,7 @@ public class SoarContextRetriever extends ContextRetriever {
         }
 
 
-        // 5. AI 분석 가이드
+        
         contextBuilder.append("### AI 분석 가이드\n");
         contextBuilder.append("위의 정보를 종합하여 다음을 평가하고 자동화된 조치를 제안해주세요:\n");
         contextBuilder.append("1. 인시던트의 심각도 재평가\n");
@@ -283,9 +264,7 @@ public class SoarContextRetriever extends ContextRetriever {
         return contextBuilder.toString();
     }
     
-    /**
-     * SOAR 쿼리 변환기
-     */
+    
     private static class SoarQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

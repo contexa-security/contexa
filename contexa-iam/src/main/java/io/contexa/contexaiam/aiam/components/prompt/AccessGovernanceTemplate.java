@@ -12,25 +12,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * 권한 거버넌스 분석 프롬프트 템플릿
- *
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환  
- * - 표준화된 포맷 지시
- * - 성능 최적화
- *
- * Spring AI 공식 패턴 준수
- * 
- * 분석 대상:
- * - 전체 사용자 권한 매트릭스
- * - 역할별 권한 분포
- * - 리소스별 접근 권한
- * - 미사용 권한 탐지
- * - 과도한 권한 탐지
- * - 업무 분리 위반 검사
- */
+
 @Slf4j
 @PromptTemplateConfig(
         key = "accessGovernance",
@@ -39,13 +21,13 @@ import java.time.format.DateTimeFormatter;
 )
 public class AccessGovernanceTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성
+    
     private final BeanOutputConverter<AccessGovernanceResponse> converter = 
         new BeanOutputConverter<>(AccessGovernanceResponse.class);
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        // Spring AI의 포맷 지시사항 자동 생성
+        
         String formatInstructions = converter.getFormat();
         
         return String.format("""
@@ -153,13 +135,11 @@ public class AccessGovernanceTemplate implements PromptTemplate {
                 "No permission matrix data provided - perform general analysis"
         );
         
-        // BeanOutputConverter의 포맷 지시사항을 다시 추가 (강조)
+        
         return analysisRequest + "\n\n" + converter.getFormat();
     }
     
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     */
+    
     public BeanOutputConverter<AccessGovernanceResponse> getConverter() {
         return converter;
     }

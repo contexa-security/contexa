@@ -9,12 +9,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * 제안 목록 DTO
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Data
 @Builder
 @NoArgsConstructor

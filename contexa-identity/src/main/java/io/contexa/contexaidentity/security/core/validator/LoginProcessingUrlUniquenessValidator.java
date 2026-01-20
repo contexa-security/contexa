@@ -66,12 +66,12 @@ public class LoginProcessingUrlUniquenessValidator implements Validator<List<Aut
                     String loginProcessingUrl = processingOptions.getLoginProcessingUrl();
 
                     if (loginProcessingUrl != null) {
-                        // 대부분의 인증 필터는 POST를 기본으로 사용.
-                        // TODO: 각 Options 타입에 따라 예상되는 HTTP 메서드를 더 정확히 파악하는 로직 필요.
-                        //       예를 들어, OAuth2 콜백은 GET일 수 있음.
-                        //       지금은 모든 loginProcessingUrl이 POST라고 가정.
+                        
+                        
+                        
+                        
                         HttpMethod httpMethod = HttpMethod.POST;
-                        // if (processingOptions instanceof SomeGetBasedOptions) httpMethod = HttpMethod.GET;
+                        
 
                         UrlInfo currentUrlInfoKey = new UrlInfo(loginProcessingUrl, httpMethod, flow, step);
                         String usageContext = currentUrlInfoKey.getContext();
@@ -82,13 +82,7 @@ public class LoginProcessingUrlUniquenessValidator implements Validator<List<Aut
             }
         }
 
-        /*urlUsageMap.forEach((urlInfo, contexts) -> {
-            if (contexts.size() > 1) {
-                String contextsString = String.join(", ", contexts);
-                result.addError(String.format("치명적 오류: 동일한 인증 처리 경로 및 HTTP 메서드 ('%s')가 여러 곳에서 사용되었습니다. [%s]", urlInfo.toString(), contextsString));
-                log.error("DSL VALIDATION ERROR: Duplicate loginProcessingUrl and method: '{}' is used by: {}", urlInfo.toString(), contextsString);
-            }
-        });*/
+        
 
         return result;
     }

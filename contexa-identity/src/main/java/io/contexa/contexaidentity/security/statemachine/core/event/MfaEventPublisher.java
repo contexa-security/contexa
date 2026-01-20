@@ -10,10 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
-/**
- * MFA 이벤트 발행자
- * Spring의 ApplicationEventPublisher를 사용한 이벤트 발행
- */
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -21,17 +18,13 @@ public class MfaEventPublisher {
 
     private final ApplicationEventPublisher eventPublisher;
 
-    /**
-     * 상태 변경 이벤트 발행
-     */
+    
     public void publishStateChange(String sessionId, MfaState fromState,
                                    MfaState toState, MfaEvent event) {
         publishStateChange(sessionId, fromState, toState, event, null);
     }
 
-    /**
-     * 상태 변경 이벤트 발행 (Duration 포함)
-     */
+    
     public void publishStateChange(String sessionId, MfaState fromState,
                                    MfaState toState, MfaEvent event,
                                    Duration duration) {
@@ -50,9 +43,7 @@ public class MfaEventPublisher {
         }
     }
 
-    /**
-     * 에러 이벤트 발행
-     */
+    
     public void publishError(String sessionId, MfaState currentState,
                              MfaEvent event, Exception error) {
         try {
@@ -69,9 +60,7 @@ public class MfaEventPublisher {
         }
     }
 
-    /**
-     * 커스텀 이벤트 발행
-     */
+    
     public void publishCustomEvent(String eventType, Object payload) {
         try {
             CustomEvent customEvent = new CustomEvent(

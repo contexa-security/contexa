@@ -48,8 +48,8 @@ public final class SecurityResponseBodyReturnValueHandler implements SecurityHan
                                   @Nullable Authentication authentication, HandlerMethod handlerMethod,
                                   @Nullable MediaType resolvedMediaType) throws IOException, HttpMessageNotWritableException {
         if (returnValue == null) {
-            // @SecurityResponseBody가 있고 반환 값이 null이면, 본문 없이 200 OK 또는 204 No Content.
-            // 여기서는 더 이상 아무것도 하지 않음. 필요시 상태 코드 설정.
+            
+            
             log.debug("ASEP: Method [{}] with @SecurityResponseBody returned null. No body will be written.",
                     handlerMethod.getMethod().getName());
             return;
@@ -59,17 +59,17 @@ public final class SecurityResponseBodyReturnValueHandler implements SecurityHan
         MediaType selectedMediaType = resolvedMediaType;
 
         if (selectedMediaType == null || selectedMediaType.isWildcardType() || selectedMediaType.isWildcardSubtype()) {
-            // Fallback logic (ResponseEntityReturnValueHandler와 유사)
+            
             String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
             if (StringUtils.hasText(acceptHeader) && !acceptHeader.equals("*/*")) {
                 try {
                     List<MediaType> acceptedMediaTypes = MediaType.parseMediaTypes(acceptHeader);
-//                    acceptedMediaTypes.sort(MediaType.SPECIFICITY_COMPARATOR.thenComparing(MediaType.QUALITY_VALUE_COMPARATOR));
+
                     if (!acceptedMediaTypes.isEmpty()) selectedMediaType = acceptedMediaTypes.get(0);
-                } catch (Exception e) { /* log and ignore */ }
+                } catch (Exception e) {  }
             }
             if (selectedMediaType == null || selectedMediaType.isWildcardType() || selectedMediaType.isWildcardSubtype()) {
-                selectedMediaType = MediaType.APPLICATION_JSON; // Default fallback
+                selectedMediaType = MediaType.APPLICATION_JSON; 
             }
             log.warn("ASEP: ResolvedMediaType was not specific for @SecurityResponseBody. Fallback to [{}].", selectedMediaType);
         }
@@ -92,7 +92,7 @@ public final class SecurityResponseBodyReturnValueHandler implements SecurityHan
                                 returnValueClass.getSimpleName(), selectedMediaType, converter.getClass().getName());
                     }
                     if (!response.isCommitted()) {
-                        outputMessage.getBody(); // Ensure headers are flushed
+                        outputMessage.getBody(); 
                     }
                     return;
                 } catch (IOException | HttpMessageNotWritableException ex) {

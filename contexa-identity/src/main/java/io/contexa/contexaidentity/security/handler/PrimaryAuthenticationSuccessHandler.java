@@ -35,12 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * 완전 일원화된 UnifiedAuthenticationSuccessHandler
- * - ContextPersistence 완전 제거
- * - MfaStateMachineService만 사용
- * - State Machine 에서 직접 컨텍스트 로드 및 관리
- */
+
 @Slf4j
 
 public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthenticationSuccessHandler  {
@@ -69,23 +64,23 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         log.info("Processing authentication success for user: {}", authentication.getName());
 
         String username = authentication.getName();
-        String mfaSessionId = sessionRepository.getSessionId(request); // 필터에서 저장한 세션 ID 가져오기
+        String mfaSessionId = sessionRepository.getSessionId(request); 
         if (mfaSessionId == null) {
             handleInvalidContext(response, request, "SESSION_ID_NOT_FOUND", "MFA 세션 ID를 찾을 수 없습니다.", authentication);
             return;
         }
 
-        FactorContext factorContext = stateMachineIntegrator.loadFactorContext(mfaSessionId); // SM 에서 최신 FactorContext 로드
+        FactorContext factorContext = stateMachineIntegrator.loadFactorContext(mfaSessionId); 
         if (factorContext == null || !Objects.equals(factorContext.getUsername(), authentication.getName())) {
             log.error("Invalid FactorContext or username mismatch after primary authentication.");
             handleInvalidContext(response, request, "INVALID_CONTEXT", "인증 컨텍스트가 유효하지 않거나 사용자 정보가 일치하지 않습니다.", authentication);
             return;
         }
 
-        // Phase 2: PolicyProvider에서 읽기 전용 평가
+        
         MfaDecision decision = mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext);
 
-        // Phase 2.2: MfaDecision을 담아서 PRIMARY_AUTH_SUCCESS 이벤트 전송 및 에러 처리
+        
         Map<String, Object> headers = new HashMap<>();
         headers.put("mfaDecision", decision);
         headers.put("request", request);
@@ -100,35 +95,35 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             }
 
         } catch (Exception e) {
-            // Phase 2.2: Action에서 예외 발생 시 errorEventRecommendation 처리
+            
             log.error("Exception during PRIMARY_AUTH_SUCCESS for session: {}: {}",
                      mfaSessionId, e.getMessage(), e);
 
-            // 공통 메서드를 사용하여 errorEventRecommendation 처리
+            
             processErrorEventRecommendation(factorContext, request, mfaSessionId);
 
             handleConfigError(response, request, factorContext, "MFA 초기화 중 오류 발생.");
             return;
         }
 
-        // AI가 인증을 차단한 경우 처리
+        
         if (decision.isBlocked()) {
             log.warn("Authentication blocked by AI policy for user: {} - Reason: {}",
                     factorContext.getUsername(), decision.getReason());
 
-            // Context 재로드
+            
             FactorContext blockedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
             if (blockedContext == null) {
                 handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
                 return;
             }
 
-            // 차단 응답 처리
+            
             handleAuthenticationBlocked(request, response, blockedContext);
             return;
         }
 
-        // Phase 2: 다음 이벤트 결정 및 전송
+        
         boolean nextEventSent = sendNextMfaEvent(decision, mfaSessionId, request);
         if (!nextEventSent) {
             log.error("Failed to send next MFA event for session: {}", mfaSessionId);
@@ -136,14 +131,14 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             return;
         }
 
-        // Context 최종 로드
+        
         FactorContext finalFactorContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
         if (finalFactorContext == null) {
             handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
             return;
         }
 
-        // 4. 최종 상태에 따른 응답 생성
+        
         MfaState currentState = finalFactorContext.getCurrentState();
 
         switch (currentState) {
@@ -183,9 +178,9 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "추가 인증이 필요합니다. 인증 수단을 선택해주세요.",
                 factorContext,
                 request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
-                2  // Primary 완료, OTT/Passkey 선택 단계
+                2  
         );
-        // DSL 사용 가능한 팩터를 상세 정보로 변환
+        
         java.util.List<Map<String, Object>> factorDetails = factorContext.getAvailableFactors().stream()
                 .map(authType -> createFactorDetail(authType.name()))
                 .toList();
@@ -203,7 +198,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "추가 인증이 필요합니다.",
                 factorContext,
                 nextUiPageUrl,
-                2  // Primary 완료, OTT/Passkey 진입 단계
+                2  
         );
         responseBody.put("nextFactorType", nextFactor.name());
         responseBody.put("nextStepId", factorContext.getCurrentStepId());
@@ -211,11 +206,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
     }
 
-    /**
-     * MFA 응답 본문 생성 (progress 정보 포함)
-     *
-     * @param currentStep 현재 단계 (1: Primary, 2: OTT, 3: Passkey)
-     */
+    
     private Map<String, Object> createMfaResponseBody(String status, String message,
                                                       FactorContext factorContext, String nextStepUrl, int currentStep) {
         Map<String, Object> responseBody = new HashMap<>();
@@ -223,14 +214,12 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         responseBody.put("message", message);
         responseBody.put("mfaSessionId", factorContext.getMfaSessionId());
         responseBody.put("nextStepUrl", nextStepUrl);
-        responseBody.put("progress", createProgressInfo(currentStep, 3)); // 총 3단계 (Primary → OTT → Passkey)
+        responseBody.put("progress", createProgressInfo(currentStep, 3)); 
 
         return responseBody;
     }
 
-    /**
-     * 개선: Repository 패턴을 통한 무효한 컨텍스트 처리 (HttpSession 직접 접근 제거)
-     */
+    
     private void handleInvalidContext(HttpServletResponse response, HttpServletRequest request,
                                       String errorCode, String logMessage,
                                       @Nullable Authentication authentication) throws IOException {
@@ -238,7 +227,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 sessionRepository.getRepositoryType(), logMessage,
                 (authentication != null ? authentication.getName() : "Unknown"));
 
-        // 개선: Repository를 통한 세션 정리 (HttpSession 직접 접근 제거)
+        
         String oldSessionId = sessionRepository.getSessionId(request);
         if (oldSessionId != null) {
             try {
@@ -284,40 +273,33 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         return targetUrl;
     }
 
-    /**
-     * AI에 의해 인증이 차단된 경우 처리
-     * 
-     * @param request HTTP 요청
-     * @param response HTTP 응답
-     * @param ctx 팩터 컨텍스트
-     * @throws IOException I/O 예외
-     */
+    
     private void handleAuthenticationBlocked(HttpServletRequest request, 
                                             HttpServletResponse response,
                                             FactorContext ctx) throws IOException {
         String blockReason = (String) ctx.getAttribute("blockReason");
         Double riskScore = (Double) ctx.getAttribute("aiRiskScore");
         
-        // 감사 로깅
+        
         log.error("SECURITY_ALERT: Authentication blocked for user '{}' - Risk Score: {}, Reason: {}", 
                 ctx.getUsername(), riskScore, blockReason);
         
-        // 차단 정보를 응답에 포함
+        
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("status", "AUTHENTICATION_BLOCKED");
-        errorResponse.put("blocked", true);  // SDK에서 차단 상태 감지용
+        errorResponse.put("blocked", true);  
         errorResponse.put("message", "인증이 보안 정책에 의해 차단되었습니다. 관리자에게 문의하세요.");
-        errorResponse.put("supportContact", "security@example.com");  // 지원 연락처
+        errorResponse.put("supportContact", "security@example.com");  
         errorResponse.put("username", ctx.getUsername());
         errorResponse.put("timestamp", System.currentTimeMillis());
 
-        // 디버그 모드에서만 상세 정보 포함
+        
         if (log.isDebugEnabled()) {
             errorResponse.put("riskScore", riskScore);
             errorResponse.put("reason", blockReason);
         }
         
-        // State Machine 정리
+        
         try {
             stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
             sessionRepository.removeSession(ctx.getMfaSessionId(), request, response);
@@ -325,7 +307,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             log.warn("Failed to cleanup blocked session: {}", ctx.getMfaSessionId(), e);
         }
         
-        // 에러 응답 전송
+        
         responseWriter.writeErrorResponse(
             response,
             HttpServletResponse.SC_FORBIDDEN,
@@ -346,7 +328,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
         String errorCode = "MFA_FLOW_CONFIG_ERROR";
         if (ctx != null) {
-            // Map.of() 대신 HashMap 사용
+            
             Map<String, Object> errorDetails = new HashMap<>();
             errorDetails.put("mfaSessionId", ctx.getMfaSessionId());
 
@@ -358,9 +340,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         }
     }
 
-    /**
-     * Phase 2: MfaDecision에 따라 다음 이벤트 전송
-     */
+    
     private boolean sendNextMfaEvent(MfaDecision decision, String mfaSessionId, HttpServletRequest request) {
         FactorContext context = stateMachineIntegrator.loadFactorContext(mfaSessionId);
         if (context == null) {
@@ -368,55 +348,49 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             return false;
         }
 
-        // 차단된 경우 - 이미 처리되었으므로 여기서는 스킵
+        
         if (decision.isBlocked()) {
             log.debug("Blocked decision already handled for session: {}", mfaSessionId);
             return true;
         }
 
-        // MFA 불필요
+        
         if (!decision.isRequired()) {
             boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.MFA_NOT_REQUIRED, context, request);
             log.debug("MFA_NOT_REQUIRED event sent for session: {}, accepted: {}", mfaSessionId, sent);
             return sent;
         }
 
-        // MFA 필요 - 자동으로 챌린지 시작
-        // 자동 팩터 결정 및 설정
+        
+        
         AuthType autoSelectedFactor = determineAutoFactor(context, decision);
         if (autoSelectedFactor == null) {
             log.error("Failed to determine auto factor for session: {}", mfaSessionId);
             return false;
         }
 
-        // Context에 팩터 설정
+        
         context.setCurrentProcessingFactor(autoSelectedFactor);
 
-        // 다음 stepId 결정 (FlowConfig에서 조회)
+        
         setCurrentStepId(context, autoSelectedFactor);
 
-        // 이벤트 전송
+        
         boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
         log.info("INITIATE_CHALLENGE_AUTO event sent for session: {}, accepted: {}, factor: {}",
                   mfaSessionId, sent, autoSelectedFactor);
         return sent;
     }
 
-    /**
-     * 자동 팩터 결정 로직
-     *
-     * @param context FactorContext
-     * @param decision MfaDecision
-     * @return 결정된 팩터 (실패 시 null)
-     */
+    
     private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {
         String sessionId = context.getMfaSessionId();
 
-        // 1. MfaDecision의 requiredFactors에서 첫 번째 팩터
+        
         if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {
             AuthType firstFactor = decision.getRequiredFactors().getFirst();
 
-            // 사용 가능한 팩터인지 확인
+            
             if (context.getAvailableFactors() != null &&
                 context.getAvailableFactors().contains(firstFactor)) {
                 log.info("Auto-selected factor from MfaDecision: {} for session: {}",
@@ -425,10 +399,10 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             }
         }
 
-        // 2. AvailableFactors에서 첫 번째 팩터 (폴백)
+        
         Set<AuthType> availableFactors = context.getAvailableFactors();
         if (availableFactors != null && !availableFactors.isEmpty()) {
-            // LinkedHashSet의 순서를 보장하기 위해 List로 변환 후 getFirst() 사용
+            
             List<AuthType> factorList = new ArrayList<>(availableFactors);
             AuthType firstAvailable = factorList.getFirst();
             log.info("Auto-selected first available factor: {} for session: {}",
@@ -440,15 +414,10 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         return null;
     }
 
-    /**
-     * FlowConfig에서 팩터에 해당하는 stepId를 찾아 설정
-     *
-     * @param context FactorContext
-     * @param factorType 팩터 타입
-     */
+    
     private void setCurrentStepId(FactorContext context, AuthType factorType) {
         try {
-            // PlatformConfig에서 MFA FlowConfig 조회
+            
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
 
             AuthenticationFlowConfig flowConfig = platformConfig.getFlows().stream()
@@ -461,7 +430,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 return;
             }
 
-            // 팩터 타입과 일치하는 스텝 찾기
+            
             AuthenticationStepConfig nextStep = flowConfig.getStepConfigs().stream()
                 .filter(step -> factorType.name().equalsIgnoreCase(step.getType()))
                 .findFirst()

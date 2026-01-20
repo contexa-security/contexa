@@ -14,7 +14,7 @@ import org.springframework.security.web.context.SecurityContextRepository;
 
 import java.util.List;
 
-public interface OptionsBuilderConfigurer<O extends AbstractOptions, S extends OptionsBuilderConfigurer<O, S>> { // O extends AbstractOptions로 변경
+public interface OptionsBuilderConfigurer<O extends AbstractOptions, S extends OptionsBuilderConfigurer<O, S>> { 
 
     S loginProcessingUrl(String url);
     S successHandler(PlatformAuthenticationSuccessHandler successHandler);
@@ -26,8 +26,8 @@ public interface OptionsBuilderConfigurer<O extends AbstractOptions, S extends O
     S sessionManagement(Customizer<SessionManagementConfigurer<HttpSecurity>> customizer);
     S logout(Customizer<LogoutConfigurer<HttpSecurity>> customizer);
     S rawHttp(SafeHttpCustomizer<HttpSecurity> customizer);
-    S authorizeStaticPermitAll(List<String> patterns); // 추가
-    S authorizeStaticPermitAll(String... patterns); // 추가
+    S authorizeStaticPermitAll(List<String> patterns); 
+    S authorizeStaticPermitAll(String... patterns); 
     O buildConcreteOptions();
 }
 

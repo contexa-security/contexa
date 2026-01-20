@@ -63,7 +63,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         nodes.add(new GraphDataDto.Node(userNodeId, user.getName(), "USER", Map.of("email", user.getUsername())));
         String permNodeId = "perm_" + targetPermission.getId();
 
-        // [핵심 수정] 권한 라벨이 null이 되지 않도록 처리
+        
         String permLabel = StringUtils.hasText(targetPermission.getDescription()) ? targetPermission.getDescription() : targetPermission.getName();
 
         for (UserGroup userGroup : user.getUserGroups()) {
@@ -112,7 +112,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         nodes.add(new GraphDataDto.Node(groupNodeId, group.getName(), "GROUP", Map.of("description", group.getDescription())));
         String permNodeId = "perm_" + targetPermission.getId();
 
-        // [핵심 수정] 권한 라벨이 null이 되지 않도록 처리
+        
         String permLabel = StringUtils.hasText(targetPermission.getDescription()) ? targetPermission.getDescription() : targetPermission.getName();
 
         for (GroupRole groupRole : group.getGroupRoles()) {
@@ -152,7 +152,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 List<Group> assignedGroups = groupRepository.findAllById(userDto.getSelectedGroupIds());
                 List<GroupDto> groupDtos = assignedGroups.stream().map(group -> {
                     GroupDto groupDto = modelMapper.map(group, GroupDto.class);
-                    // 그룹이 가진 역할들을 RoleDto로 변환하여 리스트에 추가
+                    
                     List<RoleDto> roleDtos = group.getGroupRoles().stream()
                             .map(gr -> modelMapper.map(gr.getRole(), RoleDto.class))
                             .collect(Collectors.toList());
@@ -172,9 +172,9 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         return details;
     }
 
-    // =================================================================
-    //                    기존 메서드 (하위 호환성을 위해 유지)
-    // =================================================================
+    
+    
+    
 
     @Override
     public AccessPathDto analyzeAccessPath(Long subjectId, String subjectType, Long permissionId) {
@@ -270,15 +270,13 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * [신규 구현] VirtualSubject에 대한 유효 권한 계산
-     */
+    
     @Override
     public List<EffectivePermissionDto> getEffectivePermissionsForSubject(VirtualSubject subject) {
         Map<String, String> permissionOrigins = new HashMap<>();
 
         subject.getVirtualGroups().forEach(group -> {
-            group.getGroupRoles().forEach(gr -> { // groupWithRoles -> group 으로 변경
+            group.getGroupRoles().forEach(gr -> { 
                 Role role = gr.getRole();
                 String origin = "그룹: " + group.getName() + " / 역할: " + role.getRoleName();
                 role.getRolePermissions().forEach(rp ->

@@ -24,12 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * 완전 일원화된 MfaStepFilterWrapper
- * - ContextPersistence 완전 제거
- * - MfaStateMachineService만 사용
- * - FilterChain 래퍼도 State Machine Service 사용
- */
+
 @Slf4j
 public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
@@ -163,9 +158,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * 개선: MfaSettings를 활용한 세션 만료 확인 (하드코딩 상수 제거)
-     */
+    
     private boolean isSessionExpired(FactorContext ctx) {
         Object challengeStartTime = ctx.getAttribute("challengeInitiatedAt");
         if (challengeStartTime instanceof Long challengeStartTimeMs) {
@@ -174,17 +167,13 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         return false;
     }
 
-    /**
-     * 개선: MfaSettings를 활용한 재시도 한계 확인 (하드코딩 상수 제거)
-     */
+    
     private boolean isRetryLimitExceeded(FactorContext ctx) {
         int attempts = ctx.getAttemptCount(ctx.getCurrentProcessingFactor());
         return !mfaSettings.isRetryAllowed(attempts);
     }
 
-    /**
-     * 개선: MfaSettings를 활용한 최소 지연 보장 (하드코딩 상수 제거)
-     */
+    
     private void ensureMinimumDelay(long startTime) {
         long elapsed = System.currentTimeMillis() - startTime;
         long minDelayMs = mfaSettings.getMinimumDelayMs();

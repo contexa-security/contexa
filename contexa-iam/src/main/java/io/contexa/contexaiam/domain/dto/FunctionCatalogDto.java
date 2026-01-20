@@ -5,9 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * '기능 카탈로그 관리' 화면에 목록을 표시하기 위한 DTO
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

@@ -21,7 +21,7 @@ public class FlowContextFactory {
 
     private static final Logger log = LoggerFactory.getLogger(FlowContextFactory.class);
     private final AdapterRegistry adapterRegistry;
-    private final ApplicationContext applicationContext; // 추가
+    private final ApplicationContext applicationContext; 
 
     public FlowContextFactory(AdapterRegistry adapterRegistry, ApplicationContext applicationContext) {
         this.adapterRegistry = Objects.requireNonNull(adapterRegistry, "featureRegistry cannot be null");
@@ -36,18 +36,18 @@ public class FlowContextFactory {
         }
 
         for (AuthenticationFlowConfig flowCfg : config.getFlows()) {
-            // HttpSecurity 인스턴스를 PlatformContext를 통해 새로 생성
+            
             HttpSecurity http = platformContext.newHttp();
-            // 생성된 HttpSecurity를 현재 FlowConfig와 함께 PlatformContext에 등록 (매핑)
+            
             platformContext.registerHttp(flowCfg, http);
 
-            // FlowContext를 생성하기 전에, 현재 처리중인 flowCfg를 HttpSecurity의 공유 객체로 먼저 설정.
-            // 이는 MfaAuthenticationFeature.apply 등에서 현재 FlowConfig 정보에 접근해야 할 때 사용됨.
+            
+            
             http.setSharedObject(AuthenticationFlowConfig.class, flowCfg);
-            // PlatformContext 자체도 HttpSecurity에 공유 (AbstractAuthenticationFeature 등에서 ApplicationContext 접근용)
+            
             http.setSharedObject(PlatformContext.class, platformContext);
             FlowContext fc = new FlowContext(flowCfg, http, platformContext, config);
-            setupSharedObjectsForFlow(fc); // HttpSecurity에 필요한 공유 객체들 설정
+            setupSharedObjectsForFlow(fc); 
             flows.add(fc);
         }
         flows.sort(Comparator.comparingInt(f -> f.flow().getOrder()));
@@ -58,22 +58,22 @@ public class FlowContextFactory {
     private void setupSharedObjectsForFlow(io.contexa.contexaidentity.security.core.context.FlowContext fc) {
         HttpSecurity http = fc.http();
         AuthenticationFlowConfig flowConfig = fc.flow();
-        ApplicationContext appContext = this.applicationContext; // 직접 주입받은 것 사용
+        ApplicationContext appContext = this.applicationContext; 
 
         log.debug("Setting up shared objects for flow: {}", flowConfig.getTypeName());
 
         boolean isMfaFlow = "mfa".equalsIgnoreCase(flowConfig.getTypeName());
         if (isMfaFlow) {
             log.debug("MFA flow detected for '{}', setting up MFA shared objects.", flowConfig.getTypeName());
-            // P1-2 버그 수정: DSL에서 설정한 MfaPolicyProvider 우선 사용
+            
             setSharedObjectIfAbsent(http, MfaPolicyProvider.class, () -> {
-                // 1. DSL 설정에서 가져오기 (flowConfig.getMfaPolicyProvider())
+                
                 MfaPolicyProvider dslProvider = flowConfig.getMfaPolicyProvider();
                 if (dslProvider != null) {
                     log.debug("Using MfaPolicyProvider from DSL configuration for flow '{}'", flowConfig.getTypeName());
                     return dslProvider;
                 }
-                // 2. Fallback: ApplicationContext Bean
+                
                 log.debug("Using MfaPolicyProvider from ApplicationContext for flow '{}'", flowConfig.getTypeName());
                 return appContext.getBean(MfaPolicyProvider.class);
             });

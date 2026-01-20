@@ -27,14 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Security Copilot 통합 컨트롤러 - 일원화 버전
- *
- * 표준 공정 완전 준수 - AINativeProcessor 사용
- * 진단과 스트리밍 일원화
- * 관리자 페이지 + API 엔드포인트 통합
- * 하드코딩 제거 - ValidationService & MessageProvider 사용
- */
+
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityCopilotController {
@@ -43,9 +36,7 @@ public class SecurityCopilotController {
     private final SecurityCopilotValidationService validationService;
     private final SecurityCopilotMessageProvider messageProvider;
 
-    /**
-     * Security Copilot 메인 페이지
-     */
+    
     @GetMapping("/admin/security-copilot")
     public String securityCopilot(Model model) {
         model.addAttribute("activePage", "security-copilot");
@@ -63,18 +54,14 @@ public class SecurityCopilotController {
         model.addAttribute("activePage", "access-governance");
         return "admin/access-governance";
     }
-    /**
-     * 사용 가능한 Lab 정보 조회
-     * 클라이언트 요청 경로: /api/security-copilot/labs
-     * 하드코딩 제거: 동적 Lab 정보 제공
-     */
+    
     @GetMapping("/api/security-copilot/labs")
     @ResponseBody
     public ResponseEntity<List<Map<String, Object>>> getAvailableLabs() {
         log.info("사용 가능한 Lab 정보 조회 요청");
 
         try {
-            // 하드코딩 제거: 동적 Lab 정보 생성
+            
             List<Map<String, Object>> labs = java.util.Arrays.asList(
                     createLabInfo("StudioQuery", "Studio Query Lab", "사용자 권한 및 역할 분석", "fas fa-search", "#3b82f6"),
                     createLabInfo("RiskAssessment", "Risk Assessment Lab", "보안 위험 평가 및 분석", "fas fa-shield-alt", "#ef4444"),
@@ -90,9 +77,7 @@ public class SecurityCopilotController {
         }
     }
 
-    /**
-     * Lab 정보 생성 헬퍼 메서드
-     */
+    
     private Map<String, Object> createLabInfo(String id, String name, String description, String icon, String color) {
         Map<String, Object> lab = new java.util.HashMap<>();
         lab.put("id", id);
@@ -101,7 +86,7 @@ public class SecurityCopilotController {
         lab.put("icon", icon);
         lab.put("color", color);
 
-        // 패턴 추가 (Lab 완료 감지용)
+        
         List<String> patterns = java.util.Arrays.asList(
                 id + " Lab 분석이 완료되었습니다",
                 id + " Lab 분석 완료",
@@ -112,17 +97,11 @@ public class SecurityCopilotController {
         return lab;
     }
 
-    /**
-     * 일원화된 보안 분석 (스트리밍)
-     *
-     * 클라이언트 요청 경로: /api/security-copilot/analyze
-     * 표준 공정: aiNativeProcessor → processStream
-     * 세션 ID 전송 후 병렬 Lab 스트리밍
-     */
+    
     @PostMapping(value = "/api/security-copilot/analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @ResponseBody
     public Flux<ServerSentEvent<String>> analyzeUnified(@RequestBody SecurityCopilotItem request) {
-        // 요청 검증
+        
         String validationError = validationService.validateStreamingRequest(request);
         if (validationError != null) {
             log.warn("[일원화] Security Copilot 요청 검증 실패: {}", validationError);
@@ -137,46 +116,46 @@ public class SecurityCopilotController {
 
         AIRequest<SecurityCopilotContext> aiRequest = createStreamingAIRequest(request);
         SentenceBuffer sentenceBuffer = new SentenceBuffer();
-        StringBuilder allData = new StringBuilder(); // 모든 데이터 누적
+        StringBuilder allData = new StringBuilder(); 
         AtomicBoolean jsonSent = new AtomicBoolean(false);
-        AtomicBoolean finalResponseStarted = new AtomicBoolean(false); // FINAL_RESPONSE 모드 추적
-        StringBuilder markerBuffer = new StringBuilder(); // 마커 감지용 버퍼
+        AtomicBoolean finalResponseStarted = new AtomicBoolean(false); 
+        StringBuilder markerBuffer = new StringBuilder(); 
 
-        // 표준 공정 - processStream 호출
+        
         return aiNativeProcessor.processStream(aiRequest)
                 .flatMap(chunk -> {
                     String chunkStr = chunk != null ? chunk.toString() : "";
 
-//                    log.debug("[RECEIVED] 청크 길이: {}, 내용: {}",
-//                            chunkStr.length(),chunkStr);
-//                            chunkStr.length() > 50 ? chunkStr.substring(0, 50) + "..." : chunkStr);
 
-                    // 모든 데이터를 누적
+
+
+
+                    
                     allData.append(chunkStr);
 
-                    // 효율적인 마커 감지 (성능 최적화)
+                    
                     if (!finalResponseStarted.get()) {
                         markerBuffer.append(chunkStr);
 
-                        // 마커 버퍼가 너무 크면 앞부분 제거 (최근 50자만 유지)
+                        
                         if (markerBuffer.length() > 50) {
                             markerBuffer.delete(0, markerBuffer.length() - 50);
                         }
-//                        log.warn("markerBuffer: {}", markerBuffer);
-                        // 마커 감지
+
+                        
                         if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
                             finalResponseStarted.set(true);
                             log.info("[FINAL-MODE] FINAL_RESPONSE 모드 시작 - 이후 청크들은 sentenceBuffer 처리 제외");
                         }
                     }
 
-                    // FINAL_RESPONSE 모드에서는 sentenceBuffer 처리 제외 (중복 방지)
+                    
                     if (finalResponseStarted.get()) {
                         log.debug("[SKIP-SENTENCE] FINAL_RESPONSE 모드 - sentenceBuffer 처리 스킵");
-                        return Flux.empty(); // 빈 스트림 반환하여 이 청크는 sentenceBuffer로 처리하지 않음
+                        return Flux.empty(); 
                     }
 
-                    // 일반 텍스트만 sentenceBuffer로 처리하여 스트리밍
+                    
                     return sentenceBuffer.processChunk(chunkStr)
                             .map(sentence -> ServerSentEvent.<String>builder()
                                     .data(sentence)
@@ -215,7 +194,7 @@ public class SecurityCopilotController {
                     log.info("[일원화] {}", messageProvider.getStreamingCompleteMessage());
                 })
                 .onErrorResume(error -> {
-                    // Throwable로 처리
+                    
                     Throwable throwable = (Throwable) error;
                     String errorMessage = messageProvider.createSafeErrorMessage("일원화 스트리밍", throwable);
                     log.error("[일원화] {}", errorMessage);
@@ -226,9 +205,7 @@ public class SecurityCopilotController {
                             .build());
                 });
     }
-    /**
-     * 스트리밍용 AIRequest 생성 (기존 로직 활용)
-     */
+    
     private AIRequest<SecurityCopilotContext> createStreamingAIRequest(SecurityCopilotItem request) {
         SecurityCopilotContext context = new SecurityCopilotContext(
                 request.getUserId(),
@@ -239,7 +216,7 @@ public class SecurityCopilotController {
         context.setAnalysisScope(request.getAnalysisScope() != null ? request.getAnalysisScope() : "COMPREHENSIVE");
         context.setOrganizationId(request.getOrganizationId());
 
-        // IAMRequest 생성 - 스트리밍 모드
+        
         String orgId = request.getOrganizationId();
         if (orgId == null || orgId.trim().isEmpty()) {
             orgId = "default-org";
@@ -257,9 +234,7 @@ public class SecurityCopilotController {
                 .withStreaming(true);
     }
 
-    /**
-     * 세션 ID 추출
-     */
+    
     private String extractSessionId(String chunk) {
         if (chunk.contains("SESSION_ID:")) {
             return chunk.substring(chunk.indexOf("SESSION_ID:") + 11).trim();

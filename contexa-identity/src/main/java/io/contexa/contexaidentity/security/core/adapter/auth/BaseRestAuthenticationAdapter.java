@@ -20,14 +20,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 
 import java.util.List;
 
-/**
- * REST 인증 어댑터 기반 클래스
- *
- * REST는 자체 플랫폼 방식으로 Spring Security 기본 핸들러가 없으므로
- * SESSION 모드에서도 명시적 핸들러 필요
- *
- * @param <T> Configurer 타입
- */
+
 @Slf4j
 public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfigurer<T, HttpSecurity>>
         extends AbstractAuthenticationAdapter<RestOptions> {
@@ -54,12 +47,7 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
         });
     }
 
-    /**
-     * REST 인증용 Success Handler 결정
-     *
-     * REST는 자체 플랫폼 방식이므로 SESSION 모드에서도 SessionSingleAuth* 핸들러 사용
-     * Spring Security 기본 핸들러를 사용하지 않음
-     */
+    
     @Override
     protected PlatformAuthenticationSuccessHandler resolveSuccessHandler(
             RestOptions options,
@@ -76,27 +64,22 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
                 isMfaFlow, stateType);
 
         if (isMfaFlow) {
-            // MFA 인증은 부모 클래스 로직 사용
+            
             return super.resolveSuccessHandler(options, currentFlow, myStepConfig, allSteps, stateConfig, appContext);
         } else {
-            // 단일 인증 - REST는 SESSION 모드에서도 명시적 핸들러 필요
+            
             if (stateType == StateType.SESSION) {
                 log.debug("AuthenticationFeature [REST]: Single auth + SESSION mode - using SessionSingleAuthSuccessHandler");
                 return appContext.getBean(SessionSingleAuthSuccessHandler.class);
             } else {
-                // OAuth2 또는 JWT 모드
+                
                 log.debug("AuthenticationFeature [REST]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthSuccessHandler");
                 return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
             }
         }
     }
 
-    /**
-     * REST 인증용 Failure Handler 결정
-     *
-     * REST는 자체 플랫폼 방식이므로 SESSION 모드에서도 SessionSingleAuth* 핸들러 사용
-     * Spring Security 기본 핸들러를 사용하지 않음
-     */
+    
     @Override
     protected PlatformAuthenticationFailureHandler resolveFailureHandler(
             RestOptions options,
@@ -111,35 +94,29 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
                 isMfaFlow, stateType);
 
         if (isMfaFlow) {
-            // MFA 인증은 부모 클래스 로직 사용
+            
             return super.resolveFailureHandler(options, currentFlow, stateConfig, appContext);
         } else {
-            // 단일 인증 - REST는 SESSION 모드에서도 명시적 핸들러 필요
+            
             if (stateType == StateType.SESSION) {
                 log.debug("AuthenticationFeature [REST]: Single auth + SESSION mode - using SessionSingleAuthFailureHandler");
                 return appContext.getBean(SessionSingleAuthFailureHandler.class);
             } else {
-                // OAuth2 또는 JWT 모드
+                
                 log.debug("AuthenticationFeature [REST]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthFailureHandler");
                 return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
             }
         }
     }
 
-    /**
-     * Configurer 인스턴스 생성
-     */
+    
     protected abstract T createConfigurer();
 
-    /**
-     * REST 인증 설정
-     */
+    
     protected abstract void configureRestAuthentication(T configurer, RestOptions opts,
                                                         PlatformAuthenticationSuccessHandler  successHandler,
                                                         PlatformAuthenticationFailureHandler failureHandler);
 
-    /**
-     * Security Context 설정
-     */
+    
     protected abstract void configureSecurityContext(T configurer, RestOptions opts);
 }

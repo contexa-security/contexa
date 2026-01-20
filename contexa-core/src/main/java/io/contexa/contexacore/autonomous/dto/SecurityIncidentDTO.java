@@ -11,10 +11,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * SecurityIncident DTO for Redis serialization
- * Lazy loading 문제를 피하기 위한 간단한 DTO
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -38,13 +35,11 @@ public class SecurityIncidentDTO implements Serializable {
     private LocalDateTime updatedAt;
     private LocalDateTime detectedAt;
 
-    // 간단한 필드들만 포함 (lazy loading 컬렉션 제외)
+    
     private Set<String> affectedAssets;
     private Set<String> tags;
 
-    /**
-     * Entity를 DTO로 변환
-     */
+    
     public static SecurityIncidentDTO fromEntity(SecurityIncident incident) {
         if (incident == null) {
             return null;
@@ -66,25 +61,23 @@ public class SecurityIncidentDTO implements Serializable {
                 .createdAt(incident.getCreatedAt())
                 .updatedAt(incident.getUpdatedAt())
                 .detectedAt(incident.getDetectedAt())
-                // Lazy loading 컬렉션은 초기화되어 있는 경우만 복사
+                
                 .affectedAssets(copySetSafely(incident.getAffectedAssets()))
                 .tags(copySetSafely(incident.getTags()))
                 .build();
     }
 
-    /**
-     * Set을 안전하게 복사 (lazy loading 문제 방지)
-     */
+    
     private static Set<String> copySetSafely(Set<String> original) {
         if (original == null) {
             return new HashSet<>();
         }
         try {
-            // Set이 초기화되어 있는지 확인
-            original.size(); // 이 호출이 실패하면 lazy loading 예외 발생
+            
+            original.size(); 
             return new HashSet<>(original);
         } catch (Exception e) {
-            // Lazy loading 예외 발생 시 빈 Set 반환
+            
             return new HashSet<>();
         }
     }

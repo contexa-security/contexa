@@ -27,30 +27,7 @@ import org.springframework.web.accept.HeaderContentNegotiationStrategy;
 import java.util.Arrays;
 import java.util.Collections;
 
-/**
- * MFA Page Generating Configurer
- *
- * DefaultMfaPageGeneratingFilter를 SecurityFilterChain에 등록하여
- * MFA 플로우의 모든 페이지들을 DSL 설정 기반으로 동적 생성합니다.
- *
- * 페이지 생성 범위:
- * 1. Primary Authentication (1차 인증) - Form Login 페이지
- * 2. MFA Select Factor (2차 인증 선택) - Factor 선택 페이지
- * 3. Factor Challenge (개별 Factor 챌린지) - OTT, Passkey 등
- *
- * 이 Configurer는 MFA 플로우가 설정된 경우에만 필터를 등록하며,
- * AuthenticationFlowConfig의 DSL 설정을 기반으로 페이지를 생성합니다.
- *
- * 커스텀 페이지 지원:
- * - Primary Auth: FormOptions.loginPage()
- * - MFA Pages: MfaPageConfig (selectFactorPage, ottPages, passkeyPages 등)
- *
- * Spring Component로 등록되어 DefaultSecurityConfigurerProvider에 의해 자동으로 수집됩니다.
- *
- * @see DefaultMfaPageGeneratingFilter
- * @see AuthenticationFlowConfig
- * @see MfaPageConfig
- */
+
 @Slf4j
 public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
@@ -64,7 +41,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
     public void init(PlatformContext platformContext, PlatformConfig config) {
         log.info("🔧 MfaPageGeneratingConfigurer initialized by Platform.");
 
-        // MFA 플로우가 있는지 확인
+        
         boolean hasMfaFlow = config.getFlows().stream()
                 .anyMatch(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()));
 
@@ -79,7 +56,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
     public void configure(FlowContext flowContext) {
         AuthenticationFlowConfig flowConfig = flowContext.flow();
 
-        // MFA 플로우에만 필터를 추가
+        
         if (!AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
             log.debug("Skipping MfaPageGeneratingFilter for non-MFA flow: {}", flowConfig.getTypeName());
             return;
@@ -88,31 +65,31 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         log.info("🔧 Configuring DefaultMfaPageGeneratingFilter for MFA flow: {}", flowConfig.getTypeName());
 
         try {
-            // 필수 의존성 가져오기
+            
             MfaStateMachineIntegrator stateMachineIntegrator =
                     applicationContext.getBean(MfaStateMachineIntegrator.class);
             AuthUrlProvider authUrlProvider =
                     applicationContext.getBean(AuthUrlProvider.class);
 
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
-                    flowConfig,              // DSL 설정 전체 전달
+                    flowConfig,              
                     stateMachineIntegrator,
-                    authUrlProvider          // URL 우선순위 로직 제공
+                    authUrlProvider          
             );
 
-            // ⭐ Spring Security FormLoginConfigurer 패턴: SharedObject로 등록
+            
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
 
-            // HttpSecurity에 필터 추가 (UsernamePasswordAuthenticationFilter 이전에 삽입)
+            
             flowContext.http().addFilterBefore(
                     mfaPageFilter,
                     UsernamePasswordAuthenticationFilter.class
             );
 
-            // ⭐ MfaAuthenticationEntryPoint 등록 (Spring Security AbstractAuthenticationFilterConfigurer 패턴)
+            
             registerMfaAuthenticationEntryPoint(flowContext, flowConfig);
 
-            // 로깅: 생성될 페이지 URL 정보
+            
             String primaryLoginPage = extractPrimaryLoginPage(flowConfig);
             String selectFactorPage = extractSelectFactorUrl(flowConfig);
             String customPagesInfo = buildCustomPagesInfo(flowConfig);
@@ -132,25 +109,17 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
     @Override
     public int getOrder() {
-        // GlobalConfigurer 이후, Feature Adapter들 이전에 실행
+        
         return SecurityConfigurer.HIGHEST_PRECEDENCE + 150;
     }
 
-    // ===== Helper Methods =====
+    
 
-    /**
-     * MfaAuthenticationEntryPoint 등록
-     *
-     * Spring Security의 AbstractAuthenticationFilterConfigurer.registerDefaultAuthenticationEntryPoint() 패턴을 따릅니다.
-     * AuthenticationFlowConfig에서 생성된 EntryPoint를 HttpSecurity에 기본 EntryPoint로 등록합니다.
-     *
-     * @param flowContext 플로우 컨텍스트
-     * @param flowConfig MFA 플로우 설정
-     */
+    
     private void registerMfaAuthenticationEntryPoint(FlowContext flowContext, AuthenticationFlowConfig flowConfig) {
         MfaAuthenticationEntryPoint entryPoint = flowConfig.getMfaAuthenticationEntryPoint();
 
-        // ⭐ EntryPoint가 null이면 예외 (MFA는 EntryPoint 필수)
+        
         if (entryPoint == null) {
             throw new IllegalStateException(
                 "MfaAuthenticationEntryPoint is required for MFA flow but was null in flowConfig [" +
@@ -161,12 +130,12 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         }
 
         try {
-            // ExceptionHandlingConfigurer 가져오기 (타입 안전성 경고 억제)
+            
             ExceptionHandlingConfigurer<HttpSecurity> exceptionHandling =
                     (ExceptionHandlingConfigurer<HttpSecurity>)
                     flowContext.http().getConfigurer(ExceptionHandlingConfigurer.class);
 
-            // ⭐ ExceptionHandlingConfigurer가 null이면 예외 (MFA는 EntryPoint 등록 필수)
+            
             if (exceptionHandling == null) {
                 throw new IllegalStateException(
                     "ExceptionHandlingConfigurer not found in HttpSecurity for MFA flow [" +
@@ -176,10 +145,10 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                 );
             }
 
-            // RequestMatcher 생성 (HTML 요청만 매칭)
+            
             RequestMatcher entryPointMatcher = createMfaEntryPointMatcher(flowContext);
 
-            // 기본 EntryPoint로 등록 (Spring Security FormLoginConfigurer 패턴)
+            
             exceptionHandling.defaultAuthenticationEntryPointFor(entryPoint, entryPointMatcher);
 
             log.info("MfaAuthenticationEntryPoint registered for HTML requests with loginPage: {}",
@@ -191,17 +160,9 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         }
     }
 
-    /**
-     * MFA EntryPoint RequestMatcher 생성
-     *
-     * Spring Security의 AbstractAuthenticationFilterConfigurer.getAuthenticationEntryPointMatcher() 패턴을 따릅니다.
-     * HTML/XHTML/TEXT 요청이면서 AJAX가 아닌 요청만 매칭합니다.
-     *
-     * @param flowContext 플로우 컨텍스트
-     * @return HTML 요청 매처
-     */
+    
     private RequestMatcher createMfaEntryPointMatcher(FlowContext flowContext) {
-        // ContentNegotiationStrategy 가져오기
+        
         ContentNegotiationStrategy contentNegotiationStrategy =
                 flowContext.http().getSharedObject(ContentNegotiationStrategy.class);
 
@@ -209,7 +170,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             contentNegotiationStrategy = new HeaderContentNegotiationStrategy();
         }
 
-        // HTML/XHTML/TEXT/IMAGE 요청 매칭
+        
         MediaTypeRequestMatcher mediaMatcher = new MediaTypeRequestMatcher(
                 contentNegotiationStrategy,
                 MediaType.APPLICATION_XHTML_XML,
@@ -219,30 +180,28 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         );
         mediaMatcher.setIgnoredMediaTypes(Collections.singleton(MediaType.ALL));
 
-        // AJAX 요청 제외 (X-Requested-With 헤더가 없는 것만)
+        
         RequestMatcher notXRequestedWith = new NegatedRequestMatcher(
                 new RequestHeaderRequestMatcher("X-Requested-With", "XMLHttpRequest")
         );
 
-        // 두 조건을 AND로 결합
+        
         return new AndRequestMatcher(Arrays.asList(notXRequestedWith, mediaMatcher));
     }
 
 
-    /**
-     * Primary Login Page URL 추출
-     */
+    
     private String extractPrimaryLoginPage(AuthenticationFlowConfig flowConfig) {
         PrimaryAuthenticationOptions primaryOpts = flowConfig.getPrimaryAuthenticationOptions();
         if (primaryOpts != null) {
-            // Form 인증인 경우
+            
             if (primaryOpts.isFormLogin()) {
                 FormOptions formOpts = primaryOpts.getFormOptions();
                 return StringUtils.hasText(formOpts.getLoginPage()) ?
                         formOpts.getLoginPage() : "/loginForm (default)";
             }
 
-            // REST 인증인 경우
+            
             if (primaryOpts.isRestLogin()) {
                 String loginPage = primaryOpts.getLoginPage();
                 return StringUtils.hasText(loginPage) ? loginPage : "/loginForm (default)";
@@ -251,9 +210,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         return "/loginForm (default)";
     }
 
-    /**
-     * Select Factor URL 추출
-     */
+    
     private String extractSelectFactorUrl(AuthenticationFlowConfig flowConfig) {
         MfaPageConfig pageConfig = flowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getSelectFactorPageUrl())) {
@@ -262,9 +219,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         return "/mfa/select-factor (default)";
     }
 
-    /**
-     * 커스텀 페이지 정보 빌드
-     */
+    
     private String buildCustomPagesInfo(AuthenticationFlowConfig flowConfig) {
         MfaPageConfig pageConfig = flowConfig.getMfaPageConfig();
         if (pageConfig == null) {

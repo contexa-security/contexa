@@ -14,7 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 public class CustomAuthenticationProvider implements AuthenticationProvider {
 
     private final UserDetailsService userDetailsService;
-//    private final PasswordEncoder passwordEncoder;
+
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
@@ -23,11 +23,11 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String password = (String) authentication.getCredentials();
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
-//        if(!passwordEncoder.matches(password, userDetails.getPassword())){
-//            throw new BadCredentialsException("Invalid password");
-//        }
 
-        // UnifiedCustomUserDetails로 캐스팅하여 UserDto 획득 (ModelMapper 제거)
+
+
+
+        
         UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
         UserDto userDto = customUserDetails.getAccount();
         return UsernamePasswordAuthenticationToken.authenticated(customUserDetails, null, customUserDetails.getAuthorities());

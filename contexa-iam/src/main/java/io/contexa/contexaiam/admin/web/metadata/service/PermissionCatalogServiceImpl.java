@@ -37,7 +37,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
         permission.setDescription(resource.getDescription());
         permission.setTargetType(resource.getResourceType().name());
 
-        String actionType = "EXECUTE"; // 메서드 기반일 때 기본값
+        String actionType = "EXECUTE"; 
         if (resource.getResourceType() == ManagedResource.ResourceType.URL && resource.getHttpMethod() != null) {
             actionType = resource.getHttpMethod().name();
         }
@@ -47,8 +47,8 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
         Permission savedPermission = permissionRepository.save(permission);
         log.info("Permission '{}' has been synchronized for resource '{}'.", savedPermission.getName(), resource.getResourceIdentifier());
 
-        // [핵심] 권한이 생성/업데이트된 후, 이 권한에 대한 정책 동기화를 즉시 호출합니다.
-//        policyService.synchronizePolicyForPermission(savedPermission);
+        
+
 
         return savedPermission;
     }
@@ -61,11 +61,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * ManagedResource를 기반으로 가독성이 높은 고유 권한 이름을 생성합니다.
-     * - 메서드: 패키지 경로를 제외하고 '클래스명_메서드명' 형태로 생성합니다.
-     * - URL: 경로 변수와 특수문자를 정리하여 'ADMIN_USERS_ID'와 같은 형태로 생성합니다.
-     */
+    
     private String generatePermissionName(ManagedResource resource) {
         String typePrefix = resource.getResourceType().name();
         String identifierPart;
@@ -83,13 +79,13 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
 
     private String simplifyMethodIdentifier(String methodIdentifier) {
         String[] parts = methodIdentifier.split("\\.");
-        String className = parts[parts.length - 2]; // 마지막에서 두 번째 (클래스명)
-        String methodPart = parts[parts.length - 1].split("\\(")[0]; // 마지막 (메서드명, 괄호 제거)
+        String className = parts[parts.length - 2]; 
+        String methodPart = parts[parts.length - 1].split("\\(")[0]; 
         return String.format("%s_%s", className, methodPart).toUpperCase();
     }
 
     private String simplifyUrlIdentifier(String urlIdentifier) {
-        // 예: /admin/users/{id} → ADMIN_USERS_ID
+        
         return urlIdentifier.replaceAll("[{}]", "")
                 .replaceAll("[^a-zA-Z0-9]", "_")
                 .replaceAll("_+", "_")

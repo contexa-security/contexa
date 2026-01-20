@@ -20,16 +20,14 @@ import reactor.core.publisher.Sinks;
 import java.util.List;
 import java.util.stream.Stream;
 
-/**
- * UniversalPipelineExecutor를 확장한 스트리밍 전용 실행자
- */
+
 @Slf4j
 public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecutor {
 
     private final List<PipelineStep> orderedSteps;
     private final ObjectMapper objectMapper;
 
-    // 완전한 생성자
+    
     public StreamingUniversalPipelineExecutor(
             Tracer tracer,
             ContextRetrievalStep contextRetrievalStep,
@@ -47,7 +45,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
         this.objectMapper = objectMapper;
 
-        // 스트리밍용 단계 순서 (4단계를 streamingLLMStep으로 대체)
+        
         this.orderedSteps = Stream.of(
                         contextRetrievalStep,
                         preprocessingStep,
@@ -67,16 +65,16 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
         log.info("[STREAMING-PIPELINE] 통합 스트리밍 파이프라인 시작: {}", request.getRequestId());
 
-        // 스트리밍 전용 컨텍스트 생성
+        
         StreamingPipelineExecutionContext context =
                 new StreamingPipelineExecutionContext(request.getRequestId());
         context.enableStreamingMode();
 
-        // 스트림 Sink 생성
+        
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         context.setStreamSink(sink);
 
-        // 6단계 전체 실행 (백그라운드)
+        
         executeFullPipelineWithStreaming(request, configuration, context).subscribe(
                 null,
                 error -> {
@@ -86,7 +84,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
                 () -> {
                     log.info("스트리밍 파이프라인 완료");
 
-                    // 최종 결과 전송
+                    
                     AIResponse finalResponse = context.getStepResult(
                             PipelineConfiguration.PipelineStep.POSTPROCESSING,
                             AIResponse.class
@@ -94,7 +92,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
                     if (finalResponse != null) {
                         try {
-                            // JSON 변환
+                            
                             String jsonResponse = objectMapper.writeValueAsString(finalResponse);
                             sink.tryEmitNext("###FINAL_RESPONSE###" + jsonResponse);
                         } catch (Exception e) {
@@ -116,7 +114,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
-        // 6단계 순차 실행 (스트리밍용 단계 사용)
+        
         for (PipelineStep step : orderedSteps) {
             PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step);
 

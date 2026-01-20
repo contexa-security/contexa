@@ -15,15 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * SOAR Orchestration 처리 전략
- *
- * SOAR 워크플로우를 통한 자동화된 대응
- * 승인이 필요한 작업들의 오케스트레이션
- *
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class SoarOrchestrationStrategy implements ProcessingStrategy {
@@ -40,10 +32,10 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
         Map<String, Object> metadata = new HashMap<>();
 
         try {
-            // 1. SOAR 워크플로우 준비
+            
             prepareSoarWorkflow(context, executedActions);
 
-            // 2. Cold Path를 통한 상세 분석 및 SOAR 실행
+            
             if (coldPathProcessor != null) {
                 double riskScore = context.getAiAnalysisResult() != null ?
                     context.getAiAnalysisResult().getThreatLevel() : 0.7;
@@ -56,10 +48,10 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
                 }
             }
 
-            // 3. SOAR 특화 액션
+            
             executeSoarActions(context, executedActions);
 
-            // 4. 승인 대기 상태 설정
+            
             if (requiresApproval(context)) {
                 context.updateProcessingStatus(SecurityEventContext.ProcessingStatus.AWAITING_APPROVAL);
                 executedActions.add("APPROVAL_REQUESTED");
@@ -91,15 +83,13 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
         }
     }
 
-    /**
-     * SOAR 워크플로우 준비
-     */
+    
     private void prepareSoarWorkflow(SecurityEventContext context, List<String> executedActions) {
         context.addResponseAction("SOAR_WORKFLOW_INIT", "SOAR workflow initialized");
         context.addMetadata("soarWorkflowStarted", System.currentTimeMillis());
         executedActions.add("SOAR_WORKFLOW_INITIALIZED");
 
-        // 권장 액션들을 SOAR 워크플로우로 변환
+        
         if (context.getAiAnalysisResult() != null &&
             context.getAiAnalysisResult().getRecommendedActions() != null) {
 
@@ -110,33 +100,29 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
         }
     }
 
-    /**
-     * SOAR 특화 액션 실행
-     */
+    
     private void executeSoarActions(SecurityEventContext context, List<String> executedActions) {
-        // 인시던트 티켓 생성
+        
         context.addResponseAction("INCIDENT_TICKET", "Incident ticket created in SOAR system");
         executedActions.add("INCIDENT_TICKET_CREATED");
 
-        // 자동화 플레이북 실행
+        
         context.addResponseAction("PLAYBOOK_EXECUTION", "Security playbook executed");
         executedActions.add("PLAYBOOK_EXECUTED");
 
-        // 포렌식 데이터 수집
+        
         context.addResponseAction("FORENSIC_COLLECTION", "Forensic data collection initiated");
         executedActions.add("FORENSIC_DATA_COLLECTED");
     }
 
-    /**
-     * 승인 필요 여부 확인
-     */
+    
     private boolean requiresApproval(SecurityEventContext context) {
-        // AI Native v3.3.0: threatLevel 기반 고위험 판단
+        
         if (context.getAiAnalysisResult() != null && context.getAiAnalysisResult().getThreatLevel() >= 0.7) {
             return true;
         }
 
-        // 특정 액션들은 승인 필요
+        
         SecurityEventContext.AIAnalysisResult aiResult = context.getAiAnalysisResult();
         if (aiResult != null && aiResult.getRecommendedActions() != null) {
             for (String action : aiResult.getRecommendedActions().keySet()) {

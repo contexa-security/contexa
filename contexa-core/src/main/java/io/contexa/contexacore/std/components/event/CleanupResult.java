@@ -4,9 +4,7 @@ import lombok.Getter;
 
 import java.util.List;
 
-/**
- * 세션 정리 결과를 나타내는 데이터 클래스
- */
+
 @Getter
 public class CleanupResult {
     private final List<String> cleanedSessions;

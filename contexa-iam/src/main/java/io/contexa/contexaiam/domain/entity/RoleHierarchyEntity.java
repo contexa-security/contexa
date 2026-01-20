@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
-@Table(name = "ROLE_HIERARCHY_CONFIG") // 'ROLE_HIERARCHY'는 예약어일 수 있어 'ROLE_HIERARCHY_CONFIG'로 명명
+@Table(name = "ROLE_HIERARCHY_CONFIG") 
 @Getter
 @Setter
 @Builder
@@ -19,7 +19,7 @@ public class RoleHierarchyEntity implements Serializable {
     @Column(name = "hierarchy_id")
     private Long id;
 
-    // 역할 계층 관계를 정의하는 문자열 (예: "ROLE_ADMIN > ROLE_MANAGER\nROLE_MANAGER > ROLE_USER")
+    
     @Column(name = "hierarchy_string", columnDefinition = "TEXT", nullable = false, unique = true)
     private String hierarchyString;
 
@@ -28,7 +28,7 @@ public class RoleHierarchyEntity implements Serializable {
 
     @Column(name = "is_active", nullable = false)
     @Builder.Default
-    private Boolean isActive = false; // 현재 활성화된 계층 설정인지 여부
+    private Boolean isActive = false; 
 
     @Override
     public boolean equals(Object o) {

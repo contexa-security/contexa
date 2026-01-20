@@ -3,9 +3,7 @@ package io.contexa.contexacore.infra.session;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * AI 실행 메트릭
- */
+
 public class AIExecutionMetrics {
     private final String sessionId;
     private final long startTime;
@@ -29,16 +27,12 @@ public class AIExecutionMetrics {
         this.customMetrics = customMetrics;
     }
     
-    /**
-     * Builder 패턴을 위한 정적 메서드
-     */
+    
     public static AIExecutionMetricsBuilder builder() {
         return new AIExecutionMetricsBuilder();
     }
     
-    /**
-     * Builder 클래스
-     */
+    
     public static class AIExecutionMetricsBuilder {
         private String sessionId;
         private long startTime = System.currentTimeMillis();
@@ -109,7 +103,7 @@ public class AIExecutionMetrics {
         }
     }
     
-    // Getters
+    
     public String getSessionId() { return sessionId; }
     public long getStartTime() { return startTime; }
     public long getEndTime() { return endTime; }

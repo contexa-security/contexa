@@ -9,22 +9,7 @@ import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-/**
- * Authorization Studio 자연어 질의 프롬프트 템플릿
- *
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환
- * - 표준화된 포맷 지시
- * - 성능 최적화
- *
- * Spring AI 공식 패턴 준수
- * 
- * 자연어 처리:
- * - IAM 데이터 기반 질의 응답
- * - 권한 구조 시각화
- * - AI 기반 권장사항 생성
- */
+
 @Slf4j
 @PromptTemplateConfig(
         key = "studioQuery",
@@ -33,7 +18,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
 )
 public class StudioQueryTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성
+    
     private final BeanOutputConverter<StudioQueryResponse> converter = 
         new BeanOutputConverter<>(StudioQueryResponse.class);
 
@@ -44,28 +29,26 @@ public class StudioQueryTemplate implements PromptTemplate {
 
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
-        // StudioQueryRequest에서 자연어 질의 추출
+        
         String naturalQuery = extractNaturalQuery(request);
 
-        // 중요: 파이프라인 contextInfo 대신 우리가 전달한 iamDataContext 사용
+        
         String iamDataContext = request.getParameter("iamDataContext", String.class);
 
-        // 디버깅: 실제 전달된 컨텍스트 정보 확인
+        
         log.info("파이프라인 contextInfo (첫 300자): {}",
                 contextInfo != null && contextInfo.length() > 300 ? contextInfo.substring(0, 300) + "..." : contextInfo);
         log.info("우리가 전달한 iamDataContext (첫 300자): {}",
                 iamDataContext != null && iamDataContext.length() > 300 ? iamDataContext.substring(0, 300) + "..." : iamDataContext);
         log.info("자연어 질의: {}", naturalQuery);
 
-        // 우리가 전달한 iamDataContext를 우선 사용, 없으면 파이프라인 contextInfo 사용
+        
         String actualContextInfo = iamDataContext != null ? iamDataContext : contextInfo;
 
         return buildStudioQueryUserPrompt(naturalQuery, actualContextInfo);
     }
 
-    /**
-     * 실제 데이터 기반 단계별 분석 시스템 프롬프트
-     */
+    
     private String buildStudioQuerySystemPrompt(String systemMetadata) {
         return String.format("""
               <role>
@@ -105,7 +88,7 @@ public class StudioQueryTemplate implements PromptTemplate {
               "visualizationData": {
                 "nodes": [
                   {"id": "실제ID", "type": "USER|GROUP|PERMISSION", "label": "실제라벨", "properties": {"name": "실제이름"}},
-                  "// 주의: 질의에 부합하는 노드만 포함. 무관한 사용자/그룹은 제외"
+                  "
                 ],
                 "edges": [
                   {"source": "실제소스ID", "target": "실제타겟ID", "type": "HAS_ROLE|HAS_PERMISSION", "properties": {"permissions": ["실제권한명"]}},
@@ -202,9 +185,7 @@ public class StudioQueryTemplate implements PromptTemplate {
         return "자연어 질의가 제공되지 않았습니다";
     }
     
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     */
+    
     public BeanOutputConverter<StudioQueryResponse> getConverter() {
         return converter;
     }

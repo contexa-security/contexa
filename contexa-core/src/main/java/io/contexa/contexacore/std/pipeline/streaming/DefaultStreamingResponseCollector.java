@@ -2,9 +2,7 @@ package io.contexa.contexacore.std.pipeline.streaming;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-/**
- * 기본 스트리밍 응답 수집기 구현
- */
+
 public class DefaultStreamingResponseCollector implements StreamingResponseCollector {
 
     private final ConcurrentLinkedQueue<String> chunks = new ConcurrentLinkedQueue<>();

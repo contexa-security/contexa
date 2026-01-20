@@ -12,19 +12,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * 위협 상관 관계 분석 프로세서
- *
- * 검색된 문서 간의 위협 패턴과 상관 관계를 분석하여
- * 복합적인 위협 시나리오를 식별합니다.
- *
- * AI Native v3.3.0:
- * - 이 프로세서의 점수 계산은 RAG 문서 상관 관계 분석용 (LLM 입력 사전 처리)
- * - 실제 보안 결정(ALLOW/BLOCK/CHALLENGE/ESCALATE)은 LLM이 결정
- * - threatScore, correlationScore 등은 LLM의 분석 컨텍스트로만 사용
- *
- * @since 1.0.0
- */
+
 public class ThreatCorrelator implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.threat.correlation-threshold:0.6}")
@@ -38,7 +26,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     
-    // MITRE ATT&CK 전술 매핑
+    
     private static final Map<String, String> ATTACK_TACTICS = Map.ofEntries(
         Map.entry("INITIAL_ACCESS", "Initial Access"),
         Map.entry("EXECUTION", "Execution"),
@@ -59,59 +47,52 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             return documents;
         }
         
-        // 1. 위협 패턴 식별
+        
         List<ThreatPattern> patterns = identifyThreatPatterns(documents);
         
-        // 2. 상관 관계 분석
+        
         Map<String, CorrelationCluster> correlations = analyzeCorrelations(documents);
         
-        // 3. 공격 체인 탐지
+        
         List<AttackChain> attackChains = detectAttackChains(documents);
         
-        // 4. 문서 강화
+        
         enrichDocumentsWithCorrelations(documents, patterns, correlations, attackChains);
         
-        // 5. 상관 관계 점수 기반 재정렬
+        
         return reorderByCorrelationStrength(documents);
     }
     
-    /**
-     * SecurityPlaneServiceImpl에서 사용하는 correlate 메서드
-     * 
-     * @param eventData 이벤트 데이터
-     * @return 상관 관계 분석 결과
-     */
+    
     public Map<String, Object> correlate(Map<String, Object> eventData) {
         Map<String, Object> result = new HashMap<>();
         
-        // 기본 상관 관계 분석
+        
         if (eventData != null) {
             result.put("eventType", eventData.getOrDefault("eventType", "UNKNOWN"));
             result.put("userId", eventData.getOrDefault("userId", "unknown"));
             result.put("timestamp", LocalDateTime.now().toString());
             result.put("correlationId", UUID.randomUUID().toString());
             
-            // MITRE ATT&CK 매핑 (LLM 분석용 원시 데이터)
+            
             String eventType = eventData.getOrDefault("eventType", "").toString().toUpperCase();
             if (ATTACK_TACTICS.containsKey(eventType)) {
                 result.put("mitreTactic", ATTACK_TACTICS.get(eventType));
             }
 
-            // AI Native v3.3.0: 점수 계산 로직 제거
-            // LLM이 eventType, mitreTactic 등 원시 데이터를 직접 분석하여 판단
+            
+            
             result.put("eventType", eventType);
         }
 
         return result;
     }
     
-    /**
-     * 위협 패턴 식별
-     */
+    
     private List<ThreatPattern> identifyThreatPatterns(List<Document> documents) {
         List<ThreatPattern> patterns = new ArrayList<>();
         
-        // 사용자별 그룹화
+        
         Map<String, List<Document>> userGroups = documents.stream()
             .filter(doc -> doc.getMetadata().get("userId") != null)
             .collect(Collectors.groupingBy(doc -> 
@@ -122,10 +103,10 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             List<Document> userDocs = entry.getValue();
             
             if (userDocs.size() >= minPatternSize) {
-                // 시간순 정렬
+                
                 userDocs.sort(Comparator.comparing(this::getDocumentTimestamp));
                 
-                // 연속 활동 패턴 찾기
+                
                 List<ThreatPattern> userPatterns = findSequentialPatterns(userId, userDocs);
                 patterns.addAll(userPatterns);
             }
@@ -134,16 +115,14 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         return patterns;
     }
     
-    /**
-     * 연속 활동 패턴 찾기
-     */
+    
     private List<ThreatPattern> findSequentialPatterns(String userId, List<Document> documents) {
         List<ThreatPattern> patterns = new ArrayList<>();
         
         for (int i = 0; i < documents.size() - minPatternSize + 1; i++) {
             List<Document> window = documents.subList(i, Math.min(i + 5, documents.size()));
             
-            // 시간 윈도우 체크
+            
             if (isWithinTimeWindow(window)) {
                 ThreatPattern pattern = analyzePatternWindow(userId, window);
                 if (pattern != null && pattern.getConfidence() >= correlationThreshold) {
@@ -155,15 +134,13 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         return patterns;
     }
     
-    /**
-     * 패턴 윈도우 분석
-     */
+    
     private ThreatPattern analyzePatternWindow(String userId, List<Document> window) {
         ThreatPattern pattern = new ThreatPattern();
         pattern.setUserId(userId);
         pattern.setDocuments(window);
         
-        // 활동 시퀀스 추출
+        
         List<String> activitySequence = window.stream()
             .map(doc -> (String) doc.getMetadata().get("activityType"))
             .filter(Objects::nonNull)
@@ -171,61 +148,59 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         pattern.setActivitySequence(activitySequence);
         
-        // 패턴 유형 식별
+        
         String patternType = identifyPatternType(activitySequence);
         pattern.setPatternType(patternType);
         
-        // MITRE ATT&CK 매핑
+        
         String tactic = mapToAttackTactic(patternType, activitySequence);
         pattern.setMitreTactic(tactic);
         
-        // 신뢰도 계산
+        
         double confidence = calculatePatternConfidence(window, activitySequence);
         pattern.setConfidence(confidence);
         
-        // 위험도 계산
+        
         double riskScore = calculatePatternRisk(patternType, confidence, window);
         pattern.setRiskScore(riskScore);
         
         return pattern;
     }
     
-    /**
-     * 패턴 유형 식별
-     */
+    
     private String identifyPatternType(List<String> activitySequence) {
         String sequence = String.join(",", activitySequence).toUpperCase();
         
-        // 데이터 유출 패턴
+        
         if (sequence.contains("READ") && sequence.contains("EXPORT") ||
             sequence.contains("READ") && sequence.contains("DOWNLOAD")) {
             return "DATA_EXFILTRATION";
         }
         
-        // 권한 상승 패턴
+        
         if (sequence.contains("LOGIN") && sequence.contains("ADMIN_ACTION") ||
             sequence.contains("UPDATE") && sequence.contains("PRIVILEGE")) {
             return "PRIVILEGE_ESCALATION";
         }
         
-        // 정찰 패턴
+        
         if (countOccurrences(sequence, "READ") >= 3 ||
             countOccurrences(sequence, "LIST") >= 3) {
             return "RECONNAISSANCE";
         }
         
-        // 파괴 패턴
+        
         if (sequence.contains("DELETE") && countOccurrences(sequence, "DELETE") >= 2) {
             return "DESTRUCTIVE_ACTION";
         }
         
-        // 무차별 대입 패턴
+        
         if (sequence.contains("FAILED_LOGIN") && 
             countOccurrences(sequence, "FAILED_LOGIN") >= 3) {
             return "BRUTE_FORCE";
         }
         
-        // 측면 이동 패턴
+        
         if (sequence.contains("LOGIN") && sequence.contains("ACCESS") &&
             sequence.contains("CONNECT")) {
             return "LATERAL_MOVEMENT";
@@ -234,9 +209,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         return "UNKNOWN_PATTERN";
     }
     
-    /**
-     * MITRE ATT&CK 전술 매핑
-     */
+    
     private String mapToAttackTactic(String patternType, List<String> activitySequence) {
         return switch (patternType) {
             case "DATA_EXFILTRATION" -> "EXFILTRATION";
@@ -249,13 +222,11 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         };
     }
     
-    /**
-     * 상관 관계 분석
-     */
+    
     private Map<String, CorrelationCluster> analyzeCorrelations(List<Document> documents) {
         Map<String, CorrelationCluster> clusters = new HashMap<>();
         
-        // IP 주소 기반 상관 관계
+        
         Map<String, List<Document>> ipGroups = documents.stream()
             .filter(doc -> doc.getMetadata().get("ipAddress") != null)
             .collect(Collectors.groupingBy(doc -> 
@@ -272,7 +243,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             }
         }
         
-        // 리소스 기반 상관 관계
+        
         Map<String, List<Document>> resourceGroups = documents.stream()
             .filter(doc -> doc.getMetadata().get("resourceAccessed") != null)
             .collect(Collectors.groupingBy(doc -> 
@@ -292,17 +263,15 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         return clusters;
     }
     
-    /**
-     * 공격 체인 탐지
-     */
+    
     private List<AttackChain> detectAttackChains(List<Document> documents) {
         List<AttackChain> chains = new ArrayList<>();
         
-        // 시간순 정렬
+        
         List<Document> sortedDocs = new ArrayList<>(documents);
         sortedDocs.sort(Comparator.comparing(this::getDocumentTimestamp));
         
-        // MITRE ATT&CK 킬 체인 순서
+        
         List<String> killChainOrder = Arrays.asList(
             "INITIAL_ACCESS", "EXECUTION", "PERSISTENCE", 
             "PRIVILEGE_ESCALATION", "DEFENSE_EVASION", 
@@ -310,7 +279,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             "COLLECTION", "EXFILTRATION", "IMPACT"
         );
         
-        // 체인 탐지
+        
         for (int i = 0; i < sortedDocs.size(); i++) {
             AttackChain chain = new AttackChain();
             chain.addLink(sortedDocs.get(i));
@@ -318,12 +287,12 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             String currentTactic = getTactic(sortedDocs.get(i));
             int currentIndex = killChainOrder.indexOf(currentTactic);
             
-            // 다음 단계 찾기
+            
             for (int j = i + 1; j < sortedDocs.size() && j < i + 10; j++) {
                 String nextTactic = getTactic(sortedDocs.get(j));
                 int nextIndex = killChainOrder.indexOf(nextTactic);
                 
-                // 킬 체인 진행 확인
+                
                 if (nextIndex > currentIndex && 
                     isWithinTimeWindow(sortedDocs.get(i), sortedDocs.get(j))) {
                     chain.addLink(sortedDocs.get(j));
@@ -340,9 +309,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         return chains;
     }
     
-    /**
-     * 문서에 상관 관계 정보 추가
-     */
+    
     private void enrichDocumentsWithCorrelations(
             List<Document> documents,
             List<ThreatPattern> patterns,
@@ -352,7 +319,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         for (Document doc : documents) {
             Map<String, Object> metadata = doc.getMetadata();
             
-            // 패턴 정보 추가
+            
             List<String> relatedPatterns = patterns.stream()
                 .filter(p -> p.getDocuments().contains(doc))
                 .map(ThreatPattern::getPatternType)
@@ -363,7 +330,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
                 metadata.put("threatPatterns", relatedPatterns);
             }
             
-            // 상관 관계 정보 추가
+            
             List<String> correlationKeys = correlations.values().stream()
                 .filter(c -> c.getDocuments().contains(doc))
                 .map(CorrelationCluster::getCorrelationKey)
@@ -373,7 +340,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
                 metadata.put("correlations", correlationKeys);
             }
             
-            // 공격 체인 정보 추가
+            
             List<Integer> chainIds = new ArrayList<>();
             for (int i = 0; i < attackChains.size(); i++) {
                 if (attackChains.get(i).getLinks().contains(doc)) {
@@ -386,16 +353,14 @@ public class ThreatCorrelator implements DocumentPostProcessor {
                 metadata.put("isPartOfAttackChain", true);
             }
             
-            // 종합 상관 관계 점수
+            
             double correlationScore = calculateOverallCorrelationScore(
                 relatedPatterns, correlationKeys, chainIds);
             metadata.put("correlationScore", correlationScore);
         }
     }
     
-    /**
-     * 상관 관계 강도 기반 재정렬
-     */
+    
     private List<Document> reorderByCorrelationStrength(List<Document> documents) {
         return documents.stream()
             .sorted((d1, d2) -> {
@@ -406,7 +371,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             .collect(Collectors.toList());
     }
     
-    // 헬퍼 메서드들
+    
     
     private LocalDateTime getDocumentTimestamp(Document document) {
         Object timestamp = document.getMetadata().get("timestamp");
@@ -445,10 +410,10 @@ public class ThreatCorrelator implements DocumentPostProcessor {
     private double calculatePatternConfidence(List<Document> window, List<String> activitySequence) {
         double baseConfidence = 0.5;
         
-        // 시퀀스 길이에 따른 가중치
+        
         baseConfidence += Math.min(activitySequence.size() * 0.1, 0.3);
         
-        // 시간 집중도
+        
         if (isWithinTimeWindow(window)) {
             baseConfidence += 0.2;
         }
@@ -473,15 +438,15 @@ public class ThreatCorrelator implements DocumentPostProcessor {
     private double calculateCorrelationStrength(List<Document> documents) {
         if (documents.size() < 2) return 0.0;
         
-        // 문서 수에 따른 강도
+        
         double strength = Math.min(documents.size() / 10.0, 0.5);
         
-        // 시간 집중도
+        
         if (isWithinTimeWindow(documents)) {
             strength += 0.3;
         }
         
-        // 사용자 다양성
+        
         long uniqueUsers = documents.stream()
             .map(d -> d.getMetadata().get("userId"))
             .filter(Objects::nonNull)
@@ -501,7 +466,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             return tactic.toString();
         }
         
-        // 활동 유형에서 추론
+        
         String activityType = (String) document.getMetadata().get("activityType");
         if (activityType != null) {
             return mapActivityToTactic(activityType);
@@ -537,7 +502,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         return Math.min(score, 1.0);
     }
     
-    // 내부 클래스들
+    
     
     private static class ThreatPattern {
         private String userId;
@@ -548,7 +513,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         private double confidence;
         private double riskScore;
         
-        // Getters and Setters
+        
         public String getUserId() { return userId; }
         public void setUserId(String userId) { this.userId = userId; }
         
@@ -577,7 +542,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         private List<Document> documents;
         private double strength;
         
-        // Getters and Setters
+        
         public String getCorrelationType() { return correlationType; }
         public void setCorrelationType(String type) { this.correlationType = type; }
         

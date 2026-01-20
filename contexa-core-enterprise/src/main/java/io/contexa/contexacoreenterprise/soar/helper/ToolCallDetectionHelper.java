@@ -10,16 +10,11 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 도구 호출 감지 헬퍼 클래스
- * 
- * ChatResponse 에서 도구 호출을 감지하고 추출하는 개선된 로직을 제공합니다.
- * Generation 레벨 체크와 텍스트 파싱 폴백을 모두 지원합니다.
- */
+
 @Slf4j
 public class ToolCallDetectionHelper {
     
-    // 텍스트 파싱을 위한 패턴
+    
     private static final Pattern FUNCTION_CALL_PATTERN = Pattern.compile(
         "function_call|tool_call|execute_tool|run_tool", 
         Pattern.CASE_INSENSITIVE
@@ -35,30 +30,25 @@ public class ToolCallDetectionHelper {
         Pattern.CASE_INSENSITIVE
     );
     
-    /**
-     * ChatResponse에서 도구 호출 여부를 감지합니다.
-     * 
-     * @param chatResponse 검사할 ChatResponse
-     * @return 도구 호출이 있으면 true
-     */
+    
     public boolean hasToolCalls(ChatResponse chatResponse) {
         if (chatResponse == null) {
             return false;
         }
         
-        // 1. 표준 hasToolCalls() 체크
+        
         if (chatResponse.hasToolCalls()) {
             log.debug("표준 hasToolCalls() 감지");
             return true;
         }
         
-        // 2. Generation 레벨에서 도구 호출 체크
+        
         if (hasToolCallsInGenerations(chatResponse)) {
             log.debug("Generation 레벨에서 도구 호출 감지");
             return true;
         }
         
-        // 3. 텍스트 파싱 폴백
+        
         if (hasToolCallsInText(chatResponse)) {
             log.debug("텍스트 파싱으로 도구 호출 감지 (폴백)");
             return true;
@@ -67,12 +57,7 @@ public class ToolCallDetectionHelper {
         return false;
     }
     
-    /**
-     * Generation 레벨에서 도구 호출을 확인합니다.
-     * 
-     * @param chatResponse 검사할 ChatResponse
-     * @return 도구 호출이 있으면 true
-     */
+    
     private boolean hasToolCallsInGenerations(ChatResponse chatResponse) {
         List<Generation> generations = chatResponse.getResults();
         if (generations == null || generations.isEmpty()) {
@@ -92,19 +77,14 @@ public class ToolCallDetectionHelper {
         return false;
     }
     
-    /**
-     * 텍스트 내용을 파싱하여 도구 호출을 감지합니다. (폴백 메커니즘)
-     * 
-     * @param chatResponse 검사할 ChatResponse
-     * @return 도구 호출 패턴이 있으면 true
-     */
+    
     private boolean hasToolCallsInText(ChatResponse chatResponse) {
         String content = extractTextContent(chatResponse);
         if (content == null || content.isEmpty()) {
             return false;
         }
         
-        // 패턴 매칭
+        
         if (FUNCTION_CALL_PATTERN.matcher(content).find()) {
             return true;
         }
@@ -120,12 +100,7 @@ public class ToolCallDetectionHelper {
         return false;
     }
     
-    /**
-     * ChatResponse에서 도구 호출 정보를 추출합니다.
-     * 
-     * @param chatResponse 도구 호출을 추출할 ChatResponse
-     * @return 추출된 도구 호출 정보 리스트
-     */
+    
     public List<ToolCallInfo> extractToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
@@ -133,15 +108,15 @@ public class ToolCallDetectionHelper {
             return toolCallInfos;
         }
         
-        // 1. 표준 방식으로 추출
+        
         toolCallInfos.addAll(extractStandardToolCalls(chatResponse));
         
-        // 2. Generation 레벨에서 추출
+        
         if (toolCallInfos.isEmpty()) {
             toolCallInfos.addAll(extractGenerationToolCalls(chatResponse));
         }
         
-        // 3. 텍스트 파싱으로 추출 (폴백)
+        
         if (toolCallInfos.isEmpty()) {
             toolCallInfos.addAll(extractTextToolCalls(chatResponse));
         }
@@ -150,24 +125,20 @@ public class ToolCallDetectionHelper {
         return toolCallInfos;
     }
     
-    /**
-     * 표준 방식으로 도구 호출을 추출합니다.
-     */
+    
     private List<ToolCallInfo> extractStandardToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
         if (chatResponse.hasToolCalls()) {
-            // ChatResponse 레벨의 도구 호출 처리
-            // 구체적인 구현은 Spring AI 버전에 따라 다를 수 있음
+            
+            
             log.debug("표준 방식으로 도구 호출 추출 시도");
         }
         
         return toolCallInfos;
     }
     
-    /**
-     * Generation 레벨에서 도구 호출을 추출합니다.
-     */
+    
     private List<ToolCallInfo> extractGenerationToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
@@ -197,9 +168,7 @@ public class ToolCallDetectionHelper {
         return toolCallInfos;
     }
     
-    /**
-     * 텍스트 파싱으로 도구 호출을 추출합니다. (폴백)
-     */
+    
     private List<ToolCallInfo> extractTextToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
@@ -208,7 +177,7 @@ public class ToolCallDetectionHelper {
             return toolCallInfos;
         }
         
-        // JSON 패턴에서 도구 이름 추출
+        
         Matcher jsonMatcher = JSON_TOOL_PATTERN.matcher(content);
         while (jsonMatcher.find()) {
             String toolName = jsonMatcher.group(2);
@@ -222,7 +191,7 @@ public class ToolCallDetectionHelper {
             log.debug("텍스트 파싱으로 도구 호출 추출: {}", toolName);
         }
         
-        // 이름 패턴에서 도구 이름 추출
+        
         if (toolCallInfos.isEmpty()) {
             Matcher nameMatcher = TOOL_NAME_PATTERN.matcher(content);
             while (nameMatcher.find()) {
@@ -241,16 +210,14 @@ public class ToolCallDetectionHelper {
         return toolCallInfos;
     }
     
-    /**
-     * ChatResponse에서 텍스트 내용을 추출합니다.
-     */
+    
     private String extractTextContent(ChatResponse chatResponse) {
         if (chatResponse.getResult() != null && 
             chatResponse.getResult().getOutput() != null) {
             return chatResponse.getResult().getOutput().getText();
         }
         
-        // 모든 Generation의 텍스트 결합
+        
         StringBuilder sb = new StringBuilder();
         List<Generation> generations = chatResponse.getResults();
         if (generations != null) {
@@ -265,11 +232,9 @@ public class ToolCallDetectionHelper {
         return sb.toString();
     }
     
-    /**
-     * JSON에서 arguments 부분을 추출합니다.
-     */
+    
     private String extractArguments(String content, int startIndex) {
-        // 간단한 구현 - 실제로는 더 정교한 JSON 파싱이 필요할 수 있음
+        
         Pattern argsPattern = Pattern.compile(
             "\"(arguments|params|parameters)\"\\s*:\\s*(\\{[^}]*\\}|\\[[^\\]]*\\])",
             Pattern.CASE_INSENSITIVE
@@ -283,9 +248,7 @@ public class ToolCallDetectionHelper {
         return "{}";
     }
     
-    /**
-     * 도구 호출 정보를 담는 내부 클래스
-     */
+    
     public static class ToolCallInfo {
         private final String id;
         private final String name;
@@ -311,9 +274,7 @@ public class ToolCallDetectionHelper {
         }
     }
     
-    /**
-     * 도구 호출 감지 결과를 로깅합니다.
-     */
+    
     public void logDetectionResult(ChatResponse chatResponse, boolean hasToolCalls) {
         if (hasToolCalls) {
             List<ToolCallInfo> toolCalls = extractToolCalls(chatResponse);

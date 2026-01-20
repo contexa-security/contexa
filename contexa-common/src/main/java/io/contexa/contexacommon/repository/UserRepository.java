@@ -51,15 +51,11 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             "WHERE u.mfaEnabled = false AND r.roleName = 'ADMIN'")
     List<Users> findAdminsWithMfaDisabled();
 
-    /**
-     * [오류 수정] 특정 역할을 가진 사용자 수를 카운트하는 JPQL 쿼리 추가.
-     */
+    
     @Query("SELECT count(DISTINCT u) FROM Users u JOIN u.userGroups ug JOIN ug.group g JOIN g.groupRoles gr JOIN gr.role r WHERE r.roleName = :roleName")
     long countByRoles(@Param("roleName") String roleName);
 
-    /**
-     * [오류 수정] 특정 역할을 가지면서 MFA 활성화 여부에 따른 사용자 수를 카운트하는 JPQL 쿼리 추가.
-     */
+    
     @Query("SELECT count(DISTINCT u) FROM Users u JOIN u.userGroups ug JOIN ug.group g JOIN g.groupRoles gr JOIN gr.role r WHERE u.mfaEnabled = :mfaEnabled AND r.roleName = :roleName")
     long countByMfaEnabledAndRoles(@Param("mfaEnabled") boolean mfaEnabled, @Param("roleName") String roleName);
 

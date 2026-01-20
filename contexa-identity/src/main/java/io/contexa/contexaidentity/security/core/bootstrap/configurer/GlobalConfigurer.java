@@ -7,10 +7,7 @@ import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
-/**
- * 플랫폼 전역 HTTP 보안 설정을 적용합니다.
- * (ASEP 관련 로직은 AsepConfigurer로 분리되었습니다.)
- */
+
 @Slf4j
 public class GlobalConfigurer implements SecurityConfigurer {
     @Override

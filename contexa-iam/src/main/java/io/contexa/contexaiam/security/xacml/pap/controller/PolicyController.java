@@ -84,7 +84,7 @@ public class PolicyController {
             RuleDto ruleDto = new RuleDto();
             ruleDto.setDescription(rule.getDescription());
 
-            // PolicyCondition 엔티티를 ConditionDto로 변환
+            
             List<ConditionDto> conditionDtos = rule.getConditions().stream()
                     .map(condition -> new ConditionDto(condition.getExpression(), condition.getAuthorizationPhase()))
                     .collect(Collectors.toList());

@@ -13,7 +13,7 @@ public final class PasskeyAsepAttributes implements BaseAsepAttributes {
     private final List<SecurityHandlerMethodReturnValueHandler> customReturnValueHandlers = new ArrayList<>();
 
     public PasskeyAsepAttributes() {
-        // 기본 생성자
+        
     }
 
     public PasskeyAsepAttributes exceptionArgumentResolver(SecurityHandlerMethodArgumentResolver resolver) {

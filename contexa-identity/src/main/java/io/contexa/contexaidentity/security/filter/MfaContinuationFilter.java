@@ -26,20 +26,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * 완전 일원화된 MfaContinuationFilter
- * - ContextPersistence 완전 제거
- * - MfaStateMachineService만 사용
- * - State Machine에서 직접 컨텍스트 로드
- */
+
 @Slf4j
 public class MfaContinuationFilter extends OncePerRequestFilter {
 
-    // ✅ 최적화: Request Attribute 키 정의 (필터 체인 간 컨텍스트 공유)
+    
     public static final String FACTOR_CONTEXT_ATTR = "io.contexa.mfa.FactorContext";
     public static final String VALIDATION_RESULT_ATTR = "io.contexa.mfa.ValidationResult";
 
-    // P1.1: 초기화 상태 플래그
+    
     private volatile boolean initialized = false;
 
     private final AuthResponseWriter responseWriter;
@@ -76,7 +71,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        // P1.1: 초기화 상태 검증
+        
         if (!initialized) {
             log.error("🚨 MfaContinuationFilter not initialized. URL matchers must be initialized before processing requests.");
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
@@ -92,11 +87,11 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         log.debug("MfaContinuationFilter processing request: {} {} using {} repository",
                 request.getMethod(), request.getRequestURI(), sessionRepository.getRepositoryType());
 
-        // ✅ High 수정 2: 세션 조회 중복 제거
-        // 디버깅용 세션 조회 로직(Line 87-100)을 제거하고 loadFactorContextFromRequest()에서 한 번만 조회
+        
+        
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
 
-        // ✅ 최적화: FactorContext를 Request Attribute에 저장 (중복 로드 방지)
+        
         if (ctx != null) {
             request.setAttribute(FACTOR_CONTEXT_ATTR, ctx);
             log.debug("FactorContext saved to request attribute for session: {}", ctx.getMfaSessionId());
@@ -104,7 +99,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
 
         ValidationResult validation = MfaContextValidator.validateFactorSelectionContext(ctx, sessionRepository);
 
-        // ✅ 최적화: ValidationResult를 Request Attribute에 저장 (중복 검증 방지)
+        
         request.setAttribute(VALIDATION_RESULT_ATTR, validation);
         log.debug("ValidationResult saved to request attribute - hasErrors: {}", validation.hasErrors());
 
@@ -115,7 +110,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 경고 로깅
+        
         if (validation.hasWarnings()) {
             log.warn("MFA context warnings for request: {} - Warnings: {}",
                     request.getRequestURI(), validation.getWarnings());
@@ -134,16 +129,14 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * 개선: Repository 패턴 통합 - 무효한 컨텍스트 처리
-     */
+    
     private void handleInvalidContext(HttpServletRequest request, HttpServletResponse response,
                                       ValidationResult validation) throws IOException {
-        // ✅ High 수정 2: Request Attribute에서 FactorContext 조회 (세션 조회 중복 제거)
+        
         FactorContext ctx = (FactorContext) request.getAttribute(FACTOR_CONTEXT_ATTR);
         String oldSessionId = ctx != null ? ctx.getMfaSessionId() : sessionRepository.getSessionId(request);
 
-        // ✅ Medium 수정 2: 세션이 실제로 존재하는 경우에만 정리
+        
         if (oldSessionId != null && sessionRepository.existsSession(oldSessionId)) {
             try {
                 stateMachineIntegrator.releaseStateMachine(oldSessionId);
@@ -169,21 +162,10 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 request.getRequestURI(), errorResponse);
     }
 
-    /**
-     * ⭐ Phase 3: URL Matcher 동적 초기화
-     *
-     * <p>
-     * MfaAuthenticationAdapter가 Factor Options를 AuthUrlProvider에 주입한 후
-     * 이 메서드를 호출하여 MfaUrlMatcher를 초기화합니다.
-     * </p>
-     *
-     * <p>
-     * 호출 시점: MfaAuthenticationAdapter.apply() 내에서 Factor Options 주입 직후
-     * </p>
-     */
+    
     public void initializeUrlMatchers() {
         urlMatcher.initializeMatchers();
-        initialized = true; // P1.1: 초기화 완료 플래그 설정
+        initialized = true; 
         log.info("✅ MfaContinuationFilter URL matchers initialized and filter is now ready");
     }
 }

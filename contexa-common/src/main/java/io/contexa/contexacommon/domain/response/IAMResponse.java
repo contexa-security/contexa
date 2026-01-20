@@ -9,10 +9,7 @@ import lombok.Setter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * IAM AI 응답 클래스
- * AI Core 응답을 확장하여 IAM 특화 정보를 제공
- */
+
 @Getter
 @Setter
 public abstract class IAMResponse extends AIResponse {

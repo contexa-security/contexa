@@ -10,30 +10,18 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * ApprovalRequest 생성을 중앙화하는 Factory 클래스
- * 
- * 모든 ApprovalRequest 생성이 이 클래스를 통해 이루어지도록 하여
- * 일관성을 보장하고 필수 필드가 누락되지 않도록 합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalRequestFactory {
     
     private static final String DEFAULT_ORGANIZATION_ID = "default-org";
     private static final String DEFAULT_REQUESTED_BY = "system";
-    private static final Integer DEFAULT_APPROVAL_TIMEOUT = 300; // 5분
+    private static final Integer DEFAULT_APPROVAL_TIMEOUT = 300; 
     private static final Integer DEFAULT_REQUIRED_APPROVERS = 1;
     private static final String DEFAULT_INCIDENT_PREFIX = "INC-";
     
-    /**
-     * 도구 실행을 위한 ApprovalRequest 생성
-     * 
-     * @param toolName 도구 이름
-     * @param parameters 도구 매개변수
-     * @param riskLevel 위험 수준
-     * @return 완전히 초기화된 ApprovalRequest
-     */
+    
     public ApprovalRequest createForToolExecution(
             String toolName,
             Map<String, Object> parameters,
@@ -43,7 +31,7 @@ public class ApprovalRequestFactory {
         
         log.debug("Creating ApprovalRequest for tool execution: {}", toolName);
         
-        // incidentId가 null이면 자동 생성
+        
         if (incidentId == null || incidentId.isEmpty()) {
             incidentId = generateIncidentId();
             log.warn("incidentId parameter was null for tool {}, generated: {}", toolName, incidentId);
@@ -68,12 +56,12 @@ public class ApprovalRequestFactory {
                 .metadata(new HashMap<>())
                 .build();
         
-        // 추가 필드 설정
+        
         request.setActionDescription(buildActionDescription(toolName, parameters));
         request.setToolDescription(buildToolDescription(toolName));
         request.setPotentialImpact(assessPotentialImpact(toolName, riskLevel));
         
-        // 필수 필드 검증
+        
         ensureRequiredFields(request);
         
         log.info("Created ApprovalRequest: {} for tool: {} with status: {}", 
@@ -82,15 +70,7 @@ public class ApprovalRequestFactory {
         return request;
     }
     
-    /**
-     * 알림에서 ApprovalRequest 생성
-     * 
-     * @param toolName 도구 이름
-     * @param description 설명
-     * @param incidentId 인시던트 ID
-     * @param riskLevel 위험 수준
-     * @return 완전히 초기화된 ApprovalRequest
-     */
+    
     public ApprovalRequest createFromNotification(
             String toolName,
             String description,
@@ -100,7 +80,7 @@ public class ApprovalRequestFactory {
         
         log.debug("Creating ApprovalRequest from notification for: {}", toolName);
         
-        // incidentId가 null이면 자동 생성
+        
         if (incidentId == null || incidentId.isEmpty()) {
             incidentId = generateIncidentId();
             log.warn("incidentId parameter was null in notification for tool {}, generated: {}", toolName, incidentId);
@@ -127,7 +107,7 @@ public class ApprovalRequestFactory {
                 .metadata(new HashMap<>())
                 .build();
         
-        // 필수 필드 검증
+        
         ensureRequiredFields(request);
         
         log.info("Created ApprovalRequest from notification: {} with status: {}", 
@@ -136,18 +116,11 @@ public class ApprovalRequestFactory {
         return request;
     }
     
-    /**
-     * 이벤트에서 ApprovalRequest 보완
-     * 
-     * 이미 부분적으로 생성된 ApprovalRequest의 누락된 필드를 채웁니다.
-     * 
-     * @param request 부분적으로 초기화된 ApprovalRequest
-     * @return 완전히 초기화된 ApprovalRequest
-     */
+    
     public ApprovalRequest completeFromEvent(ApprovalRequest request) {
         log.debug("Completing ApprovalRequest from event: {}", request.getRequestId());
         
-        // null 필드들을 기본값으로 채우기
+        
         if (request.getRequestId() == null || request.getRequestId().isEmpty()) {
             request.setRequestId(generateRequestId());
         }
@@ -187,7 +160,7 @@ public class ApprovalRequestFactory {
             request.setApprovalTimeout(DEFAULT_APPROVAL_TIMEOUT);
         }
         
-        // incidentId는 playbook_instance_id로 매핑되므로 반드시 필요
+        
         if (request.getIncidentId() == null || request.getIncidentId().isEmpty()) {
             request.setIncidentId(generateIncidentId());
             log.warn("incidentId was null, generated default: {}", request.getIncidentId());
@@ -197,7 +170,7 @@ public class ApprovalRequestFactory {
             request.setOrganizationId(DEFAULT_ORGANIZATION_ID);
         }
         
-        // toolDescription이 null이면 설정
+        
         if (request.getToolDescription() == null || request.getToolDescription().isEmpty()) {
             request.setToolDescription(buildToolDescription(request.getToolName()));
         }
@@ -210,7 +183,7 @@ public class ApprovalRequestFactory {
             request.setMetadata(new HashMap<>());
         }
         
-        // 필수 필드 최종 검증
+        
         ensureRequiredFields(request);
         
         log.info("Completed ApprovalRequest: {} with status: {}", 
@@ -219,12 +192,7 @@ public class ApprovalRequestFactory {
         return request;
     }
     
-    /**
-     * 필수 필드 검증 및 보장
-     * 
-     * @param request 검증할 ApprovalRequest
-     * @throws IllegalArgumentException 필수 필드가 누락된 경우
-     */
+    
     private void ensureRequiredFields(ApprovalRequest request) {
         List<String> missingFields = new ArrayList<>();
         
@@ -240,8 +208,8 @@ public class ApprovalRequestFactory {
             missingFields.add("toolName");
         }
         
-        // incidentId는 DB의 playbook_instance_id (NOT NULL)로 매핑됨
-        // 필수 필드이지만 자동 생성 가능하므로 여기서 설정
+        
+        
         if (request.getIncidentId() == null || request.getIncidentId().isEmpty()) {
             request.setIncidentId(generateIncidentId());
             log.warn("incidentId was null in ensureRequiredFields, generated default: {}", request.getIncidentId());
@@ -261,13 +229,13 @@ public class ApprovalRequestFactory {
             throw new IllegalArgumentException(errorMsg);
         }
         
-        // Set 타입 필드들이 null이 아닌지 확인 (빈 Set은 괜찮음)
+        
         if (request.getRequiredRoles() == null) {
             request.setRequiredRoles(new HashSet<>());
             log.debug("Initialized empty requiredRoles");
         }
         
-        // Map 타입 필드들이 null이 아닌지 확인 (빈 Map은 괜찮음)
+        
         if (request.getParameters() == null) {
             request.setParameters(new HashMap<>());
             log.debug("Initialized empty parameters");
@@ -281,30 +249,17 @@ public class ApprovalRequestFactory {
         log.debug("All required fields validated for request: {}", request.getRequestId());
     }
     
-    /**
-     * 고유한 요청 ID 생성
-     * 
-     * @return UUID 기반 요청 ID
-     */
+    
     private String generateRequestId() {
         return UUID.randomUUID().toString();
     }
     
-    /**
-     * 인시던트 ID 생성
-     * 
-     * @return 생성된 인시던트 ID
-     */
+    
     private String generateIncidentId() {
         return DEFAULT_INCIDENT_PREFIX + UUID.randomUUID().toString();
     }
     
-    /**
-     * 위험 수준에 따른 승인 유형 결정
-     * 
-     * @param riskLevel 위험 수준
-     * @return 적절한 승인 유형
-     */
+    
     private ApprovalType determineApprovalType(RiskLevel riskLevel) {
         if (riskLevel == null) {
             return ApprovalType.MANUAL;
@@ -312,25 +267,20 @@ public class ApprovalRequestFactory {
         
         switch (riskLevel) {
             case CRITICAL:
-                return ApprovalType.MULTI; // 다중 승인 필요
+                return ApprovalType.MULTI; 
             case HIGH:
-                return ApprovalType.MANUAL; // 수동 승인 필요
+                return ApprovalType.MANUAL; 
             case MEDIUM:
-                return ApprovalType.SINGLE; // 단일 승인
+                return ApprovalType.SINGLE; 
             case LOW:
             case INFO:
-                return ApprovalType.AUTO; // 자동 승인 가능
+                return ApprovalType.AUTO; 
             default:
                 return ApprovalType.MANUAL;
         }
     }
     
-    /**
-     * 위험 수준에 따른 필요 역할 결정
-     * 
-     * @param riskLevel 위험 수준
-     * @return 필요한 역할 집합
-     */
+    
     private Set<String> determineRequiredRoles(RiskLevel riskLevel) {
         Set<String> roles = new HashSet<>();
         
@@ -362,12 +312,7 @@ public class ApprovalRequestFactory {
         return roles;
     }
     
-    /**
-     * 위험 수준에 따른 필요 승인자 수 결정
-     * 
-     * @param riskLevel 위험 수준
-     * @return 필요한 승인자 수
-     */
+    
     private Integer determineRequiredApprovers(RiskLevel riskLevel) {
         if (riskLevel == null) {
             return DEFAULT_REQUIRED_APPROVERS;
@@ -375,24 +320,18 @@ public class ApprovalRequestFactory {
         
         switch (riskLevel) {
             case CRITICAL:
-                return 3; // 3명 이상 승인 필요
+                return 3; 
             case HIGH:
-                return 2; // 2명 이상 승인 필요
+                return 2; 
             case MEDIUM:
             case LOW:
             case INFO:
             default:
-                return 1; // 1명 승인 필요
+                return 1; 
         }
     }
     
-    /**
-     * 액션 설명 생성
-     * 
-     * @param toolName 도구 이름
-     * @param parameters 매개변수
-     * @return 액션 설명
-     */
+    
     private String buildActionDescription(String toolName, Map<String, Object> parameters) {
         StringBuilder description = new StringBuilder();
         description.append("Execute tool: ").append(toolName);
@@ -404,13 +343,7 @@ public class ApprovalRequestFactory {
         return description.toString();
     }
     
-    /**
-     * 잠재적 영향 평가
-     * 
-     * @param toolName 도구 이름
-     * @param riskLevel 위험 수준
-     * @return 잠재적 영향 설명
-     */
+    
     private String assessPotentialImpact(String toolName, RiskLevel riskLevel) {
         if (riskLevel == null) {
             return "Unknown impact";
@@ -432,22 +365,17 @@ public class ApprovalRequestFactory {
         }
     }
     
-    /**
-     * 도구 설명 생성
-     * 
-     * @param toolName 도구 이름
-     * @return 도구 설명
-     */
+    
     private String buildToolDescription(String toolName) {
         if (toolName == null || toolName.isEmpty()) {
             return "Unknown tool execution";
         }
         
-        // 도구 이름에 따른 설명 생성
+        
         StringBuilder description = new StringBuilder();
         description.append("Tool '").append(toolName).append("' ");
         
-        // 알려진 도구들에 대한 구체적 설명
+        
         if (toolName.contains("ProcessKill") || toolName.contains("Kill")) {
             description.append("for terminating system processes");
         } else if (toolName.contains("SystemInfo") || toolName.contains("Info")) {
@@ -469,12 +397,7 @@ public class ApprovalRequestFactory {
         return description.toString();
     }
     
-    /**
-     * 문자열로부터 RiskLevel 파싱
-     * 
-     * @param riskLevel 위험 수준 문자열
-     * @return RiskLevel enum
-     */
+    
     private RiskLevel parseRiskLevel(String riskLevel) {
         if (riskLevel == null || riskLevel.isEmpty()) {
             return RiskLevel.MEDIUM;

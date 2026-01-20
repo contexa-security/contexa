@@ -22,10 +22,7 @@ import org.springframework.util.Assert;
 
 import java.util.Objects;
 
-/**
- * REST 인증 설정을 위한 추상 기반 클래스
- * 공통 기능을 제공하고 템플릿 메서드 패턴을 사용하여 확장 가능
- */
+
 public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRestAuthenticationConfigurer<T, H>, H extends HttpSecurityBuilder<H>>
         extends AbstractHttpConfigurer<T, H> {
 
@@ -55,29 +52,23 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
             this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
         }
 
-        // 템플릿 메서드 - 하위 클래스에서 필터 생성
+        
         BaseAuthenticationFilter filter = createAuthenticationFilter(http, authenticationManager, applicationContext, properties);
         http.authenticationProvider(new RestAuthenticationProvider(userDetailsService, passwordEncoder));
-        // 공통 설정 적용
+        
         configureFilter(filter, (HttpSecurity) http);
 
         http.addFilterBefore(postProcess(filter), UsernamePasswordAuthenticationFilter.class);
     }
 
-    /**
-     * 하위 클래스에서 구현해야 할 추상 메서드
-     * 특정 타입의 인증 필터를 생성
-     */
+    
     protected abstract BaseAuthenticationFilter createAuthenticationFilter(
             H http,
             AuthenticationManager authenticationManager,
             ApplicationContext applicationContext,
             AuthContextProperties properties);
 
-    /**
-     * 필터에 공통 설정을 적용하는 메서드
-     * 리플렉션을 사용하여 필터 타입에 관계없이 설정 적용
-     */
+    
     protected void configureFilter(BaseAuthenticationFilter filter, HttpSecurity http) {
 
         if (successHandler != null) {
@@ -87,10 +78,10 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
             filter.setFailureHandler(failureHandler);
         }
 
-        // SecurityContextRepository 결정 우선순위:
-        // 1. HttpSecurity SharedObject (Adapter에서 설정)
-        // 2. Configurer 필드 (사용자가 명시적으로 설정)
-        // 3. 기본값 (RequestAttributeSecurityContextRepository)
+        
+        
+        
+        
         SecurityContextRepository resolvedRepository = http.getSharedObject(SecurityContextRepository.class);
         if (resolvedRepository == null) {
             resolvedRepository = this.securityContextRepository;

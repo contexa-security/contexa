@@ -17,8 +17,7 @@ public class StudioExplorerServiceImpl implements StudioExplorerService {
 
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
-/*    private final PermissionCatalogService permissionCatalogService;
-    private final PolicyRepository policyRepository;*/
+
 
     @Override
     public Map<String, List<ExplorerItemDto>> getExplorerItems() {
@@ -40,29 +39,11 @@ public class StudioExplorerServiceImpl implements StudioExplorerService {
                 ))
                 .toList();
 
-        /*List<ExplorerItemDto> permissions = permissionCatalogService.getAvailablePermissions().stream()
-                .map(perm -> new ExplorerItemDto(
-                        perm.getId(),
-                        perm.getFriendlyName(),
-                        "PERMISSION",
-                        Optional.ofNullable(perm.getDescription()).orElse("설명 없음")
-                ))
-                .toList();
-
-        List<ExplorerItemDto> policies = policyRepository.findAllWithDetails().stream()
-                .map(policy -> new ExplorerItemDto(
-                        policy.getId(),
-                        Optional.ofNullable(policy.getName()).orElse("이름 없음"),
-                        "POLICY",
-                        Optional.ofNullable(policy.getFriendlyDescription()).orElse("자동 생성된 요약 정보가 없습니다.")
-                ))
-                .toList();*/
+        
 
         return Map.of(
                 "users", users,
-                "groups", groups/*,
-                "permissions", permissions,
-                "policies", policies*/
+                "groups", groups
         );
     }
 }

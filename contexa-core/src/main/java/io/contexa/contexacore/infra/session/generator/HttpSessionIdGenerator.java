@@ -10,9 +10,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * HTTP Session 환경에 최적화된 세션 ID 생성기
- */
+
 @Slf4j
 public class HttpSessionIdGenerator implements SessionIdGenerator {
 

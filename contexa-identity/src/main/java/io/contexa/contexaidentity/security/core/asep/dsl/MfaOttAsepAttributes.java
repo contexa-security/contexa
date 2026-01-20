@@ -13,7 +13,7 @@ public final class MfaOttAsepAttributes implements BaseAsepAttributes {
     private final List<SecurityHandlerMethodReturnValueHandler> customReturnValueHandlers = new ArrayList<>();
 
     public MfaOttAsepAttributes() {
-        // 기본 생성자
+        
     }
 
     public MfaOttAsepAttributes exceptionArgumentResolver(SecurityHandlerMethodArgumentResolver resolver) {

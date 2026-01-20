@@ -23,25 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 위험 평가 컨텍스트 검색기 - AI-Native 보안 전문 구현
- * 
- * 다른 ContextRetriever들과 동일한 패턴 적용:
- * - RAG 검색 (VectorStore)
- * - 시스템 메타데이터 구성 (DB Repository 활용)
- * - ContextRetrieverRegistry 자동 등록
- * 
- * 역할:
- * 1. RAG 기반 위험 평가 관련 문서/패턴 검색
- * 2. 실시간 사용자 행동, 감사로그, 리소스 접근 히스토리 분석
- * 3. 제로 트러스트 위험 평가를 위한 종합 컨텍스트 구성
- * 
- * 검색 영역:
- * - 과거 위험 평가 사례 (Vector Store)
- * - 사용자 행동 패턴 분석 (DB + Vector)
- * - 리소스별 위험 프로파일 (DB)
- * - 비정상 접근 패턴 탐지 (DB + ML)
- */
+
 @Slf4j
 public class RiskAssessmentContextRetriever extends ContextRetriever {
 
@@ -79,29 +61,21 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
     public ContextRetrievalResult retrieveContext(AIRequest<?> request) {
         log.debug("RiskAssessmentContextRetriever.retrieveContext 호출됨");
         
-        // RiskAssessmentContext 타입인 경우 특화 처리
+        
         if (request.getContext() instanceof RiskAssessmentContext) {
             String contextInfo = retrieveRiskAssessmentContext((AIRequest<RiskAssessmentContext>) request);
             return new ContextRetrievalResult(
                 contextInfo, 
-                List.of(), // 빈 문서 리스트
+                List.of(), 
                 Map.of("retrieverType", "RiskAssessmentContextRetriever", "timestamp", System.currentTimeMillis())
             );
         }
         
-        // 그 외의 경우 상위 클래스의 기본 처리
+        
         return super.retrieveContext(request);
     }
 
-    /**
-     * 위험 평가 컨텍스트 종합 검색
-     * 
-     * 실무급 구현:
-     * 1. RAG 기반 과거 위험 사례 검색
-     * 2. DB 기반 사용자 행동 패턴 분석
-     * 3. 리소스별 위험 프로파일 구성
-     * 4. 실시간 이상 탐지 결과 반영
-     */
+    
     public String retrieveRiskAssessmentContext(AIRequest<RiskAssessmentContext> request) {
         log.info("위험 평가 컨텍스트 검색 시작: {}", request.getRequestId());
         
@@ -109,7 +83,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             RiskAssessmentContext context = request.getContext();
             StringBuilder contextBuilder = new StringBuilder();
             
-            // VectorService에 위험 평가 요청 저장
+            
             try {
                 vectorService.storeRiskAssessment(context);
                 log.debug("💾 VectorService에 위험 평가 요청 저장 완료");
@@ -117,29 +91,29 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 log.warn("VectorService 위험 평가 저장 실패: {}", e.getMessage());
             }
             
-            // 1. RAG 기반 과거 위험 사례 검색
+            
             String historicalRiskPatterns = searchHistoricalRiskPatterns(context);
             if (!historicalRiskPatterns.isEmpty()) {
                 contextBuilder.append("## 📚 과거 위험 평가 사례 분석\n");
                 contextBuilder.append(historicalRiskPatterns).append("\n\n");
             }
             
-            // 2. 사용자 행동 패턴 분석
+            
             String userBehaviorAnalysis = analyzeUserBehaviorPatterns(context);
             contextBuilder.append("## 👤 사용자 행동 패턴 분석\n");
             contextBuilder.append(userBehaviorAnalysis).append("\n\n");
             
-            // 3. 리소스별 위험 프로파일
+            
             String resourceRiskProfile = buildResourceRiskProfile(context);
             contextBuilder.append("## 리소스 위험 프로파일\n");
             contextBuilder.append(resourceRiskProfile).append("\n\n");
             
-            // 4. 실시간 이상 탐지 결과
+            
             String anomalyDetectionResult = performAnomalyDetection(context);
             contextBuilder.append("## 실시간 이상 탐지 결과\n");
             contextBuilder.append(anomalyDetectionResult).append("\n\n");
             
-            // 5. 위험 평가 가이드라인
+            
             String riskAssessmentGuidelines = getRiskAssessmentGuidelines();
             contextBuilder.append("## 위험 평가 가이드라인\n");
             contextBuilder.append(riskAssessmentGuidelines);
@@ -147,9 +121,9 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             String result = contextBuilder.toString();
             log.info("위험 평가 컨텍스트 검색 완료 - 컨텍스트 길이: {}", result.length());
             
-            // VectorService에 위험 평가 결과 저장
+            
             try {
-                double riskScore = context.calculateRiskComplexity() / 20.0; // 정규화
+                double riskScore = context.calculateRiskComplexity() / 20.0; 
                 vectorService.storeRiskResult(request.getRequestId(), riskScore, result);
                 log.debug("💾 VectorService에 위험 평가 결과 저장 완료 - 점수: {}", riskScore);
             } catch (Exception e) {
@@ -164,19 +138,17 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    /**
-     * 📚 RAG 기반 과거 위험 사례 검색
-     */
+    
     private String searchHistoricalRiskPatterns(RiskAssessmentContext context) {
         try {
-            // 1. VectorService를 통한 위험 패턴 검색
+            
             List<Document> similarRisks = vectorService.findSimilarRiskPatterns(
                 context.getUserId(), 
                 context.getResourceIdentifier(), 
                 5
             );
             
-            // 2. 기존 VectorStore 검색도 병행
+            
             String searchQuery = String.format(
                 "위험 평가 사례 user:%s resource:%s action:%s ip:%s", 
                 context.getUserId(), 
@@ -193,7 +165,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             
             List<Document> vectorDocs = vectorStore.similaritySearch(searchRequest);
             
-            // 3. 결과 병합
+            
             List<Document> riskDocs = new ArrayList<>();
             riskDocs.addAll(similarRisks);
             for (Document doc : vectorDocs) {
@@ -218,28 +190,26 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    /**
-     * 👤 DB 기반 사용자 행동 패턴 분석
-     */
+    
     private String analyzeUserBehaviorPatterns(RiskAssessmentContext context) {
         try {
             StringBuilder analysis = new StringBuilder();
             
-            // 사용자 기본 정보
+            
             userRepository.findByUsernameWithGroupsRolesAndPermissions(context.getUserId()).ifPresent(user -> {
                 analysis.append(String.format("- 사용자: %s (ID: %d)\n", user.getName(), user.getId()));
-                analysis.append(String.format("- 계정 상태: %s\n", "활성")); // Users 엔티티에 isEnabled 없음
+                analysis.append(String.format("- 계정 상태: %s\n", "활성")); 
                 analysis.append(String.format("- 생성일: %s\n", user.getCreatedAt()));
                 analysis.append(String.format("- MFA 활성화: %s\n", user.isMfaEnabled() ? "예" : "아니오"));
             });
             
-            // 최근 감사로그 분석 (최근 5개 로그)
+            
             List<AuditLog> recentLogs = auditLogRepository.findTop5ByPrincipalNameOrderByIdDesc(context.getUserId());
             
             if (!recentLogs.isEmpty()) {
                 analysis.append(String.format("- 최근 활동 횟수: %d건\n", recentLogs.size()));
                 
-                // 액션 타입별 통계
+                
                 Map<String, Long> actionStats = recentLogs.stream()
                     .collect(Collectors.groupingBy(
                         log -> log.getAction(),
@@ -251,7 +221,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                     analysis.append(String.format("  * %s: %d건\n", action, count))
                 );
                 
-                // 비정상 패턴 탐지
+                
                 long distinctIpCount = recentLogs.stream()
                     .map(log -> log.getClientIp())
                     .distinct()
@@ -261,7 +231,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                     analysis.append(String.format("주의: 최근 %d개의 서로 다른 IP에서 접근\n", distinctIpCount));
                 }
                 
-                // 추가 통계
+                
                 LocalDateTime oneWeekAgo = LocalDateTime.now().minusWeeks(1);
                 long totalWeeklyActivities = auditLogRepository.countByPrincipalNameAndTimeRange(
                     context.getUserId(), oneWeekAgo, LocalDateTime.now());
@@ -279,9 +249,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    /**
-     * 리소스별 위험 프로파일 구성
-     */
+    
     private String buildResourceRiskProfile(RiskAssessmentContext context) {
         try {
             StringBuilder profile = new StringBuilder();
@@ -289,16 +257,16 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             profile.append(String.format("- 대상 리소스: %s\n", context.getResourceIdentifier()));
             profile.append(String.format("- 요청 액션: %s\n", context.getActionType()));
             
-            // 리소스 정보 조회
+            
             if (context.getResourceIdentifier() != null) {
                 long actionCount = resourceActionRepository.countActionsByResourceIdentifier(context.getResourceIdentifier());
                 profile.append(String.format("- 리소스 허용 액션 수: %d개\n", actionCount));
                 
-                // 리소스 민감도 조회
+                
                 resourceActionRepository.getResourceSensitivityLevel(context.getResourceIdentifier())
                     .ifPresent(level -> profile.append(String.format("- 리소스 민감도: %s\n", level)));
                 
-                // 리소스 존재 여부
+                
                 resourceActionRepository.findByResourceIdentifier(context.getResourceIdentifier())
                     .ifPresentOrElse(
                         resource -> profile.append(String.format("- 리소스 타입: %s\n", resource.getResourceType())),
@@ -306,7 +274,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                     );
             }
             
-            // 감사 로그 기반 접근 통계
+            
             if (context.getResourceIdentifier() != null) {
                 long totalAccess = auditLogRepository.countByResourceIdentifier(context.getResourceIdentifier());
                 long uniqueUsers = auditLogRepository.countDistinctUsersByResourceIdentifier(context.getResourceIdentifier());
@@ -318,7 +286,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 profile.append(String.format("- 최근 24시간 실패 시도: %d건\n", recentFailures));
             }
             
-            // 리소스 민감도 분석
+            
             if (context.getResourceIdentifier() != null) {
                 if (context.getResourceIdentifier().toLowerCase().contains("admin")) {
                     profile.append("높은 위험도: 관리자 리소스 접근\n");
@@ -337,13 +305,11 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    /**
-     * 실시간 이상 탐지
-     */
+    
     private String performAnomalyDetection(RiskAssessmentContext context) {
         StringBuilder detection = new StringBuilder();
         
-        // IP 기반 이상 탐지
+        
         if (context.getRemoteIp() != null) {
             if (context.getRemoteIp().startsWith("10.") || 
                 context.getRemoteIp().startsWith("192.168.") || 
@@ -354,7 +320,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             }
         }
         
-        // 시간 기반 이상 탐지
+        
         int currentHour = LocalDateTime.now().getHour();
         if (currentHour >= 18 || currentHour <= 8) {
             detection.append("업무시간 외 접근 시도\n");
@@ -362,7 +328,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             detection.append("정상 업무시간 내 접근\n");
         }
         
-        // 권한 복잡도 분석
+        
         int complexityScore = context.calculateRiskComplexity();
         if (complexityScore > 10) {
             detection.append(String.format("높은 권한 복잡도: %d점\n", complexityScore));
@@ -373,9 +339,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         return detection.toString();
     }
 
-    /**
-     * 위험 평가 가이드라인
-     */
+    
     private String getRiskAssessmentGuidelines() {
         return """
         ### 위험 점수 산정 기준
@@ -399,9 +363,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         """;
     }
 
-    /**
-     * 기본 위험 평가 컨텍스트 (오류 발생 시)
-     */
+    
     private String getDefaultRiskAssessmentContext() {
         return """
         ## 기본 위험 평가 컨텍스트
@@ -415,9 +377,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         """;
     }
     
-    /**
-     * 위험 평가 쿼리 변환기
-     */
+    
     private static class RiskQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

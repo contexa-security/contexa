@@ -13,7 +13,7 @@ public final class OttAsepAttributes implements BaseAsepAttributes {
     private final List<SecurityHandlerMethodReturnValueHandler> customReturnValueHandlers = new ArrayList<>();
 
     public OttAsepAttributes() {
-        // 기본 생성자
+        
     }
 
     public OttAsepAttributes exceptionArgumentResolver(SecurityHandlerMethodArgumentResolver resolver) {

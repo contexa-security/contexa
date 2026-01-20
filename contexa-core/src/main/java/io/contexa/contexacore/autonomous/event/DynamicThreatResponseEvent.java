@@ -10,16 +10,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * 동적 위협 대응 이벤트
- * 
- * SecurityPlaneAgent가 실시간 위협에 대응하고 성공적으로 해결한 경우 발생하는 이벤트
- * 이 이벤트는 AutonomousPolicySynthesizer에 의해 수신되어 
- * DynamicThreatResponseSynthesisLab으로 라우팅되어 정책 생성으로 이어짐
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Data
 @EqualsAndHashCode(callSuper = false)
 public class DynamicThreatResponseEvent extends ApplicationEvent implements LearnableEvent {
@@ -34,7 +25,7 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
     private final boolean responseSuccessful;
     private final String responseDescription;
     
-    // 위협 관련 추가 정보
+    
     private final String threatType;
     private final String attackVector;
     private final String targetResource;
@@ -75,33 +66,31 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
         this.incidentId = incidentId;
         this.soarWorkflowId = soarWorkflowId;
         
-        // 컨텍스트 구성
+        
         this.context = buildContext(additionalContext);
     }
     
-    /**
-     * 이벤트 컨텍스트 구성
-     */
+    
     private Map<String, Object> buildContext(Map<String, Object> additionalContext) {
         Map<String, Object> ctx = new HashMap<>();
         
-        // 위협 정보
+        
         ctx.put("threatType", threatType);
         ctx.put("attackVector", attackVector);
         ctx.put("targetResource", targetResource);
         ctx.put("attackerIdentity", attackerIdentity);
         
-        // 대응 정보
+        
         ctx.put("mitigationAction", mitigationAction);
         ctx.put("responseSuccessful", responseSuccessful);
         ctx.put("responseDescription", responseDescription);
         
-        // 추적 정보
+        
         ctx.put("incidentId", incidentId);
         ctx.put("soarWorkflowId", soarWorkflowId);
         ctx.put("occurredAt", occurredAt);
         
-        // 추가 컨텍스트
+        
         if (additionalContext != null) {
             ctx.putAll(additionalContext);
         }
@@ -109,9 +98,7 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
         return ctx;
     }
     
-    /**
-     * 정책 생성을 위한 자연어 설명 생성
-     */
+    
     public String generateNaturalLanguageDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("위협 유형: ").append(threatType).append("\n");
@@ -128,9 +115,7 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
         return sb.toString();
     }
     
-    /**
-     * 학습을 위한 핵심 정보 추출
-     */
+    
     public Map<String, String> extractLearningFeatures() {
         Map<String, String> features = new HashMap<>();
         features.put("threat_type", threatType);

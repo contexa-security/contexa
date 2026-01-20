@@ -9,10 +9,7 @@ import lombok.Setter;
 
 import java.util.*;
 
-/**
- * 사용자 행동 분석 AI의 최종 응답 DTO.
- * AIResponse 인터페이스를 구현하여 표준 파이프라인 결과물로 사용됩니다.
- */
+
 @Getter
 @Setter
 public class BehavioralAnalysisResponse extends IAMResponse {
@@ -22,13 +19,13 @@ public class BehavioralAnalysisResponse extends IAMResponse {
     @JsonSetter(nulls = Nulls.SKIP)
     private String userId = "unknown";
 
-    private double behavioralRiskScore = 0.0; // 0.0 ~ 100.0
+    private double behavioralRiskScore = 0.0; 
 
     @JsonSetter(nulls = Nulls.SKIP)
     private RiskLevel riskLevel = RiskLevel.LOW;
 
     @JsonSetter(nulls = Nulls.SKIP)
-    private String summary = ""; // AI가 생성한 분석 요약
+    private String summary = ""; 
 
     @JsonSetter(nulls = Nulls.SKIP)
     private List<Anomaly> anomalies = new ArrayList<>();
@@ -66,14 +63,14 @@ public class BehavioralAnalysisResponse extends IAMResponse {
     @Getter @Setter
     @AllArgsConstructor
     public static class Anomaly {
-        private String type; // 예: UNUSUAL_LOGIN_TIME, UNUSUAL_IP, ABNORMAL_RESOURCE_ACCESS
+        private String type; 
         private String description;
     }
 
     @Getter @Setter
     @AllArgsConstructor
     public static class Recommendation {
-        private String action; // 예: "MFA 인증 강제", "세션 일시 중단", "관리자 검토 요청"
+        private String action; 
         private String reason;
     }
 
@@ -85,7 +82,7 @@ public class BehavioralAnalysisResponse extends IAMResponse {
     @Getter @Setter
     public static class TimelineEvent {
         private String timestamp;
-        private String type; // "LOGIN", "RESOURCE_ACCESS", "PERMISSION_CHANGE"
+        private String type; 
         private String description;
         private boolean isAnomaly;
     }

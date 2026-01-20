@@ -19,23 +19,23 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 final public class AINativeProcessor<T extends DomainContext> implements AICoreOperations<T> {
     
-    // ==================== 전략 지휘부 핵심 구성 ====================
+    
     private final DistributedSessionManager<T> sessionManager;
     private final RedisDistributedLockService distributedLockService;
 
-    // ==================== 분산 전략 실행기 (유일한 실행 의존성) ====================
-    private final DistributedStrategyExecutor<T> distributedStrategyExecutor; // 모든 실행을 이것에게 위임
     
-    // ==================== 전략 실행 상태 추적 ====================
+    private final DistributedStrategyExecutor<T> distributedStrategyExecutor; 
+    
+    
     private final AtomicLong totalStrategicOperations = new AtomicLong(0);
     private final AtomicLong successfulStrategicOperations = new AtomicLong(0);
     private final AtomicLong failedStrategicOperations = new AtomicLong(0);
     
-    // ==================== 전략 지휘 설정 ====================
+    
     private static final Duration STRATEGIC_LOCK_TIMEOUT = Duration.ofMinutes(30);
     private static final String STRATEGIC_LOCK_PREFIX = "ai:strategy:master:";
     
-    // 노드 ID 캐싱으로 소유자 일관성 보장
+    
     private final String nodeId;
     
     @Autowired
@@ -44,9 +44,9 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                              DistributedStrategyExecutor<T> distributedStrategyExecutor) {
         this.sessionManager = sessionManager;
         this.distributedLockService = distributedLockService;
-        this.distributedStrategyExecutor = distributedStrategyExecutor; // 유일한 실행 의존성
+        this.distributedStrategyExecutor = distributedStrategyExecutor; 
         
-        // 노드 ID 한 번만 생성하여 캐싱 (소유자 일관성 보장)
+        
         this.nodeId = System.getProperty("node.id", "master-" + UUID.randomUUID().toString().substring(0, 8));
 
         log.info("AI Native IAM Operations Master Brain initialized - Node ID: {}", this.nodeId);
@@ -79,12 +79,12 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                 
                 log.debug("Master Brain: Async delegating to DistributedStrategyExecutor - session: {}", sessionId);
                 
-                // DistributedStrategyExecutor의 범용 비동기 메서드 호출
+                
                 return distributedStrategyExecutor.executeDistributedStrategyAsync(
                     request, responseType, sessionId, auditId
                 )
                 .doOnSuccess(result -> {
-                    // 범용성 유지: AIRequest 그대로 전달
+                    
                     sessionManager.completeDistributedExecution(sessionId, auditId, request, result, true);
                     successfulStrategicOperations.incrementAndGet();
                     log.info("Master Brain: Async strategic operation completed successfully - {}", id);

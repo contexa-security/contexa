@@ -9,9 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * 메모리 저장소에 최적화된 세션 ID 생성기
- */
+
 @Slf4j
 public class InMemorySessionIdGenerator implements SessionIdGenerator {
 

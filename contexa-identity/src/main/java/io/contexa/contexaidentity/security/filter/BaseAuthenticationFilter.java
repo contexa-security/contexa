@@ -70,9 +70,7 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * 인증 시도 - 공통
-     */
+    
     protected Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
             throws AuthenticationException {
         try {
@@ -88,16 +86,12 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * 인증 성공 처리 - 하위 클래스에서 구현
-     */
+    
     protected abstract void successfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                                      FilterChain chain, Authentication authentication)
             throws IOException, ServletException;
 
-    /**
-     * 인증 실패 처리 - 공통
-     */
+    
     protected abstract void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                               AuthenticationException failed)
             throws IOException, ServletException;

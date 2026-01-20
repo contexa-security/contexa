@@ -12,18 +12,13 @@ import lombok.ToString;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 권한 거버넌스 분석 응답 객체
- * 
- * AccessGovernanceTemplate이 생성하는 JSON과 100% 일치하는 구조
- * Spring AI BeanOutputConverter를 통해 자동 변환
- */
+
 @Getter
 @Setter
 @ToString
 public class AccessGovernanceResponse extends AIResponse {
     
-    // Template JSON과 정확히 일치하는 필드들
+    
     @JsonProperty("analysisId")
     private String analysisId;
     
@@ -57,9 +52,7 @@ public class AccessGovernanceResponse extends AIResponse {
     @JsonProperty("statistics")
     private Statistics statistics;
     
-    /**
-     * Finding - Template JSON과 정확히 일치
-     */
+    
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -83,9 +76,7 @@ public class AccessGovernanceResponse extends AIResponse {
         private String recommendation;
     }
     
-    /**
-     * Recommendation - Template JSON과 정확히 일치
-     */
+    
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -106,9 +97,7 @@ public class AccessGovernanceResponse extends AIResponse {
         private List<String> implementationSteps = new ArrayList<>();
     }
     
-    /**
-     * ActionItem - Template JSON과 정확히 일치
-     */
+    
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -132,9 +121,7 @@ public class AccessGovernanceResponse extends AIResponse {
         private String description;
     }
     
-    /**
-     * VisualizationData - 시각화를 위한 노드와 엣지 데이터
-     */
+    
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -179,9 +166,7 @@ public class AccessGovernanceResponse extends AIResponse {
             private String type;
         }
     }
-    /**
-     * Statistics - 통계 정보
-     */
+    
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -214,7 +199,7 @@ public class AccessGovernanceResponse extends AIResponse {
         private int emptyGroups;
     }
     
-    // 생성자
+    
     public AccessGovernanceResponse(String requestId) {
         super(requestId, ExecutionStatus.SUCCESS);
         this.findings = new ArrayList<>();

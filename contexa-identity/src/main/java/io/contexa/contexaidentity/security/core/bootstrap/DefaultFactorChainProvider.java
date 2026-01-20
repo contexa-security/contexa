@@ -33,9 +33,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-/**
- * 설정되지 않은 기본 MFA 팩터들에 대한 SecurityFilterChain을 생성하고 등록하는 클래스
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class DefaultFactorChainProvider {
@@ -44,25 +42,23 @@ public class DefaultFactorChainProvider {
     private final SecurityFilterChainRegistrar registrar;
     private final AdapterRegistry adapterRegistry;
 
-    // 기본 팩터 타입들 정의
+    
     private static final Set<String> DEFAULT_FACTOR_TYPES = Set.of(
             AuthType.OTT.name().toLowerCase(),
             AuthType.PASSKEY.name().toLowerCase()
     );
 
-    /**
-     * 설정되지 않은 기본 팩터들에 대한 SecurityFilterChain 등록
-     */
+    
     public void registerDefaultFactorChains(Set<String> configuredFactorTypes,
                                             BeanDefinitionRegistry registry,
                                             AtomicInteger idx) {
-        // MFA 플로우가 설정되었는지 확인
+        
         if (!isMfaFlowConfigured()) {
             log.debug("No MFA flow configured, skipping default factor chain registration");
             return;
         }
 
-        // 설정되지 않은 기본 팩터들 찾기
+        
         Set<String> missingFactorTypes = findMissingFactorTypes(configuredFactorTypes);
 
         if (missingFactorTypes.isEmpty()) {
@@ -72,15 +68,13 @@ public class DefaultFactorChainProvider {
 
         log.info("Creating default SecurityFilterChains for unconfigured factors: {}", missingFactorTypes);
 
-        // 각 미설정 팩터에 대해 기본 SecurityFilterChain 생성 및 등록
+        
         for (String factorType : missingFactorTypes) {
             registerDefaultFactorChain(factorType, registry, idx);
         }
     }
 
-    /**
-     * MFA 플로우가 설정되었는지 확인
-     */
+    
     private boolean isMfaFlowConfigured() {
         try {
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
@@ -92,23 +86,19 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    /**
-     * 설정되지 않은 팩터 타입들 찾기
-     */
+    
     private Set<String> findMissingFactorTypes(Set<String> configuredFactorTypes) {
         return DEFAULT_FACTOR_TYPES.stream()
                 .filter(type -> !configuredFactorTypes.contains(type))
                 .collect(Collectors.toSet());
     }
 
-    /**
-     * 개별 팩터에 대한 기본 SecurityFilterChain 등록
-     */
+    
     private void registerDefaultFactorChain(String factorType,
                                             BeanDefinitionRegistry registry,
                                             AtomicInteger idx) {
         try {
-            // 기본 FlowContext 생성
+            
             FlowContext flowContext = createDefaultFlowContext(factorType);
             if (flowContext == null) {
                 log.error("Failed to create default FlowContext for factor type: {}", factorType);
@@ -124,12 +114,12 @@ public class DefaultFactorChainProvider {
             }
 
 
-            // SecurityFilterChainRegistrar의 buildAndRegisterFilters 메서드 사용
+            
             String beanName = "default" + capitalizeFirst(factorType) + "SecurityFilterChain" + idx.incrementAndGet();
 
             BeanDefinition bd = BeanDefinitionBuilder
                     .genericBeanDefinition(SecurityFilterChain.class,
-                            () -> registrar.buildAndRegisterFilters(flowContext, applicationContext)) // registrar 사용
+                            () -> registrar.buildAndRegisterFilters(flowContext, applicationContext)) 
                     .setLazyInit(false)
                     .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                     .getBeanDefinition();
@@ -142,9 +132,7 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    /**
-     * 기본 FlowContext 생성
-     */
+    
     private FlowContext createDefaultFlowContext(String factorType) {
         log.debug("Creating default FlowContext for factor type: {}", factorType);
 
@@ -152,28 +140,28 @@ public class DefaultFactorChainProvider {
             PlatformContext platformContext = applicationContext.getBean(PlatformContext.class);
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
 
-            // 기본 AuthenticationFlowConfig 생성
+            
             AuthenticationFlowConfig defaultFlowConfig = createDefaultFlowConfig(factorType);
 
-            // HttpSecurity 인스턴스 생성
+            
             HttpSecurity http = platformContext.newHttp();
 
-            // 전역 설정 적용
+            
             if (platformConfig.getGlobalCustomizer() != null) {
                 platformConfig.getGlobalCustomizer().customize(http);
             }
 
-            // 팩터별 기본 설정 적용
+            
             applyDefaultFactorConfiguration(http, factorType);
 
-            // HttpSecurity에 FlowConfig 등록
+            
             platformContext.registerHttp(defaultFlowConfig, http);
 
-            // HttpSecurity에 공유 객체 설정
+            
             http.setSharedObject(AuthenticationFlowConfig.class, defaultFlowConfig);
             http.setSharedObject(PlatformContext.class, platformContext);
 
-            // FlowContext 생성
+            
             return new FlowContext(defaultFlowConfig, http, platformContext, platformConfig);
 
         } catch (Exception e) {
@@ -182,43 +170,39 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    /**
-     * 기본 AuthenticationFlowConfig 생성
-     */
+    
     private AuthenticationFlowConfig createDefaultFlowConfig(String factorType) {
         AuthType authType = AuthType.valueOf(factorType.toUpperCase());
         String flowTypeName = factorType + "_flow";
 
-        // MFA 플로우의 일부로 동작할 수 있도록 stepId 생성
-        String mfaFlowName = "mfa"; // MFA 플로우 이름
-        int stepOrder = authType.ordinal() + 1; // OTT=1, PASSKEY=2 등
+        
+        String mfaFlowName = "mfa"; 
+        int stepOrder = authType.ordinal() + 1; 
 
-        // 기본 AuthenticationStepConfig 생성
+        
         AuthenticationStepConfig stepConfig = new AuthenticationStepConfig(
-                mfaFlowName,  // MFA 플로우의 일부로 stepId 생성
+                mfaFlowName,  
                 authType.name(),
-                stepOrder,    // MFA 내에서의 순서
-                false         // isPrimary = false
+                stepOrder,    
+                false         
         );
 
-        // 기본 옵션 설정
+        
         AuthenticationProcessingOptions defaultOptions = createDefaultOptions(authType);
         stepConfig.getOptions().put("_options", defaultOptions);
 
-        // StateConfig 생성 (기본은 OAUTH2)
+        
         StateConfig stateConfig = new StateConfig(StateType.OAUTH2.name().toLowerCase(), StateType.OAUTH2);
 
-        // AuthenticationFlowConfig 빌드
+        
         return AuthenticationFlowConfig.builder(flowTypeName)
-                .order(1000 + authType.ordinal())  // 기본 팩터는 낮은 우선순위
+                .order(1000 + authType.ordinal())  
                 .stepConfigs(List.of(stepConfig))
                 .stateConfig(stateConfig)
                 .build();
     }
 
-    /**
-     * 팩터 타입별 기본 옵션 생성
-     */
+    
     private AuthenticationProcessingOptions createDefaultOptions(AuthType authType) {
         AuthMethodConfigurerFactory factory = new AuthMethodConfigurerFactory(applicationContext);
 
@@ -232,9 +216,7 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    /**
-     * 기본 OTT 옵션 생성
-     */
+    
     private AuthenticationProcessingOptions createDefaultOttOptions(AuthMethodConfigurerFactory factory) {
         try {
             var ottConfigurer = factory.createFactorConfigurer(AuthType.OTT,
@@ -245,7 +227,7 @@ public class DefaultFactorChainProvider {
                         .setApplicationContext(applicationContext);
             }
 
-            // 기본 OTT 설정
+            
             ottConfigurer
                     .tokenGeneratingUrl("/api/ott/generate")
                     .loginProcessingUrl("/login/ott")
@@ -259,14 +241,12 @@ public class DefaultFactorChainProvider {
 
         } catch (Exception e) {
             log.error("Failed to create default OTT options with factory, creating manual configuration", e);
-            // Factory 실패시 수동으로 기본 OttOptions 생성
+            
             throw new RuntimeException("Cannot create default OTT options", e);
         }
     }
 
-    /**
-     * 기본 Passkey 옵션 생성
-     */
+    
     private AuthenticationProcessingOptions createDefaultPasskeyOptions(AuthMethodConfigurerFactory factory) {
         try {
             var passkeyConfigurer = factory.createFactorConfigurer(AuthType.PASSKEY, PasskeyConfigurerConfigurer.class);
@@ -280,7 +260,7 @@ public class DefaultFactorChainProvider {
             String rpName = applicationContext.getEnvironment()
                     .getProperty("spring.security.webauthn.relyingparty.name", "Spring Security Platform");
 
-            // 기본 Passkey 설정
+            
             passkeyConfigurer
                     .rpId(rpId)
                     .rpName(rpName)
@@ -297,9 +277,7 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    /**
-     * 팩터별 기본 HTTP 설정 적용
-     */
+    
     private void applyDefaultFactorConfiguration(HttpSecurity http, String factorType) {
         try {
             switch (factorType.toLowerCase()) {
@@ -320,9 +298,7 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    /**
-     * 첫 글자를 대문자로 변환
-     */
+    
     private String capitalizeFirst(String str) {
         if (str == null || str.isEmpty()) {
             return str;

@@ -13,14 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * VectorStore 테스트 및 메트릭 생성용 컨트롤러
- *
- * 이 컨트롤러는 VectorStore 작업을 실행하여 Prometheus 메트릭을 생성합니다.
- * Grafana 대시보드에서 데이터를 보려면 먼저 이 API를 호출하여 메트릭을 생성해야 합니다.
- *
- * @since 1.0.0
- */
+
 @Slf4j
 @RequestMapping("/api/vectorstore/test")
 @RequiredArgsConstructor
@@ -29,21 +22,7 @@ public class VectorStoreTestController {
 
     private final StandardVectorStoreService vectorStoreService;
 
-    /**
-     * 테스트 문서 추가 (메트릭 생성용)
-     *
-     * POST /api/vectorstore/test/add
-     * {
-     *   "content": "테스트 문서 내용",
-     *   "metadata": {
-     *     "source": "test",
-     *     "type": "test_document"
-     *   }
-     * }
-     *
-     * @param request 추가할 문서 정보
-     * @return 추가 결과
-     */
+    
     @PostMapping("/add")
     public ResponseEntity<?> addTestDocument(@RequestBody AddDocumentRequest request) {
         try {
@@ -51,13 +30,13 @@ public class VectorStoreTestController {
             log.info("Content: {}", request.getContent());
             log.info("Metadata: {}", request.getMetadata());
 
-            // Document 생성 (Spring AI Document API)
+            
             Document document = new Document(
                 request.getContent(),
                 request.getMetadata() != null ? request.getMetadata() : Map.of()
             );
 
-            // VectorStore에 추가 (메트릭 생성됨)
+            
             vectorStoreService.addDocuments(List.of(document));
 
             log.info("=== VectorStore 테스트 문서 추가 완료 ===");
@@ -79,18 +58,7 @@ public class VectorStoreTestController {
         }
     }
 
-    /**
-     * 테스트 유사도 검색 (메트릭 생성용)
-     *
-     * POST /api/vectorstore/test/search
-     * {
-     *   "query": "검색어",
-     *   "topK": 5
-     * }
-     *
-     * @param request 검색 요청
-     * @return 검색 결과
-     */
+    
     @PostMapping("/search")
     public ResponseEntity<?> searchTestDocuments(@RequestBody SearchRequestDto request) {
         try {
@@ -98,13 +66,13 @@ public class VectorStoreTestController {
             log.info("Query: {}", request.getQuery());
             log.info("TopK: {}", request.getTopK());
 
-            // SearchRequest 생성 (Spring AI SearchRequest)
+            
             SearchRequest searchRequest = SearchRequest.builder()
                 .query(request.getQuery())
                 .topK(request.getTopK() != null ? request.getTopK() : 5)
                 .build();
 
-            // 유사도 검색 실행 (메트릭 생성됨)
+            
             List<Document> results = vectorStoreService.similaritySearch(searchRequest);
 
             log.info("=== VectorStore 테스트 검색 완료 ===");
@@ -133,15 +101,7 @@ public class VectorStoreTestController {
         }
     }
 
-    /**
-     * 다중 작업 실행 (메트릭 대량 생성용)
-     *
-     * GET /api/vectorstore/test/generate-metrics
-     *
-     * 여러 작업을 연속 실행하여 Grafana에서 볼 수 있는 메트릭을 생성합니다.
-     *
-     * @return 실행 결과
-     */
+    
     @GetMapping("/generate-metrics")
     public ResponseEntity<?> generateMetrics() {
         try {
@@ -150,7 +110,7 @@ public class VectorStoreTestController {
             int addCount = 0;
             int searchCount = 0;
 
-            // 1. 테스트 문서 5개 추가
+            
             for (int i = 1; i <= 5; i++) {
                 try {
                     Document doc = new Document(
@@ -170,10 +130,10 @@ public class VectorStoreTestController {
                     log.warn("문서 #{} 추가 실패: {}", i, e.getMessage());
                 }
 
-                Thread.sleep(100); // 메트릭 타임스탬프 분산
+                Thread.sleep(100); 
             }
 
-            // 2. 유사도 검색 10회 실행
+            
             String[] queries = {
                 "테스트", "메트릭", "VectorStore", "샘플", "데이터",
                 "검색", "유사도", "문서", "임베딩", "벡터"
@@ -193,7 +153,7 @@ public class VectorStoreTestController {
                     log.warn("검색 실패 ({}): {}", query, e.getMessage());
                 }
 
-                Thread.sleep(100); // 메트릭 타임스탬프 분산
+                Thread.sleep(100); 
             }
 
             log.info("=== 메트릭 생성 완료 ===");
@@ -221,7 +181,7 @@ public class VectorStoreTestController {
         }
     }
 
-    // ========== DTO 클래스 ==========
+    
 
     @Data
     public static class AddDocumentRequest {

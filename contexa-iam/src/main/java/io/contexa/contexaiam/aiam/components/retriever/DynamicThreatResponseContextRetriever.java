@@ -19,23 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * 동적 위협 대응 컨텍스트 검색기 - AI-Native 보안 전문 구현
- * 
- * ContextRetriever 표준 패턴 적용:
- * - RAG 검색 (VectorStore)
- * - 시스템 메타데이터 구성 (DB Repository 활용)
- * - ContextRetrieverRegistry 자동 등록
- * 
- * 역할:
- * 1. 과거 위협 대응 이력 및 패턴 검색
- * 2. 유사 위협 사례 분석
- * 3. 정책 효과성 평가 데이터 수집
- * 4. 실시간 보안 상태 정보 제공
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 public class DynamicThreatResponseContextRetriever extends ContextRetriever {
     
@@ -45,7 +29,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
     @Autowired(required = false)
     private JdbcTemplate jdbcTemplate;
     
-    // 임시 메모리 저장소 (실제로는 DB 사용)
+    
     private static final Map<String, ThreatHistory> threatHistoryCache = new HashMap<>();
     private static final Map<String, PolicyEffectiveness> policyEffectivenessCache = new HashMap<>();
     
@@ -59,12 +43,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         log.info("DynamicThreatResponseContextRetriever 초기화 완료");
     }
     
-    /**
-     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
-     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
-     *
-     * @param event ContextRefreshedEvent
-     */
+    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
         log.info("ApplicationContext refreshed. Initializing DynamicThreatResponseContextRetriever...");
@@ -72,7 +51,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
     }
 
     private void registerSelf() {
-        // DynamicThreatResponseRequest와 연결하여 등록
+        
         contextRetrieverRegistry.registerRetriever(DynamicThreatResponseContext.class, this);
         log.info("DynamicThreatResponseContextRetriever 자동 등록 완료: DynamicThreatResponseRequest → {}",
                 this.getClass().getSimpleName());
@@ -82,23 +61,21 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
     public ContextRetriever.ContextRetrievalResult retrieveContext(AIRequest<? extends DomainContext> request) {
         log.debug("DynamicThreatResponseContextRetriever.retrieveContext 호출됨");
         
-        // DynamicThreatResponseRequest 타입인 경우 특화 처리
+        
         if (request instanceof DynamicThreatResponseRequest) {
             return retrieveDynamicThreatContext((DynamicThreatResponseRequest) request);
         }
         
-        // 그 외의 경우 상위 클래스의 기본 처리
+        
         return super.retrieveContext(request);
     }
     
-    /**
-     * 동적 위협 대응 컨텍스트 종합 검색
-     */
+    
     private ContextRetriever.ContextRetrievalResult retrieveDynamicThreatContext(DynamicThreatResponseRequest request) {
         Map<String, Object> contextData = new HashMap<>();
         List<Document> documents = new ArrayList<>();
         
-        // 파라미터 추출
+        
         String threatType = null;
         String attackVector = null;
         String targetResource = null;
@@ -109,27 +86,27 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             targetResource = request.getContext().getThreatInfo().getTargetResource();
         }
         
-        // 1. 유사 위협 이력 조회
+        
         List<ThreatHistory> similarThreats = findSimilarThreats(threatType, attackVector);
         contextData.put("similarThreats", similarThreats);
         
-        // 2. 과거 대응 효과성 분석
+        
         PolicyEffectiveness effectiveness = analyzePastEffectiveness(threatType);
         contextData.put("policyEffectiveness", effectiveness);
         
-        // 3. 현재 보안 상태 정보
+        
         SecurityPosture currentPosture = getCurrentSecurityPosture();
         contextData.put("currentSecurityPosture", currentPosture);
         
-        // 4. 리소스별 위협 통계
+        
         ResourceThreatStats resourceStats = getResourceThreatStats(targetResource);
         contextData.put("resourceThreatStats", resourceStats);
         
-        // 5. 시간대별 위협 패턴
+        
         TimeBasedPattern timePattern = analyzeTimePattern(threatType);
         contextData.put("timeBasedPattern", timePattern);
         
-        // 6. Vector Store에서 관련 문서 검색
+        
         if (threatType != null) {
             String query = String.format("위협 유형: %s, 공격 벡터: %s, 대상: %s", 
                     threatType, attackVector, targetResource);
@@ -148,9 +125,9 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             }
         }
         
-        // 7. 감사 로그에서 최근 위협 대응 이력 조회
+        
         try {
-            // 감사 로그 조회 (findAll을 사용하거나 추후 구현)
+            
             List<String> recentEvents = new ArrayList<>();
             recentEvents.add("[시스템] 최근 보안 이벤트 로그 기능 구현 예정");
             
@@ -159,10 +136,10 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             log.warn("감사 로그 조회 실패: {}", e.getMessage());
         }
         
-        // 컨텍스트 정보 문자열 생성
+        
         String contextInfo = buildContextInfoString(contextData);
         
-        // 메타데이터 구성
+        
         Map<String, Object> metadata = Map.of(
                 "retrieverType", "DynamicThreatResponseContextRetriever",
                 "timestamp", System.currentTimeMillis(),
@@ -176,14 +153,12 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         return new ContextRetriever.ContextRetrievalResult(contextInfo, documents, metadata);
     }
     
-    /**
-     * 컨텍스트 데이터를 문자열로 변환
-     */
+    
     private String buildContextInfoString(Map<String, Object> contextData) {
         StringBuilder sb = new StringBuilder();
         sb.append("=== 동적 위협 대응 컨텍스트 ===\n\n");
         
-        // 유사 위협 이력
+        
         if (contextData.containsKey("similarThreats")) {
             List<ThreatHistory> threats = (List<ThreatHistory>) contextData.get("similarThreats");
             sb.append("## 유사 위협 이력:\n");
@@ -195,7 +170,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             sb.append("\n");
         }
         
-        // 정책 효과성
+        
         if (contextData.containsKey("policyEffectiveness")) {
             PolicyEffectiveness pe = (PolicyEffectiveness) contextData.get("policyEffectiveness");
             sb.append("## 정책 효과성 분석:\n");
@@ -206,7 +181,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             sb.append("\n");
         }
         
-        // 현재 보안 상태
+        
         if (contextData.containsKey("currentSecurityPosture")) {
             SecurityPosture sp = (SecurityPosture) contextData.get("currentSecurityPosture");
             sb.append("## 현재 보안 상태:\n");
@@ -216,7 +191,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             sb.append("\n");
         }
         
-        // 리소스 위협 통계
+        
         if (contextData.containsKey("resourceThreatStats")) {
             ResourceThreatStats rs = (ResourceThreatStats) contextData.get("resourceThreatStats");
             sb.append("## 리소스 위협 통계:\n");
@@ -227,7 +202,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             sb.append("\n");
         }
         
-        // 최근 보안 이벤트
+        
         if (contextData.containsKey("recentSecurityEvents")) {
             List<String> events = (List<String>) contextData.get("recentSecurityEvents");
             if (!events.isEmpty()) {
@@ -240,15 +215,13 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         return sb.toString();
     }
     
-    /**
-     * 유사한 과거 위협 찾기
-     */
+    
     private List<ThreatHistory> findSimilarThreats(String threatType, String attackVector) {
         List<ThreatHistory> similarThreats = new ArrayList<>();
         
-        // 실제로는 DB 조회, 여기서는 시뮬레이션
+        
         if (threatType != null) {
-            // 캐시에서 유사 위협 검색
+            
             threatHistoryCache.values().stream()
                     .filter(th -> th.threatType.equals(threatType) || 
                                  (attackVector != null && th.attackVector.equals(attackVector)))
@@ -256,7 +229,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
                     .forEach(similarThreats::add);
         }
         
-        // 샘플 데이터 추가 (실제로는 DB에서 조회)
+        
         if (similarThreats.isEmpty()) {
             similarThreats.add(new ThreatHistory(
                     threatType != null ? threatType : "UNKNOWN",
@@ -271,61 +244,53 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         return similarThreats;
     }
     
-    /**
-     * 과거 정책 효과성 분석
-     */
+    
     private PolicyEffectiveness analyzePastEffectiveness(String threatType) {
-        // 캐시에서 조회
+        
         PolicyEffectiveness cached = policyEffectivenessCache.get(threatType);
         if (cached != null) {
             return cached;
         }
         
-        // 기본값 생성 (실제로는 DB 분석)
+        
         PolicyEffectiveness effectiveness = new PolicyEffectiveness(
                 threatType != null ? threatType : "UNKNOWN",
-                0.85,  // 85% 차단율
-                0.05,  // 5% 오탐율
-                100,   // 100건 적용
-                90     // 90건 성공
+                0.85,  
+                0.05,  
+                100,   
+                90     
         );
         
         policyEffectivenessCache.put(threatType, effectiveness);
         return effectiveness;
     }
     
-    /**
-     * 현재 보안 상태 조회
-     */
+    
     private SecurityPosture getCurrentSecurityPosture() {
         return new SecurityPosture(
-                "ELEVATED",  // 보안 수준
-                75,          // 위협 점수
+                "ELEVATED",  
+                75,          
                 LocalDateTime.now(),
                 getActiveThreats(),
                 getActivePolicies()
         );
     }
     
-    /**
-     * 리소스별 위협 통계
-     */
+    
     private ResourceThreatStats getResourceThreatStats(String targetResource) {
         return new ResourceThreatStats(
                 targetResource != null ? targetResource : "UNKNOWN",
-                10,   // 지난 24시간 위협 수
-                3,    // 차단된 위협
-                7,    // 허용된 접근
-                0.3   // 위협 비율
+                10,   
+                3,    
+                7,    
+                0.3   
         );
     }
     
-    /**
-     * 시간대별 패턴 분석
-     */
+    
     private TimeBasedPattern analyzeTimePattern(String threatType) {
         Map<Integer, Integer> hourlyDistribution = new HashMap<>();
-        // 샘플 데이터 (실제로는 DB 분석)
+        
         for (int i = 0; i < 24; i++) {
             hourlyDistribution.put(i, (int)(Math.random() * 10));
         }
@@ -333,30 +298,24 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         return new TimeBasedPattern(
                 threatType != null ? threatType : "UNKNOWN",
                 hourlyDistribution,
-                Arrays.asList(2, 3, 14, 15),  // 피크 시간
+                Arrays.asList(2, 3, 14, 15),  
                 "새벽과 오후에 집중"
         );
     }
     
-    /**
-     * 활성 위협 목록
-     */
+    
     private List<String> getActiveThreats() {
         return Arrays.asList("BRUTE_FORCE", "SQL_INJECTION", "XSS");
     }
     
-    /**
-     * 활성 정책 목록
-     */
+    
     private List<String> getActivePolicies() {
         return Arrays.asList("RATE_LIMITING", "IP_BLOCKING", "SESSION_TIMEOUT");
     }
     
-    // 내부 데이터 클래스들
     
-    /**
-     * 위협 이력
-     */
+    
+    
     public static class ThreatHistory {
         public final String threatType;
         public final String attackVector;
@@ -374,9 +333,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         }
     }
     
-    /**
-     * 정책 효과성
-     */
+    
     public static class PolicyEffectiveness {
         public final String threatType;
         public final double blockRate;
@@ -394,9 +351,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         }
     }
     
-    /**
-     * 보안 상태
-     */
+    
     public static class SecurityPosture {
         public final String level;
         public final int threatScore;
@@ -414,9 +369,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         }
     }
     
-    /**
-     * 리소스 위협 통계
-     */
+    
     public static class ResourceThreatStats {
         public final String resourceName;
         public final int threatsLast24h;
@@ -434,9 +387,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         }
     }
     
-    /**
-     * 시간대별 패턴
-     */
+    
     public static class TimeBasedPattern {
         public final String threatType;
         public final Map<Integer, Integer> hourlyDistribution;

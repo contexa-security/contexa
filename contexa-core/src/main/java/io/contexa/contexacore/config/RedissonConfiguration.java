@@ -12,10 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 
-/**
- * Redisson 설정 - 로컬 개발 환경용
- * Spring Boot의 자동 설정을 오버라이드하여 비밀번호 없이 연결
- */
+
 @Slf4j
 @Configuration
 public class RedissonConfiguration {
@@ -35,11 +32,11 @@ public class RedissonConfiguration {
     public RedissonClient redissonClient() {
         Config config = new Config();
 
-        // 단일 서버 설정 (로컬 개발용)
+        
         String address = String.format("redis://%s:%d", redisHost, redisPort);
         config.useSingleServer()
             .setAddress(address)
-            .setPassword(null)  // 비밀번호 명시적으로 null 설정
+            .setPassword(null)  
             .setDatabase(0)
             .setConnectionMinimumIdleSize(2)
             .setConnectionPoolSize(10)

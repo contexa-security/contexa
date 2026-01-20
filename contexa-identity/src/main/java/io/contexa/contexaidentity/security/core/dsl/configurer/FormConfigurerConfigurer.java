@@ -5,7 +5,7 @@ import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCust
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 
 public interface FormConfigurerConfigurer
-        extends AuthenticationFactorConfigurer<FormOptions, FormAsepAttributes, FormConfigurerConfigurer> { // S를 FormDslConfigurer로 명시
+        extends AuthenticationFactorConfigurer<FormOptions, FormAsepAttributes, FormConfigurerConfigurer> { 
 
     FormConfigurerConfigurer loginPage(String loginPageUrl);
     FormConfigurerConfigurer usernameParameter(String usernameParameter);

@@ -14,22 +14,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * 감사 로깅 핸들러 - AI Native
- *
- * SecurityPlaneAgent의 감사 로깅 로직을 분리
- * - 보안 이벤트 감사
- * - 위협 평가 감사
- * - 처리 결정 감사
- * - 성능 메트릭 감사
- *
- * AI Native 원칙:
- * - LLM이 결정한 ThreatLevel을 그대로 기록
- * - 임계값 기반 ThreatLevel 매핑 제거
- *
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 
 @RequiredArgsConstructor
@@ -42,42 +27,40 @@ public class AuditingHandler implements SecurityEventHandler {
     public boolean handle(SecurityEventContext context) {
         if (auditLogger == null) {
             log.debug("[AuditingHandler] Audit logger not available, skipping audit");
-            return true; // 감사 로깅은 선택적이므로 계속 진행
+            return true; 
         }
 
         SecurityEvent event = context.getSecurityEvent();
         log.debug("[AuditingHandler] Recording audit logs for event: {}", event.getEventId());
 
         try {
-            // 1. 보안 이벤트 감사
+            
             auditSecurityEvent(context);
 
-            // 2. 위협 평가 감사
+            
             auditThreatAssessment(context);
 
-            // 3. 처리 결정 감사
+            
             auditProcessingDecision(context);
 
-            // 4. 성능 메트릭 감사 (나중에 ProcessingExecutionHandler 완료 후)
-            // 여기서는 스킵하고 최종 처리 후에 기록
+            
+            
 
             context.addMetadata("auditRecorded", true);
             context.addMetadata("auditTimestamp", System.currentTimeMillis());
 
             log.debug("[AuditingHandler] Audit logs recorded for event: {}", event.getEventId());
-            return true; // 다음 핸들러로 진행
+            return true; 
 
         } catch (Exception e) {
             log.error("[AuditingHandler] Error recording audit logs for event: {}", event.getEventId(), e);
-            // 감사 로깅 오류는 처리를 중단하지 않음
+            
             context.addMetadata("auditError", e.getMessage());
             return true;
         }
     }
 
-    /**
-     * 보안 이벤트 감사 기록
-     */
+    
     private void auditSecurityEvent(SecurityEventContext context) {
         try {
             SecurityEvent event = context.getSecurityEvent();
@@ -96,9 +79,7 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    /**
-     * 위협 평가 감사 기록 - AI Native
-     */
+    
     private void auditThreatAssessment(SecurityEventContext context) {
         try {
             SecurityEventContext.AIAnalysisResult aiResult = context.getAiAnalysisResult();
@@ -108,19 +89,19 @@ public class AuditingHandler implements SecurityEventHandler {
 
             SecurityEvent event = context.getSecurityEvent();
 
-            // AI Native: action 기반으로 전환 (threatLevel 제거)
-            // riskScore 기반으로 action 결정
+            
+            
             String action = determineActionFromRiskScore(aiResult.getThreatLevel());
 
-            // ThreatAssessment 재구성 (AI Native: action 사용)
-            // AI Native v3.1: reason 필드 제거됨 - SecurityDecision.reasoning으로 대체
+            
+            
             ThreatAssessment assessment = ThreatAssessment.builder()
                 .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
                 .riskScore(aiResult.getThreatLevel())
                 .confidence(aiResult.getConfidenceScore())
-                .description(aiResult.getSummary())  // AI Native v3.1: reason -> description
+                .description(aiResult.getSummary())  
                 .evaluator(aiResult.getAiModel())
-                .action(action)  // AI Native: action 사용
+                .action(action)  
                 .assessedAt(LocalDateTime.now())
                 .build();
 
@@ -143,9 +124,7 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    /**
-     * 처리 결정 감사 기록
-     */
+    
     private void auditProcessingDecision(SecurityEventContext context) {
         try {
             ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
@@ -173,16 +152,10 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    /**
-     * AI Native v3.3.0: Fallback action 결정
-     *
-     * LLM이 action을 결정하지 못한 경우 상위 계층에 결정 위임
-     * 점수 기반 분기 제거 - Action 기반 원칙 준수
-     * INVESTIGATE 제거 - 4개 Action만 허용 (ALLOW/BLOCK/CHALLENGE/ESCALATE)
-     */
+    
     private String determineActionFromRiskScore(double riskScore) {
-        // AI Native: LLM action 없을 시 상위 계층에 결정 위임
-        // 점수 기반 분기 제거
+        
+        
         return "ESCALATE";
     }
 
@@ -193,6 +166,6 @@ public class AuditingHandler implements SecurityEventHandler {
 
     @Override
     public int getOrder() {
-        return 45; // RoutingDecisionHandler(40) 다음, ProcessingExecutionHandler(50) 이전에 실행
+        return 45; 
     }
 }

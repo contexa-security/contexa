@@ -14,9 +14,7 @@ public class IAMDataCollectionService {
     private final StudioQueryCollectionService studioQueryCollectionService;
     private final PolicyGenerationCollectionService policyGenerationCollectionService;
 
-    /**
-     * Virtual Thread 최적화된 동기 버전 (기존 인터페이스 유지)
-     */
+    
     @Transactional(readOnly = true)
     public IAMDataSet studioCollectData(DataCollectionPlan plan) {
         return studioQueryCollectionService.collectData(plan);

@@ -20,15 +20,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * 정책 승인 서비스
- *
- * 정책 제안에 대한 단일 및 다단계 승인 워크플로우를 관리합니다.
- * 승인자 관리, 알림, 이력 추적 기능을 제공합니다.
- *
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyApprovalService {
@@ -36,42 +28,36 @@ public class PolicyApprovalService {
     private final PolicyProposalRepository proposalRepository;
     private final ApplicationEventPublisher eventPublisher;
 
-    // Redis 템플릿 (선택적 - Redis 없으면 메모리 폴백)
+    
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired(required = false)
     private PolicyActivationService policyActivationService;
 
-    // 워크플로우 TTL (ZeroTrustRedisKeys 문서에 명시된 7일)
+    
     private static final Duration WORKFLOW_TTL = Duration.ofDays(7);
 
-    // 메모리 폴백 저장소 (Redis 없을 때 사용)
+    
     private final Map<Long, ApprovalWorkflow> memoryWorkflows = new ConcurrentHashMap<>();
 
-    // 승인자 풀
+    
     private final Map<ApproverLevel, List<Approver>> approverPool = new ConcurrentHashMap<>();
     
-    /**
-     * 단일 승인 프로세스 시작
-     * 
-     * @param proposalId 제안 ID
-     * @param riskAssessment 위험 평가
-     * @return 워크플로우 ID
-     */
+    
     @Transactional
     public String initiateSingleApproval(Long proposalId, 
                                         PolicyEvolutionGovernance.RiskAssessment riskAssessment) {
         log.info("Initiating single approval for proposal: {}", proposalId);
         
         try {
-            // 1. 제안 검증
+            
             PolicyEvolutionProposal proposal = validateProposal(proposalId);
             
-            // 2. 승인자 선택
+            
             Approver approver = selectApprover(ApproverLevel.STANDARD, riskAssessment);
             
-            // 3. 워크플로우 생성
+            
             ApprovalWorkflow workflow = ApprovalWorkflow.builder()
                 .workflowId(generateWorkflowId())
                 .proposalId(proposalId)
@@ -83,17 +69,17 @@ public class PolicyApprovalService {
                 .createdAt(LocalDateTime.now())
                 .build();
             
-            // 4. 워크플로우 저장 (Redis 또는 메모리)
+            
             saveWorkflow(proposalId, workflow);
             
-            // 5. 승인 요청 생성
+            
             ApprovalRequest request = createApprovalRequest(proposal, approver, workflow);
             workflow.addRequest(request);
             
-            // 6. 알림 발송
+            
             sendApprovalNotification(approver, request);
             
-            // 7. 이벤트 발행
+            
             publishApprovalEvent(ApprovalEventType.WORKFLOW_INITIATED, workflow);
             
             log.info("Single approval workflow {} initiated for proposal {}", 
@@ -107,14 +93,7 @@ public class PolicyApprovalService {
         }
     }
     
-    /**
-     * 다단계 승인 프로세스 시작
-     * 
-     * @param proposalId 제안 ID
-     * @param requiredApprovers 필요한 승인자 수
-     * @param riskAssessment 위험 평가
-     * @return 워크플로우 ID
-     */
+    
     @Transactional
     public String initiateMultiApproval(Long proposalId, 
                                        int requiredApprovers,
@@ -123,21 +102,21 @@ public class PolicyApprovalService {
             proposalId, requiredApprovers);
         
         try {
-            // 1. 제안 검증
+            
             PolicyEvolutionProposal proposal = validateProposal(proposalId);
             
-            // 2. 승인자 레벨 결정
+            
             List<ApproverLevel> levels = determineApproverLevels(
                 riskAssessment.getAdjustedRisk(), requiredApprovers);
             
-            // 3. 승인자 선택
+            
             List<Approver> approvers = new ArrayList<>();
             for (ApproverLevel level : levels) {
                 Approver approver = selectApprover(level, riskAssessment);
                 approvers.add(approver);
             }
             
-            // 4. 워크플로우 생성
+            
             ApprovalWorkflow workflow = ApprovalWorkflow.builder()
                 .workflowId(generateWorkflowId())
                 .proposalId(proposalId)
@@ -150,18 +129,18 @@ public class PolicyApprovalService {
                 .createdAt(LocalDateTime.now())
                 .build();
             
-            // 5. 워크플로우 저장 (Redis 또는 메모리)
+            
             saveWorkflow(proposalId, workflow);
             
-            // 6. 첫 번째 승인자에게 요청 생성
+            
             Approver firstApprover = approvers.get(0);
             ApprovalRequest firstRequest = createApprovalRequest(proposal, firstApprover, workflow);
             workflow.addRequest(firstRequest);
             
-            // 7. 알림 발송
+            
             sendApprovalNotification(firstApprover, firstRequest);
             
-            // 8. 이벤트 발행
+            
             publishApprovalEvent(ApprovalEventType.WORKFLOW_INITIATED, workflow);
             
             log.info("Multi-level approval workflow {} initiated for proposal {}", 
@@ -175,15 +154,7 @@ public class PolicyApprovalService {
         }
     }
     
-    /**
-     * 승인 처리
-     * 
-     * @param requestId 요청 ID
-     * @param approverId 승인자 ID
-     * @param decision 승인 결정
-     * @param comments 코멘트
-     * @return 처리 결과
-     */
+    
     @Transactional
     public ApprovalResult processApproval(String requestId, String approverId, 
                                          ApprovalDecision decision, String comments) {
@@ -191,13 +162,13 @@ public class PolicyApprovalService {
             requestId, approverId, decision);
         
         try {
-            // 1. 워크플로우 찾기
+            
             ApprovalWorkflow workflow = findWorkflowByRequestId(requestId);
             if (workflow == null) {
                 throw new ApprovalException("Workflow not found for request: " + requestId);
             }
             
-            // 2. 요청 찾기 및 검증
+            
             ApprovalRequest request = workflow.getRequest(requestId);
             if (request == null) {
                 throw new ApprovalException("Request not found: " + requestId);
@@ -211,33 +182,33 @@ public class PolicyApprovalService {
                 throw new ApprovalException("Request is not pending: " + requestId);
             }
             
-            // 3. 승인 기록
+            
             request.setDecision(decision);
             request.setDecisionTime(LocalDateTime.now());
             request.setComments(comments);
             request.setStatus(decision == ApprovalDecision.APPROVE ? 
                 RequestStatus.APPROVED : RequestStatus.REJECTED);
             
-            // 4. 워크플로우 업데이트
+            
             boolean workflowComplete = updateWorkflowStatus(workflow, request);
             
-            // 5. 제안 상태 업데이트
+            
             if (workflowComplete) {
                 completeWorkflow(workflow);
             } else if (workflow.getWorkflowType() == WorkflowType.MULTI_LEVEL && 
                       decision == ApprovalDecision.APPROVE) {
-                // 다음 승인자에게 요청
+                
                 initiateNextApproval(workflow);
             }
             
-            // 6. 이벤트 발행
+            
             publishApprovalEvent(
                 decision == ApprovalDecision.APPROVE ? 
                     ApprovalEventType.REQUEST_APPROVED : ApprovalEventType.REQUEST_REJECTED,
                 workflow
             );
             
-            // 7. 결과 생성
+            
             ApprovalResult result = ApprovalResult.builder()
                 .requestId(requestId)
                 .workflowId(workflow.getWorkflowId())
@@ -258,12 +229,7 @@ public class PolicyApprovalService {
         }
     }
     
-    /**
-     * 승인 이력 조회
-     * 
-     * @param proposalId 제안 ID
-     * @return 승인 이력
-     */
+    
     public ApprovalHistory getApprovalHistory(Long proposalId) {
         log.debug("Retrieving approval history for proposal: {}", proposalId);
 
@@ -286,24 +252,14 @@ public class PolicyApprovalService {
             .build();
     }
     
-    /**
-     * 승인자 등록
-     * 
-     * @param approver 승인자
-     * @param level 승인자 레벨
-     */
+    
     public void registerApprover(Approver approver, ApproverLevel level) {
         log.info("Registering approver {} at level {}", approver.getApproverId(), level);
         
         approverPool.computeIfAbsent(level, k -> new ArrayList<>()).add(approver);
     }
     
-    /**
-     * 승인자 제거
-     * 
-     * @param approverId 승인자 ID
-     * @param level 승인자 레벨
-     */
+    
     public void unregisterApprover(String approverId, ApproverLevel level) {
         log.info("Unregistering approver {} from level {}", approverId, level);
         
@@ -313,7 +269,7 @@ public class PolicyApprovalService {
         }
     }
     
-    // ==================== Private Methods ====================
+    
     
     private PolicyEvolutionProposal validateProposal(Long proposalId) {
         PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
@@ -333,11 +289,11 @@ public class PolicyApprovalService {
         List<Approver> availableApprovers = approverPool.get(level);
         
         if (availableApprovers == null || availableApprovers.isEmpty()) {
-            // 기본 승인자 생성
+            
             return createDefaultApprover(level);
         }
         
-        // 가장 적은 워크로드를 가진 승인자 선택
+        
         return availableApprovers.stream()
             .min(Comparator.comparing(Approver::getCurrentWorkload))
             .orElse(createDefaultApprover(level));
@@ -405,8 +361,8 @@ public class PolicyApprovalService {
     private void sendApprovalNotification(Approver approver, ApprovalRequest request) {
         log.info("Sending approval notification to {}", approver.getEmail());
         
-        // 이메일 또는 기타 알림 시스템 통합
-        // 실제 구현에서는 이메일 서비스나 알림 시스템을 사용
+        
+        
         
         NotificationEvent event = NotificationEvent.builder()
             .recipientId(approver.getApproverId())
@@ -428,7 +384,7 @@ public class PolicyApprovalService {
             return true;
         }
         
-        // 승인된 요청 수 계산
+        
         long approvedCount = workflow.getRequests().stream()
             .filter(r -> r.getStatus() == RequestStatus.APPROVED)
             .count();
@@ -450,27 +406,27 @@ public class PolicyApprovalService {
             .orElseThrow(() -> new ApprovalException("Proposal not found"));
         
         if (workflow.getStatus() == WorkflowStatus.APPROVED) {
-            // 제안 승인
+            
             proposal.setStatus(ProposalStatus.APPROVED);
             proposal.setApprovedBy(collectApprovers(workflow));
             proposal.setReviewedAt(LocalDateTime.now());
             proposalRepository.save(proposal);
 
-            // 정책 활성화 (PolicyActivationService 사용)
+            
             if (policyActivationService != null) {
                 policyActivationService.activatePolicy(workflow.getProposalId(), proposal.getApprovedBy());
             } else {
                 log.warn("PolicyActivationService not available - policy activation skipped");
             }
         } else if (workflow.getStatus() == WorkflowStatus.REJECTED) {
-            // 제안 거부
+            
             proposal.setStatus(ProposalStatus.REJECTED);
             proposal.setRejectionReason(collectRejectionReasons(workflow));
             proposal.setReviewedAt(LocalDateTime.now());
             proposalRepository.save(proposal);
         }
         
-        // 워크플로우 제거 (Redis 또는 메모리에서)
+        
         removeWorkflow(workflow.getProposalId());
     }
     
@@ -491,7 +447,7 @@ public class PolicyApprovalService {
     }
     
     private ApprovalWorkflow findWorkflowByRequestId(String requestId) {
-        // Redis에서 requestId → proposalId 매핑 조회
+        
         if (isRedisAvailable()) {
             try {
                 String requestKey = ZeroTrustRedisKeys.approvalRequest(requestId);
@@ -505,7 +461,7 @@ public class PolicyApprovalService {
             }
         }
 
-        // 폴백: 전체 워크플로우에서 검색
+        
         return getAllWorkflows().stream()
             .filter(w -> w.getRequests().stream()
                 .anyMatch(r -> r.getRequestId().equals(requestId)))
@@ -548,33 +504,26 @@ public class PolicyApprovalService {
         return "REQ_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    // ==================== Redis Persistence Methods ====================
+    
 
-    /**
-     * Redis 사용 가능 여부 확인
-     */
+    
     private boolean isRedisAvailable() {
         return redisTemplate != null;
     }
 
-    /**
-     * 워크플로우 저장 (Redis 또는 메모리)
-     *
-     * @param proposalId 제안 ID
-     * @param workflow 워크플로우
-     */
+    
     private void saveWorkflow(Long proposalId, ApprovalWorkflow workflow) {
         if (isRedisAvailable()) {
             try {
-                // 워크플로우 저장
+                
                 String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
                 redisTemplate.opsForValue().set(key, workflow, WORKFLOW_TTL);
 
-                // 인덱스에 추가
+                
                 String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
                 redisTemplate.opsForSet().add(indexKey, proposalId);
 
-                // 요청 ID → proposalId 매핑 저장 (빠른 조회용)
+                
                 for (ApprovalRequest request : workflow.getRequests()) {
                     String requestKey = ZeroTrustRedisKeys.approvalRequest(request.getRequestId());
                     redisTemplate.opsForValue().set(requestKey, proposalId, WORKFLOW_TTL);
@@ -590,12 +539,7 @@ public class PolicyApprovalService {
         }
     }
 
-    /**
-     * 워크플로우 조회 (Redis 또는 메모리)
-     *
-     * @param proposalId 제안 ID
-     * @return 워크플로우 (없으면 null)
-     */
+    
     private ApprovalWorkflow getWorkflow(Long proposalId) {
         if (isRedisAvailable()) {
             try {
@@ -611,15 +555,11 @@ public class PolicyApprovalService {
         return memoryWorkflows.get(proposalId);
     }
 
-    /**
-     * 워크플로우 삭제 (Redis 또는 메모리)
-     *
-     * @param proposalId 제안 ID
-     */
+    
     private void removeWorkflow(Long proposalId) {
         if (isRedisAvailable()) {
             try {
-                // 워크플로우 조회하여 요청 ID 매핑도 삭제
+                
                 ApprovalWorkflow workflow = getWorkflow(proposalId);
                 if (workflow != null) {
                     for (ApprovalRequest request : workflow.getRequests()) {
@@ -628,11 +568,11 @@ public class PolicyApprovalService {
                     }
                 }
 
-                // 워크플로우 삭제
+                
                 String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
                 redisTemplate.delete(key);
 
-                // 인덱스에서 제거
+                
                 String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
                 redisTemplate.opsForSet().remove(indexKey, proposalId);
 
@@ -644,11 +584,7 @@ public class PolicyApprovalService {
         memoryWorkflows.remove(proposalId);
     }
 
-    /**
-     * 모든 활성 워크플로우 조회 (Redis 또는 메모리)
-     *
-     * @return 워크플로우 목록
-     */
+    
     private List<ApprovalWorkflow> getAllWorkflows() {
         List<ApprovalWorkflow> workflows = new ArrayList<>();
 
@@ -676,12 +612,9 @@ public class PolicyApprovalService {
         return workflows;
     }
 
-    // ==================== Inner Classes ====================
     
-    /**
-     * 승인 워크플로우
-     * Redis 직렬화를 위해 Serializable 구현
-     */
+    
+    
     @lombok.Builder
     @lombok.Data
     public static class ApprovalWorkflow implements Serializable {
@@ -711,10 +644,7 @@ public class PolicyApprovalService {
         }
     }
     
-    /**
-     * 승인 요청
-     * Redis 직렬화를 위해 Serializable 구현
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class ApprovalRequest implements Serializable {
@@ -733,10 +663,7 @@ public class PolicyApprovalService {
         private PolicyEvolutionGovernance.RiskAssessment riskSummary;
     }
     
-    /**
-     * 승인자
-     * Redis 직렬화를 위해 Serializable 구현
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class Approver implements Serializable {
@@ -748,9 +675,7 @@ public class PolicyApprovalService {
         private int currentWorkload;
     }
     
-    /**
-     * 승인 결과
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class ApprovalResult {
@@ -762,9 +687,7 @@ public class PolicyApprovalService {
         private LocalDateTime timestamp;
     }
     
-    /**
-     * 승인 이력
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class ApprovalHistory {
@@ -777,9 +700,7 @@ public class PolicyApprovalService {
         private LocalDateTime completedAt;
     }
     
-    /**
-     * 워크플로우 타입
-     */
+    
     public enum WorkflowType {
         SINGLE,
         MULTI_LEVEL,
@@ -787,9 +708,7 @@ public class PolicyApprovalService {
         SEQUENTIAL
     }
     
-    /**
-     * 워크플로우 상태
-     */
+    
     public enum WorkflowStatus {
         PENDING,
         IN_PROGRESS,
@@ -799,9 +718,7 @@ public class PolicyApprovalService {
         CANCELLED
     }
     
-    /**
-     * 요청 상태
-     */
+    
     public enum RequestStatus {
         PENDING,
         APPROVED,
@@ -810,27 +727,21 @@ public class PolicyApprovalService {
         CANCELLED
     }
     
-    /**
-     * 승인 결정
-     */
+    
     public enum ApprovalDecision {
         APPROVE,
         REJECT,
         DEFER
     }
     
-    /**
-     * 승인자 레벨
-     */
+    
     public enum ApproverLevel {
         STANDARD,
         SENIOR,
         EXECUTIVE
     }
     
-    /**
-     * 승인 이벤트 타입
-     */
+    
     public enum ApprovalEventType {
         WORKFLOW_INITIATED,
         REQUEST_CREATED,
@@ -840,9 +751,7 @@ public class PolicyApprovalService {
         WORKFLOW_CANCELLED
     }
     
-    /**
-     * 승인 이벤트
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class ApprovalEvent {
@@ -853,9 +762,7 @@ public class PolicyApprovalService {
         private LocalDateTime timestamp;
     }
     
-    /**
-     * 알림 이벤트
-     */
+    
     @lombok.Builder
     @lombok.Data
     public static class NotificationEvent {
@@ -868,9 +775,7 @@ public class PolicyApprovalService {
         private LocalDateTime timestamp;
     }
     
-    /**
-     * 알림 타입
-     */
+    
     public enum NotificationType {
         APPROVAL_REQUEST,
         APPROVAL_REMINDER,
@@ -878,9 +783,7 @@ public class PolicyApprovalService {
         APPROVAL_REJECTED
     }
     
-    /**
-     * 승인 예외
-     */
+    
     public static class ApprovalException extends RuntimeException {
         public ApprovalException(String message) {
             super(message);

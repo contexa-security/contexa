@@ -14,16 +14,7 @@ import java.util.Map;
 import static io.contexa.contexaidentity.security.token.service.TokenService.ACCESS_TOKEN;
 import static io.contexa.contexaidentity.security.token.service.TokenService.REFRESH_TOKEN;
 
-/**
- * 액세스 토큰과 리프레시 토큰을 모두 쿠키로 전송하는 전략
- *
- * 보안 고려사항:
- * - HttpOnly: XSS 공격 방지
- * - Secure: HTTPS 전송 강제 (프로덕션 환경)
- * - SameSite: CSRF 공격 방지
- *
- * @since 2024.12
- */
+
 public class CookieTokenStrategy extends AbstractTokenTransportStrategy implements TokenTransportStrategy {
 
     private static final String COOKIE_PATH = "/";
@@ -47,7 +38,7 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
                                                       TokenService.TokenServicePropertiesProvider propsProvider) {
         List<ResponseCookie> cookiesToSet = new ArrayList<>();
 
-        // 액세스 토큰 쿠키 설정
+        
         if (StringUtils.hasText(accessToken)) {
             ResponseCookie accessCookie = ResponseCookie.from(propsProvider.getAccessTokenCookieName(), accessToken)
                     .path(propsProvider.getCookiePath())
@@ -59,7 +50,7 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
             cookiesToSet.add(accessCookie);
         }
 
-        // 리프레시 토큰 쿠키 설정
+        
         if (StringUtils.hasText(refreshToken)) {
             ResponseCookie refreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), refreshToken)
                     .path(propsProvider.getCookiePath())
@@ -71,7 +62,7 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
             cookiesToSet.add(refreshCookie);
         }
 
-        // 쿠키 전용 전략이므로 본문에는 최소 정보만 포함
+        
         Map<String, Object> body = new HashMap<>();
         body.put("status", "SUCCESS");
         body.put("message", "Authentication successful");
@@ -87,7 +78,7 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
     public TokenTransportResult prepareTokensForClear(TokenService.TokenServicePropertiesProvider propsProvider) {
         List<ResponseCookie> cookiesToRemove = new ArrayList<>();
 
-        // 액세스 토큰 쿠키 제거
+        
         ResponseCookie expiredAccessCookie = ResponseCookie.from(propsProvider.getAccessTokenCookieName(), "")
                 .path(propsProvider.getCookiePath())
                 .httpOnly(HTTP_ONLY)
@@ -97,7 +88,7 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
                 .build();
         cookiesToRemove.add(expiredAccessCookie);
 
-        // 리프레시 토큰 쿠키 제거
+        
         ResponseCookie expiredRefreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), "")
                 .path(propsProvider.getCookiePath())
                 .httpOnly(HTTP_ONLY)

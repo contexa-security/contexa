@@ -19,12 +19,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * SOAR 상호작용 관리자
- * 
- * AI 진단 프로세스와 Human-in-the-Loop를 연결하여
- * 지속적인 상호작용 진단을 가능하게 합니다.
- */
+
 @Slf4j
 public class SoarInteractionManager {
     
@@ -41,7 +36,7 @@ public class SoarInteractionManager {
         this.approvalService = approvalService;
     }
     
-    // 메모리 캐시 (Redis 장애 시 fallback)
+    
     private final Map<String, InteractionSession> sessionCache = new ConcurrentHashMap<>();
     
     private static final String SESSION_KEY_PREFIX = "soar:session:";
@@ -49,9 +44,7 @@ public class SoarInteractionManager {
     private static final Duration SESSION_TTL = Duration.ofHours(2);
     private static final Duration APPROVAL_TTL = Duration.ofMinutes(30);
     
-    /**
-     * 새로운 SOAR 상호작용 세션 생성
-     */
+    
     public String createSession(SoarContext context) {
         String sessionId = UUID.randomUUID().toString();
         
@@ -71,10 +64,10 @@ public class SoarInteractionManager {
             .metadata(new HashMap<>())
             .build();
         
-        // Redis 저장
+        
         saveSession(session);
         
-        // WebSocket 으로 세션 생성 알림
+        
         notifySessionCreated(session);
         
         log.info("SOAR 상호작용 세션 생성: sessionId={}, incidentId={}", 
@@ -83,53 +76,43 @@ public class SoarInteractionManager {
         return sessionId;
     }
     
-    /**
-     * 기존 세션 조회
-     */
+    
     public Optional<InteractionSession> getSession(String sessionId) {
-        // Redis에서 먼저 조회
+        
         String key = SESSION_KEY_PREFIX + sessionId;
         InteractionSession session = (InteractionSession) redisTemplate.opsForValue().get(key);
         
         if (session == null) {
-            // 메모리 캐시 fallback
+            
             session = sessionCache.get(sessionId);
         }
         
         return Optional.ofNullable(session);
     }
     
-    /**
-     * 세션 상태 조회
-     */
+    
     public SessionStatus getSessionStatus(String sessionId) {
         return getSession(sessionId)
             .map(InteractionSession::getStatus)
             .orElse(SessionStatus.NOT_FOUND);
     }
     
-    /**
-     * 세션 업데이트
-     */
+    
     public void updateSession(InteractionSession session) {
         session.setLastActivityAt(LocalDateTime.now());
         saveSession(session);
         
-        // WebSocket으로 세션 업데이트 알림
+        
         notifySessionUpdated(session);
     }
     
-    /**
-     * 도구 실행 승인 대기
-     */
+    
     public Mono<Boolean> waitForApproval(String toolName, String sessionId) {
         return createApprovalRequest(toolName, sessionId)
             .flatMap(this::pollApprovalStatus);
     }
     
-    /**
-     * 승인 요청 생성
-     */
+    
     private Mono<String> createApprovalRequest(String toolName, String sessionId) {
         return Mono.fromCallable(() -> {
             Optional<InteractionSession> sessionOpt = getSession(sessionId);
@@ -139,7 +122,7 @@ public class SoarInteractionManager {
             
             InteractionSession session = sessionOpt.get();
             
-            // ApprovalService를 통해 승인 요청 생성
+            
             ApprovalRequestDetails details = new ApprovalRequestDetails(
                 toolName,
                 String.format("Tool execution approval required: %s", toolName),null,null,null,
@@ -151,7 +134,7 @@ public class SoarInteractionManager {
                 )
             );
             
-            // SoarContext 생성 (ApprovalService에 필요)
+            
             SoarContext context = new SoarContext();
             context.setSessionId(sessionId);
             context.setIncidentId(session.getIncidentId());
@@ -159,7 +142,7 @@ public class SoarInteractionManager {
             
             String requestId = approvalService.requestApproval(context, details);
             
-            // 세션에 승인 요청 추가
+            
             ApprovalRequestInfo requestInfo = ApprovalRequestInfo.builder()
                 .requestId(requestId)
                 .toolName(toolName)
@@ -171,7 +154,7 @@ public class SoarInteractionManager {
             session.setInteractionCount(session.getInteractionCount() + 1);
             updateSession(session);
             
-            // WebSocket으로 승인 요청 전송
+            
             sendApprovalRequest(requestId, toolName, sessionId);
             
             log.info("승인 요청 생성: requestId={}, tool={}, session={}", 
@@ -181,9 +164,7 @@ public class SoarInteractionManager {
         });
     }
     
-    /**
-     * 승인 상태 폴링
-     */
+    
     private Mono<Boolean> pollApprovalStatus(String requestId) {
         return Mono.defer(() -> {
             io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus status = approvalService.getApprovalStatus(requestId);
@@ -195,18 +176,16 @@ public class SoarInteractionManager {
                 log.info("도구 실행 거부됨: requestId={}", requestId);
                 return Mono.just(false);
             } else {
-                // PENDING 상태면 재시도
+                
                 return Mono.delay(Duration.ofSeconds(1))
                     .flatMap(tick -> pollApprovalStatus(requestId));
             }
         })
-        .timeout(Duration.ofMinutes(5)) // 5분 타임아웃
-        .onErrorReturn(false); // 타임아웃 시 false 반환
+        .timeout(Duration.ofMinutes(5)) 
+        .onErrorReturn(false); 
     }
     
-    /**
-     * 도구 실행 기록
-     */
+    
     public void recordToolExecution(String sessionId, String toolName, boolean success, String result) {
         getSession(sessionId).ifPresent(session -> {
             ExecutedToolInfo toolInfo = ExecutedToolInfo.builder()
@@ -219,7 +198,7 @@ public class SoarInteractionManager {
             session.getExecutedTools().add(toolInfo);
             updateSession(session);
             
-            // WebSocket으로 실행 결과 알림
+            
             notifyToolExecuted(sessionId, toolName, success);
             
             log.info("🔨 도구 실행 기록: tool={}, success={}, sessionId={}", 
@@ -227,9 +206,7 @@ public class SoarInteractionManager {
         });
     }
     
-    /**
-     * 대화 히스토리 추가
-     */
+    
     public void addConversationEntry(String sessionId, String role, String message) {
         getSession(sessionId).ifPresent(session -> {
             ConversationEntry entry = ConversationEntry.builder()
@@ -240,7 +217,7 @@ public class SoarInteractionManager {
             
             session.getConversationHistory().add(entry);
             
-            // 최대 100개까지만 유지
+            
             if (session.getConversationHistory().size() > 100) {
                 session.setConversationHistory(
                     new ArrayList<>(session.getConversationHistory().subList(
@@ -254,9 +231,7 @@ public class SoarInteractionManager {
         });
     }
     
-    /**
-     * 세션 종료
-     */
+    
     public void closeSession(String sessionId, String reason) {
         getSession(sessionId).ifPresent(session -> {
             session.setStatus(SessionStatus.CLOSED);
@@ -265,16 +240,14 @@ public class SoarInteractionManager {
             
             updateSession(session);
             
-            // WebSocket으로 세션 종료 알림
+            
             notifySessionClosed(sessionId, reason);
             
             log.info("SOAR 세션 종료: sessionId={}, reason={}", sessionId, reason);
         });
     }
     
-    /**
-     * 활성 세션 목록 조회
-     */
+    
     public List<InteractionSession> getActiveSessions() {
         Set<String> sessionKeys = redisTemplate.keys(SESSION_KEY_PREFIX + "*");
         if (sessionKeys == null) return new ArrayList<>();
@@ -291,15 +264,15 @@ public class SoarInteractionManager {
         return sessions;
     }
     
-    // === Private Helper Methods ===
+    
     
     private void saveSession(InteractionSession session) {
         String key = SESSION_KEY_PREFIX + session.getSessionId();
         redisTemplate.opsForValue().set(key, session, SESSION_TTL);
-        sessionCache.put(session.getSessionId(), session); // 메모리 캐시 업데이트
+        sessionCache.put(session.getSessionId(), session); 
     }
     
-    // === WebSocket Notification Methods ===
+    
     
     private void sendApprovalRequest(String requestId, String toolName, String sessionId) {
         Map<String, Object> request = Map.of(
@@ -353,7 +326,7 @@ public class SoarInteractionManager {
         brokerTemplate.convertAndSend("/topic/soar/tools",(Object)  notification);
     }
     
-    // === Inner Classes ===
+    
     
     @Data
     @Builder

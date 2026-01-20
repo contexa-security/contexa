@@ -6,9 +6,7 @@ import lombok.*;
 
 import java.io.Serializable;
 
-/**
- * 정책이 적용될 대상을 정의하는 엔티티.
- */
+
 @Entity
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
@@ -22,11 +20,11 @@ public class PolicyTarget implements Serializable {
     private Policy policy;
 
     @Column(nullable = false)
-    private String targetType; // 예: "URL", "METHOD"
+    private String targetType; 
 
     @Column(nullable = false)
-    private String targetIdentifier; // 예: "/admin/**", "com.example.service.AdminService.deleteUser"
+    private String targetIdentifier; 
 
     @Column
-    private String httpMethod; // 예: "GET", "POST", "ALL"
+    private String httpMethod; 
 }

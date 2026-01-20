@@ -13,23 +13,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import java.util.List;
 import java.util.stream.IntStream;
 
-/**
- * 🏷️ 리소스 네이밍 제안 프롬프트 템플릿
- *
- * Spring AI BeanOutputConverter를 활용한 구조화된 출력:
- * - 자동 JSON 스키마 생성
- * - 타입 안전 변환
- * - 표준화된 포맷 지시
- * - 성능 최적화
- *
- * Spring AI 공식 패턴 준수
- * 
- * 네이밍 변환:
- * - 기술적 용어를 비즈니스 친화적 한글로 변환
- * - URL 경로를 기능명으로 변환
- * - 메서드명을 동작 설명으로 변환
- * - 100% 응답 보장 (누락 없음)
- */
+
 @Slf4j
 @PromptTemplateConfig(
     key = "resource_naming_suggestion",
@@ -38,13 +22,13 @@ import java.util.stream.IntStream;
 )
 public class ResourceNamingTemplate implements PromptTemplate {
     
-    // Spring AI BeanOutputConverter를 사용한 포맷 생성
+    
     private final BeanOutputConverter<ResourceNamingSuggestionResponse> converter = 
         new BeanOutputConverter<>(ResourceNamingSuggestionResponse.class);
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        // Spring AI의 포맷 지시사항 자동 생성
+        
         String formatInstructions = converter.getFormat();
         
         return String.format("""
@@ -95,7 +79,7 @@ public class ResourceNamingTemplate implements PromptTemplate {
 
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
-        // AIRequest에서 리소스 정보 추출
+        
         @SuppressWarnings("unchecked")
         List<String> identifiers = request.getParameter("identifiers", List.class);
         
@@ -106,13 +90,11 @@ public class ResourceNamingTemplate implements PromptTemplate {
 
         String namingRequest = buildUserPromptFromIdentifiers(identifiers, contextInfo);
         
-        // BeanOutputConverter의 포맷 지시사항을 다시 추가 (강조)
+        
         return namingRequest + "\n\n" + converter.getFormat();
     }
 
-    /**
-     * 구버전 호환: 직접 ResourceNamingSuggestionRequest 처리
-     */
+    
     public PromptGenerationResult generatePrompt(ResourceNamingSuggestionRequest request, String context) {
         if (request.getResources() == null || request.getResources().isEmpty()) {
             log.warn("리소스 목록이 비어있습니다");
@@ -133,16 +115,12 @@ public class ResourceNamingTemplate implements PromptTemplate {
                 .build();
     }
 
-    /**
-     * BeanOutputConverter 반환 (파이프라인에서 사용)
-     */
+    
     public BeanOutputConverter<ResourceNamingSuggestionResponse> getConverter() {
         return converter;
     }
     
-    /**
-     * 구버전과 동일한 시스템 프롬프트 (한글 네이밍 전문가) - 레거시 호환용
-     */
+    
     private String buildSystemPrompt() {
         return """
             당신은 소프트웨어의 기술적 용어를 일반 비즈니스 사용자가 이해하기 쉬운 이름과 설명으로 만드는 네이밍 전문가입니다.
@@ -183,20 +161,18 @@ public class ResourceNamingTemplate implements PromptTemplate {
             """;
     }
 
-    /**
-     * 구버전 완전 이식: 사용자 프롬프트 생성 (소유자 정보 제외)
-     */
+    
     private String buildUserPrompt(List<ResourceNamingSuggestionRequest.ResourceItem> resources, String context) {
         StringBuilder userPrompt = new StringBuilder();
         
-        // RAG 컨텍스트가 있으면 추가
+        
         if (context != null && !context.trim().isEmpty()) {
             userPrompt.append("**참고 컨텍스트:**\n")
                      .append(context)
                      .append("\n\n");
         }
         
-        // 강력한 지시사항과 함께 항목 수 명시
+        
         userPrompt.append("**필수 요구사항:** 다음 **정확히 ").append(resources.size()).append("개** 항목에 대해 **모두 예외 없이** 응답하세요!\n\n");
         userPrompt.append("**중요:** ").append(resources.size()).append("개 입력 → ").append(resources.size()).append("개 출력이 되어야 합니다. 누락 시 시스템 오류!\n\n");
         
@@ -214,20 +190,18 @@ public class ResourceNamingTemplate implements PromptTemplate {
         return userPrompt.toString();
     }
 
-    /**
-     * AIRequest identifiers에서 프롬프트 생성
-     */
+    
     private String buildUserPromptFromIdentifiers(List<String> identifiers, String context) {
         StringBuilder userPrompt = new StringBuilder();
         
-        // RAG 컨텍스트가 있으면 추가
+        
         if (context != null && !context.trim().isEmpty()) {
             userPrompt.append("**참고 컨텍스트:**\n")
                      .append(context)
                      .append("\n\n");
         }
         
-        // 강력한 지시사항과 함께 항목 수 명시
+        
         userPrompt.append("**필수 요구사항:** 다음 **정확히 ").append(identifiers.size()).append("개** 항목에 대해 **모두 예외 없이** 응답하세요!\n\n");
         userPrompt.append("**중요:** ").append(identifiers.size()).append("개 입력 → ").append(identifiers.size()).append("개 출력이 되어야 합니다. 누락 시 시스템 오류!\n\n");
         

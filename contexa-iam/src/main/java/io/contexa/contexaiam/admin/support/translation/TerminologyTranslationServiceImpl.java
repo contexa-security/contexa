@@ -11,9 +11,7 @@ public class TerminologyTranslationServiceImpl implements TerminologyTranslation
     private final PermissionRepository permissionRepository;
     private final PolicyTranslator policyTranslator;
 
-    /**
-     * [최종 구현] Permission의 이름을 기반으로 사용자 친화적인 설명을 생성합니다.
-     */
+    
     @Override
     public String generatePermissionDescription(String permissionName) {
         return permissionRepository.findByName(permissionName)
@@ -21,15 +19,13 @@ public class TerminologyTranslationServiceImpl implements TerminologyTranslation
                 .orElse(permissionName);
     }
 
-    /**
-     * [최종 구현] Policy 객체를 분석하여 자연어 요약을 생성합니다.
-     */
+    
     @Override
     public String summarizePolicy(Policy policy) {
         if (policy.getFriendlyDescription() != null && !policy.getFriendlyDescription().isEmpty()) {
             return policy.getFriendlyDescription();
         }
-        // PolicyTranslator를 사용하여 SpEL을 자연어로 변환
+        
         return policyTranslator.parsePolicy(policy).getConditionDescription();
     }
 }

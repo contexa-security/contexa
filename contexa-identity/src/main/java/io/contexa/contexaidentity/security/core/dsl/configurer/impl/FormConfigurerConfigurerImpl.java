@@ -17,19 +17,13 @@ public final class FormConfigurerConfigurerImpl
         extends AbstractOptionsBuilderConfigurer<FormConfigurerConfigurerImpl, FormOptions, FormOptions.Builder, FormConfigurerConfigurer>
         implements FormConfigurerConfigurer {
 
-    /**
-     * 단일 인증용 생성자 (기본)
-     */
+    
     public FormConfigurerConfigurerImpl(ApplicationContext applicationContext) {
         super(FormOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 
-    /**
-     * MFA 1차 인증용 생성자
-     * @param applicationContext ApplicationContext
-     * @param isMfaMode true: MFA 1차 인증, false: 단일 인증 (사용하지 않음)
-     */
+    
     public FormConfigurerConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
         super(isMfaMode ? FormOptions.builderForMfa(applicationContext) : FormOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
@@ -119,7 +113,7 @@ public final class FormConfigurerConfigurerImpl
         if (formAsepAttributesCustomizer != null) {
             formAsepAttributesCustomizer.customize(attributes);
         }
-        // FormOptions.Builder에 asepAttributes를 설정하는 메서드 호출
+        
         getOptionsBuilder().asepAttributes(attributes);
         log.debug("ASEP: FormAsepAttributes configured and will be stored within FormOptions.");
         return self();

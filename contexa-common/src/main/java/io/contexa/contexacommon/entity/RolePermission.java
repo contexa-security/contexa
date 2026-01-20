@@ -7,8 +7,8 @@ import java.io.Serializable;
 import java.util.Objects;
 
 @Entity
-@Table(name = "ROLE_PERMISSIONS") // Role과 Permission의 조인 테이블
-@IdClass(RolePermissionId.class) // 복합 PK를 위한 @IdClass 사용
+@Table(name = "ROLE_PERMISSIONS") 
+@IdClass(RolePermissionId.class) 
 @Getter
 @Setter
 @Builder
@@ -19,17 +19,17 @@ public class RolePermission implements Serializable {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id")
     @ToString.Exclude
-    private Role role; // 역할 엔티티
+    private Role role; 
 
     @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "permission_id")
     @ToString.Exclude
-    private Permission permission; // 권한 엔티티
+    private Permission permission; 
 
-    // 추가 속성 (예: 할당일, 유효기간, 할당자 등)
-    // @Column(name = "assigned_at")
-    // private Instant assignedAt;
+    
+    
+    
 
     @Override
     public boolean equals(Object o) {
@@ -46,12 +46,12 @@ public class RolePermission implements Serializable {
     }
 }
 
-// 복합 PK를 위한 ID 클래스
+
 @NoArgsConstructor
 @AllArgsConstructor
 class RolePermissionId implements Serializable {
-    private Long role;      // Role 엔티티의 ID 타입과 일치해야 함
-    private Long permission; // Permission 엔티티의 ID 타입과 일치해야 함
+    private Long role;      
+    private Long permission; 
 
     @Override
     public boolean equals(Object o) {

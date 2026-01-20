@@ -11,20 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * 데이터베이스 기반 정책 조회 지점
- *
- * ContexaCacheService를 통한 2-Level 캐시를 사용하여 정책을 조회합니다:
- * - L1: Caffeine (30초 TTL, 로컬 인메모리)
- * - L2: Redis (5분 TTL, 분산)
- *
- * 캐시 키 형식:
- * - URL 정책: "policies:url:all"
- * - 메서드 정책: "policies:method:{identifier}"
- * - 메서드 정책(phase): "policies:method:{identifier}:{phase}"
- *
- * @since 0.1.0-ALPHA
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)

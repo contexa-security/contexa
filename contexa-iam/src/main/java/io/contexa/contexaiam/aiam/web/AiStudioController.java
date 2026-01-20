@@ -23,13 +23,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * AI-Native Authorization Studio API 컨트롤러
- * 
- * 표준 공정 완전 준수 - AINativeProcessor 사용
- * StudioQuery 전용 컨트롤러 - SecurityCopilot 중복 제거
- * 클라이언트 다국어화 - 서버 하드코딩 제거
- */
+
 @RequestMapping("/api/ai/studio")
 @RequiredArgsConstructor
 @Slf4j
@@ -40,7 +34,7 @@ public class AiStudioController {
     @PostMapping("/query")
     public Mono<ResponseEntity<StudioQueryResponse>> queryStudio(@RequestBody StudioQueryItem request) {
 
-        // 요청 검증
+        
         String validationError = validateStudioQueryRequest(request);
         if (validationError != null) {
             log.warn("요청 검증 실패: {}", validationError);
@@ -54,7 +48,7 @@ public class AiStudioController {
         log.info("AI Studio 비동기 질의 요청 - Master Brain 진입점 사용: {}", query);
 
         return Mono.fromCallable(() -> {
-            // StudioQueryContext 생성 (정책빌더와 동일한 방식)
+            
             StudioQueryContext context = new StudioQueryContext.Builder(
                     SecurityLevel.STANDARD,
                     AuditRequirement.BASIC
@@ -64,10 +58,10 @@ public class AiStudioController {
                     .withUserId(request.getUserId())
                     .build();
 
-            // AIRequest 생성 - 정책빌더와 완전히 동일한 방식  
+            
             String orgId = context.getOrganizationId();
             if (orgId == null || orgId.trim().isEmpty()) {
-                orgId = "default-org"; // 컨텍스트에서 조직 ID가 없을 때만 기본값 사용
+                orgId = "default-org"; 
             }
 
             return new AIRequest<>(context, "queryStudio", orgId)
@@ -75,10 +69,10 @@ public class AiStudioController {
                     .withParameter("naturalLanguageQuery", query)
                     .withParameter("queryType", request.getQueryType())
                     .withParameter("userId", request.getUserId())
-                    .withParameter("organizationId", orgId);  // 동적 조직 ID 사용
+                    .withParameter("organizationId", orgId);  
         })
         .flatMap(aiRequest -> {
-            // 정책빌더와 동일한 방식: AIResponse.class 사용
+            
             return aiNativeProcessor.process(aiRequest, AIResponse.class);
         })
         .map(response -> {
@@ -127,10 +121,10 @@ public class AiStudioController {
                             .withParameter("organizationId", "default-org");
 
             SentenceBuffer sentenceBuffer = new SentenceBuffer();
-            StringBuilder allData = new StringBuilder(); // 모든 데이터 누적
+            StringBuilder allData = new StringBuilder(); 
             AtomicBoolean jsonSent = new AtomicBoolean(false);
-            AtomicBoolean finalResponseStarted = new AtomicBoolean(false); // FINAL_RESPONSE 모드 추적
-            StringBuilder markerBuffer = new StringBuilder(); // 마커 감지용 버퍼
+            AtomicBoolean finalResponseStarted = new AtomicBoolean(false); 
+            StringBuilder markerBuffer = new StringBuilder(); 
 
             return aiNativeProcessor.processStream(iamRequest)
                     .flatMap(chunk -> {
@@ -140,32 +134,32 @@ public class AiStudioController {
                                 chunkStr.length(),
                                 chunkStr.length() > 50 ? chunkStr.substring(0, 50) + "..." : chunkStr);
 
-                        // 모든 데이터를 누적
+                        
                         allData.append(chunkStr);
 
-                        // 효율적인 마커 감지 (성능 최적화)
+                        
                         if (!finalResponseStarted.get()) {
                             markerBuffer.append(chunkStr);
                             
-                            // 마커 버퍼가 너무 크면 앞부분 제거 (최근 50자만 유지)
+                            
                             if (markerBuffer.length() > 50) {
                                 markerBuffer.delete(0, markerBuffer.length() - 50);
                             }
                             log.warn("markerBuffer: {}", markerBuffer);
-                            // 마커 감지
+                            
                             if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
                                 finalResponseStarted.set(true);
                                 log.info("[FINAL-MODE] FINAL_RESPONSE 모드 시작 - 이후 청크들은 sentenceBuffer 처리 제외");
                             }
                         }
 
-                        // FINAL_RESPONSE 모드에서는 sentenceBuffer 처리 제외 (중복 방지)
+                        
                         if (finalResponseStarted.get()) {
                             log.debug("[SKIP-SENTENCE] FINAL_RESPONSE 모드 - sentenceBuffer 처리 스킵");
-                            return Flux.empty(); // 빈 스트림 반환하여 이 청크는 sentenceBuffer로 처리하지 않음
+                            return Flux.empty(); 
                         }
 
-                        // 일반 텍스트만 sentenceBuffer로 처리하여 스트리밍
+                        
                         return sentenceBuffer.processChunk(chunkStr)
                                 .map(sentence -> ServerSentEvent.<String>builder()
                                         .data(sentence)
@@ -203,7 +197,7 @@ public class AiStudioController {
                     .onErrorResume(error -> {
                         log.error("AI Studio 스트리밍 처리 중 오류", error);
 
-                        // error 객체의 타입에 따라 처리
+                        
                         String errorMessage;
                         if (error instanceof Throwable) {
                             errorMessage = ((Throwable) error).getMessage();
@@ -400,9 +394,7 @@ public class AiStudioController {
         }
     }
 
-    /**
-     * 질의 히스토리 응답 레코드
-     */
+    
     public record QueryHistoryResponse(
         String userId,
         java.util.List<QueryHistoryItem> queries,
@@ -410,9 +402,7 @@ public class AiStudioController {
         java.time.LocalDateTime lastUpdated
     ) {}
 
-    /**
-     * 질의 히스토리 아이템 레코드
-     */
+    
     public record QueryHistoryItem(
         String query,
         String queryType,

@@ -6,13 +6,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.util.Assert;
 
-/**
- * Authenticated User Grant Type을 위한 OAuth2 Grant Request
- *
- * <p>OAuth2 Client가 Authorization Server에 토큰을 요청할 때 사용하는 요청 객체입니다.
- *
- * @since 2024.12
- */
+
 public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2AuthorizationGrantRequest {
 
     private static final AuthorizationGrantType AUTHENTICATED_USER =
@@ -21,13 +15,7 @@ public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2Authoriza
     private final String username;
     private final String deviceId;
 
-    /**
-     * OAuth2AuthenticatedUserGrantRequest 생성자
-     *
-     * @param clientRegistration 클라이언트 등록 정보
-     * @param username 인증된 사용자 이름
-     * @param deviceId 디바이스 ID (선택적)
-     */
+    
     public OAuth2AuthenticatedUserGrantRequest(
             ClientRegistration clientRegistration,
             String username,
@@ -39,16 +27,12 @@ public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2Authoriza
         this.deviceId = deviceId;
     }
 
-    /**
-     * 사용자 이름 반환
-     */
+    
     public String getUsername() {
         return this.username;
     }
 
-    /**
-     * 디바이스 ID 반환
-     */
+    
     @Nullable
     public String getDeviceId() {
         return this.deviceId;

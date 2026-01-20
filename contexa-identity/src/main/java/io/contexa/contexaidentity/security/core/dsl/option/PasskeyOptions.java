@@ -9,9 +9,9 @@ import org.springframework.util.Assert;
 import java.util.*;
 
 @Getter
-public final class PasskeyOptions extends AuthenticationProcessingOptions { // final class
+public final class PasskeyOptions extends AuthenticationProcessingOptions { 
 
-    private final String assertionOptionsEndpoint; // 필수
+    private final String assertionOptionsEndpoint; 
     private final String rpName;
     private final String rpId;
     private final Set<String> allowedOrigins;
@@ -45,15 +45,15 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions { // f
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
 
-            // AuthUrlProvider를 통해 동적으로 URL 가져오기
+            
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             if (isMfaMode) {
-                // MFA Factor URL
+                
                 this.assertionOptionsEndpoint = urlProvider.getMfaPasskeyAssertionOptions();
                 super.loginProcessingUrl(urlProvider.getMfaPasskeyLoginProcessing());
             } else {
-                // 단일 인증 URL
+                
                 this.assertionOptionsEndpoint = urlProvider.getSinglePasskeyAssertionOptions();
                 super.loginProcessingUrl(urlProvider.getSinglePasskeyLoginProcessing());
             }

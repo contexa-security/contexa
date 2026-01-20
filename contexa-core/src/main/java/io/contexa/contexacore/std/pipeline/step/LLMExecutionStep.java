@@ -13,17 +13,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * 4단계: LLM 실행 단계 (최종 리팩토링 버전)
- *
- * 단일 책임 원칙 (SRP) 강화:
- * - 이 클래스는 파이프라인 단계를 '조율'하는 책임만 가집니다.
- * (프롬프트 준비 -> LLMClient 위임 -> 결과 저장)
- * - 실제 LLM 호출의 복잡성은 LLMClient에 의해 완전히 숨겨집니다.
- *
- * 테스트 용이성 향상:
- * - 테스트 시 Mock LLMClient를 주입하여 이 클래스의 로직만 독립적으로 테스트할 수 있습니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class LLMExecutionStep implements PipelineStep {
@@ -35,7 +25,7 @@ public class LLMExecutionStep implements PipelineStep {
         long stepStartTime = System.currentTimeMillis();
         log.info("[PIPELINE-STEP] ===== LLM 실행 단계 시작 ===== Request: {}", request.getRequestId());
 
-        // AI 생성 타입 확인 (우선순위: aiGenerationType > targetResponseType > responseType)
+        
         Class<?> targetType = context.getMetadata("aiGenerationType", Class.class);
         if (targetType == null) {
             targetType = context.getMetadata("targetResponseType", Class.class);
@@ -46,7 +36,7 @@ public class LLMExecutionStep implements PipelineStep {
         
         final Class<?> finalTargetType = targetType;
         
-        // AI 생성 타입이 설정된 경우 로깅
+        
         if (context.getMetadata("aiGenerationType", Class.class) != null) {
             log.debug("AI 생성 타입 사용: {}", finalTargetType.getSimpleName());
         }
@@ -63,7 +53,7 @@ public class LLMExecutionStep implements PipelineStep {
                     .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
                     .onErrorResume(error -> {
                         log.warn("구조화된 출력 실행 오류. String 폴백 시도. Request: {}", request.getRequestId());
-                        // 폴백: 일반 String 호출
+                        
                         return preparePrompt(context)
                                 .flatMap(llmClient::call)
                                 .doOnSuccess(response -> {
@@ -74,7 +64,7 @@ public class LLMExecutionStep implements PipelineStep {
                     });
         }
         
-        // 기존 String 기반 처리
+        
         return preparePrompt(context)
                 .flatMap(llmClient::call)
                 .doOnSuccess(response -> {
@@ -85,7 +75,7 @@ public class LLMExecutionStep implements PipelineStep {
                 .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
                 .onErrorResume(error -> {
                     log.warn("LLM 실행 오류 발생. 빈 문자열로 폴백합니다. Request: {}", request.getRequestId());
-                    return Mono.just(""); // 에러 발생 시 빈 문자열로 폴백
+                    return Mono.just(""); 
                 });
     }
 
@@ -113,7 +103,7 @@ public class LLMExecutionStep implements PipelineStep {
             return promptResult.getPrompt();
         }).onErrorResume(IllegalStateException.class, e -> {
             log.warn("[PIPELINE-STEP] {}", e.getMessage());
-            return Mono.empty(); // 프롬프트가 없으면 빈 Mono를 반환하여 flatMap 체인을 중단
+            return Mono.empty(); 
         });
     }
 

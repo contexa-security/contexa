@@ -16,16 +16,11 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 
-/**
- * SOAR 진단 전략
- *
- * AbstractAIStrategy를 확장하여 SOAR 기능을 기존 AI 진단 프로세스와 완벽하게 통합합니다.
- * AILab 패턴을 활용하여 일관된 아키텍처를 유지합니다.
- */
+
 @Slf4j
 public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarResponse> {
 
-    private static final int PRIORITY = 10; // 높은 우선순위
+    private static final int PRIORITY = 10; 
     private static final boolean SUPPORTS_STREAMING = true;
 
     public SoarDiagnosisStrategy(AILabFactory labFactory) {
@@ -62,7 +57,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
     protected void validateRequest(AIRequest<SoarContext> request) throws DiagnosisException {
         log.debug("SOAR 요청 검증 시작");
 
-        // 필수 파라미터 검증
+        
         if (request.getContext() == null) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -73,7 +68,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
         SoarContext context = request.getContext();
 
-        // 세션 ID 검증
+        
         if (context.getSessionId() == null || context.getSessionId().isEmpty()) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -82,7 +77,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             );
         }
 
-        // 원본 질의 검증
+        
         if (context.getOriginalQuery() == null || context.getOriginalQuery().trim().isEmpty()) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -91,7 +86,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             );
         }
 
-        // 조직 ID 검증
+        
         if (context.getOrganizationId() == null || context.getOrganizationId().isEmpty()) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -105,7 +100,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
     @Override
     protected Class<?> getLabType() {
-        // 질의 유형에 따라 적절한 Lab 선택
+        
         return SoarLabImpl.class;
     }
 
@@ -138,10 +133,10 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
         SoarLabImpl soarLab = (SoarLabImpl) lab;
         SoarRequest soarRequest = (SoarRequest) labRequest;
 
-        // Lab 실행
+        
         SoarResponse response = soarLab.process(soarRequest);
 
-        // 컨텍스트 업데이트
+        
         updateContext(request.getContext(), response);
 
         log.info("SOAR Lab 실행 완료 - 세션: {}", soarRequest.getSessionId());
@@ -169,24 +164,22 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
         return soarLab.processStream(soarRequest);
     }
 
-    /**
-     * 컨텍스트 업데이트
-     */
+    
     private void updateContext(SoarContext context, SoarResponse response) {
-        // 대화 히스토리 업데이트
+        
         if (response.getAnalysisResult() != null) {
             context.addConversationEntry("assistant", response.getAnalysisResult());
         }
 
-        // 세션 상태 업데이트
+        
         if (response.getSessionState() != null) {
             context.setSessionState(response.getSessionState());
         }
 
-        // 마지막 활동 시간 업데이트
+        
         context.setLastActivity(LocalDateTime.now());
 
-        // 실행된 도구 업데이트
+        
         if (response.getExecutedTools() != null && !response.getExecutedTools().isEmpty()) {
             response.getExecutedTools().forEach(tool ->
                     context.getApprovedTools().add(tool)

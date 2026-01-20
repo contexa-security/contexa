@@ -12,15 +12,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-/**
- * Threat Intelligence Tool
- *
- * IP 주소, 도메인, 파일 해시 등의 침해 지표(IoC)를 조회하고
- * 위협 정보를 수집합니다. 알려진 위협 행위자, 공격 캠페인, 멀웨어 정보를 제공하며
- * 실시간 위협 평가와 대응 권고사항을 생성합니다.
- *
- * Spring AI @Tool 어노테이션 기반 구현
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -37,26 +29,17 @@ import java.util.*;
 )
 public class ThreatIntelligenceTool {
     
-    // 시뮬레이션용 위협 데이터베이스
+    
     private static final Map<String, ThreatInfo> THREAT_DATABASE = new HashMap<>();
     private static final Map<String, List<String>> THREAT_ACTOR_DATABASE = new HashMap<>();
     
     static {
-        // 샘플 위협 데이터 초기화
+        
         initializeThreatDatabase();
         initializeThreatActors();
     }
     
-    /**
-     * 위협 인텔리전스 조회 실행
-     * 
-     * @param indicator 조회할 지표 (IP, 도메인, 해시 등)
-     * @param indicatorType 지표 유형
-     * @param includeContext 상세 컨텍스트 포함 여부
-     * @param checkRelated 연관 IoC 조회 여부
-     * @param maxAge 정보 최대 유효 기간 (일)
-     * @return 위협 인텔리전스 결과
-     */
+    
     @Tool(
         name = "threat_intelligence",
         description = """
@@ -87,10 +70,10 @@ public class ThreatIntelligenceTool {
             indicator, indicatorType);
         
         try {
-            // 입력 검증
+            
             validateRequest(indicator, indicatorType);
             
-            // 지표 유형 자동 탐지 - 잘못된 타입이 들어와도 자동 탐지 사용
+            
             String detectedType = null;
             if (indicatorType != null && !indicatorType.trim().isEmpty()) {
                 Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
@@ -104,28 +87,28 @@ public class ThreatIntelligenceTool {
                 detectedType = detectIndicatorType(indicator);
             }
             
-            // 위협 정보 조회
+            
             ThreatIntelligence intelligence = lookupThreatIntelligence(
                 indicator, detectedType, maxAge);
             
-            // 상세 컨텍스트 추가
+            
             if (Boolean.TRUE.equals(includeContext) && intelligence != null) {
                 enrichWithContext(intelligence);
             }
             
-            // 연관 IoC 조회
+            
             List<String> relatedIocs = new ArrayList<>();
             if (Boolean.TRUE.equals(checkRelated) && intelligence != null) {
                 relatedIocs = findRelatedIocs(indicator, detectedType);
             }
             
-            // 위협 평가
+            
             ThreatAssessment assessment = assessThreat(intelligence, relatedIocs);
             
-            // 대응 권고사항 생성
+            
             List<String> recommendations = generateRecommendations(assessment);
             
-            // 감사 로깅
+            
             SecurityToolUtils.auditLog(
                 "threat_intelligence",
                 "query",
@@ -136,7 +119,7 @@ public class ThreatIntelligenceTool {
                 "SUCCESS"
             );
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("threat_intelligence", "execution_count", 1);
             SecurityToolUtils.recordMetric("threat_intelligence", "queries_processed", 1);
             if (intelligence != null) {
@@ -165,7 +148,7 @@ public class ThreatIntelligenceTool {
         } catch (Exception e) {
             log.error("위협 인텔리전스 조회 실패", e);
             
-            // 에러 메트릭
+            
             SecurityToolUtils.recordMetric("threat_intelligence", "error_count", 1);
             
             return Response.builder()
@@ -177,9 +160,7 @@ public class ThreatIntelligenceTool {
         }
     }
     
-    /**
-     * 요청 검증
-     */
+    
     private void validateRequest(String indicator, String indicatorType) {
         if (indicator == null || indicator.trim().isEmpty()) {
             throw new IllegalArgumentException("Indicator is required");
@@ -188,18 +169,16 @@ public class ThreatIntelligenceTool {
         if (indicatorType != null && !indicatorType.trim().isEmpty()) {
             Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
             
-            // "user" 또는 기타 잘못된 값이 들어오면 자동 탐지로 대체
+            
             if (!validTypes.contains(indicatorType.toLowerCase())) {
                 log.warn("잘못된 indicator type '{}' - 자동 탐지로 대체", indicatorType);
-                // 유효하지 않은 타입은 무시하고 자동 탐지에 맡김
-                // 예외를 발생시키지 않고 경고만 로깅
+                
+                
             }
         }
     }
     
-    /**
-     * 지표 유형 자동 탐지
-     */
+    
     private String detectIndicatorType(String indicator) {
         if (indicator.matches("^([0-9]{1,3}\\.){3}[0-9]{1,3}$")) {
             return "ip";
@@ -215,28 +194,26 @@ public class ThreatIntelligenceTool {
         return "unknown";
     }
     
-    /**
-     * 위협 정보 조회
-     */
+    
     private ThreatIntelligence lookupThreatIntelligence(String indicator, 
                                                         String type, 
                                                         Integer maxAge) {
-        // 데이터베이스에서 조회 (시뮬레이션)
+        
         ThreatInfo info = THREAT_DATABASE.get(indicator);
         
         if (info == null) {
-            // 샘플 데이터 생성 (시뮬레이션)
+            
             if (Math.random() > 0.6) {
                 return generateSampleThreatIntelligence(indicator, type);
             }
             return null;
         }
         
-        // 유효 기간 확인
+        
         if (maxAge != null) {
             LocalDateTime cutoffDate = LocalDateTime.now().minusDays(maxAge);
             if (info.lastSeen.isBefore(cutoffDate)) {
-                return null; // 정보가 너무 오래됨
+                return null; 
             }
         }
         
@@ -253,9 +230,7 @@ public class ThreatIntelligenceTool {
             .build();
     }
     
-    /**
-     * 컨텍스트 정보 추가
-     */
+    
     private void enrichWithContext(ThreatIntelligence intelligence) {
         intelligence.context = new HashMap<>();
         intelligence.context.put("geographic_location", "Russia");
@@ -265,13 +240,11 @@ public class ThreatIntelligenceTool {
         intelligence.context.put("ttps", Arrays.asList("T1566", "T1055", "T1003"));
     }
     
-    /**
-     * 연관 IoC 찾기
-     */
+    
     private List<String> findRelatedIocs(String indicator, String type) {
         List<String> related = new ArrayList<>();
         
-        // 시뮬레이션: 연관 IoC 생성
+        
         if ("ip".equals(type)) {
             related.add("malware.badactor.com");
             related.add("5d41402abc4b2a76b9719d911017c592");
@@ -283,9 +256,7 @@ public class ThreatIntelligenceTool {
         return related;
     }
     
-    /**
-     * 위협 평가
-     */
+    
     private ThreatAssessment assessThreat(ThreatIntelligence intelligence, 
                                           List<String> relatedIocs) {
         if (intelligence == null) {
@@ -296,7 +267,7 @@ public class ThreatIntelligenceTool {
                 .build();
         }
         
-        // 위험 점수 계산
+        
         int riskScore = calculateRiskScore(intelligence, relatedIocs);
         
         String threatLevel;
@@ -331,27 +302,25 @@ public class ThreatIntelligenceTool {
             .build();
     }
     
-    /**
-     * 위험 점수 계산
-     */
+    
     private int calculateRiskScore(ThreatIntelligence intelligence, 
                                    List<String> relatedIocs) {
         int score = 0;
         
-        // 평판 기반 점수
+        
         if ("malicious".equals(intelligence.reputation)) {
             score += 50;
         } else if ("suspicious".equals(intelligence.reputation)) {
             score += 30;
         }
         
-        // 신뢰도 점수
+        
         score += (int)(intelligence.confidenceScore * 20);
         
-        // 연관 IoC 점수
+        
         score += Math.min(relatedIocs.size() * 5, 20);
         
-        // 최근 활동 점수
+        
         LocalDateTime lastSeen = LocalDateTime.parse(intelligence.lastSeen);
         if (lastSeen.isAfter(LocalDateTime.now().minusDays(7))) {
             score += 10;
@@ -360,9 +329,7 @@ public class ThreatIntelligenceTool {
         return Math.min(score, 100);
     }
     
-    /**
-     * 대응 권고사항 생성
-     */
+    
     private List<String> generateRecommendations(ThreatAssessment assessment) {
         List<String> recommendations = new ArrayList<>();
         
@@ -400,9 +367,7 @@ public class ThreatIntelligenceTool {
         return recommendations;
     }
     
-    /**
-     * 샘플 위협 인텔리전스 생성 (시뮬레이션)
-     */
+    
     private ThreatIntelligence generateSampleThreatIntelligence(String indicator, String type) {
         return ThreatIntelligence.builder()
             .indicator(indicator)
@@ -417,9 +382,7 @@ public class ThreatIntelligenceTool {
             .build();
     }
     
-    /**
-     * 위협 데이터베이스 초기화
-     */
+    
     private static void initializeThreatDatabase() {
         String emotetIP = generateRandomIP();
         THREAT_DATABASE.put(emotetIP, new ThreatInfo(
@@ -435,9 +398,7 @@ public class ThreatIntelligenceTool {
         ));
     }
     
-    /**
-     * 위협 행위자 데이터베이스 초기화
-     */
+    
     private static void initializeThreatActors() {
         THREAT_ACTOR_DATABASE.put("APT28", Arrays.asList(
             generateRandomIP(), "apt28.badactor.com", "fancy.bear.ru"
@@ -448,9 +409,7 @@ public class ThreatIntelligenceTool {
         ));
     }
     
-    /**
-     * Response DTO
-     */
+    
     @Data
     @Builder
     public static class Response {
@@ -466,9 +425,7 @@ public class ThreatIntelligenceTool {
         private String error;
     }
     
-    /**
-     * 위협 인텔리전스 정보
-     */
+    
     @Data
     @Builder
     public static class ThreatIntelligence {
@@ -484,9 +441,7 @@ public class ThreatIntelligenceTool {
         private Map<String, Object> context;
     }
     
-    /**
-     * 위협 평가
-     */
+    
     @Data
     @Builder
     public static class ThreatAssessment {
@@ -496,9 +451,7 @@ public class ThreatIntelligenceTool {
         private List<String> factors;
     }
     
-    /**
-     * 위협 정보 (내부용)
-     */
+    
     private static class ThreatInfo {
         String indicator;
         double confidenceScore;

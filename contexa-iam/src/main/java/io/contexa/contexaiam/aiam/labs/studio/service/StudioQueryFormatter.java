@@ -12,44 +12,34 @@ import org.hibernate.LazyInitializationException;
 
 import java.util.*;
 
-/**
- * AI 분석 결과 기반 스튜디오 쿼리 포매터
- *
- * 모든 하드코딩된 분석 로직 제거 완료
- * 실제 AI 분석 결과만을 사용하여 시각화 생성
- * 전통적 방식 대신 AI-Native 권한 분석 시각화
- */
+
 @Slf4j
 public class StudioQueryFormatter {
 
-    /**
-     * AI 분석 결과 기반 권한 시각화 데이터 생성
-     *
-     * 실제 AI 분석 결과를 받아서 권한 관계를 시각화 데이터로 변환
-     */
+    
     public StudioQueryResponse.VisualizationData generateVisualizationData(IAMDataSet dataSet, StudioQueryRequest request) {
         log.info("AI 분석 결과 기반 권한 시각화 데이터 생성 시작");
 
-        // 하드코딩된 분석 대신 실제 AI 분석 결과를 기다림
+        
         log.info("실제 AI 분석 결과 대기 중...");
 
-        // 기본 시각화 구조만 설정
+        
         StudioQueryResponse.VisualizationData vizData = new StudioQueryResponse.VisualizationData();
         vizData.setGraphType("AI_DRIVEN_NETWORK");
         vizData.setTitle("AI 권한 분석 결과 시각화");
         vizData.setDescription("AI 분석 결과를 기반으로 생성된 권한 관계 시각화");
 
-        // 빈 데이터로 초기화 (AI 분석 결과가 오면 JavaScript에서 동적으로 채움)
+        
         vizData.setNodes(new ArrayList<>());
         vizData.setEdges(new ArrayList<>());
 
-        // AI 기반 레이아웃 설정
+        
         Map<String, Object> layoutConfig = new HashMap<>();
         layoutConfig.put("aiDriven", true);
         layoutConfig.put("waitingForAI", true);
         vizData.setLayoutConfig(layoutConfig);
 
-        // AI 대기 중 테마
+        
         Map<String, String> styling = new HashMap<>();
         styling.put("theme", "ai-waiting");
         styling.put("background", "#0a0a0a");
@@ -59,13 +49,7 @@ public class StudioQueryFormatter {
         return vizData;
     }
 
-    /**
-     * AI 분석 결과를 받아서 실제 시각화 데이터 생성
-     *
-     * @param aiAnalysisResult 실제 AI 분석 결과
-     * @param dataSet IAM 데이터셋
-     * @return 실제 시각화 데이터
-     */
+    
     public StudioQueryResponse.VisualizationData generateVisualizationFromAIResult(
             Object aiAnalysisResult, IAMDataSet dataSet) {
 
@@ -79,21 +63,21 @@ public class StudioQueryFormatter {
         List<StudioQueryResponse.VisualizationData.Node> nodes = new ArrayList<>();
         List<StudioQueryResponse.VisualizationData.Edge> edges = new ArrayList<>();
 
-        // AI 분석 결과에서 권한 관계 추출하여 노드/엣지 생성
-        // 실제 AI 분석 결과를 파싱하여 시각화 데이터 생성
+        
+        
         extractNodesFromAIResult(aiAnalysisResult, nodes, dataSet);
         extractEdgesFromAIResult(aiAnalysisResult, edges, dataSet);
 
         vizData.setNodes(nodes);
         vizData.setEdges(edges);
 
-        // AI 분석 결과 기반 레이아웃 설정
+        
         Map<String, Object> layoutConfig = new HashMap<>();
         layoutConfig.put("aiDriven", true);
         layoutConfig.put("algorithm", "ai-optimized");
         vizData.setLayoutConfig(layoutConfig);
 
-        // AI 분석 결과 기반 스타일링
+        
         Map<String, String> styling = new HashMap<>();
         styling.put("theme", "ai-analyzed");
         styling.put("background", "#0a0a0a");
@@ -105,46 +89,33 @@ public class StudioQueryFormatter {
         return vizData;
     }
 
-    /**
-     * AI 분석 결과에서 노드 추출
-     */
+    
     private void extractNodesFromAIResult(Object aiResult, List<StudioQueryResponse.VisualizationData.Node> nodes, IAMDataSet dataSet) {
-        // AI 분석 결과를 파싱하여 실제 권한 관계의 노드들을 추출
-        // 이 메서드는 실제 AI 분석 결과 구조에 맞게 구현되어야 함
+        
+        
         log.info("AI 분석 결과에서 노드 추출 중...");
 
-        // AI 분석 결과가 제공하는 권한 관계 정보를 기반으로 노드 생성
-        // 예: 사용자, 그룹, 역할, 권한 등의 엔티티들
+        
+        
     }
 
-    /**
-     * AI 분석 결과에서 엣지 추출
-     */
+    
     private void extractEdgesFromAIResult(Object aiResult, List<StudioQueryResponse.VisualizationData.Edge> edges, IAMDataSet dataSet) {
-        // AI 분석 결과를 파싱하여 실제 권한 관계의 엣지들을 추출
+        
         log.info("AI 분석 결과에서 엣지 추출 중...");
 
-        // AI 분석 결과가 제공하는 권한 관계 정보를 기반으로 엣지 생성
-        // 예: 사용자-그룹, 그룹-역할, 역할-권한 등의 관계들
+        
+        
     }
 
-    /**
-     * 실제 AI 분석 결과를 대기하는 플레이스홀더
-     *
-     * 하드코딩된 분석 로직들은 모두 제거되었습니다.
-     * 실제 AI 분석 결과가 JavaScript로 전달되어 시각화가 생성됩니다.
-     */
+    
     private void waitForRealAIAnalysis() {
         log.info("실제 AI 분석 결과를 기다리고 있습니다...");
         log.info(" 하드코딩된 분석 로직들은 모두 제거되었습니다.");
         log.info("실제 AI 분석 결과가 JavaScript로 전달되어 시각화가 생성됩니다.");
     }
 
-    /**
-     * AI 분석 결과 기반 포맷팅
-     *
-     * 실제 AI 분석 결과를 받아서 포맷팅하는 메서드
-     */
+    
     public String formatForAIMData(IAMDataSet dataSet) {
         log.info("AI 분석을 위한 IAM 데이터 포맷팅");
 
@@ -155,23 +126,23 @@ public class StudioQueryFormatter {
         StringBuilder sb = new StringBuilder();
         sb.append("=== 현재 시스템의 권한 현황 ===\n\n");
 
-        // 실제 사용자별 권한 정보 상세 제공
+        
         if (dataSet.getUsers() != null && !dataSet.getUsers().isEmpty()) {
             sb.append("사용자별 권한 정보:\n");
 
             dataSet.getUsers().forEach(user -> {
                 sb.append("- ").append(user.getName()).append("는 ");
 
-                // LazyInitializationException 방어 및 올바른 메서드 사용
+                
                 try {
-                    // 사용자가 속한 그룹들 찾기
+                    
                     if (user.getUserGroups() != null && Hibernate.isInitialized(user.getUserGroups()) && !user.getUserGroups().isEmpty()) {
                         user.getUserGroups().forEach(userGroup -> {
                             Group group = userGroup.getGroup();
                             if (group != null) {
                                 sb.append(group.getName()).append(" 그룹에 속해 있으며, ");
 
-                                // 그룹에서 가진 역할들 찾기
+                                
                                 try {
                                     if (group.getGroupRoles() != null &&
                                             Hibernate.isInitialized(group.getGroupRoles()) &&
@@ -184,7 +155,7 @@ public class StudioQueryFormatter {
                                                 log.debug("역할 한국어명: {}", roleDesc);
                                                 sb.append(roleDesc).append(" 역할로서 ");
 
-                                                // 역할이 가진 권한들 찾기
+                                                
                                                 try {
                                                     if (role.getRolePermissions() != null &&
                                                             Hibernate.isInitialized(role.getRolePermissions()) &&
@@ -194,7 +165,7 @@ public class StudioQueryFormatter {
                                                             Permission permission = rolePermission.getPermission();
                                                             if (permission != null) {
                                                                 String friendlyName = permission.getFriendlyName();
-                                                                // 한국어명이 없으면 영어명 사용
+                                                                
                                                                 if (friendlyName == null || friendlyName.trim().isEmpty()) {
                                                                     friendlyName = permission.getName();
                                                                 }
@@ -231,13 +202,13 @@ public class StudioQueryFormatter {
             });
         }
 
-        // 그룹별 상세 정보
+        
         if (dataSet.getGroups() != null && !dataSet.getGroups().isEmpty()) {
             sb.append("\n📁 그룹별 상세 정보:\n");
             dataSet.getGroups().forEach(group -> {
                 sb.append("- ").append(group.getName()).append(" (").append(group.getDescription()).append(")\n");
 
-                // 그룹 멤버 수 표시
+                
                 try {
                     if (group.getUserGroups() != null && Hibernate.isInitialized(group.getUserGroups())) {
                         sb.append("  멤버: ").append(group.getUserGroups().size()).append("명\n");
@@ -246,7 +217,7 @@ public class StudioQueryFormatter {
                     log.debug("userGroups not loaded for group: {}", group.getName());
                 }
 
-                // 그룹이 가진 역할들
+                
                 try {
                     if (group.getGroupRoles() != null &&
                             Hibernate.isInitialized(group.getGroupRoles()) &&
@@ -263,13 +234,13 @@ public class StudioQueryFormatter {
             });
         }
 
-        // 역할별 상세 정보
+        
         if (dataSet.getRoles() != null && !dataSet.getRoles().isEmpty()) {
             sb.append("\n역할별 상세 정보:\n");
             dataSet.getRoles().forEach(role -> {
                 sb.append("- ").append(role.getRoleDesc()).append(" (").append(role.getRoleName()).append(")\n");
 
-                // 역할이 가진 권한들
+                
                 try {
                     if (role.getRolePermissions() != null &&
                             Hibernate.isInitialized(role.getRolePermissions()) &&
@@ -277,7 +248,7 @@ public class StudioQueryFormatter {
                         sb.append("  권한: ");
                         role.getRolePermissions().forEach(rolePermission -> {
                             String friendlyName = rolePermission.getPermission().getFriendlyName();
-                            // 한국어명이 없으면 영어명 사용
+                            
                             if (friendlyName == null || friendlyName.trim().isEmpty()) {
                                 friendlyName = rolePermission.getPermission().getName();
                             }
@@ -291,12 +262,12 @@ public class StudioQueryFormatter {
             });
         }
 
-        // 권한별 상세 정보
+        
         if (dataSet.getPermissions() != null && !dataSet.getPermissions().isEmpty()) {
             sb.append("\n권한별 상세 정보:\n");
             dataSet.getPermissions().forEach(permission -> {
                 String friendlyName = permission.getFriendlyName();
-                // 한국어명이 없으면 영어명 사용
+                
                 if (friendlyName == null || friendlyName.trim().isEmpty()) {
                     friendlyName = permission.getName();
                 }
@@ -312,9 +283,7 @@ public class StudioQueryFormatter {
         return sb.toString();
     }
 
-    /**
-     * 시스템 메타데이터 포맷팅
-     */
+    
     public String formatSystemMetadata(StudioQueryRequest request) {
         log.info("시스템 메타데이터 포맷팅");
 
@@ -327,9 +296,7 @@ public class StudioQueryFormatter {
         return sb.toString();
     }
 
-    /**
-     * 하드코딩된 분석 로직 제거 완료 확인
-     */
+    
     public void confirmHardcodedAnalysisRemoved() {
         log.info("하드코딩된 분석 메서드들이 모두 제거되었습니다.");
         log.info("이제 실제 AI 분석 결과만을 사용하여 시각화가 생성됩니다.");

@@ -17,15 +17,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * DB 기반 권한 평가기 - Spring Security 표준 방식
- * 
- * 핵심 원칙:
- * 1. hasPermission 메서드에서 모든 권한 검증 처리
- * 2. @Protectable 애노테이션 기반 자동 소유자 확인  
- * 3. Spring Security 표준 패턴 준수
- * 4. 단일 진입점으로 간단하고 명확한 구조
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class CustomPermissionEvaluator implements PermissionEvaluator {
@@ -34,9 +26,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
     private final GroupRepository groupRepository;
     private final ApplicationContext applicationContext;
 
-    /**
-     * 핵심 권한 평가 메서드 - ID 기반
-     */
+    
     @Override
     public boolean hasPermission(Authentication authentication, Serializable targetId, String targetType, Object permissionAction) {
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -50,13 +40,13 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         log.debug("권한 평가: 사용자={}, 대상={}#{}, 액션={}", username, targetType, targetId, action);
 
         try {
-            // 1️⃣ 사용자의 모든 권한 조회 (역할 기반)
+            
             Set<String> userPermissions = getUserPermissions(username);
             
-            // 2️⃣ 요청된 권한명 생성
+            
             String requiredPermission = buildPermissionName(targetType, action);
             
-            // 3️⃣ 권한 보유 여부 확인
+            
             if (!userPermissions.contains(requiredPermission)) {
                 log.debug("권한 부족: {} 권한 없음", requiredPermission);
                 return false;
@@ -72,12 +62,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    /**
-     * 핵심 권한 평가 메서드 - 도메인 객체 기반 (Spring Security 표준)
-     * 
-     * CustomMethodSecurityExpressionRoot에서 이미 hasPermission 오버라이드하여 소유자 확인 처리하므로
-     * 여기서는 기본 권한 확인만 수행 (중복 제거)
-     */
+    
     @Override
     public boolean hasPermission(Authentication authentication, Object targetDomainObject, Object permission) {
         log.debug("객체 기반 권한 확인 시작: 사용자={}, 대상={}, 권한={}",
@@ -85,17 +70,15 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
                  targetDomainObject.getClass().getSimpleName(), 
                  permission);
         
-        // 기본 권한 확인만 수행 (소유자 확인은 CustomMethodSecurityExpressionRoot에서 처리됨)
+        
         return checkBasicPermission(authentication, targetDomainObject, permission.toString());
     }
     
-    /**
-     * 기본 권한 확인
-     */
+    
     private boolean checkBasicPermission(Authentication authentication, Object targetDomainObject, String permissionStr) {
         Serializable id = extractObjectId(targetDomainObject);
         
-        // 타입_액션 형태인지 확인 (예: GROUP_UPDATE, USER_CREATE)
+        
         if (permissionStr.contains("_")) {
             String[] parts = permissionStr.split("_", 2);
             String type = parts[0];
@@ -104,16 +87,14 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             log.debug("타입_액션 파싱: {} → 타입={}, 액션={}", permissionStr, type, action);
             return hasPermission(authentication, id, type, action);
         } else {
-            // 기존 방식: 클래스명에서 타입 추출
+            
             String type = targetDomainObject.getClass().getSimpleName().toUpperCase();
             log.debug("클래스명 타입 추출: {} → 타입={}", targetDomainObject.getClass().getSimpleName(), type);
             return hasPermission(authentication, id, type, permissionStr);
         }
     }
     
-    /**
-     * 🏠 ownerField 기반 동적 소유자 확인
-     */
+    
     public boolean checkOwnership(Authentication authentication, Object targetDomainObject, String ownerField) {
         if (authentication == null || !authentication.isAuthenticated()) {
             log.debug("인증되지 않은 사용자 - 소유자 확인 실패");
@@ -122,7 +103,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         
         if (targetDomainObject == null || ownerField == null || ownerField.trim().isEmpty()) {
             log.debug("소유자 확인 생략: 대상 객체 또는 ownerField 없음");
-            return true; // 소유자 확인을 하지 않으면 통과
+            return true; 
         }
         
         try {
@@ -136,7 +117,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             Long ownerUserId = getOwnerIdFromObject(targetDomainObject, ownerField);
             if (ownerUserId == null) {
                 log.debug("소유자 ID 추출 실패: 객체={}, 필드={}", targetDomainObject.getClass().getSimpleName(), ownerField);
-                return true; // 소유자 정보가 없으면 통과
+                return true; 
             }
             
             boolean isOwner = currentUserId.equals(ownerUserId);
@@ -150,12 +131,10 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
     
-    /**
-     * 객체에서 소유자 ID 추출 (리플렉션 기반)
-     */
+    
     private Long getOwnerIdFromObject(Object object, String ownerField) {
         try {
-            // 1. 필드 직접 접근 시도
+            
             Field field = findField(object.getClass(), ownerField);
             if (field != null) {
                 field.setAccessible(true);
@@ -163,7 +142,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
                 return convertToLong(value);
             }
             
-            // 2. Getter 메서드 접근 시도
+            
             String getterName = "get" + ownerField.substring(0, 1).toUpperCase() + ownerField.substring(1);
             Method getter = object.getClass().getMethod(getterName);
             Object value = getter.invoke(object);
@@ -175,9 +154,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
     
-    /**
-     * 클래스 계층구조에서 필드 찾기
-     */
+    
     private Field findField(Class<?> clazz, String fieldName) {
         Class<?> currentClass = clazz;
         while (currentClass != null) {
@@ -190,9 +167,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         return null;
     }
     
-    /**
-     * 🔢 값을 Long으로 변환
-     */
+    
     private Long convertToLong(Object value) {
         if (value == null) return null;
         if (value instanceof Long) return (Long) value;
@@ -207,9 +182,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         return null;
     }
     
-    /**
-     * 👤 현재 사용자 ID 조회
-     */
+    
     private Long getCurrentUserId(String username) {
         try {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
@@ -220,9 +193,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    /**
-     * 👤 사용자의 모든 권한 조회 (DB 기반)
-     */
+    
     private Set<String> getUserPermissions(String username) {
         try {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
@@ -243,16 +214,12 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    /**
-     * 🏷️ 권한명 생성 - 표준 패턴
-     */
+    
     private String buildPermissionName(String targetType, String action) {
         return String.format("%s_%s", targetType.toUpperCase(), action.toUpperCase());
     }
 
-    /**
-     * 도메인 객체에서 ID 추출
-     */
+    
     private Serializable extractObjectId(Object domainObject) {
         try {
             Method getIdMethod = domainObject.getClass().getMethod("getId");
@@ -264,12 +231,9 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    // ========= SpEL에서 호출 가능한 Public 헬퍼 메서드들 =========
     
-    /**
-     * SpEL용: ownerField 기반 소유자 확인
-     * 사용 예: @customPermissionEvaluator.isOwner(authentication, #document, 'ownerId')
-     */
+    
+    
     public boolean isOwner(Authentication authentication, Object targetObject, String ownerField) {
         return checkOwnership(authentication, targetObject, ownerField);
     }

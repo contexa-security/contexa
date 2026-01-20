@@ -13,7 +13,7 @@ public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
 
-    @Async // 이 메서드는 별도의 스레드에서 비동기적으로 실행됨
+    @Async 
     @Transactional
     public void logDecision(String principal, String resource, String action, String decision, String reason, String clientIp) {
         try {

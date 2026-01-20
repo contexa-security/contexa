@@ -4,102 +4,63 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-/**
- * HCAD (Hierarchical Contextual Anomaly Detection) 설정
- *
- * AI Native v3.3.0:
- * HCAD는 이상 탐지 신호를 생성하여 LLM에게 전달하는 전처리 시스템
- * 이 설정의 모든 임계값은 알고리즘 파라미터로만 사용됨
- * 실제 보안 결정(ALLOW/BLOCK/CHALLENGE/ESCALATE)은 LLM이 직접 결정
- */
+
 @Data
 @ConfigurationProperties(prefix = "hcad")
 public class HcadProperties {
 
-    /**
-     * HCAD 활성화 여부
-     */
+    
     private boolean enabled = true;
 
-    /**
-     * 임계값 설정
-     */
+    
     @NestedConfigurationProperty
     private ThresholdSettings threshold = new ThresholdSettings();
 
-    /**
-     * 캐시 설정
-     */
+    
     @NestedConfigurationProperty
     private CacheSettings cache = new CacheSettings();
 
-    /**
-     * 베이스라인 설정
-     */
+    
     @NestedConfigurationProperty
     private BaselineSettings baseline = new BaselineSettings();
 
-    /**
-     * 피드백 설정
-     */
+    
     @NestedConfigurationProperty
     private FeedbackSettings feedback = new FeedbackSettings();
 
-    /**
-     * 오케스트레이터 설정
-     */
+    
     @NestedConfigurationProperty
     private OrchestratorSettings orchestrator = new OrchestratorSettings();
 
-    /**
-     * 벡터 설정
-     */
+    
     @NestedConfigurationProperty
     private VectorSettings vector = new VectorSettings();
 
-    /**
-     * 세션 설정
-     */
+    
     @NestedConfigurationProperty
     private SessionSettings session = new SessionSettings();
 
-    /**
-     * 신호 설정
-     */
+    
     @NestedConfigurationProperty
     private SignalSettings signal = new SignalSettings();
 
-    /**
-     * 샘플링 설정
-     */
+    
     @NestedConfigurationProperty
     private SamplingSettings sampling = new SamplingSettings();
 
-    /**
-     * 적응형 설정
-     */
+    
     @NestedConfigurationProperty
     private AdaptiveSettings adaptive = new AdaptiveSettings();
 
-    /**
-     * 유사도 설정
-     */
+    
     @NestedConfigurationProperty
     private SimilaritySettings similarity = new SimilaritySettings();
 
-    /**
-     * Redis 설정
-     */
+    
     @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
 
-    /**
-     * 임계값 설정 (AI Native v3.3.0)
-     *
-     * 이상 탐지 알고리즘의 내부 파라미터
-     * 이 값들은 이상 신호 강도를 계산하는 데만 사용됨
-     * 보안 Action(ALLOW/BLOCK/CHALLENGE/ESCALATE)은 LLM이 결정
-     */
+    
     @Data
     public static class ThresholdSettings {
         private double base = 0.7;
@@ -110,9 +71,7 @@ public class HcadProperties {
         private double warn = 0.7;
     }
 
-    /**
-     * 캐시 설정
-     */
+    
     @Data
     public static class CacheSettings {
         private int maxSize = 100000;
@@ -128,9 +87,7 @@ public class HcadProperties {
         }
     }
 
-    /**
-     * 베이스라인 설정
-     */
+    
     @Data
     public static class BaselineSettings {
         private double minConfidence = 0.3;
@@ -166,9 +123,7 @@ public class HcadProperties {
         }
     }
 
-    /**
-     * 피드백 설정
-     */
+    
     @Data
     public static class FeedbackSettings {
         private double learningRate = 0.1;
@@ -184,9 +139,7 @@ public class HcadProperties {
         }
     }
 
-    /**
-     * 오케스트레이터 설정
-     */
+    
     @Data
     public static class OrchestratorSettings {
         private boolean enabled = true;
@@ -195,13 +148,7 @@ public class HcadProperties {
         private boolean performanceTracking = true;
     }
 
-    /**
-     * 벡터 설정 (AI Native v3.3.0)
-     *
-     * 벡터 임베딩 및 유사도 검색 파라미터
-     * similarityThreshold는 벡터 검색 필터로만 사용
-     * 시나리오 매칭 결과는 LLM에게 전달되어 최종 판단
-     */
+    
     @Data
     public static class VectorSettings {
         private int embeddingDimension = 384;
@@ -211,18 +158,14 @@ public class HcadProperties {
         private boolean scenarioDetectionEnabled = true;
     }
 
-    /**
-     * 세션 설정
-     */
+    
     @Data
     public static class SessionSettings {
         private String cookieName = "JSESSIONID";
         private String headerName = "X-Session-Id";
     }
 
-    /**
-     * 신호 설정
-     */
+    
     @Data
     public static class SignalSettings {
         private double chiSquareThreshold = 14.07;
@@ -262,9 +205,7 @@ public class HcadProperties {
         }
     }
 
-    /**
-     * 샘플링 설정
-     */
+    
     @Data
     public static class SamplingSettings {
         @NestedConfigurationProperty
@@ -291,9 +232,7 @@ public class HcadProperties {
         }
     }
 
-    /**
-     * 적응형 설정
-     */
+    
     @Data
     public static class AdaptiveSettings {
         private double adjustmentRate = 0.1;
@@ -330,21 +269,13 @@ public class HcadProperties {
         }
     }
 
-    /**
-     * 유사도 설정 (AI Native v3.3.0)
-     *
-     * 벡터 검색 사전 필터용 파라미터
-     * hotPathThreshold는 캐시 적중 여부 판단에만 사용
-     * LLM 분석 스킵 판단이 아닌, 성능 최적화 목적
-     */
+    
     @Data
     public static class SimilaritySettings {
         private double hotPathThreshold = 0.7;
     }
 
-    /**
-     * Redis 설정
-     */
+    
     @Data
     public static class RedisSettings {
         private String keyPrefix = "hcad:baseline:v2:";

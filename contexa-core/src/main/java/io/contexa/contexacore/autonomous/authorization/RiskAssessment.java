@@ -15,20 +15,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * RiskAssessment
- * 
- * 도구 실행의 위험도를 평가합니다.
- * 도구 유형, 실행 컨텍스트, 시간대 등을 고려하여 위험도를 산정합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class RiskAssessment {
     
-    // 도구별 기본 위험도 맵
+    
     private final Map<String, io.contexa.contexacommon.enums.RiskLevel> toolRiskMap = new HashMap<>();
     
-    // 위험 키워드들
+    
     private static final Set<String> HIGH_RISK_KEYWORDS = Set.of(
         "delete", "remove", "kill", "terminate", "shutdown", "destroy",
         "format", "wipe", "purge", "quarantine", "isolate"
@@ -38,27 +33,25 @@ public class RiskAssessment {
         "system", "kernel", "root", "admin", "production", "critical"
     );
     
-    /**
-     * 도구 실행 위험도 평가
-     */
+    
     public io.contexa.contexacommon.enums.RiskLevel assess(ToolCallback tool, Map<String, Object> context) {
         String toolName = tool.getToolDefinition().name();
         
         log.debug("위험도 평가 시작: {}", toolName);
         
-        // 1. 도구 어노테이션 기반 평가
+        
         io.contexa.contexacommon.enums.RiskLevel annotationRisk = getAnnotationRiskLevel(tool);
         
-        // 2. 도구 이름 기반 평가
+        
         io.contexa.contexacommon.enums.RiskLevel nameRisk = assessByToolName(toolName);
         
-        // 3. 컨텍스트 기반 평가
+        
         io.contexa.contexacommon.enums.RiskLevel contextRisk = assessByContext(context);
         
-        // 4. 시간대 기반 평가
+        
         io.contexa.contexacommon.enums.RiskLevel timeRisk = assessByTime();
         
-        // 최종 위험도 결정 (가장 높은 레벨 선택)
+        
         io.contexa.contexacommon.enums.RiskLevel finalRisk = getHighestRisk(
             annotationRisk, nameRisk, contextRisk, timeRisk
         );
@@ -68,22 +61,18 @@ public class RiskAssessment {
         return finalRisk;
     }
     
-    /**
-     * ObservationContext를 사용한 위험도 평가
-     */
+    
     public io.contexa.contexacommon.enums.RiskLevel assess(ToolCallingObservationContext context) {
-        // ObservationContext에서 도구 이름 추출
+        
         String toolName = "unknown";
         
-        // 도구 이름으로 기본 평가
+        
         io.contexa.contexacommon.enums.RiskLevel baseRisk = assessByToolName(toolName);
         
         return baseRisk;
     }
     
-    /**
-     * 위험도 평가 결과
-     */
+    
     public RiskAssessmentResult assessWithDetails(ToolCallback tool, Map<String, Object> context) {
         io.contexa.contexacommon.enums.RiskLevel riskLevel = assess(tool, context);
         
@@ -96,27 +85,21 @@ public class RiskAssessment {
             .build();
     }
     
-    /**
-     * 승인 필요 여부
-     */
+    
     public boolean requiresApproval(io.contexa.contexacommon.enums.RiskLevel riskLevel) {
         return riskLevel == io.contexa.contexacommon.enums.RiskLevel.HIGH || 
                riskLevel == io.contexa.contexacommon.enums.RiskLevel.CRITICAL;
     }
     
-    /**
-     * 도구별 위험도 설정
-     */
+    
     public void setToolRiskLevel(String toolName, io.contexa.contexacommon.enums.RiskLevel level) {
         toolRiskMap.put(toolName, level);
         log.debug("도구 위험도 설정: {} -> {}", toolName, level);
     }
     
-    // Private 메서드들
     
-    /**
-     * 어노테이션 기반 위험도 추출
-     */
+    
+    
     private io.contexa.contexacommon.enums.RiskLevel getAnnotationRiskLevel(ToolCallback tool) {
         try {
             Class<?> toolClass = tool.getClass();
@@ -127,16 +110,14 @@ public class RiskAssessment {
             }
         } catch (Exception e) {
             log.warn("어노테이션 위험도 추출 실패 (Fail-Close 적용): {}", e.getMessage());
-            // Fail-Close: 예외 발생 시 높은 위험도 반환 (Zero Trust 원칙)
+            
             return io.contexa.contexacommon.enums.RiskLevel.HIGH;
         }
 
         return io.contexa.contexacommon.enums.RiskLevel.LOW;
     }
     
-    /**
-     * SOAR 위험도를 Approval 위험도로 변환
-     */
+    
     private io.contexa.contexacommon.enums.RiskLevel convertSoarRiskLevel(SoarTool.RiskLevel soarLevel) {
         return switch (soarLevel) {
             case LOW -> io.contexa.contexacommon.enums.RiskLevel.LOW;
@@ -146,18 +127,16 @@ public class RiskAssessment {
         };
     }
     
-    /**
-     * 도구 이름 기반 위험도 평가
-     */
+    
     private io.contexa.contexacommon.enums.RiskLevel assessByToolName(String toolName) {
-        // 미리 설정된 위험도 확인
+        
         if (toolRiskMap.containsKey(toolName)) {
             return toolRiskMap.get(toolName);
         }
         
         String lowerName = toolName.toLowerCase();
         
-        // Critical 키워드 확인
+        
         for (String keyword : CRITICAL_KEYWORDS) {
             if (lowerName.contains(keyword)) {
                 for (String highRisk : HIGH_RISK_KEYWORDS) {
@@ -168,42 +147,40 @@ public class RiskAssessment {
             }
         }
         
-        // High Risk 키워드 확인
+        
         for (String keyword : HIGH_RISK_KEYWORDS) {
             if (lowerName.contains(keyword)) {
                 return io.contexa.contexacommon.enums.RiskLevel.HIGH;
             }
         }
         
-        // 분석/스캔 도구는 중간 위험도
+        
         if (lowerName.contains("scan") || lowerName.contains("analysis") || 
             lowerName.contains("detect")) {
             return io.contexa.contexacommon.enums.RiskLevel.MEDIUM;
         }
         
-        // 읽기 전용은 낮은 위험도
+        
         if (lowerName.contains("read") || lowerName.contains("list") || 
             lowerName.contains("get") || lowerName.contains("view")) {
             return io.contexa.contexacommon.enums.RiskLevel.LOW;
         }
         
-        return io.contexa.contexacommon.enums.RiskLevel.MEDIUM; // 기본값
+        return io.contexa.contexacommon.enums.RiskLevel.MEDIUM; 
     }
     
-    /**
-     * 컨텍스트 기반 위험도 평가
-     */
+    
     private io.contexa.contexacommon.enums.RiskLevel assessByContext(Map<String, Object> context) {
         if (context == null) {
             return io.contexa.contexacommon.enums.RiskLevel.LOW;
         }
         
-        // 운영 환경 확인
+        
         if (Boolean.TRUE.equals(context.get("productionEnvironment"))) {
             return io.contexa.contexacommon.enums.RiskLevel.HIGH;
         }
         
-        // 대상 시스템 확인
+        
         String target = (String) context.get("target");
         if (target != null) {
             if (target.contains("production") || target.contains("critical")) {
@@ -211,7 +188,7 @@ public class RiskAssessment {
             }
         }
         
-        // 사용자 권한 확인
+        
         String userId = (String) context.get("userId");
         if (userId != null && !userId.equals("admin")) {
             return io.contexa.contexacommon.enums.RiskLevel.MEDIUM;
@@ -220,18 +197,16 @@ public class RiskAssessment {
         return io.contexa.contexacommon.enums.RiskLevel.LOW;
     }
     
-    /**
-     * 시간대 기반 위험도 평가
-     */
+    
     private io.contexa.contexacommon.enums.RiskLevel assessByTime() {
         LocalTime now = LocalTime.now();
         
-        // 업무 시간 외 (저녁 10시 ~ 아침 6시)
+        
         if (now.isAfter(LocalTime.of(22, 0)) || now.isBefore(LocalTime.of(6, 0))) {
             return io.contexa.contexacommon.enums.RiskLevel.HIGH;
         }
         
-        // 점심시간 (12시 ~ 1시)
+        
         if (now.isAfter(LocalTime.of(12, 0)) && now.isBefore(LocalTime.of(13, 0))) {
             return io.contexa.contexacommon.enums.RiskLevel.MEDIUM;
         }
@@ -239,9 +214,7 @@ public class RiskAssessment {
         return io.contexa.contexacommon.enums.RiskLevel.LOW;
     }
     
-    /**
-     * 가장 높은 위험도 반환
-     */
+    
     private io.contexa.contexacommon.enums.RiskLevel getHighestRisk(io.contexa.contexacommon.enums.RiskLevel... levels) {
         io.contexa.contexacommon.enums.RiskLevel highest = io.contexa.contexacommon.enums.RiskLevel.LOW;
         
@@ -254,9 +227,7 @@ public class RiskAssessment {
         return highest;
     }
     
-    /**
-     * 평가 요소들
-     */
+    
     private Map<String, String> getAssessmentFactors(ToolCallback tool, Map<String, Object> context) {
         Map<String, String> factors = new HashMap<>();
         
@@ -273,9 +244,7 @@ public class RiskAssessment {
         return factors;
     }
     
-    /**
-     * 권장사항
-     */
+    
     private String getRecommendations(io.contexa.contexacommon.enums.RiskLevel level) {
         return switch (level) {
             case LOW -> "안전한 작업입니다. 실행 가능합니다.";
@@ -285,9 +254,7 @@ public class RiskAssessment {
         };
     }
     
-    /**
-     * 위험도 평가 결과
-     */
+    
     @Data
     @Builder
     public static class RiskAssessmentResult {

@@ -23,24 +23,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-/**
- * XAIReportingService - 설명 가능한 AI 리포팅 서비스
- * 
- * AI의 의사결정 과정을 설명하고 투명성을 제공하는 서비스입니다.
- * LIME, SHAP 등의 기법을 활용하여 AI 결정을 해석합니다.
- * 
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class XAIReportingService {
     
-    // 기존 컴포넌트 재사용
+    
     private final StandardVectorStoreService vectorStore;
     private final RedisTemplate<String, Object> redisTemplate;
     
-    // 설정값
+    
     @Value("${xai.enabled:true}")
     private boolean xaiEnabled;
     
@@ -62,13 +54,13 @@ public class XAIReportingService {
     @Value("${xai.visualization.enabled:true}")
     private boolean visualizationEnabled;
     
-    // 리포트 캐시
+    
     private final Map<String, CachedReport> reportCache = new ConcurrentHashMap<>();
     
-    // 특징 중요도 저장소
+    
     private final Map<String, FeatureImportanceModel> featureModels = new ConcurrentHashMap<>();
     
-    // 통계
+    
     private final AtomicLong totalReportsGenerated = new AtomicLong(0);
     private final AtomicLong cachedReportsServed = new AtomicLong(0);
     private final Map<DetailLevel, AtomicLong> detailLevelStats = new ConcurrentHashMap<>();
@@ -82,23 +74,16 @@ public class XAIReportingService {
         
         log.info("XAI 리포팅 서비스 초기화 시작");
         
-        // 특징 중요도 모델 초기화
+        
         initializeFeatureModels();
         
-        // 캐시 정리 스케줄러 시작
+        
         startCacheCleaner();
         
         log.info("XAI 리포팅 서비스 초기화 완료");
     }
     
-    /**
-     * 위험 평가 설명 리포트 생성
-     * 
-     * @param assessmentId 평가 ID
-     * @param riskAssessment 위험 평가 결과
-     * @param event 보안 이벤트
-     * @return XAI 리포트
-     */
+    
     public Mono<XAIReport> explainRiskAssessment(
         String assessmentId,
         RiskAssessmentResponse riskAssessment,
@@ -108,7 +93,7 @@ public class XAIReportingService {
             return Mono.just(XAIReport.disabled());
         }
         
-        // 캐시 확인
+        
         CachedReport cached = reportCache.get(assessmentId);
         if (cached != null && !cached.isExpired()) {
             cachedReportsServed.incrementAndGet();
@@ -118,28 +103,28 @@ public class XAIReportingService {
         return Mono.fromCallable(() -> {
             log.info("위험 평가 설명 리포트 생성 - Assessment ID: {}", assessmentId);
             
-            // 1. 특징 추출
+            
             Map<String, Double> features = extractFeatures(event);
             
-            // 2. 특징 중요도 계산
+            
             Map<String, Double> featureImportance = calculateFeatureImportance(
                 "risk_assessment", features, riskAssessment.riskScore()
             );
             
-            // 3. 의사결정 경로 추적
+            
             List<String> decisionPath = traceDecisionPath(riskAssessment, features);
             
-            // 4. 대안 시나리오 생성
+            
             List<AlternativeScenario> alternatives = generateAlternatives(
                 features, riskAssessment.riskScore()
             );
             
-            // 5. 신뢰도 분석
+            
             ConfidenceAnalysis confidence = analyzeConfidence(
                 riskAssessment, features, featureImportance
             );
             
-            // 6. 리포트 생성
+            
             XAIReport report = XAIReport.builder()
                 .assessmentId(assessmentId)
                 .type("RISK_ASSESSMENT")
@@ -157,10 +142,10 @@ public class XAIReportingService {
                 .timestamp(LocalDateTime.now())
                 .build();
             
-            // 캐시 저장
+            
             cacheReport(assessmentId, report);
             
-            // 통계 업데이트
+            
             totalReportsGenerated.incrementAndGet();
             detailLevelStats.computeIfAbsent(defaultDetailLevel, k -> new AtomicLong())
                 .incrementAndGet();
@@ -170,9 +155,7 @@ public class XAIReportingService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * 행동 분석 설명 리포트 생성
-     */
+    
     public Mono<XAIReport> explainBehaviorAnalysis(
         String analysisId,
         BehavioralAnalysisResponse behaviorAnalysis,
@@ -185,23 +168,23 @@ public class XAIReportingService {
         return Mono.fromCallable(() -> {
             log.info("행동 분석 설명 리포트 생성 - Analysis ID: {}", analysisId);
             
-            // 특징 추출
+            
             Map<String, Double> features = extractBehaviorFeatures(event);
             
-            // 행동 패턴 분석
+            
             BehaviorPattern pattern = analyzeBehaviorPattern(behaviorAnalysis);
             
-            // 이상 징후 설명
+            
             List<String> anomalyExplanation = explainAnomalies(
                 behaviorAnalysis.getBehavioralRiskScore() / 100.0,
                 pattern,
                 features
             );
             
-            // 시간적 패턴 분석
+            
             TemporalAnalysis temporal = analyzeTemporalPatterns(event, behaviorAnalysis);
             
-            // 리포트 생성
+            
             XAIReport report = XAIReport.builder()
                 .assessmentId(analysisId)
                 .type("BEHAVIOR_ANALYSIS")
@@ -225,9 +208,7 @@ public class XAIReportingService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * SOAR 결정 설명 리포트 생성
-     */
+    
     public Mono<XAIReport> explainSoarDecision(
         String decisionId,
         SoarResponse soarResponse,
@@ -240,27 +221,27 @@ public class XAIReportingService {
         return Mono.fromCallable(() -> {
             log.info("SOAR 결정 설명 리포트 생성 - Decision ID: {}", decisionId);
             
-            // 권장사항 분석
+            
             RecommendationAnalysis recAnalysis = analyzeRecommendations(
                 soarResponse.getRecommendations()
             );
             
-            // 도구 선택 이유
+            
             List<String> toolSelectionReasoning = explainToolSelection(soarResponse, context);
             
-            // 위험 평가 근거
+            
             RiskJustification riskJustification = justifyRiskLevel(
                 soarResponse.getThreatLevel() != null ? soarResponse.getThreatLevel().toString() : "MEDIUM",
                 context
             );
             
-            // 대안 액션
+            
             List<String> alternativeActions = generateAlternativeActions(
                 soarResponse,
                 context
             );
             
-            // 리포트 생성
+            
             XAIReport report = XAIReport.builder()
                 .assessmentId(decisionId)
                 .type("SOAR_DECISION")
@@ -289,9 +270,7 @@ public class XAIReportingService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * 위협 상관관계 설명
-     */
+    
     public Mono<XAIReport> explainThreatCorrelation(
         String correlationId,
         List<SecurityEvent> correlatedEvents,
@@ -304,19 +283,19 @@ public class XAIReportingService {
         return Mono.fromCallable(() -> {
             log.info("위협 상관관계 설명 리포트 생성 - Correlation ID: {}", correlationId);
             
-            // 상관관계 분석
+            
             CorrelationAnalysis correlation = analyzeCorrelations(correlatedEvents);
             
-            // MITRE 매핑 설명
+            
             List<String> mitreExplanation = explainMitreMapping(indicators);
             
-            // 시간적 관계
+            
             TemporalRelationship temporal = analyzeTemporalRelationship(correlatedEvents);
             
-            // 인과관계 추론
+            
             CausalInference causal = inferCausality(correlatedEvents, indicators);
             
-            // 리포트 생성
+            
             XAIReport report = XAIReport.builder()
                 .assessmentId(correlationId)
                 .type("THREAT_CORRELATION")
@@ -345,9 +324,7 @@ public class XAIReportingService {
         .subscribeOn(Schedulers.boundedElastic());
     }
     
-    /**
-     * 상세 수준별 리포트 생성
-     */
+    
     public Mono<XAIReport> generateReport(
         String assessmentId,
         Object assessment,
@@ -370,30 +347,28 @@ public class XAIReportingService {
         return Mono.just(XAIReport.unsupported());
     }
     
-    /**
-     * 특징 추출
-     */
+    
     private Map<String, Double> extractFeatures(SecurityEvent event) {
         Map<String, Double> features = new HashMap<>();
         
-        // 기본 특징
+        
         features.put("source_risk", getSourceRisk(event.getSource() != null ? event.getSource().name() : "UNKNOWN"));
         features.put("severity_score", getSeverityScore(event.getSeverity().name()));
         features.put("time_of_day", getTimeScore(event.getTimestamp()));
         
-        // 사용자 관련 특징
+        
         if (event.getUserId() != null) {
             features.put("user_risk_score", getUserRiskScore(event.getUserId()));
             features.put("user_activity_level", getUserActivityLevel(event.getUserId()));
         }
         
-        // IP 관련 특징
+        
         if (event.getSourceIp() != null) {
             features.put("ip_reputation", getIpReputation(event.getSourceIp()));
             features.put("geo_risk", getGeoRisk(event.getSourceIp()));
         }
         
-        // 컨텍스트 특징
+        
         if (event.getMetadata() != null) {
             features.put("data_sensitivity", getDataSensitivity(event.getMetadata()));
             features.put("action_risk", getActionRisk(event.getMetadata()));
@@ -402,13 +377,11 @@ public class XAIReportingService {
         return features;
     }
     
-    /**
-     * 행동 특징 추출
-     */
+    
     private Map<String, Double> extractBehaviorFeatures(SecurityEvent event) {
         Map<String, Double> features = new HashMap<>();
         
-        features.put("activity_frequency", 0.5);  // 실제로는 계산
+        features.put("activity_frequency", 0.5);  
         features.put("time_deviation", 0.3);
         features.put("location_anomaly", 0.1);
         features.put("resource_access_pattern", 0.6);
@@ -417,9 +390,7 @@ public class XAIReportingService {
         return features;
     }
     
-    /**
-     * 특징 중요도 계산 (SHAP 값 시뮬레이션)
-     */
+    
     private Map<String, Double> calculateFeatureImportance(
         String modelType,
         Map<String, Double> features,
@@ -439,13 +410,13 @@ public class XAIReportingService {
             totalContribution += Math.abs(contribution);
         }
         
-        // 정규화
+        
         if (totalContribution > 0) {
             double finalTotal = totalContribution;
             importance.replaceAll((k, v) -> v / finalTotal);
         }
         
-        // 임계값 이하 제거
+        
         importance.entrySet().removeIf(e -> 
             Math.abs(e.getValue()) < featureImportanceThreshold
         );
@@ -453,20 +424,18 @@ public class XAIReportingService {
         return importance;
     }
     
-    /**
-     * 의사결정 경로 추적
-     */
+    
     private List<String> traceDecisionPath(
         RiskAssessmentResponse assessment,
         Map<String, Double> features
     ) {
         List<String> path = new ArrayList<>();
         
-        // 1단계: 초기 평가
+        
         path.add(String.format("1. 이벤트 수신 및 초기 분류: %s", 
             "MEDIUM"));
         
-        // 2단계: 주요 특징 평가
+        
         features.entrySet().stream()
             .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
             .limit(3)
@@ -475,30 +444,28 @@ public class XAIReportingService {
                     entry.getKey(), entry.getValue()))
             );
         
-        // 3단계: 패턴 매칭
+        
         path.add("3. 과거 패턴과 비교 분석 수행");
         
-        // 4단계: 위험 점수 계산
+        
         path.add(String.format("4. 최종 위험 점수 계산: %.2f", 
             assessment.riskScore()));
         
-        // 5단계: 임계값 비교
+        
         path.add(String.format("5. 임계값 비교 및 위험 수준 결정: %s", 
             "MEDIUM"));
         
         return path;
     }
     
-    /**
-     * 대안 시나리오 생성
-     */
+    
     private List<AlternativeScenario> generateAlternatives(
         Map<String, Double> features,
         double actualScore
     ) {
         List<AlternativeScenario> alternatives = new ArrayList<>();
         
-        // 각 주요 특징을 변경했을 때의 시나리오
+        
         features.entrySet().stream()
             .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
             .limit(maxAlternatives)
@@ -506,7 +473,7 @@ public class XAIReportingService {
                 String feature = entry.getKey();
                 double value = entry.getValue();
                 
-                // 특징값 감소 시나리오
+                
                 double reducedScore = simulateScore(features, feature, value * 0.5);
                 alternatives.add(new AlternativeScenario(
                     String.format("%s가 50%% 낮았다면", feature),
@@ -514,7 +481,7 @@ public class XAIReportingService {
                     actualScore - reducedScore
                 ));
                 
-                // 특징값 증가 시나리오
+                
                 double increasedScore = simulateScore(features, feature, value * 1.5);
                 alternatives.add(new AlternativeScenario(
                     String.format("%s가 50%% 높았다면", feature),
@@ -529,9 +496,7 @@ public class XAIReportingService {
             .collect(Collectors.toList());
     }
     
-    /**
-     * 신뢰도 분석
-     */
+    
     private ConfidenceAnalysis analyzeConfidence(
         RiskAssessmentResponse assessment,
         Map<String, Double> features,
@@ -559,9 +524,7 @@ public class XAIReportingService {
         return new ConfidenceAnalysis(overallConfidence, factors, dataQuality, modelCertainty, consistencyScore);
     }
     
-    /**
-     * 시각화 생성
-     */
+    
     private Map<String, Object> generateVisualizations(
         Map<String, Double> importance,
         ConfidenceAnalysis confidence
@@ -572,23 +535,21 @@ public class XAIReportingService {
         
         Map<String, Object> visualizations = new HashMap<>();
         
-        // 특징 중요도 차트
+        
         visualizations.put("featureImportanceChart", createBarChart(importance));
         
-        // 신뢰도 게이지
+        
         visualizations.put("confidenceGauge", createGaugeChart(confidence.getOverallConfidence()));
         
-        // 의사결정 트리
+        
         visualizations.put("decisionTree", createDecisionTree(importance));
         
         return visualizations;
     }
     
-    /**
-     * 행동 패턴 분석
-     */
+    
     private BehaviorPattern analyzeBehaviorPattern(BehavioralAnalysisResponse analysis) {
-        // 실제로는 복잡한 패턴 분석
+        
         return new BehaviorPattern(
             "UNUSUAL_ACCESS_PATTERN",
             "비정상적인 접근 패턴",
@@ -596,9 +557,7 @@ public class XAIReportingService {
         );
     }
     
-    /**
-     * 이상 징후 설명
-     */
+    
     private List<String> explainAnomalies(
         double anomalyScore,
         BehaviorPattern pattern,
@@ -619,14 +578,12 @@ public class XAIReportingService {
         return explanation;
     }
     
-    /**
-     * 시간적 패턴 분석
-     */
+    
     private TemporalAnalysis analyzeTemporalPatterns(
         SecurityEvent event,
         BehavioralAnalysisResponse analysis
     ) {
-        // 실제로는 시계열 분석
+        
         return new TemporalAnalysis(
             "AFTER_HOURS",
             "업무 시간 외 활동",
@@ -634,23 +591,19 @@ public class XAIReportingService {
         );
     }
     
-    /**
-     * 권장사항 분석
-     */
+    
     private RecommendationAnalysis analyzeRecommendations(List<String> recommendations) {
         List<String> reasoning = new ArrayList<>();
         reasoning.add("위험 수준과 이벤트 유형 고려");
         reasoning.add("과거 유사 사례 분석");
         reasoning.add("현재 시스템 상태 평가");
         
-        double confidence = 0.85;  // 실제로는 계산
+        double confidence = 0.85;  
         
         return new RecommendationAnalysis(recommendations, reasoning, confidence);
     }
     
-    /**
-     * 도구 선택 설명
-     */
+    
     private List<String> explainToolSelection(SoarResponse response, Map<String, Object> context) {
         List<String> explanation = new ArrayList<>();
         
@@ -662,9 +615,7 @@ public class XAIReportingService {
         return explanation;
     }
     
-    /**
-     * 위험 수준 정당화
-     */
+    
     private RiskJustification justifyRiskLevel(String riskLevel, Map<String, Object> context) {
         List<String> reasoning = new ArrayList<>();
         
@@ -676,9 +627,7 @@ public class XAIReportingService {
         return new RiskJustification(riskLevel, reasoning);
     }
     
-    /**
-     * 대안 액션 생성
-     */
+    
     private List<String> generateAlternativeActions(
         SoarResponse response,
         Map<String, Object> context
@@ -692,9 +641,7 @@ public class XAIReportingService {
         return alternatives;
     }
     
-    /**
-     * 상관관계 분석
-     */
+    
     private CorrelationAnalysis analyzeCorrelations(List<SecurityEvent> events) {
         Map<String, Double> importanceScores = new HashMap<>();
         List<String> explanation = new ArrayList<>();
@@ -709,9 +656,7 @@ public class XAIReportingService {
         return new CorrelationAnalysis(importanceScores, explanation, confidence);
     }
     
-    /**
-     * MITRE 매핑 설명
-     */
+    
     private List<String> explainMitreMapping(ThreatIndicators indicators) {
         List<String> explanation = new ArrayList<>();
         
@@ -728,17 +673,13 @@ public class XAIReportingService {
         return explanation;
     }
     
-    /**
-     * 시간적 관계 분석
-     */
+    
     private TemporalRelationship analyzeTemporalRelationship(List<SecurityEvent> events) {
-        // 실제로는 복잡한 시간 분석
+        
         return new TemporalRelationship("SEQUENTIAL", "순차적 발생", 0.8);
     }
     
-    /**
-     * 인과관계 추론
-     */
+    
     private CausalInference inferCausality(
         List<SecurityEvent> events,
         ThreatIndicators indicators
@@ -756,9 +697,7 @@ public class XAIReportingService {
         return new CausalInference(explanation, alternatives);
     }
     
-    /**
-     * 추론 체인 결합
-     */
+    
     private List<String> combineReasoningChains(List<String>... chains) {
         List<String> combined = new ArrayList<>();
         for (List<String> chain : chains) {
@@ -769,15 +708,13 @@ public class XAIReportingService {
         return combined;
     }
     
-    /**
-     * 상세 수준 조정
-     */
+    
     private XAIReport adjustDetailLevel(XAIReport report, DetailLevel level) {
         report.setDetailLevel(level);
         
         switch (level) {
             case MINIMAL:
-                // 최소 정보만 유지
+                
                 report.setFeatureImportance(
                     report.getFeatureImportance().entrySet().stream()
                         .limit(3)
@@ -795,12 +732,12 @@ public class XAIReportingService {
                 
             case HIGH:
             case FULL:
-                // 모든 정보 포함 (이미 완전함)
+                
                 break;
                 
             case MEDIUM:
             default:
-                // 중간 수준
+                
                 report.setFeatureImportance(
                     report.getFeatureImportance().entrySet().stream()
                         .limit(5)
@@ -815,10 +752,10 @@ public class XAIReportingService {
         return report;
     }
     
-    // 헬퍼 메서드들
+    
     
     private double getSourceRisk(String source) {
-        // AI Native v4.0.0: eventType 제거 - source 기반 위험도 계산
+        
         return switch (source) {
             case "NETWORK" -> 0.8;
             case "ENDPOINT" -> 0.7;
@@ -828,14 +765,9 @@ public class XAIReportingService {
         };
     }
     
-    /**
-     * XAI 보고서용 점수 (감사 로그 및 메타데이터 목적)
-     *
-     * AI Native에서는 LLM riskScore 우선 사용 권장
-     * 이 메서드는 XAI 보고서 가시화용으로 유지
-     */
+    
     private double getSeverityScore(String severity) {
-        // XAI 보고서용 메타데이터 - Fallback 매핑 유지
+        
         return switch (severity) {
             case "CRITICAL" -> 1.0;
             case "HIGH" -> 0.8;
@@ -847,37 +779,37 @@ public class XAIReportingService {
     
     private double getTimeScore(LocalDateTime timestamp) {
         int hour = timestamp.getHour();
-        // 업무 시간 외 = 높은 점수
+        
         return (hour < 8 || hour > 18) ? 0.8 : 0.3;
     }
     
     private double getUserRiskScore(String userId) {
-        // 실제로는 사용자 프로필 조회
+        
         return 0.5;
     }
     
     private double getUserActivityLevel(String userId) {
-        // 실제로는 활동 레벨 계산
+        
         return 0.6;
     }
     
     private double getIpReputation(String ip) {
-        // 실제로는 IP 평판 서비스 조회
+        
         return 0.7;
     }
     
     private double getGeoRisk(String ip) {
-        // 실제로는 지리적 위험 평가
+        
         return 0.4;
     }
     
     private double getDataSensitivity(Map<String, Object> data) {
-        // 실제로는 데이터 민감도 분석
+        
         return 0.6;
     }
     
     private double getActionRisk(Map<String, Object> data) {
-        // 실제로는 액션 위험도 평가
+        
         return 0.5;
     }
     
@@ -885,7 +817,7 @@ public class XAIReportingService {
         Map<String, Double> simulated = new HashMap<>(features);
         simulated.put(changedFeature, newValue);
         
-        // 간단한 선형 모델 시뮬레이션
+        
         return simulated.values().stream()
             .mapToDouble(Double::doubleValue)
             .average()
@@ -893,7 +825,7 @@ public class XAIReportingService {
     }
     
     private double calculateDataQuality(Map<String, Double> features) {
-        // 누락된 특징 확인
+        
         long missingCount = features.values().stream()
             .filter(v -> v == null || v == 0.0)
             .count();
@@ -902,7 +834,7 @@ public class XAIReportingService {
     }
     
     private double calculateModelCertainty(Map<String, Double> importance) {
-        // 중요도 분포의 엔트로피 계산
+        
         double entropy = importance.values().stream()
             .mapToDouble(v -> -v * Math.log(v + 0.001))
             .sum();
@@ -911,7 +843,7 @@ public class XAIReportingService {
     }
     
     private double calculateConsistency(RiskAssessmentResponse assessment) {
-        // 실제로는 과거 평가와 비교
+        
         return 0.9;
     }
     
@@ -999,7 +931,7 @@ public class XAIReportingService {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("eventCount", events.size());
         metadata.put("threatTypes", indicators.identifyThreatTypes());
-        metadata.put("riskScore", 75.0); // Default threat score - getThreatScore() method not available
+        metadata.put("riskScore", 75.0); 
         return metadata;
     }
     
@@ -1042,18 +974,14 @@ public class XAIReportingService {
         return tree;
     }
     
-    /**
-     * 특징 모델 초기화
-     */
+    
     private void initializeFeatureModels() {
         featureModels.put("risk_assessment", createDefaultModel());
         featureModels.put("behavior_analysis", createDefaultModel());
         featureModels.put("threat_correlation", createDefaultModel());
     }
     
-    /**
-     * 기본 모델 생성
-     */
+    
     private FeatureImportanceModel createDefaultModel() {
         Map<String, Double> weights = new HashMap<>();
         weights.put("event_type_risk", 0.2);
@@ -1066,9 +994,7 @@ public class XAIReportingService {
         return new FeatureImportanceModel(weights);
     }
     
-    /**
-     * 리포트 캐싱
-     */
+    
     private void cacheReport(String id, XAIReport report) {
         CachedReport cached = new CachedReport(
             report,
@@ -1076,14 +1002,12 @@ public class XAIReportingService {
         );
         reportCache.put(id, cached);
         
-        // Redis에도 저장
+        
         String key = "xai:report:" + id;
         redisTemplate.opsForValue().set(key, report, Duration.ofHours(cacheTtlHours));
     }
     
-    /**
-     * 캐시 정리
-     */
+    
     private void startCacheCleaner() {
         Schedulers.parallel().schedulePeriodically(() -> {
             reportCache.entrySet().removeIf(entry -> 
@@ -1092,9 +1016,7 @@ public class XAIReportingService {
         }, 3600, 3600, java.util.concurrent.TimeUnit.SECONDS);
     }
     
-    /**
-     * 메트릭 조회
-     */
+    
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("enabled", xaiEnabled);
@@ -1112,11 +1034,9 @@ public class XAIReportingService {
         return metrics;
     }
     
-    // 내부 클래스들
     
-    /**
-     * XAI 리포트
-     */
+    
+    
     @lombok.Data
     @lombok.Builder
     public static class XAIReport {
@@ -1153,19 +1073,15 @@ public class XAIReportingService {
         }
     }
 
-    /**
-     * 상세 수준
-     */
+    
     public enum DetailLevel {
-        MINIMAL,   // 최소 정보
-        MEDIUM,    // 중간 수준
-        HIGH,      // 상세 정보
-        FULL       // 전체 정보
+        MINIMAL,   
+        MEDIUM,    
+        HIGH,      
+        FULL       
     }
 
-    /**
-     * 캐시된 리포트
-     */
+    
     @AllArgsConstructor
     private static class CachedReport {
         private final XAIReport report;
@@ -1180,9 +1096,7 @@ public class XAIReportingService {
         }
     }
 
-    /**
-     * 특징 중요도 모델
-     */
+    
     @AllArgsConstructor
     private static class FeatureImportanceModel {
         private final Map<String, Double> weights;
@@ -1192,7 +1106,7 @@ public class XAIReportingService {
         }
     }
     
-    // 분석 관련 내부 클래스들
+    
     
     @AllArgsConstructor
     private static class AlternativeScenario {

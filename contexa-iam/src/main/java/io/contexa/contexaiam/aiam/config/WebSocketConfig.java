@@ -49,9 +49,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.setApplicationDestinationPrefixes("/app"); // 클라 -> 서버
-        config.enableSimpleBroker("/topic", "/queue");    // 서버 -> 클라
-        config.setUserDestinationPrefix("/user");         // 사용자/세션 귀속
+        config.setApplicationDestinationPrefixes("/app"); 
+        config.enableSimpleBroker("/topic", "/queue");    
+        config.setUserDestinationPrefix("/user");         
         log.info("Broker: app=/app, broker=/topic|/queue, user=/user");
     }
 
@@ -59,12 +59,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws-soar")
                 .setAllowedOriginPatterns("*")
-                .setHandshakeHandler(handshakeHandler) // ★ 세션 Principal 부여
+                .setHandshakeHandler(handshakeHandler) 
                 .withSockJS();
         log.info("STOMP endpoint: /ws-soar");
     }
 
-    // 운영: 풀은 넉넉히. (/user 라우팅으로 레이스 제거)
+    
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.taskExecutor()

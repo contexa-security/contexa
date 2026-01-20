@@ -24,9 +24,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Optional;
 
-/**
- * AI 기반 메서드 권한 검증 + 소유자 확인
- */
+
 @Slf4j
 public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpressionRoot implements MethodSecurityExpressionOperations {
 
@@ -37,14 +35,11 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     private Object returnObject;
     private Object target;
     
-    /**
-     * -- SETTER --
-     *  🏠 ownerField 설정
-     */
+    
     @Setter
     private String ownerField;
     
-    // Repository 의존성 (ID 기반 소유자 확인용)
+    
     private UserRepository userRepository;
     private GroupRepository groupRepository;
     private DocumentRepository documentRepository;
@@ -59,9 +54,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         this.invocation = mi;
     }
     
-    /**
-     * Repository 의존성 설정 (ID 기반 소유자 확인용)
-     */
+    
     public void setRepositories(UserRepository userRepository, GroupRepository groupRepository, DocumentRepository documentRepository, ApplicationContext applicationContext) {
         this.userRepository = userRepository;
         this.groupRepository = groupRepository;
@@ -71,48 +64,44 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     @Override
     public boolean hasPermission(Object target, Object permission) {
-        // 1. 기본 권한 검증
+        
         if (!super.hasPermission(target, permission)) {
             return false;
         }
         
-        // 2. 소유자 확인 (설정된 경우)
+        
         if (StringUtils.hasText(ownerField) && target != null) {
             if (!checkOwnership(target)) {
                 return false;
             }
         }
         
-        // AI 진단은 SpEL 표현식 #ai.assessContext()에서 수행됨 (중복 제거)
+        
         return true;
     }
 
     @Override
     public boolean hasPermission(Object targetId, String targetType, Object permission) {
-        // 1. 기본 권한 검증
-        /*if (!super.hasPermission(targetId, targetType, permission)) {
-            return false;
-        }*/
         
-        // 2. ID 기반 소유자 확인 (설정된 경우)
+        
+        
+        
         if (StringUtils.hasText(ownerField) && targetId != null) {
             if (!checkOwnershipById((Serializable) targetId, targetType)) {
                 return false;
             }
         }
         
-        // AI 진단은 SpEL 표현식 #ai.assessContext()에서 수행됨 (중복 제거)
+        
         return true;
     }
 
-    /**
-     * 🏠 객체 기반 소유자 확인
-     */
+    
     private boolean checkOwnership(Object target) {
         try {
             String currentUsername = ((UserDto)getAuthentication().getPrincipal()).getUsername();
             
-            // 리플렉션으로 ownerField 값 추출
+            
             Field field = target.getClass().getDeclaredField(ownerField);
             field.setAccessible(true);
             Object ownerValue = field.get(target);
@@ -121,7 +110,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
                 return false;
             }
             
-            // 문자열 비교 (가장 간단한 방식)
+            
             boolean isOwner = currentUsername.equals(ownerValue.toString());
             
             if (!isOwner) {
@@ -136,19 +125,17 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         }
     }
     
-    /**
-     * 🏠 ID 기반 소유자 확인
-     */
+    
     private boolean checkOwnershipById(Serializable targetId, String targetType) {
         try {
-            // 1. 엔티티 조회
+            
             Object entity = findEntityById(targetId, targetType);
             if (entity == null) {
                 log.debug("엔티티 조회 실패: targetId={}, targetType={}", targetId, targetType);
                 return false;
             }
             
-            // 2. 조회된 엔티티로 소유자 확인
+            
             return checkOwnership(entity);
             
         } catch (Exception e) {
@@ -157,9 +144,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         }
     }
     
-    /**
-     * ID와 타입으로 엔티티 조회
-     */
+    
     private Object findEntityById(Serializable targetId, String targetType) {
         try {
             switch (targetType.toUpperCase()) {
@@ -171,7 +156,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
                     log.debug("DOCUMENT 타입은 아직 지원되지 않음");
                     return documentRepository != null ? documentRepository.findById((Long) targetId).orElse(null) : null;
                 default:
-                    // 동적 Repository 조회 시도
+                    
                     return findEntityByDynamicRepository(targetId, targetType);
             }
         } catch (Exception e) {
@@ -180,9 +165,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         }
     }
     
-    /**
-     * 동적 Repository 조회
-     */
+    
     private Object findEntityByDynamicRepository(Serializable targetId, String targetType) {
         if (applicationContext == null) {
             return null;
@@ -212,7 +195,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         }
     }
 
-    // === Spring Security 인터페이스 구현 ===
+    
     
     @Override
     public void setFilterObject(Object filterObject) {
@@ -243,7 +226,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         return this.target;
     }
 
-    // === 부모 클래스 구현 ===
+    
 
     @Override
     protected String getRemoteIp() {

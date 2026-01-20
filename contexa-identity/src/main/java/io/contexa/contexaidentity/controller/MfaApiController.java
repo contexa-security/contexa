@@ -22,28 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * MfaApiController
- *
- * ⚠️ DEPRECATED: 이 컨트롤러는 MfaContinuationFilter와 중복됩니다.
- *
- * 마이그레이션 가이드:
- * - 모든 /api/mfa/* 엔드포인트는 /mfa/*로 이동
- * - MfaContinuationFilter가 Content-Type에 따라 JSON/HTML 응답
- * - SDK는 /mfa/* 엔드포인트 사용으로 변경 필요
- *
- * 제거 예정 메서드:
- * - selectFactor() → MfaContinuationFilter.handleFactorSelection()
- * - cancel() → MfaContinuationFilter.handleCancelMfa()
- * - getMfaStatus() → MfaContinuationFilter.handleStatusCheck()
- * - requestOttCode() → MfaContinuationFilter.handleChallengeInitiation()
- * - getFactorContext() → MfaContinuationFilter.handleMfaInitiation()
- *
- * 유지 메서드:
- * - getEndpointConfig() → SDK 초기화용 (별도 유틸리티로 이동 예정)
- *
- * @deprecated SDK 엔드포인트 변경 후 제거 예정
- */
+
 @Slf4j
 @Deprecated
 @RestController
@@ -55,21 +34,19 @@ public class MfaApiController {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
 
-    /**
-     * 완전 일원화: MFA 팩터 선택 API
-     */
+    
     @PostMapping("/select-factor")
     public ResponseEntity<Map<String, Object>> selectFactor(@RequestBody Map<String, String> request,
                                                             HttpServletRequest httpRequest) {
         String factorType = request.get("factor");
 
-        // 입력 검증
+        
         if (!StringUtils.hasText(factorType)) {
             return createErrorResponse(HttpStatus.BAD_REQUEST, "MISSING_FACTOR",
                     "Factor type is required", null);
         }
 
-        // 완전 일원화: State Machine 통합자에서 FactorContext 로드
+        
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
 
         if (!isValidMfaContext(ctx)) {
@@ -77,7 +54,7 @@ public class MfaApiController {
                     "Invalid or expired MFA session", ctx);
         }
 
-        // 상태 검증 - 팩터 선택 가능한 상태인지 확인
+        
         if (ctx.getCurrentState() != MfaState.AWAITING_FACTOR_SELECTION) {
             log.warn("Factor selection attempted in invalid state: {} for session: {}",
                     ctx.getCurrentState(), ctx.getMfaSessionId());
@@ -85,7 +62,7 @@ public class MfaApiController {
                     "Cannot select factor in current state: " + ctx.getCurrentState(), ctx);
         }
 
-        // 요청된 팩터가 사용 가능한지 확인
+        
         AuthType requestedFactorType;
         try {
             requestedFactorType = AuthType.valueOf(factorType.toUpperCase());
@@ -94,7 +71,7 @@ public class MfaApiController {
                     "Invalid factor type: " + factorType, ctx);
         }
 
-        // DSL에 정의된 팩터인지 확인
+        
         if (!ctx.isFactorAvailable(requestedFactorType)) {
             log.warn("User {} attempted to select unavailable factor: {}. DSL available factors: {}",
                     ctx.getUsername(), requestedFactorType, ctx.getAvailableFactors());
@@ -103,10 +80,10 @@ public class MfaApiController {
         }
 
         try {
-            // 선택된 팩터를 컨텍스트에 임시 저장 (State Machine에서 사용)
+            
             ctx.setAttribute("selectedFactorType", requestedFactorType.name());
 
-            // 완전 일원화: State Machine 통합자를 통해 이벤트 전송
+            
             boolean accepted = stateMachineIntegrator.sendEvent(
                     MfaEvent.FACTOR_SELECTED, ctx, httpRequest
             );
@@ -134,7 +111,7 @@ public class MfaApiController {
         } catch (Exception e) {
             log.error("Error selecting factor {} for session: {}", factorType, ctx.getMfaSessionId(), e);
 
-            // State Machine에 에러 이벤트 전송
+            
             try {
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, ctx, httpRequest);
             } catch (Exception eventError) {
@@ -146,9 +123,7 @@ public class MfaApiController {
         }
     }
 
-    /**
-     * 완전 일원화: MFA 취소 API
-     */
+    
     @PostMapping("/cancel")
     public ResponseEntity<Map<String, Object>> cancelMfa(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -158,14 +133,14 @@ public class MfaApiController {
                     "Invalid or expired MFA session", null);
         }
 
-        // 터미널 상태에서는 취소 불가
+        
         if (ctx.getCurrentState().isTerminal()) {
             return createErrorResponse(HttpStatus.BAD_REQUEST, "ALREADY_TERMINAL",
                     "MFA process is already completed or terminated", ctx);
         }
 
         try {
-            // 완전 일원화: State Machine 통합자를 통해 취소 이벤트 전송
+            
             boolean accepted = stateMachineIntegrator.sendEvent(
                     MfaEvent.USER_ABORTED_MFA, ctx, httpRequest
             );
@@ -178,7 +153,7 @@ public class MfaApiController {
                 log.info("MFA cancelled by user {} (session: {})",
                         ctx.getUsername(), ctx.getMfaSessionId());
 
-                // 세션 정리
+                
                 stateMachineIntegrator.cleanupSession(httpRequest);
 
                 return ResponseEntity.ok(successResponse);
@@ -196,9 +171,7 @@ public class MfaApiController {
         }
     }
 
-    /**
-     * 완전 일원화: MFA 상태 조회 API (새로 추가)
-     */
+    
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getMfaStatus(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -234,9 +207,7 @@ public class MfaApiController {
         }
     }
 
-    /**
-     * 완전 일원화: OTT 코드 재전송 API (새로 추가)
-     */
+    
     @PostMapping("/request-ott-code")
     public ResponseEntity<Map<String, Object>> requestOttCode(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -246,14 +217,14 @@ public class MfaApiController {
                     "Invalid or expired MFA session", null);
         }
 
-        // OTT 팩터 처리 중인지 확인
+        
         if (ctx.getCurrentProcessingFactor() != AuthType.OTT) {
             return createErrorResponse(HttpStatus.BAD_REQUEST, "INVALID_FACTOR",
                     "OTT code request is only available during OTT factor processing", ctx);
         }
 
         try {
-            // OTT 코드 재전송 이벤트 전송
+            
             boolean accepted = stateMachineIntegrator.sendEvent(
                     MfaEvent.INITIATE_CHALLENGE, ctx, httpRequest
             );
@@ -275,10 +246,7 @@ public class MfaApiController {
         }
     }
 
-    /**
-     * 새로 추가: MFA Context 조회 API
-     * SDK가 FactorContext 정보를 동적으로 가져올 수 있도록 지원
-     */
+    
     @GetMapping("/context")
     public ResponseEntity<Map<String, Object>> getFactorContext(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -296,13 +264,13 @@ public class MfaApiController {
             contextResponse.put("flowType", ctx.getFlowTypeName());
             contextResponse.put("isTerminal", ctx.getCurrentState().isTerminal());
 
-            // DSL 사용 가능한 팩터 목록 (SDK가 UI 렌더링에 사용)
+            
             List<String> availableFactorNames = ctx.getAvailableFactors().stream()
                     .map(AuthType::name)
                     .collect(Collectors.toList());
             contextResponse.put("availableFactors", availableFactorNames);
 
-            // 완료된 팩터 목록
+            
             List<String> completedFactorNames = ctx.getCompletedFactors().stream()
                     .filter(step -> step.getAuthType() != null)
                     .map(step -> step.getAuthType().name())
@@ -310,13 +278,13 @@ public class MfaApiController {
             contextResponse.put("completedFactors", completedFactorNames);
             contextResponse.put("completedFactorsCount", completedFactorNames.size());
 
-            // 현재 처리 중인 팩터 정보
+            
             if (ctx.getCurrentProcessingFactor() != null) {
                 contextResponse.put("currentProcessingFactor", ctx.getCurrentProcessingFactor().name());
                 contextResponse.put("currentStepId", ctx.getCurrentStepId());
             }
 
-            // State Machine 메타데이터
+            
             contextResponse.put("storageType", "UNIFIED_STATE_MACHINE");
             contextResponse.put("timestamp", System.currentTimeMillis());
 
@@ -332,16 +300,11 @@ public class MfaApiController {
         }
     }
 
-    /**
-     * 새로 추가: Endpoint Configuration 조회 API
-     * SDK가 런타임에 모든 엔드포인트 URL을 로드할 수 있도록 지원
-     *
-     * 중앙 집중식 URL 관리 시스템 (AuthUrlProvider) 사용
-     */
+    
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getEndpointConfig() {
         try {
-            // AuthUrlProvider의 getAllUiPageUrls() 메서드 활용
+            
             Map<String, Object> config = authUrlProvider.getAllUiPageUrls();
 
             log.debug("Endpoint configuration retrieved successfully from AuthUrlProvider");
@@ -355,11 +318,9 @@ public class MfaApiController {
         }
     }
 
-    // === 유틸리티 메서드들 ===
+    
 
-    /**
-     * 완전 일원화: MFA 컨텍스트 유효성 검증
-     */
+    
     private boolean isValidMfaContext(FactorContext ctx) {
         return ctx != null &&
                 StringUtils.hasText(ctx.getUsername()) &&
@@ -367,9 +328,7 @@ public class MfaApiController {
                 !ctx.getCurrentState().isTerminal();
     }
 
-    /**
-     * 완전 일원화: 다음 단계 URL 결정 (설정 기반)
-     */
+    
     private String determineNextStepUrl(FactorContext ctx, HttpServletRequest request) {
         String contextPath = getContextPath(request);
         AuthType currentFactor = ctx.getCurrentProcessingFactor();
@@ -388,9 +347,7 @@ public class MfaApiController {
         };
     }
 
-    /**
-     * 성공 응답 생성
-     */
+    
     private Map<String, Object> createSuccessResponse(String status, String message, FactorContext ctx) {
         Map<String, Object> response = new HashMap<>();
         response.put("status", status);
@@ -406,9 +363,7 @@ public class MfaApiController {
         return response;
     }
 
-    /**
-     * 에러 응답 생성
-     */
+    
     private ResponseEntity<Map<String, Object>> createErrorResponse(HttpStatus status, String errorCode,
                                                                     String message, FactorContext ctx) {
         Map<String, Object> errorResponse = new HashMap<>();
@@ -425,9 +380,7 @@ public class MfaApiController {
         return ResponseEntity.status(status).body(errorResponse);
     }
 
-    /**
-     * Context Path 조회
-     */
+    
     private String getContextPath(HttpServletRequest request) {
         return request.getContextPath();
     }

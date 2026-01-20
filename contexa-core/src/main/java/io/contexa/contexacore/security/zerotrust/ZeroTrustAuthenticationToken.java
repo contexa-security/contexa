@@ -7,15 +7,7 @@ import org.springframework.security.core.GrantedAuthority;
 import java.time.LocalDateTime;
 import java.util.Collection;
 
-/**
- * Zero Trust Authentication Token
- *
- * Spring Security의 Authentication을 확장하여 Zero Trust 메타데이터를 포함합니다.
- * Trust Score, Threat Score, User Context 등의 정보를 Authentication 객체에 통합합니다.
- *
- * @author contexa
- * @since 1.0
- */
+
 public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthenticationToken {
 
     private double trustScore;
@@ -25,9 +17,7 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
     private String sessionId;
     private ZeroTrustSecurityService.TrustTier trustTier;
 
-    /**
-     * 인증된 토큰 생성자
-     */
+    
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
                                         double trustScore, double threatScore) {
@@ -37,9 +27,7 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
         this.lastEvaluated = LocalDateTime.now();
     }
 
-    /**
-     * 전체 파라미터를 포함한 생성자
-     */
+    
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
                                         double trustScore, double threatScore,

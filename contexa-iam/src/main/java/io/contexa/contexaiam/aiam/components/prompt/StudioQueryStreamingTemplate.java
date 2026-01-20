@@ -7,13 +7,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Authorization Studio 통합 프롬프트 템플릿 - SecurityCopilot 방식
- *
- * 통합 프롬프트: 스트리밍 중 자연어 분석 과정 + 마지막에 JSON 결과
- * 조건부 제거: AI 한 번만 실행하여 효율성 극대화
- * SecurityCopilot 방식: ###FINAL_RESPONSE### 마커로 구조화 데이터 전송
- */
+
 @Slf4j
 @PromptTemplateConfig(
         key = "studioQueryStreaming",
@@ -36,11 +30,9 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(naturalQuery, actualContextInfo, contextInfo);
     }
 
-    /**
-     * 통합 시스템 프롬프트 - 스트리밍 자연어 분석 과정 + 최종 JSON 결과
-     */
+    
     private String buildUnifiedSystemPrompt(String contextInfo) {
-        // [개선] AI의 역할을 명확히 정의하고, JSON 출력 규칙을 훨씬 더 강화하고 명료하게 변경
+        
         return String.format("""
             당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 IAM 권한 분석 API입니다.
 

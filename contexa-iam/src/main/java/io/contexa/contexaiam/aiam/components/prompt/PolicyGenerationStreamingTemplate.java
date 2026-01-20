@@ -7,14 +7,7 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * 정책 생성 통합 프롬프트 템플릿 - BusinessPolicyDto 방식
- *
- * 통합 프롬프트: 스트리밍 중 자연어 분석 과정 + 마지막에 JSON 결과
- * 조건부 제거: AI 한 번만 실행하여 효율성 극대화
- * 단순 구조: BusinessPolicyDto만 생성 후 서버에서 AiGeneratedPolicyDraftDto로 변환
- * 안정성: AI는 핵심 정책 데이터만 집중, 매핑은 서버에서 처리
- */
+
 @Slf4j
 @PromptTemplateConfig(
         key = "policyGenerationStreaming",
@@ -36,11 +29,9 @@ public class PolicyGenerationStreamingTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(naturalQuery, availableItems, contextInfo);
     }
 
-    /**
-     * 통합 시스템 프롬프트 - 자연어 분석 과정 + 최종 JSON 결과
-     */
+    
     private String buildUnifiedSystemPrompt(String contextInfo) {
-        // [개선] AI 역할을 API로 명확히 하고, JSON 출력 규칙을 강화
+        
         return String.format("""
             당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 IAM 정책 생성 API입니다.
 
@@ -114,11 +105,9 @@ public class PolicyGenerationStreamingTemplate implements PromptTemplate {
             """, contextInfo);
     }
 
-    /**
-     * 통합 사용자 프롬프트 - 구체적 요청과 실행 지시
-     */
+    
     private String buildUnifiedUserPrompt(String naturalQuery, PolicyGenerationItem.AvailableItems availableItems, String contextInfo) {
-        // [개선] 사용자 프롬프트에서도 규칙을 다시 한번 강조
+        
         return String.format("""
             **자연어 요구사항:**
             "%s"

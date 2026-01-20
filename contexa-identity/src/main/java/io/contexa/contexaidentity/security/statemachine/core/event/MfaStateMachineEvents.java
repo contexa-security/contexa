@@ -10,21 +10,17 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
-/**
- * MFA State Machine 이벤트 정의
- */
+
 public class MfaStateMachineEvents {
 
-    /**
-     * 상태 변경 이벤트
-     */
+    
     @Getter
     public static class StateChangeEvent extends ApplicationEvent {
         private final String sessionId;
         private final MfaState fromState;
         private final MfaState toState;
         private final MfaEvent event;
-        private final LocalDateTime occurredAt;  // timestamp 대신 occurredAt 사용
+        private final LocalDateTime occurredAt;  
         private final Duration duration;
 
         public StateChangeEvent(Object source, String sessionId,
@@ -43,9 +39,7 @@ public class MfaStateMachineEvents {
             return (fromState != null ? fromState.name() : "INITIAL") + "_to_" + toState.name();
         }
 
-        /**
-         * ApplicationEvent의 timestamp를 LocalDateTime으로 변환
-         */
+        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),
@@ -54,16 +48,14 @@ public class MfaStateMachineEvents {
         }
     }
 
-    /**
-     * 에러 이벤트
-     */
+    
     @Getter
     public static class ErrorEvent extends ApplicationEvent {
         private final String sessionId;
         private final MfaState currentState;
         private final MfaEvent event;
         private final Exception error;
-        private final LocalDateTime occurredAt;  // timestamp 대신 occurredAt 사용
+        private final LocalDateTime occurredAt;  
         private final ErrorType errorType;
 
         public ErrorEvent(Object source, String sessionId,
@@ -87,9 +79,7 @@ public class MfaStateMachineEvents {
             return ErrorType.SYSTEM;
         }
 
-        /**
-         * ApplicationEvent의 timestamp를 LocalDateTime으로 변환
-         */
+        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),
@@ -102,9 +92,7 @@ public class MfaStateMachineEvents {
         }
     }
 
-    /**
-     * 성능 경고 이벤트
-     */
+    
     @Getter
     public static class PerformanceAlertEvent extends ApplicationEvent {
         private final AlertType alertType;
@@ -112,7 +100,7 @@ public class MfaStateMachineEvents {
         private final double threshold;
         private final double actualValue;
         private final Severity severity;
-        private final LocalDateTime occurredAt;  // timestamp 대신 occurredAt 사용
+        private final LocalDateTime occurredAt;  
 
         public PerformanceAlertEvent(Object source, AlertType alertType,
                                      String description, double threshold,
@@ -126,9 +114,7 @@ public class MfaStateMachineEvents {
             this.occurredAt = LocalDateTime.now();
         }
 
-        /**
-         * ApplicationEvent의 timestamp를 LocalDateTime으로 변환
-         */
+        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),
@@ -146,14 +132,12 @@ public class MfaStateMachineEvents {
         }
     }
 
-    /**
-     * 커스텀 이벤트
-     */
+    
     @Getter
     public static class CustomEvent extends ApplicationEvent {
         private final String eventType;
         private final Object payload;
-        private final LocalDateTime occurredAt;  // timestamp 대신 occurredAt 사용
+        private final LocalDateTime occurredAt;  
 
         public CustomEvent(Object source, String eventType, Object payload) {
             super(source);
@@ -162,9 +146,7 @@ public class MfaStateMachineEvents {
             this.occurredAt = LocalDateTime.now();
         }
 
-        /**
-         * ApplicationEvent의 timestamp를 LocalDateTime으로 변환
-         */
+        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),

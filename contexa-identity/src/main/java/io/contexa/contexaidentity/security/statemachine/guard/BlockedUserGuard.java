@@ -7,14 +7,7 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-/**
- * 사용자 차단 상태 확인 Guard
- *
- * HandleFailureAction에서 설정한 blocked 속성을 확인하여
- * 차단된 사용자의 MFA 프로세스 진행을 방지합니다.
- *
- * Phase 2.3: blocked/blockReason 속성 활용
- */
+
 @Slf4j
 public class BlockedUserGuard extends AbstractMfaStateGuard {
 
@@ -24,7 +17,7 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
         String sessionId = factorContext.getMfaSessionId();
         String username = factorContext.getUsername();
 
-        // blocked 속성 확인
+        
         Object blockedObj = factorContext.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
         boolean isBlocked = Boolean.TRUE.equals(blockedObj);
 
@@ -50,12 +43,7 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
         return "BlockedUserGuard";
     }
 
-    /**
-     * 사용자 차단 설정
-     *
-     * @param factorContext FactorContext
-     * @param reason 차단 사유
-     */
+    
     public void blockUser(FactorContext factorContext, String reason) {
         factorContext.setAttribute(FactorContextAttributes.StateControl.BLOCKED, true);
         factorContext.setAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON, reason);
@@ -64,11 +52,7 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
                 factorContext.getUsername(), factorContext.getMfaSessionId(), reason);
     }
 
-    /**
-     * 사용자 차단 해제
-     *
-     * @param factorContext FactorContext
-     */
+    
     public void unblockUser(FactorContext factorContext) {
         factorContext.removeAttribute(FactorContextAttributes.StateControl.BLOCKED);
         factorContext.removeAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
@@ -77,23 +61,13 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
                 factorContext.getUsername(), factorContext.getMfaSessionId());
     }
 
-    /**
-     * 차단 여부 확인
-     *
-     * @param factorContext FactorContext
-     * @return 차단 여부
-     */
+    
     public boolean isUserBlocked(FactorContext factorContext) {
         Object blockedObj = factorContext.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
         return Boolean.TRUE.equals(blockedObj);
     }
 
-    /**
-     * 차단 사유 조회
-     *
-     * @param factorContext FactorContext
-     * @return 차단 사유
-     */
+    
     public String getBlockReason(FactorContext factorContext) {
         return (String) factorContext.getAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
     }

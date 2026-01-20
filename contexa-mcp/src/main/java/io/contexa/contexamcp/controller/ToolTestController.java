@@ -11,18 +11,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Tool Test Controller
- * 도구가 제대로 등록되었는지 테스트하는 컨트롤러
- * 
- * Tests:
- * 1. Natural language IP extraction
- * 2. Tool execution with conversation history
- * 3. AI synthesis of tool results
- * 4. Complete security incident analysis flow
- */
+
 @Slf4j
-//@RestController
+
 @RequestMapping("/api/tools")
 @RequiredArgsConstructor
 public class ToolTestController {
@@ -42,12 +33,12 @@ public class ToolTestController {
     public Map<String, Object> listTools() {
         Map<String, Object> result = new HashMap<>();
         
-        // @Component로 등록된 모든 도구 찾기
+        
         Map<String, Object> tools = applicationContext.getBeansWithAnnotation(
             org.springframework.stereotype.Component.class
         );
         
-        // 도구 필터링
+        
         Map<String, String> securityTools = new HashMap<>();
         for (Map.Entry<String, Object> entry : tools.entrySet()) {
             if (entry.getValue().getClass().getPackage().getName().contains("tools")) {
@@ -74,7 +65,7 @@ public class ToolTestController {
             
             log.info("Testing IP blocking tool: ip={}, reason={}", ipAddress, reason);
             
-            // 도구 실행
+            
             IpBlockingTool.Response response = ipBlockingTool.blockIp(
                 ipAddress, 
                 reason, 
@@ -102,7 +93,7 @@ public class ToolTestController {
         Map<String, Object> result = new HashMap<>();
         
         try {
-            // 요청에서 파라미터 추출
+            
             String indicator = (String) request.get("indicator");
             String indicatorType = (String) request.get("indicatorType");
             Boolean includeContext = (Boolean) request.get("includeContext");
@@ -112,7 +103,7 @@ public class ToolTestController {
             
             log.info("Testing threat intelligence tool: indicator={}, type={}", indicator, indicatorType);
             
-            // 도구 실행
+            
             ThreatIntelligenceTool.Response response = threatIntelligenceTool.queryThreatIntelligence(
                 indicator,
                 indicatorType,
@@ -137,10 +128,7 @@ public class ToolTestController {
         return result;
     }
     
-    /**
-     * Test natural language IP extraction
-     * Example: /api/tools/test/extract-ip?text=john.doe IP address 192.168.1.100
-     */
+    
     @GetMapping("/test/extract-ip")
     public ResponseEntity<Map<String, Object>> testIPExtraction(@RequestParam String text) {
         log.info("Testing IP extraction from text: {}", text);
@@ -149,10 +137,10 @@ public class ToolTestController {
         result.put("input", text);
         
         try {
-            // Try directly calling network scan with text
-            // The tool will extract IP internally
+            
+            
             NetworkScanTool.Response scanResult = networkScanTool.scanNetwork(
-                text,  // Let the tool extract IP from text
+                text,  
                 "basic",
                 null,
                 30,
@@ -171,10 +159,7 @@ public class ToolTestController {
         return ResponseEntity.ok(result);
     }
     
-    /**
-     * Test security incident analysis flow
-     * Simulates: "User john.doe logged in from abnormal IP 192.168.100.50"
-     */
+    
     @PostMapping("/test/security-incident")
     public ResponseEntity<Map<String, Object>> testSecurityIncident(@RequestBody Map<String, Object> incident) {
         log.info("Testing security incident analysis: {}", incident);
@@ -183,7 +168,7 @@ public class ToolTestController {
         response.put("incident", incident);
         
         try {
-            // 1. Extract information from incident
+            
             String username = (String) incident.getOrDefault("username", "john.doe");
             String ipAddress = (String) incident.getOrDefault("ip", "192.168.100.50");
             String description = (String) incident.getOrDefault("description", 
@@ -195,7 +180,7 @@ public class ToolTestController {
                 "description", description
             ));
             
-            // 2. Network Scan
+            
             log.info("Step 1: Performing network scan on {}", ipAddress);
             NetworkScanTool.Response scanResult = networkScanTool.scanNetwork(
                 ipAddress,
@@ -206,45 +191,45 @@ public class ToolTestController {
             );
             response.put("networkScan", scanResult);
             
-            // 3. Threat Intelligence Check
+            
             log.info("Step 2: Checking threat intelligence for {}", ipAddress);
             ThreatIntelligenceTool.Response threatResult = threatIntelligenceTool.queryThreatIntelligence(
                 ipAddress,
                 "ip",
-                true,  // includeContext
-                true,  // checkRelated
-                7      // maxAge (days)
+                true,  
+                true,  
+                7      
             );
             response.put("threatIntelligence", threatResult);
             
-            // 4. Log Analysis
+            
             log.info("Step 3: Analyzing logs for user {}", username);
             LogAnalysisTool.Response logResult = logAnalysisTool.analyzeLog(
-                "security",  // logSource
-                "last_24h",  // timeRange
-                List.of(String.format("user:%s", username), String.format("ip:%s", ipAddress)),  // searchPatterns
-                1000,        // maxLines
-                true         // detailed
+                "security",  
+                "last_24h",  
+                List.of(String.format("user:%s", username), String.format("ip:%s", ipAddress)),  
+                1000,        
+                true         
             );
             response.put("logAnalysis", logResult);
             
-            // 5. Audit Log Query
+            
             log.info("Step 4: Querying audit logs");
             AuditLogQueryTool.Response auditResult = auditLogQueryTool.queryAuditLogs(
-                username,    // userId
-                ipAddress,   // ipAddress
-                null,        // dateFrom (last 24h by default)
-                null,        // dateTo
-                100          // limit
+                username,    
+                ipAddress,   
+                null,        
+                null,        
+                100          
             );
             response.put("auditLogs", auditResult);
             
-            // 6. Generate Security Recommendations
+            
             Map<String, Object> recommendations = generateRecommendations(
                 scanResult, threatResult, logResult, auditResult);
             response.put("recommendations", recommendations);
             
-            // 7. Summary
+            
             response.put("summary", Map.of(
                 "severity", calculateSeverity(threatResult),
                 "status", "Analysis completed",
@@ -263,9 +248,7 @@ public class ToolTestController {
         return ResponseEntity.ok(response);
     }
     
-    /**
-     * Test conversation history flow
-     */
+    
     @PostMapping("/test/conversation-flow")
     public ResponseEntity<Map<String, Object>> testConversationFlow(@RequestBody Map<String, Object> request) {
         log.info("Testing conversation history flow");
@@ -273,13 +256,13 @@ public class ToolTestController {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            // Simulate multiple tool calls in sequence
+            
             String scenario = (String) request.getOrDefault("scenario", "security-breach");
             
             response.put("scenario", scenario);
             response.put("steps", new HashMap<>());
             
-            // Step 1: Initial scan
+            
             Map<String, Object> step1 = new HashMap<>();
             step1.put("action", "Network scan");
             NetworkScanTool.Response scan = networkScanTool.scanNetwork(
@@ -290,7 +273,7 @@ public class ToolTestController {
             step1.put("result", scan);
             ((Map<String, Object>) response.get("steps")).put("step1", step1);
             
-            // Step 2: Based on scan, check threat
+            
             Map<String, Object> step2 = new HashMap<>();
             step2.put("action", "Threat check based on scan");
             ThreatIntelligenceTool.Response threat = threatIntelligenceTool.queryThreatIntelligence(
@@ -301,12 +284,12 @@ public class ToolTestController {
             step2.put("result", threat);
             ((Map<String, Object>) response.get("steps")).put("step2", step2);
             
-            // Step 3: Based on threat, decide action
+            
             Map<String, Object> step3 = new HashMap<>();
             step3.put("action", "Decision based on threat level");
             
-            // Simulate decision logic
-            // Check threat intelligence response content
+            
+            
             boolean isHighThreat = threat.getIntelligence() != null && 
                                   (threat.getIntelligence().getConfidenceScore() >= 0.8 ||
                                    threat.getMessage().contains("HIGH"));
@@ -326,7 +309,7 @@ public class ToolTestController {
             }
             ((Map<String, Object>) response.get("steps")).put("step3", step3);
             
-            // Generate synthesis
+            
             response.put("synthesis", Map.of(
                 "totalTools", 3,
                 "conversationMaintained", true,
@@ -346,7 +329,7 @@ public class ToolTestController {
     private Map<String, Object> generateRecommendations(Object scan, Object threat, Object logs, Object audit) {
         Map<String, Object> recommendations = new HashMap<>();
         
-        // Parse threat level
+        
         String threatLevel = threat.toString().contains("HIGH") ? "HIGH" : 
                            threat.toString().contains("MEDIUM") ? "MEDIUM" : "LOW";
         

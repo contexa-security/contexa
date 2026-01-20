@@ -8,10 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 메서드 분석 결과
- * SRP 준수: 분석 결과 정보만 담당
- */
+
 @Data
 public class MethodAnalysisResult {
     private String methodIdentifier;

@@ -18,13 +18,7 @@ public class ConfiguredFactorFilterProvider {
         log.info("ConfiguredFactorFilterProvider initialized.");
     }
 
-    /**
-     * 구성된 Factor 인증 필터를 등록합니다.
-     * SecurityFilterChainRegistrar가 SecurityFilterChain 빌드 후 호출합니다.
-     *
-     * @param factorIdentifier 고유한 Factor 식별자 (flowName + stepId)
-     * @param filterInstance   실제 구성된 Filter 인스턴스
-     */
+    
     public void registerFilter(FactorIdentifier factorIdentifier, Filter filterInstance) {
         Objects.requireNonNull(factorIdentifier, "factorIdentifier cannot be null");
         Objects.requireNonNull(filterInstance, "filterInstance cannot be null");
@@ -40,13 +34,7 @@ public class ConfiguredFactorFilterProvider {
                 factorIdentifier, filterInstance.getClass().getName());
     }
 
-    /**
-     * 주어진 FactorIdentifier에 해당하는 구성된 Filter 인스턴스를 반환합니다.
-     * MfaStepFilterWrapper 에서 사용됩니다.
-     *
-     * @param factorIdentifier 조회할 Factor 식별자
-     * @return 해당 Filter 인스턴스, 없으면 null
-     */
+    
     @Nullable
     public Filter getFilter(FactorIdentifier factorIdentifier) {
         Objects.requireNonNull(factorIdentifier, "factorIdentifier cannot be null");

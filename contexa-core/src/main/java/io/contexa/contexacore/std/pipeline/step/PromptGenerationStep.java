@@ -12,15 +12,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Mono;
 
-/**
- * 개선된 프롬프트 생성 단계 V2
- * 
- * Tool-Aware 프롬프트 생성을 지원하여 AI 모델이
- * 사용 가능한 도구를 정확히 인지할 수 있도록 합니다.
- * 
- * 이 컴포넌트는 기존 PromptGenerationStep을 대체하여
- * 도구 정보를 프롬프트에 통합합니다.
- */
+
 @Slf4j
 public class PromptGenerationStep implements PipelineStep {
     
@@ -65,7 +57,7 @@ public class PromptGenerationStep implements PipelineStep {
 
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
-            // ChainedToolResolver가 있으면 Tool 정보 로깅
+            
             ToolCallback[] availableTools = chainedToolResolver != null
                 ? chainedToolResolver.getAllToolCallbacks()
                 : new ToolCallback[0];
@@ -75,9 +67,7 @@ public class PromptGenerationStep implements PipelineStep {
         });
     }
 
-    /**
-     * 프롬프트 생성 상세 로깅
-     */
+    
     private void logPromptGenerationDetails(
             PromptGenerator.PromptGenerationResult promptResult,
             ToolCallback[] availableTools) {
@@ -111,7 +101,7 @@ public class PromptGenerationStep implements PipelineStep {
     
     @Override
     public int getOrder() {
-        return 3; // 세 번째 단계 (기존과 동일)
+        return 3; 
     }
     
 }

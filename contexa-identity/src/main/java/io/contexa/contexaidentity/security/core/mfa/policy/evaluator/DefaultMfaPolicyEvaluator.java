@@ -16,15 +16,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * 기본 MFA 정책 평가자 구현
- *
- * 규칙 기반 정책 평가를 수행합니다.
- * 사용자 역할, 등록된 MFA 팩터, 플로우 타입 등을 고려하여 MFA 요구사항을 결정합니다.
- *
- * @author contexa
- * @since 1.0
- */
+
 @Slf4j
 public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
@@ -40,14 +32,14 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     
     @Override
     public boolean supports(FactorContext context) {
-        // 폴백 평가자로서 모든 컨텍스트를 지원합니다.
-        // 다른 평가자가 없을 때 사용됩니다.
+        
+        
         return context != null;
     }
 
     @Override
     public boolean isAvailable() {
-        // UserRepository와 ApplicationContext가 정상적으로 주입되었는지 확인
+        
         boolean available = userRepository != null && applicationContext != null;
 
         if (!available) {
@@ -59,13 +51,11 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     
     @Override
     public int getPriority() {
-        // 가장 낮은 우선순위 (폴백)
+        
         return -100;
     }
     
-    /**
-     * MFA 정책을 평가하고 결정을 반환합니다.
-     */
+    
     @Override
     public MfaDecision evaluatePolicy(FactorContext context) {
         Assert.notNull(context, "FactorContext cannot be null");
@@ -73,7 +63,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         String username = context.getUsername();
         log.debug("Evaluating MFA policy for user: {}", username);
         
-        // 사용자 정보 조회
+        
         Optional<Users> userOptional = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
         if (userOptional.isEmpty()) {
             log.warn("User not found for MFA evaluation: {}", username);
@@ -82,7 +72,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         
         Users user = userOptional.get();
         
-        // MFA 필요 여부 평가
+        
         boolean mfaRequired = evaluateMfaRequirement(user, context);
         
         if (!mfaRequired) {
@@ -90,7 +80,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return MfaDecision.noMfaRequired();
         }
         
-        // DSL에서 사용 가능한 MFA 팩터 확인
+        
         Set<AuthType> availableFactors = getAvailableFactorsFromDsl(context);
 
         if (CollectionUtils.isEmpty(availableFactors)) {
@@ -98,13 +88,13 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return MfaDecision.noMfaRequired();
         }
 
-        // 필요한 팩터 수 결정
+        
         int requiredFactorCount = determineFactorCount(user, context);
 
-        // DSL 사용 가능한 팩터를 리스트로 변환
+        
         List<AuthType> availableFactorsList = new ArrayList<>(availableFactors);
 
-        // 필수 팩터 결정 (사용자 선호도 반영)
+        
         List<AuthType> requiredFactors = determineRequiredFactors(
             user,
             context,
@@ -112,16 +102,16 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             requiredFactorCount
         );
 
-        // 결정 유형 판단 (동적 결정)
+        
         MfaDecision.DecisionType decisionType = determineDecisionType(user, context, requiredFactorCount);
 
-        // 결정 이유 생성
+        
         String reason = buildReason(user, context, decisionType);
 
-        // 메타데이터 생성
+        
         Map<String, Object> metadata = buildMetadata(user, context, availableFactors, requiredFactors);
 
-        // MFA 결정 생성
+        
         MfaDecision decision = MfaDecision.builder()
             .required(true)
             .factorCount(requiredFactorCount)
@@ -137,71 +127,60 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return decision;
     }
     
-    /**
-     * MFA 필요 여부를 평가합니다.
-     *
-     * 7가지 평가 기준을 체계적으로 적용합니다:
-     * 1. 플로우 타입 (mfa, mfa-stepup, mfa-transactional)
-     * 2. 사용자 MFA 활성화 여부 (user.mfaEnabled)
-     * 3. 컨텍스트 MFA 필수 플래그
-     * 4. 관리자 역할 (ROLE_ADMIN 등)
-     * 5. 위험도 기반 평가 (riskScore > 0.7)
-     * 6. Step-up 인증 요구
-     * 7. 트랜잭션 보안 레벨
-     */
+    
     private boolean evaluateMfaRequirement(Users user, FactorContext context) {
         String username = user.getUsername();
 
-        // 1. 플로우 타입 확인
+        
         String flowType = context.getFlowTypeName();
         boolean isMfaFlow = isMfaFlowType(flowType);
 
-        // 2. 사용자 MFA 활성화 여부 체크 (가장 중요!)
+        
         if (!user.isMfaEnabled()) {
             log.debug("MFA disabled for user: {}", username);
-            // MFA가 비활성화된 경우, MFA 플로우가 아니면 MFA 불필요
+            
             if (!isMfaFlow) {
                 log.info("MFA not required - user MFA disabled and not MFA flow: {}", username);
                 return false;
             }
-            // MFA 플로우인 경우 MFA 비활성화 사용자도 MFA 필요 (정책상 강제)
+            
             log.debug("MFA required despite disabled flag - MFA flow type: {}", flowType);
         }
 
-        // 3. MFA 플로우 타입 체크
+        
         if (isMfaFlow) {
             log.debug("Flow type {} requires MFA for user: {}", flowType, username);
             return true;
         }
 
-        // 4. 컨텍스트 MFA 필수 플래그
+        
         Boolean mfaRequiredFlag = (Boolean) context.getAttribute("mfaRequired");
         if (Boolean.TRUE.equals(mfaRequiredFlag)) {
             log.debug("MFA required flag is set in context for user: {}", username);
             return true;
         }
 
-        // 5. 관리자 역할 체크
+        
         if (isAdminUser(user)) {
             log.debug("MFA required - user has admin role: {}", username);
             return true;
         }
 
-        // 6. 위험도 기반 평가
+        
         Double riskScore = (Double) context.getAttribute("riskScore");
         if (riskScore != null && riskScore > 0.7) {
             log.warn("MFA required - high risk score {} for user: {}", riskScore, username);
             return true;
         }
 
-        // 7. Step-up 인증 요구
+        
         Boolean stepUpRequired = (Boolean) context.getAttribute("stepUpRequired");
         if (Boolean.TRUE.equals(stepUpRequired)) {
             log.debug("MFA required - step-up authentication requested for user: {}", username);
             return true;
         }
 
-        // 8. 트랜잭션 보안 레벨
+        
         String securityLevel = (String) context.getAttribute("transactionSecurityLevel");
         if ("HIGH".equalsIgnoreCase(securityLevel) || "CRITICAL".equalsIgnoreCase(securityLevel)) {
             log.debug("MFA required - high/critical transaction security level for user: {}", username);
@@ -212,10 +191,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return false;
     }
 
-    /**
-     * 필수 MFA 팩터들을 결정합니다.
-     * 사용자 선호도를 최우선으로 반영합니다.
-     */
+    
     private List<AuthType> determineRequiredFactors(
             Users user,
             FactorContext context,
@@ -226,14 +202,14 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return Collections.emptyList();
         }
 
-        // 1. 사용자 선호 팩터 확인
+        
         String preferredFactorStr = user.getPreferredMfaFactor();
         AuthType preferredFactor = null;
 
         if (preferredFactorStr != null && !preferredFactorStr.isEmpty()) {
             try {
                 preferredFactor = AuthType.valueOf(preferredFactorStr.toUpperCase());
-                // 선호 팩터가 사용 가능한지 확인
+                
                 if (!availableFactors.contains(preferredFactor)) {
                     log.warn("User preferred factor {} not available, ignoring preference for user: {}",
                             preferredFactor, user.getUsername());
@@ -244,10 +220,10 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             }
         }
 
-        // 2. 우선순위에 따라 팩터 정렬 (선호 팩터 반영)
+        
         List<AuthType> prioritizedFactors = prioritizeFactors(availableFactors, user, context, preferredFactor);
 
-        // 3. 필요한 수만큼 선택
+        
         if (prioritizedFactors.size() <= requiredCount) {
             return prioritizedFactors;
         }
@@ -255,20 +231,17 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return prioritizedFactors.subList(0, requiredCount);
     }
     
-    /**
-     * 팩터를 DSL 순서에 따라 정렬합니다.
-     * 사용자 선호 팩터가 있으면 맨 앞으로 이동합니다.
-     */
+    
     private List<AuthType> prioritizeFactors(
             List<AuthType> factors,
             Users user,
             FactorContext context,
             AuthType preferredFactor) {
 
-        // DSL 순서를 기본으로 유지
+        
         List<AuthType> result = new ArrayList<>(factors);
 
-        // 사용자 선호 팩터가 있으면 맨 앞으로 이동
+        
         if (preferredFactor != null && result.contains(preferredFactor)) {
             result.remove(preferredFactor);
             result.addFirst(preferredFactor);
@@ -277,43 +250,41 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return result;
     }
     
-    /**
-     * MFA 결정 유형을 판단합니다.
-     */
+    
     private MfaDecision.DecisionType determineDecisionType(
             Users user,
             FactorContext context,
             int requiredFactorCount) {
         
-        // 관리자 또는 3개 이상 팩터 요구 시 강화된 MFA
+        
         if (isAdminUser(user) || requiredFactorCount >= 3) {
             return MfaDecision.DecisionType.STRONG_MFA;
         }
         
-        // 2개 팩터는 표준 MFA
+        
         if (requiredFactorCount == 2) {
             return MfaDecision.DecisionType.STANDARD_MFA;
         }
         
-        // 1개 팩터도 표준 MFA로 분류
+        
         return MfaDecision.DecisionType.STANDARD_MFA;
     }
     
 
     private Set<AuthType> getAvailableFactorsFromDsl(FactorContext context) {
-        // 1. InitializeMfaAction에서 이미 설정한 availableFactors 확인
+        
         Set<AuthType> availableFactors = context.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
         if (availableFactors != null && !availableFactors.isEmpty()) {
             log.debug("DSL에서 사용 가능한 팩터 (Context에서 조회): {}", availableFactors);
             return availableFactors;
         }
 
-        // 2. Context에 없으면 ApplicationContext에서 직접 조회 (폴백)
+        
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext();
         if (mfaFlowConfig != null) {
             Set<AuthType> factors = extractFactorsFromConfig(mfaFlowConfig);
             if (!factors.isEmpty()) {
-                // Redis 직렬화 안전: AuthType Set만 저장 (AuthenticationFlowConfig는 Serializable 아님)
+                
                 context.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS,
                                    new LinkedHashSet<>(factors));
                 log.debug("DSL에서 사용 가능한 팩터 (ApplicationContext 조회 후 저장): {}", factors);
@@ -325,13 +296,10 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return Collections.emptySet();
     }
 
-    /**
-     * PlatformConfig에서 AuthenticationFlowConfig(MFA)를 찾습니다.
-     * LoginController의 findFlowConfigByName 패턴을 적용하여 순환 참조 문제를 해결합니다.
-     */
+    
     private AuthenticationFlowConfig findMfaFlowConfigFromContext() {
         try {
-            // PlatformConfig 빈에서 MFA 플로우 조회 (LoginController 패턴)
+            
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
 
             return platformConfig.getFlows().stream()
@@ -351,9 +319,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return null;
     }
 
-    /**
-     * AuthenticationFlowConfig에서 팩터를 추출합니다.
-     */
+    
     private Set<AuthType> extractFactorsFromConfig(AuthenticationFlowConfig config) {
         if (config == null) {
             return Collections.emptySet();
@@ -368,9 +334,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return factorOptions.keySet();
     }
 
-    /**
-     * 관리자 사용자인지 확인합니다.
-     */
+    
     private boolean isAdminUser(Users user) {
         if (user == null) {
             return false;
@@ -381,7 +345,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return false;
         }
 
-        // ROLE_ADMIN, ADMIN, ROLE_SYSTEM_ADMIN, SYSTEM_ADMIN 등 확인
+        
         return roles.stream()
             .anyMatch(role -> {
                 if (role == null) {
@@ -397,9 +361,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             });
     }
 
-    /**
-     * MFA 플로우 타입인지 확인합니다.
-     */
+    
     private boolean isMfaFlowType(String flowType) {
         if (flowType == null || flowType.trim().isEmpty()) {
             return false;
@@ -412,25 +374,23 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
                normalizedFlowType.startsWith("mfa-");
     }
 
-    /**
-     * 필요한 팩터 수를 결정합니다.
-     */
+    
     private int determineFactorCount(Users user, FactorContext context) {
-        // 기본적으로 DSL 기반: 한 번에 하나씩 챌린지
+        
         int baseCount = 1;
 
-        // 관리자는 2개 이상
+        
         if (isAdminUser(user)) {
             return Math.max(baseCount, 2);
         }
 
-        // 고위험 사용자는 2개 이상
+        
         Double riskScore = (Double) context.getAttribute("riskScore");
         if (riskScore != null && riskScore > 0.8) {
             return Math.max(baseCount, 2);
         }
 
-        // 중요 트랜잭션은 2개 이상
+        
         String securityLevel = (String) context.getAttribute("transactionSecurityLevel");
         if ("CRITICAL".equalsIgnoreCase(securityLevel)) {
             return Math.max(baseCount, 2);
@@ -439,13 +399,11 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return baseCount;
     }
 
-    /**
-     * MFA 결정 이유를 생성합니다.
-     */
+    
     private String buildReason(Users user, FactorContext context, MfaDecision.DecisionType decisionType) {
         StringBuilder reason = new StringBuilder();
 
-        // 결정 타입 기반 기본 메시지
+        
         switch (decisionType) {
             case STRONG_MFA:
                 reason.append("강화된 MFA 인증 필요");
@@ -460,7 +418,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 reason.append("MFA 인증 필요");
         }
 
-        // 상세 이유 추가
+        
         List<String> details = new ArrayList<>();
 
         String flowType = context.getFlowTypeName();
@@ -484,25 +442,23 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return reason.toString();
     }
 
-    /**
-     * MFA 결정 메타데이터를 생성합니다.
-     */
+    
     private Map<String, Object> buildMetadata(Users user, FactorContext context,
                                               Set<AuthType> availableFactors,
                                               List<AuthType> requiredFactors) {
         Map<String, Object> metadata = new HashMap<>();
 
-        // 사용 가능한 팩터
+        
         metadata.put("availableFactors", availableFactors.stream()
                 .map(AuthType::name)
                 .collect(Collectors.toList()));
 
-        // 필수 팩터
+        
         metadata.put("requiredFactors", requiredFactors.stream()
                 .map(AuthType::name)
                 .collect(Collectors.toList()));
 
-        // 위험도 (실제 사용됨: AIAdaptiveMfaPolicyProvider 등)
+        
         Double riskScore = (Double) context.getAttribute(FactorContextAttributes.Policy.RISK_SCORE);
         if (riskScore != null) {
             metadata.put(FactorContextAttributes.Policy.RISK_SCORE, riskScore);

@@ -23,27 +23,23 @@ public class StudioQueryCollectionService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
 
-    /**
-     * Virtual Thread 최적화된 동기 버전 (기존 인터페이스 유지)
-     */
+    
     @Transactional(readOnly = true)
     public IAMDataSet collectData(DataCollectionPlan plan) {
         Thread currentThread = Thread.currentThread();
         log.info("IAM 데이터 수집 시작 - Thread: {} (Virtual: {})",
                 currentThread.getName(), currentThread.isVirtual());
 
-        // Virtual Thread 에서 실행되도록 보장
+        
         if (!currentThread.isVirtual()) {
             return collectDataAsync(plan).block();
         }
 
-        // 이미 Virtual Thread 라면 직접 실행
+        
         return executeDataCollection(plan);
     }
 
-    /**
-     * 비동기 버전 (Virtual Thread 활용)
-     */
+    
     public Mono<IAMDataSet> collectDataAsync(DataCollectionPlan plan) {
         return Mono.fromCallable(() -> executeDataCollection(plan))
                 .doOnSubscribe(sub ->
@@ -55,15 +51,13 @@ public class StudioQueryCollectionService {
                                 Thread.currentThread().isVirtual()));
     }
 
-    /**
-     * 실제 데이터 수집 로직 (Virtual Thread 에서 실행)
-     */
+    
     @Transactional(readOnly = true)
     public IAMDataSet executeDataCollection(DataCollectionPlan plan) {
         IAMDataSet dataSet = new IAMDataSet();
 
         try {
-            // 병렬로 카운트 조회 (Virtual Thread 활용)
+            
             CompletableFuture<Integer> userCountFuture = CompletableFuture.supplyAsync(
                     () -> (int) userRepository.count(),
                     Executors.newVirtualThreadPerTaskExecutor()
@@ -84,7 +78,7 @@ public class StudioQueryCollectionService {
                     Executors.newVirtualThreadPerTaskExecutor()
             );
 
-            // 모든 카운트 조회 완료 대기
+            
             CompletableFuture.allOf(
                     userCountFuture, groupCountFuture,
                     roleCountFuture, permissionCountFuture
@@ -105,7 +99,7 @@ public class StudioQueryCollectionService {
                 return dataSet;
             }
 
-            // 필요한 데이터를 병렬로 조회 (Virtual Thread 활용)
+            
             CompletableFuture<Void> usersFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsUsers()) {
                     Thread t = Thread.currentThread();
@@ -146,11 +140,11 @@ public class StudioQueryCollectionService {
                 }
             }, Executors.newVirtualThreadPerTaskExecutor());
 
-            // 모든 병렬 작업 완료 대기
+            
             CompletableFuture.allOf(usersFuture, groupsFuture, rolesFuture, permissionsFuture)
                     .join();
 
-            // 관계 데이터 처리 (이전 데이터 의존성 때문에 순차 처리)
+            
             if (plan.needsRelationships()) {
                 handleRelationships(plan, dataSet);
             }
@@ -167,9 +161,7 @@ public class StudioQueryCollectionService {
         }
     }
 
-    /**
-     * 관계 데이터 처리 (Virtual Thread 에서 병렬 처리)
-     */
+    
     @Transactional(readOnly = true)
     public void handleRelationships(DataCollectionPlan plan, IAMDataSet dataSet) {
         CompletableFuture<Void> userRelFuture = CompletableFuture.runAsync(() -> {

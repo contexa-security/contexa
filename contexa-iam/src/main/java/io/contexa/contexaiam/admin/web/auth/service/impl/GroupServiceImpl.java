@@ -46,7 +46,7 @@ public class GroupServiceImpl implements GroupService {
         return groupRepository.findByIdWithRoles(id);
     }
 
-    // groups 캐시 제거 - 그룹 멤버 변경 빈번, 무효화 비용 > 캐시 이득
+    
     public List<Group> getAllGroups() {
         return groupRepository.findAllWithRolesAndUsers();
     }
@@ -66,7 +66,7 @@ public class GroupServiceImpl implements GroupService {
         existingGroup.setName(group.getName());
         existingGroup.setDescription(group.getDescription());
 
-        // ========================= [오류 수정된 동기화 로직] =========================
+        
         Set<Long> desiredRoleIds = selectedRoleIds != null ? new HashSet<>(selectedRoleIds) : new HashSet<>();
         Set<GroupRole> currentGroupRoles = existingGroup.getGroupRoles();
 
@@ -83,8 +83,8 @@ public class GroupServiceImpl implements GroupService {
                             .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + newRoleId));
                     currentGroupRoles.add(GroupRole.builder().group(existingGroup).role(role).build());
                 });
-        // ====================================================================
+        
 
-        return existingGroup; // 변경 감지에 의해 DB에 반영됨
+        return existingGroup; 
     }
 }

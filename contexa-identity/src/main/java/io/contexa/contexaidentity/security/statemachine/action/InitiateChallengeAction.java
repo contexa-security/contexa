@@ -7,9 +7,7 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-/**
- * MFA 챌린지 시작 액션
- */
+
 @Slf4j
 public class InitiateChallengeAction extends AbstractMfaStateAction {
 
@@ -23,13 +21,13 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
 
         log.info("Initiating challenge for factor: {} in session: {}", factorType, sessionId);
 
-        // 챌린지 시작 시간 기록
+        
         factorContext.setAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT, System.currentTimeMillis());
 
-        // 팩터별 챌린지 처리
+        
         switch (factorType) {
             case "OTT":
-                // Phase 2.2: SelectFactorAction에서 설정한 ottDeliveryMethod 활용
+                
                 String ottDeliveryMethod = (String) factorContext.getAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD);
                 if (ottDeliveryMethod == null) {
                     log.warn("[InitiateChallengeAction] ottDeliveryMethod not set, defaulting to EMAIL for session: {}", sessionId);
@@ -42,7 +40,7 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
                 break;
 
             case "PASSKEY":
-                // Phase 2.2: SelectFactorAction에서 설정한 passkeyType 활용
+                
                 String passkeyType = (String) factorContext.getAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE);
                 if (passkeyType == null) {
                     log.warn("[InitiateChallengeAction] passkeyType not set, defaulting to PLATFORM for session: {}", sessionId);

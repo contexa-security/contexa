@@ -11,63 +11,50 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 
-/**
- * AI 보안 어드바이저 (Security Copilot)를 위한 특화된 IAM 컨텍스트
- * 
- * 포괄적 보안 분석에 필요한 모든 컨텍스트 정보를 포함
- * 다중 Lab 협업을 통한 보안 분석 지원
- * 
- * 지원하는 보안 분석 유형:
- * - 권한 감사: "과도한 권한을 가진 사용자 찾기"
- * - 위험도 평가: "현재 시스템의 보안 위험 분석"
- * - 정책 검토: "보안 정책 개선 방안 제시"
- * - 컴플라이언스 확인: "규정 준수 상태 점검"
- */
+
 @Getter
 @Setter
 public class SecurityCopilotContext extends IAMContext {
     
-    // 보안 질의 정보
+    
     private String securityQuery;
-    private String analysisScope; // COMPREHENSIVE, PERMISSION_AUDIT, RISK_ASSESSMENT, POLICY_REVIEW
-    private String priority; // HIGH, MEDIUM, LOW
+    private String analysisScope; 
+    private String priority; 
     private String queryLanguage = "ko";
     private Map<String, Object> securityMetadata;
     
-    // 분석 대상 범위
+    
     private List<String> targetUsers;
     private List<String> targetRoles;
     private List<String> targetResources;
     private List<String> targetPermissions;
     private Set<String> excludedEntities;
     
-    // 보안 정책 정보
+    
     private Map<String, Object> securityPolicies;
     private List<String> complianceRequirements;
     private Map<String, String> riskThresholds;
     
-    // Lab 협업 설정
+    
     private boolean enableStudioAnalysis = true;
     private boolean enableRiskAssessment = true;
     private boolean enablePolicyGeneration = true;
     private int maxExecutionTimeSeconds = 300;
-    private String collaborationMode = "SEQUENTIAL"; // SEQUENTIAL, PARALLEL, HYBRID
+    private String collaborationMode = "SEQUENTIAL"; 
     
-    // 분석 설정
-    private String detailLevel = "COMPREHENSIVE"; // SUMMARY, DETAILED, COMPREHENSIVE
+    
+    private String detailLevel = "COMPREHENSIVE"; 
     private boolean includeRecommendations = true;
     private boolean includeRiskScore = true;
     private boolean includeActionPlan = true;
     private int maxRecommendations = 10;
     
-    // 보안 제약사항
+    
     private boolean includeSensitiveData = false;
     private Set<String> sensitiveFields;
-    private String dataClassification = "INTERNAL"; // PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED
+    private String dataClassification = "INTERNAL"; 
     
-    /**
-     * 보안 분석 범위 열거형
-     */
+    
     public enum AnalysisScope {
         COMPREHENSIVE("포괄적 보안 분석"),
         PERMISSION_AUDIT("권한 감사"),
@@ -87,9 +74,7 @@ public class SecurityCopilotContext extends IAMContext {
         }
     }
     
-    /**
-     * 협업 모드 열거형
-     */
+    
     public enum CollaborationMode {
         SEQUENTIAL("순차 실행"),
         PARALLEL("병렬 실행"),
@@ -125,12 +110,12 @@ public class SecurityCopilotContext extends IAMContext {
     }
     
     private void initializeDefaults() {
-        // 기본 위험 임계값 설정
+        
         riskThresholds.put("HIGH_RISK_SCORE", "80");
         riskThresholds.put("MEDIUM_RISK_SCORE", "60");
         riskThresholds.put("EXCESSIVE_PERMISSIONS", "10");
         
-        // 기본 컴플라이언스 요구사항
+        
         complianceRequirements = List.of(
             "ISMS_P",
             "ISO_27001", 
@@ -144,9 +129,7 @@ public class SecurityCopilotContext extends IAMContext {
         return "SECURITY_COPILOT";
     }
     
-    /**
-     * Builder 패턴을 위한 정적 팩토리 메서드
-     */
+    
     public static class Builder {
         private final SecurityLevel securityLevel;
         private final AuditRequirement auditRequirement;
@@ -202,9 +185,7 @@ public class SecurityCopilotContext extends IAMContext {
         }
     }
     
-    /**
-     * 보안 질의에서 분석 범위를 추론합니다
-     */
+    
     public AnalysisScope inferAnalysisScope() {
         if (securityQuery == null) {
             return AnalysisScope.COMPREHENSIVE;
@@ -227,18 +208,14 @@ public class SecurityCopilotContext extends IAMContext {
         return AnalysisScope.COMPREHENSIVE;
     }
     
-    /**
-     * 보안 컨텍스트가 완전한지 확인
-     */
+    
     public boolean isComplete() {
         return securityQuery != null && !securityQuery.trim().isEmpty() &&
                analysisScope != null && 
                priority != null;
     }
     
-    /**
-     * 보안 분석 복잡도 계산 (1-10)
-     */
+    
     public int calculateAnalysisComplexity() {
         int complexity = 1;
         
@@ -251,9 +228,7 @@ public class SecurityCopilotContext extends IAMContext {
         return Math.min(complexity, 10);
     }
     
-    /**
-     * 보안 메타데이터 추가
-     */
+    
     public void addSecurityMetadata(String key, Object value) {
         if (securityMetadata == null) {
             securityMetadata = new HashMap<>();
@@ -261,9 +236,7 @@ public class SecurityCopilotContext extends IAMContext {
         securityMetadata.put(key, value);
     }
     
-    /**
-     * 보안 메타데이터 조회
-     */
+    
     @SuppressWarnings("unchecked")
     public <T> T getSecurityMetadata(String key, Class<T> type) {
         if (securityMetadata == null || !securityMetadata.containsKey(key)) {
@@ -273,9 +246,7 @@ public class SecurityCopilotContext extends IAMContext {
         return type.isInstance(value) ? (T) value : null;
     }
     
-    /**
-     * 컨텍스트 고유 키 생성
-     */
+    
     public String getCombinationKey() {
         return String.format("security-copilot:%s:%s:%s", 
                             analysisScope != null ? analysisScope : "unknown",
@@ -283,9 +254,7 @@ public class SecurityCopilotContext extends IAMContext {
                             detailLevel);
     }
     
-    /**
-     * 모든 컨텍스트 데이터를 Map으로 반환
-     */
+    
     public Map<String, Object> getContextData() {
         Map<String, Object> data = new HashMap<>();
         data.put("securityQuery", securityQuery);

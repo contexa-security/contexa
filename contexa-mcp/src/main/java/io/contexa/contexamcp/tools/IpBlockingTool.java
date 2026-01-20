@@ -14,14 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.regex.Pattern;
 
-/**
- * IP Blocking Tool
- *
- * 네트워크 방화벽에서 특정 IP 주소를 차단합니다.
- * 보안 위협이 탐지된 IP 주소의 접근을 즉시 차단할 수 있습니다.
- *
- * Spring AI @Tool 어노테이션 기반 구현
- */
+
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -40,20 +33,12 @@ public class IpBlockingTool {
 
     private final IpBlockingService ipBlockingService;
     
-    // IP 주소 검증 패턴
+    
     private static final Pattern IP_PATTERN = Pattern.compile(
         "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$"
     );
 
-    /**
-     * IP 주소 차단 실행
-     * 
-     * @param ipAddress 차단할 IP 주소
-     * @param reason 차단 사유
-     * @param durationMinutes 차단 기간(분), null이면 영구 차단
-     * @param ticketId 관련 티켓 ID
-     * @return 차단 결과
-     */
+    
     @Tool(
         name = "ip_blocking", 
         description = """
@@ -81,7 +66,7 @@ public class IpBlockingTool {
             ipAddress, reason, durationMinutes, ticketId);
         
         try {
-            // 입력 검증
+            
             if (ipAddress == null || ipAddress.trim().isEmpty()) {
                 throw new IllegalArgumentException("IP address is required");
             }
@@ -90,7 +75,7 @@ public class IpBlockingTool {
                 throw new IllegalArgumentException("Reason must be at least 10 characters");
             }
             
-            // IP 주소 유효성 검증
+            
             if (!isValidIpAddress(ipAddress)) {
                 log.error("Invalid IP address format: {}", ipAddress);
                 return Response.builder()
@@ -101,7 +86,7 @@ public class IpBlockingTool {
                     .build();
             }
             
-            // 내부 IP 차단 방지
+            
             if (isInternalIp(ipAddress)) {
                 log.warn("Cannot block internal IP address: {}", ipAddress);
                 return Response.builder()
@@ -112,7 +97,7 @@ public class IpBlockingTool {
                     .build();
             }
             
-            // 실제 방화벽 연동
+            
             Duration duration = durationMinutes != null && durationMinutes > 0
                 ? Duration.ofMinutes(durationMinutes)
                 : null;
@@ -126,7 +111,7 @@ public class IpBlockingTool {
             
             boolean blockSuccess = blockResult.isSuccess();
             
-            // 감사 로깅
+            
             SecurityToolUtils.auditLog(
                 "ip_blocking",
                 "block",
@@ -136,7 +121,7 @@ public class IpBlockingTool {
                 blockSuccess ? "SUCCESS" : "FAILED"
             );
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("ip_blocking", "execution_count", 1);
             SecurityToolUtils.recordMetric("ip_blocking", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
@@ -175,7 +160,7 @@ public class IpBlockingTool {
         } catch (Exception e) {
             log.error("Error blocking IP address", e);
             
-            // 메트릭 기록
+            
             SecurityToolUtils.recordMetric("ip_blocking", "error_count", 1);
             
             return Response.builder()
@@ -187,9 +172,7 @@ public class IpBlockingTool {
         }
     }
     
-    /**
-     * IP 주소 유효성 검증
-     */
+    
     private boolean isValidIpAddress(String ip) {
         if (ip == null || ip.isEmpty()) {
             return false;
@@ -197,9 +180,7 @@ public class IpBlockingTool {
         return IP_PATTERN.matcher(ip).matches();
     }
     
-    /**
-     * 내부 IP 확인
-     */
+    
     private boolean isInternalIp(String ip) {
         return ip.startsWith("10.") || 
                ip.startsWith("172.16.") || 
@@ -208,18 +189,14 @@ public class IpBlockingTool {
                ip.equals("0.0.0.0");
     }
     
-    /**
-     * 방화벽 규칙 ID 생성
-     */
+    
     private String generateRuleId(String ipAddress, long timestamp) {
         return String.format("BLOCK_%s_%d", 
             ipAddress.replace(".", "_"), 
             timestamp);
     }
 
-    /**
-     * Response DTO
-     */
+    
     @Data
     @Builder
     public static class Response {

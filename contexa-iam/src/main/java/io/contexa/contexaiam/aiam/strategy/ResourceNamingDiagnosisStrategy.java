@@ -20,12 +20,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 리소스 네이밍 진단 전략 (리팩토링 버전)
- *
- * 기존 ResourceNamingDiagnosisStrategy의 모든 기능을 유지하면서
- * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
- */
+
 @Slf4j
 public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<ResourceNamingContext, ResourceNamingSuggestionResponse> {
 
@@ -40,7 +35,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
 
     @Override
     public int getPriority() {
-        return 10; // 높은 우선순위 (기존과 동일)
+        return 10; 
     }
 
     @Override
@@ -89,7 +84,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
         return resourceNamingLab.processAsync(namingRequest);
     }
 
-    // getPipelineConfig()를 오버라이드하지 않음
-    // AbstractAIStrategy의 기본 동적 로직(PipelineConfig.defaultConfig())을 사용
-    // 복잡도에 따라 자동으로 컨텍스트 조회 및 후처리 결정
+    
+    
+    
 }

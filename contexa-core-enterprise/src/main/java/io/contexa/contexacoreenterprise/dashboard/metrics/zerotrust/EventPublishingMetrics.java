@@ -11,47 +11,33 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * 이벤트 발행 메트릭
- *
- * Zero Trust 시스템의 시작점인 이벤트 발행을 모니터링합니다.
- * 4개 발행 소스별로 메트릭을 수집하여 대시보드에서 가시화합니다.
- *
- * 발행 소스:
- * 1. Login (로그인 성공)
- * 2. @Protectable (메소드 인가 - AuthorizationManagerMethodInterceptor)
- * 3. URL Authorization (URL 인가 결정 - CustomDynamicAuthorizationManager)
- * 4. HTTP Filter (일반 HTTP 요청 - SecurityEventPublishingFilter)
- *
- * @author contexa
- * @since 3.1.0
- */
+
 @Slf4j
 public class EventPublishingMetrics extends AbstractMicrometerMetrics {
 
-    // 이벤트 발행 소스별 카운터
+    
     private Counter loginCounter;
     private Counter protectableCounter;
     private Counter urlAuthCounter;
     private Counter httpFilterCounter;
 
-    // 이벤트 발행 지연 시간
+    
     private Timer loginTimer;
     private Timer protectableTimer;
     private Timer urlAuthTimer;
     private Timer httpFilterTimer;
 
-    // 이벤트 타입별 카운터
+    
     private Counter authSuccessCounter;
     private Counter authFailureCounter;
     private Counter authzDecisionCounter;
     private Counter httpRequestCounter;
 
-    // 샘플링 결정 카운터
+    
     private Counter samplingPublishedCounter;
     private Counter samplingFilteredCounter;
 
-    // 샘플링율 게이지
+    
     private final AtomicLong totalSamplingDecisions = new AtomicLong(0);
     private final AtomicLong publishedDecisions = new AtomicLong(0);
 
@@ -61,7 +47,7 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
 
     @Override
     protected void initializeCounters() {
-        // 발행 소스별 카운터
+        
         loginCounter = counterBuilder("event.published", "Events published by Login")
                 .tag("source", "login")
                 .register(meterRegistry);
@@ -78,7 +64,7 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
                 .tag("source", "http_filter")
                 .register(meterRegistry);
 
-        // 이벤트 타입별 카운터
+        
         authSuccessCounter = counterBuilder("event.type", "Authentication success events")
                 .tag("type", "auth_success")
                 .register(meterRegistry);
@@ -95,7 +81,7 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
                 .tag("type", "http_request")
                 .register(meterRegistry);
 
-        // 샘플링 결정 카운터
+        
         samplingPublishedCounter = counterBuilder("event.sampling.decision", "Events published")
                 .tag("decision", "published")
                 .register(meterRegistry);
@@ -133,7 +119,7 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
         });
     }
 
-    // ===== Public API: 발행 소스별 기록 =====
+    
 
     public void recordLogin(long durationNanos) {
         loginCounter.increment();
@@ -155,7 +141,7 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
         httpFilterTimer.record(durationNanos, TimeUnit.NANOSECONDS);
     }
 
-    // ===== Public API: 이벤트 타입별 기록 =====
+    
 
     public void recordAuthSuccess() {
         authSuccessCounter.increment();
@@ -173,7 +159,7 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
         httpRequestCounter.increment();
     }
 
-    // ===== Public API: 샘플링 결정 기록 =====
+    
 
     public void recordSamplingDecision(boolean shouldPublish) {
         totalSamplingDecisions.incrementAndGet();
@@ -194,7 +180,7 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
 
     @Override
     public double getHealthScore() {
-        // 샘플링율이 너무 낮거나 높으면 문제
+        
         double samplingRate = getCurrentSamplingRate();
         if (samplingRate < 0.1 || samplingRate > 0.9) {
             return 0.7;

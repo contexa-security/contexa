@@ -13,19 +13,7 @@ import org.springframework.kafka.support.SendResult;
 
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Kafka 기반 보안 이벤트 발행자
- *
- * AI Native v14.0: ZeroTrustSpringEvent로 통일
- *
- * 모든 보안 이벤트를 ZeroTrustSpringEvent 형식으로 Kafka에 발행합니다.
- * - 인가 이벤트: category=AUTHORIZATION
- * - 인증 성공 이벤트: category=AUTHENTICATION, eventType=SUCCESS
- * - 인증 실패 이벤트: category=AUTHENTICATION, eventType=FAILURE
- *
- * 토픽 형식: security.events.{category}.{eventType}
- * 실패 시 Dead Letter Queue로 전송하여 이벤트 손실을 방지합니다.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
@@ -35,22 +23,13 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     @Value("${security.kafka.topic.dlq:security-events-dlq}")
     private String deadLetterTopic;
 
-    /**
-     * Zero Trust 공통 이벤트 발행
-     *
-     * AI Native v14.0: 모든 보안 이벤트는 이 메서드로 통일
-     *
-     * ZeroTrustSpringEvent를 Kafka로 발행하여 Zero Trust 분석 파이프라인에 전달합니다.
-     * 토픽: security.events.{category}.{eventType} 형식
-     *
-     * @param event ZeroTrustSpringEvent 공통 이벤트
-     */
+    
     @Override
     public void publishGenericSecurityEvent(ZeroTrustSpringEvent event) {
         long startTime = System.currentTimeMillis();
 
         try {
-            // 토픽: security.events.{category}.{eventType}
+            
             String topic = String.format("security.events.%s.%s",
                     event.getCategory().name().toLowerCase(),
                     event.getEventType().toLowerCase());
@@ -82,9 +61,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
         }
     }
 
-    /**
-     * ZeroTrustSpringEvent용 Kafka 메시지 키 생성
-     */
+    
     private String generateEventKey(ZeroTrustSpringEvent event) {
         if (event.getSessionId() != null && !event.getSessionId().isEmpty()) {
             return event.getSessionId();
@@ -95,9 +72,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
         return "unknown-" + System.currentTimeMillis();
     }
 
-    /**
-     * Dead Letter Queue로 실패한 이벤트 전송
-     */
+    
     private void sendToDeadLetterQueue(Object event, Throwable exception) {
         try {
             DeadLetterEvent dlqEvent = DeadLetterEvent.builder()
@@ -113,9 +88,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
         }
     }
 
-    /**
-     * Dead Letter Event 내부 클래스
-     */
+    
     @Data
     @Builder
     private static class DeadLetterEvent {

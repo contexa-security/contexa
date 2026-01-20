@@ -34,21 +34,19 @@ public class GrantingWizardController {
         return ResponseEntity.ok(grantingWizardService.beginManagementSession(request));
     }
 
-    /**
-     * 리소스 워크벤치에서 '빠른 권한 부여'를 선택했을 때 form-data를 처리하는 엔드포인트.
-     */
+    
     @PostMapping("/start/from-resource")
     public String startWizardFromResource(@RequestParam Long permissionId, RedirectAttributes ra) {
         log.info("'리소스 워크벤치'로부터 권한 부여 마법사를 시작합니다. Permission ID: {}", permissionId);
 
         InitiateManagementRequestDto request = new InitiateManagementRequestDto();
-        // 빠른 권한 부여는 'Permission' 을 'Role' 에 부여하는 것이므로, subject는 Permission이 됩니다.
+        
         request.setSubjectId(permissionId);
         request.setSubjectType("PERMISSION");
 
         WizardInitiationDto initiation = grantingWizardService.beginManagementSession(request);
 
-        // 마법사 페이지로 리다이렉트
+        
         return "redirect:" + initiation.wizardUrl();
     }
 

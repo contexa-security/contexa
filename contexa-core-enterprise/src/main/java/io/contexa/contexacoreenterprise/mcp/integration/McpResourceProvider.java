@@ -13,18 +13,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * MCP Resource Provider
- * 
- * MCP 클라이언트의 리소스들을 관리하고 제공합니다.
- * Resources는 MCP 서버가 노출하는 읽기 전용 데이터 소스입니다.
- * 
- * 주요 기능:
- * - 보안 정책 템플릿 제공
- * - 위협 인텔리전스 데이터 제공
- * - 컴플라이언스 가이드라인 제공
- * - 시스템 구성 정보 제공
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class McpResourceProvider {
@@ -33,9 +22,7 @@ public class McpResourceProvider {
     private final McpSyncClient securityMcpClient;
     private final Map<String, ResourceWrapper> resources = new ConcurrentHashMap<>();
     
-    /**
-     * 모든 사용 가능한 리소스 목록 반환
-     */
+    
     public List<ResourceInfo> listAvailableResources() {
         initializeResources();
         
@@ -50,9 +37,7 @@ public class McpResourceProvider {
             .collect(Collectors.toList());
     }
     
-    /**
-     * 특정 리소스 읽기
-     */
+    
     public Optional<String> readResource(String resourceName) {
         initializeResources();
         
@@ -70,9 +55,7 @@ public class McpResourceProvider {
         }
     }
     
-    /**
-     * 카테고리별 리소스 검색
-     */
+    
     public List<ResourceInfo> findResourcesByCategory(String category) {
         initializeResources();
         
@@ -88,22 +71,20 @@ public class McpResourceProvider {
             .collect(Collectors.toList());
     }
     
-    /**
-     * 리소스 초기화
-     */
+    
     private void initializeResources() {
         if (!resources.isEmpty()) {
-            return; // 이미 초기화됨
+            return; 
         }
         
         log.info("📚 MCP Resources Provider 초기화 시작");
         
-        // Brave Search MCP 클라이언트 리소스 등록
+        
         if (braveSearchMcpClient != null) {
             registerClientResources("brave-search", braveSearchMcpClient);
         }
         
-        // Security MCP 클라이언트 리소스 등록
+        
         if (securityMcpClient != null) {
             registerClientResources("security", securityMcpClient);
         }
@@ -111,9 +92,7 @@ public class McpResourceProvider {
         log.info("MCP Resources Provider 초기화 완료: {} 개 리소스", resources.size());
     }
     
-    /**
-     * MCP 클라이언트의 리소스들을 등록
-     */
+    
     private void registerClientResources(String clientName, McpSyncClient mcpClient) {
         try {
             log.info("📖 {} MCP 클라이언트 리소스 등록 시작", clientName);
@@ -141,9 +120,7 @@ public class McpResourceProvider {
         }
     }
     
-    /**
-     * 리소스 정보 DTO
-     */
+    
     public record ResourceInfo(
         String name,
         String uri,
@@ -152,9 +129,7 @@ public class McpResourceProvider {
         String clientName
     ) {}
     
-    /**
-     * 리소스 래퍼 클래스
-     */
+    
     private static class ResourceWrapper {
         private final String name;
         private final McpSchema.Resource resource;
@@ -162,7 +137,7 @@ public class McpResourceProvider {
         private final String clientName;
         private String cachedContent;
         private long cacheTime;
-        private static final long CACHE_DURATION = 5 * 60 * 1000; // 5분
+        private static final long CACHE_DURATION = 5 * 60 * 1000; 
         
         public ResourceWrapper(String name, McpSchema.Resource resource, 
                               McpSyncClient client, String clientName) {
@@ -194,11 +169,9 @@ public class McpResourceProvider {
             return clientName;
         }
         
-        /**
-         * 리소스 내용 읽기 (캐싱 포함)
-         */
+        
         public String read() {
-            // 캐시 확인
+            
             if (cachedContent != null && 
                 (System.currentTimeMillis() - cacheTime) < CACHE_DURATION) {
                 log.debug("캐시된 리소스 반환: {}", name);
@@ -236,9 +209,7 @@ public class McpResourceProvider {
             }
         }
         
-        /**
-         * 카테고리 매칭 확인
-         */
+        
         public boolean matchesCategory(String category) {
             if (category == null || category.isEmpty()) {
                 return true;
@@ -253,9 +224,7 @@ public class McpResourceProvider {
         }
     }
     
-    /**
-     * 리소스 통계 정보
-     */
+    
     public Map<String, Object> getResourceStatistics() {
         initializeResources();
         

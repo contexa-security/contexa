@@ -25,14 +25,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 통합 인증 실패 처리 핸들러
- *
- * 개선사항:
- * - PlatformAuthenticationFailureHandler 지원 추가
- * - 하위 클래스 확장점 제공
- * - response.isCommitted() 체크로 중복 응답 방지
- */
+
 @Slf4j
 public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
@@ -88,15 +81,13 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                     usernameForLog, sessionIdForLog);
         }
 
-        // 보안 감사 로그
+        
         long failureDuration = System.currentTimeMillis() - failureStartTime;
         logSecurityAudit(usernameForLog, sessionIdForLog, currentProcessingFactor,
                 exception, failureDuration, getClientInfo(request));
     }
 
-    /**
-     * MFA 팩터 검증 실패 처리
-     */
+    
     private void handleMfaFactorFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, FactorContext factorContext,
                                         AuthType currentProcessingFactor, String usernameForLog,
@@ -118,9 +109,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
     }
 
-    /**
-     * 1차 인증 실패 또는 전역 MFA 실패 처리
-     */
+    
     private void handlePrimaryAuthOrGlobalMfaFailure(HttpServletRequest request, HttpServletResponse response,
                                                      AuthenticationException exception, FactorContext factorContext,
                                                      String usernameForLog, String sessionIdForLog)
@@ -154,15 +143,15 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         errorDetails.put("message", errorMessage);
         errorDetails.put("nextStepUrl", failureRedirectUrl);
 
-        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
+        
         executeDelegateHandler(request, response, exception, factorContext, failureType, errorDetails);
 
-        // 하위 클래스 훅 호출
+        
         if (!response.isCommitted()) {
             onPrimaryAuthFailure(request, response, exception, errorDetails);
         }
 
-        // 플랫폼 기본 응답
+        
         if (!response.isCommitted()) {
             if (isApiRequest(request)) {
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
@@ -173,9 +162,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
     }
 
-    /**
-     * 세션 미발견 처리
-     */
+    
     private void handleSessionNotFound(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext factorContext, AuthenticationException exception)
             throws IOException {
@@ -185,16 +172,16 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
 
-        // 위임 핸들러 호출 (부모 클래스 공통 메서드 사용)
+        
         executeDelegateHandler(request, response, exception, factorContext,
                 FailureType.MFA_SESSION_NOT_FOUND, errorDetails);
 
-        // 하위 클래스 훅 호출
+        
         if (!response.isCommitted()) {
             onMfaSessionNotFound(request, response, exception, factorContext, errorDetails);
         }
 
-        // 플랫폼 기본 응답
+        
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                     "SESSION_NOT_FOUND", "MFA 세션을 찾을 수 없습니다.",
@@ -202,48 +189,40 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
     }
 
-    // ========== 하위 클래스 확장점 ==========
+    
 
-    /**
-     * MFA 최대 시도 횟수 초과 시 확장점
-     */
+    
     protected void onMfaMaxAttemptsExceeded(HttpServletRequest request, HttpServletResponse response,
                                             AuthenticationException exception, FactorContext factorContext,
                                             AuthType factor, Map<String, Object> errorDetails)
             throws IOException {
-        // 하위 클래스에서 필요시 오버라이드
+        
     }
 
-    /**
-     * MFA 팩터 실패 시 확장점
-     */
+    
     protected void onMfaFactorFailure(HttpServletRequest request, HttpServletResponse response,
                                       AuthenticationException exception, FactorContext factorContext,
                                       AuthType factor, Map<String, Object> errorDetails)
             throws IOException {
-        // 하위 클래스에서 필요시 오버라이드
+        
     }
 
-    /**
-     * 1차 인증 실패 시 확장점
-     */
+    
     protected void onPrimaryAuthFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, Map<String, Object> errorDetails)
             throws IOException {
-        // 하위 클래스에서 필요시 오버라이드
+        
     }
 
-    /**
-     * MFA 세션 미발견 시 확장점
-     */
+    
     protected void onMfaSessionNotFound(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, FactorContext factorContext,
                                         Map<String, Object> errorDetails)
             throws IOException {
-        // 하위 클래스에서 필요시 오버라이드
+        
     }
 
-    // ========== 기존 private 메서드들 (변경 없음) ==========
+    
 
     private void cleanupSessionUsingRepository(HttpServletRequest request, HttpServletResponse response,
                                                String mfaSessionId) {
@@ -335,14 +314,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 clientInfo.get("xForwardedFor"));
     }
     
-    /**
-     * AI Native v14.1: ZeroTrustEventPublisher를 통한 인증 실패 이벤트 발행
-     *
-     * 아키텍처:
-     * - ZeroTrustEventPublisher.publishAuthenticationFailure() 호출
-     * - ZeroTrustSpringEvent 발행 (Spring Event)
-     * - ZeroTrustEventListener가 수신하여 Kafka 전송
-     */
+    
     private void publishAuthenticationFailureEvent(HttpServletRequest request,
                                                    AuthenticationException exception,
                                                    @Nullable FactorContext factorContext) {
@@ -387,9 +359,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
     }
 
-    /**
-     * 실패 횟수 추출
-     */
+    
     private Integer extractFailureCount(FactorContext factorContext) {
         if (factorContext == null) {
             return 1;
@@ -403,23 +373,21 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         return 1;
     }
     
-    /**
-     * 실패 위험 점수 계산
-     */
+    
     private Double calculateFailureRiskScore(Integer failureCount, AuthenticationException exception) {
-        double score = 0.3;  // 기본 점수
+        double score = 0.3;  
         
         if (failureCount != null) {
             if (failureCount > 10) {
-                score = 0.9;  // 매우 높음
+                score = 0.9;  
             } else if (failureCount > 5) {
-                score = 0.7;  // 높음
+                score = 0.7;  
             } else if (failureCount > 3) {
-                score = 0.5;  // 중간
+                score = 0.5;  
             }
         }
         
-        // 특정 예외 타입에 따른 조정
+        
         String exceptionName = exception.getClass().getSimpleName();
         if (exceptionName.contains("Locked") || exceptionName.contains("Disabled")) {
             score = Math.min(1.0, score + 0.2);
@@ -428,17 +396,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         return score;
     }
     
-    /**
-     * Phase 2.2: errorEventRecommendation 처리 메서드
-     *
-     * Action에서 예외 발생 시 설정한 errorEventRecommendation을 읽어서
-     * State Machine에 이벤트를 전송합니다.
-     *
-     * @param factorContext FactorContext
-     * @param request HttpServletRequest
-     * @param sessionId 세션 ID (로깅용)
-     * @return errorEventRecommendation이 처리되었으면 true, 없거나 실패하면 false
-     */
+    
     private boolean processErrorEventRecommendation(FactorContext factorContext,
                                                     HttpServletRequest request,
                                                     String sessionId) {
@@ -456,7 +414,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 boolean errorEventSent = stateMachineIntegrator.sendEvent(errorEvent, factorContext, request);
 
                 if (errorEventSent) {
-                    // Clear the recommendation after successful processing
+                    
                     factorContext.removeAttribute("errorEventRecommendation");
                     log.debug("Error event {} processed successfully for session: {}",
                              errorEvent, sessionId);
@@ -473,5 +431,5 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         return false;
     }
 
-    // extractClientIp 메서드는 부모 클래스(AbstractTokenBasedFailureHandler)에서 상속받아 사용
+    
 }

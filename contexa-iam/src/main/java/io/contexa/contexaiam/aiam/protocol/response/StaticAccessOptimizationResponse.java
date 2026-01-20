@@ -10,9 +10,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 정적 접근 최적화 응답
- */
+
 @Getter
 @Setter
 public class StaticAccessOptimizationResponse extends IAMResponse {
@@ -78,9 +76,7 @@ public class StaticAccessOptimizationResponse extends IAMResponse {
         return "STATIC_ACCESS_OPTIMIZATION";
     }
     
-    /**
-     * 최적화 전략
-     */
+    
     @Data
     public static class OptimizationStrategy {
         private String type;
@@ -90,9 +86,7 @@ public class StaticAccessOptimizationResponse extends IAMResponse {
         private String description;
     }
     
-    /**
-     * 정책 제안
-     */
+    
     @Data
     public static class PolicyProposal {
         private String proposalId;
@@ -110,9 +104,7 @@ public class StaticAccessOptimizationResponse extends IAMResponse {
         private Map<String, Object> metadata;
     }
     
-    /**
-     * 효과 예측
-     */
+    
     @Data
     public static class EffectPrediction {
         private double accessReductionRate;

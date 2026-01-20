@@ -30,40 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * Default MFA Page Generating Filter
- *
- * Spring Security 7.0의 DefaultLoginPageGeneratingFilter 패턴을 적용한 MFA 페이지 생성 필터.
- * DSL 설정(AuthenticationFlowConfig)을 기반으로 MFA 플로우의 모든 페이지를 생성합니다.
- *
- * 주요 기능:
- * 1. Primary Authentication (1차 인증) 페이지 생성 - Form Login 또는 REST
- * 2. MFA Select Factor (2차 인증 선택) 페이지 생성
- * 3. Factor Challenge (개별 Factor 챌린지) 페이지 생성 - OTT, Passkey 등
- * 4. 커스텀 페이지가 설정된 경우 해당 URL로 forward
- * 5. FactorContext를 request attribute로 자동 주입
- * 6. contexa-mfa-sdk.js 스크립트 자동 주입
- *
- * 페이지 표시 순서:
- * 1. Primary Auth Page (loginPage) - 사용자 ID/PW 입력
- * 2. Select Factor Page - 등록된 2차 인증 방법 선택
- * 3. Factor Challenge Page - 선택된 Factor의 챌린지 페이지
- *
- * 사용 예시:
- * <pre>
- * .mfa(mfa -> mfa
- *     .primaryAuthentication(primary -> primary
- *         .formLogin(form -> form.loginPage("/custom/login"))  // 커스텀 1차 인증 페이지
- *     )
- *     .mfaPage(page -> page
- *         .selectFactorPage("/custom/mfa/select")  // 커스텀 2차 인증 선택 페이지
- *         .ottPages("/custom/mfa/ott-request", "/custom/mfa/ott-verify")
- *     )
- * )
- * </pre>
- *
- * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter
- */
+
 @Slf4j
 public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
@@ -79,50 +46,50 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String requestUri = normalizeUri(request);
 
-        // Step 1: Primary Authentication Page (1차 인증) - 최우선 처리
+        
         if (isPrimaryAuthPage(requestUri)) {
             handlePrimaryAuthPage(request, response);
             return;
         }
 
-        // Step 2: MFA Select Factor Page (2차 인증 선택)
+        
         if (isSelectFactorPage(requestUri)) {
             handleSelectFactorPage(request, response);
             return;
         }
 
-        // Step 3: Factor Challenge Pages (개별 Factor 챌린지)
+        
 
-        // OTT Request Code Page
+        
         if (isOttRequestPage(requestUri)) {
             handleOttRequestPage(request, response);
             return;
         }
 
-        // OTT Verify Page
+        
         if (isOttChallengePage(requestUri)) {
             handleOttChallengePage(request, response);
             return;
         }
 
-        // Passkey Challenge Page
+        
         if (isPasskeyChallengePage(requestUri)) {
-            // GET 요청만 페이지 생성, POST 요청은 FilterChain 진행 (INITIATE_CHALLENGE 이벤트 처리)
+            
             if ("GET".equalsIgnoreCase(request.getMethod())) {
                 handlePasskeyChallengePage(request, response);
                 return;
             }
         }
 
-        // Step 4: MFA Utility Pages
+        
 
-        // MFA Configure Page
+        
         if (isConfigurePage(requestUri)) {
             handleConfigurePage(request, response);
             return;
         }
 
-        // MFA Failure Page
+        
         if (isFailurePage(requestUri)) {
             handleFailurePage(request, response);
             return;
@@ -131,17 +98,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    // ========== HTML 템플릿 상수 (Spring Security 패턴) ==========
+    
 
-    /**
-     * Username 입력 필드 - Readonly (인증된 사용자용)
-     *
-     * <p>
-     * 1차 인증이 완료된 사용자의 경우, username을 readonly로 표시합니다.
-     * </p>
-     *
-     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#ONE_TIME_READONLY_USERNAME_INPUT
-     */
+    
     private static final String OTT_READONLY_USERNAME_INPUT = """
         <div class="form-group">
             <label for="username">사용자명</label>
@@ -154,15 +113,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </div>
         """;
 
-    /**
-     * Username 입력 필드 - Editable (미인증 사용자용)
-     *
-     * <p>
-     * 1차 인증이 완료되지 않은 사용자의 경우, username을 입력받습니다.
-     * </p>
-     *
-     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#ONE_TIME_USERNAME_INPUT
-     */
+    
     private static final String OTT_EDITABLE_USERNAME_INPUT = """
         <div class="form-group">
             <label for="username">사용자명</label>
@@ -174,28 +125,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </div>
         """;
 
-    /**
-     * CSRF Headers for WebAuthn JavaScript
-     *
-     * <p>
-     * Spring Security webauthn.js에 전달할 CSRF 헤더를 JSON 형식으로 정의합니다.
-     * </p>
-     *
-     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#CSRF_HEADERS
-     */
+    
     private static final String CSRF_HEADERS = """
         {"{{headerName}}" : "{{headerValue}}"}""";
 
-    /**
-     * OTT 요청 페이지 템플릿
-     *
-     * <p>
-     * Spring Security의 ONE_TIME_TEMPLATE 패턴을 따릅니다.
-     * HTML Form 제출 방식으로 JavaScript 비활성화 환경에서도 작동합니다.
-     * </p>
-     *
-     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#ONE_TIME_TEMPLATE
-     */
+    
     private static final String OTT_REQUEST_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -310,9 +244,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    /**
-     * OTT Verify Page 전체 템플릿 (HTML Form 기반 + JavaScript SDK Progressive Enhancement)
-     */
+    
     private static final String OTT_VERIFY_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -526,14 +458,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    /**
-     * Passkey Challenge Page 전체 템플릿 (JavaScript WebAuthn API 사용)
-     *
-     * <p>
-     * 참고: Passkey는 WebAuthn API를 사용하므로 JavaScript가 필수입니다.
-     * Progressive Enhancement를 적용할 수 없지만, Spring Security 패턴을 최대한 준수합니다.
-     * </p>
-     */
+    
     private static final String PASSKEY_CHALLENGE_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -706,9 +631,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    /**
-     * Select Factor Page 전체 템플릿 (HTML Form 기반 + JavaScript SDK Progressive Enhancement)
-     */
+    
     private static final String SELECT_FACTOR_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -861,9 +784,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    /**
-     * Select Factor Page - Factor 버튼 템플릿 (개별 Form)
-     */
+    
     private static final String FACTOR_BUTTON_TEMPLATE = """
         <li class="factor-item">
             <form class="factor-form" method="post" action="{{selectFactorUrl}}" data-factor-type="{{factorType}}">
@@ -874,9 +795,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </li>
         """;
 
-    /**
-     * Failure Page 전체 템플릿 (HTML Form 기반)
-     */
+    
     private static final String FAILURE_PAGE_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -956,14 +875,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    /**
-     * Constructor
-     *
-     * @param mfaFlowConfig DSL로 구성된 MFA 플로우 설정 (AuthenticationFlowConfig)
-     * @param stateMachineIntegrator MFA State Machine 통합 객체
-     * @param authUrlProvider URL 우선순위 로직을 제공하는 AuthUrlProvider (SSOT)
-     * @throws IllegalArgumentException MFA 플로우가 아닌 경우
-     */
+    
     public DefaultMfaPageGeneratingFilter(
             AuthenticationFlowConfig mfaFlowConfig,
             MfaStateMachineIntegrator stateMachineIntegrator,
@@ -985,19 +897,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 extractOttLoginProcessingUrl());
     }
 
-    // ===== Primary Authentication (1차 인증) =====
+    
 
-    /**
-     * Primary Authentication 페이지 요청 여부 확인
-     */
+    
     private boolean isPrimaryAuthPage(String requestUri) {
         String primaryLoginPage = extractPrimaryLoginPage();
         return requestUri.equals(primaryLoginPage);
     }
 
-    /**
-     * Primary Authentication 페이지 처리
-     */
+    
     private void handlePrimaryAuthPage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -1010,275 +918,217 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (primaryOpts.isFormLogin()) {
             FormOptions formOpts = primaryOpts.getFormOptions();
 
-            // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음 (EntryPoint가 redirect로 처리)
+            
             if (isCustomLoginPage(formOpts.getLoginPage())) {
                 log.debug("Custom primary login page configured: {}. Skipping default page generation.",
                          formOpts.getLoginPage());
-                return; // 커스텀 페이지는 EntryPoint가 처리
+                return; 
             }
 
-            // 기본 로그인 페이지 생성
+            
             log.debug("Generating default primary form login page");
             generatePrimaryFormLoginPage(request, response, formOpts);
 
         } else if (primaryOpts.isRestLogin()) {
-            // ⭐ REST 인증도 HTML 페이지 필요 (JavaScript가 비동기 인증 처리)
+            
             RestOptions restOpts = primaryOpts.getRestOptions();
-            String loginPage = primaryOpts.getLoginPage(); // PrimaryAuthenticationOptions에서 가져옴
+            String loginPage = primaryOpts.getLoginPage(); 
 
-            // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
+            
             if (isCustomLoginPage(loginPage)) {
                 log.debug("Custom REST login page configured: {}. Skipping default page generation.", loginPage);
-                return; // 커스텀 페이지는 EntryPoint가 처리
+                return; 
             }
 
-            // 기본 REST 로그인 페이지 생성 (JavaScript 기반)
+            
             log.debug("Generating default primary REST login page");
             generatePrimaryRestLoginPage(request, response, restOpts);
         }
     }
 
-    /**
-     * Primary Login Page URL 추출 (DSL 설정 기반)
-     */
+    
     private String extractPrimaryLoginPage() {
         PrimaryAuthenticationOptions primaryOpts = mfaFlowConfig.getPrimaryAuthenticationOptions();
         if (primaryOpts != null) {
-            // ⭐ Form 인증인 경우
+            
             if (primaryOpts.isFormLogin()) {
                 FormOptions formOpts = primaryOpts.getFormOptions();
                 return StringUtils.hasText(formOpts.getLoginPage()) ?
-                        formOpts.getLoginPage() : authUrlProvider.getPrimaryLoginPage(); // AuthUrlProvider 사용
+                        formOpts.getLoginPage() : authUrlProvider.getPrimaryLoginPage(); 
             }
 
-            // ⭐ REST 인증인 경우 - PrimaryAuthenticationOptions의 loginPage 사용
+            
             if (primaryOpts.isRestLogin()) {
                 String loginPage = primaryOpts.getLoginPage();
-                return StringUtils.hasText(loginPage) ? loginPage : authUrlProvider.getPrimaryLoginPage(); // AuthUrlProvider 사용
+                return StringUtils.hasText(loginPage) ? loginPage : authUrlProvider.getPrimaryLoginPage(); 
             }
         }
-        return authUrlProvider.getPrimaryLoginPage(); // AuthUrlProvider 폴백 기본값
+        return authUrlProvider.getPrimaryLoginPage(); 
     }
 
-    /**
-     * 커스텀 로그인 페이지 여부 확인
-     *
-     * Spring Security 패턴: 기본값과 다른 값이 설정되었는지 확인
-     *
-     * @param loginPage 검증할 로그인 페이지 URL
-     * @return 커스텀 페이지인 경우 true, 기본 페이지인 경우 false
-     */
+    
     private boolean isCustomLoginPage(String loginPage) {
-        // loginPage가 명시적으로 설정되고 AuthUrlProvider의 기본값과 다른 경우 커스텀으로 판단
+        
         String defaultLoginPage = authUrlProvider.getPrimaryLoginPage();
         return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
     }
 
-    // ===== MFA Select Factor Page (2차 인증 선택) =====
+    
 
-    /**
-     * Select Factor 페이지 요청 여부 확인
-     */
+    
     private boolean isSelectFactorPage(String requestUri) {
         String selectFactorUrl = extractSelectFactorUrl();
         return requestUri.equals(selectFactorUrl);
     }
 
-    /**
-     * Select Factor 페이지 처리
-     */
+    
     private void handleSelectFactorPage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
+        
         if (pageConfig != null && pageConfig.hasCustomSelectFactorPage()) {
             log.debug("Custom select factor page configured: {}. Skipping default page generation.",
                      pageConfig.getSelectFactorPageUrl());
-            return; // 커스텀 페이지는 사용자가 직접 제공
+            return; 
         }
 
         log.debug("Generating default select factor page");
         generateSelectFactorPage(request, response);
     }
 
-    /**
-     * Select Factor URL 추출 (DSL 설정 + 기본값 폴백)
-     */
+    
     private String extractSelectFactorUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getSelectFactorPageUrl())) {
             return pageConfig.getSelectFactorPageUrl();
         }
-        return authUrlProvider.getMfaSelectFactor(); // AuthUrlProvider 사용
+        return authUrlProvider.getMfaSelectFactor(); 
     }
 
-    // ===== OTT Challenge Pages =====
+    
 
-    /**
-     * OTT Request 페이지 요청 여부 확인
-     */
+    
     private boolean isOttRequestPage(String requestUri) {
         String ottRequestUrl = extractOttRequestUrl();
         return requestUri.equals(ottRequestUrl);
     }
 
-    /**
-     * OTT Request 페이지 처리
-     */
+    
     private void handleOttRequestPage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
+        
         if (pageConfig != null && pageConfig.hasCustomOttRequestPage()) {
             log.debug("Custom OTT request page configured: {}. Skipping default page generation.",
                      pageConfig.getOttRequestPageUrl());
-            return; // 커스텀 페이지는 사용자가 직접 제공
+            return; 
         }
 
         log.debug("Generating default OTT request page");
         generateOttRequestCodePage(request, response);
     }
 
-    /**
-     * OTT Challenge 페이지 요청 여부 확인
-     */
+    
     private boolean isOttChallengePage(String requestUri) {
         String ottChallengeUrl = extractOttChallengeUrl();
         return requestUri.equals(ottChallengeUrl);
     }
 
-    /**
-     * OTT Challenge 페이지 처리
-     */
+    
     private void handleOttChallengePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
+        
         if (pageConfig != null && pageConfig.hasCustomOttVerifyPage()) {
             log.debug("Custom OTT verify page configured: {}. Skipping default page generation.",
                      pageConfig.getOttVerifyPageUrl());
-            return; // 커스텀 페이지는 사용자가 직접 제공
+            return; 
         }
 
         log.debug("Generating default OTT verify page");
         generateOttVerifyPage(request, response);
     }
 
-    /**
-     * OTT Request URL 추출 (DSL 설정 + 기본값 폴백)
-     */
+    
     private String extractOttRequestUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getOttRequestPageUrl())) {
             return pageConfig.getOttRequestPageUrl();
         }
-        return authUrlProvider.getOttRequestCodeUi(); // AuthUrlProvider 사용
+        return authUrlProvider.getOttRequestCodeUi(); 
     }
 
-    /**
-     * OTT Challenge URL 추출 (DSL 설정 + 기본값 폴백)
-     */
+    
     private String extractOttChallengeUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getOttVerifyPageUrl())) {
             return pageConfig.getOttVerifyPageUrl();
         }
-        return authUrlProvider.getOttChallengeUi(); // AuthUrlProvider 사용
+        return authUrlProvider.getOttChallengeUi(); 
     }
 
-    /**
-     * OTT 코드 생성 API URL 추출
-     *
-     * <p>
-     * OTT 요청 페이지의 Form action URL로 사용됩니다.
-     * JavaScript 비활성화 시 이 URL로 POST 요청이 전송됩니다.
-     * AuthUrlProvider를 통해 DSL 커스텀 URL 우선순위가 적용됩니다.
-     * </p>
-     *
-     * @return OTT 코드 생성 API URL (DSL Options > MfaPageConfig > AuthContextProperties > 기본값)
-     */
+    
     private String extractOttCodeGenerationUrl() {
         return authUrlProvider.getOttCodeGeneration();
     }
 
-    /**
-     * OTT 검증 처리 Filter URL 추출
-     *
-     * <p>
-     * OTT 검증 페이지의 Form action URL로 사용됩니다.
-     * Spring Security OTT Filter가 이 경로에서 POST 요청을 처리합니다.
-     * AuthUrlProvider를 통해 DSL 커스텀 URL 우선순위가 적용됩니다.
-     * </p>
-     *
-     * @return OTT 검증 처리 URL (DSL Options > MfaPageConfig > AuthContextProperties > 기본값)
-     */
+    
     private String extractOttLoginProcessingUrl() {
         return authUrlProvider.getOttLoginProcessing();
     }
 
-    // ===== Passkey Challenge Page =====
+    
 
-    /**
-     * Passkey Challenge 페이지 요청 여부 확인
-     */
+    
     private boolean isPasskeyChallengePage(String requestUri) {
         String passkeyUrl = extractPasskeyChallengeUrl();
         return requestUri.equals(passkeyUrl);
     }
 
-    /**
-     * Passkey Challenge 페이지 처리
-     */
+    
     private void handlePasskeyChallengePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
+        
         if (pageConfig != null && pageConfig.hasCustomPasskeyPage()) {
             log.debug("Custom Passkey challenge page configured: {}. Skipping default page generation.",
                      pageConfig.getPasskeyChallengePageUrl());
-            return; // 커스텀 페이지는 사용자가 직접 제공
+            return; 
         }
 
         log.debug("Generating default Passkey challenge page");
         generatePasskeyChallengePage(request, response);
     }
 
-    /**
-     * Passkey Challenge URL 추출 (DSL 설정 + 기본값 폴백)
-     */
+    
     private String extractPasskeyChallengeUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getPasskeyChallengePageUrl())) {
             return pageConfig.getPasskeyChallengePageUrl();
         }
-        return authUrlProvider.getPasskeyChallengeUi(); // AuthUrlProvider 사용
+        return authUrlProvider.getPasskeyChallengeUi(); 
     }
 
-    // ===== Utility Pages =====
+    
 
-    /**
-     * Configure 페이지 요청 여부 확인
-     */
+    
     private boolean isConfigurePage(String requestUri) {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getConfigurePageUrl())) {
             return requestUri.equals(pageConfig.getConfigurePageUrl());
         }
-        return requestUri.equals(authUrlProvider.getMfaConfigure()); // AuthUrlProvider 사용
+        return requestUri.equals(authUrlProvider.getMfaConfigure()); 
     }
 
-    /**
-     * Configure 페이지 처리
-     * 사용자 팩터 등록 기능 제거로 인해 Configure 페이지는 더 이상 지원하지 않음
-     */
+    
     private void handleConfigurePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -1286,41 +1136,35 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         response.sendError(HttpServletResponse.SC_NOT_FOUND, "MFA Configure page is not available");
     }
 
-    /**
-     * Failure 페이지 요청 여부 확인
-     */
+    
     private boolean isFailurePage(String requestUri) {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getFailurePageUrl())) {
             return requestUri.equals(pageConfig.getFailurePageUrl());
         }
-        return requestUri.equals(authUrlProvider.getMfaFailure()); // AuthUrlProvider 사용
+        return requestUri.equals(authUrlProvider.getMfaFailure()); 
     }
 
-    /**
-     * Failure 페이지 처리
-     */
+    
     private void handleFailurePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        // ⭐ Spring Security 패턴: 커스텀 페이지는 필터가 처리하지 않음
+        
         if (pageConfig != null && pageConfig.hasCustomFailurePage()) {
             log.debug("Custom failure page configured: {}. Skipping default page generation.",
                      pageConfig.getFailurePageUrl());
-            return; // 커스텀 페이지는 사용자가 직접 제공
+            return; 
         }
 
         log.debug("Generating default failure page");
         generateFailurePage(request, response);
     }
 
-    // ===== Utility Methods =====
+    
 
-    /**
-     * Request URI 정규화 (Context Path 제거)
-     */
+    
     private String normalizeUri(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
         String contextPath = request.getContextPath();
@@ -1333,26 +1177,24 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
 
-    /**
-     * Select Factor Page 생성
-     */
+    
     private void generateSelectFactorPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        // Step 1: FactorContext 조회
+        
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
 
-        // Step 2: Context Path 추출
+        
         String contextPath = request.getContextPath();
 
-        // Step 3: Username 조회
+        
         String username = getUsername();
         if (username == null) {
             log.warn("Select Factor Page: 인증되지 않은 사용자 접근 시도");
             username = "(알 수 없음)";
         }
 
-        // Step 4: Available Factors 추출
+        
         List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null ?
                 new java.util.ArrayList<>(ctx.getAvailableFactors()) : List.of();
 
@@ -1361,11 +1203,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     ctx != null ? ctx.getMfaSessionId() : "unknown");
         }
 
-        // Step 5: Select Factor URL 추출 (mfaFlowConfig 기반)
+        
         String selectFactorUrl = extractSelectFactorUrl();
         String fullSelectFactorUrl = contextPath + selectFactorUrl;
 
-        // Step 6: Factor 버튼 HTML 생성
+        
         StringBuilder factorButtonsHtml = new StringBuilder("<ul class=\"factor-list\">\n");
 
         for (AuthType factorType : availableFactors) {
@@ -1384,7 +1226,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         factorButtonsHtml.append("</ul>");
 
-        // Step 7: 전체 페이지 렌더링
+        
         String html = MfaHtmlTemplates.fromTemplate(SELECT_FACTOR_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
@@ -1394,7 +1236,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withRawHtml("factorButtons", factorButtonsHtml.toString())
             .render();
 
-        // Step 8: 응답 전송
+        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
@@ -1404,17 +1246,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 ctx != null ? ctx.getMfaSessionId() : "unknown");
     }
 
-    /**
-     * Primary Form Login Page 생성 (MFA 인증용)
-     *
-     * REST 인증과 동일하게 contexa-mfa-sdk.js를 사용하여 MFA 플로우를 처리합니다.
-     * JavaScript를 사용하여 비동기로 인증 요청을 처리합니다.
-     *
-     * @param request HTTP 요청
-     * @param response HTTP 응답
-     * @param formOpts Form 인증 옵션
-     * @throws IOException 페이지 생성 실패 시
-     */
+    
     private void generatePrimaryFormLoginPage(HttpServletRequest request, HttpServletResponse response, FormOptions formOpts)
             throws IOException {
         response.setContentType("text/html;charset=UTF-8");
@@ -1425,7 +1257,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        // CSRF 토큰 추출
+        
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
@@ -1573,17 +1405,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         log.debug("SDK 통합 MFA Form 로그인 페이지 생성 완료. Processing URL: {}", loginProcessingUrl);
     }
 
-    /**
-     * Primary REST Login Page 생성
-     *
-     * REST 인증용 HTML 페이지를 생성합니다.
-     * JavaScript를 사용하여 비동기로 인증 요청을 처리합니다.
-     *
-     * @param request HTTP 요청
-     * @param response HTTP 응답
-     * @param restOpts REST 인증 옵션
-     * @throws IOException 페이지 생성 실패 시
-     */
+    
     private void generatePrimaryRestLoginPage(HttpServletRequest request, HttpServletResponse response, RestOptions restOpts)
             throws IOException {
         response.setContentType("text/html;charset=UTF-8");
@@ -1594,7 +1416,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        // CSRF 토큰 추출
+        
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
@@ -1742,61 +1564,38 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         log.debug("Generated default primary REST login page for MFA flow. Processing URL: {}", loginProcessingUrl);
     }
 
-    /**
-     * OTT Request Code Page 생성
-     *
-     * <p>
-     * Spring Security의 DefaultLoginPageGeneratingFilter.renderOneTimeTokenLogin() 패턴을 따릅니다.
-     * </p>
-     *
-     * <p>
-     * 주요 개선 사항:
-     * <ul>
-     *   <li>Username 입력 필드 추가 (인증 상태에 따라 readonly/editable)</li>
-     *   <li>HTML Form 제출 방식 지원 (JavaScript 비활성화 환경 대응)</li>
-     *   <li>CSRF 토큰을 hidden input으로 자동 제출</li>
-     *   <li>Context Path 처리</li>
-     *   <li>MfaHtmlTemplates를 통한 XSS 방어</li>
-     *   <li>Progressive Enhancement (JavaScript SDK는 선택적)</li>
-     * </ul>
-     * </p>
-     *
-     * @param request HTTP 요청
-     * @param response HTTP 응답
-     * @throws IOException 입출력 오류 발생 시
-     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#renderOneTimeTokenLogin
-     */
+    
     private void generateOttRequestCodePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        // Step 1: Context Path 추출
+        
         String contextPath = request.getContextPath();
 
-        // Step 2: 현재 인증된 사용자의 username 조회 (Spring Security 패턴)
+        
         String username = getUsername();
 
-        // Step 3: Username 입력 필드 생성 (조건부 렌더링)
+        
         String usernameInput;
         if (username != null) {
-            // 인증된 사용자: readonly 필드
+            
             usernameInput = MfaHtmlTemplates.fromTemplate(OTT_READONLY_USERNAME_INPUT)
                 .withValue("username", username)
                 .render();
             log.debug("OTT Request Page: 인증된 사용자 '{}' - readonly username 필드 생성", username);
         } else {
-            // 미인증 사용자: editable 필드
+            
             usernameInput = OTT_EDITABLE_USERNAME_INPUT;
             log.debug("OTT Request Page: 미인증 사용자 - editable username 필드 생성");
         }
 
-        // Step 4: CSRF 토큰 및 기타 hidden 필드 생성 (Spring Security 패턴)
+        
         String hiddenInputs = resolveHiddenInputs(request);
 
-        // Step 5: OTT 코드 생성 API URL 추출 (Form action용)
-        String ottRequestUrl = extractOttCodeGenerationUrl(); // "/mfa/ott/generate-code"
+        
+        String ottRequestUrl = extractOttCodeGenerationUrl(); 
         String fullOttRequestUrl = contextPath + ottRequestUrl;
 
-        // Step 6: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        
         String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("ottRequestUrl", fullOttRequestUrl)
@@ -1807,7 +1606,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withRawHtml("hiddenInputs", hiddenInputs)
             .render();
 
-        // Step 7: 응답 전송
+        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
@@ -1816,38 +1615,36 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             fullOttRequestUrl, username != null ? username : "(입력 필요)");
     }
 
-    /**
-     * OTT Verify Page 생성
-     */
+    
     private void generateOttVerifyPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        // Step 1: Context Path 추출
+        
         String contextPath = request.getContextPath();
 
-        // Step 2: 현재 인증된 사용자의 username 조회 (Spring Security 패턴)
+        
         String username = getUsername();
         if (username == null) {
-            // OTT 검증 페이지는 인증된 사용자만 접근 가능
+            
             log.warn("OTT Verify Page: 인증되지 않은 사용자 접근 시도");
             username = "(알 수 없음)";
         }
 
-        // Step 3: CSRF 토큰 및 기타 hidden 필드 생성 (Spring Security 패턴)
+        
         String hiddenInputs = resolveHiddenInputs(request);
 
-        // Step 4: OTT 검증 처리 Filter URL 추출 (Form action용)
-        String ottVerifyUrl = extractOttLoginProcessingUrl(); // "/login/mfa-ott"
+        
+        String ottVerifyUrl = extractOttLoginProcessingUrl(); 
         String fullOttVerifyUrl = contextPath + ottVerifyUrl;
 
-        // Step 5: OTT 코드 재전송 API URL 추출 (재전송 Form action용)
-        String ottResendUrl = extractOttCodeGenerationUrl(); // "/mfa/ott/generate-code"
+        
+        String ottResendUrl = extractOttCodeGenerationUrl(); 
         String fullOttResendUrl = contextPath + ottResendUrl;
 
-        // Step 6: 재전송용 hidden inputs (동일한 CSRF 토큰 재사용)
+        
         String resendHiddenInputs = resolveHiddenInputs(request);
 
-        // Step 7: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        
         String html = MfaHtmlTemplates.fromTemplate(OTT_VERIFY_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
@@ -1860,7 +1657,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withRawHtml("resendHiddenInputs", resendHiddenInputs)
             .render();
 
-        // Step 8: 응답 전송
+        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
@@ -1869,34 +1666,32 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             fullOttVerifyUrl, fullOttResendUrl, username);
     }
 
-    /**
-     * Passkey Challenge Page 생성
-     */
+    
     private void generatePasskeyChallengePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        // Step 1: Context Path 추출
+        
         String contextPath = request.getContextPath();
 
-        // Step 2: 현재 인증된 사용자의 username 조회 (Spring Security 패턴)
+        
         String username = getUsername();
         if (username == null) {
-            // Passkey 챌린지 페이지는 인증된 사용자만 접근 가능
+            
             log.warn("Passkey Challenge Page: 인증되지 않은 사용자 접근 시도");
             username = "(알 수 없음)";
         }
 
-        // Step 3: CSRF Headers 생성 (Spring Security 표준 패턴)
+        
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfToken = getCsrfToken(request);
         String csrfHeaders = CSRF_HEADERS
             .replace("{{headerName}}", csrfHeaderName)
             .replace("{{headerValue}}", csrfToken);
 
-        // Step 4: Failure URL 추출
+        
         String failureUrl = authUrlProvider.getMfaFailure();
 
-        // Step 5: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        
         String html = MfaHtmlTemplates.fromTemplate(PASSKEY_CHALLENGE_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
@@ -1907,7 +1702,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withValue("failureUrl", failureUrl)
             .render();
 
-        // Step 5: 응답 전송
+        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
@@ -1915,32 +1710,30 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         log.debug("Passkey Challenge Page 생성 완료. Username: {}", username);
     }
 
-    // 제거됨: generateConfigurePage() - 사용자 팩터 등록 기능 제거
+    
 
-    /**
-     * Failure Page 생성
-     */
+    
     private void generateFailurePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        // Step 1: Context Path 추출
+        
         String contextPath = request.getContextPath();
 
-        // Step 2: 에러 메시지 추출
+        
         String errorMessage = request.getParameter("error");
         String displayMessage = StringUtils.hasText(errorMessage) ? errorMessage : "인증에 실패했습니다.";
 
-        // Step 3: Retry URL 추출 (Select Factor 페이지로 이동)
+        
         String selectFactorUrl = extractSelectFactorUrl();
         String fullRetryUrl = contextPath + selectFactorUrl;
 
-        // Step 4: 템플릿 렌더링 (MfaHtmlTemplates 사용)
+        
         String html = MfaHtmlTemplates.fromTemplate(FAILURE_PAGE_TEMPLATE)
             .withValue("errorMessage", displayMessage)
             .withValue("retryUrl", fullRetryUrl)
             .render();
 
-        // Step 5: 응답 전송
+        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
@@ -1948,57 +1741,30 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         log.debug("Failure Page 생성 완료. Error: {}, Retry URL: {}", displayMessage, fullRetryUrl);
     }
 
-    /**
-     * CSRF 토큰 값 추출
-     *
-     * Spring Security의 CsrfToken을 request attribute에서 가져옵니다.
-     *
-     * @param request HTTP 요청
-     * @return CSRF 토큰 값 (없으면 빈 문자열)
-     */
+    
     private String getCsrfToken(HttpServletRequest request) {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getToken() : "";
     }
 
-    /**
-     * CSRF 헤더명 추출
-     *
-     * @param request HTTP 요청
-     * @return CSRF 헤더명 (기본값: X-CSRF-TOKEN)
-     */
+    
     private String getCsrfHeaderName(HttpServletRequest request) {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getHeaderName() : "X-CSRF-TOKEN";
     }
 
-    /**
-     * CSRF 파라미터명 추출
-     *
-     * @param request HTTP 요청
-     * @return CSRF 파라미터명 (기본값: _csrf)
-     */
+    
     private String getCsrfParameterName(HttpServletRequest request) {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getParameterName() : "_csrf";
     }
 
-    // ========== Spring Security 패턴 기반 헬퍼 메서드 ==========
+    
 
-    /**
-     * 현재 인증된 사용자의 username 조회
-     *
-     * <p>
-     * Spring Security의 SecurityContext에서 인증된 사용자 정보를 가져옵니다.
-     * Spring Security의 DefaultLoginPageGeneratingFilter.getUsername() 패턴을 따릅니다.
-     * </p>
-     *
-     * @return 인증된 경우 username, 미인증 시 null
-     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#getUsername()
-     */
+    
     @Nullable
     private String getUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -2012,28 +1778,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return null;
     }
 
-    /**
-     * CSRF 토큰 및 기타 hidden 필드를 HTML로 렌더링
-     *
-     * <p>
-     * Spring Security의 DefaultLoginPageGeneratingFilter.resolveHiddenInputs 패턴을 따릅니다.
-     * CSRF 토큰을 Form hidden input으로 렌더링하여 자동 제출되도록 합니다.
-     * </p>
-     *
-     * @param request HTTP 요청
-     * @return HTML hidden input 문자열 (예: &lt;input type="hidden" name="_csrf" value="..." /&gt;)
-     * @see org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter#resolveHiddenInputs
-     */
+    
     private String resolveHiddenInputs(HttpServletRequest request) {
         Map<String, String> hiddenInputs = new LinkedHashMap<>();
 
-        // CSRF 토큰 추가
+        
         CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         if (csrfToken != null) {
             hiddenInputs.put(csrfToken.getParameterName(), csrfToken.getToken());
         }
 
-        // MFA Session ID 추가 (있는 경우)
+        
         String mfaSessionId = (String) request.getAttribute("mfaSessionId");
         if (StringUtils.hasText(mfaSessionId)) {
             hiddenInputs.put("mfaSessionId", mfaSessionId);
@@ -2045,13 +1800,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .collect(Collectors.joining("\n"));
     }
 
-    /**
-     * HTML hidden input 필드 렌더링
-     *
-     * @param name 필드명
-     * @param value 필드값
-     * @return HTML hidden input 문자열
-     */
+    
     private String renderHiddenInput(String name, String value) {
         return String.format(
             "<input type=\"hidden\" name=\"%s\" value=\"%s\" />",
@@ -2060,12 +1809,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         );
     }
 
-    /**
-     * HTML 특수 문자 이스케이프 (XSS 방어)
-     *
-     * @param input 이스케이프할 문자열
-     * @return 이스케이프된 문자열
-     */
+    
     private String escapeHtml(String input) {
         if (input == null) {
             return "";
@@ -2078,12 +1822,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                    .replace("/", "&#x2F;");
     }
 
-    /**
-     * Factor Type의 Display Name 반환
-     *
-     * @param factorType Factor 타입 (예: OTT, PASSKEY)
-     * @return 사용자 친화적 표시 이름
-     */
+    
     private String getFactorDisplayName(AuthType factorType) {
         return switch (factorType) {
             case OTT -> "이메일 인증 코드 (OTT)";

@@ -18,14 +18,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * BehavioralAnalysisLabConnector - 행동 분석 랩 연결자
- *
- * autonomous 패키지와 std.labs.behavior 패키지를 연결하여
- * BehavioralAnalysisLab의 고급 행동 분석 기능을 활용합니다.
- *
- * @since 1.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class BehavioralAnalysisLabConnector {
@@ -48,19 +41,12 @@ public class BehavioralAnalysisLabConnector {
     @Value("${behavioral.analysis.vector.similarity.threshold:0.85}")
     private double vectorSimilarityThreshold;
 
-    /**
-     * 행동 분석 랩 활성화 여부
-     */
+    
     public boolean isEnabled() {
         return enabled && behavioralAnalysisLab != null;
     }
 
-    /**
-     * SecurityEvent를 분석하여 ThreatAssessment 생성
-     *
-     * @param event 보안 이벤트
-     * @return 위협 평가 결과
-     */
+    
     public ThreatAssessment analyzeBehavior(SecurityEvent event) {
         if (!isEnabled()) {
             log.warn("[BehavioralConnector] 행동 분석 랩이 비활성화됨");
@@ -72,22 +58,22 @@ public class BehavioralAnalysisLabConnector {
             analysisId, event.getEventId(), event.getUserId());
 
         try {
-            // 1. BehavioralAnalysisContext 생성
+            
             BehavioralAnalysisContext context = createContext(event);
 
-            // 2. BehavioralAnalysisRequest 생성
+            
             BehavioralAnalysisRequest request = createRequest(context, event);
 
-            // 3. 비동기 분석 실행
+            
             CompletableFuture<BehavioralAnalysisResponse> future = executeBehavioralAnalysis(request);
 
-            // 4. 타임아웃 적용하여 결과 대기
+            
             BehavioralAnalysisResponse response = future.get(analysisTimeoutMs, TimeUnit.MILLISECONDS);
 
-            // 5. 응답을 ThreatAssessment로 변환
+            
             ThreatAssessment assessment = convertToThreatAssessment(response, event, analysisId);
 
-            // 6. 벡터 유사도 분석 (있는 경우)
+            
             if (behaviorVectorService != null) {
                 enrichWithVectorAnalysis(assessment, event);
             }
@@ -103,30 +89,28 @@ public class BehavioralAnalysisLabConnector {
         }
     }
 
-    /**
-     * SecurityEvent로부터 BehavioralAnalysisContext 생성
-     */
+    
     private BehavioralAnalysisContext createContext(SecurityEvent event) {
         BehavioralAnalysisContext context = new BehavioralAnalysisContext();
 
-        // 필수 정보 설정 (실제 존재하는 필드만)
+        
         context.setUserId(event.getUserId());
         context.setRemoteIp(event.getSourceIp());
 
-        // 현재 활동 설정 (AI Native v4.0.0: eventType 제거 - severity/source 기반)
+        
         String currentActivity = String.format("%s from %s (Session: %s)",
             event.getSeverity() != null ? event.getSeverity().toString() : "UNKNOWN",
             event.getSourceIp() != null ? event.getSourceIp() : "unknown",
             event.getSessionId() != null ? event.getSessionId() : "none");
         context.setCurrentActivity(currentActivity);
 
-        // 과거 행동 데이터 요약 (메타데이터에서 추출)
+        
         StringBuilder historicalSummary = new StringBuilder();
         historicalSummary.append("Severity: ").append(event.getSeverity());
         if (event.getUserAgent() != null) {
             historicalSummary.append(", UserAgent: ").append(event.getUserAgent());
         }
-        // AI Native v4.0.0: targetResource 필드 제거 - metadata에서 조회
+        
         Map<String, Object> metadata = event.getMetadata();
         if (metadata != null && metadata.containsKey("targetResource")) {
             historicalSummary.append(", Resource: ").append(metadata.get("targetResource"));
@@ -140,24 +124,20 @@ public class BehavioralAnalysisLabConnector {
         return context;
     }
 
-    /**
-     * BehavioralAnalysisRequest 생성
-     */
+    
     private BehavioralAnalysisRequest createRequest(BehavioralAnalysisContext context, SecurityEvent event) {
-        // BehavioralAnalysisRequest의 팩토리 메서드 사용
+        
         String operation = String.format("analyze_%s", event.getSeverity().toString().toLowerCase());
         BehavioralAnalysisRequest request = BehavioralAnalysisRequest.create(context, operation, event.getSessionId());
 
         return request;
     }
 
-    /**
-     * 비동기 행동 분석 실행
-     */
+    
     private CompletableFuture<BehavioralAnalysisResponse> executeBehavioralAnalysis(BehavioralAnalysisRequest request) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                // processAsync를 사용하여 비동기 처리
+                
                 Mono<BehavioralAnalysisResponse> mono = behavioralAnalysisLab.processAsync(request);
                 return mono.block();
             } catch (Exception e) {
@@ -167,25 +147,23 @@ public class BehavioralAnalysisLabConnector {
         });
     }
 
-    /**
-     * BehavioralAnalysisResponse를 ThreatAssessment로 변환
-     */
+    
     private ThreatAssessment convertToThreatAssessment(
             BehavioralAnalysisResponse response, SecurityEvent event, String assessmentId) {
 
-        // 위험 점수 계산
+        
         double riskScore = calculateRiskScore(response);
 
-        // 신뢰도 계산
+        
         double confidence = calculateConfidence(response);
 
-        // AI Native v3.1: threatLevel 제거 - 죽은 코드 (사용 안 함)
-        // ThreatAssessment에서 ThreatLevel enum 제거됨 (riskScore + action으로 대체)
+        
+        
 
-        // 추천 액션 추출
+        
         List<String> recommendedActions = extractRecommendedActions(response, riskScore);
 
-        // 상세 정보 구성
+        
         Map<String, Object> details = new HashMap<>();
         details.put("behavioralRiskScore", response.getBehavioralRiskScore());
         details.put("riskLevel", response.getRiskLevel());
@@ -202,20 +180,18 @@ public class BehavioralAnalysisLabConnector {
             .riskScore(riskScore)
             .confidence(confidence)
             .recommendedActions(recommendedActions)
-            // AI Native v3.1: metadata 필드 제거됨 - 죽은 필드
+            
             .build();
     }
 
-    /**
-     * 위험 점수 계산
-     */
+    
     private double calculateRiskScore(BehavioralAnalysisResponse response) {
         double baseScore = 0.0;
 
-        // Behavioral Risk Score 사용 (0-100을 0-1로 정규화)
+        
         baseScore = response.getBehavioralRiskScore() / 100.0;
 
-        // Risk Level로 추가 조정
+        
         if (response.getRiskLevel() != null) {
             switch (response.getRiskLevel()) {
                 case CRITICAL:
@@ -233,7 +209,7 @@ public class BehavioralAnalysisLabConnector {
             }
         }
 
-        // Anomalies 수로 추가 조정
+        
         if (response.getAnomalies() != null && !response.getAnomalies().isEmpty()) {
             double anomalyBonus = Math.min(response.getAnomalies().size() * 0.1, 0.3);
             baseScore += anomalyBonus;
@@ -242,26 +218,24 @@ public class BehavioralAnalysisLabConnector {
         return Math.min(baseScore, 1.0);
     }
 
-    /**
-     * 신뢰도 계산
-     */
+    
     private double calculateConfidence(BehavioralAnalysisResponse response) {
-        double confidence = 0.7; // 기본값
+        double confidence = 0.7; 
 
-        // 분석 데이터 품질에 따른 조정
+        
         if (response.getAnomalies() != null && response.getAnomalies().size() > 0) {
-            confidence += 0.1; // 이상 징후가 발견되면 신뢰도 증가
+            confidence += 0.1; 
         }
 
         if (response.getRecommendations() != null && response.getRecommendations().size() > 0) {
-            confidence += 0.1; // 추천 사항이 있으면 신뢰도 증가
+            confidence += 0.1; 
         }
 
         if (response.getSummary() != null && !response.getSummary().trim().isEmpty()) {
-            confidence += 0.1; // 분석 요약이 있으면 신뢰도 증가
+            confidence += 0.1; 
         }
 
-        // 최소 신뢰도 보장
+        
         if (confidence < minConfidenceThreshold) {
             confidence = minConfidenceThreshold;
         }
@@ -269,18 +243,16 @@ public class BehavioralAnalysisLabConnector {
         return Math.min(confidence, 1.0);
     }
 
-    // AI Native v3.1: determineThreatLevel() 삭제 - 죽은 코드
-    // - ThreatAssessment.ThreatLevel enum 삭제됨 (riskScore + action으로 대체)
-    // - threatLevel 변수 사용처 없음 (builder에서 사용 안 함)
-    // - 임계값 기반 레벨 결정은 AI Native 원칙 위반
+    
+    
+    
+    
 
-    /**
-     * 추천 액션 추출
-     */
+    
     private List<String> extractRecommendedActions(BehavioralAnalysisResponse response, double riskScore) {
         List<String> actions = new ArrayList<>();
 
-        // 응답에서 추천 액션 추출 (action 필드만 추출)
+        
         if (response.getRecommendations() != null) {
             response.getRecommendations().forEach(rec -> {
                 if (rec.getAction() != null) {
@@ -289,7 +261,7 @@ public class BehavioralAnalysisLabConnector {
             });
         }
 
-        // 위험 점수 기반 추가 액션
+        
         if (riskScore >= 0.9) {
             actions.add("immediate_block");
             actions.add("alert_security_team");
@@ -310,33 +282,28 @@ public class BehavioralAnalysisLabConnector {
         return actions.stream().distinct().toList();
     }
 
-    /**
-     * 벡터 분석으로 평가 강화
-     *
-     * Vector Store에서 유사 행동 패턴을 검색하여 ThreatAssessment를 강화합니다.
-     * 과거 행동 패턴과의 유사도를 기반으로 이상 점수를 계산하고 추가 컨텍스트를 제공합니다.
-     */
+    
     private void enrichWithVectorAnalysis(ThreatAssessment assessment, SecurityEvent event) {
         try {
             String userId = event.getUserId();
-            // AI Native v8.6: Document-Query 형식 통일
-            // - 기존: severity 기반 검색 → 문서 형식과 불일치
-            // - 변경: User/IP/Path 형식으로 검색
+            
+            
+            
             String sourceIp = event.getSourceIp();
             String requestPath = event.getMetadata() != null ?
                     (String) event.getMetadata().get("requestUri") : null;
 
-            // 1. Vector Store에서 유사 행동 패턴 검색 (상위 10개)
+            
             List<org.springframework.ai.document.Document> similarBehaviors =
                 behaviorVectorService.findSimilarBehaviors(userId, sourceIp, requestPath, 10);
 
-            // 2. 유사 패턴 분석
+            
             Map<String, Object> vectorAnalysis = analyzeSimilarBehaviors(similarBehaviors, event);
 
-            // AI Native v3.1: ThreatAssessment.metadata 필드 제거됨
-            // 벡터 분석 결과는 로그로만 기록 (LLM 분석에서 직접 사용하지 않음)
+            
+            
 
-            // 4. 이상 점수 조정 (유사 패턴이 없으면 이상 점수 증가)
+            
             if (vectorAnalysis.containsKey("anomalyScoreAdjustment")) {
                 double adjustment = (Double) vectorAnalysis.get("anomalyScoreAdjustment");
                 double currentRiskScore = assessment.getRiskScore();
@@ -348,7 +315,7 @@ public class BehavioralAnalysisLabConnector {
                     currentRiskScore, adjustedRiskScore);
             }
 
-            // 5. 추천 액션 강화
+            
             if (vectorAnalysis.containsKey("additionalActions")) {
                 @SuppressWarnings("unchecked")
                 List<String> additionalActions = (List<String>) vectorAnalysis.get("additionalActions");
@@ -362,31 +329,25 @@ public class BehavioralAnalysisLabConnector {
 
         } catch (Exception e) {
             log.warn("[BehavioralConnector] 벡터 분석 실패 (무시하고 계속 진행)", e);
-            // AI Native v3.1: ThreatAssessment.metadata 필드 제거됨 - 오류 정보 로그로만 기록
+            
         }
     }
 
-    /**
-     * 유사 행동 패턴 분석
-     *
-     * @param similarBehaviors 유사 행동 패턴 문서 목록
-     * @param event 현재 보안 이벤트
-     * @return 분석 결과 맵
-     */
+    
     private Map<String, Object> analyzeSimilarBehaviors(
             List<org.springframework.ai.document.Document> similarBehaviors, SecurityEvent event) {
 
         Map<String, Object> analysis = new HashMap<>();
 
         if (similarBehaviors.isEmpty()) {
-            // 유사 패턴이 없음 = 매우 이상한 행동
-            analysis.put("anomalyScoreAdjustment", 0.3); // 이상 점수 30% 증가
+            
+            analysis.put("anomalyScoreAdjustment", 0.3); 
             analysis.put("pattern", "NO_SIMILAR_PATTERN");
             analysis.put("additionalActions", List.of("detailed_investigation", "behavior_baseline_update"));
             return analysis;
         }
 
-        // 1. 평균 유사도 계산
+        
         double avgSimilarity = similarBehaviors.stream()
             .mapToDouble(doc -> {
                 Object simScore = doc.getMetadata().get("similarity_score");
@@ -400,7 +361,7 @@ public class BehavioralAnalysisLabConnector {
 
         analysis.put("averageSimilarity", avgSimilarity);
 
-        // 2. 과거 행동 패턴 요약
+        
         List<Map<String, Object>> historicalPatterns = new ArrayList<>();
         for (org.springframework.ai.document.Document doc : similarBehaviors) {
             Map<String, Object> pattern = new HashMap<>();
@@ -412,7 +373,7 @@ public class BehavioralAnalysisLabConnector {
         }
         analysis.put("historicalPatterns", historicalPatterns);
 
-        // 3. 위험 행동 비율 계산
+        
         long riskBehaviorCount = similarBehaviors.stream()
             .filter(doc -> {
                 Object riskScore = doc.getMetadata().get("riskScore");
@@ -427,17 +388,17 @@ public class BehavioralAnalysisLabConnector {
             (double) riskBehaviorCount / similarBehaviors.size();
         analysis.put("riskBehaviorRatio", riskBehaviorRatio);
 
-        // 4. 이상 점수 조정 계산
+        
         if (avgSimilarity < vectorSimilarityThreshold) {
-            // 유사도가 임계값보다 낮으면 이상 점수 증가
+            
             double adjustment = (vectorSimilarityThreshold - avgSimilarity) * 0.3;
             analysis.put("anomalyScoreAdjustment", adjustment);
         } else if (riskBehaviorRatio > 0.5) {
-            // 과거에 위험 행동이 50% 이상이면 이상 점수 증가
+            
             analysis.put("anomalyScoreAdjustment", riskBehaviorRatio * 0.2);
         }
 
-        // 5. 추천 액션 생성
+        
         List<String> additionalActions = new ArrayList<>();
         if (avgSimilarity < 0.5) {
             additionalActions.add("verify_user_identity");
@@ -451,7 +412,7 @@ public class BehavioralAnalysisLabConnector {
             analysis.put("additionalActions", additionalActions);
         }
 
-        // 6. 패턴 분류
+        
         if (avgSimilarity >= vectorSimilarityThreshold && riskBehaviorRatio < 0.3) {
             analysis.put("pattern", "NORMAL_BEHAVIOR");
         } else if (avgSimilarity >= 0.7 && riskBehaviorRatio >= 0.5) {
@@ -465,9 +426,7 @@ public class BehavioralAnalysisLabConnector {
         return analysis;
     }
 
-    /**
-     * 비활성화 상태 평가
-     */
+    
     private ThreatAssessment createDisabledAssessment(SecurityEvent event) {
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
@@ -477,13 +436,11 @@ public class BehavioralAnalysisLabConnector {
             .riskScore(0.5)
             .confidence(0.0)
             .recommendedActions(List.of("enable_behavioral_analysis"))
-            // AI Native v3.1: metadata 필드 제거됨 - status는 evaluator로 전달 ("BehavioralAnalysisLab-Disabled")
+            
             .build();
     }
 
-    /**
-     * 오류 발생 시 평가
-     */
+    
     private ThreatAssessment createErrorAssessment(SecurityEvent event, String assessmentId, String error) {
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
@@ -493,7 +450,7 @@ public class BehavioralAnalysisLabConnector {
             .riskScore(0.5)
             .confidence(0.3)
             .recommendedActions(List.of("manual_review", "fallback_analysis"))
-            // AI Native v3.1: metadata 필드 제거됨 - error는 description에 포함
+            
             .description("Error: " + error)
             .build();
     }

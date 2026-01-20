@@ -16,14 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 시스템 메트릭 수집 서비스
- *
- * 자율 학습 시스템이 사용할 실시간 시스템 상태 메트릭을 수집합니다.
- *
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
 
@@ -40,18 +33,18 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
     @PostConstruct
     public void init() {
         if (meterRegistry != null) {
-            // System Health Score Gauge 등록
+            
             meterRegistry.gauge("system.health.score", this,
                 SystemMetricsCollector::getHealthScore);
 
-            // 활성 인시던트 수 Gauge 등록
+            
             meterRegistry.gauge("system.active.incidents", this,
                 metrics -> {
                     Map<String, Object> m = metrics.getSystemMetrics();
                     return ((Number) m.getOrDefault("activeIncidents", 0L)).doubleValue();
                 });
 
-            // 위협 레벨 Gauge 등록
+            
             meterRegistry.gauge("system.threat.level", this,
                 metrics -> {
                     Map<String, Object> m = metrics.getSystemMetrics();
@@ -64,44 +57,40 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    /**
-     * 현재 시스템 메트릭 조회
-     *
-     * @return 시스템 상태 메트릭 맵
-     */
+    
     public Map<String, Object> getSystemMetrics() {
         Map<String, Object> metrics = new HashMap<>();
 
         try {
-            // 활성 인시던트 수 조회
+            
             long activeIncidents = countActiveIncidents();
             metrics.put("activeIncidents", activeIncidents);
 
-            // 위협 레벨 계산 (0.0 ~ 1.0)
+            
             double threatLevel = calculateThreatLevel(activeIncidents);
             metrics.put("threatLevel", threatLevel);
 
-            // 최근 24시간 인시던트 수
+            
             long recentIncidents = countRecentIncidents(24);
             metrics.put("recentIncidents24h", recentIncidents);
 
-            // 평균 해결 시간 (분)
+            
             double avgResolutionTime = calculateAverageResolutionTime();
             metrics.put("avgResolutionTimeMinutes", avgResolutionTime);
 
-            // 시스템 리소스 사용률
+            
             Map<String, Double> resourceUsage = getResourceUsage();
             metrics.put("resourceUsage", resourceUsage);
 
-            // 보안 이벤트 속도 (이벤트/분)
+            
             double eventRate = calculateEventRate();
             metrics.put("eventRatePerMinute", eventRate);
 
-            // 실패한 인증 시도 수
+            
             long failedAuthAttempts = countFailedAuthAttempts();
             metrics.put("failedAuthAttempts", failedAuthAttempts);
 
-            // 정책 위반 수
+            
             long policyViolations = countPolicyViolations();
             metrics.put("policyViolations", policyViolations);
 
@@ -109,7 +98,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
 
         } catch (Exception e) {
             log.error("시스템 메트릭 수집 실패", e);
-            // 기본값 반환
+            
             metrics.put("activeIncidents", 0L);
             metrics.put("threatLevel", 0.0);
             metrics.put("error", e.getMessage());
@@ -118,11 +107,9 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return metrics;
     }
 
-    /**
-     * 활성 인시던트 수 조회
-     */
+    
     private long countActiveIncidents() {
-        // SoarIncident uses SoarIncidentStatus enum, not nested enum
+        
         return incidentRepository.findAll().stream()
             .filter(incident -> incident.getStatus() == SoarIncidentStatus.NEW ||
                     incident.getStatus() == SoarIncidentStatus.TRIAGE ||
@@ -134,9 +121,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             .count();
     }
 
-    /**
-     * 최근 N시간 내 인시던트 수 조회
-     */
+    
     private long countRecentIncidents(int hours) {
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         return incidentRepository.findAll().stream()
@@ -145,16 +130,13 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             .count();
     }
 
-    /**
-     * 위협 레벨 계산
-     * 활성 인시던트 수와 심각도를 기반으로 계산
-     */
+    
     private double calculateThreatLevel(long activeIncidents) {
-        // 기본 위협 레벨 계산
+        
         double baseThreat = Math.min(1.0, activeIncidents / 20.0);
 
-        // 심각한 인시던트 가중치 적용
-        // Use severity field as String
+        
+        
         long criticalIncidents = incidentRepository.findAll().stream()
             .filter(incident -> (incident.getStatus() == SoarIncidentStatus.NEW ||
                     incident.getStatus() == SoarIncidentStatus.TRIAGE ||
@@ -167,12 +149,10 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return Math.min(1.0, baseThreat + criticalWeight);
     }
 
-    /**
-     * 평균 해결 시간 계산 (분 단위)
-     */
+    
     private double calculateAverageResolutionTime() {
         try {
-            // Get recently updated incidents since resolvedAt field doesn't exist
+            
             List<SoarIncident> resolvedIncidents = incidentRepository.findAll().stream()
                 .filter(incident -> incident.getStatus() == SoarIncidentStatus.COMPLETED ||
                         incident.getStatus() == SoarIncidentStatus.AUTO_CLOSED ||
@@ -203,9 +183,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    /**
-     * 시스템 리소스 사용률 조회
-     */
+    
     private Map<String, Double> getResourceUsage() {
         Map<String, Double> usage = new HashMap<>();
 
@@ -215,29 +193,27 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         long freeMemory = runtime.freeMemory();
         long usedMemory = totalMemory - freeMemory;
 
-        // 메모리 사용률 (%)
+        
         double memoryUsage = (double) usedMemory / maxMemory * 100;
         usage.put("memoryUsagePercent", memoryUsage);
 
-        // CPU 사용률 (JVM 프로세스)
+        
         com.sun.management.OperatingSystemMXBean osBean =
             (com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory.getOperatingSystemMXBean();
         double cpuUsage = osBean.getProcessCpuLoad() * 100;
         usage.put("cpuUsagePercent", cpuUsage);
 
-        // 스레드 수
+        
         int threadCount = java.lang.management.ManagementFactory.getThreadMXBean().getThreadCount();
         usage.put("activeThreads", (double) threadCount);
 
         return usage;
     }
 
-    /**
-     * 보안 이벤트 발생 속도 계산 (이벤트/분)
-     */
+    
     private double calculateEventRate() {
         try {
-            // 최근 10분간 이벤트 수
+            
             LocalDateTime tenMinutesAgo = LocalDateTime.now().minusMinutes(10);
             long eventCount = incidentRepository.findAll().stream()
                 .filter(incident -> incident.getCreatedAt() != null &&
@@ -252,10 +228,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    /**
-     * 실패한 인증 시도 수 조회
-     * 최근 1시간 기준
-     */
+    
     private long countFailedAuthAttempts() {
         try {
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
@@ -270,10 +243,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    /**
-     * 정책 위반 수 조회
-     * 최근 1시간 기준
-     */
+    
     private long countPolicyViolations() {
         try {
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
@@ -288,24 +258,19 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    /**
-     * 특정 기간 동안의 메트릭 트렌드 조회
-     *
-     * @param hours 조회할 시간 범위
-     * @return 시간대별 메트릭 트렌드
-     */
+    
     public Map<String, Object> getMetricsTrend(int hours) {
         Map<String, Object> trend = new HashMap<>();
 
         try {
             LocalDateTime startTime = LocalDateTime.now().minusHours(hours);
 
-            // 시간대별 인시던트 수
-            // Simple implementation - group by hour
+            
+            
             List<Map<String, Object>> incidentTrend = new ArrayList<>();
             trend.put("incidentTrend", incidentTrend);
 
-            // 시간대별 위협 레벨
+            
             List<Map<String, Object>> threatTrend = calculateThreatTrend(startTime);
             trend.put("threatTrend", threatTrend);
 
@@ -317,16 +282,14 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return trend;
     }
 
-    /**
-     * 위협 레벨 트렌드 계산
-     */
+    
     private List<Map<String, Object>> calculateThreatTrend(LocalDateTime startTime) {
-        // 실제 구현에서는 시간대별 위협 레벨을 계산
-        // 여기서는 간단한 구현
+        
+        
         return List.of();
     }
 
-    // ===== MetricsCollector 인터페이스 구현 =====
+    
 
     @Override
     public String getDomain() {
@@ -338,7 +301,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         log.info("SystemMetricsCollector 초기화 완료");
     }
 
-    // getSystemMetrics()가 이미 39번째 줄에 구현되어 있음
+    
     @Override
     public Map<String, Object> getStatistics() {
         return getSystemMetrics();
@@ -349,25 +312,25 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         log.info("SystemMetricsCollector 리셋 - 인시던트 레포지토리는 유지됨");
     }
 
-    // ===== DomainMetrics 인터페이스 구현 =====
+    
 
     @Override
     public double getHealthScore() {
         try {
-            // 시스템 건강도 = (1 - 위협레벨) * 리소스가용성 * 성공률
+            
             Map<String, Object> metrics = getSystemMetrics();
 
             double threatLevel = (double) metrics.getOrDefault("threatLevel", 0.0);
             double healthFromThreat = 1.0 - threatLevel;
 
-            // 리소스 가용성 (메모리 사용률 기반)
+            
             @SuppressWarnings("unchecked")
             Map<String, Double> resourceUsage = (Map<String, Double>)
                 metrics.getOrDefault("resourceUsage", new HashMap<String, Double>());
             double memoryUsage = resourceUsage.getOrDefault("memoryUsagePercent", 0.0);
             double resourceAvailability = Math.max(0, 1.0 - (memoryUsage / 100.0));
 
-            // 성공률 (실패한 인증 시도와 정책 위반 기반)
+            
             long failedAuth = (long) metrics.getOrDefault("failedAuthAttempts", 0L);
             long policyViolations = (long) metrics.getOrDefault("policyViolations", 0L);
             long activeIncidents = (long) metrics.getOrDefault("activeIncidents", 0L);
@@ -380,7 +343,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
 
         } catch (Exception e) {
             log.warn("시스템 건강도 계산 실패: {}", e.getMessage());
-            return 0.5; // 기본값
+            return 0.5; 
         }
     }
 
@@ -391,7 +354,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         try {
             Map<String, Object> metrics = getSystemMetrics();
 
-            // 핵심 지표 추출
+            
             keyMetrics.put("active_incidents",
                 ((Number) metrics.getOrDefault("activeIncidents", 0L)).doubleValue());
             keyMetrics.put("threat_level",
@@ -401,7 +364,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             keyMetrics.put("avg_resolution_time_minutes",
                 (double) metrics.getOrDefault("avgResolutionTimeMinutes", 0.0));
 
-            // 리소스 사용률
+            
             @SuppressWarnings("unchecked")
             Map<String, Double> resourceUsage = (Map<String, Double>)
                 metrics.getOrDefault("resourceUsage", new HashMap<String, Double>());
@@ -410,7 +373,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             keyMetrics.put("cpu_usage_percent",
                 resourceUsage.getOrDefault("cpuUsagePercent", 0.0));
 
-            // 보안 지표
+            
             keyMetrics.put("failed_auth_attempts",
                 ((Number) metrics.getOrDefault("failedAuthAttempts", 0L)).doubleValue());
             keyMetrics.put("policy_violations",
@@ -423,7 +386,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return keyMetrics;
     }
 
-    // ===== EventRecorder 인터페이스 구현 =====
+    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {

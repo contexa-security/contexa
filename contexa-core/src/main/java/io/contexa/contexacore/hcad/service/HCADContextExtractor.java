@@ -14,51 +14,37 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- * HCAD 컨텍스트 추출 서비스
- *
- * HTTP 요청과 인증 정보에서 HCAD 분석에 필요한 컨텍스트를 추출
- * 성능 목표: 1-5ms
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class HCADContextExtractor {
 
     private final RedisTemplate<String, Object> redisTemplate;
 
-    /**
-     * X-Simulated-User-Agent 헤더 활성화 여부 (테스트/개발 환경 전용)
-     * 프로덕션에서는 반드시 false로 설정
-     */
+    
     @Value("${contexa.hcad.enable-simulated-user-agent:false}")
     private boolean enableSimulatedUserAgent;
 
-    /**
-     * 요청에서 HCAD 컨텍스트 추출
-     *
-     * 익명 사용자 처리 개선:
-     * - 익명 사용자는 IP 주소를 기반으로 userId 생성 (anonymous:{IP})
-     * - 이를 통해 익명 사용자별 행동 패턴 학습 및 유사도 계산 가능
-     */
+    
     public HCADContext extractContext(HttpServletRequest request, Authentication authentication) {
         long startTime = System.nanoTime();
 
         try {
-            // IP 주소 먼저 추출 (익명 사용자 userId에 필요)
+            
             String clientIp = extractClientIp(request);
 
-            // userId 추출 - Principal이 UserDto일 수 있음을 고려
+            
             String userId = extractUserId(authentication);
             String username = extractUsername(authentication);
             String sessionId = request.getRequestedSessionId();
 
-            // 익명 사용자는 IP 주소를 userId로 사용
+            
             if (userId.startsWith("anonymous:")) {
                 userId = "anonymous:" + clientIp;
                 username = "anonymous:" + clientIp;
             }
 
-            // 기본 정보 추출
+            
             HCADContext context = new HCADContext();
             context.setUserId(userId);
             context.setSessionId(sessionId != null ? sessionId : "unknown");
@@ -66,7 +52,7 @@ public class HCADContextExtractor {
             context.setRequestPath(request.getRequestURI());
             context.setHttpMethod(request.getMethod());
             context.setRemoteIp(clientIp);
-            // X-Simulated-User-Agent 헤더 처리 (프로파일 기반 활성화)
+            
             String userAgent;
             if (enableSimulatedUserAgent) {
                 userAgent = request.getHeader("X-Simulated-User-Agent");
@@ -80,16 +66,16 @@ public class HCADContextExtractor {
             context.setReferer(request.getHeader("Referer"));
             context.setTimestamp(Instant.now());
 
-            // 세션 정보 확인
+            
             enrichWithSessionInfo(context, userId, sessionId);
 
-            // 요청 패턴 분석
+            
             enrichWithRequestPattern(context, userId, request);
 
-            // 보안 정보 추가
+            
             enrichWithSecurityInfo(context, userId, authentication);
 
-            // 리소스 정보 분석
+            
             enrichWithResourceInfo(context, request);
 
             long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
@@ -99,7 +85,7 @@ public class HCADContextExtractor {
 
         } catch (Exception e) {
             log.error("[HCAD] 컨텍스트 추출 실패", e);
-            // 최소한의 컨텍스트 반환 (Zero Trust: 예외 시 보수적 기본값)
+            
             return HCADContext.builder()
                 .userId(authentication != null ? extractUserId(authentication) : "unknown")
                 .sessionId(request.getRequestedSessionId())
@@ -107,20 +93,14 @@ public class HCADContextExtractor {
                 .httpMethod(request.getMethod())
                 .remoteIp(request.getRemoteAddr())
                 .timestamp(Instant.now())
-                .isNewSession(true)      // 예외 시 신규 세션으로 간주 (보수적)
-                .isNewUser(true)         // 예외 시 신규 사용자로 간주 (보수적)
-                .isNewDevice(true)       // 예외 시 신규 디바이스로 간주 (보수적)
+                .isNewSession(true)      
+                .isNewUser(true)         
+                .isNewDevice(true)       
                 .build();
         }
     }
 
-    /**
-     * Authentication 에서 userId 추출
-     * Principal이 UserDto 객체일 경우를 처리
-     * 익명 사용자 처리 개선:
-     * - 익명 사용자는 "anonymous:{IP}" 형식으로 userId 생성
-     * - 이를 통해 익명 사용자도 HCAD 유사도 계산 및 패턴 학습 가능
-     */
+    
     private String extractUserId(Authentication authentication) {
         if (authentication == null) {
             return "anonymous:unknown";
@@ -128,15 +108,15 @@ public class HCADContextExtractor {
 
         Object principal = authentication.getPrincipal();
 
-        // 익명 사용자 판별 (Spring Security의 anonymousUser)
+        
         if ("anonymousUser".equals(principal)) {
-            return "anonymous:" + System.currentTimeMillis(); // 임시 ID (나중에 IP로 대체)
+            return "anonymous:" + System.currentTimeMillis(); 
         }
 
-        // UserDto의 username 필드 추출 (리플렉션 사용)
+        
         if (principal != null && principal.getClass().getSimpleName().contains("UserDto")) {
             try {
-                // username 필드 가져오기
+                
                 java.lang.reflect.Method getUsernameMethod = principal.getClass().getMethod("getUsername");
                 Object username = getUsernameMethod.invoke(principal);
                 return username != null ? username.toString() : authentication.getName();
@@ -146,27 +126,23 @@ public class HCADContextExtractor {
             }
         }
 
-        // 기본 처리
+        
         String name = authentication.getName();
 
-        // anonymousUser인 경우 처리
+        
         if ("anonymousUser".equals(name)) {
-            return "anonymous:" + System.currentTimeMillis(); // 임시 ID (나중에 IP로 대체)
+            return "anonymous:" + System.currentTimeMillis(); 
         }
 
         return name;
     }
 
-    /**
-     * Authentication에서 username 추출
-     */
+    
     private String extractUsername(Authentication authentication) {
-        return extractUserId(authentication); // 동일한 로직 사용
+        return extractUserId(authentication); 
     }
 
-    /**
-     * 실제 클라이언트 IP 추출 (프록시 고려)
-     */
+    
     private String extractClientIp(HttpServletRequest request) {
         String[] headers = {
             "X-Forwarded-For",
@@ -180,7 +156,7 @@ public class HCADContextExtractor {
         for (String header : headers) {
             String ip = request.getHeader(header);
             if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-                // 여러 IP가 있는 경우 첫 번째 선택
+                
                 if (ip.contains(",")) {
                     return ip.split(",")[0].trim();
                 }
@@ -191,31 +167,25 @@ public class HCADContextExtractor {
         return request.getRemoteAddr();
     }
 
-    /**
-     * 세션 관련 정보 추가
-     *
-     * AI Native v6.4: IsNewDevice 로직 변경
-     * - 기존: sessionId 기반 → 새 세션이면 항상 새 디바이스로 판단 (오류)
-     * - 변경: userId 기반 → 사용자가 이전에 사용한 디바이스인지 확인
-     */
+    
     private void enrichWithSessionInfo(HCADContext context,
                                       String userId, String sessionId) {
         try {
-            // 세션 정보 키
+            
             String sessionKey = ZeroTrustRedisKeys.sessionMetadata(sessionId);
             Map<Object, Object> sessionInfo = redisTemplate.opsForHash().entries(sessionKey);
 
-            // IsNewSession 판단 (기존 로직 유지)
+            
             boolean isNewSession = (sessionInfo == null || sessionInfo.isEmpty());
             context.setIsNewSession(isNewSession);
 
-            // AI Native v6.4: IsNewDevice 판단 (userId 기반으로 변경)
-            // 새 세션이어도 같은 디바이스면 IsNewDevice=false
+            
+            
             String currentDevice = context.getUserAgent();
             boolean isNewDevice = checkAndRegisterDevice(userId, currentDevice);
             context.setIsNewDevice(isNewDevice);
 
-            // 세션 정보 저장 (새 세션인 경우)
+            
             if (isNewSession) {
                 Map<String, Object> newSessionInfo = new HashMap<>();
                 newSessionInfo.put("userId", userId);
@@ -232,40 +202,30 @@ public class HCADContextExtractor {
         }
     }
 
-    /**
-     * AI Native v6.4: 디바이스 확인 및 등록 (userId 기반)
-     *
-     * 사용자가 이전에 사용한 디바이스인지 확인하고, 새 디바이스면 등록합니다.
-     * - 기존 디바이스: Redis Set에 User-Agent가 존재 → IsNewDevice=false
-     * - 새 디바이스: Redis Set에 User-Agent가 없음 → IsNewDevice=true, Set에 추가
-     *
-     * @param userId 사용자 ID
-     * @param currentDevice 현재 User-Agent
-     * @return true면 새 디바이스, false면 기존 디바이스
-     */
+    
     private boolean checkAndRegisterDevice(String userId, String currentDevice) {
         if (userId == null || currentDevice == null || currentDevice.isEmpty()) {
-            return true;  // 정보 부족 시 새 디바이스로 판단
+            return true;  
         }
 
         try {
             String deviceKey = ZeroTrustRedisKeys.userDevices(userId);
 
-            // 기존 디바이스 목록에서 확인
+            
             Boolean isMember = redisTemplate.opsForSet().isMember(deviceKey, currentDevice);
 
             if (Boolean.TRUE.equals(isMember)) {
-                // 기존 디바이스
+                
                 return false;
             } else {
-                // 새 디바이스 - Set에 추가
+                
                 redisTemplate.opsForSet().add(deviceKey, currentDevice);
                 redisTemplate.expire(deviceKey, Duration.ofDays(30));
 
-                // 최대 10개 유지 (오래된 디바이스 정리)
+                
                 Long size = redisTemplate.opsForSet().size(deviceKey);
                 if (size != null && size > 10) {
-                    // Set에서 랜덤하게 1개 제거 (현재 디바이스 제외)
+                    
                     Object oldDevice = redisTemplate.opsForSet().randomMember(deviceKey);
                     if (oldDevice != null && !oldDevice.equals(currentDevice)) {
                         redisTemplate.opsForSet().remove(deviceKey, oldDevice);
@@ -276,34 +236,32 @@ public class HCADContextExtractor {
             }
         } catch (Exception e) {
             log.debug("[HCAD] 디바이스 확인 실패", e);
-            return true;  // 오류 시 새 디바이스로 판단 (Zero Trust)
+            return true;  
         }
     }
 
-    /**
-     * 요청 패턴 정보 추가
-     */
+    
     private void enrichWithRequestPattern(HCADContext context,
                                          String userId, HttpServletRequest request) {
         try {
-            // 최근 요청 카운터 키
+            
             String counterKey = "hcad:request:counter:" + userId;
 
-            // 현재 요청 기록
+            
             long currentTime = System.currentTimeMillis();
             redisTemplate.opsForZSet().add(counterKey, Long.toString(currentTime), currentTime);
 
-            // 5분 전 시간
+            
             long fiveMinutesAgo = currentTime - (5 * 60 * 1000);
 
-            // 오래된 엔트리 제거
+            
             redisTemplate.opsForZSet().removeRangeByScore(counterKey, 0, fiveMinutesAgo);
 
-            // 최근 5분간 요청 수
+            
             Long recentCount = redisTemplate.opsForZSet().count(counterKey, fiveMinutesAgo, currentTime);
             context.setRecentRequestCount(recentCount != null ? recentCount.intValue() : 1);
 
-            // 이전 요청과의 시간 간격
+            
             String lastRequestKey = "hcad:last:request:" + userId;
             String lastRequestTime = (String) redisTemplate.opsForValue().get(lastRequestKey);
             if (lastRequestTime != null) {
@@ -313,11 +271,11 @@ public class HCADContextExtractor {
                 context.setLastRequestInterval(0L);
             }
 
-            // 현재 시간 저장
+            
             redisTemplate.opsForValue().set(lastRequestKey, Long.toString(currentTime),
                 Duration.ofMinutes(10));
 
-            // 이전 경로 저장
+            
             String previousPathKey = "hcad:previous:path:" + userId;
             String previousPath = (String) redisTemplate.opsForValue().get(previousPathKey);
             context.setPreviousPath(previousPath);
@@ -331,62 +289,55 @@ public class HCADContextExtractor {
         }
     }
 
-    /**
-     * 보안 관련 정보 추가 (AI Native)
-     *
-     * AI Native 전환:
-     * - 0.5 기본값 규칙 제거
-     * - Redis에 값이 없으면 null로 표시 (LLM이 컨텍스트로 판단)
-     * - isNewUser: 이전 HCAD 분석 기록이 없는 신규 사용자 판별
-     */
+    
     private void enrichWithSecurityInfo(HCADContext context,
                                        String userId, Authentication authentication) {
         try {
-            // AI Native v6.5: 신규 사용자 판별 (영구 등록 키 확인)
-            // 첫 요청 시 등록 키 생성, 이후 모든 요청에서 isNewUser = false
-            // 기존 방식 문제: HCAD 분석 결과(TTL 30초)로 판단하면 매번 신규 사용자 됨
+            
+            
+            
             String registeredKey = ZeroTrustRedisKeys.userRegistered(userId);
             Boolean isRegistered = redisTemplate.hasKey(registeredKey);
 
             if (!isRegistered) {
-                // 신규 사용자: 등록 키 생성 (영구 저장, TTL 없음)
+                
                 redisTemplate.opsForValue().set(registeredKey, "true");
                 context.setNewUser(true);
                 log.info("[HCAD][AI Native] New user registered: {}", userId);
             } else {
-                // 기존 사용자
+                
                 context.setNewUser(false);
                 log.debug("[HCAD][AI Native] Known user: {}", userId);
             }
 
-            // AI Native: 신뢰 점수를 그대로 조회 (기본값 규칙 제거)
+            
             String trustScoreKey = "trust:score:" + userId;
             Double trustScore = (Double) redisTemplate.opsForValue().get(trustScoreKey);
-            // AI Native: null이면 NaN으로 설정 (LLM이 "신뢰 정보 없음" 컨텍스트로 처리)
+            
             context.setCurrentTrustScore(trustScore != null ? trustScore : Double.NaN);
 
-            // AI Native: Baseline 신뢰도도 NaN으로 초기화 (LLM이 판단)
+            
             context.setBaselineConfidence(Double.NaN);
 
-            // 실패한 로그인 시도 조회 (원시 데이터)
+            
             String failedLoginKey = "security:failed:login:" + userId;
             String failedCount = (String) redisTemplate.opsForValue().get(failedLoginKey);
             context.setFailedLoginAttempts(failedCount != null ? Integer.parseInt(failedCount) : 0);
 
-            // 인증 방법 확인 (원시 데이터 - 규칙 아님)
+            
             String authMethod = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().contains("MFA")) ? "mfa" : "password";
             context.setAuthenticationMethod(authMethod);
 
-            // MFA 상태 확인 (원시 데이터)
+            
             String mfaKey = "security:mfa:verified:" + userId;
             Boolean hasMfa = redisTemplate.hasKey(mfaKey);
             context.setHasValidMFA(hasMfa);
 
-            // AI Native v6.1: Zero Trust - 신규 사용자라도 실제 세션/디바이스 정보를 LLM에 제공
-            // 강제 설정 제거 - LLM이 원시 데이터를 기반으로 판단
-            // isNewUser=true이지만 isNewSession=false인 경우 = 세션 하이재킹 가능성
-            // LLM이 이 모순적 상황을 감지하고 적절히 판단하도록 함
+            
+            
+            
+            
             if (Boolean.TRUE.equals(context.getIsNewUser())) {
                 log.debug("[HCAD][AI Native][Zero Trust] New user detected: userId={}, isNewSession={}, isNewDevice={}",
                     userId, context.getIsNewSession(), context.getIsNewDevice());
@@ -394,47 +345,40 @@ public class HCADContextExtractor {
 
         } catch (Exception e) {
             log.debug("[HCAD][AI Native] 보안 정보 추출 실패", e);
-            // AI Native: 예외 발생 시 NaN으로 설정 (분석 불가 상태 명시)
+            
             context.setCurrentTrustScore(Double.NaN);
             context.setBaselineConfidence(Double.NaN);
             context.setFailedLoginAttempts(0);
             context.setHasValidMFA(false);
-            context.setNewUser(true); // 오류 시 신규 사용자로 취급 (보수적 접근)
+            context.setNewUser(true); 
         }
     }
 
-    /**
-     * 리소스 정보 분석 (AI Native)
-     *
-     * AI Native 전환:
-     * - 리소스 타입 분류 규칙 제거 (startsWith 규칙)
-     * - 민감 리소스 판단 규칙 제거 (contains 규칙)
-     * - 원시 경로 정보만 저장하여 LLM이 컨텍스트로 판단
-     */
+    
     private void enrichWithResourceInfo(HCADContext context,
                                        HttpServletRequest request) {
         try {
             String path = request.getRequestURI();
 
-            // AI Native: 리소스 타입 분류 규칙 제거
-            // 경로를 그대로 저장하여 LLM이 판단
-            // resourceType 필드에는 경로의 첫 번째 세그먼트를 원시 데이터로 저장
+            
+            
+            
             String[] segments = path.split("/");
             String firstSegment = segments.length > 1 ? segments[1] : "";
-            context.setResourceType(firstSegment); // 원시 경로 세그먼트 (분류하지 않음)
+            context.setResourceType(firstSegment); 
 
-            // AI Native: 민감 리소스 판단 규칙 제거
-            // LLM이 경로 컨텍스트를 분석하여 민감도 판단
-            // isSensitiveResource 필드는 null로 설정 (LLM이 판단)
+            
+            
+            
             context.setIsSensitiveResource(null);
 
-            // 추가 속성 (원시 데이터 수집)
+            
             Map<String, Object> additionalAttrs = new HashMap<>();
             additionalAttrs.put("contentType", request.getContentType());
             additionalAttrs.put("queryString", request.getQueryString());
             additionalAttrs.put("protocol", request.getProtocol());
             additionalAttrs.put("secure", request.isSecure());
-            additionalAttrs.put("fullPath", path); // AI Native: 전체 경로를 LLM 컨텍스트로 전달
+            additionalAttrs.put("fullPath", path); 
             context.setAdditionalAttributes(additionalAttrs);
 
         } catch (Exception e) {

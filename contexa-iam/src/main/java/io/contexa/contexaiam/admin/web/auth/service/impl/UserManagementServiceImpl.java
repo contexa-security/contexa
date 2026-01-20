@@ -44,15 +44,15 @@ public class UserManagementServiceImpl implements UserManagementService {
             users.setPassword(passwordEncoder.encode(userDto.getPassword()));
         }
 
-        // ========================= [수정된 동기화 로직] =========================
+        
         Set<Long> desiredGroupIds = userDto.getSelectedGroupIds() != null
                 ? new HashSet<>(userDto.getSelectedGroupIds())
                 : new HashSet<>();
 
-        // 현재 UserGroup 관계를 모두 제거
+        
         users.getUserGroups().clear();
 
-        // 새로운 UserGroup 관계를 추가
+        
         for (Long groupId : desiredGroupIds) {
             Group group = groupRepository.findById(groupId)
                     .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + groupId));
@@ -63,7 +63,7 @@ public class UserManagementServiceImpl implements UserManagementService {
             users.getUserGroups().add(userGroup);
         }
 
-        // 명시적으로 저장
+        
         userRepository.save(users);
 
         log.info("User {} (ID: {}) modified successfully with {} groups.",

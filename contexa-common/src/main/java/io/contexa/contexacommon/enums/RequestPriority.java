@@ -2,10 +2,7 @@ package io.contexa.contexacommon.enums;
 
 import lombok.Getter;
 
-/**
- * 요청 우선순위
- * SRP 준수: 요청 우선순위 정의만 담당
- */
+
 @Getter
 public enum RequestPriority {
     LOW("낮음", 1),

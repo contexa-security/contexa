@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects; // [신규] import 추가
+import java.util.Objects; 
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -23,15 +23,15 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
     @Override
     public Policy translate(WizardContext context) {
         Policy policy = Policy.builder()
-                .name(context.sessionTitle()) // [수정] policyName() -> sessionTitle()
-                .description(context.sessionDescription()) // [수정] policyDescription() -> sessionDescription()
+                .name(context.sessionTitle()) 
+                .description(context.sessionDescription()) 
                 .effect(Policy.Effect.ALLOW)
                 .priority(500)
                 .build();
 
         List<String> conditions = new ArrayList<>();
 
-        // 주체(Who) SpEL 조건 생성
+        
         String subjectExpression = context.subjects().stream()
                 .map(subject -> String.format("hasAuthority('%s_%d')", subject.type(), subject.id()))
                 .collect(Collectors.joining(" or "));
@@ -40,7 +40,7 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
             conditions.add("(" + subjectExpression + ")");
         }
 
-        // 권한(What) SpEL 조건 생성
+        
         List<Permission> permissions = permissionRepository.findAllById(context.permissionIds());
         String permissionExpression = permissions.stream()
                 .map(Permission::getName)
@@ -51,7 +51,7 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
             conditions.add("(" + permissionExpression + ")");
         }
 
-        // 규칙(Rule) 엔티티 생성
+        
         PolicyRule rule = PolicyRule.builder()
                 .policy(policy)
                 .description("Wizard-generated rule for: " + context.sessionDescription())
@@ -62,11 +62,11 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
                 .collect(Collectors.toSet());
         rule.setConditions(policyConditions);
 
-        // [수정] 대상(Target) 엔티티 생성 로직 변경
-        // p.getFunctions() 대신, Permission에 직접 연결된 ManagedResource를 사용합니다.
+        
+        
         Set<PolicyTarget> targets = permissions.stream()
-                .map(Permission::getManagedResource) // 1:1 관계인 ManagedResource를 직접 가져옵니다.
-                .filter(Objects::nonNull) // ManagedResource가 없는 경우를 대비해 null을 필터링합니다.
+                .map(Permission::getManagedResource) 
+                .filter(Objects::nonNull) 
                 .map(mr -> PolicyTarget.builder()
                         .policy(policy)
                         .targetType(mr.getResourceType().name())

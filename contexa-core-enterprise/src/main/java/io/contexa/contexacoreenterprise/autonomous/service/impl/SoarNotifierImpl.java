@@ -24,12 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * SOAR Notifier 구현체
- * 
- * Security Plane Agent가 감지한 보안 이벤트/인시던트를 SOAR 시스템에 알립니다.
- * 비동기 모드에서는 DB에 알림을 저장하고 나중에 처리합니다.
- */
+
 public class SoarNotifierImpl implements ISoarNotifier {
     
     private static final Logger logger = LoggerFactory.getLogger(SoarNotifierImpl.class);
@@ -58,7 +53,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
     @Value("${security.plane.notifier.critical-threshold:0.8}")
     private double criticalThreshold;
     
-    // 통계 추적
+    
     private final AtomicLong totalNotifications = new AtomicLong(0);
     private final AtomicLong successfulNotifications = new AtomicLong(0);
     private final AtomicLong failedNotifications = new AtomicLong(0);
@@ -74,11 +69,11 @@ public class SoarNotifierImpl implements ISoarNotifier {
         
         return CompletableFuture.supplyAsync(() -> {
             try {
-                // SOAR Lab이 있으면 직접 분석 요청
+                
                 if (soarLab != null) {
                     String prompt = buildIncidentPrompt(incident);
                     
-                    // 비동기 모드에서는 DB에 알림 저장
+                    
                     if (asyncEnabled && notificationRepository != null) {
                         ApprovalNotification notification = createNotification(
                             requestId, 
@@ -91,8 +86,8 @@ public class SoarNotifierImpl implements ISoarNotifier {
                         logger.info("Saved async notification for incident: {}", incident.getIncidentId());
                     }
                     
-                    // SOAR Lab 분석 요청 (내부적으로 ApprovalAwareToolCallingManagerDecorator 사용)
-                    // 동기 모드 분석 (analyzeWithContext 메서드 없음 - 동기 처리로 변경)
+                    
+                    
                     SoarRequest soarRequest = SoarRequest.builder()
                         .context(context)
                         .operation("soarAnalysis")
@@ -109,13 +104,13 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     return NotificationResult.success(requestId, analysisResult);
                     
                 } else if (aiProcessor != null) {
-                    // AI Processor를 통한 8개 Lab 분석
+                    
                     logger.info("Using AI Processor for incident analysis: {}", incident.getIncidentId());
                     
-                    // AI Processor는 8개 Lab을 오케스트레이션
+                    
                     Map<String, Object> analysisRequest = buildAnalysisRequest(incident, context);
                     
-                    // 비동기 모드 - DB 저장
+                    
                     if (asyncEnabled && notificationRepository != null) {
                         saveAsyncAnalysisRequest(requestId, incident, analysisRequest);
                     }
@@ -126,7 +121,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     return NotificationResult.success(requestId, "AI analysis request queued");
                     
                 } else {
-                    // 폴백: 알림만 전송 (sendIncidentNotification 메서드가 없으므로 로그 처리)
+                    
                     if (notificationService != null) {
                         logger.info("Incident notification sent for incident: {} with description: {} and threat level: {}", 
                             incident.getIncidentId(), incident.getDescription(), incident.getThreatLevel().toString());
@@ -157,13 +152,13 @@ public class SoarNotifierImpl implements ISoarNotifier {
         
         return CompletableFuture.supplyAsync(() -> {
             try {
-                // 고위험 도구 실행 알림
+                
                 String prompt = String.format(
                     "High-risk security tool '%s' requires approval. Parameters: %s. Context: %s",
                     toolName, toolParameters, context.getIncidentId()
                 );
                 
-                // 비동기 모드에서 DB 저장
+                
                 if (asyncEnabled && notificationRepository != null) {
                     ApprovalNotification notification = createNotification(
                         requestId,
@@ -172,7 +167,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                         prompt,
                         context
                     );
-                    // Tool 정보를 notificationData에 저장
+                    
                     Map<String, Object> toolData = notification.getNotificationData();
                     if (toolData == null) {
                         toolData = new HashMap<>();
@@ -183,9 +178,9 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     notificationRepository.save(notification);
                 }
                 
-                // 알림 서비스로 전송 (sendHighRiskToolNotification 메서드가 없으므로 일반적인 메서드 사용)
+                
                 if (notificationService != null) {
-                    // 고위험 도구 알림을 일반 알림으로 처리
+                    
                     logger.info("High-risk tool notification sent for tool: {} with parameters: {}", toolName, toolParameters);
                 }
                 
@@ -209,7 +204,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
         logger.warn("CRITICAL SITUATION detected for incident: {}", context.getIncidentId());
         
         try {
-            // Critical 상황은 즉시 처리
+            
             if (soarLab != null) {
                 String prompt = String.format(
                     "CRITICAL SECURITY SITUATION: Incident %s with severity %s requires immediate attention. " +
@@ -217,9 +212,9 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     context.getIncidentId(), context.getSeverity(), context.getAffectedAssets()
                 );
                 
-                // 동기 모드로 즉시 실행 (Critical은 대기하지 않음)
+                
                 context.setExecutionMode(io.contexa.contexacore.domain.SoarExecutionMode.SYNC);
-                // analyzeWithContext 메서드가 없어서 processStreamWithContext 사용
+                
                 SoarRequest soarRequest = SoarRequest.builder()
                     .context(context)
                     .operation("soarAnalysis")
@@ -232,8 +227,8 @@ public class SoarNotifierImpl implements ISoarNotifier {
                 logger.info("Critical situation analysis completed: {}", result);
                 
             } else if (notificationService != null) {
-                // 최소한 알림은 전송
-                // notificationService.sendCriticalAlert(context.getIncidentId(), context.getSeverity()); // Method doesn't exist
+                
+                
             }
             
                 return NotificationResult.success(context.getIncidentId(), "Critical situation handled successfully");
@@ -262,7 +257,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
         return stats;
     }
     
-    // 헬퍼 메서드들
+    
     
     private String generateRequestId(String identifier) {
         return String.format("SOAR-%s-%s", 
@@ -319,11 +314,11 @@ public class SoarNotifierImpl implements ISoarNotifier {
         ApprovalNotification notification = new ApprovalNotification();
         notification.setRequestId(requestId);
         notification.setNotificationType(type);
-        notification.setTitle(generateNotificationTitle(type, incidentId)); // title 필드 추가
+        notification.setTitle(generateNotificationTitle(type, incidentId)); 
         notification.setMessage(message);
         notification.setPriority(context.getSeverity());
         notification.setCreatedAt(LocalDateTime.now());
-        // 추가 정보를 notificationData에 저장
+        
         Map<String, Object> data = new HashMap<>();
         data.put("incidentId", incidentId);
         data.put("executionMode", context.getExecutionMode().toString());
@@ -342,11 +337,11 @@ public class SoarNotifierImpl implements ISoarNotifier {
         ApprovalNotification notification = new ApprovalNotification();
         notification.setRequestId(requestId);
         notification.setNotificationType("AI_ANALYSIS");
-        notification.setTitle("AI 분석 요청: " + incident.getIncidentId()); // title 필드 추가
+        notification.setTitle("AI 분석 요청: " + incident.getIncidentId()); 
         notification.setMessage("AI analysis request for incident: " + incident.getIncidentId());
         notification.setPriority(incident.getThreatLevel().toString());
         notification.setCreatedAt(LocalDateTime.now());
-        // Store analysis request in notification data
+        
         Map<String, Object> data = new HashMap<>();
         data.put("incidentId", incident.getIncidentId());
         data.put("status", "QUEUED");
@@ -360,13 +355,13 @@ public class SoarNotifierImpl implements ISoarNotifier {
     private void updateNotificationStatus(String requestId, NotificationStatus status) {
         notificationStatuses.put(requestId, status);
         
-        // DB 업데이트 (있으면)
+        
         if (notificationRepository != null) {
             try {
                 List<ApprovalNotification> notifications = notificationRepository.findByRequestId(requestId);
                 if (!notifications.isEmpty()) {
                     ApprovalNotification notification = notifications.get(0);
-                    // status를 notificationData에 저장
+                    
                     Map<String, Object> data = notification.getNotificationData();
                     if (data == null) {
                         data = new HashMap<>();

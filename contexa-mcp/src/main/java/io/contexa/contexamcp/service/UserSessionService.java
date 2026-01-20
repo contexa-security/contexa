@@ -12,10 +12,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/**
- * User Session Service
- * 사용자 세션 관리 서비스
- */
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -27,9 +24,7 @@ public class UserSessionService {
     private static final String USER_SESSIONS_KEY_PREFIX = "user:sessions:";
     private static final long SESSION_TIMEOUT_MINUTES = 30;
     
-    /**
-     * 세션 생성
-     */
+    
     public SessionInfo createSession(String userId, String ipAddress, String userAgent) {
         String sessionId = UUID.randomUUID().toString();
         
@@ -43,11 +38,11 @@ public class UserSessionService {
             .active(true)
             .build();
         
-        // Redis에 세션 저장
+        
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         redisTemplate.opsForValue().set(sessionKey, session, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
         
-        // 사용자별 세션 목록에 추가
+        
         String userSessionsKey = USER_SESSIONS_KEY_PREFIX + userId;
         redisTemplate.opsForSet().add(userSessionsKey, sessionId);
         redisTemplate.expire(userSessionsKey, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
@@ -57,9 +52,7 @@ public class UserSessionService {
         return session;
     }
     
-    /**
-     * 사용자의 활성 세션 조회
-     */
+    
     public List<SessionInfo> findActiveSessionsByUserId(String userId) {
         String userSessionsKey = USER_SESSIONS_KEY_PREFIX + userId;
         Set<Object> sessionIds = redisTemplate.opsForSet().members(userSessionsKey);
@@ -76,9 +69,7 @@ public class UserSessionService {
             .collect(Collectors.toList());
     }
     
-    /**
-     * 세션 종료
-     */
+    
     public boolean terminateSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
@@ -88,12 +79,12 @@ public class UserSessionService {
             return false;
         }
         
-        // 세션을 비활성화
+        
         session.setActive(false);
         session.setTerminatedAt(Instant.now());
-        redisTemplate.opsForValue().set(sessionKey, session, 1, TimeUnit.MINUTES); // 1분 후 삭제
+        redisTemplate.opsForValue().set(sessionKey, session, 1, TimeUnit.MINUTES); 
         
-        // 사용자 세션 목록에서 제거
+        
         String userSessionsKey = USER_SESSIONS_KEY_PREFIX + session.getUserId();
         redisTemplate.opsForSet().remove(userSessionsKey, sessionId);
         
@@ -102,9 +93,7 @@ public class UserSessionService {
         return true;
     }
     
-    /**
-     * 사용자의 모든 세션 종료
-     */
+    
     public int terminateAllUserSessions(String userId) {
         List<SessionInfo> sessions = findActiveSessionsByUserId(userId);
         int terminated = 0;
@@ -120,9 +109,7 @@ public class UserSessionService {
         return terminated;
     }
     
-    /**
-     * 세션 갱신
-     */
+    
     public void refreshSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
@@ -133,26 +120,20 @@ public class UserSessionService {
         }
     }
     
-    /**
-     * 세션 조회
-     */
+    
     public Optional<SessionInfo> getSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
         return Optional.ofNullable(session);
     }
     
-    /**
-     * 만료된 세션 정리
-     */
+    
     public void cleanupExpiredSessions() {
-        // Redis TTL이 자동으로 처리하므로 추가 작업 불필요
+        
         log.debug("Session cleanup triggered (handled by Redis TTL)");
     }
     
-    /**
-     * Session Info
-     */
+    
     @Data
     @Builder
     public static class SessionInfo {

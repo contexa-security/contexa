@@ -16,16 +16,16 @@ public class PolicyTemplate {
     private Long id;
 
     @Column(unique = true, nullable = false)
-    private String templateId; // "new-hire-template"
+    private String templateId; 
 
     @Column(nullable = false)
-    private String name; // "신입사원 기본 권한 세트"
+    private String name; 
 
     @Column(length = 1024)
     private String description;
 
     @Column
-    private String category; // "HR", "Finance", "Development"
+    private String category; 
 
     @Column(nullable = false, name = "policy_draft_json", columnDefinition = "jsonb")
     private String policyDraftJson;

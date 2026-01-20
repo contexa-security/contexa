@@ -12,19 +12,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * AccessGovernanceLab 연동 커넥터
- *
- * AccessGovernanceLab 분석 결과를 수집하고 과도한 권한 탐지 시 보안 이벤트를 생성합니다.
- *
- * NOTE: AccessGovernanceLab은 aiam 모듈에 위치하므로, aicore에서는 직접 호출할 수 없습니다.
- * 대신 Vector Store에 저장된 권한 분석 결과를 조회하여 이벤트를 생성합니다.
- *
- * 실제 AccessGovernanceLab 실행은 aiam 모듈의 AutonomousPolicySynthesizer에서 수행됩니다.
- *
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class AccessGovernanceLabConnector {
@@ -41,21 +29,17 @@ public class AccessGovernanceLabConnector {
     @Value("${access.governance.risk.threshold:0.7}")
     private double riskThreshold;
 
-    /**
-     * 과도한 권한 분석 실행
-     *
-     * @return 발견된 과도한 권한에 대한 보안 이벤트 목록
-     */
+    
     public List<SecurityEvent> analyzeExcessivePermissions() {
         List<SecurityEvent> events = new ArrayList<>();
 
         try {
-            // AccessGovernanceLab 실행
+            
             Map<String, Object> analysisResult = runAccessGovernanceAnalysis();
 
-            // 결과 분석
+            
             if (analysisResult != null && !analysisResult.isEmpty()) {
-                // 과도한 권한 사용자 탐지
+                
                 List<Map<String, Object>> excessiveUsers = extractExcessiveUsers(analysisResult);
                 for (Map<String, Object> user : excessiveUsers) {
                     SecurityEvent event = createSecurityEventFromUser(user);
@@ -64,7 +48,7 @@ public class AccessGovernanceLabConnector {
                     }
                 }
 
-                // 미사용 권한 탐지
+                
                 List<Map<String, Object>> unusedPermissions = extractUnusedPermissions(analysisResult);
                 for (Map<String, Object> permission : unusedPermissions) {
                     SecurityEvent event = createSecurityEventFromPermission(permission);
@@ -73,7 +57,7 @@ public class AccessGovernanceLabConnector {
                     }
                 }
 
-                // 권한 이상 패턴 탐지
+                
                 List<Map<String, Object>> anomalies = extractPermissionAnomalies(analysisResult);
                 for (Map<String, Object> anomaly : anomalies) {
                     SecurityEvent event = createSecurityEventFromAnomaly(anomaly);
@@ -92,13 +76,7 @@ public class AccessGovernanceLabConnector {
         return events;
     }
 
-    /**
-     * AccessGovernanceLab 분석 결과 조회 (Vector Store 기반)
-     *
-     * Vector Store에 저장된 AccessGovernanceLab 분석 결과를 조회합니다.
-     * 실제 Lab 실행은 aiam 모듈의 AccessGovernanceLab에서 수행되며,
-     * 결과는 AccessVectorService에 의해 Vector Store에 저장됩니다.
-     */
+    
     private Map<String, Object> runAccessGovernanceAnalysis() {
         if (!enabled || unifiedVectorService == null) {
             log.warn("[AccessGovernanceConnector] Vector Store가 비활성화되거나 사용 불가");
@@ -108,16 +86,16 @@ public class AccessGovernanceLabConnector {
         try {
             log.info("[AccessGovernanceConnector] Vector Store에서 권한 분석 결과 조회");
 
-            // 1. Vector Store에서 최근 권한 분석 결과 검색
+            
             List<Document> analysisResults = searchAccessGovernanceResults();
 
-            // 2. 검색 결과 분석
+            
             if (analysisResults.isEmpty()) {
                 log.info("[AccessGovernanceConnector] Vector Store에 권한 분석 결과가 없습니다");
                 return createEmptyResult();
             }
 
-            // 3. 결과를 Map으로 변환
+            
             Map<String, Object> result = convertDocumentsToMap(analysisResults);
 
             log.info("[AccessGovernanceConnector] 분석 결과 조회 완료: {}명 과도권한, {}개 미사용권한, {}개 이상패턴",
@@ -133,16 +111,14 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * Vector Store에서 권한 거버넌스 분석 결과 검색
-     */
+    
     private List<Document> searchAccessGovernanceResults() {
         try {
-            // 최근 권한 분석 결과 검색 쿼리
+            
             String query = "권한 거버넌스 분석 과도한 권한 미사용 권한 이상 패턴";
 
-            // documentType=access_governance_analysis 필터링
-            // SearchRequest를 사용해야 함
+            
+            
             org.springframework.ai.vectorstore.SearchRequest searchRequest =
                 org.springframework.ai.vectorstore.SearchRequest.builder()
                     .query(query)
@@ -150,7 +126,7 @@ public class AccessGovernanceLabConnector {
                     .filterExpression("documentType == 'access_governance_analysis'")
                     .build();
 
-            // Vector Store 검색
+            
             List<Document> results = unifiedVectorService.searchSimilar(searchRequest);
 
             log.debug("[AccessGovernanceConnector] Vector Store 검색 결과: {}개 문서", results.size());
@@ -163,9 +139,7 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * Document 목록을 Map으로 변환
-     */
+    
     private Map<String, Object> convertDocumentsToMap(List<Document> documents) {
         Map<String, Object> result = new HashMap<>();
         result.put("analysisTime", LocalDateTime.now());
@@ -177,15 +151,15 @@ public class AccessGovernanceLabConnector {
         for (Document doc : documents) {
             Map<String, Object> metadata = doc.getMetadata();
 
-            // findingType으로 분류
+            
             String findingType = (String) metadata.get("findingType");
             if (findingType == null) continue;
 
             double riskScore = extractRiskScore(metadata);
 
-            // 위험 점수 임계값 확인
+            
             if (riskScore < riskThreshold) {
-                continue; // 낮은 위험 점수는 무시
+                continue; 
             }
 
             switch (findingType.toUpperCase()) {
@@ -228,27 +202,23 @@ public class AccessGovernanceLabConnector {
         return result;
     }
 
-    /**
-     * 메타데이터에서 위험 점수 추출
-     */
+    
     private double extractRiskScore(Map<String, Object> metadata) {
         Object riskScore = metadata.get("riskScore");
         if (riskScore instanceof Number) {
             return ((Number) riskScore).doubleValue();
         }
 
-        // severity 기반 점수 계산
+        
         String severity = (String) metadata.get("severity");
         if (severity != null) {
             return calculateRiskScoreFromSeverity(severity);
         }
 
-        return 0.5; // 기본값
+        return 0.5; 
     }
 
-    /**
-     * Severity 문자열 기반 위험 점수 계산
-     */
+    
     private double calculateRiskScoreFromSeverity(String severity) {
         switch (severity.toUpperCase()) {
             case "CRITICAL":
@@ -264,16 +234,14 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * 메타데이터에서 권한 개수 추출
-     */
+    
     private int extractPermissionCount(Map<String, Object> metadata) {
         Object count = metadata.get("excessivePermissionCount");
         if (count instanceof Number) {
             return ((Number) count).intValue();
         }
 
-        // Description에서 파싱
+        
         String desc = (String) metadata.get("description");
         if (desc != null && desc.matches(".*\\d+.*")) {
             try {
@@ -284,19 +252,17 @@ public class AccessGovernanceLabConnector {
             }
         }
 
-        return 1; // 기본값
+        return 1; 
     }
 
-    /**
-     * 메타데이터에서 미사용 일수 추출
-     */
+    
     private int extractUnusedDays(Map<String, Object> metadata) {
         Object days = metadata.get("unusedDays");
         if (days instanceof Number) {
             return ((Number) days).intValue();
         }
 
-        // Description에서 파싱
+        
         String desc = (String) metadata.get("description");
         if (desc != null && desc.contains("일")) {
             try {
@@ -307,30 +273,26 @@ public class AccessGovernanceLabConnector {
             }
         }
 
-        return 30; // 기본값
+        return 30; 
     }
 
-    /**
-     * 메타데이터에서 신뢰도 추출
-     */
+    
     private double extractConfidence(Map<String, Object> metadata) {
         Object confidence = metadata.get("confidence");
         if (confidence instanceof Number) {
             return ((Number) confidence).doubleValue();
         }
 
-        // severity 기반 신뢰도 계산
+        
         String severity = (String) metadata.get("severity");
         if (severity != null) {
             return calculateConfidenceFromSeverity(severity);
         }
 
-        return 0.5; // 기본값
+        return 0.5; 
     }
 
-    /**
-     * Severity 문자열 기반 신뢰도 계산
-     */
+    
     private double calculateConfidenceFromSeverity(String severity) {
         switch (severity.toUpperCase()) {
             case "CRITICAL":
@@ -346,9 +308,7 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * 빈 결과 생성
-     */
+    
     private Map<String, Object> createEmptyResult() {
         Map<String, Object> result = new HashMap<>();
         result.put("analysisTime", LocalDateTime.now());
@@ -360,13 +320,11 @@ public class AccessGovernanceLabConnector {
         return result;
     }
 
-    /**
-     * 과도한 권한 사용자 추출
-     */
+    
     private List<Map<String, Object>> extractExcessiveUsers(Map<String, Object> analysisResult) {
         List<Map<String, Object>> users = new ArrayList<>();
 
-        // 실제 구현에서는 분석 결과에서 과도한 권한 사용자 정보 추출
+        
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> excessiveUsers =
             (List<Map<String, Object>>) analysisResult.get("excessivePermissionUsers");
@@ -378,13 +336,11 @@ public class AccessGovernanceLabConnector {
         return users;
     }
 
-    /**
-     * 미사용 권한 추출
-     */
+    
     private List<Map<String, Object>> extractUnusedPermissions(Map<String, Object> analysisResult) {
         List<Map<String, Object>> permissions = new ArrayList<>();
 
-        // 실제 구현에서는 분석 결과에서 미사용 권한 정보 추출
+        
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> unusedPerms =
             (List<Map<String, Object>>) analysisResult.get("unusedPermissions");
@@ -396,13 +352,11 @@ public class AccessGovernanceLabConnector {
         return permissions;
     }
 
-    /**
-     * 권한 이상 패턴 추출
-     */
+    
     private List<Map<String, Object>> extractPermissionAnomalies(Map<String, Object> analysisResult) {
         List<Map<String, Object>> anomalies = new ArrayList<>();
 
-        // 실제 구현에서는 분석 결과에서 이상 패턴 정보 추출
+        
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> detectedAnomalies =
             (List<Map<String, Object>>) analysisResult.get("permissionAnomalies");
@@ -414,9 +368,7 @@ public class AccessGovernanceLabConnector {
         return anomalies;
     }
 
-    /**
-     * 사용자 정보로부터 보안 이벤트 생성
-     */
+    
     private SecurityEvent createSecurityEventFromUser(Map<String, Object> user) {
         try {
             String userId = (String) user.get("userId");
@@ -424,7 +376,7 @@ public class AccessGovernanceLabConnector {
             Integer excessiveCount = (Integer) user.get("excessivePermissionCount");
             Double riskScore = (Double) user.get("riskScore");
 
-            // AI Native v4.0.0: eventType 제거 - source 기반
+            
             Map<String, Object> enrichedMetadata = new HashMap<>(user);
             enrichedMetadata.put("incidentType", "ACCESS_VIOLATION");
             return SecurityEvent.builder()
@@ -443,16 +395,14 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * 권한 정보로부터 보안 이벤트 생성
-     */
+    
     private SecurityEvent createSecurityEventFromPermission(Map<String, Object> permission) {
         try {
             String permissionId = (String) permission.get("permissionId");
             String permissionName = (String) permission.get("permissionName");
             Integer unusedDays = (Integer) permission.get("unusedDays");
 
-            // AI Native v4.0.0: eventType, targetResource 제거 - source/metadata 기반
+            
             Map<String, Object> enrichedMetadata = new HashMap<>(permission);
             enrichedMetadata.put("incidentType", "ANOMALY_DETECTED");
             enrichedMetadata.put("targetResource", permissionId);
@@ -471,16 +421,14 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * 이상 패턴으로부터 보안 이벤트 생성
-     */
+    
     private SecurityEvent createSecurityEventFromAnomaly(Map<String, Object> anomaly) {
         try {
             String anomalyType = (String) anomaly.get("type");
             String description = (String) anomaly.get("description");
             Double confidence = (Double) anomaly.get("confidence");
 
-            // AI Native v4.0.0: eventType 제거 - source 기반
+            
             Map<String, Object> enrichedMetadata = new HashMap<>(anomaly);
             enrichedMetadata.put("incidentType", "ANOMALY_DETECTED");
             return SecurityEvent.builder()
@@ -498,9 +446,7 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * 위험 점수에 따른 심각도 계산
-     */
+    
     private SecurityEvent.Severity calculateSeverity(Double score) {
         if (score == null) {
             return SecurityEvent.Severity.LOW;
@@ -517,11 +463,9 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    /**
-     * 정기적인 권한 분석 실행 여부 확인
-     */
+    
     public boolean shouldRunAnalysis() {
-        // 실제 구현에서는 마지막 실행 시간 확인 등의 로직 추가
+        
         return true;
     }
 }

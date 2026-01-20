@@ -14,11 +14,11 @@ import java.util.Map;
 import java.util.UUID;
 
 @RequestMapping("/api/soar/incidents")
-//@PreAuthorize("hasRole('ROLE_SOAR_ADMIN')")
+
 public class SoarIncidentController {
 
     private final SoarIncidentService incidentService;
-    private final AINativeProcessor aiNativeProcessor; // AINativeProcessor 주입
+    private final AINativeProcessor aiNativeProcessor; 
 
     public SoarIncidentController(SoarIncidentService incidentService, AINativeProcessor aiNativeProcessor) {
         this.incidentService = incidentService;
@@ -41,34 +41,34 @@ public class SoarIncidentController {
         return ResponseEntity.ok(incidentService.getIncident(incidentId));
     }
 
-    // 새로운 SOAR 프로세스 시작 엔드포인트
+    
     @PostMapping("/start")
     public ResponseEntity<SoarResponse> startSoarProcess(@RequestBody StartSoarProcessRequest request) {
-        // SoarContext 생성 (초기 데이터 포함)
+        
         SoarContext soarContext = new SoarContext(
-                UUID.randomUUID().toString(), // incidentId
+                UUID.randomUUID().toString(), 
                 request.threatType(),
                 request.description(),
                 request.affectedAssets(),
-                "INITIAL", // currentStatus
+                "INITIAL", 
                 request.detectedSource(),
                 request.severity(),
                 request.recommendedActions(),
                 request.organizationId()
         );
 
-        // SoarRequest 생성
+        
         SoarRequest soarRequest = new SoarRequest(soarContext, "startSoar", request.initialQuery());
         soarRequest.setMetadata(request.metadata());
 
-        // AINativeProcessor를 통해 SOAR 프로세스 시작
+        
         SoarResponse response = (SoarResponse) aiNativeProcessor.process(soarRequest, SoarResponse.class).block();
         return ResponseEntity.ok(response);
     }
 
     public record CreateIncidentRequest(String title, String playbookId, Map<String, Object> eventData) {}
 
-    // SOAR 프로세스 시작 요청을 위한 DTO
+    
     public record StartSoarProcessRequest(
             String initialQuery,
             String threatType,

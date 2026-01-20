@@ -23,19 +23,14 @@ public class RoleHierarchyService {
     private final RoleRepository roleRepository;
     private final RoleHierarchyImpl roleHierarchy;
 
-    /**
-     * Spring ApplicationContext가 완전히 초기화된 후 호출됩니다.
-     * ServletContext, JPA EntityManager, BeanPostProcessor 등이 모두 준비된 상태에서 실행됩니다.
-     *
-     * @param event ContextRefreshedEvent
-     */
+    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
         log.info("ApplicationContext refreshed. Initializing RoleHierarchyService and setting initial RoleHierarchyImpl hierarchy...");
         reloadRoleHierarchyBean();
     }
 
-    // roleHierarchies 캐시 제거 - 보안 정책 즉시 반영 필요, 순환 참조 위험
+    
     public List<RoleHierarchyEntity> getAllRoleHierarchies() {
         return roleHierarchyRepository.findAll();
     }
@@ -44,7 +39,7 @@ public class RoleHierarchyService {
         return roleHierarchyRepository.findById(id);
     }
 
-    // activeRoleHierarchyString 캐시 제거 - 보안 정책 즉시 반영 필요
+    
     public String getActiveRoleHierarchyString() {
         return roleHierarchyRepository.findByIsActiveTrue()
                 .map(RoleHierarchyEntity::getHierarchyString)
@@ -61,10 +56,10 @@ public class RoleHierarchyService {
                 throw new IllegalArgumentException("동일한 역할 계층 설정이 이미 존재합니다.");
             }
 
-            // 계층 문자열 유효성 검증 (강화)
+            
             validateHierarchyString(roleHierarchyEntity.getHierarchyString());
 
-            // 순환 참조 및 논리적 오류 검증
+            
             validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
 
             RoleHierarchyEntity savedEntity = roleHierarchyRepository.save(roleHierarchyEntity);
@@ -145,7 +140,7 @@ public class RoleHierarchyService {
         try {
             String hierarchyString = getActiveRoleHierarchyString();
 
-            // DB 에서 읽은 문자열의 \n을 실제 개행문자로 변환
+            
             if (hierarchyString != null && hierarchyString.contains("\\n")) {
                 hierarchyString = hierarchyString.replace("\\n", "\n");
                 log.debug("Converted \\n to actual newline in hierarchy string");
@@ -163,19 +158,19 @@ public class RoleHierarchyService {
             return;
         }
 
-        // \n 문자열을 실제 개행문자로 변환
+        
         if (hierarchyString.contains("\\n")) {
             hierarchyString = hierarchyString.replace("\\n", "\n");
         }
 
-        // 계층 문자열에서 모든 역할 이름 추출
+        
         Set<String> referencedRoleNames = Arrays.stream(hierarchyString.split("[\\r\\n]+"))
                 .flatMap(line -> Arrays.stream(line.split("\\s*>\\s*")))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
 
-        // DB 에서 존재하는 역할명 가져오기 (대소문자 구분 없이)
+        
         Set<String> existingRoleNames = roleRepository.findAll().stream()
                 .map(role -> role.getRoleName().toUpperCase())
                 .collect(Collectors.toSet());
@@ -183,7 +178,7 @@ public class RoleHierarchyService {
         log.debug("Referenced roles in hierarchy: {}", referencedRoleNames);
         log.debug("Existing roles in database: {}", existingRoleNames);
 
-        // 참조된 각 역할이 DB에 존재하는지 확인
+        
         for (String roleName : referencedRoleNames) {
             if (!existingRoleNames.contains(roleName.toUpperCase())) {
                 throw new IllegalArgumentException("계층 문자열에 존재하지 않는 역할이 포함되어 있습니다: " + roleName);
@@ -191,24 +186,18 @@ public class RoleHierarchyService {
         }
     }
 
-    /**
-     * 역할 계층의 논리적 유효성을 검증합니다.
-     * - 순환 참조 검출
-     * - 중복 관계 검출
-     * - 역방향 관계 검출
-     * - 전이적 중복 검출
-     */
+    
     private void validateHierarchyLogic(String hierarchyString) {
         if (hierarchyString == null || hierarchyString.trim().isEmpty()) {
             return;
         }
 
-        // 계층 관계를 그래프로 구성
+        
         Map<String, Set<String>> graph = new HashMap<>();
         Set<String> allRoles = new HashSet<>();
         List<String[]> relations = new ArrayList<>();
 
-        // 계층 문자열 파싱
+        
         Arrays.stream(hierarchyString.split("\\n"))
                 .map(String::trim)
                 .filter(s -> s.contains(">"))
@@ -226,7 +215,7 @@ public class RoleHierarchyService {
                     }
                 });
 
-        // 중복 관계 검출
+        
         Set<String> seenRelations = new HashSet<>();
         for (String[] relation : relations) {
             String relationKey = relation[0] + ">" + relation[1];
@@ -235,7 +224,7 @@ public class RoleHierarchyService {
             }
         }
 
-        // 역방향 관계 검출
+        
         for (String[] relation : relations) {
             String reverseKey = relation[1] + ">" + relation[0];
             if (seenRelations.contains(reverseKey)) {
@@ -243,7 +232,7 @@ public class RoleHierarchyService {
             }
         }
 
-        // 전이적 중복 검출 (A>B, B>C가 있을 때 A>C는 불필요)
+        
         for (String[] relation : relations) {
             if (isTransitivelyConnected(graph, relation[0], relation[1])) {
                 throw new IllegalArgumentException("불필요한 관계입니다: " + relation[0] + " > " + relation[1] +
@@ -251,7 +240,7 @@ public class RoleHierarchyService {
             }
         }
 
-        // 순환 참조 검출 (DFS)
+        
         for (String role : allRoles) {
             if (hasCycle(graph, role, new HashSet<>(), new HashSet<>())) {
                 throw new IllegalArgumentException("순환 참조가 발견되었습니다. 역할: " + role);
@@ -259,22 +248,20 @@ public class RoleHierarchyService {
         }
     }
 
-    /**
-     * 전이적 연결 확인 - A에서 B로 가는 다른 경로가 있는지 확인
-     */
+    
     private boolean isTransitivelyConnected(Map<String, Set<String>> graph, String start, String end) {
-        // 직접 연결을 제외한 임시 그래프 생성
+        
         Map<String, Set<String>> tempGraph = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : graph.entrySet()) {
             tempGraph.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
 
-        // 직접 연결 제거
+        
         if (tempGraph.containsKey(start)) {
             tempGraph.get(start).remove(end);
         }
 
-        // BFS로 다른 경로 탐색
+        
         Queue<String> queue = new LinkedList<>();
         Set<String> visited = new HashSet<>();
         queue.offer(start);
@@ -288,7 +275,7 @@ public class RoleHierarchyService {
             if (children != null) {
                 for (String child : children) {
                     if (child.equals(end)) {
-                        return true; // 다른 경로로 도달 가능
+                        return true; 
                     }
                     queue.offer(child);
                 }
@@ -298,9 +285,7 @@ public class RoleHierarchyService {
         return false;
     }
 
-    /**
-     * DFS를 사용하여 순환 참조를 검출합니다.
-     */
+    
     private boolean hasCycle(Map<String, Set<String>> graph, String node, Set<String> visited, Set<String> recursionStack) {
         visited.add(node);
         recursionStack.add(node);

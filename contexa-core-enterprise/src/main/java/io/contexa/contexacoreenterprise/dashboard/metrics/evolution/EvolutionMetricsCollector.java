@@ -12,23 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Evolution & Learning 메트릭 수집기
- *
- * 정책 진화 및 자율 학습 시스템의 메트릭을 수집합니다.
- *
- * 메트릭 영역:
- * 1. 정책 제안 생명주기 (생성, 승인, 거부, 활성화)
- * 2. 학습 품질 (신뢰도, 정확도)
- * 3. AI 모델 성능 (응답 시간, 성공률)
- * 4. 벡터 스토어 학습 데이터
- * 5. HCAD 기준선 학습
- *
- * @author contexa
- * @since 3.0.0
- * @implNote EvolutionMetricsCollector는 UnifiedSecurityMetricsCollector와의 의존성으로 인해
- *           현재 패키지에 유지됩니다. 향후 리팩토링 시 metrics 패키지로 이동 예정.
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
@@ -36,36 +20,36 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
     private final MeterRegistry meterRegistry;
     private final UnifiedSecurityMetricsCollector unifiedMetrics;
 
-    // ===== 정책 제안 생명주기 (감사 필수) =====
+    
     private Counter proposalCreatedCounter;
     private Counter proposalApprovedCounter;
     private Counter proposalRejectedCounter;
     private Timer proposalGenerationTimer;
 
-    // ===== 학습 품질 =====
+    
     private final AtomicLong totalProposals = new AtomicLong(0);
     private final AtomicLong approvedProposals = new AtomicLong(0);
     private final AtomicLong highConfidenceProposals = new AtomicLong(0);
     private DistributionSummary confidenceScoreDistribution;
 
-    // ===== AI 모델 성능 =====
+    
     private Timer aiCallDurationTimer;
     private Counter aiCallSuccessCounter;
     private Counter aiCallFailureCounter;
     private Counter spelExtractionSuccessCounter;
     private Counter spelExtractionFailureCounter;
 
-    // ===== 벡터 스토어 학습 =====
+    
     private Counter vectorStoreDocumentsStoredCounter;
     private DistributionSummary similarCasesFoundDistribution;
 
-    // ===== 학습 코디네이터 =====
+    
     private Counter incidentsProcessedCounter;
     private Counter proposalsGeneratedCounter;
     private Counter dailyLimitReachedCounter;
     private DistributionSummary learningConfidenceDistribution;
 
-    // ===== HCAD 기준선 학습 (감사 필수) =====
+    
     private Counter baselineUpdatesCounter;
     private Counter statisticalOutliersCounter;
     private Counter suspiciousContextsFilteredCounter;
@@ -82,13 +66,13 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         initLearningCoordinatorMetrics();
         initHCADMetrics();
 
-        // 도메인 건강도 초기화
+        
         unifiedMetrics.updateDomainHealth("evolution", 1.0);
 
         log.info("EvolutionMetricsCollector initialized successfully");
     }
 
-    // ===== 초기화 메서드 =====
+    
 
     private void initProposalLifecycleMetrics() {
         proposalCreatedCounter = Counter.builder("evolution.proposal.created")
@@ -108,7 +92,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .publishPercentiles(0.5, 0.95, 0.99)
                 .register(meterRegistry);
 
-        // 자동 승인율 게이지
+        
         Gauge.builder("evolution.proposal.auto_approval.rate", this,
                         collector -> collector.calculateAutoApprovalRate())
                 .description("Automatic policy approval rate")
@@ -126,7 +110,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .publishPercentiles(0.5, 0.75, 0.95)
                 .register(meterRegistry);
 
-        // 고신뢰도 제안 비율 게이지
+        
         Gauge.builder("evolution.proposal.high_confidence.ratio", this,
                         collector -> collector.calculateHighConfidenceRatio())
                 .description("Ratio of high confidence proposals (>0.8)")
@@ -159,7 +143,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .description("SpEL expression extraction failure count")
                 .register(meterRegistry);
 
-        // AI 성공률 게이지
+        
         Gauge.builder("evolution.ai.success.rate", this,
                         collector -> collector.calculateAISuccessRate())
                 .description("AI model call success rate")
@@ -210,16 +194,9 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .register(meterRegistry);
     }
 
-    // ===== Public API =====
+    
 
-    /**
-     * 정책 제안 생성 기록
-     *
-     * @param durationMillis 생성 소요 시간 (밀리초)
-     * @param proposalType 제안 타입
-     * @param riskLevel 위험도
-     * @param confidenceScore 신뢰도 점수
-     */
+    
     public void recordProposalCreation(long durationMillis, String proposalType, String riskLevel, double confidenceScore) {
         proposalCreatedCounter.increment();
         totalProposals.incrementAndGet();
@@ -237,10 +214,10 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .register(meterRegistry)
                 .increment();
 
-        // 통합 메트릭에 기록
+        
         unifiedMetrics.recordSecurityEvent("evolution", "proposal_created");
 
-        // EventRecorder 인터페이스 호출
+        
         Map<String, Object> eventMetadata = new HashMap<>();
         eventMetadata.put("source", "evolution");
         eventMetadata.put("event_type", "proposal_created");
@@ -252,11 +229,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         updateEvolutionHealth();
     }
 
-    /**
-     * 정책 제안 승인 기록
-     *
-     * @param approvalMethod 승인 방법 (AUTO, MANUAL)
-     */
+    
     public void recordProposalApproval(String approvalMethod) {
         proposalApprovedCounter.increment();
         approvedProposals.incrementAndGet();
@@ -269,11 +242,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         unifiedMetrics.recordSecurityEvent("evolution", "proposal_approved");
     }
 
-    /**
-     * 정책 제안 거부 기록
-     *
-     * @param rejectionReason 거부 사유
-     */
+    
     public void recordProposalRejection(String rejectionReason) {
         proposalRejectedCounter.increment();
 
@@ -286,13 +255,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         updateEvolutionHealth();
     }
 
-    /**
-     * AI 모델 호출 기록
-     *
-     * @param durationMillis 호출 소요 시간 (밀리초)
-     * @param model 모델 이름
-     * @param success 성공 여부
-     */
+    
     public void recordAICall(long durationMillis, String model, boolean success) {
         aiCallDurationTimer.record(java.time.Duration.ofMillis(durationMillis));
 
@@ -309,12 +272,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .record(java.time.Duration.ofMillis(durationMillis));
     }
 
-    /**
-     * SpEL 추출 결과 기록
-     *
-     * @param extractionMethod 추출 방법 (code_block, function_pattern, ai_request)
-     * @param success 성공 여부
-     */
+    
     public void recordSpelExtraction(String extractionMethod, boolean success) {
         if (success) {
             spelExtractionSuccessCounter.increment();
@@ -329,11 +287,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    /**
-     * 벡터 스토어 학습 데이터 저장 기록
-     *
-     * @param learningType 학습 타입
-     */
+    
     public void recordVectorStoreDocument(String learningType) {
         vectorStoreDocumentsStoredCounter.increment();
 
@@ -343,22 +297,12 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    /**
-     * 유사 사례 검색 결과 기록
-     *
-     * @param similarCasesCount 검색된 유사 사례 수
-     */
+    
     public void recordSimilarCasesFound(int similarCasesCount) {
         similarCasesFoundDistribution.record(similarCasesCount);
     }
 
-    /**
-     * 인시던트 처리 기록
-     *
-     * @param severity 심각도
-     * @param successful 성공 여부
-     * @param learningType 학습 타입
-     */
+    
     public void recordIncidentProcessed(String severity, boolean successful, String learningType) {
         incidentsProcessedCounter.increment();
 
@@ -370,11 +314,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    /**
-     * 학습 코디네이터 제안 생성 기록
-     *
-     * @param triggerType 트리거 타입 (incident_resolved, processing_completed, proactive)
-     */
+    
     public void recordCoordinatorProposalGenerated(String triggerType) {
         proposalsGeneratedCounter.increment();
 
@@ -384,28 +324,17 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    /**
-     * 일일 한도 도달 기록
-     */
+    
     public void recordDailyLimitReached() {
         dailyLimitReachedCounter.increment();
     }
 
-    /**
-     * 학습 메타데이터 신뢰도 기록
-     *
-     * @param confidenceScore 신뢰도 점수
-     */
+    
     public void recordLearningConfidence(double confidenceScore) {
         learningConfidenceDistribution.record(confidenceScore);
     }
 
-    /**
-     * HCAD 기준선 업데이트 기록
-     *
-     * @param phase 단계 (bootstrap, mature)
-     * @param decision 결정 (updated, skipped, suspicious)
-     */
+    
     public void recordHCADBaselineUpdate(String phase, String decision) {
         baselineUpdatesCounter.increment();
 
@@ -416,11 +345,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    /**
-     * HCAD 통계적 이상치 탐지 기록
-     *
-     * @param zScore Z-Score 값
-     */
+    
     public void recordHCADStatisticalOutlier(double zScore) {
         statisticalOutliersCounter.increment();
 
@@ -439,11 +364,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    /**
-     * HCAD 의심 컨텍스트 필터링 기록
-     *
-     * @param reason 필터링 사유 (newDevice, failedLogins, rapidRequest, suspiciousPath)
-     */
+    
     public void recordHCADSuspiciousContextFiltered(String reason) {
         suspiciousContextsFilteredCounter.increment();
 
@@ -453,34 +374,24 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    /**
-     * HCAD 기준선 신뢰도 기록
-     *
-     * @param confidenceScore 신뢰도 점수
-     * @param userSegment 사용자 세그먼트
-     */
+    
     public void recordHCADBaselineConfidence(double confidenceScore, String userSegment) {
         baselineConfidenceDistribution.record(confidenceScore);
 
-        // 세그먼트별 평균 신뢰도 게이지
+        
         Gauge.builder("evolution.hcad.baseline.confidence.by_segment", () -> confidenceScore)
                 .tag("user_segment", userSegment)
                 .register(meterRegistry);
     }
 
-    /**
-     * HCAD 학습률 업데이트
-     *
-     * @param learningRate 학습률
-     * @param confidenceTier 신뢰도 단계 (bootstrap, building, mature)
-     */
+    
     public void updateHCADLearningRate(double learningRate, String confidenceTier) {
         Gauge.builder("evolution.hcad.learning.rate.by_tier", () -> learningRate)
                 .tag("confidence_tier", confidenceTier)
                 .register(meterRegistry);
     }
 
-    // ===== 헬퍼 메서드 =====
+    
 
     private String getConfidenceBucket(double confidenceScore) {
         if (confidenceScore >= 0.9) return "0.9-1.0";
@@ -509,11 +420,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         return total > 0 ? success / total : 1.0;
     }
 
-    /**
-     * Evolution 도메인 건강도 업데이트
-     *
-     * 건강도 = (자동 승인율 * 0.3) + (고신뢰도 비율 * 0.3) + (AI 성공률 * 0.4)
-     */
+    
     private void updateEvolutionHealth() {
         double autoApprovalRate = calculateAutoApprovalRate();
         double highConfidenceRatio = calculateHighConfidenceRatio();
@@ -523,75 +430,58 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         unifiedMetrics.updateDomainHealth("evolution", healthScore);
     }
 
-    /**
-     * Evolution 도메인 건강도 조회
-     *
-     * @return 건강도 점수 (0.0-1.0)
-     */
+    
     public double getHealthScore() {
         return unifiedMetrics.getDomainHealth("evolution");
     }
 
-    // ========================================
-    // HCAD Analysis Metrics (HCADMetricsService 대체)
-    // ========================================
+    
+    
+    
 
-    /**
-     * HCAD 분석 요청 기록
-     *
-     * @param processingTimeMs 처리 시간 (밀리초)
-     * @param anomalyScore 이상 점수
-     * @param wasBlocked 차단 여부
-     */
+    
     public void recordHCADAnalysis(long processingTimeMs, double anomalyScore, boolean wasBlocked) {
-        // 처리 시간 기록 (자동 히스토그램)
+        
         Timer.builder("hcad.analysis.duration")
                 .tag("blocked", String.valueOf(wasBlocked))
                 .register(meterRegistry)
                 .record(processingTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
 
-        // 이상 점수 분포 기록
+        
         DistributionSummary.builder("hcad.analysis.anomaly_score")
                 .tag("blocked", String.valueOf(wasBlocked))
                 .register(meterRegistry)
                 .record(anomalyScore);
 
-        // 차단 카운터
+        
         if (wasBlocked) {
             Counter.builder("hcad.analysis.blocked")
                     .register(meterRegistry)
                     .increment();
         }
 
-        // 경고 임계값 초과 카운터 (0.7)
+        
         if (anomalyScore >= 0.7 && !wasBlocked) {
             Counter.builder("hcad.analysis.warned")
                     .register(meterRegistry)
                     .increment();
         }
 
-        // 느린 요청 카운터 (30ms 이상)
+        
         if (processingTimeMs > 30) {
             Counter.builder("hcad.analysis.slow_requests")
                     .register(meterRegistry)
                     .increment();
         }
 
-        // 총 요청 카운터
+        
         Counter.builder("hcad.analysis.total")
                 .tag("blocked", String.valueOf(wasBlocked))
                 .register(meterRegistry)
                 .increment();
     }
 
-    /**
-     * HCAD 베이스라인 학습 결정 기록
-     *
-     * @param userId 사용자 ID
-     * @param phase 학습 단계 (bootstrap, building, mature)
-     * @param decision 학습 결정 (updated, skipped_suspicious, skipped_outlier, skipped_threshold)
-     * @param confidence 신뢰도
-     */
+    
     public void recordHCADLearningDecision(String userId, String phase, String decision, double confidence) {
         Counter.builder("hcad.learning.decisions")
                 .tag("phase", phase)
@@ -599,11 +489,11 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .register(meterRegistry)
                 .increment();
 
-        // 신뢰도 분포 기록
+        
         baselineConfidenceDistribution.record(confidence);
     }
 
-    // ===== MetricsCollector 인터페이스 구현 =====
+    
 
     @Override
     public String getDomain() {
@@ -635,8 +525,8 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         highConfidenceProposals.set(0);
     }
 
-    // ===== DomainMetrics 인터페이스 구현 =====
-    // getHealthScore()는 이미 523번째 줄에 구현되어 있음 (unifiedMetrics 위임)
+    
+    
 
     @Override
     public Map<String, Double> getKeyMetrics() {
@@ -652,7 +542,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         return metrics;
     }
 
-    // ===== EventRecorder 인터페이스 구현 =====
+    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {
@@ -705,7 +595,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
     @Override
     public void recordDuration(String operationName, long durationNanos) {
         if ("ai_call".equals(operationName)) {
-            recordAICall(durationNanos / 1_000_000, "unknown", true); // nanos to millis
+            recordAICall(durationNanos / 1_000_000, "unknown", true); 
         }
     }
 }

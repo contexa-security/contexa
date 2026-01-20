@@ -20,12 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * 정책 생성 진단 전략 (리팩토링 버전)
- *
- * 기존 PolicyGenerationDiagnosisStrategy의 모든 기능을 유지하면서
- * 새로운 추상 클래스 구조를 활용하여 중복 코드 제거
- */
+
 @Slf4j
 public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<PolicyContext, PolicyResponse> {
 
@@ -105,9 +100,7 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
         return policyGenerationLab.processStream(policyGenerationRequest);
     }
 
-    /**
-     * 정책 생성 도메인 설정: 기존 정책 참조가 필수이므로 전체 파이프라인 실행
-     */
+    
     @Override
     protected PipelineConfig getPipelineConfig() {
         return PipelineConfig.fullPipeline();

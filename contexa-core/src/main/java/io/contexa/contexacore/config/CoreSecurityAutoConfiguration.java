@@ -17,26 +17,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
-/**
- * Core Security AutoConfiguration
- *
- * Contexa Core의 핵심 보안 서비스 자동 구성
- *
- * <h3>등록되는 빈:</h3>
- * <ul>
- *   <li>UnifiedUserDetailsService (@Primary) - 통합 UserDetailsService</li>
- * </ul>
- *
- * <h3>활성화 조건:</h3>
- * <pre>
- * contexa:
- *   core:
- *     security:
- *       enabled: true  # (기본값)
- * </pre>
- *
- * @since 0.1.0-ALPHA
- */
+
 @Slf4j
 @AutoConfiguration
 @EnableConfigurationProperties({
@@ -55,20 +36,7 @@ public class CoreSecurityAutoConfiguration {
         log.info("Core Security AutoConfiguration activated");
     }
 
-    /**
-     * UnifiedUserDetailsService 등록 (@Primary)
-     *
-     * Identity와 IAM의 UserDetailsService를 대체하는 통합 서비스
-     * - RoleAuthority + PermissionAuthority 권한 모델
-     * - Trust Tier 동적 권한 조정 (선택적)
-     * - HCAD 이상 탐지 (선택적)
-     *
-     * 활성화 조건:
-     * - contexa.core.security.unified.enabled = true (기본값: true)
-     * - UserDetailsService 빈이 없을 때만 등록
-     *
-     * 비활성화 시 각 모듈의 UserDetailsService가 사용됩니다
-     */
+    
     @Bean
     @Primary
     @ConditionalOnProperty(

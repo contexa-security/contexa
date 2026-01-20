@@ -19,13 +19,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- * 정적 분석 스케줄러
- * 코드베이스와 정책을 주기적으로 분석하여 최적화 기회를 식별
- * 
- * @author contexa
- * @since 1.0.0
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class StaticAnalysisScheduler {
@@ -37,17 +31,14 @@ public class StaticAnalysisScheduler {
     private final PolicyProposalAnalytics proposalAnalytics;
     private final PolicyAuditLogger auditLogger;
     
-    // 분석 상태 및 결과 캐시
+    
     private final Map<String, AnalysisResult> analysisCache = new ConcurrentHashMap<>();
     private LocalDateTime lastFullAnalysis = LocalDateTime.now();
     private LocalDateTime lastIncrementalAnalysis = LocalDateTime.now();
     private boolean analysisInProgress = false;
     
-    /**
-     * 전체 정적 분석 (매주 일요일 새벽 3시)
-     * 전체 코드베이스와 모든 정책을 종합적으로 분석
-     */
-//    @Scheduled(cron = "0 0 3 * * SUN")
+    
+
     public void performFullStaticAnalysis() {
         if (analysisInProgress) {
             log.warn("Analysis already in progress, skipping full static analysis");
@@ -59,34 +50,34 @@ public class StaticAnalysisScheduler {
         lastFullAnalysis = LocalDateTime.now();
         
         try {
-            // 1. 코드베이스 분석
+            
             CodebaseAnalysisResult codebaseResult = analyzeCodebase();
             
-            // 2. 정책 충돌 및 중복 분석
+            
             PolicyConflictAnalysis conflictAnalysis = analyzePolicyConflicts();
             
-            // 3. 정책 커버리지 분석
+            
             CoverageAnalysisResult coverageResult = analyzePolicyCoverage();
             
-            // 4. 성능 병목 현상 분석
+            
             PerformanceAnalysisResult performanceResult = analyzePerformanceBottlenecks();
             
-            // 5. 보안 취약점 분석
+            
             SecurityAnalysisResult securityResult = analyzeSecurityVulnerabilities();
             
-            // 6. 컴플라이언스 갭 분석
+            
             ComplianceAnalysisResult complianceResult = analyzeComplianceGaps();
             
-            // 7. 종합 보고서 생성
+            
             ComprehensiveAnalysisReport report = generateComprehensiveReport(
                 codebaseResult, conflictAnalysis, coverageResult,
                 performanceResult, securityResult, complianceResult
             );
             
-            // 8. 개선 제안 생성
+            
             generateImprovementProposals(report);
             
-            // 9. 결과 캐싱
+            
             cacheAnalysisResults(report);
             
             log.info("Full static analysis completed successfully");
@@ -98,11 +89,8 @@ public class StaticAnalysisScheduler {
         }
     }
     
-    /**
-     * 증분 정적 분석 (매일 새벽 4시)
-     * 최근 변경사항에 대한 빠른 분석
-     */
-//    @Scheduled(cron = "0 0 4 * * *")
+    
+
     public void performIncrementalAnalysis() {
         if (analysisInProgress) {
             log.warn("Analysis already in progress, skipping incremental analysis");
@@ -114,19 +102,19 @@ public class StaticAnalysisScheduler {
         lastIncrementalAnalysis = LocalDateTime.now();
         
         try {
-            // 1. 최근 변경사항 식별
+            
             List<PolicyChange> recentChanges = identifyRecentChanges();
             
-            // 2. 변경 영향도 분석
+            
             ImpactAnalysisResult impactResult = analyzeChangeImpact(recentChanges);
             
-            // 3. 빠른 정책 검증
+            
             QuickValidationResult validationResult = performQuickValidation(recentChanges);
             
-            // 4. 긴급 이슈 식별
+            
             List<UrgentIssue> urgentIssues = identifyUrgentIssues(impactResult, validationResult);
             
-            // 5. 즉각 대응이 필요한 제안 생성
+            
             if (!urgentIssues.isEmpty()) {
                 generateUrgentProposals(urgentIssues);
             }
@@ -141,172 +129,160 @@ public class StaticAnalysisScheduler {
         }
     }
     
-    /**
-     * 코드베이스 분석
-     */
+    
     private CodebaseAnalysisResult analyzeCodebase() {
         log.debug("Analyzing codebase structure and patterns...");
         
         CodebaseAnalysisResult result = new CodebaseAnalysisResult();
         
-        // 보안 패턴 분석
+        
         result.setSecurityPatterns(analyzeSecurityPatterns());
         
-        // 접근 제어 패턴 분석
+        
         result.setAccessControlPatterns(analyzeAccessControlPatterns());
         
-        // 데이터 흐름 분석
+        
         result.setDataFlowPatterns(analyzeDataFlowPatterns());
         
-        // 의존성 분석
+        
         result.setDependencyAnalysis(analyzeDependencies());
         
-        // 복잡도 분석
+        
         result.setComplexityMetrics(analyzeComplexity());
         
         return result;
     }
     
-    /**
-     * 정책 충돌 분석
-     */
+    
     private PolicyConflictAnalysis analyzePolicyConflicts() {
         log.debug("Analyzing policy conflicts and overlaps...");
         
         PolicyConflictAnalysis analysis = new PolicyConflictAnalysis();
         List<Policy> activePolicies = synthesisPolicyRepository.findAllActive();
         
-        // 직접 충돌 찾기
+        
         List<ConflictPair> directConflicts = findDirectConflicts(activePolicies);
         analysis.setDirectConflicts(directConflicts);
         
-        // 중복 정책 찾기
+        
         List<DuplicatePair> duplicates = findDuplicatePolicies(activePolicies);
         analysis.setDuplicates(duplicates);
         
-        // 우선순위 충돌 찾기
+        
         List<PriorityConflict> priorityConflicts = findPriorityConflicts(activePolicies);
         analysis.setPriorityConflicts(priorityConflicts);
         
-        // 범위 중첩 찾기
+        
         List<ScopeOverlap> scopeOverlaps = findScopeOverlaps(activePolicies);
         analysis.setScopeOverlaps(scopeOverlaps);
         
         return analysis;
     }
     
-    /**
-     * 정책 커버리지 분석
-     */
+    
     private CoverageAnalysisResult analyzePolicyCoverage() {
         log.debug("Analyzing policy coverage...");
         
         CoverageAnalysisResult result = new CoverageAnalysisResult();
         
-        // 보안 도메인별 커버리지
+        
         Map<String, Double> domainCoverage = calculateDomainCoverage();
         result.setDomainCoverage(domainCoverage);
         
-        // 위협 벡터별 커버리지
+        
         Map<String, Double> threatCoverage = calculateThreatCoverage();
         result.setThreatCoverage(threatCoverage);
         
-        // 컴플라이언스 요구사항 커버리지
+        
         Map<String, Double> complianceCoverage = calculateComplianceCoverage();
         result.setComplianceCoverage(complianceCoverage);
         
-        // 커버리지 갭
+        
         List<CoverageGap> gaps = identifyCoverageGaps(domainCoverage, threatCoverage, complianceCoverage);
         result.setCoverageGaps(gaps);
         
-        // 전체 커버리지 점수
+        
         double overallCoverage = calculateOverallCoverage(domainCoverage, threatCoverage, complianceCoverage);
         result.setOverallCoverage(overallCoverage);
         
         return result;
     }
     
-    /**
-     * 성능 병목 분석
-     */
+    
     private PerformanceAnalysisResult analyzePerformanceBottlenecks() {
         log.debug("Analyzing performance bottlenecks...");
         
         PerformanceAnalysisResult result = new PerformanceAnalysisResult();
         
-        // 느린 정책 식별
+        
         List<SlowPolicy> slowPolicies = identifySlowPolicies();
         result.setSlowPolicies(slowPolicies);
         
-        // 리소스 집약적 정책
+        
         List<ResourceIntensivePolicy> resourceIntensive = identifyResourceIntensivePolicies();
         result.setResourceIntensivePolicies(resourceIntensive);
         
-        // 최적화 기회
+        
         List<OptimizationOpportunity> opportunities = identifyOptimizationOpportunities();
         result.setOptimizationOpportunities(opportunities);
         
-        // 성능 트렌드
+        
         PerformanceTrend trend = analyzePerformanceTrend();
         result.setPerformanceTrend(trend);
         
         return result;
     }
     
-    /**
-     * 보안 취약점 분석
-     */
+    
     private SecurityAnalysisResult analyzeSecurityVulnerabilities() {
         log.debug("Analyzing security vulnerabilities...");
         
         SecurityAnalysisResult result = new SecurityAnalysisResult();
         
-        // 정책 우회 가능성
+        
         List<PolicyBypassRisk> bypassRisks = identifyPolicyBypassRisks();
         result.setBypassRisks(bypassRisks);
         
-        // 권한 상승 위험
+        
         List<PrivilegeEscalationRisk> escalationRisks = identifyPrivilegeEscalationRisks();
         result.setEscalationRisks(escalationRisks);
         
-        // 데이터 노출 위험
+        
         List<DataExposureRisk> exposureRisks = identifyDataExposureRisks();
         result.setExposureRisks(exposureRisks);
         
-        // 보안 점수
+        
         double securityScore = calculateSecurityScore(bypassRisks, escalationRisks, exposureRisks);
         result.setSecurityScore(securityScore);
         
         return result;
     }
     
-    /**
-     * 컴플라이언스 갭 분석
-     */
+    
     private ComplianceAnalysisResult analyzeComplianceGaps() {
         log.debug("Analyzing compliance gaps...");
         
         ComplianceAnalysisResult result = new ComplianceAnalysisResult();
         
-        // 규제 요구사항 매핑
+        
         Map<String, ComplianceStatus> regulatoryCompliance = mapRegulatoryCompliance();
         result.setRegulatoryCompliance(regulatoryCompliance);
         
-        // 산업 표준 준수
+        
         Map<String, ComplianceStatus> industryStandards = mapIndustryStandards();
         result.setIndustryStandards(industryStandards);
         
-        // 내부 정책 준수
+        
         Map<String, ComplianceStatus> internalPolicies = mapInternalPolicies();
         result.setInternalPolicies(internalPolicies);
         
-        // 컴플라이언스 갭
+        
         List<ComplianceGap> gaps = identifyComplianceGaps(
             regulatoryCompliance, industryStandards, internalPolicies
         );
         result.setComplianceGaps(gaps);
         
-        // 컴플라이언스 점수
+        
         double complianceScore = calculateComplianceScore(
             regulatoryCompliance, industryStandards, internalPolicies
         );
@@ -315,9 +291,7 @@ public class StaticAnalysisScheduler {
         return result;
     }
     
-    /**
-     * 종합 보고서 생성
-     */
+    
     private ComprehensiveAnalysisReport generateComprehensiveReport(
             CodebaseAnalysisResult codebase,
             PolicyConflictAnalysis conflicts,
@@ -330,7 +304,7 @@ public class StaticAnalysisScheduler {
         report.setTimestamp(LocalDateTime.now());
         report.setAnalysisType("FULL_STATIC_ANALYSIS");
         
-        // 각 분석 결과 포함
+        
         report.setCodebaseAnalysis(codebase);
         report.setConflictAnalysis(conflicts);
         report.setCoverageAnalysis(coverage);
@@ -338,7 +312,7 @@ public class StaticAnalysisScheduler {
         report.setSecurityAnalysis(security);
         report.setComplianceAnalysis(compliance);
         
-        // 종합 점수 계산
+        
         double overallScore = calculateOverallScore(
             coverage.getOverallCoverage(),
             performance.getPerformanceTrend().getScore(),
@@ -347,72 +321,68 @@ public class StaticAnalysisScheduler {
         );
         report.setOverallScore(overallScore);
         
-        // 주요 발견사항
+        
         List<String> keyFindings = extractKeyFindings(report);
         report.setKeyFindings(keyFindings);
         
-        // 권장사항
+        
         List<String> recommendations = generateRecommendations(report);
         report.setRecommendations(recommendations);
         
-        // 위험 요약
+        
         RiskSummary riskSummary = summarizeRisks(report);
         report.setRiskSummary(riskSummary);
         
         return report;
     }
     
-    /**
-     * 개선 제안 생성
-     */
+    
     private void generateImprovementProposals(ComprehensiveAnalysisReport report) {
         List<PolicyEvolutionProposal> proposals = new ArrayList<>();
         
-        // 충돌 해결 제안
+        
         for (ConflictPair conflict : report.getConflictAnalysis().getDirectConflicts()) {
             proposals.add(createConflictResolutionProposal(conflict));
         }
         
-        // 커버리지 갭 제안
+        
         for (CoverageGap gap : report.getCoverageAnalysis().getCoverageGaps()) {
-            if (gap.getSeverity() >= 7) { // 높은 심각도
+            if (gap.getSeverity() >= 7) { 
                 proposals.add(createCoverageGapProposal(gap));
             }
         }
         
-        // 성능 최적화 제안
+        
         for (OptimizationOpportunity opportunity : report.getPerformanceAnalysis().getOptimizationOpportunities()) {
-            if (opportunity.getExpectedImprovement() > 20) { // 20% 이상 개선 예상
+            if (opportunity.getExpectedImprovement() > 20) { 
                 proposals.add(createOptimizationProposal(opportunity));
             }
         }
         
-        // 보안 강화 제안
+        
         for (PolicyBypassRisk risk : report.getSecurityAnalysis().getBypassRisks()) {
-            if (risk.getRiskLevel() >= 8) { // 높은 위험
+            if (risk.getRiskLevel() >= 8) { 
                 proposals.add(createSecurityEnhancementProposal(risk));
             }
         }
         
-        // 컴플라이언스 개선 제안
+        
         for (ComplianceGap gap : report.getComplianceAnalysis().getComplianceGaps()) {
             if (gap.isMandatory()) {
                 proposals.add(createComplianceProposal(gap));
             }
         }
         
-        // 제안 제출
+        
         submitProposals(proposals);
     }
     
-    /**
-     * 최근 변경사항 식별
-     */
+    
     private List<PolicyChange> identifyRecentChanges() {
         List<PolicyChange> changes = new ArrayList<>();
         LocalDateTime since = LocalDateTime.now().minusDays(1);
         
-        // 새로운 정책
+        
         List<PolicyEvolutionProposal> newProposals = proposalRepository.findAll().stream()
             .filter(p -> p.getCreatedAt().isAfter(since))
             .collect(Collectors.toList());
@@ -426,7 +396,7 @@ public class StaticAnalysisScheduler {
             changes.add(change);
         }
         
-        // 수정된 정책
+        
         List<Policy> modifiedPolicies = synthesisPolicyRepository.findAll().stream()
             .filter(p -> p.getLastModified() != null && p.getLastModified().isAfter(since))
             .collect(Collectors.toList());
@@ -443,9 +413,7 @@ public class StaticAnalysisScheduler {
         return changes;
     }
     
-    /**
-     * 변경 영향도 분석
-     */
+    
     private ImpactAnalysisResult analyzeChangeImpact(List<PolicyChange> changes) {
         ImpactAnalysisResult result = new ImpactAnalysisResult();
         
@@ -453,17 +421,17 @@ public class StaticAnalysisScheduler {
             ImpactAssessment assessment = new ImpactAssessment();
             assessment.setChangeId(change.getChangeId());
             
-            // 영향받는 시스템
+            
             Set<String> affectedSystems = identifyAffectedSystems(change);
             assessment.setAffectedSystems(affectedSystems);
             
-            // 영향 범위
+            
             assessment.setImpactScope(calculateImpactScope(affectedSystems));
             
-            // 위험 수준
+            
             assessment.setRiskLevel(assessChangeRisk(change));
             
-            // 롤백 가능성
+            
             assessment.setRollbackable(isRollbackable(change));
             
             result.addAssessment(assessment);
@@ -472,9 +440,7 @@ public class StaticAnalysisScheduler {
         return result;
     }
     
-    /**
-     * 빠른 검증 수행
-     */
+    
     private QuickValidationResult performQuickValidation(List<PolicyChange> changes) {
         QuickValidationResult result = new QuickValidationResult();
         
@@ -482,16 +448,16 @@ public class StaticAnalysisScheduler {
             ValidationResult validation = new ValidationResult();
             validation.setChangeId(change.getChangeId());
             
-            // 문법 검증
+            
             validation.setSyntaxValid(validateSyntax(change));
             
-            // 의미 검증
+            
             validation.setSemanticValid(validateSemantics(change));
             
-            // 충돌 검증
+            
             validation.setNoConflicts(checkForConflicts(change));
             
-            // 성능 영향
+            
             validation.setPerformanceImpact(estimatePerformanceImpact(change));
             
             result.addValidation(validation);
@@ -500,14 +466,12 @@ public class StaticAnalysisScheduler {
         return result;
     }
     
-    /**
-     * 긴급 이슈 식별
-     */
+    
     private List<UrgentIssue> identifyUrgentIssues(ImpactAnalysisResult impact, 
                                                     QuickValidationResult validation) {
         List<UrgentIssue> urgentIssues = new ArrayList<>();
         
-        // 높은 위험 변경사항
+        
         for (ImpactAssessment assessment : impact.getAssessments()) {
             if (assessment.getRiskLevel() >= 8) {
                 UrgentIssue issue = new UrgentIssue();
@@ -519,7 +483,7 @@ public class StaticAnalysisScheduler {
             }
         }
         
-        // 검증 실패
+        
         for (ValidationResult val : validation.getValidations()) {
             if (!val.isSyntaxValid() || !val.isSemanticValid() || !val.isNoConflicts()) {
                 UrgentIssue issue = new UrgentIssue();
@@ -531,9 +495,9 @@ public class StaticAnalysisScheduler {
             }
         }
         
-        // 성능 영향
+        
         for (ValidationResult val : validation.getValidations()) {
-            if (val.getPerformanceImpact() > 50) { // 50% 이상 성능 저하
+            if (val.getPerformanceImpact() > 50) { 
                 UrgentIssue issue = new UrgentIssue();
                 issue.setIssueType(IssueType.PERFORMANCE_DEGRADATION);
                 issue.setSeverity(7);
@@ -546,9 +510,7 @@ public class StaticAnalysisScheduler {
         return urgentIssues;
     }
     
-    /**
-     * 긴급 제안 생성
-     */
+    
     private void generateUrgentProposals(List<UrgentIssue> issues) {
         for (UrgentIssue issue : issues) {
             PolicyEvolutionProposal proposal = new PolicyEvolutionProposal();
@@ -571,9 +533,7 @@ public class StaticAnalysisScheduler {
         }
     }
     
-    /**
-     * Helper 클래스들
-     */
+    
     private static class AnalysisResult {
         private String analysisId;
         private LocalDateTime timestamp;
@@ -593,7 +553,7 @@ public class StaticAnalysisScheduler {
         private DependencyGraph dependencyAnalysis;
         private Map<String, Double> complexityMetrics;
         
-        // Getters and Setters
+        
         public void setSecurityPatterns(Map<String, Integer> patterns) { this.securityPatterns = patterns; }
         public void setAccessControlPatterns(Map<String, Integer> patterns) { this.accessControlPatterns = patterns; }
         public void setDataFlowPatterns(Map<String, DataFlow> patterns) { this.dataFlowPatterns = patterns; }
@@ -607,7 +567,7 @@ public class StaticAnalysisScheduler {
         private List<PriorityConflict> priorityConflicts;
         private List<ScopeOverlap> scopeOverlaps;
         
-        // Getters and Setters
+        
         public List<ConflictPair> getDirectConflicts() { return directConflicts; }
         public void setDirectConflicts(List<ConflictPair> conflicts) { this.directConflicts = conflicts; }
         public void setDuplicates(List<DuplicatePair> duplicates) { this.duplicates = duplicates; }
@@ -622,7 +582,7 @@ public class StaticAnalysisScheduler {
         private List<CoverageGap> coverageGaps;
         private double overallCoverage;
         
-        // Getters and Setters
+        
         public void setDomainCoverage(Map<String, Double> coverage) { this.domainCoverage = coverage; }
         public void setThreatCoverage(Map<String, Double> coverage) { this.threatCoverage = coverage; }
         public void setComplianceCoverage(Map<String, Double> coverage) { this.complianceCoverage = coverage; }
@@ -638,7 +598,7 @@ public class StaticAnalysisScheduler {
         private List<OptimizationOpportunity> optimizationOpportunities;
         private PerformanceTrend performanceTrend;
         
-        // Getters and Setters
+        
         public void setSlowPolicies(List<SlowPolicy> policies) { this.slowPolicies = policies; }
         public void setResourceIntensivePolicies(List<ResourceIntensivePolicy> policies) { 
             this.resourceIntensivePolicies = policies; 
@@ -657,7 +617,7 @@ public class StaticAnalysisScheduler {
         private List<DataExposureRisk> exposureRisks;
         private double securityScore;
         
-        // Getters and Setters
+        
         public void setBypassRisks(List<PolicyBypassRisk> risks) { this.bypassRisks = risks; }
         public List<PolicyBypassRisk> getBypassRisks() { return bypassRisks; }
         public void setEscalationRisks(List<PrivilegeEscalationRisk> risks) { this.escalationRisks = risks; }
@@ -673,7 +633,7 @@ public class StaticAnalysisScheduler {
         private List<ComplianceGap> complianceGaps;
         private double complianceScore;
         
-        // Getters and Setters
+        
         public void setRegulatoryCompliance(Map<String, ComplianceStatus> compliance) { 
             this.regulatoryCompliance = compliance; 
         }
@@ -703,7 +663,7 @@ public class StaticAnalysisScheduler {
         private List<String> recommendations;
         private RiskSummary riskSummary;
         
-        // Getters and Setters
+        
         public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
         public void setAnalysisType(String type) { this.analysisType = type; }
         public void setCodebaseAnalysis(CodebaseAnalysisResult analysis) { this.codebaseAnalysis = analysis; }
@@ -723,7 +683,7 @@ public class StaticAnalysisScheduler {
         public void setRiskSummary(RiskSummary summary) { this.riskSummary = summary; }
     }
     
-    // 추가 Helper 클래스들
+    
     private static class ConflictPair {
         private Policy policy1;
         private Policy policy2;
@@ -777,7 +737,7 @@ public class StaticAnalysisScheduler {
         private LocalDateTime timestamp;
         private String description;
         
-        // Getters and Setters
+        
         public String getChangeId() { return changeId; }
         public void setChangeType(ChangeType type) { this.changeType = type; }
         public void setProposalId(Long id) { this.proposalId = id; }
@@ -792,7 +752,7 @@ public class StaticAnalysisScheduler {
         private String description;
         private String requiredAction;
         
-        // Getters and Setters
+        
         public void setIssueType(IssueType type) { this.issueType = type; }
         public void setSeverity(int severity) { this.severity = severity; }
         public int getSeverity() { return severity; }
@@ -810,7 +770,7 @@ public class StaticAnalysisScheduler {
         HIGH_RISK_CHANGE, VALIDATION_FAILURE, PERFORMANCE_DEGRADATION, SECURITY_VULNERABILITY
     }
     
-    // 나머지 Helper 클래스들 (간단한 구현)
+    
     private static class DataFlow {}
     private static class DependencyGraph {}
     private static class PriorityConflict {}
@@ -837,7 +797,7 @@ public class StaticAnalysisScheduler {
         private int riskLevel;
         private boolean rollbackable;
         
-        // Setters
+        
         public void setChangeId(String id) { this.changeId = id; }
         public void setAffectedSystems(Set<String> systems) { this.affectedSystems = systems; }
         public void setImpactScope(String scope) { this.impactScope = scope; }
@@ -857,7 +817,7 @@ public class StaticAnalysisScheduler {
         private boolean noConflicts;
         private double performanceImpact;
         
-        // Setters and Getters
+        
         public void setChangeId(String id) { this.changeId = id; }
         public void setSyntaxValid(boolean valid) { this.syntaxValid = valid; }
         public boolean isSyntaxValid() { return syntaxValid; }
@@ -869,9 +829,7 @@ public class StaticAnalysisScheduler {
         public double getPerformanceImpact() { return performanceImpact; }
     }
     
-    /**
-     * Helper 메서드 구현
-     */
+    
     private Map<String, Integer> analyzeSecurityPatterns() {
         Map<String, Integer> patterns = new HashMap<>();
         patterns.put("authentication", 15);
@@ -1033,7 +991,7 @@ public class StaticAnalysisScheduler {
     private double calculateComplianceScore(Map<String, ComplianceStatus> regulatory,
                                            Map<String, ComplianceStatus> industry,
                                            Map<String, ComplianceStatus> internal) {
-        return 85.0; // 간단한 구현
+        return 85.0; 
     }
     
     private double calculateOverallScore(double coverage, double performance, 
@@ -1091,27 +1049,27 @@ public class StaticAnalysisScheduler {
     }
     
     private int assessChangeRisk(PolicyChange change) {
-        return 5; // 간단한 구현
+        return 5; 
     }
     
     private boolean isRollbackable(PolicyChange change) {
-        return true; // 간단한 구현
+        return true; 
     }
     
     private boolean validateSyntax(PolicyChange change) {
-        return true; // 간단한 구현
+        return true; 
     }
     
     private boolean validateSemantics(PolicyChange change) {
-        return true; // 간단한 구현
+        return true; 
     }
     
     private boolean checkForConflicts(PolicyChange change) {
-        return true; // 간단한 구현
+        return true; 
     }
     
     private double estimatePerformanceImpact(PolicyChange change) {
-        return 10.0; // 간단한 구현
+        return 10.0; 
     }
     
     private PolicyEvolutionProposal createConflictResolutionProposal(ConflictPair conflict) {

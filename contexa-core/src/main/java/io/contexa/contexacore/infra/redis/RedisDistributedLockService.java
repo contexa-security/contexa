@@ -14,14 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 실용적인 분산 락 서비스
- * - Lua 스크립트를 통한 원자성 보장
- * - 재진입 가능한 락 지원
- * - 데드락 방지 (TTL)
- * - 모니터링 지원
- * - 안전한 키 생성
- */
+
 @Slf4j
 @RequiredArgsConstructor
 public class RedisDistributedLockService {
@@ -29,14 +22,14 @@ public class RedisDistributedLockService {
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String LOCK_PREFIX = "distributed:lock:";
-    private static final int MAX_KEY_LENGTH = 128; // Redis 키 최대 길이 제한
+    private static final int MAX_KEY_LENGTH = 128; 
 
-    // 락 획득 스크립트 (재진입 가능) - 개선된 버전
-    // 락 획득 스크립트 (재진입 가능) - 안전한 버전
+    
+    
     private static final String ACQUIRE_SCRIPT =
             "local lockKey = KEYS[1] " +
                     "local owner = ARGV[1] " +
-                    "local ttl = tonumber(ARGV[2]) or 30 " +  // 기본값 30초
+                    "local ttl = tonumber(ARGV[2]) or 30 " +  
                     "if not lockKey or not owner then " +
                     "  return 0 " +
                     "end " +
@@ -56,7 +49,7 @@ public class RedisDistributedLockService {
                     "  end " +
                     "end";
 
-    // 락 해제 스크립트 - 안전한 버전
+    
     private static final String RELEASE_SCRIPT =
             "local lockKey = KEYS[1] " +
                     "local owner = ARGV[1] " +
@@ -65,10 +58,10 @@ public class RedisDistributedLockService {
                     "end " +
                     "local currentOwner = redis.call('hget', lockKey, 'owner') " +
                     "if not currentOwner then " +
-                    "  return -1 " +  // 락이 존재하지 않음
+                    "  return -1 " +  
                     "end " +
                     "if currentOwner ~= owner then " +
-                    "  return -2 " +  // 소유자가 다름
+                    "  return -2 " +  
                     "end " +
                     "local countStr = redis.call('hget', lockKey, 'count') " +
                     "local count = countStr and tonumber(countStr) or 0 " +
@@ -79,7 +72,7 @@ public class RedisDistributedLockService {
                     "  return 1 " +
                     "end";
 
-    // 락 상태 확인 스크립트 (안전한 버전)
+    
     private static final String LOCK_STATUS_SCRIPT =
             "local lockKey = KEYS[1] " +
                     "if redis.call('exists', lockKey) == 0 then " +
@@ -90,27 +83,22 @@ public class RedisDistributedLockService {
                     "local ttl = redis.call('ttl', lockKey) " +
                     "return (owner or 'unknown') .. '|' .. (count or '0') .. '|' .. (ttl or '-1')";
 
-    /**
-     * 안전한 Redis 키 생성
-     * - 특수문자 제거
-     * - 길이 제한
-     * - 필요시 해시 처리
-     */
+    
     private String sanitizeKey(String key) {
         if (key == null || key.isEmpty()) {
             throw new IllegalArgumentException("Key cannot be null or empty");
         }
 
-        // 특수문자를 언더스코어로 치환
+        
         String sanitized = key.replaceAll("[^a-zA-Z0-9:_\\-.]", "_");
 
-        // 연속된 언더스코어 제거
+        
         sanitized = sanitized.replaceAll("_{2,}", "_");
 
-        // 앞뒤 언더스코어 제거
+        
         sanitized = sanitized.replaceAll("^_+|_+$", "");
 
-        // 길이가 너무 길면 해시 처리
+        
         if (sanitized.length() > MAX_KEY_LENGTH) {
             String prefix = sanitized.substring(0, 40);
             String hash = generateHash(key);
@@ -120,15 +108,13 @@ public class RedisDistributedLockService {
         return sanitized;
     }
 
-    /**
-     * SHA-256 해시 생성 (짧은 버전)
-     */
+    
     private String generateHash(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
 
-            // 처음 8바이트만 사용하여 16자리 16진수 문자열 생성
+            
             StringBuilder hexString = new StringBuilder();
             for (int i = 0; i < 8; i++) {
                 String hex = Integer.toHexString(0xff & hash[i]);
@@ -137,27 +123,25 @@ public class RedisDistributedLockService {
             }
             return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
-            // fallback to simple hash
+            
             return String.valueOf(Math.abs(input.hashCode()));
         }
     }
 
-    /**
-     * 락 획득 (개선된 버전)
-     */
+    
     public boolean tryLock(String resourceKey, String owner, Duration timeout) {
-        // 키 정제 - unlock()과 동일하게 처리
+        
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
 
         try {
-            // 타임아웃을 초 단위 정수로 변환
+            
             long timeoutSeconds = timeout.getSeconds();
             if (timeoutSeconds <= 0) {
-                timeoutSeconds = 30; // 기본값 30초
+                timeoutSeconds = 30; 
             }
 
-            // Redis 스크립트 실행 전 파라미터 검증
+            
             if (owner == null || owner.trim().isEmpty()) {
                 throw new IllegalArgumentException("Owner cannot be null or empty");
             }
@@ -165,8 +149,8 @@ public class RedisDistributedLockService {
             Long result = redisTemplate.execute(
                     new DefaultRedisScript<>(ACQUIRE_SCRIPT, Long.class),
                     Collections.singletonList(lockKey),
-                    owner.trim(),  // 공백 제거
-                    Long.toString(timeoutSeconds)  // 정수를 문자열로 변환
+                    owner.trim(),  
+                    Long.toString(timeoutSeconds)  
             );
 
             boolean acquired = result != null && result == 1L;
@@ -188,9 +172,7 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 락 해제 (개선된 버전)
-     */
+    
     public boolean unlock(String resourceKey, String owner) {
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
@@ -236,9 +218,7 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 락과 함께 작업 실행
-     */
+    
     public <T> T executeWithLock(String resourceKey, Duration timeout, LockableOperation<T> operation) {
         String owner = generateLockOwner();
 
@@ -258,12 +238,10 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 락 획득 대기
-     */
+    
     public boolean tryLockWithWait(String resourceKey, String owner, Duration timeout, Duration waitTime) {
         long deadline = System.currentTimeMillis() + waitTime.toMillis();
-        long backoff = 50; // 초기 대기 시간 (ms)
+        long backoff = 50; 
 
         while (System.currentTimeMillis() < deadline) {
             if (tryLock(resourceKey, owner, timeout)) {
@@ -272,7 +250,7 @@ public class RedisDistributedLockService {
 
             try {
                 Thread.sleep(Math.min(backoff, deadline - System.currentTimeMillis()));
-                backoff = Math.min(backoff * 2, 1000); // 최대 1초까지 증가
+                backoff = Math.min(backoff * 2, 1000); 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return false;
@@ -282,12 +260,10 @@ public class RedisDistributedLockService {
         return false;
     }
 
-    /**
-     * 락 상태 디버깅 로그 - 안전한 버전
-     */
+    
     private void logLockStatus(String lockKey, String resourceKey, String sanitizedKey) {
         try {
-            // JSON 파싱 오류 방지를 위해 직접 Redis 명령어 사용
+            
             Boolean exists = redisTemplate.hasKey(lockKey);
             if (exists == null || !exists) {
                 log.warn("Lock status for resource: {} (key: {}) - DOES NOT EXIST",
@@ -295,7 +271,7 @@ public class RedisDistributedLockService {
                 return;
             }
             
-            // 개별 필드 조회
+            
             String currentOwner = (String) redisTemplate.opsForHash().get(lockKey, "owner");
             String count = (String) redisTemplate.opsForHash().get(lockKey, "count");
             Long ttl = redisTemplate.getExpire(lockKey, TimeUnit.SECONDS);
@@ -312,9 +288,7 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 락 상태 확인
-     */
+    
     public LockInfo getLockInfo(String resourceKey) {
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
@@ -339,16 +313,12 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 락 소유자 ID 생성
-     */
+    
     private String generateLockOwner() {
         return Thread.currentThread().getName() + ":" + UUID.randomUUID().toString();
     }
 
-    /**
-     * 락 강제 해제 (디버깅/관리용)
-     */
+    
     public boolean forceUnlock(String resourceKey) {
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
@@ -366,9 +336,7 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 모든 락 정리 (디버깅/관리용)
-     */
+    
     public void clearAllLocks() {
         try {
             Set<String> keys = redisTemplate.keys(LOCK_PREFIX + "*");
@@ -381,9 +349,7 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 락 존재 여부 확인
-     */
+    
     public boolean isLocked(String resourceKey) {
         String sanitizedKey = sanitizeKey(resourceKey);
         String lockKey = LOCK_PREFIX + sanitizedKey;
@@ -396,9 +362,7 @@ public class RedisDistributedLockService {
         }
     }
 
-    /**
-     * 락 정보
-     */
+    
     public static class LockInfo {
         private final String owner;
         private final int count;
@@ -415,17 +379,13 @@ public class RedisDistributedLockService {
         public long getTtlSeconds() { return ttlSeconds; }
     }
 
-    /**
-     * 락 획득 가능한 작업
-     */
+    
     @FunctionalInterface
     public interface LockableOperation<T> {
         T execute() throws Exception;
     }
 
-    /**
-     * 락 획득 실패 예외
-     */
+    
     public static class LockAcquisitionException extends RuntimeException {
         public LockAcquisitionException(String message) {
             super(message);
