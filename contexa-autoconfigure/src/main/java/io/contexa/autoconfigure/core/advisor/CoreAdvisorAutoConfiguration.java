@@ -24,25 +24,7 @@ import org.springframework.context.event.EventListener;
 import jakarta.annotation.PostConstruct;
 import java.util.List;
 
-/**
- * Core Advisor AutoConfiguration
- *
- * Contexa 프레임워크의 Advisor 시스템 자동 구성을 제공합니다.
- *
- * 포함된 Bean (5개):
- * - AdvisorRegistry - Advisor 중앙 관리 레지스트리
- * - advisorEnabledChatClientBuilder - Advisor 지원 ChatClient.Builder (@Primary)
- * - standardChatClient - Standard profile ChatClient
- * - securityCriticalChatClient - Security critical profile ChatClient
- * - soarApprovalAdvisor - SOAR 도메인 Advisor
- *
- * 활성화 조건:
- * contexa:
- *   advisor:
- *     enabled: true  (기본값)
- *
- * @since 0.1.0-ALPHA
- */
+
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
@@ -64,22 +46,12 @@ public class CoreAdvisorAutoConfiguration {
         log.info("  - Default chain profile: {}", defaultChainProfile);
     }
 
-    /**
-     * 1. AdvisorRegistry Bean 등록
-     * Advisor 중앙 관리 레지스트리
-     */
     @Bean
     @ConditionalOnMissingBean
     public AdvisorRegistry advisorRegistry() {
         return new AdvisorRegistry();
     }
 
-    /**
-     * 2. ChatClient.Builder Bean with Advisor support
-     *
-     * Advisor를 지원하는 ChatClient.Builder를 제공합니다.
-     * @Primary로 지정하여 기본 Builder로 사용됩니다.
-     */
     @Bean
     @Primary
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -90,13 +62,11 @@ public class CoreAdvisorAutoConfiguration {
             AdvisorRegistry advisorRegistry) {
         log.info("Advisor-enabled ChatClient.Builder 생성");
 
-        // 주입받은 모든 BaseAdvisor를 Registry에 등록
         advisors.forEach(advisor -> {
             advisorRegistry.register(advisor);
             log.info("Advisor 등록: {} (order: {})", advisor.getName(), advisor.getOrder());
         });
 
-        // 활성화된 모든 Advisor를 가져와서 order 순으로 정렬
         List<BaseAdvisor> activeAdvisors = advisorRegistry.getEnabled();
 
         log.info("{} 개의 활성 Advisor를 ChatClient에 적용", activeAdvisors.size());
@@ -110,7 +80,6 @@ public class CoreAdvisorAutoConfiguration {
             builder = builder.defaultAdvisors(activeAdvisors.toArray(new Advisor[0]));
         }
 
-        // 기본 시스템 프롬프트 설정
         builder = builder.defaultSystem("""
             You are an AI Security Assistant powered by the contexa unified platform.
 
@@ -141,9 +110,6 @@ public class CoreAdvisorAutoConfiguration {
         return builder;
     }
 
-    /**
-     * 3. Standard profile ChatClient
-     */
     @Bean(name = "standardChatClient")
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "standard.enabled", havingValue = "true")
     public ChatClient standardChatClient(ChatModel chatModel, AdvisorRegistry advisorRegistry) {
@@ -154,9 +120,6 @@ public class CoreAdvisorAutoConfiguration {
             .build();
     }
 
-    /**
-     * 4. Security critical profile ChatClient
-     */
     @Bean(name = "securityCriticalChatClient")
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "critical.enabled", havingValue = "true")
     public ChatClient securityCriticalChatClient(ChatModel chatModel, AdvisorRegistry advisorRegistry) {
@@ -167,9 +130,6 @@ public class CoreAdvisorAutoConfiguration {
             .build();
     }
 
-    /**
-     * 5. SOAR 도메인 Advisor 등록
-     */
     @Bean
     @ConditionalOnProperty(prefix = "contexa.advisor.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public EnhancedSoarApprovalAdvisor soarApprovalAdvisor(Tracer tracer) {
@@ -177,10 +137,6 @@ public class CoreAdvisorAutoConfiguration {
         return new EnhancedSoarApprovalAdvisor(tracer);
     }
 
-    /**
-     * ApplicationContext 초기화 완료 후 Advisor 상태 확인
-     * 디버깅 및 모니터링 목적
-     */
     @EventListener(ContextRefreshedEvent.class)
     public void onApplicationReady(ContextRefreshedEvent event) {
         AdvisorRegistry advisorRegistry = event.getApplicationContext().getBean(AdvisorRegistry.class);
