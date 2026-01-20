@@ -2,12 +2,25 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
+import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.config.SecurityPlaneConfiguration;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
+import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
+import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
+import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
+import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
+import io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler;
+import io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler;
+import io.contexa.contexacore.autonomous.orchestrator.handler.RoutingDecisionHandler;
+import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
+import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
+import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
 import io.contexa.contexacore.autonomous.strategy.DynamicStrategySelector;
+import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.detection.MaliciousPatternDetector;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -19,7 +32,11 @@ import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.repository.ThreatIndicatorRepository;
+import io.contexa.contexacore.soar.approval.ApprovalService;
+import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,9 +45,12 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
+
+import java.util.List;
 
 /**
  * Core Autonomous AutoConfiguration
@@ -152,8 +172,8 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityPromptTemplate securityPromptTemplate(
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties,
+            SecurityEventEnricher securityEventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
             BaselineLearningService baselineLearningService) {
         return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties,baselineLearningService);
     }
@@ -178,8 +198,8 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
             AdminOverrideRepository adminOverrideRepository,
-            @Autowired(required = false) BaselineLearningService baselineLearningService,
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
+            BaselineLearningService baselineLearningService,
+            RedisTemplate<String, Object> redisTemplate) {
         return new AdminOverrideService(adminOverrideRepository, baselineLearningService, redisTemplate);
     }
 
@@ -209,8 +229,8 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler auditingHandler() {
-        return new io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler();
+    public AuditingHandler auditingHandler() {
+        return new AuditingHandler();
     }
 
     /**
@@ -218,9 +238,9 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler metricsHandler(
+    public MetricsHandler metricsHandler(
             RedisTemplate<String, Object> redisTemplate) {
-        return new io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler(redisTemplate);
+        return new MetricsHandler(redisTemplate);
     }
 
     // AI Native: ThreatScoreHandler 제거 (v3.1.0)
@@ -236,9 +256,8 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator threatScoreOrchestrator(
-            RedisTemplate<String, Object> redisTemplate) {
-        return new io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator(redisTemplate);
+    public ThreatScoreOrchestrator threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate) {
+        return new ThreatScoreOrchestrator(redisTemplate);
     }
 
     /**
@@ -246,8 +265,8 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl soarContextProviderImpl() {
-        return new io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl();
+    public SoarContextProviderImpl soarContextProviderImpl() {
+        return new SoarContextProviderImpl();
     }
 
     // ========== Level 4: Level 3 의존 (3개) ==========
@@ -262,13 +281,13 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
-            @Autowired(required = false) io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector kafkaCollector,
+            KafkaSecurityEventCollector kafkaCollector,
             SecurityIncidentRepository securityIncidentRepository,
             ThreatIndicatorRepository indicatorRepository,
-            @Autowired(required = false) java.util.List<io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy> evaluationStrategies,
-            @Autowired(required = false) io.contexa.contexacore.autonomous.processor.EventNormalizer eventNormalizer,
-            @Autowired(required = false) io.contexa.contexacore.autonomous.processor.EventDeduplicator eventDeduplicator,
-            @Autowired(required = false) SecurityEventEnricher eventEnricher,
+            List<ThreatEvaluationStrategy> evaluationStrategies,
+            EventNormalizer eventNormalizer,
+            EventDeduplicator eventDeduplicator,
+            SecurityEventEnricher eventEnricher,
             @Value("${security.plane.monitor.worker-threads:5}") int workerThreads,
             @Value("${security.plane.monitor.correlation-window-minutes:10}") int correlationWindowMinutes,
             @Value("${security.plane.monitor.threat-threshold:0.7}") double threatThreshold,
@@ -290,15 +309,15 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public Layer1ContextualStrategy contextualStrategy(
-            @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
-            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
-            @Autowired(required = false) SecurityPromptTemplate securityPromptTemplate,
-            @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService,
-            @Autowired(required = false) SecurityDecisionPostProcessor securityDecisionPostProcessor,
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
+            UnifiedLLMOrchestrator llmOrchestrator,
+            UnifiedVectorService unifiedVectorService,
+            RedisTemplate<String, Object> redisTemplate,
+            SecurityEventEnricher securityEventEnricher,
+            SecurityPromptTemplate securityPromptTemplate,
+            BehaviorVectorService behaviorVectorService,
+            BaselineLearningService baselineLearningService,
+            SecurityDecisionPostProcessor securityDecisionPostProcessor,
+            TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
             llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
             securityPromptTemplate, behaviorVectorService, baselineLearningService,
@@ -316,15 +335,15 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public Layer2ExpertStrategy expertStrategy(
-            @Autowired(required = false) io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator llmOrchestrator,
-            @Autowired(required = false) io.contexa.contexacore.soar.approval.ApprovalService approvalService,
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) SecurityEventEnricher securityEventEnricher,
-            @Autowired(required = false) SecurityPromptTemplate securityPromptTemplate,
-            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService,
-            @Autowired(required = false) io.contexa.contexacore.std.labs.behavior.BehaviorVectorService behaviorVectorService,
-            @Autowired(required = false) io.contexa.contexacore.hcad.service.BaselineLearningService baselineLearningService,
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties) {
+            UnifiedLLMOrchestrator llmOrchestrator,
+            ApprovalService approvalService,
+            RedisTemplate<String, Object> redisTemplate,
+            SecurityEventEnricher securityEventEnricher,
+            SecurityPromptTemplate securityPromptTemplate,
+            UnifiedVectorService unifiedVectorService,
+            BehaviorVectorService behaviorVectorService,
+            BaselineLearningService baselineLearningService,
+            TieredStrategyProperties tieredStrategyProperties) {
         return new Layer2ExpertStrategy(
             llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
             securityPromptTemplate, unifiedVectorService, behaviorVectorService,
@@ -336,8 +355,8 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.handler.RoutingDecisionHandler routingDecisionHandler() {
-        return new io.contexa.contexacore.autonomous.orchestrator.handler.RoutingDecisionHandler();
+    public RoutingDecisionHandler routingDecisionHandler() {
+        return new RoutingDecisionHandler();
     }
 
     /**
@@ -345,9 +364,9 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator securityEventProcessingOrchestrator(
-            java.util.List<io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler> handlers) {
-        return new io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator(handlers);
+    public SecurityEventProcessingOrchestrator securityEventProcessingOrchestrator(
+            List<SecurityEventHandler> handlers) {
+        return new SecurityEventProcessingOrchestrator(handlers);
     }
 
     // ========== Level 6: Level 5 의존 (1개) ==========
@@ -357,13 +376,13 @@ public class CoreAutonomousAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean
-    public io.contexa.contexacore.autonomous.SecurityPlaneAgent securityPlaneAgent(
-            io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService securityMonitor,
-            io.contexa.contexacore.repository.SecurityIncidentRepository incidentRepository,
+    public SecurityPlaneAgent securityPlaneAgent(
+            SecurityMonitoringService securityMonitor,
+            SecurityIncidentRepository incidentRepository,
             RedisTemplate<String, Object> redisTemplate,
-            org.springframework.context.ApplicationEventPublisher eventPublisher,
-            io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger auditLogger,
-            io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator processingOrchestrator) {
+            ApplicationEventPublisher eventPublisher,
+            SecurityPlaneAuditLogger auditLogger,
+            SecurityEventProcessingOrchestrator processingOrchestrator) {
         return new io.contexa.contexacore.autonomous.SecurityPlaneAgent(
             securityMonitor, incidentRepository, redisTemplate, eventPublisher, auditLogger, processingOrchestrator
         );
