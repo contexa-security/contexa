@@ -206,19 +206,12 @@ public class CoreAutonomousAutoConfiguration {
     public SecurityMonitoringService securityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
             SecurityIncidentRepository securityIncidentRepository,
-            ThreatIndicatorRepository indicatorRepository,
             List<ThreatEvaluationStrategy> evaluationStrategies,
             EventNormalizer eventNormalizer,
-            EventDeduplicator eventDeduplicator,
-            SecurityEventEnricher eventEnricher,
-            @Value("${security.plane.monitor.worker-threads:5}") int workerThreads,
-            @Value("${security.plane.monitor.correlation-window-minutes:10}") int correlationWindowMinutes,
-            @Value("${security.plane.monitor.threat-threshold:0.7}") double threatThreshold,
-            @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation) {
+            EventDeduplicator eventDeduplicator) {
         return new SecurityMonitoringService(
-            kafkaCollector, securityIncidentRepository, indicatorRepository,
-            evaluationStrategies, eventNormalizer, eventDeduplicator, eventEnricher,
-            workerThreads, correlationWindowMinutes, threatThreshold, autoIncidentCreation
+            kafkaCollector, securityIncidentRepository,
+            evaluationStrategies, eventNormalizer, eventDeduplicator
         );
     }
 

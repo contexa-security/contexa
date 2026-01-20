@@ -40,11 +40,9 @@ public class SecurityMonitoringService {
     private final List<SecurityEventListener> eventListeners;
     private final EventNormalizer eventNormalizer;
     private final EventDeduplicator eventDeduplicator;
-    private final SecurityEventEnricher eventEnricher;
     private final Map<String, MonitoringSession> activeSessions;
     private final Map<String, SecurityIncident> activeIncidents;
     private final ScheduledExecutorService scheduler;
-    private volatile boolean running;
     private final AtomicLong eventCounter;
     private final AtomicLong incidentCounter;
 
@@ -54,26 +52,18 @@ public class SecurityMonitoringService {
     public SecurityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
             SecurityIncidentRepository securityIncidentRepository,
-            ThreatIndicatorRepository indicatorRepository,
             List<ThreatEvaluationStrategy> evaluationStrategies,
             EventNormalizer eventNormalizer,
-            EventDeduplicator eventDeduplicator,
-            SecurityEventEnricher eventEnricher,
-            @Value("${security.plane.monitor.worker-threads:5}") int workerThreads,
-            @Value("${security.plane.monitor.correlation-window-minutes:10}") int correlationWindowMinutes,
-            @Value("${security.plane.monitor.threat-threshold:0.7}") double threatThreshold,
-            @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation) {
+            EventDeduplicator eventDeduplicator) {
         this.kafkaCollector = kafkaCollector;
         this.securityIncidentRepository = securityIncidentRepository;
         this.evaluationStrategies = evaluationStrategies;
         this.eventNormalizer = eventNormalizer;
         this.eventDeduplicator = eventDeduplicator;
-        this.eventEnricher = eventEnricher;
         this.eventListeners = new CopyOnWriteArrayList<>();
         this.activeSessions = new ConcurrentHashMap<>();
         this.activeIncidents = new ConcurrentHashMap<>();
         this.scheduler = Executors.newScheduledThreadPool(2);
-        this.running = true;
         this.eventCounter = new AtomicLong(0);
         this.incidentCounter = new AtomicLong(0);
     }
@@ -98,8 +88,6 @@ public class SecurityMonitoringService {
     @PreDestroy
     public void shutdown() {
         logger.info("Shutting down Security Monitoring Service");
-        running = false;
-
         scheduler.shutdown();
 
         try {
