@@ -176,7 +176,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 response = createDefaultResponse();
             }
 
-            // 5. 응답을 SecurityDecision 으로 변환
             SecurityDecision decision = convertToSecurityDecision(response, event);
 
             // AI Native v6.6: ESCALATE 시 L2를 위한 컨텍스트 캐싱
