@@ -2,7 +2,7 @@ package io.contexa.autoconfigure.iam;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacommon.annotation.Protectable;
-import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
 import jakarta.persistence.EntityManager;
@@ -68,8 +68,10 @@ public class IamInfrastructureAutoConfiguration {
      * meterRegistryPostProcessor 빈이 존재할 때만 활성화됩니다.
      * </p>
      *
+     * AI Native v13.0: ZeroTrustEventPublisher로 변경
+     *
      * @param protectableMethodAuthorizationManager XACML 기반 메서드 인가 관리자
-     * @param authorizationEventPublisher 인가 이벤트 발행자
+     * @param zeroTrustEventPublisher Zero Trust 이벤트 발행자
      * @return AuthorizationManagerMethodInterceptor
      */
     @Bean
@@ -77,14 +79,14 @@ public class IamInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
             ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,
-            AuthorizationEventPublisher authorizationEventPublisher) {
+            ZeroTrustEventPublisher zeroTrustEventPublisher) {
 
         log.info("AuthorizationManagerMethodInterceptor 빈 등록 (@Protectable 메서드 인터셉터)");
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
         AuthorizationManagerMethodInterceptor interceptor =
             new AuthorizationManagerMethodInterceptor(pointcut, protectableMethodAuthorizationManager);
-        interceptor.setAuthorizationEventPublisher(authorizationEventPublisher);
+        interceptor.setZeroTrustEventPublisher(zeroTrustEventPublisher);
         return interceptor;
     }
 

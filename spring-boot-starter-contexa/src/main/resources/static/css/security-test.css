@@ -149,7 +149,7 @@ body {
 /* === Main Grid: 3 Columns === */
 .main-grid-3col {
     display: grid;
-    grid-template-columns: 320px 1fr 360px;
+    grid-template-columns: 320px 1fr 500px;
     gap: 24px;
     margin-bottom: 24px;
     min-height: 580px;

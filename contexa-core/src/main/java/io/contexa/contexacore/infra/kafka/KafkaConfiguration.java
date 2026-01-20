@@ -1,5 +1,6 @@
 package io.contexa.contexacore.infra.kafka;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -96,18 +97,28 @@ public class KafkaConfiguration {
 
     /**
      * Producer Factory
+     *
+     * AI Native v14.2: ObjectMapper 주입으로 Instant 직렬화 일관성 보장
+     * - ApplicationConfig ObjectMapper 사용 (JavaTimeModule 등록, WRITE_DATES_AS_TIMESTAMPS=false)
+     * - Consumer와 동일한 ObjectMapper 사용으로 ISO-8601 문자열 형식 일관성 보장
+     * - 타입 정보 제거 (addTypeInfo=false)로 메시지 크기 최적화
      */
     @Bean
-    public ProducerFactory<String, Object> producerFactory() {
-        return new DefaultKafkaProducerFactory<>(producerConfigs());
+    public ProducerFactory<String, Object> producerFactory(ObjectMapper objectMapper) {
+        Map<String, Object> props = new HashMap<>(producerConfigs());
+        JsonSerializer<Object> serializer = new JsonSerializer<>(objectMapper);
+        serializer.setAddTypeInfo(false);
+        return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), serializer);
     }
 
     /**
      * Kafka Template for sending messages
+     *
+     * AI Native v14.2: ProducerFactory Bean 주입으로 ISO-8601 직렬화 일관성 보장
      */
     @Bean
-    public KafkaTemplate<String, Object> kafkaTemplate() {
-        return new KafkaTemplate<>(producerFactory());
+    public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
+        return new KafkaTemplate<>(producerFactory);
     }
 
     /**

@@ -273,11 +273,8 @@ public class SecurityPromptTemplate {
         if (event.getTimestamp() != null) {
             prompt.append("Timestamp: ").append(event.getTimestamp()).append("\n");
 
-            // AI Native v8.14: CurrentHour 추출 (LLM 시간대 비교 용이)
-            String timestampStr = event.getTimestamp().toString();
-            if (timestampStr.contains("T") && timestampStr.length() > 13) {
-                prompt.append("CurrentHour: ").append(timestampStr.substring(11, 13)).append("\n");
-            }
+            // AI Native v8.14.1: CurrentHour 추출 - getHour() 직접 사용 (문자열 파싱 버그 수정)
+            prompt.append("CurrentHour: ").append(event.getTimestamp().getHour()).append("\n");
         }
         if (userId != null) {
             prompt.append("User: ").append(PromptTemplateUtils.sanitizeUserInput(userId)).append("\n");
@@ -305,13 +302,10 @@ public class SecurityPromptTemplate {
         // - 플랫폼은 Raw 데이터만 제공, LLM이 직접 비교/판단
         String currentOS = extractOSFromUserAgent(event.getUserAgent());
         String currentIP = normalizeIP(event.getSourceIp());
-        String currentHour = null;
-        if (event.getTimestamp() != null) {
-            String timestampStr = event.getTimestamp().toString();
-            if (timestampStr.contains("T") && timestampStr.length() > 13) {
-                currentHour = timestampStr.substring(11, 13);
-            }
-        }
+        // AI Native v8.14.1: getHour() 직접 사용 (문자열 파싱 버그 수정)
+        String currentHour = event.getTimestamp() != null
+            ? String.valueOf(event.getTimestamp().getHour())
+            : null;
         String currentUA = extractUASignature(event.getUserAgent());
 
         prompt.append("\n=== CURRENT REQUEST ===\n");
@@ -334,6 +328,23 @@ public class SecurityPromptTemplate {
         prompt.append("Hour: [").append(knownHourStr).append("]\n");
         prompt.append("UA: [").append(knownUAStr).append("]\n");
         prompt.append("Path: [").append(knownPathStr).append("]\n");
+
+        // AI Native v14.1: Zero Trust 평가 가이드 간소화 (30줄 → 8줄)
+        // - LLM 혼란 방지: 너무 긴 지침은 LLM이 무시하거나 환각 유발
+        // - 핵심만 전달: CURRENT vs KNOWN 비교 → mismatch 카운트 → 위험도 평가
+        prompt.append("\n=== SIGNAL COMPARISON ===\n");
+        prompt.append("For OS, IP, Hour, UA - check if CURRENT value exists in KNOWN list:\n");
+        prompt.append("- IN list = MATCH (established pattern)\n");
+        prompt.append("- NOT in list = MISMATCH (new/unusual)\n");
+        prompt.append("Signal context (each mismatch is significant, not minor):\n");
+        prompt.append("- IP mismatch: New network location (security-sensitive)\n");
+        prompt.append("- OS mismatch: New device type (potential account compromise)\n");
+        prompt.append("- Hour mismatch: Unusual access time (behavior anomaly)\n");
+        prompt.append("- UA mismatch: New browser/client (credential sharing risk)\n");
+        prompt.append("Risk assessment by mismatch count:\n");
+        prompt.append("- 0 = All patterns match (low risk)\n");
+        prompt.append("- 1 = Single deviation (evaluate context)\n");
+        prompt.append("- 2+ = Multiple deviations (elevated risk)\n");
 
         // 2. 네트워크 정보 (Zero Trust: 필수 출력)
         prompt.append("\n=== NETWORK ===\n");
@@ -446,10 +457,10 @@ public class SecurityPromptTemplate {
             {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
 
             ACTIONS:
-            - ALLOW: Consistent with known patterns
-            - CHALLENGE: Needs verification
-            - BLOCK: Unauthorized access indicators
-            - ESCALATE: Requires human review
+            - ALLOW: Consistent with known patterns (low risk)
+            - CHALLENGE: Needs verification (moderate risk)
+            - BLOCK: Unauthorized access indicators (high risk)
+            - ESCALATE: Requires human review (critical risk)
 
             MITRE (if applicable): T1078, T1110, T1185
 

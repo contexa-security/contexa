@@ -2,7 +2,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexacommon.dto.UserDto;
@@ -44,7 +44,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
     private final ContextHandler contextHandler;
-    private final AuthorizationEventPublisher authorizationEventPublisher;
+    private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final EventPublishingMetrics metricsCollector;
 
 
@@ -116,9 +116,9 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
-        if (authorizationEventPublisher != null && !authorizationDecision.isGranted()) {
+        if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
             long startTime = System.nanoTime();
-            authorizationEventPublisher.publishWebAuthorizationDecision(authentication, request, authorizationDecision);
+            zeroTrustEventPublisher.publishWebAuthorization(authentication, request, authorizationDecision);
 
             long duration = System.nanoTime() - startTime;
 

@@ -14,7 +14,7 @@ import org.springframework.security.authorization.method.ThrowingMethodAuthoriza
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
-import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 
 import java.util.function.Supplier;
@@ -25,9 +25,9 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private final Pointcut pointcut;
     private final ProtectableMethodAuthorizationManager authorizationManager;
     private final MethodAuthorizationDeniedHandler defaultHandler = new ThrowingMethodAuthorizationDeniedHandler();
-    private int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1; // 다른 인터셉터보다 약간 뒤에 실행
+    private final int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1; // 다른 인터셉터보다 약간 뒤에 실행
     private final Supplier<SecurityContextHolderStrategy> securityContextHolderStrategy = SecurityContextHolder::getContextHolderStrategy;
-    private AuthorizationEventPublisher authorizationEventPublisher;
+    private ZeroTrustEventPublisher zeroTrustEventPublisher;
     private EventPublishingMetrics metricsCollector;
 
     public AuthorizationManagerMethodInterceptor(Pointcut pointcut, ProtectableMethodAuthorizationManager authorizationManager) {
@@ -107,8 +107,8 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     @Override
     public int getOrder() { return this.order; }
     
-    public void setAuthorizationEventPublisher(AuthorizationEventPublisher authorizationEventPublisher) {
-        this.authorizationEventPublisher = authorizationEventPublisher;
+    public void setZeroTrustEventPublisher(ZeroTrustEventPublisher zeroTrustEventPublisher) {
+        this.zeroTrustEventPublisher = zeroTrustEventPublisher;
     }
 
     public void setMetricsCollector(EventPublishingMetrics metricsCollector) {
@@ -118,19 +118,21 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     /**
      * @Protectable 메서드 접근에 대한 이벤트 발행
      * Zero Trust 아키텍처의 핵심 - 모든 민감한 메서드 접근을 추적
+     *
+     * AI Native v13.0: ZeroTrustEventPublisher 사용
      */
-    private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication, 
+    private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication,
                                           boolean granted, String denialReason) {
-        if (authorizationEventPublisher == null) {
+        if (zeroTrustEventPublisher == null) {
             return;
         }
-        
+
         try {
             // ===== 메트릭 수집 =====
             long startTime = System.nanoTime();
 
-            // 통합된 AuthorizationEventPublisher 사용 - 올바른 시그니처 사용
-            authorizationEventPublisher.publishMethodAuthorizationDecisionAsync(
+            // AI Native v13.0: ZeroTrustEventPublisher 사용
+            zeroTrustEventPublisher.publishMethodAuthorization(
                 mi,
                 authentication,
                 granted,

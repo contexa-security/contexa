@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.handler;
 
-import io.contexa.contexacore.autonomous.event.domain.AuthenticationFailureEvent;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -16,8 +16,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.ApplicationEventPublisherAware;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.util.StringUtils;
@@ -35,7 +34,7 @@ import java.util.Map;
  * - response.isCommitted() 체크로 중복 응답 방지
  */
 @Slf4j
-public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler implements ApplicationEventPublisherAware  {
+public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaPolicyProvider mfaPolicyProvider;
@@ -43,7 +42,8 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final UserIdentificationService userIdentificationService;
     private final AuthUrlProvider authUrlProvider;
 
-    private ApplicationEventPublisher eventPublisher;
+    @Autowired(required = false)
+    private ZeroTrustEventPublisher zeroTrustEventPublisher;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
@@ -57,11 +57,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         this.sessionRepository = sessionRepository;
         this.userIdentificationService = userIdentificationService;
         this.authUrlProvider = authUrlProvider;
-    }
-
-    @Override
-    public void setApplicationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-        this.eventPublisher = applicationEventPublisher;
     }
 
     @Override
@@ -341,68 +336,52 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     }
     
     /**
-     * 인증 실패 이벤트 발행
-     * 
-     * 실패한 인증 시도를 추적하여 공격 패턴을 분석합니다.
+     * AI Native v14.1: ZeroTrustEventPublisher를 통한 인증 실패 이벤트 발행
+     *
+     * 아키텍처:
+     * - ZeroTrustEventPublisher.publishAuthenticationFailure() 호출
+     * - ZeroTrustSpringEvent 발행 (Spring Event)
+     * - ZeroTrustEventListener가 수신하여 Kafka 전송
      */
     private void publishAuthenticationFailureEvent(HttpServletRequest request,
                                                    AuthenticationException exception,
                                                    @Nullable FactorContext factorContext) {
         try {
-            if (eventPublisher == null) {
-                log.debug("ApplicationEventPublisher not available, skipping failure event publication");
+            if (zeroTrustEventPublisher == null) {
+                log.debug("ZeroTrustEventPublisher not available, skipping failure event publication");
                 return;
             }
-            
-            // 실패 정보 추출
+
             String username = userIdentificationService.extractUserId(request, null, exception);
             Integer failureCount = extractFailureCount(factorContext);
-            
-            // 이벤트 빌더 생성
-            AuthenticationFailureEvent.AuthenticationFailureEventBuilder builder = 
-                AuthenticationFailureEvent.builder()
-                    .eventId(java.util.UUID.randomUUID().toString())
-                    .userId(username)
-                    .username(username)
-                    .sessionId(request.getSession(false) != null ? request.getSession().getId() : null)
-                    .eventTimestamp(java.time.LocalDateTime.now())
-                    .sourceIp(extractClientIp(request))
-                    .userAgent(request.getHeader("User-Agent"))
-                    .failureReason(exception.getMessage())
-                    .exceptionClass(exception.getClass().getName())
-                    .exceptionMessage(exception.getMessage())
-                    .failureCount(failureCount);
-            
-            // FactorContext 에서 추가 정보 추출
-            if (factorContext != null) {
-                builder.authenticationType(factorContext.getCurrentProcessingFactor() != null ?
-                                          factorContext.getCurrentProcessingFactor().toString() : "PRIMARY")
-                       .deviceId((String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
-                
-                // AI Native: bruteForceDetected 계산 제거
-                // 하드코딩 임계값(failureCount > 10) 대신 failureCount raw 데이터를 LLM에게 전달
-                // LLM이 컨텍스트를 고려하여 brute force 여부를 직접 판단
 
-                // 위험 점수
-                Double riskScore = calculateFailureRiskScore(failureCount, exception);
-                builder.riskScore(riskScore);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("requestPath", request.getRequestURI());
+            payload.put("httpMethod", request.getMethod());
+            payload.put("failureReason", exception.getMessage());
+            payload.put("exceptionClass", exception.getClass().getName());
+            payload.put("failureCount", failureCount);
+            payload.put("riskScore", calculateFailureRiskScore(failureCount, exception));
+
+            if (factorContext != null) {
+                payload.put("authenticationType", factorContext.getCurrentProcessingFactor() != null ?
+                        factorContext.getCurrentProcessingFactor().toString() : "PRIMARY");
+                payload.put("deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
             } else {
-                builder.authenticationType("PRIMARY");
+                payload.put("authenticationType", "PRIMARY");
             }
-            
-            // 메타데이터
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("requestPath", request.getRequestURI());
-            metadata.put("httpMethod", request.getMethod());
-            builder.metadata(metadata);
-            
-            // 이벤트 발행
-            AuthenticationFailureEvent event = builder.build();
-            eventPublisher.publishEvent(event);
-            
-            log.debug("Published authentication failure event for user: {}, eventId: {}", 
-                     username, event.getEventId());
-            
+
+            zeroTrustEventPublisher.publishAuthenticationFailure(
+                    username,
+                    request.getSession(false) != null ? request.getSession().getId() : null,
+                    extractClientIp(request),
+                    request.getHeader("User-Agent"),
+                    payload
+            );
+
+            log.debug("Published authentication failure event via ZeroTrustEventPublisher for user: {}",
+                    username);
+
         } catch (Exception e) {
             log.error("Failed to publish authentication failure event", e);
         }

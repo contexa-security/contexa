@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
@@ -26,8 +26,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.ApplicationEventPublisherAware;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
@@ -50,12 +48,15 @@ import java.util.UUID;
  * AbstractTokenBasedSuccessHandler를 상속받아 토큰 생성 로직 재사용
  */
 @Slf4j
-public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTokenBasedSuccessHandler implements ApplicationEventPublisherAware {
+public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTokenBasedSuccessHandler {
 
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final RequestCache requestCache = new HttpSessionRequestCache();
-    private ApplicationEventPublisher eventPublisher;
+
+    @Autowired(required = false)
+    private ZeroTrustEventPublisher zeroTrustEventPublisher;
+
     private RedisTemplate<String, Object> redisTemplate;
 
     // AI Native v3.5.0: MFA 성공 시 Baseline 학습을 위한 서비스
@@ -69,11 +70,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
-    }
-
-    @Override
-    public void setApplicationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-        this.eventPublisher = applicationEventPublisher;
     }
 
     /**
@@ -313,76 +309,53 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
     
     /**
-     * Zero Trust를 위한 인증 성공 이벤트 발행
-     * 모든 성공한 인증을 AI가 실시간 분석하여 이상 패턴 감지
+     * AI Native v14.1: ZeroTrustEventPublisher를 통한 인증 성공 이벤트 발행
+     *
+     * 아키텍처:
+     * - ZeroTrustEventPublisher.publishAuthenticationSuccess() 호출
+     * - ZeroTrustSpringEvent 발행 (Spring Event)
+     * - ZeroTrustEventListener가 수신하여 Kafka 전송
      */
     private void publishAuthenticationSuccessEvent(HttpServletRequest request,
                                                    Authentication authentication,
                                                    @Nullable FactorContext factorContext,
                                                    TokenTransportResult transportResult) {
         try {
-            if (eventPublisher == null) {
-                log.debug("ApplicationEventPublisher not available, skipping event publication");
+            if (zeroTrustEventPublisher == null) {
+                log.debug("ZeroTrustEventPublisher not available, skipping event publication");
                 return;
             }
-            
+
             UserDto userDto = (UserDto) authentication.getPrincipal();
 
-            // 이벤트 빌더 생성
-            AuthenticationSuccessEvent.AuthenticationSuccessEventBuilder builder = 
-                AuthenticationSuccessEvent.builder()
-                    .eventId(java.util.UUID.randomUUID().toString())
-                    .userId(userDto.getUsername())  // Zero Trust를 위한 사용자 식별자 (username)
-                    .username(userDto.getUsername())
-                    .sessionId(request.getSession(false) != null ? request.getSession().getId() : null)
-                    .eventTimestamp(java.time.LocalDateTime.now())
-                    .sourceIp(extractClientIp(request))
-                    .userAgent(request.getHeader("User-Agent"))
-                    .authenticationType(factorContext != null && factorContext.isCompleted() ? "MFA" : "PRIMARY");
-            
-            // FactorContext 에서 추가 정보 추출
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("requestPath", request.getRequestURI());
+            payload.put("httpMethod", request.getMethod());
+            payload.put("authenticationType", factorContext != null && factorContext.isCompleted() ? "MFA" : "PRIMARY");
+
             if (factorContext != null) {
-                builder.mfaCompleted(factorContext.isCompleted())
-                       .deviceId((String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID))
-                       .mfaMethod(factorContext.getCurrentProcessingFactor() != null ?
-                                 factorContext.getCurrentProcessingFactor().toString() : null);
-
-                // AI 위험 평가 정보
-                Double aiRiskScore = (Double) factorContext.getAttribute(FactorContextAttributes.Policy.AI_RISK_SCORE);
-                if (aiRiskScore != null) {
-                    builder.trustScore(1.0 - aiRiskScore); // 위험 점수를 신뢰 점수로 변환
-                }
-
-                // 이상 징후 감지
-                Boolean blocked = (Boolean) factorContext.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
-                builder.anomalyDetected(blocked != null && blocked);
-                
-                // 세션 컨텍스트
-                Map<String, Object> sessionContext = new HashMap<>();
-                sessionContext.put("mfaSessionId", factorContext.getMfaSessionId());
-                sessionContext.put("currentState", factorContext.getCurrentState());
-                sessionContext.put("availableFactors", factorContext.getAvailableFactors());
-                builder.sessionContext(sessionContext);
+                payload.put("mfaCompleted", factorContext.isCompleted());
+                payload.put("deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
+                payload.put("mfaMethod", factorContext.getCurrentProcessingFactor() != null ?
+                        factorContext.getCurrentProcessingFactor().toString() : null);
             }
-            
-            // 추가 메타데이터
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("requestPath", request.getRequestURI());
-            metadata.put("httpMethod", request.getMethod());
+
             if (transportResult != null && transportResult.getBody() != null) {
-                metadata.put("authenticationResult", transportResult.getBody().get("status"));
+                payload.put("authenticationResult", transportResult.getBody().get("status"));
             }
-            builder.metadata(metadata);
 
-            // 이벤트 발행
-            AuthenticationSuccessEvent event = builder.build();
-            eventPublisher.publishEvent(event);
-            
-            log.debug("Published authentication success event for user: {}, eventId: {}", 
-                     userDto.getUsername(), event.getEventId());
-            
+            zeroTrustEventPublisher.publishAuthenticationSuccess(
+                    userDto.getUsername(),
+                    request.getSession(false) != null ? request.getSession().getId() : null,
+                    extractClientIp(request),
+                    request.getHeader("User-Agent"),
+                    payload
+            );
+
+            log.debug("Published authentication success event via ZeroTrustEventPublisher for user: {}",
+                    userDto.getUsername());
+
         } catch (Exception e) {
-            // 이벤트 발행 실패가 인증 프로세스를 중단시키지 않도록 예외 처리
             log.error("Failed to publish authentication success event", e);
         }
     }

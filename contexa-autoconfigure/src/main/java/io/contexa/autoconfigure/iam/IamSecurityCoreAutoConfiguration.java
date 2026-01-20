@@ -9,8 +9,8 @@ import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -34,11 +34,11 @@ public class IamSecurityCoreAutoConfiguration {
             RedisAtomicOperations redisAtomicOperations,
             ObjectMapper objectMapper,
             BaselineLearningService baselineLearningService,
-            ApplicationEventPublisher eventPublisher,
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
             TieredStrategyProperties tieredStrategyProperties) {
         return new ZeroTrustSecurityService(redisTemplate,
                 threatScoreOrchestrator, redisAtomicOperations,
-                objectMapper, baselineLearningService, eventPublisher, tieredStrategyProperties);
+                objectMapper, baselineLearningService, zeroTrustEventPublisher, tieredStrategyProperties);
     }
 
     @Bean

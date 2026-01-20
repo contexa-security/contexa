@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
-import io.contexa.contexacore.autonomous.event.domain.AuthenticationSuccessEvent;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -15,7 +15,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
@@ -58,7 +57,7 @@ public class ZeroTrustSecurityService {
     private final RedisAtomicOperations redisAtomicOperations;
     private final ObjectMapper objectMapper;
     private final BaselineLearningService baselineLearningService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final TieredStrategyProperties tieredStrategyProperties;
 
     @Value("${zerotrust.enabled:true}")
@@ -587,43 +586,41 @@ public class ZeroTrustSecurityService {
         }
     }
 
+    /**
+     * AI Native v14.1: ZeroTrustEventPublisher를 통한 인증 성공 이벤트 발행
+     *
+     * 아키텍처:
+     * - ZeroTrustEventPublisher.publishAuthenticationSuccess() 호출
+     * - ZeroTrustSpringEvent 발행 (Spring Event)
+     * - ZeroTrustEventListener가 수신하여 Kafka 전송
+     */
     private void publishAuthenticationSuccessEvent(HttpServletRequest request,
                                                    Authentication authentication) {
         try {
-            if (eventPublisher == null) {
-                log.debug("ApplicationEventPublisher not available, skipping event publication");
+            if (zeroTrustEventPublisher == null) {
+                log.debug("ZeroTrustEventPublisher not available, skipping event publication");
                 return;
             }
 
             UnifiedCustomUserDetails userDto = (UnifiedCustomUserDetails) authentication.getPrincipal();
 
-            // 이벤트 빌더 생성
-            // AI Native v8.11: extractUserAgent() 사용 (X-Simulated-User-Agent 지원)
-            AuthenticationSuccessEvent.AuthenticationSuccessEventBuilder builder =
-                    AuthenticationSuccessEvent.builder()
-                            .eventId(java.util.UUID.randomUUID().toString())
-                            .userId(userDto.getUsername())  // Zero Trust를 위한 사용자 식별자 (username)
-                            .username(userDto.getUsername())
-                            .sessionId(request.getSession(false) != null ? request.getSession().getId() : null)
-                            .eventTimestamp(java.time.LocalDateTime.now())
-                            .sourceIp(extractClientIp(request))
-                            .userAgent(extractUserAgent(request))
-                            .authenticationType("MFA");
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("requestPath", request.getRequestURI());
+            payload.put("httpMethod", request.getMethod());
+            payload.put("authenticationType", "MFA");
 
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("requestPath", request.getRequestURI());
-            metadata.put("httpMethod", request.getMethod());
-            builder.metadata(metadata);
+            zeroTrustEventPublisher.publishAuthenticationSuccess(
+                    userDto.getUsername(),
+                    request.getSession(false) != null ? request.getSession().getId() : null,
+                    extractClientIp(request),
+                    extractUserAgent(request),
+                    payload
+            );
 
-            // 이벤트 발행
-            AuthenticationSuccessEvent event = builder.build();
-            eventPublisher.publishEvent(event);
-
-            log.debug("Published authentication success event for user: {}, eventId: {}",
-                    userDto.getUsername(), event.getEventId());
+            log.debug("Published authentication success event via ZeroTrustEventPublisher for user: {}",
+                    userDto.getUsername());
 
         } catch (Exception e) {
-            // 이벤트 발행 실패가 인증 프로세스를 중단시키지 않도록 예외 처리
             log.error("Failed to publish authentication success event", e);
         }
     }

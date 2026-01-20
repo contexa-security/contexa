@@ -263,7 +263,6 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
             @Autowired(required = false) io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector kafkaCollector,
-            @Autowired(required = false) io.contexa.contexacore.autonomous.event.listener.RedisSecurityEventCollector redisCollector,
             SecurityIncidentRepository securityIncidentRepository,
             ThreatIndicatorRepository indicatorRepository,
             @Autowired(required = false) java.util.List<io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy> evaluationStrategies,
@@ -275,7 +274,7 @@ public class CoreAutonomousAutoConfiguration {
             @Value("${security.plane.monitor.threat-threshold:0.7}") double threatThreshold,
             @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation) {
         return new SecurityMonitoringService(
-            kafkaCollector, redisCollector, securityIncidentRepository, indicatorRepository,
+            kafkaCollector, securityIncidentRepository, indicatorRepository,
             evaluationStrategies, eventNormalizer, eventDeduplicator, eventEnricher,
             workerThreads, correlationWindowMinutes, threatThreshold, autoIncidentCreation
         );

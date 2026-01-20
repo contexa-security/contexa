@@ -1,7 +1,7 @@
 package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.interceptor.ZeroTrustResponseInterceptor;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
@@ -38,6 +38,11 @@ public class IamXacmlPepAutoConfiguration {
         return new ExpressionAuthorizationManagerResolver(evaluators, customWebSecurityExpressionHandler);
     }
 
+    /**
+     * CustomDynamicAuthorizationManager 빈 등록
+     *
+     * AI Native v13.0: ZeroTrustEventPublisher로 변경
+     */
     @Bean
     @ConditionalOnMissingBean
     public CustomDynamicAuthorizationManager customDynamicAuthorizationManager(
@@ -46,11 +51,11 @@ public class IamXacmlPepAutoConfiguration {
             AuditLogService auditLogService,
             ObjectMapper objectMapper,
             ContextHandler contextHandler,
-            AuthorizationEventPublisher authorizationEventPublisher,
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
             @Autowired(required = false) EventPublishingMetrics metricsCollector) {
         return new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, auditLogService,
-                objectMapper, contextHandler, authorizationEventPublisher, metricsCollector);
+                objectMapper, contextHandler, zeroTrustEventPublisher, metricsCollector);
     }
 
     @Bean

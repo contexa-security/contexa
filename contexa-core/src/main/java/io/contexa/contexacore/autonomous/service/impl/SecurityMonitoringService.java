@@ -3,7 +3,6 @@ package io.contexa.contexacore.autonomous.service.impl;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
-import io.contexa.contexacore.autonomous.event.listener.RedisSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
 import io.contexa.contexacore.autonomous.processor.EventNormalizer;
@@ -46,7 +45,6 @@ public class SecurityMonitoringService {
     }
 
     private final KafkaSecurityEventCollector kafkaCollector;
-    private final RedisSecurityEventCollector redisCollector;
     private final SecurityIncidentRepository securityIncidentRepository;
     private final List<ThreatEvaluationStrategy> evaluationStrategies;
     private final List<SecurityEventListener> eventListeners;
@@ -65,7 +63,6 @@ public class SecurityMonitoringService {
 
     public SecurityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
-            RedisSecurityEventCollector redisCollector,
             SecurityIncidentRepository securityIncidentRepository,
             ThreatIndicatorRepository indicatorRepository,
             List<ThreatEvaluationStrategy> evaluationStrategies,
@@ -77,7 +74,6 @@ public class SecurityMonitoringService {
             @Value("${security.plane.monitor.threat-threshold:0.7}") double threatThreshold,
             @Value("${security.plane.monitor.auto-incident-creation:true}") boolean autoIncidentCreation) {
         this.kafkaCollector = kafkaCollector;
-        this.redisCollector = redisCollector;
         this.securityIncidentRepository = securityIncidentRepository;
         this.evaluationStrategies = evaluationStrategies;
         this.eventNormalizer = eventNormalizer;
@@ -224,7 +220,6 @@ public class SecurityMonitoringService {
 
         // Add collector statistics
         stats.put("kafka_stats", kafkaCollector.getStatistics());
-        stats.put("redis_stats", redisCollector.getStatistics());
 
         return stats;
     }

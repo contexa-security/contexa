@@ -10,15 +10,12 @@ import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
 import io.contexa.contexacore.autonomous.event.decision.UnifiedEventPublishingDecisionEngine;
 import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFilter;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
-import io.contexa.contexacore.autonomous.event.listener.RedisSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.event.monitoring.DeadLetterQueueMonitor;
 import io.contexa.contexacore.autonomous.event.monitoring.RedisMemoryMonitor;
-import io.contexa.contexacore.autonomous.event.publisher.AuthorizationEventPublisher;
-import io.contexa.contexacore.autonomous.event.publisher.CompositeSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
-import io.contexa.contexacore.autonomous.event.publisher.RedisSecurityEventPublisher;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.event.sampling.AdaptiveSamplingEngine;
 import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityPlaneEventListener;
@@ -89,16 +86,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public RedisSecurityEventCollector redisSecurityEventCollector(
-            RedissonClient redissonClient,
-            StringRedisTemplate stringRedisTemplate,
-            ObjectMapper objectMapper,
-            RedisMessageListenerContainer messageListenerContainer) {
-        return new RedisSecurityEventCollector(redissonClient, stringRedisTemplate, objectMapper, messageListenerContainer);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ZeroTrustEventListener zeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
@@ -106,54 +93,27 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ZeroTrustEventListener(kafkaSecurityEventPublisher, redisTemplate, securityDecisionPostProcessor);
     }
 
-    // ========== Event Publishers ==========
-
-    /**
-     * AuthorizationEventPublisher - 인가 이벤트 발행자
-     *
-     * AI Native 비동기 구조 최적화 (Phase 2):
-     * - Spring Event 제거 -> Kafka 직접 전송
-     * - @Async 제거 -> kafkaTemplate.send()가 이미 비동기
-     * - Phase 14 Redis 락 체크 통합 (중복 LLM 분석 방지)
-     *
-     * D1: TieredStrategyProperties 주입
-     * - Security 설정에서 trustedProxies 목록 사용
-     * - X-Forwarded-For 스푸핑 방지
-     */
-    @Bean
-    @ConditionalOnMissingBean
-    public AuthorizationEventPublisher authorizationEventPublisher(
-            KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
-            TieredStrategyProperties tieredStrategyProperties,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new AuthorizationEventPublisher(
-                kafkaSecurityEventPublisher,
-                tieredStrategyProperties,
-                redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public CompositeSecurityEventPublisher compositeSecurityEventPublisher(
-            KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
-            RedisSecurityEventPublisher redisSecurityEventPublisher) {
-        return new CompositeSecurityEventPublisher(kafkaSecurityEventPublisher, redisSecurityEventPublisher);
-    }
-
     @Bean
     @ConditionalOnMissingBean
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
-            KafkaTemplate<String, Object> kafkaTemplate,
-            ObjectMapper objectMapper) {
-        return new KafkaSecurityEventPublisher(kafkaTemplate, objectMapper);
+            KafkaTemplate<String, Object> kafkaTemplate) {
+        return new KafkaSecurityEventPublisher(kafkaTemplate);
     }
 
+    /**
+     * ZeroTrustEventPublisher - Zero Trust 공통 이벤트 발행 모듈
+     *
+     * AI Native v13.0: 이벤트 기반 Zero Trust 아키텍처
+     *
+     * 모든 보안 이벤트의 단일 발행점으로, Spring Event를 통해
+     * ZeroTrustEventListener로 이벤트를 전달합니다.
+     */
     @Bean
     @ConditionalOnMissingBean
-    public RedisSecurityEventPublisher redisSecurityEventPublisher(
-            RedisTemplate<String, Object> redisTemplate,
-            ObjectMapper objectMapper) {
-        return new RedisSecurityEventPublisher(redisTemplate, objectMapper);
+    public ZeroTrustEventPublisher zeroTrustEventPublisher(
+            ApplicationEventPublisher applicationEventPublisher,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new ZeroTrustEventPublisher(applicationEventPublisher, tieredStrategyProperties);
     }
 
     // ========== Event Monitoring ==========
