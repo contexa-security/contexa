@@ -139,9 +139,6 @@ public class CoreAutonomousAutoConfiguration {
         return new AdminOverrideService(adminOverrideRepository, baselineLearningService, redisTemplate);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public VectorStoreCacheLayer vectorStoreCacheLayer() {
@@ -245,12 +242,10 @@ public class CoreAutonomousAutoConfiguration {
         return new SecurityEventProcessingOrchestrator(handlers);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityPlaneAgent securityPlaneAgent(
             SecurityMonitoringService securityMonitor,
-            SecurityIncidentRepository incidentRepository,
             RedisTemplate<String, Object> redisTemplate,
             ApplicationEventPublisher eventPublisher,
             SecurityPlaneAuditLogger auditLogger,
