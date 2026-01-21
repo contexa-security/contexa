@@ -57,11 +57,10 @@ public class CoreLLMTieredAutoConfiguration {
     @Bean(name = "tinyLlamaChatModel")
     @ConditionalOnMissingBean(name = "tinyLlamaChatModel")
     public ChatModel tinyLlamaChatModel(
-            @Autowired(required = false) OllamaChatModel ollamaChatModel,
-            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
-            @Autowired(required = false) OpenAiChatModel openAiChatModel) {
+            OllamaChatModel ollamaChatModel,
+            AnthropicChatModel anthropicChatModel,
+            OpenAiChatModel openAiChatModel) {
 
-        
         if (ollamaChatModel != null) {
                         return ollamaChatModel;
         }
@@ -84,9 +83,9 @@ public class CoreLLMTieredAutoConfiguration {
     @Bean(name = "llama31ChatModel")
     @ConditionalOnMissingBean(name = "llama31ChatModel")
     public ChatModel llama31ChatModel(
-            @Autowired(required = false) OllamaChatModel ollamaChatModel,
-            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
-            @Autowired(required = false) OpenAiChatModel openAiChatModel) {
+            OllamaChatModel ollamaChatModel,
+            AnthropicChatModel anthropicChatModel,
+            OpenAiChatModel openAiChatModel) {
 
         
         if (ollamaChatModel != null) {
@@ -111,7 +110,7 @@ public class CoreLLMTieredAutoConfiguration {
     @Bean(name = "gpt4ChatModel")
     @ConditionalOnMissingBean(name = "gpt4ChatModel")
     public ChatModel gpt4ChatModel(
-            @Autowired(required = false) OpenAiChatModel openAiChatModel,
+            OpenAiChatModel openAiChatModel,
             @Value("${spring.ai.security.layer2.backup.model:gpt-4o}") String modelName) {
 
         

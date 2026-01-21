@@ -245,7 +245,6 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
             VectorStore vectorStore,
-            ChatClient.Builder chatClientBuilder,
             @Qualifier("riskQueryTransformer") QueryTransformer riskQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();

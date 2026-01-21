@@ -100,7 +100,7 @@ public class IamAiamServiceStrategyAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnBean(SoarToolCallingService.class)
     public SoarSimulationService soarSimulationService(
-            @Autowired(required = false) SoarToolCallingService soarToolCallingService,
+            SoarToolCallingService soarToolCallingService,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
         return new SoarSimulationService(soarToolCallingService, brokerTemplate);
     }

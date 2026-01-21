@@ -148,17 +148,6 @@ public class CoreAutonomousAutoConfiguration {
         return new VectorStoreCacheLayer();
     }
 
-    
-    
-    
-    
-
-    
-    
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public AuditingHandler auditingHandler() {
@@ -174,10 +163,6 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public ThreatScoreOrchestrator threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate) {
@@ -190,8 +175,6 @@ public class CoreAutonomousAutoConfiguration {
     public SoarContextProviderImpl soarContextProviderImpl() {
         return new SoarContextProviderImpl();
     }
-
-    
 
     
     @Bean
@@ -263,8 +246,6 @@ public class CoreAutonomousAutoConfiguration {
     }
 
     
-
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityPlaneAgent securityPlaneAgent(
@@ -274,10 +255,8 @@ public class CoreAutonomousAutoConfiguration {
             ApplicationEventPublisher eventPublisher,
             SecurityPlaneAuditLogger auditLogger,
             SecurityEventProcessingOrchestrator processingOrchestrator) {
-        return new io.contexa.contexacore.autonomous.SecurityPlaneAgent(
-            securityMonitor, incidentRepository, redisTemplate, eventPublisher, auditLogger, processingOrchestrator
+        return new SecurityPlaneAgent(
+            securityMonitor, redisTemplate, eventPublisher, auditLogger, processingOrchestrator
         );
     }
-
 }
-

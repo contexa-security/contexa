@@ -21,7 +21,6 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -35,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
-
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private final UnifiedLLMOrchestrator llmOrchestrator;
@@ -56,16 +54,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     @Value("${spring.ai.security.tiered.layer1.vector-search-limit:10}")
     private int vectorSearchLimit;
 
-    @Autowired
-    public Layer1ContextualStrategy(@Autowired(required = false) UnifiedLLMOrchestrator llmOrchestrator,
-                                    @Autowired(required = false) UnifiedVectorService unifiedVectorService,
-                                    @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-                                    @Autowired(required = false) SecurityEventEnricher eventEnricher,
-                                    @Autowired(required = false) SecurityPromptTemplate promptTemplate,
-                                    @Autowired(required = false) BehaviorVectorService behaviorVectorService,
-                                    @Autowired(required = false) BaselineLearningService baselineLearningService,
-                                    @Autowired(required = false) SecurityDecisionPostProcessor postProcessor,
-                                    @Autowired TieredStrategyProperties tieredStrategyProperties) {
+    public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
+                                    UnifiedVectorService unifiedVectorService,
+                                    RedisTemplate<String, Object> redisTemplate,
+                                    SecurityEventEnricher eventEnricher,
+                                    SecurityPromptTemplate promptTemplate,
+                                    BehaviorVectorService behaviorVectorService,
+                                    BaselineLearningService baselineLearningService,
+                                    SecurityDecisionPostProcessor postProcessor,
+                                    TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.unifiedVectorService = unifiedVectorService;
         this.redisTemplate = redisTemplate;

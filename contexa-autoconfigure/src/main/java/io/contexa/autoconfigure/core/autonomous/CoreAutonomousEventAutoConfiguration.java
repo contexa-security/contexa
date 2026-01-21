@@ -28,6 +28,7 @@ import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrateg
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +43,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
 
-
 @AutoConfiguration
 @ConditionalOnProperty(
     prefix = "contexa.autonomous",
@@ -52,8 +52,6 @@ import java.util.List;
 )
 @EnableConfigurationProperties({ContexaProperties.class, SecurityPlaneProperties.class})
 public class CoreAutonomousEventAutoConfiguration {
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -76,7 +74,6 @@ public class CoreAutonomousEventAutoConfiguration {
             KafkaTemplate<String, Object> kafkaTemplate) {
         return new KafkaSecurityEventPublisher(kafkaTemplate);
     }
-
     
     @Bean
     @ConditionalOnMissingBean
@@ -86,7 +83,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ZeroTrustEventPublisher(applicationEventPublisher, tieredStrategyProperties);
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -104,7 +100,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new RedisMemoryMonitor(redisTemplate, meterRegistry);
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -135,7 +130,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ProcessingExecutionHandler(processingStrategies, applicationEventPublisher);
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -143,7 +137,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new SecurityPlaneEventListener(securityPlaneAgent);
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -151,7 +144,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ColdPathStrategy(coldPathEventProcessor);
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -166,8 +158,6 @@ public class CoreAutonomousEventAutoConfiguration {
     }
 
     
-
-    
     @Bean
     @ConditionalOnMissingBean
     public ColdPathEventProcessor coldPathEventProcessor(
@@ -178,13 +168,11 @@ public class CoreAutonomousEventAutoConfiguration {
     }
 
     
-
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) io.contexa.contexacore.std.rag.service.UnifiedVectorService unifiedVectorService) {
+            RedisTemplate<String, Object> redisTemplate,
+            UnifiedVectorService unifiedVectorService) {
         return new SecurityDecisionPostProcessor(redisTemplate, unifiedVectorService);
     }
 
@@ -194,7 +182,7 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityPlaneAuditLogger securityPlaneAuditLogger(
             AuditLogger auditLogger,
-            @Autowired(required = false) AuditLogRepository auditLogRepository,
+            AuditLogRepository auditLogRepository,
             ObjectMapper objectMapper) {
         return new SecurityPlaneAuditLogger(auditLogger, auditLogRepository, objectMapper);
     }

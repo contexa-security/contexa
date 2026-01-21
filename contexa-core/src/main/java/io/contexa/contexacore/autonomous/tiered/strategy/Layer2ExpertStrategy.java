@@ -1,10 +1,8 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
@@ -37,7 +35,6 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -54,7 +51,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private final UnifiedVectorService unifiedVectorService;
     private final BaselineLearningService baselineLearningService;
     private final TieredStrategyProperties tieredStrategyProperties;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final Cache<String, SecurityPromptTemplate.SessionContext> SESSION_CONTEXT_CACHE =
         Caffeine.newBuilder()
@@ -87,15 +83,15 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private int ragTopK;
 
     @Autowired
-    public Layer2ExpertStrategy(@Autowired(required = false) UnifiedLLMOrchestrator llmOrchestrator,
-                                @Autowired(required = false) ApprovalService approvalService,
-                                @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-                                @Autowired(required = false) SecurityEventEnricher eventEnricher,
-                                @Autowired(required = false) SecurityPromptTemplate promptTemplate,
-                                @Autowired(required = false) UnifiedVectorService unifiedVectorService,
-                                @Autowired(required = false) BehaviorVectorService behaviorVectorService,
-                                @Autowired(required = false) BaselineLearningService baselineLearningService,
-                                @Autowired TieredStrategyProperties tieredStrategyProperties) {
+    public Layer2ExpertStrategy(UnifiedLLMOrchestrator llmOrchestrator,
+                                ApprovalService approvalService,
+                                RedisTemplate<String, Object> redisTemplate,
+                                SecurityEventEnricher eventEnricher,
+                                SecurityPromptTemplate promptTemplate,
+                                UnifiedVectorService unifiedVectorService,
+                                BehaviorVectorService behaviorVectorService,
+                                BaselineLearningService baselineLearningService,
+                                TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.approvalService = approvalService;
         this.redisTemplate = redisTemplate;
@@ -104,9 +100,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         this.behaviorVectorService = behaviorVectorService;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
-        this.tieredStrategyProperties = tieredStrategyProperties;
-
-                                            }
+        this.tieredStrategyProperties = tieredStrategyProperties;}
 
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {

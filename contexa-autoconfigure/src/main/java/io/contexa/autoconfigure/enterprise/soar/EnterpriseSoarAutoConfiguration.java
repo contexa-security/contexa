@@ -361,9 +361,6 @@ public class EnterpriseSoarAutoConfiguration {
         return new SoarLabImpl(tracer, orchestrator);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
