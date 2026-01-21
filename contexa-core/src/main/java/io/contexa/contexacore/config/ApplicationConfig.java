@@ -19,7 +19,6 @@ import org.springframework.messaging.support.ExecutorSubscribableChannel;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-
 @Slf4j
 @EnableConfigurationProperties({TieredLLMProperties.class, ModelProviderProperties.class, SecurityMappingProperties.class})
 @Configuration
@@ -31,18 +30,11 @@ public class ApplicationConfig {
     @Bean
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
-
-        
         mapper.registerModule(new JavaTimeModule());
-
-        
         mapper.registerModule(new CustomJacksonModule());
-
-        
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-        log.info("Jackson ObjectMapper 설정 완료 (JSR310 및 Custom 모듈 등록)");
         return mapper;
     }
 
@@ -50,5 +42,4 @@ public class ApplicationConfig {
     public ModelMapper modelMapper() {
         return new ModelMapper();
     }
-
 }

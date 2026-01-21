@@ -6,10 +6,7 @@ import org.springframework.lang.Nullable;
 
 import java.time.Duration;
 
-
 public interface MfaSessionRepository {
-
-    
 
     void storeSession(String sessionId, HttpServletRequest request, @Nullable HttpServletResponse response);
 
@@ -26,24 +23,16 @@ public interface MfaSessionRepository {
 
     String getRepositoryType();
 
-    
-
-    
     String generateUniqueSessionId(@Nullable String baseId, HttpServletRequest request);
 
-    
     boolean isSessionIdUnique(String sessionId);
 
-    
     String resolveSessionIdCollision(String originalId, HttpServletRequest request, int maxAttempts);
 
-    
     boolean isValidSessionIdFormat(String sessionId);
 
-    
     boolean supportsDistributedSync();
 
-    
     SessionStats getSessionStats();
 
     class SessionStats {
@@ -63,7 +52,6 @@ public interface MfaSessionRepository {
             this.repositoryType = repositoryType;
         }
 
-        
         public long getActiveSessions() { return activeSessions; }
         public long getTotalSessionsCreated() { return totalSessionsCreated; }
         public long getSessionCollisions() { return sessionCollisions; }

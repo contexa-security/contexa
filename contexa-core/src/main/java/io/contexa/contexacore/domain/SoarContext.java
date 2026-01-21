@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
 @Getter
 @Setter
 public class SoarContext extends DomainContext {
@@ -27,10 +26,8 @@ public class SoarContext extends DomainContext {
     private String recommendedActions;
     private String organizationId;
 
-    
     private PipelineExecutionContext pipelineExecutionContext;
-    
-    
+
     private String sessionId;
     private SessionState sessionState;
     private LocalDateTime createdAt;
@@ -41,17 +38,14 @@ public class SoarContext extends DomainContext {
     private LocalDateTime detectedAt;
     private Map<String, Object> additionalInfo;
 
-    
     private List<io.contexa.contexacore.domain.Message> conversationHistory; 
     private AssistantMessage.ToolCall requiredToolCall; 
     private boolean humanApprovalNeeded; 
     private String humanApprovalMessage; 
     private String lastLlmResponse; 
-    
-    
+
     private SoarExecutionMode executionMode = SoarExecutionMode.AUTO;
 
-    
     public SoarContext() {
         this.conversationHistory = new ArrayList<>();
     }
@@ -73,8 +67,7 @@ public class SoarContext extends DomainContext {
         this(incidentId, threatType, description, affectedAssets, currentStatus, detectedSource, severity, recommendedActions, organizationId);
         this.pipelineExecutionContext = pipelineExecutionContext;
     }
-    
-    
+
     public SoarContext(String incidentId, String threatType, String severity, String description, String currentStatus, LocalDateTime detectedAt, List<String> affectedSystems, Map<String, Object> additionalInfo, String organizationId) {
         this.incidentId = incidentId;
         this.threatType = threatType;
@@ -97,8 +90,7 @@ public class SoarContext extends DomainContext {
     public int getPriorityLevel() {
         return 10;
     }
-    
-    
+
     public enum ThreatLevel {
         CRITICAL("치명적", 10),
         HIGH("높음", 8),
@@ -123,8 +115,7 @@ public class SoarContext extends DomainContext {
             return level;
         }
     }
-    
-    
+
     private List<io.contexa.contexacore.domain.ApprovalRequest> approvalRequests = new ArrayList<>();
     private java.util.Set<String> approvedTools = new java.util.HashSet<>();
     
@@ -159,8 +150,7 @@ public class SoarContext extends DomainContext {
     public void transitionTo(SessionState newState) {
         this.sessionState = newState;
     }
-    
-    
+
     public String getUserId() {
         
         return "system-user";
@@ -174,8 +164,7 @@ public class SoarContext extends DomainContext {
             new io.contexa.contexacore.domain.Message(role, message);
         this.conversationHistory.add(entry);
     }
-    
-    
+
     public String getIncidentStatus() {
         return this.currentStatus;
     }
@@ -199,8 +188,7 @@ public class SoarContext extends DomainContext {
         }
         return null;
     }
-    
-    
+
     private String queryIntent;
     
     public String getQueryIntent() {
@@ -210,8 +198,7 @@ public class SoarContext extends DomainContext {
     public void setQueryIntent(String queryIntent) {
         this.queryIntent = queryIntent;
     }
-    
-    
+
     private boolean requiresToolExecution = false;
     private List<String> executedTools = new ArrayList<>();
 
@@ -237,8 +224,7 @@ public class SoarContext extends DomainContext {
         }
         this.executedTools.add(toolName);
     }
-    
-    
+
     private Map<String, Object> extractedEntities = new java.util.HashMap<>();
     
     public Map<String, Object> getExtractedEntities() {
@@ -254,8 +240,7 @@ public class SoarContext extends DomainContext {
         }
         this.extractedEntities.put(key, value);
     }
-    
-    
+
     @JsonIgnore
     public boolean isRequiresApproval() {
         return this.humanApprovalNeeded;
@@ -265,12 +250,10 @@ public class SoarContext extends DomainContext {
         this.humanApprovalNeeded = requiresApproval;
     }
 
-    
     public void setIncidentStatus(SoarIncident.IncidentStatus status) {
         this.currentStatus = status.name();
     }
 
-    
     public void addToolExecutionResult(String toolName, Object result) {
         if (this.extractedEntities == null) {
             this.extractedEntities = new java.util.HashMap<>();
@@ -278,7 +261,6 @@ public class SoarContext extends DomainContext {
         this.extractedEntities.put("tool_result_" + toolName, result);
     }
 
-    
     private boolean emergencyMode = false;
 
     @JsonIgnore
@@ -289,8 +271,7 @@ public class SoarContext extends DomainContext {
     public void setEmergencyMode(boolean emergencyMode) {
         this.emergencyMode = emergencyMode;
     }
-    
-    
+
     private LocalDateTime lastActivity;
     
     public LocalDateTime getLastActivity() {

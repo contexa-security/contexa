@@ -15,7 +15,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class SecurityDecisionPostProcessor {
 
@@ -29,7 +28,6 @@ public class SecurityDecisionPostProcessor {
         this.unifiedVectorService = unifiedVectorService;
     }
 
-    
     public void updateSessionContext(SecurityEvent event, SecurityDecision decision) {
         String sessionId = event.getSessionId();
         if (sessionId == null || redisTemplate == null) {
@@ -37,8 +35,7 @@ public class SecurityDecisionPostProcessor {
         }
 
         try {
-            
-            
+
             String sessionActionsKey = ZeroTrustRedisKeys.sessionActions(sessionId);
             redisTemplate.opsForList().rightPush(
                     sessionActionsKey,
@@ -47,16 +44,13 @@ public class SecurityDecisionPostProcessor {
                             decision.getAction())
             );
 
-            
             redisTemplate.expire(sessionActionsKey, Duration.ofHours(24));
 
-            
             Long size = redisTemplate.opsForList().size(sessionActionsKey);
             if (size != null && size > 100) {
                 redisTemplate.opsForList().leftPop(sessionActionsKey);
             }
 
-            
             SecurityDecision.Action sessionAction = decision.getAction();
             if (sessionAction == SecurityDecision.Action.BLOCK) {
                 redisTemplate.opsForValue().set(
@@ -66,15 +60,10 @@ public class SecurityDecisionPostProcessor {
                 );
             }
 
-            log.debug("[SecurityDecisionPostProcessor] 세션 컨텍스트 업데이트 완료: sessionId={}, action={}",
-                sessionId, decision.getAction());
-
         } catch (Exception e) {
-            log.debug("[SecurityDecisionPostProcessor] 세션 컨텍스트 업데이트 실패: sessionId={}", sessionId, e);
-        }
+                    }
     }
 
-    
     public void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision) {
         if (unifiedVectorService == null) {
             return;
@@ -83,23 +72,15 @@ public class SecurityDecisionPostProcessor {
         try {
             SecurityDecision.Action action = decision.getAction();
 
-            
-            
-            
             double confidence = decision.getConfidence();
             if (Double.isNaN(confidence)) {
-                log.debug("[SecurityDecisionPostProcessor] confidence NaN, 기본값 0.5 사용: eventId={}",
-                    event.getEventId());
-                
+                                
             }
 
-            
-            
             if (action == SecurityDecision.Action.ALLOW) {
                 storeBehaviorDocument(event, decision);
             }
 
-            
             if (action == SecurityDecision.Action.BLOCK) {
                 storeBehaviorDocument(event, decision);
                 String content = buildBehaviorContent(event, decision);
@@ -107,11 +88,9 @@ public class SecurityDecisionPostProcessor {
             }
 
         } catch (Exception e) {
-            log.debug("[SecurityDecisionPostProcessor] 벡터 저장 실패: eventId={}", event.getEventId(), e);
-        }
+                    }
     }
 
-    
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
             String content = buildBehaviorContent(event, decision);
@@ -120,53 +99,37 @@ public class SecurityDecisionPostProcessor {
             Document document = new Document(content, metadata);
             unifiedVectorService.storeDocument(document);
 
-            log.debug("[SecurityDecisionPostProcessor] 행동 패턴 저장 완료: userId={}, action={}, riskScore={}",
-                event.getUserId(), decision.getAction(), decision.getRiskScore());
-
         } catch (Exception e) {
-            log.debug("[SecurityDecisionPostProcessor] 행동 패턴 저장 실패: eventId={}", event.getEventId(), e);
-        }
+                    }
     }
 
-    
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder content = new StringBuilder();
 
-        
         if (event.getUserId() != null) {
             content.append("User: ").append(event.getUserId());
         }
 
-        
         if (event.getSourceIp() != null) {
             if (content.length() > 0) content.append(", ");
             content.append("IP: ").append(event.getSourceIp());
         }
 
-        
         String path = extractPath(event);
         if (path != null) {
             if (content.length() > 0) content.append(", ");
             content.append("Path: ").append(path);
         }
 
-        
-        
         String os = extractOSFromUserAgent(event.getUserAgent());
         if (os != null && !"Desktop".equals(os)) {
             if (content.length() > 0) content.append(", ");
             content.append("OS: ").append(os);
         }
 
-        
-        
-        
-        
-
         return content.toString();
     }
 
-    
     private String extractHttpMethod(SecurityEvent event) {
         Object metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
@@ -180,7 +143,6 @@ public class SecurityDecisionPostProcessor {
         return null;
     }
 
-    
     private String extractPath(SecurityEvent event) {
         if (event.getMetadata() != null) {
             
@@ -197,17 +159,14 @@ public class SecurityDecisionPostProcessor {
         return null;
     }
 
-    
     private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, String analysisContent) {
         try {
             Map<String, Object> threatMetadata = buildBaseMetadata(event, decision, VectorDocumentType.THREAT.getValue());
 
-            
             if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
                 threatMetadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
             }
 
-            
             StringBuilder threatDesc = new StringBuilder("Contextual Threat:");
 
             if (event.getUserId() != null) {
@@ -222,26 +181,18 @@ public class SecurityDecisionPostProcessor {
             if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
                 threatDesc.append(", BehaviorPatterns=").append(decision.getBehaviorPatterns());
             }
-            
-            
-            
 
             Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
             unifiedVectorService.storeDocument(threatDoc);
-
-            log.info("[SecurityDecisionPostProcessor] 위협 패턴 저장 완료: userId={}, threatCategory={}",
-                event.getUserId(), decision.getThreatCategory());
 
         } catch (Exception e) {
             log.warn("[SecurityDecisionPostProcessor] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
         }
     }
 
-    
     private Map<String, Object> buildBaseMetadata(SecurityEvent event, SecurityDecision decision, String documentType) {
         Map<String, Object> metadata = new HashMap<>();
 
-        
         metadata.put("documentType", documentType);
         
         String eventTimestamp = event.getTimestamp() != null
@@ -249,14 +200,10 @@ public class SecurityDecisionPostProcessor {
             : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         metadata.put("timestamp", eventTimestamp);
 
-        
-        
-        
         if (event.getTimestamp() != null) {
             metadata.put("hour", event.getTimestamp().getHour());
         }
 
-        
         if (event.getEventId() != null) {
             metadata.put("eventId", event.getEventId());
         }
@@ -270,25 +217,15 @@ public class SecurityDecisionPostProcessor {
             metadata.put("sessionId", event.getSessionId());
         }
 
-        
-        
-        
-        
         if (decision.getThreatCategory() != null) {
             metadata.put("threatCategory", decision.getThreatCategory());
         }
 
-        
-        
         String requestPath = extractPath(event);
         if (requestPath != null) {
             metadata.put("requestPath", requestPath);
         }
 
-        
-        
-        
-        
         if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
             metadata.put("userAgent", event.getUserAgent());
             String userAgentOS = extractOSFromUserAgent(event.getUserAgent());
@@ -305,13 +242,11 @@ public class SecurityDecisionPostProcessor {
         return metadata;
     }
 
-    
     private String extractOSFromUserAgent(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
 
-        
         if (userAgent.contains("Android")) {
             return "Android";
         }
@@ -319,7 +254,6 @@ public class SecurityDecisionPostProcessor {
             return "iOS";
         }
 
-        
         if (userAgent.contains("Windows NT") || userAgent.contains("Windows")) {
             return "Windows";
         }
@@ -333,7 +267,6 @@ public class SecurityDecisionPostProcessor {
             return "Linux";
         }
 
-        
         if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
             return "Mobile";
         }
@@ -341,13 +274,11 @@ public class SecurityDecisionPostProcessor {
         return "Desktop";
     }
 
-    
     private String extractBrowserSignature(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
 
-        
         if (userAgent.contains("Edg/") || userAgent.contains("Edge/")) {
             String version = extractBrowserVersion(userAgent, "Edg/");
             if (version == null) {
@@ -356,26 +287,22 @@ public class SecurityDecisionPostProcessor {
             return "Edge/" + (version != null ? version : "unknown");
         }
 
-        
         if (userAgent.contains("Chrome/")) {
             String version = extractBrowserVersion(userAgent, "Chrome/");
             return "Chrome/" + (version != null ? version : "unknown");
         }
 
-        
         if (userAgent.contains("Firefox/")) {
             String version = extractBrowserVersion(userAgent, "Firefox/");
             return "Firefox/" + (version != null ? version : "unknown");
         }
 
-        
         if (userAgent.contains("Safari/") && !userAgent.contains("Chrome")) {
             
             String version = extractBrowserVersion(userAgent, "Version/");
             return "Safari/" + (version != null ? version : "unknown");
         }
 
-        
         if (userAgent.contains("OPR/") || userAgent.contains("Opera/")) {
             String version = extractBrowserVersion(userAgent, "OPR/");
             if (version == null) {
@@ -387,7 +314,6 @@ public class SecurityDecisionPostProcessor {
         return null;
     }
 
-    
     private String extractBrowserVersion(String userAgent, String prefix) {
         int startIndex = userAgent.indexOf(prefix);
         if (startIndex == -1) {
@@ -397,7 +323,6 @@ public class SecurityDecisionPostProcessor {
         startIndex += prefix.length();
         int endIndex = startIndex;
 
-        
         while (endIndex < userAgent.length()) {
             char c = userAgent.charAt(endIndex);
             if (Character.isDigit(c) || c == '.') {

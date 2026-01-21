@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 
 @RequiredArgsConstructor
@@ -21,11 +20,9 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
     @Autowired(required = false)
     private RoutingDecisionMetrics routingMetrics;
 
-    
     @Override
     public boolean handle(SecurityEventContext context) {
-        log.info("[RoutingDecisionHandler][AI Native] Processing event: {}", context.getSecurityEvent().getEventId());
-        SecurityEvent event = context.getSecurityEvent();
+                SecurityEvent event = context.getSecurityEvent();
 
         long startTime = System.nanoTime();
 
@@ -33,24 +30,18 @@ public class RoutingDecisionHandler implements SecurityEventHandler {
             
             ProcessingMode mode = ProcessingMode.AI_ANALYSIS;
 
-            
             context.addMetadata("processingMode", mode);
             context.addMetadata("routingDecision", mode.toString());
             context.addMetadata("routingReason", "AI Native - all requests routed to LLM analysis");
             context.addMetadata("routingTimestamp", System.currentTimeMillis());
             context.addMetadata("requiresColdPath", true);
 
-            
             context.addMetadata("isRealtime", mode.isRealtime());
             context.addMetadata("isBlocking", mode.isBlocking());
             context.addMetadata("needsEscalation", mode.needsEscalation());
             context.addMetadata("needsMonitoring", mode.needsMonitoring());
             context.addMetadata("needsHumanIntervention", mode.needsHumanIntervention());
 
-            log.info("[RoutingDecisionHandler][AI Native] Event {} routed to Cold Path (LLM analysis)",
-                event.getEventId());
-
-            
             long duration = System.nanoTime() - startTime;
             if (routingMetrics != null) {
                 routingMetrics.recordColdPath(duration, mode.toString());

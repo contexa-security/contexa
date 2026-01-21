@@ -11,7 +11,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-
 public class PolicyTemplateProcessor implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.policy.min-template-score:0.7}")
@@ -22,8 +21,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.policy.merge-similar-threshold:0.85}")
     private double mergeSimilarThreshold;
-    
-    
+
     private static final Pattern CONDITION_PATTERN = Pattern.compile(
         "(?:IF|WHEN|WHERE|GIVEN)\\s+(.+?)\\s+(?:THEN|DO|ALLOW|DENY|GRANT|REVOKE)",
         Pattern.CASE_INSENSITIVE | Pattern.DOTALL
@@ -49,24 +47,18 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         if (documents.isEmpty()) {
             return documents;
         }
-        
-        
+
         List<PolicyTemplate> templates = extractPolicyTemplates(documents);
-        
-        
+
         List<PolicyTemplate> mergedTemplates = mergeSimilarTemplates(templates);
-        
-        
+
         List<PolicyTemplate> rankedTemplates = rankTemplates(mergedTemplates);
-        
-        
+
         enrichDocumentsWithTemplates(documents, rankedTemplates);
-        
-        
+
         return sortByTemplateQuality(documents);
     }
-    
-    
+
     private List<PolicyTemplate> extractPolicyTemplates(List<Document> documents) {
         List<PolicyTemplate> templates = new ArrayList<>();
         
@@ -78,20 +70,16 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
             
             PolicyTemplate template = new PolicyTemplate();
             template.setSourceDocument(doc);
-            
-            
+
             template.setConditions(extractConditions(content));
             template.setActions(extractActions(content));
             template.setResources(extractResources(content));
             template.setRoles(extractRoles(content));
-            
-            
+
             template.setPolicyType(identifyPolicyType(doc));
-            
-            
+
             template.setTemplateScore(calculateTemplateScore(template));
-            
-            
+
             extractTemplateMetadata(template, doc);
             
             if (template.getTemplateScore() >= minTemplateScore) {
@@ -101,8 +89,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return templates;
     }
-    
-    
+
     private List<String> extractConditions(String content) {
         List<String> conditions = new ArrayList<>();
         Matcher matcher = CONDITION_PATTERN.matcher(content);
@@ -118,8 +105,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return conditions;
     }
-    
-    
+
     private List<String> extractActions(String content) {
         List<String> actions = new ArrayList<>();
         Matcher matcher = ACTION_PATTERN.matcher(content);
@@ -134,8 +120,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return actions;
     }
-    
-    
+
     private List<String> extractResources(String content) {
         List<String> resources = new ArrayList<>();
         Matcher matcher = RESOURCE_PATTERN.matcher(content);
@@ -149,8 +134,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return resources.stream().distinct().collect(Collectors.toList());
     }
-    
-    
+
     private List<String> extractRoles(String content) {
         List<String> roles = new ArrayList<>();
         Matcher matcher = ROLE_PATTERN.matcher(content);
@@ -164,19 +148,16 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return roles.stream().distinct().collect(Collectors.toList());
     }
-    
-    
+
     private String identifyPolicyType(Document document) {
         String content = document.getText().toUpperCase();
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         Object policyType = metadata.get("policyType");
         if (policyType != null) {
             return policyType.toString();
         }
-        
-        
+
         if (content.contains("ACCESS") || content.contains("PERMISSION")) {
             return "ACCESS_CONTROL";
         } else if (content.contains("DATA") && (content.contains("CLASSIFICATION") || content.contains("SENSITIVITY"))) {
@@ -195,53 +176,44 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return "GENERAL_POLICY";
     }
-    
-    
+
     private double calculateTemplateScore(PolicyTemplate template) {
         double score = 0.0;
-        
-        
+
         double structureScore = 0.0;
         if (!template.getConditions().isEmpty()) structureScore += 0.25;
         if (!template.getActions().isEmpty()) structureScore += 0.25;
         if (!template.getResources().isEmpty()) structureScore += 0.25;
         if (!template.getRoles().isEmpty()) structureScore += 0.25;
         score += structureScore * 0.4;
-        
-        
+
         double clarityScore = calculateClarityScore(template);
         score += clarityScore * 0.3;
-        
-        
+
         double reusabilityScore = calculateReusabilityScore(template);
         score += reusabilityScore * 0.2;
-        
-        
+
         double verifiabilityScore = calculateVerifiabilityScore(template);
         score += verifiabilityScore * 0.1;
         
         return Math.min(score, 1.0);
     }
-    
-    
+
     private double calculateClarityScore(PolicyTemplate template) {
         double score = 0.0;
-        
-        
+
         for (String condition : template.getConditions()) {
             if (containsSpecificOperators(condition)) {
                 score += 0.2;
             }
         }
-        
-        
+
         for (String action : template.getActions()) {
             if (isSpecificAction(action)) {
                 score += 0.2;
             }
         }
-        
-        
+
         for (String resource : template.getResources()) {
             if (!resource.contains("*") && !resource.contains("?")) {
                 score += 0.2;
@@ -250,19 +222,16 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return Math.min(score, 1.0);
     }
-    
-    
+
     private double calculateReusabilityScore(PolicyTemplate template) {
         double score = 0.5; 
-        
-        
+
         int parameterizableElements = 0;
         parameterizableElements += countParameterizableElements(template.getConditions());
         parameterizableElements += countParameterizableElements(template.getActions());
         
         score += Math.min(parameterizableElements * 0.1, 0.3);
-        
-        
+
         if ("GENERAL_POLICY".equals(template.getPolicyType()) || 
             "ACCESS_CONTROL".equals(template.getPolicyType())) {
             score += 0.2;
@@ -270,19 +239,16 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return Math.min(score, 1.0);
     }
-    
-    
+
     private double calculateVerifiabilityScore(PolicyTemplate template) {
         double score = 0.0;
-        
-        
+
         for (String condition : template.getConditions()) {
             if (containsMeasurableCondition(condition)) {
                 score += 0.25;
             }
         }
-        
-        
+
         for (String action : template.getActions()) {
             if (isAuditableAction(action)) {
                 score += 0.25;
@@ -291,8 +257,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return Math.min(score, 1.0);
     }
-    
-    
+
     private List<PolicyTemplate> mergeSimilarTemplates(List<PolicyTemplate> templates) {
         List<PolicyTemplate> merged = new ArrayList<>();
         Set<Integer> processedIndices = new HashSet<>();
@@ -327,32 +292,25 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return merged;
     }
-    
-    
+
     private double calculateTemplateSimilarity(PolicyTemplate t1, PolicyTemplate t2) {
         double similarity = 0.0;
-        
-        
+
         if (t1.getPolicyType().equals(t2.getPolicyType())) {
             similarity += 0.3;
         }
-        
-        
+
         similarity += calculateListSimilarity(t1.getConditions(), t2.getConditions()) * 0.25;
-        
-        
+
         similarity += calculateListSimilarity(t1.getActions(), t2.getActions()) * 0.25;
-        
-        
+
         similarity += calculateListSimilarity(t1.getResources(), t2.getResources()) * 0.1;
-        
-        
+
         similarity += calculateListSimilarity(t1.getRoles(), t2.getRoles()) * 0.1;
         
         return similarity;
     }
-    
-    
+
     private double calculateListSimilarity(List<String> list1, List<String> list2) {
         if (list1.isEmpty() && list2.isEmpty()) return 1.0;
         if (list1.isEmpty() || list2.isEmpty()) return 0.0;
@@ -368,20 +326,17 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         
         return union.isEmpty() ? 0.0 : (double) intersection.size() / union.size();
     }
-    
-    
+
     private PolicyTemplate mergeTemplates(List<PolicyTemplate> templates) {
         PolicyTemplate merged = new PolicyTemplate();
-        
-        
+
         PolicyTemplate best = templates.stream()
             .max(Comparator.comparing(PolicyTemplate::getTemplateScore))
             .orElse(templates.get(0));
         
         merged.setPolicyType(best.getPolicyType());
         merged.setSourceDocument(best.getSourceDocument());
-        
-        
+
         Set<String> allConditions = new HashSet<>();
         Set<String> allActions = new HashSet<>();
         Set<String> allResources = new HashSet<>();
@@ -398,27 +353,23 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         merged.setActions(new ArrayList<>(allActions));
         merged.setResources(new ArrayList<>(allResources));
         merged.setRoles(new ArrayList<>(allRoles));
-        
-        
+
         merged.setTemplateScore(calculateTemplateScore(merged));
         merged.setMergedCount(templates.size());
         
         return merged;
     }
-    
-    
+
     private List<PolicyTemplate> rankTemplates(List<PolicyTemplate> templates) {
         return templates.stream()
             .sorted((t1, t2) -> {
                 
                 int scoreCompare = Double.compare(t2.getTemplateScore(), t1.getTemplateScore());
                 if (scoreCompare != 0) return scoreCompare;
-                
-                
+
                 int mergeCompare = Integer.compare(t2.getMergedCount(), t1.getMergedCount());
                 if (mergeCompare != 0) return mergeCompare;
-                
-                
+
                 return Integer.compare(
                     t2.getConditions().size() + t2.getActions().size(),
                     t1.getConditions().size() + t1.getActions().size()
@@ -427,12 +378,10 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
             .limit(maxTemplates)
             .collect(Collectors.toList());
     }
-    
-    
+
     private void enrichDocumentsWithTemplates(List<Document> documents, List<PolicyTemplate> templates) {
         Map<Document, PolicyTemplate> documentTemplateMap = new HashMap<>();
-        
-        
+
         for (PolicyTemplate template : templates) {
             documentTemplateMap.put(template.getSourceDocument(), template);
         }
@@ -458,8 +407,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
             }
         }
     }
-    
-    
+
     private List<Document> sortByTemplateQuality(List<Document> documents) {
         return documents.stream()
             .sorted((d1, d2) -> {
@@ -479,9 +427,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
             })
             .collect(Collectors.toList());
     }
-    
-    
-    
+
     private String normalizeCondition(String condition) {
         return condition.replaceAll("\\s+", " ")
             .replaceAll("\\b\\d+\\b", "${NUMBER}")
@@ -558,8 +504,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         template.setComplianceFramework((String) metadata.get("complianceFramework"));
         template.setVersion((String) metadata.get("version"));
     }
-    
-    
+
     private static class PolicyTemplate {
         private Document sourceDocument;
         private String policyType;
@@ -573,8 +518,7 @@ public class PolicyTemplateProcessor implements DocumentPostProcessor {
         private String createdDate;
         private String complianceFramework;
         private String version;
-        
-        
+
         public Document getSourceDocument() { return sourceDocument; }
         public void setSourceDocument(Document doc) { this.sourceDocument = doc; }
         

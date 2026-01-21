@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy {
@@ -45,31 +44,23 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
     
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
-        log.debug("Evaluating session threat for event: {}", event.getEventId());
-        
-        
+
         if (event.getSessionId() == null) {
             return createMinimalAssessment(event);
         }
-        
-        
+
         SessionThreatIndicators indicators = analyzeSessionContext(event);
 
-        
         List<ThreatIndicator> threatIndicatorObjects = convertToThreatIndicators(indicators);
 
-        
         List<String> threatIndicatorStrings = indicators.getIndicators().entrySet().stream()
             .map(e -> e.getKey() + ": " + e.getValue())
             .collect(Collectors.toList());
 
-        
         List<String> recommendedActions = generateRecommendedActions(indicators);
 
-        
         String action = determineAction(indicators);
 
-        
         if (indicators.shouldInvalidateSession()) {
             publishSessionInvalidationEvent(event, indicators);
         }
@@ -87,8 +78,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             .action(action)  
             .build();
     }
-    
-    
+
     private SessionThreatIndicators analyzeSessionContext(SecurityEvent event) {
         SessionThreatIndicators indicators = new SessionThreatIndicators();
         
@@ -113,25 +103,17 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
                 }
             }
 
-            
-            
-            
-
             if (previousContext != null && !previousContext.isEmpty()) {
                 
                 checkIpChange(event, previousContext, indicators);
-                
-                
+
                 checkUserAgentChange(event, previousContext, indicators);
-                
-                
+
                 checkTimePattern(event, previousContext, indicators);
-                
-                
+
                 checkGeographicAnomaly(event, previousContext, indicators);
             }
-            
-            
+
             saveCurrentContext(event);
             
         } catch (Exception e) {
@@ -141,8 +123,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         
         return indicators;
     }
-    
-    
+
     private void checkIpChange(SecurityEvent event, Map<Object, Object> previousContext, 
                                SessionThreatIndicators indicators) {
         String previousIp = (String) previousContext.get("sourceIp");
@@ -156,8 +137,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
                 event.getSessionId(), previousIp, event.getSourceIp());
         }
     }
-    
-    
+
     private void checkUserAgentChange(SecurityEvent event, Map<Object, Object> previousContext,
                                      SessionThreatIndicators indicators) {
         String previousUA = (String) previousContext.get("userAgent");
@@ -169,8 +149,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             log.warn("User-Agent change detected for session {}", event.getSessionId());
         }
     }
-    
-    
+
     private void checkTimePattern(SecurityEvent event, Map<Object, Object> previousContext,
                                  SessionThreatIndicators indicators) {
         Long lastAccess = (Long) previousContext.get("lastAccess");
@@ -188,8 +167,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             }
         }
     }
-    
-    
+
     private void checkGeographicAnomaly(SecurityEvent event, Map<Object, Object> previousContext,
                                        SessionThreatIndicators indicators) {
         
@@ -208,11 +186,9 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             if (currentLocation == null || previousLocation == null) {
                 return;
             }
-            
-            
+
             double distance = calculateDistance(previousLocation, currentLocation);
 
-            
             LocalDateTime previousTime = (LocalDateTime) previousContext.get("timestamp");
             LocalDateTime currentTime = event.getTimestamp();
 
@@ -221,8 +197,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             }
 
             long timeDiffMinutes = Duration.between(previousTime, currentTime).toMinutes();
-            
-            
+
             double maxPossibleDistance = timeDiffMinutes * 20.0; 
             
             if (distance > maxPossibleDistance) {
@@ -233,15 +208,13 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
                 log.warn("Impossible travel detected for user {}: {} -> {} ({} km in {} min)",
                     event.getUserId(), previousIp, currentIp, distance, timeDiffMinutes);
             }
-            
-            
+
             if (!currentLocation.country.equals(previousLocation.country)) {
                 indicators.addIndicator("COUNTRY_CHANGE", 0.7,
                     "Country changed from " + previousLocation.country + " to " + currentLocation.country);
                 indicators.incrementScore(0.3);
             }
-            
-            
+
             if (!currentLocation.continent.equals(previousLocation.continent)) {
                 indicators.addIndicator("CONTINENT_CHANGE", 0.85,
                     "Continent changed from " + previousLocation.continent + " to " + currentLocation.continent);
@@ -252,19 +225,16 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             log.error("Error checking geographic anomaly", e);
         }
     }
-    
-    
+
     private GeoLocation estimateGeoLocation(String ip) {
         if (ip == null || ip.isEmpty()) {
             return null;
         }
-        
-        
+
         if (isPrivateIp(ip)) {
             return new GeoLocation("Internal", "Internal", 0.0, 0.0);
         }
-        
-        
+
         String[] parts = ip.split("\\.");
         if (parts.length != 4) {
             return null;
@@ -273,9 +243,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         try {
             int firstOctet = Integer.parseInt(parts[0]);
             int secondOctet = Integer.parseInt(parts[1]);
-            
-            
-            
+
             if (firstOctet >= 1 && firstOctet <= 50) {
                 
                 return new GeoLocation("North America", "United States", 40.7128, -74.0060); 
@@ -302,8 +270,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             return null;
         }
     }
-    
-    
+
     private boolean isPrivateIp(String ip) {
         return ip.startsWith("10.") || 
                ip.startsWith("172.16.") || 
@@ -325,8 +292,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
                ip.startsWith("192.168.") ||
                ip.startsWith("127.");
     }
-    
-    
+
     private double calculateDistance(GeoLocation loc1, GeoLocation loc2) {
         final double R = 6371; 
         
@@ -342,8 +308,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         
         return R * c;
     }
-    
-    
+
     private static class GeoLocation {
         final String continent;
         final String country;
@@ -357,26 +322,22 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             this.longitude = longitude;
         }
     }
-    
-    
+
     private void saveCurrentContext(SecurityEvent event) {
         
         if (event.hasUserId()) {
             updateUserContext(event);
 
-            
             if (event.getSessionId() != null) {
                 String mappingKey = ZeroTrustRedisKeys.sessionToUser(event.getSessionId());
                 redisTemplate.opsForValue().set(mappingKey, event.getUserId(), Duration.ofHours(24));
             }
         }
     }
-    
-    
+
     private void updateUserContext(SecurityEvent event) {
         String userContextKey = ZeroTrustRedisKeys.userContext(event.getUserId());
 
-        
         UserSecurityContext userContext = null;
         try {
             userContext = (UserSecurityContext) redisTemplate.opsForValue().get(userContextKey);
@@ -393,8 +354,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
                 .currentThreatScore(0.5) 
                 .build();
         }
-        
-        
+
         if (event.getSessionId() != null) {
             UserSecurityContext.SessionContext sessionContext = UserSecurityContext.SessionContext.builder()
                 .sessionId(event.getSessionId())
@@ -407,20 +367,14 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
 
             userContext.addSession(sessionContext);
         }
-        
-        
-        
+
         userContext.addBehaviorPattern("lastSeverity", event.getSeverity() != null ? event.getSeverity().toString() : "INFO");
         userContext.addBehaviorPattern("lastSourceIp", event.getSourceIp());
-        
-        
+
         redisTemplate.opsForValue().set(userContextKey, userContext, Duration.ofDays(30));
         
-        log.debug("Updated user context for userId: {}, sessionId: {}", 
-            event.getUserId(), event.getSessionId());
-    }
-    
-    
+            }
+
     private Map<Object, Object> extractSessionContext(UserSecurityContext userContext, String sessionId) {
         Map<Object, Object> context = new HashMap<>();
         
@@ -441,30 +395,24 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         
         return context;
     }
-    
-    
+
     private String determineAction(SessionThreatIndicators indicators) {
         
         if (indicators.shouldInvalidateSession()) {
             return "BLOCK";
         }
 
-        
-        
         if (indicators.isSessionHijackSuspected()) {
             return "ESCALATE";
         }
 
-        
         if (indicators.isSuspiciousActivity()) {
             return "CHALLENGE";
         }
 
-        
         return "ALLOW";
     }
-    
-    
+
     private List<ThreatIndicator> convertToThreatIndicators(SessionThreatIndicators indicators) {
         List<ThreatIndicator> threatIndicators = new ArrayList<>();
         
@@ -482,8 +430,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         
         return threatIndicators;
     }
-    
-    
+
     private ThreatIndicator.IndicatorType mapToIndicatorType(String key) {
         return switch (key) {
             case "IP_CHANGED" -> ThreatIndicator.IndicatorType.IP_ADDRESS;
@@ -493,8 +440,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             default -> ThreatIndicator.IndicatorType.UNKNOWN;
         };
     }
-    
-    
+
     private List<String> generateRecommendedActions(SessionThreatIndicators indicators) {
         List<String> actions = new ArrayList<>();
         
@@ -521,8 +467,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         
         return actions;
     }
-    
-    
+
     private void publishSessionInvalidationEvent(SecurityEvent event, SessionThreatIndicators indicators) {
         try {
             Map<String, Object> invalidationEvent = new HashMap<>();
@@ -536,20 +481,15 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             invalidationEvent.put("riskScore", indicators.getAdditionalRisk());
             invalidationEvent.put("invalidateAllUserSessions", indicators.shouldInvalidateSession());
             invalidationEvent.put("indicators", indicators.getIndicators());
-            
-            
+
             String eventJson = objectMapper.writeValueAsString(invalidationEvent);
             redisTemplate.convertAndSend(sessionHijackChannel, eventJson);
-            
-            log.info("Session invalidation event published: sessionId={}, userId={}, risk={}", 
-                event.getSessionId(), event.getUserId(), indicators.getAdditionalRisk());
-            
+
         } catch (Exception e) {
             log.error("Failed to publish session invalidation event", e);
         }
     }
-    
-    
+
     private ThreatAssessment createMinimalAssessment(SecurityEvent event) {
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
@@ -563,8 +503,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
             .action("ALLOW")  
             .build();
     }
-    
-    
+
     private Map<String, Object> createMetadata(SessionThreatIndicators indicators) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("ipChanged", indicators.isIpChanged());
@@ -614,8 +553,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         if (indicators == null || indicators.isEmpty()) {
             return 0.0;
         }
-        
-        
+
         double totalRisk = indicators.stream()
             .mapToDouble(indicator -> {
                 
@@ -630,12 +568,10 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         
         return Math.min(1.0, totalRisk);
     }
-    
-    
+
     @Override
     public boolean canEvaluate(SecurityEvent.Severity severity) {
-        
-        
+
         return true;
     }
     
@@ -644,12 +580,10 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
         return 50; 
     }
 
-    
     @Override
     public double calculateConfidenceScore(SecurityEvent event) {
         double confidence = 0.5;
 
-        
         if (event.getSessionId() != null) {
             confidence += 0.2;
         }
@@ -665,8 +599,7 @@ public class SessionThreatEvaluationStrategy implements ThreatEvaluationStrategy
 
         return Math.min(1.0, confidence);
     }
-    
-    
+
     @Override
     public ThreatAssessment evaluateWithContext(SecurityEvent event, SecurityContext context) {
         return evaluate(event);

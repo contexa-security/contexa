@@ -8,7 +8,6 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
-
 public class RedisStreamInitializer implements CommandLineRunner {
     
     private static final Logger logger = LoggerFactory.getLogger(RedisStreamInitializer.class);
@@ -41,8 +40,7 @@ public class RedisStreamInitializer implements CommandLineRunner {
                 redisTemplate.opsForStream().add(STREAM_KEY, 
                     java.util.Collections.singletonMap("init", "true"));
             }
-            
-            
+
             try {
                 redisTemplate.opsForStream().createGroup(STREAM_KEY, CONSUMER_GROUP);
                 logger.info("Created consumer group '{}' for stream '{}'", CONSUMER_GROUP, STREAM_KEY);
@@ -54,8 +52,7 @@ public class RedisStreamInitializer implements CommandLineRunner {
                     logger.warn("Could not create consumer group: {}", e.getMessage());
                 }
             }
-            
-            
+
             initializeAdditionalStreams();
             
         } catch (Exception e) {
@@ -79,8 +76,7 @@ public class RedisStreamInitializer implements CommandLineRunner {
                     redisTemplate.opsForStream().add(streamKey, 
                         java.util.Collections.singletonMap("init", "true"));
                 }
-                
-                
+
                 try {
                     redisTemplate.opsForStream().createGroup(streamKey, CONSUMER_GROUP);
                     logger.info("Created consumer group '{}' for stream '{}'", CONSUMER_GROUP, streamKey);

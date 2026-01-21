@@ -18,7 +18,6 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.Map;
 
-
 @Slf4j
 public class UserIdentificationService {
 
@@ -27,84 +26,63 @@ public class UserIdentificationService {
     private static final String USER_ID_PARAM = "userId";
     private static final String LOGIN_ID_PARAM = "loginId";
 
-    
     @Autowired(required = false)
     private JwtDecoder jwtDecoder;
-    
-    
+
     public String extractUserId(HttpServletRequest request, 
                                 Authentication authentication, 
                                 Exception exception) {
-        
-        
+
         String userId = extractFromAuthentication(authentication);
         if (userId != null) {
-            log.trace("Authentication에서 userId 추출: {}", userId);
-            return userId;
+                        return userId;
         }
-        
-        
+
         userId = extractFromPrincipal(request);
         if (userId != null) {
-            log.trace("Principal에서 userId 추출: {}", userId);
-            return userId;
+                        return userId;
         }
-        
-        
+
         userId = extractFromRequestParameters(request);
         if (userId != null) {
-            log.trace("Request Parameter에서 userId 추출: {}", userId);
-            return userId;
+                        return userId;
         }
-        
-        
+
         userId = extractFromRequestBody(request);
         if (userId != null) {
-            log.trace("Request Body에서 userId 추출: {}", userId);
-            return userId;
+                        return userId;
         }
-        
-        
+
         userId = extractFromSession(request);
         if (userId != null) {
-            log.trace("Session에서 userId 추출: {}", userId);
-            return userId;
+                        return userId;
         }
-        
-        
+
         userId = extractFromJwtToken(request);
         if (userId != null) {
-            log.trace("JWT Token에서 userId 추출: {}", userId);
-            return userId;
+                        return userId;
         }
-        
-        
+
         userId = extractFromException(exception);
         if (userId != null) {
-            log.trace("Exception에서 userId 추출: {}", userId);
-            return userId;
+                        return userId;
         }
-        
-        
+
         String anonymousId = generateAnonymousId(request);
-        log.debug("Anonymous userId 생성: {}", anonymousId);
-        return anonymousId;
+                return anonymousId;
     }
-    
-    
+
     private String extractFromAuthentication(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return null;
         }
         
         Object principal = authentication.getPrincipal();
-        
-        
+
         if (principal instanceof UserDetails userDetails) {
             return userDetails.getUsername();
         }
-        
-        
+
         if (principal.getClass().getSimpleName().contains("UserDto")) {
             try {
                 Method getUsernameMethod = principal.getClass().getMethod("getUsername");
@@ -113,16 +91,13 @@ public class UserIdentificationService {
                     return username.toString();
                 }
             } catch (Exception e) {
-                log.debug("UserDto 리플렉션 실패: {}", e.getMessage());
-            }
+                            }
         }
-        
-        
+
         if (authentication instanceof JwtAuthenticationToken) {
             JwtAuthenticationToken jwtAuth = (JwtAuthenticationToken) authentication;
             Jwt jwt = jwtAuth.getToken();
-            
-            
+
             String userId = jwt.getClaimAsString("sub");
             if (userId != null) return userId;
             
@@ -132,22 +107,18 @@ public class UserIdentificationService {
             userId = jwt.getClaimAsString("username");
             if (userId != null) return userId;
         }
-        
-        
+
         if (authentication instanceof UsernamePasswordAuthenticationToken) {
             return authentication.getName();
         }
-        
-        
+
         if (principal instanceof String) {
             return (String) principal;
         }
-        
-        
+
         return authentication.getName();
     }
-    
-    
+
     private String extractFromPrincipal(HttpServletRequest request) {
         Principal principal = request.getUserPrincipal();
         if (principal != null) {
@@ -155,28 +126,24 @@ public class UserIdentificationService {
         }
         return null;
     }
-    
-    
+
     private String extractFromRequestParameters(HttpServletRequest request) {
         
         String username = request.getParameter(USERNAME_PARAM);
         if (username != null && !username.isEmpty()) {
             return username;
         }
-        
-        
+
         String email = request.getParameter(EMAIL_PARAM);
         if (email != null && !email.isEmpty()) {
             return email;
         }
-        
-        
+
         String userId = request.getParameter(USER_ID_PARAM);
         if (userId != null && !userId.isEmpty()) {
             return userId;
         }
-        
-        
+
         String loginId = request.getParameter(LOGIN_ID_PARAM);
         if (loginId != null && !loginId.isEmpty()) {
             return loginId;
@@ -184,16 +151,14 @@ public class UserIdentificationService {
         
         return null;
     }
-    
-    
+
     private String extractFromRequestBody(HttpServletRequest request) {
         
         String contentType = request.getContentType();
         if (contentType == null || !contentType.contains("application/json")) {
             return null;
         }
-        
-        
+
         Object body = request.getAttribute("parsedBody");
         if (body instanceof Map) {
             Map<String, Object> bodyMap = (Map<String, Object>) body;
@@ -210,8 +175,7 @@ public class UserIdentificationService {
         
         return null;
     }
-    
-    
+
     private String extractFromSession(HttpServletRequest request) {
         if (request.getSession(false) != null) {
             Object userId = request.getSession().getAttribute("userId");
@@ -226,8 +190,7 @@ public class UserIdentificationService {
         }
         return null;
     }
-    
-    
+
     private String extractFromJwtToken(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -236,32 +199,26 @@ public class UserIdentificationService {
 
         String token = authHeader.substring(7);
 
-        
         if (jwtDecoder != null) {
             try {
                 Jwt jwt = jwtDecoder.decode(token);
 
-                
                 String userId = jwt.getClaimAsString("sub");
                 if (userId != null && !userId.isEmpty()) {
-                    log.trace("JWT 서명 검증 성공, sub 클레임에서 userId 추출: {}", userId);
-                    return userId;
+                                        return userId;
                 }
 
                 userId = jwt.getClaimAsString("user_id");
                 if (userId != null && !userId.isEmpty()) {
-                    log.trace("JWT 서명 검증 성공, user_id 클레임에서 userId 추출: {}", userId);
-                    return userId;
+                                        return userId;
                 }
 
                 userId = jwt.getClaimAsString("username");
                 if (userId != null && !userId.isEmpty()) {
-                    log.trace("JWT 서명 검증 성공, username 클레임에서 userId 추출: {}", userId);
-                    return userId;
+                                        return userId;
                 }
 
-                log.debug("JWT 클레임에서 userId를 찾을 수 없음");
-                return null;
+                                return null;
 
             } catch (JwtException e) {
                 
@@ -273,8 +230,6 @@ public class UserIdentificationService {
             }
         }
 
-        
-        
         log.warn("[Zero Trust] JwtDecoder가 설정되지 않음 - JWT 서명 검증 없이 페이로드만 디코딩 (보안 취약)");
 
         try {
@@ -284,7 +239,6 @@ public class UserIdentificationService {
                 java.util.Base64.Decoder decoder = java.util.Base64.getUrlDecoder();
                 String json = new String(decoder.decode(payload));
 
-                
                 java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"sub\"\\s*:\\s*\"([^\"]+)\"");
                 java.util.regex.Matcher matcher = pattern.matcher(json);
                 if (matcher.find()) {
@@ -300,13 +254,11 @@ public class UserIdentificationService {
                 }
             }
         } catch (Exception e) {
-            log.debug("JWT 파싱 실패", e);
-        }
+                    }
 
         return null;
     }
-    
-    
+
     private String extractFromException(Exception exception) {
         if (exception == null) {
             return null;
@@ -320,8 +272,7 @@ public class UserIdentificationService {
             if (matcher.find()) {
                 return matcher.group(1);
             }
-            
-            
+
             pattern = java.util.regex.Pattern.compile("Username:\\s*(\\S+)");
             matcher = pattern.matcher(message);
             if (matcher.find()) {
@@ -331,23 +282,20 @@ public class UserIdentificationService {
         
         return null;
     }
-    
-    
+
     private String generateAnonymousId(HttpServletRequest request) {
         String ip = getClientIp(request);
         String userAgent = request.getHeader("User-Agent");
         
         if (ip == null) ip = "unknown";
         if (userAgent == null) userAgent = "unknown";
-        
-        
+
         String combined = ip + ":" + userAgent;
         int hash = combined.hashCode();
         
         return "anonymous_" + Integer.toHexString(hash);
     }
-    
-    
+
     private String getClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
@@ -361,14 +309,12 @@ public class UserIdentificationService {
         
         return request.getRemoteAddr();
     }
-    
-    
+
     public String extractFromWebDetails(WebAuthenticationDetails details) {
         if (details == null) {
             return null;
         }
-        
-        
+
         String sessionId = details.getSessionId();
         if (sessionId != null) {
             
@@ -377,19 +323,16 @@ public class UserIdentificationService {
         
         return null;
     }
-    
-    
+
     public String extractFromOAuth2(Authentication authentication) {
         if (authentication == null) {
             return null;
         }
-        
-        
+
         Object principal = authentication.getPrincipal();
         if (principal instanceof Map) {
             Map<String, Object> attributes = (Map<String, Object>) principal;
-            
-            
+
             Object id = attributes.get("id");
             if (id != null) return id.toString();
             

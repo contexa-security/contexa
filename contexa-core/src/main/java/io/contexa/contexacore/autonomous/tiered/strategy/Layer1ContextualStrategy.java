@@ -53,12 +53,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final Cache<String, SessionContext> sessionContextCache;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-
     @Value("${spring.ai.security.layer1.model:llama3.1:8b}")
     private String modelName;
 
-    
-    
     @Value("${spring.ai.security.tiered.layer1.vector-search-limit:10}")
     private int vectorSearchLimit;
 
@@ -82,7 +79,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.postProcessor = postProcessor;
         this.tieredStrategyProperties = tieredStrategyProperties;
 
-        
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
                 .maximumSize(cacheConfig.getMaxSize())
@@ -90,27 +86,16 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .recordStats()
                 .build();
 
-        log.info("Layer 1 Contextual Strategy initialized with UnifiedLLMOrchestrator");
-        log.info("  - Model: {}", modelName);
-        
         TieredStrategyProperties.Layer1.Timeout timeout = tieredStrategyProperties.getLayer1().getTimeout();
-        log.info("  - Timeout: total={}ms, llm={}ms, vector={}ms, redis={}ms, baseline={}ms",
-            timeout.getTotalMs(), timeout.getLlmMs(), timeout.getVectorSearchMs(),
-            timeout.getRedisMs(), timeout.getBaselineMs());
-        log.info("  - UnifiedVectorService available: {}", unifiedVectorService != null);
-        log.info("  - BaselineLearningService available: {}", baselineLearningService != null);
     }
 
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
-        log.info("Layer 1 Contextual Strategy evaluating event: {}", event.getEventId());
 
-        
         SecurityDecision decision = analyzeWithContext(event);
         boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
         String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
-        
-        
+
         return ThreatAssessment.builder()
                 .eventId(event.getEventId())
                 .assessedAt(LocalDateTime.now())
@@ -120,8 +105,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer1-Contextual")
                 .shouldEscalate(shouldEscalate)
-                .action(action)  
-                .reasoning(decision.getReasoning())  
+                .action(action)
+                .reasoning(decision.getReasoning())
                 .build();
     }
 
@@ -129,37 +114,33 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
 
         try {
-            
+
             SessionContext sessionContext = buildSessionContext(event);
 
-            
             BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatterns(event);
 
-            
             List<Document> relatedDocuments = searchRelatedContext(event);
 
-            
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
-            
+
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
 
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
-            
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
-                
+
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(1)
                         .preferredModel(modelName)
                         .securityTaskType(ExecutionContext.SecurityTaskType.CONTEXTUAL_ANALYSIS)
-                        .timeoutMs((int)llmTimeoutMs)
+                        .timeoutMs((int) llmTimeoutMs)
                         .requestId(event.getEventId())
                         .temperature(0.0)
-                        .topP(1.0)  
+                        .topP(1.0)
                         .build();
 
                 String jsonResponse = llmOrchestrator.execute(context)
@@ -178,31 +159,22 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SecurityDecision decision = convertToSecurityDecision(response, event);
 
-            
-            
             if (decision.getAction() == SecurityDecision.Action.ESCALATE) {
                 Layer2ExpertStrategy.cachePromptContext(
-                    event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
-                log.debug("[Layer1] ESCALATE - L2를 위한 컨텍스트 캐싱 완료: eventId={}", event.getEventId());
+                        event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
             }
 
-            
             enrichDecisionWithContext(decision, sessionContext, behaviorAnalysis);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
-            
             if (postProcessor != null) {
                 postProcessor.updateSessionContext(event, decision);
             }
 
-            
             if (postProcessor != null) {
                 postProcessor.storeInVectorDatabase(event, decision);
             }
-
-            log.info("Layer 1 analysis completed in {}ms - Risk: {}, Action: {}",
-                    decision.getProcessingTimeMs(), decision.getRiskScore(), decision.getAction());
 
             return decision;
 
@@ -212,7 +184,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    
     public Mono<SecurityDecision> analyzeWithContextAsync(SecurityEvent event) {
         long totalTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getTotalMs();
         return Mono.fromCallable(() -> analyzeWithContext(event))
@@ -224,20 +195,18 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 });
     }
 
-    
     private SessionContext buildSessionContext(SecurityEvent event) {
         String sessionId = event.getSessionId();
 
-        
         if (sessionId != null) {
             SessionContext cached = sessionContextCache.getIfPresent(sessionId);
             if (cached != null && cached.isValid()) {
-                
+
                 if (isSessionContextChanged(cached, event)) {
                     log.warn("[Layer1][Zero Trust] Context change detected: session={}, IP={}->{}",
-                        sessionId, cached.getIpAddress(), event.getSourceIp());
+                            sessionId, cached.getIpAddress(), event.getSourceIp());
                     sessionContextCache.invalidate(sessionId);
-                    
+
                 } else {
                     cached.addEvent(event);
                     return cached;
@@ -245,38 +214,30 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }
         }
 
-        
         SessionContext context = new SessionContext();
         context.setSessionId(sessionId);
-        context.setUserId(event.getUserId());  
-        context.setIpAddress(event.getSourceIp());  
-        
+        context.setUserId(event.getUserId());
+        context.setIpAddress(event.getSourceIp());
+
         context.setStartTime(LocalDateTime.now());
 
-        
-        
         if (event.getMetadata() != null) {
-            
+
             Object authMethodObj = event.getMetadata().get("authMethod");
             if (authMethodObj instanceof String) {
                 context.setAuthMethod((String) authMethodObj);
             }
-            
-            
+
             Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
             if (recentRequestCountObj instanceof Number) {
                 context.setAccessFrequency(((Number) recentRequestCountObj).intValue());
             }
         }
 
-        
         if (event.getUserAgent() != null) {
             context.setUserAgent(event.getUserAgent());
         }
 
-        
-        
-        
         if (sessionId != null && redisTemplate != null) {
             try {
                 @SuppressWarnings("unchecked")
@@ -286,13 +247,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     context.setRecentActions(recentActions);
                 }
             } catch (Exception e) {
-                log.debug("[Layer1] Redis enrichment failed: {}", e.getMessage());
             }
         }
 
         context.addEvent(event);
 
-        
         if (sessionId != null && context.getUserId() != null) {
             sessionContextCache.put(sessionId, context);
         }
@@ -300,13 +259,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return context;
     }
 
-    
     @Override
     protected List<String> findSimilarEventsForLayer(SecurityEvent event) {
         return findSimilarEvents(event);
     }
 
-    
     private BaseBehaviorAnalysis analyzeBehaviorPatterns(SecurityEvent event) {
         return analyzeBehaviorPatternsBase(event, baselineLearningService);
     }
@@ -316,19 +273,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             return findSimilarEventsFallback(event);
         }
 
-        
         String userId = event.getUserId();
         if (userId == null) {
             log.error("[Layer1][SYSTEM_ERROR] userId null in findSimilarEvents");
             return Collections.emptyList();
         }
 
-        
-        
-        
-        
         final String currentIp = event.getSourceIp();
-        
+
         final String currentPath = event.getMetadata() != null ?
                 (String) event.getMetadata().get("requestPath") : null;
 
@@ -344,7 +296,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     .map(doc -> {
                         Map<String, Object> meta = doc.getMetadata();
 
-                        
                         double score = 0.0;
                         Object scoreObj = meta.get("similarityScore");
                         if (scoreObj instanceof Number) {
@@ -352,12 +303,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         }
                         int similarityPct = (int) (score * 100);
 
-                        
-                        
-                        
-                        
-                        
-                        
                         return String.format("EventID:%s, Similarity:%d%%",
                                 meta.get("eventId"), similarityPct);
                     })
@@ -369,14 +314,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    
     private List<String> findSimilarEventsFallback(SecurityEvent event) {
         List<String> similar = new ArrayList<>();
         if (redisTemplate == null) {
             return similar;
         }
 
-        
         String userId = event.getUserId();
         if (userId == null) {
             log.error("[Layer1][SYSTEM_ERROR] userId null in findSimilarEventsFallback");
@@ -388,18 +331,18 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
 
         try {
-            
+
             ScanOptions scanOptions = ScanOptions.scanOptions()
                     .match(pattern)
-                    .count(100)  
+                    .count(100)
                     .build();
 
             try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
                 while (cursor.hasNext() && similar.size() < limit) {
-                    
+
                     if (System.currentTimeMillis() - startTime > redisTimeoutMs) {
                         log.warn("[Layer1][AI Native v4.3.0] Redis SCAN timeout ({}ms), returning {} events",
-                            redisTimeoutMs, similar.size());
+                                redisTimeoutMs, similar.size());
                         break;
                     }
                     String key = cursor.next();
@@ -408,20 +351,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 }
             }
         } catch (Exception e) {
-            log.debug("[Layer1] Failed to find similar events via SCAN", e);
         }
 
         return similar;
     }
 
-    
     private List<Document> searchRelatedContext(SecurityEvent event) {
         double similarityThreshold = tieredStrategyProperties.getLayer1().getRag().getSimilarityThreshold();
         int topK = Math.min(15, vectorSearchLimit * 2);
         return searchRelatedContextBase(event, unifiedVectorService, eventEnricher, topK, similarityThreshold);
     }
 
-    
     private SecurityPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
         SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
         ctx.setSessionId(sessionContext.getSessionId());
@@ -429,22 +369,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setAuthMethod(sessionContext.getAuthMethod());
         ctx.setRecentActions(sessionContext.getRecentActions());
 
-        
-        
         if (sessionContext.getStartTime() != null) {
             long minutes = java.time.Duration.between(
-                sessionContext.getStartTime(),
-                java.time.LocalDateTime.now()
+                    sessionContext.getStartTime(),
+                    java.time.LocalDateTime.now()
             ).toMinutes();
             ctx.setSessionAgeMinutes((int) Math.max(0, minutes));
         }
-        
+
         ctx.setRequestCount(sessionContext.getAccessFrequency());
 
         return ctx;
     }
 
-    
     private SecurityPromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(
             BaseBehaviorAnalysis behaviorAnalysis,
             SecurityEvent event) {
@@ -454,14 +391,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
 
-        
-        
         if (event != null && event.getUserAgent() != null) {
             String currentOS = extractOSFromUserAgent(event.getUserAgent());
             ctx.setCurrentUserAgentOS(currentOS);
         }
 
-        
         if (behaviorAnalysis.getBaselineContext() != null) {
             String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
             ctx.setPreviousUserAgentOS(baselineOS);
@@ -470,37 +404,34 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return ctx;
     }
 
-    
     private String extractOSFromBaselineContext(String baselineContext) {
         if (baselineContext == null || baselineContext.isEmpty()) {
             return null;
         }
 
         try {
-            
+
             int uaRowIdx = baselineContext.indexOf("| UA");
             if (uaRowIdx != -1) {
-                
+
                 int rowEndIdx = baselineContext.indexOf("\n", uaRowIdx);
                 if (rowEndIdx == -1) rowEndIdx = baselineContext.length();
                 String uaRow = baselineContext.substring(uaRowIdx, rowEndIdx);
 
-                
                 String[] columns = uaRow.split("\\|");
                 if (columns.length >= 4) {
-                    
+
                     String baselineColumn = columns[3].trim();
                     int startParen = baselineColumn.lastIndexOf("(");
                     int endParen = baselineColumn.lastIndexOf(")");
                     if (startParen != -1 && endParen > startParen) {
                         String os = baselineColumn.substring(startParen + 1, endParen);
-                        
+
                         return os.replace("...", "");
                     }
                 }
             }
 
-            
             int baselineIdx = baselineContext.indexOf("\"baseline\":");
             if (baselineIdx != -1) {
                 int startParen = baselineContext.indexOf("(", baselineIdx);
@@ -510,18 +441,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 }
             }
         } catch (Exception e) {
-            log.debug("[Layer1] Failed to extract OS from baseline context: {}", e.getMessage());
         }
 
         return null;
     }
 
-    
     private SecurityDecision convertToSecurityDecision(SecurityResponse response,
                                                        SecurityEvent event) {
         SecurityDecision.Action action = mapStringToAction(response.getAction());
 
-        
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
                 .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
@@ -531,7 +459,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .analysisTime(System.currentTimeMillis())
                 .build();
 
-        
         if (response.getMitre() != null && !response.getMitre().isBlank()) {
             decision.setThreatCategory(response.getMitre());
         }
@@ -539,17 +466,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return decision;
     }
 
-    
     private SecurityResponse parseJsonResponse(String jsonResponse) {
         try {
-            
+
             String cleanedJson = extractJsonObject(jsonResponse);
 
-            
             SecurityResponse response = SecurityResponse.fromJson(cleanedJson);
 
             if (response != null && response.isValid()) {
-                log.debug("[Layer1] JSON 파싱 성공: {}", cleanedJson);
                 return validateAndFixResponse(response);
             }
 
@@ -562,10 +486,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    
     private SecurityResponse createDefaultResponse() {
         return SecurityResponse.builder()
-                .riskScore(null)  
+                .riskScore(null)
                 .confidence(null)
                 .action("ESCALATE")
                 .reasoning("[AI Native] Layer 1 LLM analysis unavailable - escalating to Layer 2")
@@ -573,14 +496,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    
-
-    
     private void enrichDecisionWithContext(SecurityDecision decision,
                                            SessionContext sessionContext,
                                            BaseBehaviorAnalysis behaviorAnalysis) {
 
-        
         Map<String, Object> sessionData = new HashMap<>();
         sessionData.put("sessionId", sessionContext.getSessionId());
         sessionData.put("userId", sessionContext.getUserId());
@@ -594,7 +513,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         decision.getBehaviorPatterns().addAll(behaviorAnalysis.getSimilarEvents());
     }
 
-    
     private SecurityDecision createFallbackDecision(long startTime) {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.ESCALATE)
@@ -607,15 +525,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    
-    
-    
     @Override
     protected String getLayerName() {
         return "Layer1";
     }
 
-    
     @Override
     public List<String> getRecommendedActions(SecurityEvent event) {
         List<String> actions = new ArrayList<>();
@@ -630,7 +544,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return Double.NaN;
     }
 
-    
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         return switch (action) {
             case ALLOW -> "ALLOW";
@@ -640,36 +553,29 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         };
     }
 
-    
     private class SessionContext extends BaseSessionContext {
 
-        
         public void addEvent(SecurityEvent event) {
             accessFrequency++;
-            
+
             int maxRecentActions = tieredStrategyProperties.getLayer1().getSession().getMaxRecentActions();
             if (recentActions.size() > maxRecentActions) {
                 recentActions.remove(0);
             }
-            
+
             recentActions.add(event.getDescription() != null ? event.getDescription() : "action");
         }
     }
 
-    
     private SecurityResponse validateAndFixResponse(SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
         }
 
-        
-        
-        
         double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
         response.setRiskScore(validated[0]);
         response.setConfidence(validated[1]);
 
-        
         if (response.getAction() == null || response.getAction().isBlank()) {
             response.setAction("ESCALATE");
             log.warn("[Layer1][Fallback] action 누락, ESCALATE로 설정");
@@ -678,10 +584,4 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return response;
     }
 
-    
-    
-    
-    
-
-    
 }

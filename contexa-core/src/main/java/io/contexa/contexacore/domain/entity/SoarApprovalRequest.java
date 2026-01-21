@@ -28,8 +28,7 @@ public class SoarApprovalRequest {
 
     @Column(nullable = false, updatable = false)
     private String playbookInstanceId;  
-    
-    
+
     @Column(name = "incident_id")
     private String incidentId;  
     

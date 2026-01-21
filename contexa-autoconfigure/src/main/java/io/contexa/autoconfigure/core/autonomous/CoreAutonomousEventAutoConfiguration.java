@@ -8,15 +8,12 @@ import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.authorization.RiskAssessment;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
-import io.contexa.contexacore.autonomous.event.decision.UnifiedEventPublishingDecisionEngine;
-import io.contexa.contexacore.autonomous.event.filter.SecurityEventPublishingFilter;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.monitoring.DeadLetterQueueMonitor;
 import io.contexa.contexacore.autonomous.event.monitoring.RedisMemoryMonitor;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.event.sampling.AdaptiveSamplingEngine;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityPlaneEventListener;
 import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ColdPathStrategy;
@@ -119,20 +116,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public UnifiedEventPublishingDecisionEngine unifiedEventPublishingDecisionEngine(
-            RedisTemplate<String, Object> redisTemplate,
-            AdaptiveSamplingEngine adaptiveSamplingEngine) {
-        return new UnifiedEventPublishingDecisionEngine(redisTemplate, adaptiveSamplingEngine);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AdaptiveSamplingEngine adaptiveSamplingEngine(RedisTemplate<String, Object> redisTemplate) {
-        return new AdaptiveSamplingEngine(redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public EventDeduplicator eventDeduplicator(SecurityPlaneProperties securityPlaneProperties) {
         return new EventDeduplicator(securityPlaneProperties);
     }
@@ -143,15 +126,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new EventNormalizer();
     }
 
-
-
-    public SecurityEventPublishingFilter securityEventPublishingFilter(
-            ApplicationEventPublisher applicationEventPublisher,
-            UnifiedEventPublishingDecisionEngine unifiedEventPublishingDecisionEngine) {
-        return new SecurityEventPublishingFilter(applicationEventPublisher, unifiedEventPublishingDecisionEngine);
-    }
-
-    
 
     @Bean
     @ConditionalOnMissingBean

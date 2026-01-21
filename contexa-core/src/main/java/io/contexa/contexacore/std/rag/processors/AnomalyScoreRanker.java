@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 public class AnomalyScoreRanker implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.anomaly.vector-weight:0.4}")
@@ -39,15 +38,13 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         if (documents.isEmpty()) {
             return documents;
         }
-        
-        
+
         for (Document doc : documents) {
             double anomalyScore = calculateComprehensiveAnomalyScore(doc);
             doc.getMetadata().put("anomalyScore", anomalyScore);
             doc.getMetadata().put("anomalyLevel", determineAnomalyLevel(anomalyScore));
         }
-        
-        
+
         List<Document> rankedDocuments = documents.stream()
             .sorted((d1, d2) -> {
                 double score1 = (Double) d1.getMetadata().getOrDefault("anomalyScore", 0.0);
@@ -56,41 +53,32 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
             })
             .limit(maxResults)
             .collect(Collectors.toList());
-        
-        
+
         markHighRiskDocuments(rankedDocuments);
         
         return rankedDocuments;
     }
-    
-    
+
     private double calculateComprehensiveAnomalyScore(Document document) {
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         double vectorAnomaly = calculateVectorDistanceAnomaly(metadata);
-        
-        
+
         double timeAnomaly = calculateTimePatternAnomaly(metadata);
-        
-        
+
         double frequencyAnomaly = calculateFrequencyAnomaly(metadata);
-        
-        
+
         double contextAnomaly = calculateContextAnomaly(document);
-        
-        
+
         double weightedScore = 
             vectorAnomaly * vectorDistanceWeight +
             timeAnomaly * timeDeviationWeight +
             frequencyAnomaly * frequencyAnomalyWeight +
             contextAnomaly * 0.1; 
-        
-        
+
         return Math.min(Math.max(weightedScore, 0.0), 1.0);
     }
-    
-    
+
     private double calculateVectorDistanceAnomaly(Map<String, Object> metadata) {
         Object scoreObj = metadata.get("score");
         if (scoreObj == null) {
@@ -98,14 +86,10 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         }
         
         double similarityScore = ((Number) scoreObj).doubleValue();
-        
-        
-        
-        
+
         return 1.0 - similarityScore;
     }
-    
-    
+
     private double calculateTimePatternAnomaly(Map<String, Object> metadata) {
         LocalDateTime timestamp = getTimestamp(metadata);
         if (timestamp == null) {
@@ -113,8 +97,7 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         }
         
         double anomalyScore = 0.0;
-        
-        
+
         int hour = timestamp.getHour();
         DayOfWeek dayOfWeek = timestamp.getDayOfWeek();
         boolean isWeekend = dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY;
@@ -128,25 +111,21 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         } else if (hour < 9 || hour >= 18) {
             anomalyScore += 0.2; 
         }
-        
-        
+
         if (hour >= 2 && hour < 5) {
             anomalyScore += 0.3; 
         }
-        
-        
+
         if (hour >= 12 && hour < 14 && !isWeekend) {
             anomalyScore -= 0.1; 
         }
         
         return Math.min(anomalyScore, 1.0);
     }
-    
-    
+
     private double calculateFrequencyAnomaly(Map<String, Object> metadata) {
         double anomalyScore = 0.0;
-        
-        
+
         String activityType = (String) metadata.get("activityType");
         if (activityType != null) {
             switch (activityType.toUpperCase()) {
@@ -171,14 +150,12 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
                     break;
             }
         }
-        
-        
+
         Integer consecutiveActions = (Integer) metadata.get("consecutiveActions");
         if (consecutiveActions != null && consecutiveActions > 10) {
             anomalyScore += Math.min(consecutiveActions / 50.0, 0.5);
         }
-        
-        
+
         Integer recentActionCount = (Integer) metadata.get("recentActionCount");
         if (recentActionCount != null && recentActionCount > 100) {
             anomalyScore += 0.4;
@@ -186,22 +163,19 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         
         return Math.min(anomalyScore, 1.0);
     }
-    
-    
+
     private double calculateContextAnomaly(Document document) {
         double anomalyScore = 0.0;
         Map<String, Object> metadata = document.getMetadata();
         String content = document.getText();
-        
-        
+
         String ipType = (String) metadata.get("ipType");
         if ("EXTERNAL_NETWORK".equals(ipType)) {
             anomalyScore += 0.3;
         } else if ("UNKNOWN".equals(ipType)) {
             anomalyScore += 0.5;
         }
-        
-        
+
         @SuppressWarnings("unchecked")
         List<String> userRoles = (List<String>) metadata.get("userRoles");
         if (userRoles != null) {
@@ -211,8 +185,7 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
                 anomalyScore += 0.2;
             }
         }
-        
-        
+
         String resourceAccessed = (String) metadata.get("resourceAccessed");
         if (resourceAccessed != null) {
             if (resourceAccessed.contains("/admin") || 
@@ -221,8 +194,7 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
                 anomalyScore += 0.3;
             }
         }
-        
-        
+
         if (content != null) {
             String lowerContent = content.toLowerCase();
             if (lowerContent.contains("password") || 
@@ -241,8 +213,7 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         
         return Math.min(anomalyScore, 1.0);
     }
-    
-    
+
     private String determineAnomalyLevel(double anomalyScore) {
         
         if (anomalyScore >= 0.9) {
@@ -257,8 +228,7 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
             return "NORMAL";
         }
     }
-    
-    
+
     private void markHighRiskDocuments(List<Document> documents) {
         for (Document doc : documents) {
             double anomalyScore = (Double) doc.getMetadata().getOrDefault("anomalyScore", 0.0);
@@ -266,20 +236,17 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
             if (anomalyScore >= anomalyThreshold) {
                 doc.getMetadata().put("highRisk", true);
                 doc.getMetadata().put("requiresReview", true);
-                
-                
+
                 List<String> riskFactors = identifyRiskFactors(doc);
                 doc.getMetadata().put("riskFactors", riskFactors);
             }
         }
     }
-    
-    
+
     private List<String> identifyRiskFactors(Document document) {
         List<String> factors = new java.util.ArrayList<>();
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         LocalDateTime timestamp = getTimestamp(metadata);
         if (timestamp != null) {
             int hour = timestamp.getHour();
@@ -290,8 +257,7 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
                 factors.add("Weekend activity");
             }
         }
-        
-        
+
         String activityType = (String) metadata.get("activityType");
         if ("DELETE".equals(activityType) || "BULK_DELETE".equals(activityType)) {
             factors.add("Deletion activity");
@@ -299,13 +265,11 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         if ("ADMIN_ACTION".equals(activityType)) {
             factors.add("Administrative action");
         }
-        
-        
+
         if ("EXTERNAL_NETWORK".equals(metadata.get("ipType"))) {
             factors.add("External network access");
         }
-        
-        
+
         double anomalyScore = (Double) metadata.getOrDefault("anomalyScore", 0.0);
         if (anomalyScore >= 0.9) {
             factors.add("Critical anomaly score");
@@ -313,8 +277,7 @@ public class AnomalyScoreRanker implements DocumentPostProcessor {
         
         return factors;
     }
-    
-    
+
     private LocalDateTime getTimestamp(Map<String, Object> metadata) {
         Object timestamp = metadata.get("timestamp");
         

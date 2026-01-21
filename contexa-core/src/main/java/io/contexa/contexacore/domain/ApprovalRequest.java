@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -38,8 +37,7 @@ public class ApprovalRequest implements Serializable {
     private Integer approvalTimeout;
     private String potentialImpact;
     private Map<String, Object> metadata;
-    
-    
+
     private Long id;
     private boolean approved;
     private String organizationId;
@@ -54,8 +52,7 @@ public class ApprovalRequest implements Serializable {
     private String requesterPhone;
     private String approver;
     private java.time.Instant approvalTime;
-    
-    
+
     public String getRequesterEmail() {
         if (requesterEmail != null) {
             return requesterEmail;
@@ -77,8 +74,7 @@ public class ApprovalRequest implements Serializable {
         }
         return null;
     }
-    
-    
+
     public enum RiskLevel {
         CRITICAL("치명적", 9),
         HIGH("높음", 7),
@@ -102,8 +98,7 @@ public class ApprovalRequest implements Serializable {
             return score;
         }
     }
-    
-    
+
     public enum ApprovalType {
         AUTO("자동 승인"),
         MANUAL("수동 승인 필요"),
@@ -122,8 +117,7 @@ public class ApprovalRequest implements Serializable {
             return description;
         }
     }
-    
-    
+
     public enum ApprovalStatus {
         PENDING("대기 중"),
         APPROVED("승인됨"),
@@ -141,8 +135,7 @@ public class ApprovalRequest implements Serializable {
             return description;
         }
     }
-    
-    
+
     public static ApprovalRequest create(String sessionId, String toolName, Map<String, Object> parameters, String reason) {
         ApprovalRequest request = new ApprovalRequest();
         request.requestId = "APR-" + System.currentTimeMillis();
@@ -154,33 +147,28 @@ public class ApprovalRequest implements Serializable {
         request.requestedAt = LocalDateTime.now();
         return request;
     }
-    
-    
+
     public void approve(String approver) {
         this.status = ApprovalStatus.APPROVED;
         this.approvedBy = approver;
         this.approvedAt = LocalDateTime.now();
     }
-    
-    
+
     public void reject(String approver, String reason) {
         this.status = ApprovalStatus.REJECTED;
         this.approvedBy = approver;
         this.approvedAt = LocalDateTime.now();
         this.rejectionReason = reason;
     }
-    
-    
+
     public void expire() {
         this.status = ApprovalStatus.EXPIRED;
     }
-    
-    
+
     public void cancel() {
         this.status = ApprovalStatus.CANCELLED;
     }
-    
-    
+
     @JsonIgnore
     public boolean isAutoApprovable() {
         return this.riskLevel != null &&
@@ -190,21 +178,18 @@ public class ApprovalRequest implements Serializable {
     public Integer getTimeoutMinutes() {
         return this.approvalTimeout;
     }
-    
-    
+
     public static ApprovalRequestBuilder builder() {
         return new ApprovalRequestBuilder();
     }
-    
-    
+
     public void addApproval(String approver, String approverName, String approverRole, String comments) {
         this.status = ApprovalStatus.APPROVED;
         this.approvedBy = approver;
         this.approvedAt = LocalDateTime.now();
         
     }
-    
-    
+
     public static class ApprovalRequestBuilder {
         private ApprovalRequest request = new ApprovalRequest();
         

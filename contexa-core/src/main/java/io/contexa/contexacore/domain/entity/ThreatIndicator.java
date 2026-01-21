@@ -11,7 +11,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-
 @Entity
 @Table(name = "threat_indicators")
 @Getter
@@ -150,8 +149,7 @@ public class ThreatIndicator {
     )
     @Builder.Default
     private Set<ThreatIndicator> relatedIndicators = new HashSet<>();
-    
-    
+
     public enum IndicatorType {
         IP_ADDRESS("IP Address"),
         DOMAIN("Domain"),
@@ -182,8 +180,7 @@ public class ThreatIndicator {
             return description;
         }
     }
-    
-    
+
     public enum Severity {
         CRITICAL("Critical", 5),
         HIGH("High", 4),
@@ -211,8 +208,7 @@ public class ThreatIndicator {
             return this.level > other.level;
         }
     }
-    
-    
+
     public enum IndicatorStatus {
         ACTIVE("Active"),
         INACTIVE("Inactive"),
@@ -230,38 +226,33 @@ public class ThreatIndicator {
             return description;
         }
     }
-    
-    
+
     public void addMetadata(String key, String value) {
         if (metadata == null) {
             metadata = new HashMap<>();
         }
         metadata.put(key, value);
     }
-    
-    
+
     public void addTag(String tag) {
         if (tags == null) {
             tags = new HashSet<>();
         }
         tags.add(tag);
     }
-    
-    
+
     public void incrementDetectionCount() {
         this.detectionCount++;
         this.lastSeen = LocalDateTime.now();
     }
-    
-    
+
     public void incrementFalsePositiveCount() {
         this.falsePositiveCount++;
         if (this.falsePositiveCount > 10) {
             this.status = IndicatorStatus.FALSE_POSITIVE;
         }
     }
-    
-    
+
     @JsonIgnore
     public boolean isExpired() {
         if (expiresAt == null) {
@@ -270,20 +261,17 @@ public class ThreatIndicator {
         return LocalDateTime.now().isAfter(expiresAt);
     }
 
-    
     @JsonIgnore
     public boolean isActive() {
         return active && status == IndicatorStatus.ACTIVE && !isExpired();
     }
 
-    
     public void setMitreMapping(String attackId, String tactic, String technique) {
         this.mitreAttackId = attackId;
         this.mitreTactic = tactic;
         this.mitreTechnique = technique;
     }
-    
-    
+
     public void updateConfidence(double newConfidence) {
         this.confidence = Math.max(0.0, Math.min(1.0, newConfidence));
     }

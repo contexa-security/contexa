@@ -8,7 +8,6 @@ import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ColdPathStrategy implements ProcessingStrategy {
@@ -18,25 +17,17 @@ public class ColdPathStrategy implements ProcessingStrategy {
     @Override
     public ProcessingResult process(SecurityEventContext context) {
         SecurityEvent event = context.getSecurityEvent();
-        log.info("[ColdPathStrategy] Processing AI analysis for event: {}", event.getEventId());
-
+        
         try {
             
             double riskScore = extractRiskScore(context);
 
-            
             ProcessingResult result = coldPathProcessor.processEvent(event, riskScore);
 
-            
-            
             context.addMetadata("aiAnalysisComplete", true);
             context.addMetadata("coldPathResult", result.isSuccess());
             context.addMetadata("riskScore", result.getRiskScore());
 
-            log.info("[ColdPathStrategy] AI analysis completed for event {} - success: {}, riskScore: {}",
-                event.getEventId(), result.isSuccess(), result.getRiskScore());
-
-            
             return ProcessingResult.builder()
                 .success(result.isSuccess())
                 .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
@@ -69,7 +60,6 @@ public class ColdPathStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private ProcessingResult.IncidentSeverity parseIncidentSeverity(String severity) {
         if (severity == null || severity.isBlank()) {
             return null;
@@ -82,19 +72,14 @@ public class ColdPathStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private double extractRiskScore(SecurityEventContext context) {
         if (context.getAiAnalysisResult() == null) {
             
-            log.debug("[ColdPathStrategy][AI Native] No AI analysis result, riskScore=-1.0");
-            return -1.0;
+                        return -1.0;
         }
 
-        
-        
         double threatLevel = context.getAiAnalysisResult().getThreatLevel();
-        log.debug("[ColdPathStrategy][AI Native] Extracted riskScore from threatLevel: {}", threatLevel);
-        return threatLevel;
+                return threatLevel;
     }
 
     @Override

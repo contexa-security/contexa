@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class LLMExecutionStep implements PipelineStep {
@@ -23,9 +22,7 @@ public class LLMExecutionStep implements PipelineStep {
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
         long stepStartTime = System.currentTimeMillis();
-        log.info("[PIPELINE-STEP] ===== LLM 실행 단계 시작 ===== Request: {}", request.getRequestId());
 
-        
         Class<?> targetType = context.getMetadata("aiGenerationType", Class.class);
         if (targetType == null) {
             targetType = context.getMetadata("targetResponseType", Class.class);
@@ -35,11 +32,9 @@ public class LLMExecutionStep implements PipelineStep {
         }
         
         final Class<?> finalTargetType = targetType;
-        
-        
+
         if (context.getMetadata("aiGenerationType", Class.class) != null) {
-            log.debug("AI 생성 타입 사용: {}", finalTargetType.getSimpleName());
-        }
+                    }
         
         if (finalTargetType != null) {
             return preparePrompt(context)
@@ -63,8 +58,7 @@ public class LLMExecutionStep implements PipelineStep {
                                 .cast(Object.class);
                     });
         }
-        
-        
+
         return preparePrompt(context)
                 .flatMap(llmClient::call)
                 .doOnSuccess(response -> {
@@ -80,12 +74,10 @@ public class LLMExecutionStep implements PipelineStep {
     }
 
     public <T extends DomainContext> Flux<String> executeStreaming(AIRequest<T> request, PipelineExecutionContext context) {
-        log.info("[PIPELINE-STEP] 스트리밍 LLM 실행 시작: {}", request.getRequestId());
-
+        
         return preparePrompt(context)
                 .flatMapMany(prompt -> {
-                    log.info("[PIPELINE-STEP] 일반 스트리밍 LLM 실행: {}", request.getRequestId());
-                    return llmClient.stream(prompt);
+                                        return llmClient.stream(prompt);
                 })
                 .doOnError(error -> log.error("[PIPELINE-STEP] 스트리밍 처리 실패: {}", request.getRequestId(), error));
     }
@@ -98,9 +90,7 @@ public class LLMExecutionStep implements PipelineStep {
             if (promptResult == null || promptResult.getPrompt() == null) {
                 throw new IllegalStateException("Prompt not found in context. Skipping LLM execution.");
             }
-            log.info("[PIPELINE-STEP] 프롬프트 준비 완료 (System: {}자, User: {}자)",
-                    promptResult.getSystemPrompt().length(), promptResult.getUserPrompt().length());
-            return promptResult.getPrompt();
+                        return promptResult.getPrompt();
         }).onErrorResume(IllegalStateException.class, e -> {
             log.warn("[PIPELINE-STEP] {}", e.getMessage());
             return Mono.empty(); 
@@ -109,15 +99,11 @@ public class LLMExecutionStep implements PipelineStep {
 
     private void logResponseSuccess(String requestId, String response, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
-        log.info("[PIPELINE-STEP] ===== LLM 실행 완료 ===== Request: {}, 총 시간: {}ms, 응답 길이: {}자",
-                requestId, totalTime, response != null ? response.length() : 0);
-    }
+            }
     
     private void logStructuredResponseSuccess(String requestId, Object response, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
-        log.info("[PIPELINE-STEP] ===== 구조화된 LLM 실행 완료 ===== Request: {}, 총 시간: {}ms, 응답 타입: {}",
-                requestId, totalTime, response != null ? response.getClass().getSimpleName() : "null");
-    }
+            }
 
     private void logError(String requestId, Throwable error, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;

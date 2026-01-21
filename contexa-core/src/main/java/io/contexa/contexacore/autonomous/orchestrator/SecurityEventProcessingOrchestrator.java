@@ -10,25 +10,21 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SecurityEventProcessingOrchestrator {
 
     private final List<SecurityEventHandler> handlers;
 
-    
     public SecurityEventContext process(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
 
-        
         SecurityEventContext context = SecurityEventContext.builder()
             .securityEvent(event)
             .processingStatus(SecurityEventContext.ProcessingStatus.PENDING)
             .createdAt(LocalDateTime.now())
             .build();
 
-        
         context.addMetadata("startTime", startTime);
         context.addMetadata("agentId", "security-plane-agent");
         context.addMetadata("orchestratorVersion", "1.0");
@@ -37,18 +33,12 @@ public class SecurityEventProcessingOrchestrator {
             
             List<SecurityEventHandler> sortedHandlers = getSortedHandlers();
 
-            log.info("[SecurityEventProcessingOrchestrator] Starting event processing - eventId: {}, handlers: {}",
-                event.getEventId(), sortedHandlers.size());
-
             for (SecurityEventHandler handler : sortedHandlers) {
                 if (!executeHandler(handler, context)) {
-                    log.info("[SecurityEventProcessingOrchestrator] Processing chain stopped by handler: {}",
-                        handler.getName());
-                    break;
+                                        break;
                 }
             }
 
-            
             if (context.getProcessingStatus() != SecurityEventContext.ProcessingStatus.FAILED) {
                 context.markAsCompleted();
             }
@@ -65,30 +55,19 @@ public class SecurityEventProcessingOrchestrator {
         return context;
     }
 
-    
     private boolean executeHandler(SecurityEventHandler handler, SecurityEventContext context) {
         
         if (!handler.canHandle(context)) {
-            log.debug("[Orchestrator] Handler {} skipped - cannot handle current context",
-                handler.getName());
-            return true; 
+                        return true; 
         }
 
         try {
             long handlerStartTime = System.currentTimeMillis();
 
-            log.info("[SecurityEventProcessingOrchestrator] Executing handler: {} for event: {}",
-                handler.getName(), context.getSecurityEvent().getEventId());
-
-            
             boolean continueChain = handler.handle(context);
 
-            
             long handlerTime = System.currentTimeMillis() - handlerStartTime;
             context.addMetadata(handler.getName() + "_executionTime", handlerTime);
-
-            log.info("[SecurityEventProcessingOrchestrator] Handler {} completed in {}ms - continue: {}",
-                handler.getName(), handlerTime, continueChain);
 
             return continueChain;
 
@@ -96,22 +75,18 @@ public class SecurityEventProcessingOrchestrator {
             log.error("[Orchestrator] Error in handler {} for event: {}",
                 handler.getName(), context.getSecurityEvent().getEventId(), e);
 
-            
             handler.handleError(context, e);
 
-            
             return true;
         }
     }
 
-    
     private List<SecurityEventHandler> getSortedHandlers() {
         List<SecurityEventHandler> sorted = new ArrayList<>(handlers);
         sorted.sort(Comparator.comparingInt(SecurityEventHandler::getOrder));
         return sorted;
     }
 
-    
     private void recordProcessingMetrics(SecurityEventContext context, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
 
@@ -127,28 +102,19 @@ public class SecurityEventProcessingOrchestrator {
         context.addMetadata("totalProcessingTime", totalTime);
         context.addMetadata("completedAt", LocalDateTime.now());
 
-        log.info("[Orchestrator] Event processing completed - eventId: {}, status: {}, totalTime: {}ms",
-            context.getSecurityEvent().getEventId(),
-            context.getProcessingStatus(),
-            totalTime);
-    }
+            }
 
-    
     public void addHandler(SecurityEventHandler handler) {
         if (handler != null && !handlers.contains(handler)) {
             handlers.add(handler);
-            log.info("[Orchestrator] Handler added: {}", handler.getName());
-        }
+                    }
     }
 
-    
     public void removeHandler(SecurityEventHandler handler) {
         if (handler != null && handlers.remove(handler)) {
-            log.info("[Orchestrator] Handler removed: {}", handler.getName());
-        }
+                    }
     }
 
-    
     public List<String> getHandlerNames() {
         return getSortedHandlers().stream()
             .map(SecurityEventHandler::getName)

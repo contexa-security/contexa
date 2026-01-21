@@ -2,7 +2,6 @@ package io.contexa.contexacore.std.pipeline.streaming;
 
 import reactor.core.publisher.Sinks;
 
-
 public interface StreamingPipelineContext {
     boolean isStreamingMode();
     void enableStreamingMode();

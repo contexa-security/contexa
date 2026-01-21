@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Entity
 @Table(name = "attack_results", indexes = {
     @Index(name = "idx_attack_campaign_id", columnList = "campaign_id"),
@@ -86,13 +85,11 @@ public class AttackResult {
     @Column(name = "breached_record_count")
     private Integer breachedRecordCount;
 
-    
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "additional_data", columnDefinition = "jsonb")
     @Builder.Default
     private Map<String, Object> additionalData = new HashMap<>();
 
-    
     @Transient
     private AttackType type;  
     @Transient
@@ -171,8 +168,7 @@ public class AttackResult {
     private String breachImpact;
     @Transient
     private Double estimatedDamage;
-    
-    
+
     public String getRiskLevel() {
         if (riskLevelString != null) return riskLevelString;
         if (riskLevel != null) return riskLevel.name();
@@ -187,8 +183,7 @@ public class AttackResult {
             
         }
     }
-    
-    
+
     @Transient
     private Integer httpStatusCode;
     @Transient
@@ -198,7 +193,6 @@ public class AttackResult {
     @Transient
     private Integer privilegeEscalationLevel;
 
-    
     @Transient
     private VerificationStatus verificationStatus;
     @Transient
@@ -206,8 +200,7 @@ public class AttackResult {
     @Transient
     @Builder.Default
     private List<String> verificationFailures = new ArrayList<>();
-    
-    
+
     public enum AttackType {
         
         BRUTE_FORCE("Brute Force Attack"),
@@ -219,7 +212,6 @@ public class AttackResult {
         TOKEN_REPLAY("Token Replay Attack"),
         ACCOUNT_ENUMERATION("Account Enumeration"),
 
-        
         PRIVILEGE_ESCALATION("Privilege Escalation"),
         IDOR("Insecure Direct Object Reference"),
         API_BYPASS("API Bypass Attack"),
@@ -227,7 +219,6 @@ public class AttackResult {
         HORIZONTAL_PRIVILEGE_ESCALATION("Horizontal Privilege Escalation"),
         ROLE_MANIPULATION("Role Manipulation"),
 
-        
         IMPOSSIBLE_TRAVEL("Impossible Travel"),
         ABNORMAL_BEHAVIOR("Abnormal Behavior Pattern"),
         BEHAVIORAL("Behavioral Anomaly"),
@@ -238,25 +229,21 @@ public class AttackResult {
         NETWORK_ANOMALY("Network Anomaly"),
         TIME_BASED_ANOMALY("Time-based Anomaly"),
 
-        
         API_ABUSE("API Abuse Attack"),
         GRAPHQL_INJECTION("GraphQL Injection Attack"),
         RATE_LIMIT_BYPASS("Rate Limit Bypass Attack"),
         API_KEY_EXPOSURE("API Key Exposure Attack"),
 
-        
         MODEL_POISONING("Model Poisoning Attack"),
         ADVERSARIAL_EVASION("Adversarial Evasion Attack"),
         PROMPT_INJECTION("Prompt Injection Attack"),
         MODEL_EXTRACTION("Model Extraction Attack"),
 
-        
         ACCOUNT_TAKEOVER("Account Takeover"),
         INSIDER_THREAT("Insider Threat"),
         DORMANT_ACCOUNT_ABUSE("Dormant Account Abuse"),
         SERVICE_ACCOUNT_ABUSE("Service Account Abuse"),
 
-        
         UNKNOWN("Unknown Attack Type"),
         INJECTION("Injection Attack"),
         DOS("Denial of Service Attack"),
@@ -274,8 +261,7 @@ public class AttackResult {
             return description;
         }
     }
-    
-    
+
     public enum RiskLevel {
         LOW(0.0, 0.3),
         MEDIUM(0.3, 0.6),
@@ -300,16 +286,14 @@ public class AttackResult {
             return CRITICAL;
         }
     }
-    
-    
+
     public enum VerificationStatus {
         NOT_VERIFIED,
         PARTIALLY_VERIFIED,
         FULLY_VERIFIED,
         VERIFICATION_FAILED
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -321,42 +305,36 @@ public class AttackResult {
         private String content;
         private Map<String, Object> metadata;
     }
-    
-    
+
     public double calculateDetectionEffectiveness() {
         if (!detected) {
             return 0.0;
         }
         
         double score = 0.5; 
-        
-        
+
         if (detectionTimeMs != null && detectionTimeMs < 1000) {
             score += 0.2;
         } else if (detectionTimeMs != null && detectionTimeMs < 5000) {
             score += 0.1;
         }
-        
-        
+
         if (aiConfidenceScore != null && aiConfidenceScore > 0.8) {
             score += 0.2;
         }
-        
-        
+
         if (blocked) {
             score += 0.1;
         }
         
         return Math.min(score, 1.0);
     }
-    
-    
+
     @JsonIgnore
     public boolean isAttackSuccessful() {
         return attackSuccessful && !blocked && !sessionTerminated;
     }
 
-    
     public String calculateBreachImpact() {
         if (!dataBreached || breachedRecordCount == null) {
             return "No data breach";
@@ -373,30 +351,25 @@ public class AttackResult {
         }
     }
 
-    
     @JsonIgnore
     public boolean isSuccessful() {
         return successful || isAttackSuccessful();
     }
 
-    
     @JsonIgnore
     public boolean isPlatformResponseAdequate() {
         
         if (riskLevel == RiskLevel.CRITICAL || riskLevel == RiskLevel.HIGH) {
             return blocked || sessionTerminated;
         }
-        
-        
+
         if (riskLevel == RiskLevel.MEDIUM) {
             return requiresMfa || !triggeredPolicies.isEmpty();
         }
-        
-        
+
         return detected;
     }
-    
-    
+
     public String getMitreTactic() {
         switch (type) {
             case BRUTE_FORCE:
@@ -420,8 +393,7 @@ public class AttackResult {
                 return "TA0040: Impact";
         }
     }
-    
-    
+
     public String generateSummary() {
         StringBuilder summary = new StringBuilder();
         summary.append(String.format("Attack: %s (%s)\n", attackName, type.getDescription()));

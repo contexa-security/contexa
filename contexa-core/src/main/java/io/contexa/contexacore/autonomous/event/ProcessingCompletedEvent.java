@@ -5,7 +5,6 @@ import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import org.springframework.context.ApplicationEvent;
 
-
 public class ProcessingCompletedEvent extends ApplicationEvent {
 
     private final SecurityEvent originalEvent;
@@ -15,7 +14,6 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
     private final long processingTimeMs;
     private final double accuracy;
 
-    
     public ProcessingCompletedEvent(Object source, SecurityEvent originalEvent,
                                    ProcessingResult result, ProcessingMode mode,
                                    ProcessingLayer layer, long processingTimeMs,
@@ -29,14 +27,12 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
         this.accuracy = accuracy;
     }
 
-    
     public ProcessingCompletedEvent(Object source, SecurityEvent originalEvent,
                                    ProcessingResult result, ProcessingMode mode,
                                    ProcessingLayer layer, long processingTimeMs) {
         this(source, originalEvent, result, mode, layer, processingTimeMs, 0.0);
     }
 
-    
     public SecurityEvent getOriginalEvent() {
         return originalEvent;
     }
@@ -61,37 +57,31 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
         return accuracy;
     }
 
-    
     public boolean isHotPath() {
         return mode == ProcessingMode.REALTIME_BLOCK;
     }
 
-    
     public boolean isColdPath() {
         return mode == ProcessingMode.AI_ANALYSIS ||
                mode == ProcessingMode.SOAR_ORCHESTRATION ||
                mode == ProcessingMode.AWAIT_APPROVAL;
     }
 
-    
     public boolean isHighValueForLearning() {
         
         if (layer.ordinal() >= ProcessingLayer.LAYER2.ordinal()) {
             return true;
         }
 
-        
         if (result != null && result.isAnomaly()) {
             return true;
         }
 
-        
         if (result != null && result.getThreatIndicators() != null &&
             !result.getThreatIndicators().isEmpty()) {
             return true;
         }
 
-        
         if (result != null && result.isRequiresIncident()) {
             return true;
         }
@@ -106,7 +96,6 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
             mode, layer, processingTimeMs, accuracy, isHighValueForLearning());
     }
 
-    
     public enum ProcessingLayer {
         LAYER1("Layer1 - Fast Filter, Local Model (~100ms)"),
         LAYER2("Layer2 - Expert Analysis, High-Performance Model (~5s)"),
@@ -122,7 +111,6 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
             return description;
         }
 
-        
         public static ProcessingLayer fromLevel(int level) {
             switch (level) {
                 case 1: return LAYER1;

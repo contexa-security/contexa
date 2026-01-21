@@ -11,7 +11,6 @@ import org.springframework.ai.tool.ToolCallback;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SoarDomainPolicy implements DomainPolicy {
@@ -34,14 +33,11 @@ public class SoarDomainPolicy implements DomainPolicy {
         if (!enabled) {
             return request;
         }
-        
-        
+
         applyToolExecutionPolicy(request);
-        
-        
+
         applyRiskBasedPolicy(request);
-        
-        
+
         applyExecutionLimitPolicy(request);
         
         return request;
@@ -53,14 +49,12 @@ public class SoarDomainPolicy implements DomainPolicy {
         if (request == null || request.prompt() == null) {
             return false;
         }
-        
-        
+
         if (!validateHighRiskTools(request)) {
             log.warn("High risk tool validation failed");
             return false;
         }
-        
-        
+
         if (!validateExecutionPermissions(request)) {
             log.warn("Execution permission validation failed");
             return false;
@@ -73,8 +67,7 @@ public class SoarDomainPolicy implements DomainPolicy {
     public String getDescription() {
         return "SOAR domain policy for tool execution approval, risk assessment, and execution limits";
     }
-    
-    
+
     private void applyToolExecutionPolicy(ChatClientRequest request) {
         Boolean requireApproval = (Boolean) policyConfig.get("require.approval");
         if (requireApproval != null && requireApproval) {
@@ -86,22 +79,19 @@ public class SoarDomainPolicy implements DomainPolicy {
             request.context().put("soar.policy.max.concurrent", maxConcurrentTools);
         }
     }
-    
-    
+
     private void applyRiskBasedPolicy(ChatClientRequest request) {
         String riskThreshold = (String) policyConfig.get("risk.threshold");
         if (riskThreshold != null) {
             SoarTool.RiskLevel threshold = SoarTool.RiskLevel.valueOf(riskThreshold);
             request.context().put("soar.policy.risk.threshold", threshold);
-            
-            
+
             if (threshold == SoarTool.RiskLevel.LOW) {
                 request.context().put("soar.policy.deny.high.risk", true);
             }
         }
     }
-    
-    
+
     private void applyExecutionLimitPolicy(ChatClientRequest request) {
         Integer timeoutSeconds = (Integer) policyConfig.get("execution.timeout.seconds");
         if (timeoutSeconds != null) {
@@ -113,8 +103,7 @@ public class SoarDomainPolicy implements DomainPolicy {
             request.context().put("soar.policy.max.retries", maxRetries);
         }
     }
-    
-    
+
     private boolean validateHighRiskTools(ChatClientRequest request) {
         if (request.prompt().getOptions() instanceof ToolCallingChatOptions toolOptions) {
             List<ToolCallback> callbacks = toolOptions.getToolCallbacks();
@@ -122,8 +111,7 @@ public class SoarDomainPolicy implements DomainPolicy {
             if (callbacks != null) {
                 for (ToolCallback callback : callbacks) {
                     String toolName = callback.getToolDefinition().name();
-                    
-                    
+
                     @SuppressWarnings("unchecked")
                     List<String> blockedTools = (List<String>) policyConfig.get("blocked.tools");
                     if (blockedTools != null && blockedTools.contains(toolName)) {
@@ -136,8 +124,7 @@ public class SoarDomainPolicy implements DomainPolicy {
         
         return true;
     }
-    
-    
+
     private boolean validateExecutionPermissions(ChatClientRequest request) {
         
         String user = (String) request.context().get("user.id");
@@ -145,8 +132,7 @@ public class SoarDomainPolicy implements DomainPolicy {
             log.warn("No user context found");
             return false;
         }
-        
-        
+
         String minRole = (String) policyConfig.get("min.role.level");
         if (minRole != null) {
             String userRole = (String) request.context().get("user.role");
@@ -158,8 +144,7 @@ public class SoarDomainPolicy implements DomainPolicy {
         
         return true;
     }
-    
-    
+
     private boolean hasMinimumRole(String userRole, String minRole) {
         
         Map<String, Integer> roleHierarchy = Map.of(

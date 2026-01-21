@@ -4,19 +4,15 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 
-
 @FunctionalInterface
 public interface PipelineStepCondition<T extends DomainContext> {
 
-    
     boolean shouldExecute(AIRequest<T> request, PipelineExecutionContext context);
 
-    
     default String getConditionDescription() {
         return this.getClass().getSimpleName();
     }
 
-    
     default PipelineStepCondition<T> and(PipelineStepCondition<T> other) {
         return new PipelineStepCondition<T>() {
             @Override
@@ -33,7 +29,6 @@ public interface PipelineStepCondition<T extends DomainContext> {
         };
     }
 
-    
     default PipelineStepCondition<T> or(PipelineStepCondition<T> other) {
         return new PipelineStepCondition<T>() {
             @Override
@@ -50,7 +45,6 @@ public interface PipelineStepCondition<T extends DomainContext> {
         };
     }
 
-    
     default PipelineStepCondition<T> negate() {
         return new PipelineStepCondition<T>() {
             @Override

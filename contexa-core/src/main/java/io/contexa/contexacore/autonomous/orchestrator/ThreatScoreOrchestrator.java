@@ -8,7 +8,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ThreatScoreOrchestrator {
@@ -18,7 +17,6 @@ public class ThreatScoreOrchestrator {
     @Value("${threat.score.initial:0.3}")
     private double initialThreatScore;
 
-    
     public double getThreatScore(String userId) {
         if (userId == null || userId.isEmpty()) {
             return initialThreatScore;

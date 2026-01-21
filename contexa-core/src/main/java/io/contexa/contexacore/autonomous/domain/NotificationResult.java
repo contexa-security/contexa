@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -19,8 +18,7 @@ public class NotificationResult {
     private String message;
     private String errorCode;
     private LocalDateTime timestamp;
-    
-    
+
     public static NotificationResult success(String requestId, String message) {
         return NotificationResult.builder()
             .requestId(requestId)
@@ -29,8 +27,7 @@ public class NotificationResult {
             .timestamp(LocalDateTime.now())
             .build();
     }
-    
-    
+
     public static NotificationResult failure(String requestId, String errorMessage) {
         return NotificationResult.builder()
             .requestId(requestId)
@@ -39,8 +36,7 @@ public class NotificationResult {
             .timestamp(LocalDateTime.now())
             .build();
     }
-    
-    
+
     public static NotificationResult failure(String requestId, String errorCode, String errorMessage) {
         return NotificationResult.builder()
             .requestId(requestId)

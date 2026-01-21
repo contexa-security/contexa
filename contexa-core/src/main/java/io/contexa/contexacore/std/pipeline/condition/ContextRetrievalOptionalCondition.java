@@ -5,7 +5,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 public class ContextRetrievalOptionalCondition<T extends DomainContext>
         implements PipelineStepCondition<T> {
@@ -17,12 +16,8 @@ public class ContextRetrievalOptionalCondition<T extends DomainContext>
 
         if (requiresContext == null) {
             
-            log.debug("[ContextRetrieval] 분석 정보 없음 - 기본 실행");
-            return true;
+                        return true;
         }
-
-        log.debug("[ContextRetrieval] 컨텍스트 검색 필요: {} - 실행: {}",
-                requiresContext, requiresContext);
 
         return requiresContext;
     }

@@ -10,7 +10,6 @@ import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -28,24 +27,20 @@ public class HttpRequestEvent {
     private String userAgent;  
     private Authentication authentication;
 
-    
     private Boolean hcadIsAnomaly;         
     private Double hcadAnomalyScore;       
     private String hcadAction;             
 
-    
     private boolean isAnonymous;
     private EventTier eventTier;          
     private Double riskScore;              
     private Double trustScore;             
     private Double ipThreatScore;          
 
-    
     private Boolean isNewSession;          
     private Boolean isNewUser;             
     private Boolean isNewDevice;           
     private Integer recentRequestCount;    
 
-    
     private String authMethod;             
 }

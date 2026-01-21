@@ -33,14 +33,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 @AutoConfigureBefore(ChatClientAutoConfiguration.class)
 public class TieredSecurityLLMConfiguration {
 
-    
     @Value("${spring.ai.chat.model.priority:ollama,anthropic,openai}")
     private String chatModelPriority;
 
@@ -49,13 +47,7 @@ public class TieredSecurityLLMConfiguration {
 
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
-    
-    
-    
-    
-    
-    
-    
+
     @Bean(name = "tinyLlamaChatModel")
     @ConditionalOnMissingBean(name = "tinyLlamaChatModel")
     public ChatModel tinyLlamaChatModel(
@@ -63,34 +55,25 @@ public class TieredSecurityLLMConfiguration {
             @Autowired(required = false) AnthropicChatModel anthropicChatModel,
             @Autowired(required = false) OpenAiChatModel openAiChatModel) {
 
-        log.info("Layer 1 TinyLlama ChatModel 구성");
-
         if (ollamaChatModel != null) {
-            
-            
-            log.info("  ✓ Layer 1 ChatModel 준비 완료 (런타임에 tinyllama 모델 사용)");
-            return ollamaChatModel;
+
+                        return ollamaChatModel;
         }
 
-        
         log.warn("  ⚠ Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
 
         if (anthropicChatModel != null) {
-            log.info("  ✓ Layer 1 폴백: Anthropic Claude 사용 (빠른 모델로 설정)");
-            return anthropicChatModel;
+                        return anthropicChatModel;
         }
 
         if (openAiChatModel != null) {
-            log.info("  ✓ Layer 1 폴백: OpenAI GPT 사용 (빠른 모델로 설정)");
-            return openAiChatModel;
+                        return openAiChatModel;
         }
 
         log.warn("  ⚠ 모든 모델 제공자가 사용 불가능합니다. Layer 1 모델이 null로 설정됩니다");
         return null;
     }
-    
-    
-    
+
     @Bean(name = "llama31ChatModel")
     @ConditionalOnMissingBean(name = "llama31ChatModel")
     public ChatModel llama31ChatModel(
@@ -98,69 +81,53 @@ public class TieredSecurityLLMConfiguration {
             @Autowired(required = false) AnthropicChatModel anthropicChatModel,
             @Autowired(required = false) OpenAiChatModel openAiChatModel) {
 
-        log.info("Layer 2 Llama3.1:8b ChatModel 구성");
-
         if (ollamaChatModel != null) {
-            
-            
-            log.info("  ✓ Layer 2 ChatModel 준비 완료 (런타임에 llama3.1:8b 모델 사용)");
-            return ollamaChatModel;
+
+                        return ollamaChatModel;
         }
 
-        
         log.warn("  ⚠ Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
 
         if (anthropicChatModel != null) {
-            log.info("  ✓ Layer 2 폴백: Anthropic Claude 사용 (중간 성능 모델로 설정)");
-            return anthropicChatModel;
+                        return anthropicChatModel;
         }
 
         if (openAiChatModel != null) {
-            log.info("  ✓ Layer 2 폴백: OpenAI GPT 사용 (중간 성능 모델로 설정)");
-            return openAiChatModel;
+                        return openAiChatModel;
         }
 
         log.warn("  ⚠ 모든 모델 제공자가 사용 불가능합니다. Layer 2 모델이 null로 설정됩니다");
         return null;
     }
-    
-    
+
     @Bean(name = "claudeOpusChatModel")
     @ConditionalOnMissingBean(name = "claudeOpusChatModel")
     public ChatModel claudeOpusChatModel(
             @Autowired(required = false) AnthropicChatModel anthropicChatModel,
             @Value("${spring.ai.security.layer2.backup.model:claude-3-5-sonnet-20241022}") String modelName) {
 
-        log.info("Claude ChatModel 구성 (Layer 2 백업) - Model: {}", modelName);
-
         if (anthropicChatModel != null) {
-            log.info("  - Anthropic ChatModel 사용 가능");
-            return anthropicChatModel;
+                        return anthropicChatModel;
         }
 
         log.warn("  - Anthropic ChatModel을 찾을 수 없습니다. API 키 확인 필요");
         return null;
     }
 
-    
     @Bean(name = "gpt4ChatModel")
     @ConditionalOnMissingBean(name = "gpt4ChatModel")
     public ChatModel gpt4ChatModel(
             @Autowired(required = false) OpenAiChatModel openAiChatModel,
             @Value("${spring.ai.security.layer2.backup.model:gpt-4o}") String modelName) {
 
-        log.info("GPT ChatModel 구성 (Layer 2 백업) - Model: {}", modelName);
-
         if (openAiChatModel != null) {
-            log.info("  - OpenAI ChatModel 사용 가능");
-            return openAiChatModel;
+                        return openAiChatModel;
         }
 
         log.warn("  - OpenAI ChatModel을 찾을 수 없습니다. API 키 확인 필요");
         return null;
     }
 
-    
     @Bean
     @Primary
     public ChatModel primaryChatModel(
@@ -168,11 +135,8 @@ public class TieredSecurityLLMConfiguration {
             ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
             ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
 
-        log.info("Primary ChatModel 구성 - 우선순위 기반 선택");
-
         Map<String, ChatModel> availableModels = new HashMap<>();
 
-        
         OllamaChatModel ollamaModel = ollamaChatModelProvider.getIfAvailable();
         if (ollamaModel != null) {
             availableModels.put("ollama", ollamaModel);
@@ -188,18 +152,15 @@ public class TieredSecurityLLMConfiguration {
             availableModels.put("openai", openAiModel);
         }
 
-        
         List<String> priorities = List.of(chatModelPriority.split(","));
         for (String modelName : priorities) {
             String trimmedName = modelName.trim().toLowerCase();
             ChatModel model = availableModels.get(trimmedName);
             if (model != null) {
-                log.info("  ✓ Primary ChatModel 선택: {} (우선순위 기반)", trimmedName);
-                return model;
+                                return model;
             }
         }
 
-        
         if (!availableModels.isEmpty()) {
             Map.Entry<String, ChatModel> firstEntry = availableModels.entrySet().iterator().next();
             log.warn("  ⚠ 우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
@@ -209,67 +170,37 @@ public class TieredSecurityLLMConfiguration {
         log.error("  사용 가능한 ChatModel이 없습니다!");
         throw new IllegalStateException("No ChatModel available. Please configure at least one AI provider.");
     }
-    
-    
-    
-    
-    
-    
-    
-    
+
     @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
     public StreamingHandler streamingHandler() {
-        log.info("DefaultStreamingHandler 구성");
-        return new DefaultStreamingHandler(tieredLLMProperties);
+                return new DefaultStreamingHandler(tieredLLMProperties);
     }
-    
-    
-    
-    
-    
 
-    
     @Bean
     @Primary
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ModelSelectionStrategy modelSelectionStrategy,
             StreamingHandler streamingHandler) {
 
-        log.info("UnifiedLLMOrchestrator 생성 - 3계층 시스템 통합 완료");
-        log.info("  - Layer 1 (98%): TinyLlama - 20-50ms");
-        log.info("  - Layer 2 (1.8%): Llama3.1:8b - 100-300ms");
-        log.info("  - Layer 3 (0.2%): Claude/GPT-4 - 1-5s");
-
         return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties);
     }
 
-    
     @Bean
     public LLMOperations llmOperations(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-        log.info("LLMOperations 인터페이스 제공");
-        return unifiedLLMOrchestrator;
+                return unifiedLLMOrchestrator;
     }
 
-    
     @Bean(name = "llmClient")
     public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-        log.info("LLMClient 인터페이스 제공 (하위 호환성)");
-        return unifiedLLMOrchestrator;
+                return unifiedLLMOrchestrator;
     }
 
-    
     @Bean(name = "toolCapableLLMClient")
     public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-        log.info("ToolCapableLLMClient 인터페이스 제공 (도구 실행 지원)");
-        return unifiedLLMOrchestrator;
+                return unifiedLLMOrchestrator;
     }
-    
-    
-    
-    
 
-    
     @Bean(name = "primaryEmbeddingModel")
     @Primary
     @ConditionalOnMissingBean(name = "primaryEmbeddingModel")
@@ -277,11 +208,8 @@ public class TieredSecurityLLMConfiguration {
             ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,
             ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {
 
-        log.info("Primary EmbeddingModel 구성 - 우선순위 기반 선택");
-
         Map<String, EmbeddingModel> availableModels = new HashMap<>();
 
-        
         OllamaEmbeddingModel ollamaEmbedding = ollamaEmbeddingModelProvider.getIfAvailable();
         if (ollamaEmbedding != null) {
             availableModels.put("ollama", ollamaEmbedding);
@@ -292,18 +220,15 @@ public class TieredSecurityLLMConfiguration {
             availableModels.put("openai", openAiEmbedding);
         }
 
-        
         List<String> priorities = List.of(embeddingModelPriority.split(","));
         for (String modelName : priorities) {
             String trimmedName = modelName.trim().toLowerCase();
             EmbeddingModel model = availableModels.get(trimmedName);
             if (model != null) {
-                log.info("  ✓ Primary EmbeddingModel 선택: {} (우선순위 기반)", trimmedName);
-                return model;
+                                return model;
             }
         }
 
-        
         if (!availableModels.isEmpty()) {
             Map.Entry<String, EmbeddingModel> firstEntry = availableModels.entrySet().iterator().next();
             log.warn("  ⚠ 우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
@@ -313,62 +238,21 @@ public class TieredSecurityLLMConfiguration {
         throw new IllegalStateException("No EmbeddingModel available. Please configure at least one embedding provider.");
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(ChatClient.Builder.class)
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = true)
     public ChatClient.Builder chatClientBuilder(ChatModel primaryChatModel) {
-        log.info("Creating basic ChatClient.Builder with {} (Advisor disabled)", primaryChatModel.getClass().getSimpleName());
-        return ChatClient.builder(primaryChatModel);
+                return ChatClient.builder(primaryChatModel);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(name = "defaultChatClient")
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false")
     public ChatClient defaultChatClient(ChatClient.Builder builder) {
-        log.info("Creating default ChatClient without Advisors");
-        return builder.build();
+                return builder.build();
     }
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     @PostConstruct
     public void init() {
-        log.info("========================================");
-        log.info("통합 3계층 보안 시스템 LLM Configuration 초기화 완료");
-        log.info("========================================");
-        log.info("통합 구성:");
-        log.info("  3계층 ChatModel 생성 완료");
-        log.info("  UnifiedLLMOrchestrator @Primary 설정");
-        log.info("  DynamicModelSelectionStrategy @Primary 적용");
-        log.info("  AdvisorConfiguration 통합");
-        log.info("  ToolCallingConfiguration 통합");
-        log.info("========================================");
-        log.info("모든 LLM 호출 → UnifiedLLMOrchestrator");
-        log.info("   → DynamicModelRegistry 기반 동적 선택");
-        log.info("========================================");
-        log.info("Layer 1 (98% 트래픽): TinyLlama - 20-50ms 응답");
-        log.info("Layer 2 (1.8% 트래픽): Llama3.1:8b - 100-300ms 응답");
-        log.info("Layer 3 (0.2% 트래픽): Claude Opus/GPT-4 - 1-5초 응답");
-        log.info("SOLID 원칙 적용된 새로운 아키텍처 활성화");
-        log.info("DynamicModelRegistry를 통한 런타임 모델 관리");
-        log.info("기존 LLMClient, ToolCapableLLMClient 인터페이스 100% 호환");
-        log.info("SOAR Human-in-the-Loop 도구 실행 지원");
-        log.info("========================================");
-    }
+                                                                                                                                                                            }
 }

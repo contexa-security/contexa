@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public class AIStrategyRegistry {
 
@@ -30,25 +29,13 @@ public class AIStrategyRegistry {
                 AIStrategy<?, ?> existing = strategies.get(type);
                 if (strategy.getPriority() < existing.getPriority()) {
                     strategies.put(type, strategy);
-                    log.info("AI 전략 교체: {} - {} (우선순위: {} → {})",
-                            type, strategy.getClass().getSimpleName(),
-                            existing.getPriority(), strategy.getPriority());
-                } else {
-                    log.debug("⏭️ AI 전략 스킵: {} - {} (낮은 우선순위: {})",
-                            type, strategy.getClass().getSimpleName(), strategy.getPriority());
                 }
             } else {
                 strategies.put(type, strategy);
-                log.info("AI 전략 등록: {} - {} (우선순위: {})",
-                        type, strategy.getClass().getSimpleName(), strategy.getPriority());
             }
         }
-
-        log.info("AIStrategyRegistry 초기화 완료: {} 개 전략 등록", strategies.size());
-        logRegisteredStrategies();
     }
 
-    
     public <T extends DomainContext, R extends AIResponse> AIStrategy<T, R> getStrategy(DiagnosisType diagnosisType) {
         AIStrategy<?, ?> strategy = strategies.get(diagnosisType);
 
@@ -56,32 +43,27 @@ public class AIStrategyRegistry {
             throw new DiagnosisException(
                     diagnosisType != null ? diagnosisType.name() : "NULL",
                     "STRATEGY_NOT_FOUND",
-                    "지원하지 않는 진단 타입입니다: " + diagnosisType
+                    "Unsupported diagnosisType: " + diagnosisType
             );
         }
 
         return (AIStrategy<T, R>) strategy;
     }
 
-    
     public <R extends AIResponse, T extends DomainContext> R executeStrategy(AIRequest<T> request, Class<R> responseType)
             throws DiagnosisException {
 
         if (request.getDiagnosisType() == null) {
-            throw new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE",
-                    "요청에 진단 타입이 설정되지 않았습니다");
+            throw new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE", "요청에 진단 타입이 설정되지 않았습니다");
         }
 
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
-
-        log.debug("진단 실행 (완전 비동기): {} 전략 사용 - {}",
-                request.getDiagnosisType(), strategy.getClass().getSimpleName());
 
         try {
             return strategy.executeAsync(request, responseType)
                     .doOnSuccess(result -> log.debug("비동기 전략 실행 완료: {}", strategy.getClass().getSimpleName()))
                     .doOnError(error -> log.error("비동기 전략 실행 실패: {}", strategy.getClass().getSimpleName(), error))
-                    .block(Duration.ofMinutes(5)); 
+                    .block(Duration.ofMinutes(5));
         } catch (Exception e) {
             log.error("전략 실행 중 예외 발생: {}", strategy.getClass().getSimpleName(), e);
             throw new DiagnosisException(
@@ -92,7 +74,6 @@ public class AIStrategyRegistry {
         }
     }
 
-    
     public <R extends AIResponse, T extends DomainContext> Mono<R> executeStrategyAsync(AIRequest<T> request, Class<R> responseType)
             throws DiagnosisException {
 
@@ -103,13 +84,9 @@ public class AIStrategyRegistry {
 
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
 
-        log.debug("비동기 진단 실행: {} 전략 사용 - {}",
-                request.getDiagnosisType(), strategy.getClass().getSimpleName());
-
         return strategy.executeAsync(request, responseType);
     }
 
-    
     public <T extends DomainContext, R extends AIResponse> Flux<String> executeStrategyStream(AIRequest<T> request, Class<R> responseType)
             throws DiagnosisException {
 
@@ -120,11 +97,8 @@ public class AIStrategyRegistry {
 
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
 
-        log.debug("스트리밍 진단 실행: {} 전략 사용 - {}",
-                request.getDiagnosisType(), strategy.getClass().getSimpleName());
-
         if (!strategy.supportsStreaming()) {
-            
+
             log.warn("전략 {}이 스트리밍을 지원하지 않아 비동기 처리 후 변환합니다",
                     strategy.getClass().getSimpleName());
 
@@ -146,7 +120,6 @@ public class AIStrategyRegistry {
         return strategy.executeStream(request, responseType);
     }
 
-    
     private Flux<String> splitStringIntoFlux(String text, int chunkSize) {
         List<String> chunks = new java.util.ArrayList<>();
         for (int i = 0; i < text.length(); i += chunkSize) {
@@ -155,7 +128,6 @@ public class AIStrategyRegistry {
         return Flux.fromIterable(chunks);
     }
 
-    
     public Map<DiagnosisType, String> getRegisteredStrategies() {
         Map<DiagnosisType, String> result = new HashMap<>();
         strategies.forEach((type, strategy) ->
@@ -163,18 +135,15 @@ public class AIStrategyRegistry {
         return result;
     }
 
-    
     public boolean isSupported(DiagnosisType diagnosisType) {
         return strategies.containsKey(diagnosisType);
     }
 
-    
     public boolean supportsOperation(String operation) {
         if (operation == null || operation.trim().isEmpty()) {
             return false;
         }
 
-        
         return strategies.values().stream()
                 .anyMatch(strategy -> {
                     String strategyName = strategy.getClass().getSimpleName().toLowerCase();
@@ -182,15 +151,5 @@ public class AIStrategyRegistry {
                     return strategyName.contains(operationLower) ||
                             strategy.getDescription().toLowerCase().contains(operationLower);
                 });
-    }
-
-    
-    private void logRegisteredStrategies() {
-        log.info("등록된 AI 전략들 (새로운 버전):");
-        strategies.forEach((type, strategy) ->
-                log.info("  - {}: {} (우선순위: {})",
-                        type.getDisplayName(),
-                        strategy.getClass().getSimpleName(),
-                        strategy.getPriority()));
     }
 }

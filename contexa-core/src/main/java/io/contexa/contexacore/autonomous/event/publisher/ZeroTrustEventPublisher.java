@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class ZeroTrustEventPublisher {
 
@@ -33,9 +32,6 @@ public class ZeroTrustEventPublisher {
         this.properties = properties;
     }
 
-    
-
-    
     public void publishAuthenticationSuccess(
             String userId,
             String sessionId,
@@ -54,10 +50,8 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-        log.debug("[ZeroTrustEventPublisher] Authentication success event published - user: {}", userId);
-    }
+            }
 
-    
     public void publishAuthenticationFailure(
             String userId,
             String sessionId,
@@ -76,12 +70,8 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-        log.debug("[ZeroTrustEventPublisher] Authentication failure event published - user: {}", userId);
-    }
+            }
 
-    
-
-    
     public void publishWebAuthorization(
             Authentication authentication,
             HttpServletRequest request,
@@ -96,7 +86,6 @@ public class ZeroTrustEventPublisher {
         payload.put("queryString", requestInfo != null ? requestInfo.getQueryString() : null);
         payload.put("secure", requestInfo != null && requestInfo.isSecure());
 
-        
         if (requestInfo != null) {
             payload.put("isNewSession", requestInfo.getIsNewSession());
             payload.put("isNewUser", requestInfo.getIsNewUser());
@@ -115,15 +104,8 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-        log.debug("[ZeroTrustEventPublisher] Web authorization event published - user: {}, resource: {}, granted: {}",
-                authentication != null ? authentication.getName() : "anonymous",
-                requestInfo != null ? requestInfo.getRequestUri() : "unknown",
-                decision.isGranted());
-    }
+            }
 
-    
-
-    
     public void publishMethodAuthorization(
             MethodInvocation methodInvocation,
             Authentication authentication,
@@ -140,7 +122,6 @@ public class ZeroTrustEventPublisher {
         payload.put("methodName", methodInvocation.getMethod().getName());
         payload.put("className", methodInvocation.getMethod().getDeclaringClass().getName());
 
-        
         if (requestInfo != null) {
             payload.put("httpUri", requestInfo.getRequestUri());
             payload.put("httpMethod", requestInfo.getMethod());
@@ -161,15 +142,8 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-        log.debug("[ZeroTrustEventPublisher] Method authorization event published - user: {}, method: {}, granted: {}",
-                authentication != null ? authentication.getName() : "anonymous",
-                resource,
-                granted);
-    }
+            }
 
-    
-
-    
     public void publish(
             ZeroTrustEventCategory category,
             String eventType,
@@ -179,9 +153,6 @@ public class ZeroTrustEventPublisher {
         publish(category, eventType, userId, null, null, null, null, payload);
     }
 
-    
-
-    
     public void publish(
             ZeroTrustEventCategory category,
             String eventType,
@@ -207,18 +178,12 @@ public class ZeroTrustEventPublisher {
 
         eventPublisher.publishEvent(event);
 
-        log.debug("[ZeroTrustEventPublisher] Event published - category: {}, type: {}, user: {}",
-                category, eventType, userId);
-    }
+            }
 
-    
-
-    
     public void publishCustom(String customEventType, String userId, Map<String, Object> payload) {
         publish(ZeroTrustEventCategory.CUSTOM, customEventType, userId, payload);
     }
 
-    
     public void publishCustom(
             String customEventType,
             String userId,
@@ -229,33 +194,23 @@ public class ZeroTrustEventPublisher {
         publish(ZeroTrustEventCategory.CUSTOM, customEventType, userId, sessionId, clientIp, null, resource, payload);
     }
 
-    
-
-    
     public void publishThreat(String threatType, String userId, Map<String, Object> payload) {
         publish(ZeroTrustEventCategory.THREAT, threatType, userId, payload);
     }
 
-    
     public void publishAnomaly(String userId, Map<String, Object> payload) {
         publish(ZeroTrustEventCategory.THREAT, ZeroTrustSpringEvent.TYPE_THREAT_ANOMALY, userId, payload);
     }
 
-    
-
-    
     public void publishSessionCreated(String userId, String sessionId, Map<String, Object> payload) {
         publish(ZeroTrustEventCategory.SESSION, ZeroTrustSpringEvent.TYPE_SESSION_CREATED,
                 userId, sessionId, null, null, null, payload);
     }
 
-    
     public void publishSessionExpired(String userId, String sessionId, Map<String, Object> payload) {
         publish(ZeroTrustEventCategory.SESSION, ZeroTrustSpringEvent.TYPE_SESSION_EXPIRED,
                 userId, sessionId, null, null, null, payload);
     }
-
-    
 
     private TieredStrategyProperties.Security getSecurity() {
         return properties != null ? properties.getSecurity() : null;
@@ -269,8 +224,7 @@ public class ZeroTrustEventPublisher {
                 return RequestInfoExtractor.extract(request, getSecurity());
             }
         } catch (Exception e) {
-            log.debug("[ZeroTrustEventPublisher] Failed to extract request info from context: {}", e.getMessage());
-        }
+                    }
         return null;
     }
 }

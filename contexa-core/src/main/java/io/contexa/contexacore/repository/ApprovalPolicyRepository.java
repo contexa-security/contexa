@@ -9,25 +9,21 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-
 public class ApprovalPolicyRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(ApprovalPolicyRepository.class);
     private final ApprovalPolicyJpaRepository jpaRepository;
 
-    
     private static final ApprovalPolicy FALLBACK_DEFAULT_POLICY = new ApprovalPolicy(1, List.of("ROLE_SOAR_ADMIN"), 60, false);
 
     public ApprovalPolicyRepository(ApprovalPolicyJpaRepository jpaRepository) {
         this.jpaRepository = jpaRepository;
     }
 
-    
     @Cacheable(value = "soarApprovalPolicies", key = "#actionName + ':' + #severity")
     public ApprovalPolicy findPolicyFor(String actionName, String severity) {
         logger.debug("Finding approval policy for action: '{}', severity: '{}'", actionName, severity);
 
-        
         return jpaRepository.findByActionNameAndSeverity(actionName, severity)
                 .map(this::toDto)
                 

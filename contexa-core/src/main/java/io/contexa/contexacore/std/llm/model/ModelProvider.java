@@ -5,30 +5,22 @@ import org.springframework.ai.chat.model.ChatModel;
 import java.util.List;
 import java.util.Map;
 
-
 public interface ModelProvider {
 
-    
     String getProviderName();
 
-    
     String getDescription();
 
-    
     List<ModelDescriptor> getAvailableModels();
 
-    
     ModelDescriptor getModelDescriptor(String modelId);
 
-    
     ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config);
 
-    
     default ChatModel createModel(ModelDescriptor descriptor) {
         return createModel(descriptor, null);
     }
 
-    
     default ChatModel createModelById(String modelId, Map<String, Object> config) {
         ModelDescriptor descriptor = getModelDescriptor(modelId);
         if (descriptor == null) {
@@ -37,36 +29,26 @@ public interface ModelProvider {
         return createModel(descriptor, config);
     }
 
-    
     boolean supportsModelType(String modelType);
 
-    
     boolean supportsModel(String modelId);
 
-    
     HealthStatus checkHealth(String modelId);
 
-    
     void initialize(Map<String, Object> config);
 
-    
     void shutdown();
 
-    
     boolean isReady();
 
-    
     void refreshModels();
 
-    
     default int getPriority() {
         return 100;
     }
 
-    
     Map<String, Object> getMetrics();
 
-    
     class HealthStatus {
         private final boolean healthy;
         private final String message;
@@ -105,7 +87,6 @@ public interface ModelProvider {
         }
     }
 
-    
     interface ModelType {
         String CHAT = "chat";
         String EMBEDDING = "embedding";

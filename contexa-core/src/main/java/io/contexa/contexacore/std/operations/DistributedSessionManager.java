@@ -15,7 +15,6 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public class DistributedSessionManager<T extends DomainContext> {
     
@@ -29,19 +28,13 @@ public class DistributedSessionManager<T extends DomainContext> {
         this.eventPublisher = eventPublisher;
         this.auditLogger = auditLogger;
     }
-    
-    
+
     public String createDistributedStrategySession(AIRequest<T> request, String strategyId) {
         try {
             String sessionId = UUID.randomUUID().toString();
-            
-            
+
             Map<String, Object> initialContext = prepareStrategyContext(request, strategyId);
-            
-            
-            log.info("Creating distributed strategy session: {} for strategy: {}", sessionId, strategyId);
-            
-            
+
             publishSessionCreationEvent(sessionId, strategyId, request);
             
             return sessionId;
@@ -51,8 +44,7 @@ public class DistributedSessionManager<T extends DomainContext> {
             throw new AIOperationException("Session creation failed", e);
         }
     }
-    
-    
+
     public <R extends AIResponse> void completeDistributedExecution(String sessionId, String auditId,
                                                                      AIRequest<T> request, R result,
                                                                     boolean success) {
@@ -70,20 +62,16 @@ public class DistributedSessionManager<T extends DomainContext> {
             );
             
             updateSessionState(sessionId, "COMPLETED", completionData);
-            
-            
+
             AIExecutionMetrics metrics = createExecutionMetrics(sessionId, success);
             saveExecutionMetrics(sessionId, metrics);
             publishExecutionCompletionEvent(sessionId, request, success);
-            
-            log.info("Distributed execution completed for session: {} with success: {}", sessionId, success);
-            
+
         } catch (Exception e) {
             log.error("Failed to complete distributed execution for session: {}", sessionId, e);
         }
     }
-    
-    
+
     public void handleDistributedExecutionFailure(String sessionId, AIRequest<T> request,
                                                  Exception error, String strategyId) {
         try {
@@ -95,8 +83,7 @@ public class DistributedSessionManager<T extends DomainContext> {
             );
             
             updateSessionState(sessionId, "FAILED", failureData);
-            
-            
+
             publishExecutionFailureEvent(sessionId, request, error);
             
             log.error("Distributed execution failed for session: {} with error: {}", sessionId, error.getMessage());
@@ -105,30 +92,24 @@ public class DistributedSessionManager<T extends DomainContext> {
             log.error("Failed to handle execution failure for session: {}", sessionId, e);
         }
     }
-    
-    
+
     public void cleanupDistributedExecution(String strategyId, String sessionId, String lockKey, String nodeId) {
         try {
             
             activeStrategySessions.remove(strategyId);
-            
-            
+
             publishCleanupEvent(strategyId, sessionId);
-            
-            log.info("🧹 Distributed execution cleanup completed for strategy: {} session: {}", strategyId, sessionId);
-            
+
         } catch (Exception e) {
             log.error("Failed to cleanup distributed execution for strategy: {}", strategyId, e);
         }
     }
-    
-    
+
     public CleanupResult cleanupInactiveSessions(Duration inactiveThreshold) {
         try {
             List<String> cleanedSessions = new ArrayList<>();
             List<String> failedCleanups = new ArrayList<>();
-            
-            
+
             Set<String> inactiveSessions = getInactiveSessions(inactiveThreshold);
             
             for (String sessionId : inactiveSessions) {
@@ -142,8 +123,7 @@ public class DistributedSessionManager<T extends DomainContext> {
                     failedCleanups.add(sessionId);
                 }
             }
-            
-            
+
             publishCleanupResultEvent(cleanedSessions, failedCleanups);
             
             return new CleanupResult(cleanedSessions, failedCleanups, System.currentTimeMillis());
@@ -153,14 +133,10 @@ public class DistributedSessionManager<T extends DomainContext> {
             return CleanupResult.error("Cleanup operation failed: " + e.getMessage());
         }
     }
-    
 
     private void updateSessionState(String sessionId, String phase, Map<String, Object> phaseData) {
         try {
-            
-            log.debug("Updating session {} to phase: {}", sessionId, phase);
 
-            
             eventPublisher.publishEvent("ai:strategy:phase:updated", Map.of(
                 "sessionId", sessionId,
                 "phase", phase,
@@ -190,8 +166,7 @@ public class DistributedSessionManager<T extends DomainContext> {
     private void saveExecutionMetrics(String sessionId, AIExecutionMetrics metrics) {
         try {
             
-            log.debug("Saving execution metrics for session: {}", sessionId);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("Failed to save execution metrics for session: {}", sessionId, e);
         }
     }
@@ -203,15 +178,12 @@ public class DistributedSessionManager<T extends DomainContext> {
     
     private void cleanupSession(String sessionId) {
         
-        log.debug("🧹 Cleaning up session: {}", sessionId);
-    }
+            }
     
     private String getNodeId() {
         return System.getProperty("node.id", "node-" + UUID.randomUUID().toString().substring(0, 8));
     }
-    
-    
-    
+
     private void publishSessionCreationEvent(String sessionId, String strategyId, AIRequest<T> request) {
         eventPublisher.publishEvent("ai:strategy:session:created", Map.of(
             "sessionId", sessionId,
@@ -256,8 +228,7 @@ public class DistributedSessionManager<T extends DomainContext> {
             "timestamp", System.currentTimeMillis()
         ));
     }
-    
-    
+
     public static class AIExecutionMetrics {
         private final String sessionId;
         private final String nodeId;
@@ -270,8 +241,7 @@ public class DistributedSessionManager<T extends DomainContext> {
             this.executionTime = executionTime;
             this.success = success;
         }
-        
-        
+
         public String getSessionId() { return sessionId; }
         public String getNodeId() { return nodeId; }
         public long getExecutionTime() { return executionTime; }

@@ -5,32 +5,24 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class SecurityResponse {
 
-    
     private Double riskScore;
 
-    
     private Double confidence;
 
-    
     private String confidenceReasoning;
 
-    
     private String action;
 
-    
     private String reasoning;
 
-    
     private String mitre;
 
-    
     public static SecurityResponse fromJson(String json) {
         if (json == null || json.isBlank()) {
             return null;
@@ -46,14 +38,12 @@ public class SecurityResponse {
             }
             response.setRiskScore(riskScore);
 
-            
             Double confidence = extractDouble(json, "\"c\"");
             if (confidence == null) {
                 confidence = extractDouble(json, "\"confidence\"");
             }
             response.setConfidence(confidence);
 
-            
             String action = extractString(json, "\"a\"");
             if (action != null) {
                 action = expandAction(action);
@@ -62,7 +52,6 @@ public class SecurityResponse {
             }
             response.setAction(action);
 
-            
             String reasoning = extractString(json, "\"d\"");
             if (reasoning == null) {
                 reasoning = extractString(json, "\"reasoning\"");
@@ -72,14 +61,12 @@ public class SecurityResponse {
             }
             response.setReasoning(reasoning);
 
-            
             String mitre = extractString(json, "\"m\"");
             if (mitre == null) {
                 mitre = extractString(json, "\"mitre\"");
             }
             response.setMitre(mitre);
 
-            
             String confReasoning = extractString(json, "\"confidenceReasoning\"");
             response.setConfidenceReasoning(confReasoning);
 
@@ -91,13 +78,11 @@ public class SecurityResponse {
         return response;
     }
 
-    
     @Deprecated
     public static SecurityResponse fromCompactJson(String json) {
         return fromJson(json);
     }
 
-    
     private static String expandAction(String shortAction) {
         if (shortAction == null) return null;
 
@@ -110,7 +95,6 @@ public class SecurityResponse {
         };
     }
 
-    
     private static Double extractDouble(String json, String key) {
         int keyIndex = json.indexOf(key);
         if (keyIndex == -1) return null;
@@ -128,7 +112,6 @@ public class SecurityResponse {
         }
     }
 
-    
     private static String extractString(String json, String key) {
         int keyIndex = json.indexOf(key);
         if (keyIndex == -1) return null;
@@ -136,7 +119,6 @@ public class SecurityResponse {
         int colonIndex = json.indexOf(':', keyIndex);
         if (colonIndex == -1) return null;
 
-        
         int startQuote = json.indexOf('"', colonIndex + 1);
         if (startQuote == -1) return null;
 
@@ -168,7 +150,6 @@ public class SecurityResponse {
         return -1;
     }
 
-    
     private static int findValueEnd(String json, int start) {
         int commaIndex = json.indexOf(',', start);
         int braceIndex = json.indexOf('}', start);
@@ -178,7 +159,6 @@ public class SecurityResponse {
         return Math.min(commaIndex, braceIndex);
     }
 
-    
     public boolean isValid() {
         return riskScore != null
             && confidence != null
@@ -186,7 +166,6 @@ public class SecurityResponse {
             && !action.isBlank();
     }
 
-    
     public boolean hasValidAction() {
         if (action == null) return false;
         String normalized = action.toUpperCase().trim();

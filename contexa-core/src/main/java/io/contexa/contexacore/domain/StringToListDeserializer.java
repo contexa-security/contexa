@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class StringToListDeserializer extends JsonDeserializer<List<String>> {
 
     @Override

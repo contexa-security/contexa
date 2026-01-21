@@ -22,24 +22,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class DistributedStateManager {
-    
-    
+
     private final RedisTemplate<String, Object> redisTemplate;
     private final RedisDistributedLockService lockService;
     private final ObjectMapper objectMapper;
-    
-    
+
     private static final String STATE_PREFIX = "security:state:";
     private static final String SESSION_PREFIX = "security:session:";
     private static final String METRICS_PREFIX = "security:metrics:";
     private static final String LEADER_KEY = "security:leader";
     private static final String HEARTBEAT_PREFIX = "security:heartbeat:";
-    
-    
+
     @Value("${security.state.ttl-seconds:3600}")
     private int stateTtlSeconds;
     
@@ -60,51 +56,39 @@ public class DistributedStateManager {
     
     @Value("${security.state.leader.channel:leader:changes}")
     private String leaderChangesChannel;
-    
-    
+
     private final Map<String, StateSnapshot> localCache = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong stateWrites = new AtomicLong(0);
     private final AtomicLong stateReads = new AtomicLong(0);
     private final AtomicLong syncOperations = new AtomicLong(0);
-    
-    
+
     private volatile boolean isLeader = false;
     private volatile String currentLeader = null;
-    
-    
+
     private RedisScript<Boolean> compareAndSetScript;
     private RedisScript<List> aggregateScript;
     
     @PostConstruct
     public void initialize() {
-        log.info("분산 상태 관리자 초기화 시작 - Instance ID: {}", instanceId);
-        
-        
+
         initializeRedisScripts();
-        
-        
+
         startHeartbeat();
-        
-        
+
         participateInLeaderElection();
-        
-        
+
         startStateSynchronization();
         
-        log.info("분산 상태 관리자 초기화 완료");
-    }
-    
-    
+            }
+
     public Mono<Boolean> saveState(String key, SecurityState state) {
         return Mono.fromCallable(() -> {
             stateWrites.incrementAndGet();
             
             String redisKey = STATE_PREFIX + key;
             String lockKey = redisKey + ":lock";
-            
-            
+
             return Mono.fromCallable(() -> lockService.tryLock(lockKey, instanceId, Duration.ofSeconds(5)))
                 .flatMap(acquired -> {
                     if (!acquired) {
@@ -123,15 +107,12 @@ public class DistributedStateManager {
                             stateTtlSeconds, 
                             TimeUnit.SECONDS
                         );
-                        
-                        
+
                         updateLocalCache(key, state);
-                        
-                        
+
                         publishStateChange(key, state);
                         
-                        log.debug("상태 저장 성공: {}", key);
-                        return Mono.just(true);
+                                                return Mono.just(true);
                         
                     } finally {
                         
@@ -142,20 +123,16 @@ public class DistributedStateManager {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<SecurityState> getState(String key) {
         return Mono.fromCallable(() -> {
             stateReads.incrementAndGet();
-            
-            
+
             StateSnapshot cached = localCache.get(key);
             if (cached != null && !cached.isExpired()) {
-                log.debug("로컬 캐시에서 상태 조회: {}", key);
-                return cached.getState();
+                                return cached.getState();
             }
-            
-            
+
             String redisKey = STATE_PREFIX + key;
             Object rawState = redisTemplate.opsForValue().get(redisKey);
             SecurityState state = null;
@@ -172,42 +149,35 @@ public class DistributedStateManager {
                 
                 if (state != null) {
                     updateLocalCache(key, state);
-                    log.debug("Redis에서 상태 조회: {}", key);
-                }
+                                    }
             }
             
             return state;
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<Boolean> saveSessionState(String sessionId, SessionSecurityState sessionData) {
         return Mono.fromCallable(() -> {
             String redisKey = SESSION_PREFIX + sessionId;
-            
-            
+
             sessionData.setLastActivity(LocalDateTime.now());
             sessionData.setNodeId(instanceId);
-            
-            
+
             redisTemplate.opsForValue().set(
                 redisKey,
                 sessionData,
                 sessionData.getTimeoutSeconds(),
                 TimeUnit.SECONDS
             );
-            
-            
+
             redisTemplate.opsForSet().add("active:sessions", sessionId);
             
-            log.debug("세션 상태 저장: {}", sessionId);
-            return true;
+                        return true;
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<SessionSecurityState> getSessionState(String sessionId) {
         return Mono.fromCallable(() -> {
             String redisKey = SESSION_PREFIX + sessionId;
@@ -216,8 +186,7 @@ public class DistributedStateManager {
             if (rawState == null) {
                 return null;
             }
-            
-            
+
             if (rawState instanceof LinkedHashMap) {
                 return objectMapper.convertValue(rawState, SessionSecurityState.class);
             } else if (rawState instanceof SessionSecurityState) {
@@ -229,8 +198,7 @@ public class DistributedStateManager {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<Void> recordMetric(String metricName, double value, AggregationType aggregationType) {
         return Mono.fromRunnable(() -> {
             String redisKey = METRICS_PREFIX + metricName + ":" + getTimeWindow();
@@ -256,27 +224,23 @@ public class DistributedStateManager {
                     redisTemplate.opsForValue().increment(redisKey);
                     break;
             }
-            
-            
+
             redisTemplate.expire(redisKey, aggregationWindowSeconds * 2, TimeUnit.SECONDS);
         })
         .subscribeOn(Schedulers.boundedElastic())
         .then();
     }
-    
-    
+
     public Mono<Map<String, Double>> getAggregatedMetrics(String metricName) {
         return Mono.fromCallable(() -> {
             Map<String, Double> metrics = new HashMap<>();
-            
-            
+
             String currentWindow = getTimeWindow();
             String previousWindow = getPreviousTimeWindow();
             
             for (String window : Arrays.asList(currentWindow, previousWindow)) {
                 String redisKey = METRICS_PREFIX + metricName + ":" + window;
-                
-                
+
                 Object sum = redisTemplate.opsForValue().get(redisKey);
                 Object count = redisTemplate.opsForValue().get(redisKey + ":count");
                 Object max = redisTemplate.opsForValue().get(redisKey + ":max");
@@ -288,8 +252,7 @@ public class DistributedStateManager {
                 if (count != null) {
                     long countValue = ((Number) count).longValue();
                     metrics.put(window + ":count", (double) countValue);
-                    
-                    
+
                     if (sum != null && countValue > 0) {
                         double avgSum = ((Number) redisTemplate.opsForValue()
                             .get(redisKey + ":sum")).doubleValue();
@@ -308,8 +271,7 @@ public class DistributedStateManager {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<Void> correlateEvents(String primaryEventId, String relatedEventId, String correlationType) {
         return Mono.fromRunnable(() -> {
             String correlationKey = "correlation:" + primaryEventId;
@@ -319,30 +281,24 @@ public class DistributedStateManager {
             correlation.put("type", correlationType);
             correlation.put("timestamp", LocalDateTime.now().toString());
             correlation.put("nodeId", instanceId);
-            
-            
+
             redisTemplate.opsForZSet().add(
                 correlationKey,
                 correlation,
                 System.currentTimeMillis()
             );
-            
-            
+
             String reverseKey = "correlation:reverse:" + relatedEventId;
             redisTemplate.opsForSet().add(reverseKey, primaryEventId);
-            
-            
+
             redisTemplate.expire(correlationKey, stateTtlSeconds, TimeUnit.SECONDS);
             redisTemplate.expire(reverseKey, stateTtlSeconds, TimeUnit.SECONDS);
             
-            log.debug("이벤트 상관 관계 저장: {} <-> {} ({})", 
-                primaryEventId, relatedEventId, correlationType);
-        })
+                    })
         .subscribeOn(Schedulers.boundedElastic())
         .then();
     }
-    
-    
+
     public Flux<EventCorrelation> getCorrelatedEvents(String eventId) {
         return Flux.defer(() -> {
             String correlationKey = "correlation:" + eventId;
@@ -378,8 +334,7 @@ public class DistributedStateManager {
                 .subscribeOn(Schedulers.boundedElastic());
         });
     }
-    
-    
+
     private void participateInLeaderElection() {
         Schedulers.parallel().schedulePeriodically(() -> {
             try {
@@ -393,8 +348,7 @@ public class DistributedStateManager {
                 
                 if (Boolean.TRUE.equals(acquired)) {
                     if (!isLeader) {
-                        log.info("리더로 선출됨: {}", instanceId);
-                        isLeader = true;
+                                                isLeader = true;
                         currentLeader = instanceId;
                         onBecomeLeader();
                     }
@@ -405,8 +359,7 @@ public class DistributedStateManager {
                     String leader = (String) redisTemplate.opsForValue().get(LEADER_KEY);
                     if (!instanceId.equals(leader)) {
                         if (isLeader) {
-                            log.info("리더 권한 상실: {}", instanceId);
-                            isLeader = false;
+                                                        isLeader = false;
                             onLoseLeadership();
                         }
                         currentLeader = leader;
@@ -417,26 +370,21 @@ public class DistributedStateManager {
             }
         }, 0, heartbeatIntervalSeconds, TimeUnit.SECONDS);
     }
-    
-    
+
     private void onBecomeLeader() {
         
         startLeaderTasks();
-        
-        
+
         cleanupGlobalState();
-        
-        
+
         publishLeaderChange();
     }
-    
-    
+
     private void onLoseLeadership() {
         
         stopLeaderTasks();
     }
-    
-    
+
     private void startHeartbeat() {
         Schedulers.parallel().schedulePeriodically(() -> {
             String heartbeatKey = HEARTBEAT_PREFIX + instanceId;
@@ -454,13 +402,10 @@ public class DistributedStateManager {
                 heartbeatIntervalSeconds * 3,
                 TimeUnit.SECONDS
             );
-            
-            log.trace("하트비트 전송: {}", instanceId);
-            
+
         }, 0, heartbeatIntervalSeconds, TimeUnit.SECONDS);
     }
-    
-    
+
     private void startStateSynchronization() {
         
         Schedulers.parallel().schedulePeriodically(() -> {
@@ -473,31 +418,23 @@ public class DistributedStateManager {
             
         }, 30, 30, TimeUnit.SECONDS);
     }
-    
-    
+
     private void syncWithLeader() {
         if (currentLeader == null || currentLeader.equals(instanceId)) {
             return;
         }
-        
-        log.debug("리더와 상태 동기화 시작: {}", currentLeader);
-        
-        
-        
+
     }
-    
-    
+
     private void updateLocalCache(String key, SecurityState state) {
         localCache.put(key, new StateSnapshot(state, LocalDateTime.now().plusSeconds(60)));
-        
-        
+
         if (localCache.size() > 1000) {
             
             localCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
         }
     }
-    
-    
+
     private void publishStateChange(String key, SecurityState state) {
         Map<String, Object> event = new HashMap<>();
         event.put("key", key);
@@ -507,8 +444,7 @@ public class DistributedStateManager {
         
         redisTemplate.convertAndSend(stateChangesChannel, event);
     }
-    
-    
+
     private void publishLeaderChange() {
         Map<String, Object> event = new HashMap<>();
         event.put("newLeader", instanceId);
@@ -516,8 +452,7 @@ public class DistributedStateManager {
         
         redisTemplate.convertAndSend(leaderChangesChannel, event);
     }
-    
-    
+
     private void initializeRedisScripts() {
         
         compareAndSetScript = new DefaultRedisScript<>(
@@ -529,8 +464,7 @@ public class DistributedStateManager {
             "end",
             Boolean.class
         );
-        
-        
+
         aggregateScript = new DefaultRedisScript<>(
             "local sum = 0 " +
             "local count = 0 " +
@@ -545,29 +479,18 @@ public class DistributedStateManager {
             List.class
         );
     }
-    
-    
+
     private void startLeaderTasks() {
-        log.info("리더 전용 작업 시작");
-        
-        
-        
-        
+
     }
-    
-    
+
     private void stopLeaderTasks() {
-        log.info("리더 전용 작업 중지");
-    }
-    
-    
+            }
+
     private void cleanupGlobalState() {
-        
-        
-        
+
     }
-    
-    
+
     private void updateMaxValue(String key, double value) {
         redisTemplate.execute((RedisCallback<Object>) connection -> {
             byte[] keyBytes = key.getBytes();
@@ -580,8 +503,7 @@ public class DistributedStateManager {
             return null;
         });
     }
-    
-    
+
     private void updateMinValue(String key, double value) {
         redisTemplate.execute((RedisCallback<Object>) connection -> {
             byte[] keyBytes = key.getBytes();
@@ -594,22 +516,19 @@ public class DistributedStateManager {
             return null;
         });
     }
-    
-    
+
     private String getTimeWindow() {
         long windowStart = (System.currentTimeMillis() / (aggregationWindowSeconds * 1000)) 
             * (aggregationWindowSeconds * 1000);
         return String.valueOf(windowStart);
     }
-    
-    
+
     private String getPreviousTimeWindow() {
         long windowStart = ((System.currentTimeMillis() / (aggregationWindowSeconds * 1000)) - 1) 
             * (aggregationWindowSeconds * 1000);
         return String.valueOf(windowStart);
     }
-    
-    
+
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         
@@ -623,8 +542,7 @@ public class DistributedStateManager {
         
         return metrics;
     }
-    
-    
+
     public Flux<NodeInfo> getActiveNodes() {
         return Flux.defer(() -> {
             Set<String> keys = redisTemplate.keys(HEARTBEAT_PREFIX + "*");
@@ -664,10 +582,7 @@ public class DistributedStateManager {
                 .subscribeOn(Schedulers.boundedElastic());
         });
     }
-    
-    
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -680,8 +595,7 @@ public class DistributedStateManager {
         private String modifiedBy;
         private int version;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -695,8 +609,7 @@ public class DistributedStateManager {
         private String nodeId;
         private int timeoutSeconds;
     }
-    
-    
+
     private static class StateSnapshot {
         private final SecurityState state;
         private final LocalDateTime expiryTime;
@@ -714,8 +627,7 @@ public class DistributedStateManager {
             return LocalDateTime.now().isAfter(expiryTime);
         }
     }
-    
-    
+
     @Builder
     @Getter
     public static class EventCorrelation {
@@ -725,8 +637,7 @@ public class DistributedStateManager {
         private final LocalDateTime timestamp;
         private final String nodeId;
     }
-    
-    
+
     @Builder
     @Getter
     public static class NodeInfo {
@@ -735,8 +646,7 @@ public class DistributedStateManager {
         private final LocalDateTime lastHeartbeat;
         private final Map<String, Object> metrics;
     }
-    
-    
+
     public enum AggregationType {
         SUM,    
         AVG,    

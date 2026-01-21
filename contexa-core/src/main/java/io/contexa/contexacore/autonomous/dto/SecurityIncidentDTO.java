@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -35,11 +34,9 @@ public class SecurityIncidentDTO implements Serializable {
     private LocalDateTime updatedAt;
     private LocalDateTime detectedAt;
 
-    
     private Set<String> affectedAssets;
     private Set<String> tags;
 
-    
     public static SecurityIncidentDTO fromEntity(SecurityIncident incident) {
         if (incident == null) {
             return null;
@@ -67,7 +64,6 @@ public class SecurityIncidentDTO implements Serializable {
                 .build();
     }
 
-    
     private static Set<String> copySetSafely(Set<String> original) {
         if (original == null) {
             return new HashSet<>();

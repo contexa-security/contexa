@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 public class PolicyConflictDetector {
     
     private static final Logger logger = LoggerFactory.getLogger(PolicyConflictDetector.class);
@@ -20,17 +19,13 @@ public class PolicyConflictDetector {
     
     @Autowired
     private PolicyVersionManager versionManager;
-    
-    
+
     private final Map<String, ConflictRule> conflictRules = new ConcurrentHashMap<>();
-    
-    
+
     private final List<ConflictRecord> conflictHistory = Collections.synchronizedList(new ArrayList<>());
-    
-    
+
     private final PolicyDependencyGraph dependencyGraph = new PolicyDependencyGraph();
-    
-    
+
     public ConflictCheckResult checkConflicts(PolicyEvolutionProposal proposal) {
         logger.info("Checking conflicts for proposal: {}", proposal.getId());
         
@@ -39,20 +34,15 @@ public class PolicyConflictDetector {
         try {
             
             conflicts.addAll(checkActiveConflicts(proposal));
-            
-            
+
             conflicts.addAll(checkDependencyConflicts(proposal));
-            
-            
+
             conflicts.addAll(checkResourceConflicts(proposal));
-            
-            
+
             conflicts.addAll(checkRuleBasedConflicts(proposal));
-            
-            
+
             ConflictSeverity overallSeverity = evaluateSeverity(conflicts);
-            
-            
+
             List<ConflictResolution> resolutions = generateResolutions(conflicts);
             
             ConflictCheckResult result = ConflictCheckResult.builder()
@@ -62,8 +52,7 @@ public class PolicyConflictDetector {
                 .resolutions(resolutions)
                 .canProceed(overallSeverity != ConflictSeverity.CRITICAL)
                 .build();
-            
-            
+
             if (!conflicts.isEmpty()) {
                 recordConflicts(proposal, conflicts);
             }
@@ -78,31 +67,26 @@ public class PolicyConflictDetector {
             throw new ConflictDetectionException("Conflict detection failed", e);
         }
     }
-    
-    
+
     public boolean areCompatible(PolicyEvolutionProposal proposal1, PolicyEvolutionProposal proposal2) {
         logger.debug("Checking compatibility between proposals {} and {}", 
             proposal1.getId(), proposal2.getId());
-        
-        
+
         if (!areTypesCompatible(proposal1.getProposalType(), proposal2.getProposalType())) {
             return false;
         }
-        
-        
+
         if (hasResourceOverlap(proposal1, proposal2)) {
             return false;
         }
-        
-        
+
         if (createsCyclicDependency(proposal1, proposal2)) {
             return false;
         }
         
         return true;
     }
-    
-    
+
     public boolean resolveConflict(PolicyConflict conflict, ConflictResolution resolution) {
         logger.info("Attempting to resolve conflict: {} with resolution: {}", 
             conflict.getConflictId(), resolution.getType());
@@ -133,25 +117,20 @@ public class PolicyConflictDetector {
             return false;
         }
     }
-    
-    
+
     public void addConflictRule(ConflictRule rule) {
         logger.info("Adding conflict rule: {}", rule.getRuleId());
         conflictRules.put(rule.getRuleId(), rule);
     }
-    
-    
+
     public void addDependency(Long proposalId, Long dependsOn) {
         logger.debug("Adding dependency: {} depends on {}", proposalId, dependsOn);
         dependencyGraph.addDependency(proposalId, dependsOn);
     }
-    
-    
-    
+
     private List<PolicyConflict> checkActiveConflicts(PolicyEvolutionProposal proposal) {
         List<PolicyConflict> conflicts = new ArrayList<>();
-        
-        
+
         List<PolicyEvolutionProposal> activeProposals = proposalRepository.findActiveProposals();
         
         for (PolicyEvolutionProposal active : activeProposals) {
@@ -172,12 +151,10 @@ public class PolicyConflictDetector {
     
     private List<PolicyConflict> checkDependencyConflicts(PolicyEvolutionProposal proposal) {
         List<PolicyConflict> conflicts = new ArrayList<>();
-        
-        
+
         Set<Long> dependencies = dependencyGraph.getDependencies(proposal.getId());
         Set<Long> dependents = dependencyGraph.getDependents(proposal.getId());
-        
-        
+
         if (!Collections.disjoint(dependencies, dependents)) {
             conflicts.add(PolicyConflict.builder()
                 .conflictId(generateConflictId())
@@ -193,8 +170,7 @@ public class PolicyConflictDetector {
     
     private List<PolicyConflict> checkResourceConflicts(PolicyEvolutionProposal proposal) {
         List<PolicyConflict> conflicts = new ArrayList<>();
-        
-        
+
         if (proposal.getExpectedImpact() > 0.8) {
             conflicts.add(PolicyConflict.builder()
                 .conflictId(generateConflictId())
@@ -298,8 +274,7 @@ public class PolicyConflictDetector {
         if (type1 == type2) {
             return false;
         }
-        
-        
+
         if (type1 == PolicyEvolutionProposal.ProposalType.ACCESS_CONTROL && 
             type2 == PolicyEvolutionProposal.ProposalType.ACCESS_CONTROL) {
             return false;
@@ -316,8 +291,7 @@ public class PolicyConflictDetector {
         if (meta1 == null || meta2 == null) {
             return false;
         }
-        
-        
+
         Object target1 = meta1.get("targetResource");
         Object target2 = meta2.get("targetResource");
         
@@ -371,10 +345,7 @@ public class PolicyConflictDetector {
     private String generateConflictId() {
         return "CONF_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
-    
-    
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ConflictCheckResult {
@@ -384,8 +355,7 @@ public class PolicyConflictDetector {
         private List<ConflictResolution> resolutions;
         private boolean canProceed;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class PolicyConflict {
@@ -397,8 +367,7 @@ public class PolicyConflictDetector {
         private String description;
         private String ruleId;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ConflictResolution {
@@ -406,8 +375,7 @@ public class PolicyConflictDetector {
         private String description;
         private EffortLevel estimatedEffort;
     }
-    
-    
+
     @lombok.Data
     public static class ConflictRule {
         private String ruleId;
@@ -419,8 +387,7 @@ public class PolicyConflictDetector {
             return condition != null && condition.test(proposal);
         }
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     private static class ConflictRecord {
@@ -428,8 +395,7 @@ public class PolicyConflictDetector {
         private List<PolicyConflict> conflicts;
         private Date timestamp;
     }
-    
-    
+
     private static class PolicyDependencyGraph {
         private final Map<Long, Set<Long>> dependencies = new ConcurrentHashMap<>();
         private final Map<Long, Set<Long>> dependents = new ConcurrentHashMap<>();
@@ -473,8 +439,7 @@ public class PolicyConflictDetector {
             return false;
         }
     }
-    
-    
+
     public enum ConflictType {
         ACTIVE_POLICY,
         CYCLIC_DEPENDENCY,
@@ -482,8 +447,7 @@ public class PolicyConflictDetector {
         RULE_VIOLATION,
         VERSION_MISMATCH
     }
-    
-    
+
     public enum ConflictSeverity {
         NONE,
         LOW,
@@ -491,8 +455,7 @@ public class PolicyConflictDetector {
         HIGH,
         CRITICAL
     }
-    
-    
+
     public enum ResolutionType {
         MERGE,
         PRIORITIZE,
@@ -500,15 +463,13 @@ public class PolicyConflictDetector {
         SPLIT,
         REJECT
     }
-    
-    
+
     public enum EffortLevel {
         LOW,
         MEDIUM,
         HIGH
     }
-    
-    
+
     public static class ConflictDetectionException extends RuntimeException {
         public ConflictDetectionException(String message) {
             super(message);

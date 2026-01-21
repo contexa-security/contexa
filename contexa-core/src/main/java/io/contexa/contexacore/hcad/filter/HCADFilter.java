@@ -24,7 +24,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 public class HCADFilter extends OncePerRequestFilter {
 
@@ -44,7 +43,6 @@ public class HCADFilter extends OncePerRequestFilter {
     @Value("${hcad.cache.enabled:true}")
     private boolean cacheEnabled;
 
-    
     private Cache<String, HCADAnalysisResult> localCache;
 
     public HCADFilter(HCADAnalysisService hcadAnalysisService) {
@@ -60,15 +58,11 @@ public class HCADFilter extends OncePerRequestFilter {
                 .recordStats()  
                 .build();
 
-        log.info("[HCAD][AI Native][Phase 3] Filter initialized with Caffeine local cache - " +
-                "enabled: {}, cacheEnabled: {}, cacheTtlSeconds: {}, cacheMaxSize: {}",
-            enabled, cacheEnabled, cacheTtlSeconds, cacheMaxSize);
-    }
+            }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-        
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean isAuthenticated = this.trustResolver.isAuthenticated(authentication);
 
@@ -83,7 +77,6 @@ public class HCADFilter extends OncePerRequestFilter {
             
             String contextHash = generateContextHash(request);
 
-            
             HCADAnalysisResult result = getCachedResult(contextHash);
             boolean fromCache = (result != null);
 
@@ -91,12 +84,9 @@ public class HCADFilter extends OncePerRequestFilter {
                 
                 result = hcadAnalysisService.analyze(request, authentication);
 
-                
                 cacheResult(contextHash, result);
             }
 
-            
-            
             request.setAttribute("hcad.trust_score", result.getTrustScore());
             request.setAttribute("hcad.threat_type", result.getThreatType());
             request.setAttribute("hcad.threat_evidence", result.getThreatEvidence());
@@ -106,8 +96,6 @@ public class HCADFilter extends OncePerRequestFilter {
             request.setAttribute("hcad.confidence", result.getConfidence());  
             request.setAttribute("hcad.from_cache", fromCache);
 
-            
-            
             if (result.getContext() != null) {
                 request.setAttribute("hcad.is_new_session", result.getContext().getIsNewSession());
                 request.setAttribute("hcad.is_new_user", result.getContext().getIsNewUser());
@@ -116,18 +104,14 @@ public class HCADFilter extends OncePerRequestFilter {
             }
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCADFilter] 분석 완료 (fromCache={}): contextHash={}, action={}, riskScore={}",
-                    fromCache, contextHash.substring(0, 8), result.getAction(), String.format("%.3f", result.getAnomalyScore()));
-            }
+                            }
 
-            
             String action = result.getAction();
             if ("BLOCK".equalsIgnoreCase(action) || "ESCALATE".equalsIgnoreCase(action)) {
                 log.warn("[HCADFilter][AI Native] Security action: {} - userId: {}, riskScore: {}, threatType: {}",
                     action, result.getUserId(), String.format("%.3f", result.getAnomalyScore()), result.getThreatType());
             }
 
-            
             filterChain.doFilter(request, response);
 
         } catch (Exception e) {
@@ -150,7 +134,6 @@ public class HCADFilter extends OncePerRequestFilter {
                path.startsWith("/api/admin/test/vectorstore");
     }
 
-    
     private String generateContextHash(HttpServletRequest request) {
         String ip = getClientIp(request);
         String userAgent = request.getHeader("User-Agent");
@@ -173,7 +156,6 @@ public class HCADFilter extends OncePerRequestFilter {
         }
     }
 
-    
     private String getClientIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
@@ -189,7 +171,6 @@ public class HCADFilter extends OncePerRequestFilter {
         return ip != null ? ip : "unknown";
     }
 
-    
     private HCADAnalysisResult getCachedResult(String contextHash) {
         if (!cacheEnabled || localCache == null) {
             return null;
@@ -198,16 +179,13 @@ public class HCADFilter extends OncePerRequestFilter {
         try {
             HCADAnalysisResult cached = localCache.getIfPresent(contextHash);
             if (cached != null && log.isDebugEnabled()) {
-                log.debug("[HCADFilter][Caffeine] Cache HIT: contextHash={}", contextHash.substring(0, 8));
-            }
+                            }
             return cached;
         } catch (Exception e) {
-            log.debug("[HCADFilter][Caffeine] Cache lookup failed: contextHash={}", contextHash.substring(0, 8), e);
-        }
+                    }
         return null;
     }
 
-    
     private void cacheResult(String contextHash, HCADAnalysisResult result) {
         if (!cacheEnabled || localCache == null) {
             return;
@@ -217,11 +195,8 @@ public class HCADFilter extends OncePerRequestFilter {
             localCache.put(contextHash, result);
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCADFilter][Caffeine] Cache PUT: contextHash={}, estimatedSize={}",
-                    contextHash.substring(0, 8), localCache.estimatedSize());
-            }
+                            }
         } catch (Exception e) {
-            log.debug("[HCADFilter][Caffeine] Cache put failed: contextHash={}", contextHash.substring(0, 8), e);
-        }
+                    }
     }
 }

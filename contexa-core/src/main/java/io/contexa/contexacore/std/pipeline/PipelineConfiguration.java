@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Getter
 public class PipelineConfiguration<T extends DomainContext> {
 
@@ -26,13 +25,10 @@ public class PipelineConfiguration<T extends DomainContext> {
     private final boolean enableParallelExecution;
     private final boolean enableStreaming; 
 
-    
     private final Map<PipelineStep, PipelineStepCondition<T>> stepConditions;
 
-    
     private final Map<String, io.contexa.contexacore.std.pipeline.step.PipelineStep> customSteps;
-    
-    
+
     public PipelineConfiguration() {
         this.steps = new ArrayList<>();
         this.interfaceSteps = new ArrayList<>();
@@ -63,8 +59,7 @@ public class PipelineConfiguration<T extends DomainContext> {
         this.stepConditions = new ConcurrentHashMap<>();
         this.customSteps = new ConcurrentHashMap<>();
     }
-    
-    
+
     private PipelineConfiguration(List<PipelineStep> steps,
                                  List<io.contexa.contexacore.std.pipeline.step.PipelineStep> interfaceSteps,
                                  Map<String, Object> parameters,
@@ -85,8 +80,7 @@ public class PipelineConfiguration<T extends DomainContext> {
         this.stepConditions = new ConcurrentHashMap<>(stepConditions);
         this.customSteps = new ConcurrentHashMap<>(customSteps);
     }
-    
-    
+
     public void setName(String name) {
         this.name = name;
     }
@@ -98,13 +92,11 @@ public class PipelineConfiguration<T extends DomainContext> {
     public void setSteps(List<? extends PipelineStep> steps) {
         this.steps = new ArrayList<>(steps);
     }
-    
-    
+
     public void setInterfaceSteps(List<io.contexa.contexacore.std.pipeline.step.PipelineStep> steps) {
         this.interfaceSteps = steps;
     }
-    
-    
+
     public List<io.contexa.contexacore.std.pipeline.step.PipelineStep> getInterfaceSteps() {
         return interfaceSteps;
     }
@@ -112,13 +104,11 @@ public class PipelineConfiguration<T extends DomainContext> {
     public void setMetadata(Map<String, Object> metadata) {
         this.metadata = metadata;
     }
-    
-    
+
     public boolean hasStep(PipelineStep step) {
         return steps.contains(step);
     }
 
-    
     public boolean shouldExecuteStep(PipelineStep step, AIRequest<T> request, PipelineExecutionContext context) {
         
         PipelineStepCondition<T> condition = stepConditions.get(step);
@@ -126,11 +116,9 @@ public class PipelineConfiguration<T extends DomainContext> {
             return true;
         }
 
-        
         return condition.shouldExecute(request, context);
     }
 
-    
     public void setStepCondition(PipelineStep step, PipelineStepCondition<T> condition) {
         if (condition != null) {
             stepConditions.put(step, condition);
@@ -139,24 +127,20 @@ public class PipelineConfiguration<T extends DomainContext> {
         }
     }
 
-    
     public void addCustomStep(String stepName, io.contexa.contexacore.std.pipeline.step.PipelineStep step) {
         if (stepName != null && step != null) {
             customSteps.put(stepName, step);
         }
     }
 
-    
     public io.contexa.contexacore.std.pipeline.step.PipelineStep getCustomStep(String stepName) {
         return customSteps.get(stepName);
     }
 
-    
     public boolean hasCustomStep(String stepName) {
         return customSteps.containsKey(stepName);
     }
 
-    
     public static Builder builder() {
         return new Builder();
     }
@@ -202,46 +186,39 @@ public class PipelineConfiguration<T extends DomainContext> {
             this.enableParallelExecution = enableParallelExecution;
             return this;
         }
-        
-        
+
         public Builder<T> enableStreaming(boolean enableStreaming) {
             this.enableStreaming = enableStreaming;
             return this;
         }
 
-        
         public Builder<T> steps(List<PipelineStep> steps) {
             this.steps = new ArrayList<>(steps);
             return this;
         }
 
-        
         public Builder<T> stepConditions(Map<PipelineStep, PipelineStepCondition<T>> conditions) {
             this.stepConditions = new HashMap<>(conditions);
             return this;
         }
 
-        
         public Builder<T> customSteps(Map<String, io.contexa.contexacore.std.pipeline.step.PipelineStep> customSteps) {
             this.customSteps = new HashMap<>(customSteps);
             return this;
         }
 
-        
         public Builder<T> addConditionalStep(PipelineStep step, PipelineStepCondition<T> condition) {
             this.steps.add(step);
             this.stepConditions.put(step, condition);
             return this;
         }
 
-        
         public Builder<T> addCustomStep(String stepName, io.contexa.contexacore.std.pipeline.step.PipelineStep step) {
             this.customSteps.put(stepName, step);
             this.interfaceSteps.add(step);
             return this;
         }
 
-        
         public Builder<T> setStepCondition(PipelineStep step, PipelineStepCondition<T> condition) {
             this.stepConditions.put(step, condition);
             return this;
@@ -252,8 +229,7 @@ public class PipelineConfiguration<T extends DomainContext> {
                     enableCaching, enableParallelExecution, enableStreaming, stepConditions, customSteps);
         }
     }
-    
-    
+
     public enum PipelineStep {
         PREPROCESSING,      
         CONTEXT_RETRIEVAL,  

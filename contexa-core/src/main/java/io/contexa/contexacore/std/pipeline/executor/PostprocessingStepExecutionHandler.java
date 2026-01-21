@@ -20,10 +20,8 @@ public class PostprocessingStepExecutionHandler implements StepExecutionHandler 
             PipelineStep step, AIRequest<T> request, PipelineConfiguration<T> configuration,
             PipelineExecutionContext context, Class<R> responseType) {
 
-        
         context.addMetadata("targetResponseType", responseType);
-        
-        
+
         return step.execute(request, context)
                 .then(Mono.just(context));
     }

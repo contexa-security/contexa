@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class ContextRetrieverRegistry {
     
@@ -17,61 +16,38 @@ public class ContextRetrieverRegistry {
     
     public ContextRetrieverRegistry(ContextRetriever defaultRetriever) {
         this.defaultRetriever = defaultRetriever;
-        log.info("ContextRetrieverRegistry 초기화 - 기본 Retriever: {}", 
-                defaultRetriever.getClass().getSimpleName());
-    }
-    
-    
+            }
+
     public void registerRetriever(Class<? extends DomainContext> contextType, ContextRetriever retriever) {
         retrieverMap.put(contextType, retriever);
-        log.info("ContextRetriever 등록: {} → {}", 
-                contextType.getSimpleName(), 
-                retriever.getClass().getSimpleName());
-    }
-    
-    
+            }
+
     public ContextRetriever getRetriever(Class<? extends DomainContext> contextType) {
         
         ContextRetriever retriever = retrieverMap.get(contextType);
         if (retriever != null) {
-            log.debug("정확한 타입 매칭: {} → {}", 
-                     contextType.getSimpleName(), 
-                     retriever.getClass().getSimpleName());
-            return retriever;
+                        return retriever;
         }
-        
-        
+
         for (Map.Entry<Class<? extends DomainContext>, ContextRetriever> entry : retrieverMap.entrySet()) {
             if (entry.getKey().isAssignableFrom(contextType)) {
-                log.debug("상위 타입 매칭: {} → {} (via {})", 
-                         contextType.getSimpleName(),
-                         entry.getValue().getClass().getSimpleName(),
-                         entry.getKey().getSimpleName());
-                return entry.getValue();
+                                return entry.getValue();
             }
         }
-        
-        
-        log.debug("기본 Retriever 사용: {} → {}", 
-                 contextType.getSimpleName(), 
-                 defaultRetriever.getClass().getSimpleName());
-        return defaultRetriever;
+
+                return defaultRetriever;
     }
-    
-    
+
     @SuppressWarnings("unchecked")
     public ContextRetriever getRetriever(DomainContext context) {
         return getRetriever((Class<? extends DomainContext>) context.getClass());
     }
-    
-    
+
     public void printRegisteredRetrievers() {
-        log.info("등록된 ContextRetriever 목록:");
-        log.info("  기본: {}", defaultRetriever.getClass().getSimpleName());
-        retrieverMap.forEach((contextType, retriever) -> 
-            log.info("  {}: {}", 
-                    contextType.getSimpleName(), 
-                    retriever.getClass().getSimpleName())
+        retrieverMap.forEach((contextType, retriever) ->
+                log.info("  {}: {}",
+                        contextType.getSimpleName(),
+                        retriever.getClass().getSimpleName())
         );
     }
 }

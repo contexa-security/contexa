@@ -24,7 +24,6 @@ import org.springframework.web.client.RestClientException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public class OpenAIModelProvider implements ModelProvider {
 
@@ -47,7 +46,6 @@ public class OpenAIModelProvider implements ModelProvider {
     private final Map<String, OpenAIModelInfo> discoveredModels = new ConcurrentHashMap<>();
     private boolean ready = false;
 
-    
     @Data
     public static class OpenAIModelsResponse {
         private List<OpenAIModelInfo> data;
@@ -95,7 +93,6 @@ public class OpenAIModelProvider implements ModelProvider {
     public List<ModelDescriptor> getAvailableModels() {
         List<ModelDescriptor> models = new ArrayList<>();
 
-        
         ModelProviderProperties.OpenAIConfig openAIConfig = modelProviderProperties.getOpenai();
         if (openAIConfig != null && openAIConfig.getModels() != null) {
             for (Map.Entry<String, ModelProviderProperties.ModelSpec> entry :
@@ -111,7 +108,6 @@ public class OpenAIModelProvider implements ModelProvider {
             }
         }
 
-        
         for (Map.Entry<String, OpenAIModelInfo> entry : discoveredModels.entrySet()) {
             String modelId = entry.getKey();
             if (!modelCache.containsKey(modelId) && isGPTModel(modelId)) {
@@ -130,7 +126,6 @@ public class OpenAIModelProvider implements ModelProvider {
             return modelCache.get(modelId);
         }
 
-        
         ModelProviderProperties.OpenAIConfig openAIConfig = modelProviderProperties.getOpenai();
         if (openAIConfig != null && openAIConfig.getModels() != null) {
             ModelProviderProperties.ModelSpec spec = openAIConfig.getModels().get(modelId);
@@ -141,7 +136,6 @@ public class OpenAIModelProvider implements ModelProvider {
             }
         }
 
-        
         OpenAIModelInfo info = discoveredModels.get(modelId);
         if (info != null) {
             ModelDescriptor descriptor = createModelDescriptorFromDiscovery(modelId, info);
@@ -149,7 +143,6 @@ public class OpenAIModelProvider implements ModelProvider {
             return descriptor;
         }
 
-        
         loadModelsFromOpenAI();
         info = discoveredModels.get(modelId);
         if (info != null) {
@@ -165,7 +158,6 @@ public class OpenAIModelProvider implements ModelProvider {
     public ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config) {
         String modelId = descriptor.getModelId();
 
-        
         if (modelInstances.containsKey(modelId)) {
             return modelInstances.get(modelId);
         }
@@ -175,7 +167,6 @@ public class OpenAIModelProvider implements ModelProvider {
             OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(modelId);
 
-            
             if (descriptor.getOptions() != null) {
                 ModelDescriptor.ModelOptions options = descriptor.getOptions();
                 if (options.getTemperature() != null) {
@@ -186,12 +177,10 @@ public class OpenAIModelProvider implements ModelProvider {
                 }
             }
 
-            
             if (descriptor.getCapabilities() != null) {
                 optionsBuilder.maxTokens(descriptor.getCapabilities().getMaxOutputTokens());
             }
 
-            
             if (config != null) {
                 if (config.containsKey("temperature")) {
                     optionsBuilder.temperature((Double) config.get("temperature"));
@@ -212,20 +201,17 @@ public class OpenAIModelProvider implements ModelProvider {
 
             OpenAiChatOptions openAiOptions = optionsBuilder.build();
 
-            
             if (!isReady()) {
                 throw new ModelSelectionException("OpenAI API not configured. Please set OPENAI_API_KEY", modelId);
             }
 
-            
             OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .openAiApi(getOpenAiApi())
                 .defaultOptions(openAiOptions)
                 .build();
 
             modelInstances.put(modelId, chatModel);
-            log.info("OpenAI 모델 생성 완료: {}", modelId);
-
+            
             return chatModel;
 
         } catch (Exception e) {
@@ -249,12 +235,10 @@ public class OpenAIModelProvider implements ModelProvider {
             return true;
         }
 
-        
         if (modelCache.containsKey(modelId)) {
             return true;
         }
 
-        
         return isGPTModel(modelId);
     }
 
@@ -269,7 +253,6 @@ public class OpenAIModelProvider implements ModelProvider {
                 return HealthStatus.unhealthy("OpenAI not initialized");
             }
 
-            
             String modelsUrl = baseUrl + "/v1/models";
 
             HttpHeaders headers = new HttpHeaders();
@@ -287,7 +270,6 @@ public class OpenAIModelProvider implements ModelProvider {
                     details.put("baseUrl", baseUrl);
                     details.put("apiKeyConfigured", true);
 
-                    
                     if (modelId != null && !modelId.isEmpty()) {
                         boolean modelExists = discoveredModels.containsKey(modelId) ||
                                             (modelProviderProperties.getOpenai() != null &&
@@ -322,8 +304,7 @@ public class OpenAIModelProvider implements ModelProvider {
 
     @Override
     public void initialize(Map<String, Object> config) {
-        log.info("OpenAIModelProvider 초기화 시작");
-
+        
         try {
             
             ModelProviderProperties.OpenAIConfig openAIConfig = modelProviderProperties.getOpenai();
@@ -340,10 +321,8 @@ public class OpenAIModelProvider implements ModelProvider {
                 
             }
 
-            
             this.restTemplate = new RestTemplate();
 
-            
             boolean modelsLoaded = false;
             if (apiKey != null && !apiKey.isEmpty()) {
                 modelsLoaded = loadModelsFromOpenAI();
@@ -354,9 +333,7 @@ public class OpenAIModelProvider implements ModelProvider {
             }
 
             ready = true; 
-            log.info("OpenAIModelProvider 초기화 완료 - baseUrl: {}, API 키 설정: {}, 모델 로드: {}",
-                     baseUrl, apiKey != null && !apiKey.isEmpty(), modelsLoaded);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("OpenAIModelProvider 초기화 실패", e);
             ready = false;
         }
@@ -364,8 +341,7 @@ public class OpenAIModelProvider implements ModelProvider {
 
     @Override
     public void shutdown() {
-        log.info("OpenAIModelProvider 종료");
-        modelInstances.clear();
+                modelInstances.clear();
         modelCache.clear();
         discoveredModels.clear();
         ready = false;
@@ -378,8 +354,7 @@ public class OpenAIModelProvider implements ModelProvider {
 
     @Override
     public void refreshModels() {
-        log.info("OpenAI 모델 목록 새로고침");
-        loadModelsFromOpenAI();
+                loadModelsFromOpenAI();
     }
 
     @Override
@@ -398,7 +373,6 @@ public class OpenAIModelProvider implements ModelProvider {
         return metrics;
     }
 
-    
     private boolean loadModelsFromOpenAI() {
         if (restTemplate == null || baseUrl == null) {
             log.warn("RestTemplate 또는 baseUrl이 설정되지 않아 모델 목록을 로드할 수 없습니다");
@@ -408,8 +382,7 @@ public class OpenAIModelProvider implements ModelProvider {
         try {
             
             String modelsUrl = baseUrl + "/v1/models";
-            log.debug("OpenAI API 호출: {}", modelsUrl);
-
+            
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Bearer " + apiKey);
 
@@ -427,15 +400,12 @@ public class OpenAIModelProvider implements ModelProvider {
                     for (OpenAIModelInfo model : modelsResponse.getData()) {
                         String modelId = model.getId();
 
-                        
                         if (isGPTModel(modelId) && isValidOpenAIModel(modelId)) {
                             discoveredModels.put(modelId, model);
-                            log.info("OpenAI 모델 발견: {}", modelId);
-                        }
+                                                    }
                     }
 
-                    log.info("OpenAI에서 {} 개의 GPT 모델을 발견했습니다", discoveredModels.size());
-                    return true;
+                                        return true;
                 }
             } else {
                 log.warn("OpenAI API 응답이 비정상입니다: {}", response.getStatusCode());
@@ -448,7 +418,6 @@ public class OpenAIModelProvider implements ModelProvider {
         return false;
     }
 
-    
     private boolean isGPTModel(String modelId) {
         if (modelId == null) return false;
         String lower = modelId.toLowerCase();
@@ -459,12 +428,10 @@ public class OpenAIModelProvider implements ModelProvider {
                lower.startsWith("text-ada");
     }
 
-    
     private boolean isValidOpenAIModel(String modelId) {
         if (modelId == null) return false;
         String lower = modelId.toLowerCase();
 
-        
         return lower.matches("gpt-4(-\\d{4})?(-preview)?") ||  
                lower.matches("gpt-4-turbo(-\\d{4}-\\d{2}-\\d{2})?(-preview)?") || 
                lower.matches("gpt-4o(-mini)?(-\\d{4}-\\d{2}-\\d{2})?") || 
@@ -474,7 +441,6 @@ public class OpenAIModelProvider implements ModelProvider {
                lower.equals("gpt-4-1106-preview"); 
     }
 
-    
     private ModelDescriptor createModelDescriptorFromSpec(String modelId, ModelProviderProperties.ModelSpec spec) {
         var capBuilder = ModelDescriptor.ModelCapabilities.builder()
             .streaming(spec.getCapabilities().getStreaming())
@@ -529,12 +495,10 @@ public class OpenAIModelProvider implements ModelProvider {
             .build();
     }
 
-    
     private ModelDescriptor createModelDescriptorFromDiscovery(String modelId, OpenAIModelInfo info) {
         
         int tier = estimateTierFromModelId(modelId);
 
-        
         ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
             modelProviderProperties.getTierDefaults(tier);
 
@@ -550,7 +514,6 @@ public class OpenAIModelProvider implements ModelProvider {
             tierDefaults.setConcurrency(50);
         }
 
-        
         boolean supportsFunctions = modelId.contains("gpt-4") || modelId.contains("gpt-3.5-turbo");
         boolean supportsVision = modelId.contains("vision");
         int maxTokens = estimateMaxTokens(modelId);
@@ -602,27 +565,22 @@ public class OpenAIModelProvider implements ModelProvider {
             .build();
     }
 
-    
     private int estimateTierFromModelId(String modelId) {
         if (modelId == null) return 2;
 
         String lower = modelId.toLowerCase();
 
-        
         if (lower.contains("gpt-4")) {
             return 3;
         }
 
-        
         if (lower.contains("gpt-3.5-turbo")) {
             return 2;
         }
 
-        
         return 1;
     }
 
-    
     private int estimateMaxTokens(String modelId) {
         if (modelId == null) return 4096;
 
@@ -643,7 +601,6 @@ public class OpenAIModelProvider implements ModelProvider {
         return 4096;
     }
 
-    
     private double estimateCostPerInputToken(String modelId) {
         if (modelId == null) return 0.00001;
 
@@ -664,7 +621,6 @@ public class OpenAIModelProvider implements ModelProvider {
         return 0.00001;
     }
 
-    
     private double estimateCostPerOutputToken(String modelId) {
         if (modelId == null) return 0.00003;
 
@@ -685,7 +641,6 @@ public class OpenAIModelProvider implements ModelProvider {
         return 0.00003;
     }
 
-    
     private double estimateCostEfficiency(String modelId) {
         if (modelId == null) return 50.0;
 
@@ -702,7 +657,6 @@ public class OpenAIModelProvider implements ModelProvider {
         return 50.0;
     }
 
-    
     private OpenAiApi getOpenAiApi() {
         if (openAiApi == null) {
             throw new IllegalStateException("OpenAiApi not available. Please check OpenAI configuration.");

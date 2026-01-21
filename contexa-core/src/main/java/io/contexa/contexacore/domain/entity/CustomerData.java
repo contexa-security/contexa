@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-
 @Entity
 @Table(name = "customer_data")
 @Data
@@ -17,88 +16,68 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class CustomerData {
 
-    
     @Id
     @Column(name = "customer_id", nullable = false, length = 50)
     private String customerId;
 
-    
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    
     @Column(name = "email", nullable = false, length = 255)
     private String email;
 
-    
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
-    
     @Column(name = "address", columnDefinition = "TEXT")
     private String address;
 
-    
     @Column(name = "credit_card_number", length = 20)
     private String creditCardNumber;
 
-    
     @Column(name = "social_security_number", length = 15)
     private String socialSecurityNumber;
 
-    
     @Column(name = "account_balance")
     private Double accountBalance;
 
-    
     @Column(name = "is_vip")
     private Boolean isVip;
 
-    
     @Column(name = "sensitivity_level", length = 20)
     @Enumerated(EnumType.STRING)
     private SensitivityLevel sensitivityLevel;
 
-    
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    
     @Column(name = "last_accessed_at")
     private LocalDateTime lastAccessedAt;
 
-    
     @Column(name = "membership_tier", length = 20)
     @Enumerated(EnumType.STRING)
     private MembershipTier membershipTier;
 
-    
     @Column(name = "last_login")
     private LocalDateTime lastLogin;
 
-    
     @Column(name = "created_date")
     private LocalDateTime createdDate;
 
-    
     @Column(name = "active")
     @Builder.Default
     private Boolean active = true;
 
-    
     @Column(name = "two_factor_enabled")
     @Builder.Default
     private Boolean twoFactorEnabled = false;
 
-    
     @Column(name = "personal_info", columnDefinition = "TEXT")
     private String personalInfo;
 
-    
     public enum SensitivityLevel {
         CRITICAL,  
         HIGH,      
@@ -106,7 +85,6 @@ public class CustomerData {
         LOW        
     }
 
-    
     public enum MembershipTier {
         PLATINUM,  
         GOLD,      
@@ -114,25 +92,21 @@ public class CustomerData {
         BRONZE     
     }
 
-    
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
 
-    
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
 
-    
     public void markAccessed() {
         lastAccessedAt = LocalDateTime.now();
     }
 
-    
     public CustomerData getMaskedCopy() {
         return CustomerData.builder()
                 .customerId(this.customerId)

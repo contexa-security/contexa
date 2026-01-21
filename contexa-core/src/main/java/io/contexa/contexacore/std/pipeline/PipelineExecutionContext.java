@@ -4,7 +4,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
 
-
 public class PipelineExecutionContext {
     
     private final String executionId;

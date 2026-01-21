@@ -14,23 +14,18 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEffectivenessMonitor {
     
     private final PolicyProposalRepository proposalRepository;
-    
-    
+
     private final Map<Long, PolicyMetrics> metricsStore = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<Long, PerformanceData> performanceData = new ConcurrentHashMap<>();
-    
-    
+
     public void startMonitoring(Long proposalId) {
-        log.info("Starting effectiveness monitoring for proposal: {}", proposalId);
-        
+                
         PolicyMetrics metrics = PolicyMetrics.builder()
             .proposalId(proposalId)
             .startTime(LocalDateTime.now())
@@ -39,26 +34,21 @@ public class PolicyEffectivenessMonitor {
             .build();
         
         metricsStore.put(proposalId, metrics);
-        
-        
+
         establishBaseline(proposalId);
     }
-    
-    
+
     public void stopMonitoring(Long proposalId) {
-        log.info("Stopping effectiveness monitoring for proposal: {}", proposalId);
-        
+                
         PolicyMetrics metrics = metricsStore.get(proposalId);
         if (metrics != null) {
             metrics.setEndTime(LocalDateTime.now());
             metrics.setStatus(MonitoringStatus.COMPLETED);
-            
-            
+
             calculateFinalImpact(proposalId);
         }
     }
-    
-    
+
     public void recordMetric(Long proposalId, MetricType metricType, double value) {
         PolicyMetrics metrics = metricsStore.get(proposalId);
         if (metrics == null) {
@@ -73,12 +63,10 @@ public class PolicyEffectivenessMonitor {
             .build();
         
         metrics.getMeasurements().add(measurement);
-        
-        
+
         updatePerformanceData(proposalId, metricType, value);
     }
-    
-    
+
     public void recordSecurityEvent(Long proposalId, String eventType, boolean blocked) {
         PolicyMetrics metrics = metricsStore.get(proposalId);
         if (metrics == null) {
@@ -92,17 +80,14 @@ public class PolicyEffectivenessMonitor {
             metrics.incrementDetectedThreats();
             recordMetric(proposalId, MetricType.THREATS_DETECTED, 1);
         }
-        
-        
+
         double blockRate = calculateBlockRate(metrics);
         recordMetric(proposalId, MetricType.BLOCK_RATE, blockRate);
     }
-    
-    
+
     @Transactional
     public double calculateActualImpact(Long proposalId) {
-        log.debug("Calculating actual impact for proposal: {}", proposalId);
-        
+                
         PolicyMetrics metrics = metricsStore.get(proposalId);
         if (metrics == null || metrics.getMeasurements().isEmpty()) {
             return 0.0;
@@ -110,43 +95,34 @@ public class PolicyEffectivenessMonitor {
         
         double impact = 0.0;
         double weight = 0.0;
-        
-        
+
         double securityImprovement = calculateSecurityImprovement(metrics);
         impact += securityImprovement * 0.4;
         weight += 0.4;
-        
-        
+
         double performanceImpact = calculatePerformanceImpact(metrics);
         impact += performanceImpact * 0.2;
         weight += 0.2;
-        
-        
+
         double falsePositiveReduction = calculateFalsePositiveReduction(metrics);
         impact += falsePositiveReduction * 0.2;
         weight += 0.2;
-        
-        
+
         double userImpact = calculateUserImpact(metrics);
         impact += userImpact * 0.1;
         weight += 0.1;
-        
-        
+
         double costEfficiency = calculateCostEfficiency(metrics);
         impact += costEfficiency * 0.1;
         weight += 0.1;
-        
-        
+
         double actualImpact = weight > 0 ? impact / weight : 0.0;
-        
-        
+
         updateProposalActualImpact(proposalId, actualImpact);
         
-        log.info("Actual impact calculated for proposal {}: {}", proposalId, actualImpact);
-        return actualImpact;
+                return actualImpact;
     }
-    
-    
+
     public EffectivenessReport getEffectivenessReport(Long proposalId) {
         PolicyMetrics metrics = metricsStore.get(proposalId);
         if (metrics == null) {
@@ -174,13 +150,10 @@ public class PolicyEffectivenessMonitor {
             .measurements(metrics.getMeasurements())
             .build();
     }
-    
-    
 
     @Transactional
     public void evaluateActivePolices() {
-        log.info("Starting periodic effectiveness evaluation");
-        
+                
         try {
             
             List<PolicyEvolutionProposal> activeProposals = 
@@ -188,16 +161,13 @@ public class PolicyEffectivenessMonitor {
             
             for (PolicyEvolutionProposal proposal : activeProposals) {
                 Long proposalId = proposal.getId();
-                
-                
+
                 if (!metricsStore.containsKey(proposalId)) {
                     startMonitoring(proposalId);
                 }
-                
-                
+
                 double actualImpact = calculateActualImpact(proposalId);
-                
-                
+
                 Double expectedImpact = proposal.getExpectedImpact();
                 if (expectedImpact != null) {
                     double deviation = Math.abs(actualImpact - expectedImpact);
@@ -205,31 +175,24 @@ public class PolicyEffectivenessMonitor {
                     if (deviation > 0.3) {
                         log.warn("Significant deviation detected for proposal {}: " +
                             "expected={}, actual={}", proposalId, expectedImpact, actualImpact);
-                        
-                        
+
                         triggerReEvaluation(proposal, actualImpact, expectedImpact);
                     }
                 }
-                
-                
+
                 if (actualImpact < 0.3) {
                     log.warn("Low performing policy detected: {}", proposalId);
                     markAsLowPerforming(proposal);
                 }
             }
-            
-            
+
             cleanupOldMetrics();
-            
-            log.info("Periodic effectiveness evaluation completed");
-            
+
         } catch (Exception e) {
             log.error("Error during effectiveness evaluation", e);
         }
     }
-    
-    
-    
+
     private void establishBaseline(Long proposalId) {
         
         recordMetric(proposalId, MetricType.BASELINE_THREATS, 0);
@@ -263,8 +226,7 @@ public class PolicyEffectivenessMonitor {
     private double calculateSecurityImprovement(PolicyMetrics metrics) {
         
         double blockRate = calculateBlockRate(metrics);
-        
-        
+
         double baselineThreats = getBaselineMetric(metrics, MetricType.BASELINE_THREATS);
         double currentThreats = metrics.getDetectedThreats();
         
@@ -325,8 +287,7 @@ public class PolicyEffectivenessMonitor {
         if (metrics.getMeasurements().size() < 2) {
             return 0.0;
         }
-        
-        
+
         List<Measurement> measurements = metrics.getMeasurements().stream()
             .filter(m -> m.getMetricType() == MetricType.THREATS_BLOCKED)
             .collect(Collectors.toList());
@@ -385,11 +346,7 @@ public class PolicyEffectivenessMonitor {
     
     private void triggerReEvaluation(PolicyEvolutionProposal proposal, 
                                     double actualImpact, double expectedImpact) {
-        log.info("Triggering re-evaluation for proposal {}: actual={}, expected={}", 
-            proposal.getId(), actualImpact, expectedImpact);
-        
-        
-        
+
     }
     
     private void markAsLowPerforming(PolicyEvolutionProposal proposal) {
@@ -406,10 +363,7 @@ public class PolicyEffectivenessMonitor {
             return metrics.getEndTime() != null && metrics.getEndTime().isBefore(cutoff);
         });
     }
-    
-    
-    
-    
+
     @lombok.Builder
     @lombok.Data
     private static class PolicyMetrics {
@@ -430,8 +384,7 @@ public class PolicyEffectivenessMonitor {
             this.detectedThreats++;
         }
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class Measurement {
@@ -439,8 +392,7 @@ public class PolicyEffectivenessMonitor {
         private MetricType metricType;
         private double value;
     }
-    
-    
+
     @lombok.Data
     private static class PerformanceData {
         private double averageResponseTime;
@@ -459,8 +411,7 @@ public class PolicyEffectivenessMonitor {
                 .orElse(0.0);
         }
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class EffectivenessReport {
@@ -478,8 +429,7 @@ public class PolicyEffectivenessMonitor {
         private double improvementRate;
         private List<Measurement> measurements;
     }
-    
-    
+
     public enum MetricType {
         THREATS_DETECTED,
         THREATS_BLOCKED,
@@ -493,8 +443,7 @@ public class PolicyEffectivenessMonitor {
         BASELINE_RESPONSE_TIME,
         BASELINE_FALSE_POSITIVES
     }
-    
-    
+
     public enum MonitoringStatus {
         NOT_MONITORED,
         ACTIVE,

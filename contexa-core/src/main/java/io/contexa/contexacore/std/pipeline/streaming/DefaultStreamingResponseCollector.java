@@ -2,7 +2,6 @@ package io.contexa.contexacore.std.pipeline.streaming;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-
 public class DefaultStreamingResponseCollector implements StreamingResponseCollector {
 
     private final ConcurrentLinkedQueue<String> chunks = new ConcurrentLinkedQueue<>();

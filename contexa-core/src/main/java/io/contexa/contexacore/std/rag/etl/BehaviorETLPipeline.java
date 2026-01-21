@@ -29,7 +29,6 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 @RequiredArgsConstructor
 public class BehaviorETLPipeline {
     
@@ -57,7 +56,6 @@ public class BehaviorETLPipeline {
     private BehaviorDataValidator dataValidator;
     private BehaviorAnonymizer anonymizer;
 
-    
     private final Map<String, Long> metrics = new ConcurrentHashMap<>();
     private final Map<String, ETLJobStatus> jobStatuses = new ConcurrentHashMap<>();
     
@@ -66,15 +64,12 @@ public class BehaviorETLPipeline {
         executorService = Executors.newFixedThreadPool(parallelReaders);
         
         this.textSplitter = new TokenTextSplitter(chunkSize, chunkOverlap, 5, 10000, true);
-        
-        
+
         this.dataValidator = new BehaviorDataValidator();
-        
-        
+
         this.anonymizer = new BehaviorAnonymizer();
     }
-    
-    
+
     @Async
     public CompletableFuture<String> executePipeline(String dataSource, SourceType sourceType) {
         String jobId = UUID.randomUUID().toString();
@@ -84,23 +79,19 @@ public class BehaviorETLPipeline {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 jobStatus.setStatus(JobStatus.RUNNING);
-                
-                
+
                 List<Document> rawDocuments = extractData(dataSource, sourceType, jobStatus);
                 jobStatus.setExtractedCount(rawDocuments.size());
-                
-                
+
                 List<Document> transformedDocuments = transformData(rawDocuments, jobStatus);
                 jobStatus.setTransformedCount(transformedDocuments.size());
-                
-                
+
                 loadData(transformedDocuments, jobStatus);
                 jobStatus.setLoadedCount(transformedDocuments.size());
                 
                 jobStatus.setStatus(JobStatus.COMPLETED);
                 jobStatus.setEndTime(LocalDateTime.now());
-                
-                
+
                 updateMetrics(jobStatus);
                 
                 return jobId;
@@ -113,8 +104,7 @@ public class BehaviorETLPipeline {
             }
         }, executorService);
     }
-    
-    
+
     private List<Document> extractData(String dataSource, SourceType sourceType, ETLJobStatus jobStatus) {
         List<Document> documents = new ArrayList<>();
         
@@ -135,8 +125,7 @@ public class BehaviorETLPipeline {
         
         return documents;
     }
-    
-    
+
     private List<Document> extractFromFile(String filePath) {
         List<Document> documents = new ArrayList<>();
         Path path = Paths.get(filePath);
@@ -154,8 +143,7 @@ public class BehaviorETLPipeline {
                             futures.add(future);
                         });
                 }
-                
-                
+
                 for (CompletableFuture<List<Document>> future : futures) {
                     documents.addAll(future.join());
                 }
@@ -171,15 +159,13 @@ public class BehaviorETLPipeline {
         
         return documents;
     }
-    
-    
+
     private List<Document> readSingleFile(Path file) {
         String fileName = file.getFileName().toString().toLowerCase();
         
         try {
             if (fileName.endsWith(".json")) {
-                
-                
+
                 Resource resource = new FileSystemResource(file.toFile());
                 JsonReader reader = new JsonReader(resource, "userId", "timestamp", "activity");
                 return reader.get();
@@ -188,8 +174,7 @@ public class BehaviorETLPipeline {
                 
                 TextReader reader = new TextReader(file.toUri().toString());
                 List<Document> docs = reader.get();
-                
-                
+
                 return parseLogDocuments(docs);
                 
             } else if (fileName.endsWith(".csv")) {
@@ -203,8 +188,7 @@ public class BehaviorETLPipeline {
         
         return Collections.emptyList();
     }
-    
-    
+
     private List<Document> readCsvFile(Path file) throws IOException {
         List<Document> documents = new ArrayList<>();
         List<String> lines = Files.readAllLines(file);
@@ -233,8 +217,7 @@ public class BehaviorETLPipeline {
         
         return documents;
     }
-    
-    
+
     private List<Document> parseLogDocuments(List<Document> rawDocs) {
         List<Document> parsedDocs = new ArrayList<>();
         
@@ -255,12 +238,10 @@ public class BehaviorETLPipeline {
         
         return parsedDocs;
     }
-    
-    
+
     private Map<String, Object> parseLogLine(String line) {
         Map<String, Object> metadata = new HashMap<>();
-        
-        
+
         String timestampPattern = "\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}";
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(timestampPattern);
         java.util.regex.Matcher matcher = pattern.matcher(line);
@@ -268,21 +249,18 @@ public class BehaviorETLPipeline {
         if (matcher.find()) {
             metadata.put("timestamp", matcher.group());
         }
-        
-        
+
         if (line.contains("ERROR")) metadata.put("level", "ERROR");
         else if (line.contains("WARN")) metadata.put("level", "WARN");
         else if (line.contains("INFO")) metadata.put("level", "INFO");
         else if (line.contains("DEBUG")) metadata.put("level", "DEBUG");
-        
-        
+
         pattern = java.util.regex.Pattern.compile("user[Id]*[:=]([\\w-]+)", java.util.regex.Pattern.CASE_INSENSITIVE);
         matcher = pattern.matcher(line);
         if (matcher.find()) {
             metadata.put("userId", matcher.group(1));
         }
-        
-        
+
         pattern = java.util.regex.Pattern.compile("\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b");
         matcher = pattern.matcher(line);
         if (matcher.find()) {
@@ -291,8 +269,7 @@ public class BehaviorETLPipeline {
         
         return metadata;
     }
-    
-    
+
     private List<Document> extractFromDatabase(String query) {
         List<Document> documents = new ArrayList<>();
         
@@ -319,42 +296,32 @@ public class BehaviorETLPipeline {
         
         return documents;
     }
-    
-    
+
     private List<Document> extractFromAPI(String endpoint) {
-        
-        
+
         return new ArrayList<>();
     }
-    
-    
+
     private List<Document> extractFromStream(String streamConfig) {
-        
-        
+
         return new ArrayList<>();
     }
-    
-    
+
     private List<Document> transformData(List<Document> documents, ETLJobStatus jobStatus) {
         if (documents == null || documents.isEmpty()) {
             return documents;
         }
-        
-        
+
         documents = dataValidator.apply(documents);
-        
-        
+
         documents = anonymizer.apply(documents);
-        
-        
+
         documents = metadataEnricher.apply(documents);
-        
-        
+
         List<Document> chunkedDocuments = new ArrayList<>();
         for (Document doc : documents) {
             List<Document> chunks = textSplitter.apply(List.of(doc));
-            
-            
+
             for (int i = 0; i < chunks.size(); i++) {
                 Document chunk = chunks.get(i);
                 chunk.getMetadata().putAll(doc.getMetadata());
@@ -365,14 +332,12 @@ public class BehaviorETLPipeline {
             
             chunkedDocuments.addAll(chunks);
         }
-        
-        
+
         chunkedDocuments = removeDuplicates(chunkedDocuments);
         
         return chunkedDocuments;
     }
-    
-    
+
     private List<Document> removeDuplicates(List<Document> documents) {
         Set<String> contentHashes = new HashSet<>();
         List<Document> uniqueDocs = new ArrayList<>();
@@ -388,8 +353,7 @@ public class BehaviorETLPipeline {
         
         return uniqueDocs;
     }
-    
-    
+
     private String generateContentHash(Document document) {
         String content = document.getText();
         String userId = (String) document.getMetadata().get("userId");
@@ -401,36 +365,29 @@ public class BehaviorETLPipeline {
         
         return Integer.toHexString(combined.hashCode());
     }
-    
-    
+
     @Transactional
     public void loadData(List<Document> documents, ETLJobStatus jobStatus) {
         if (documents == null || documents.isEmpty()) {
             return;
         }
-        
-        
+
         for (int i = 0; i < documents.size(); i += batchSize) {
             int end = Math.min(i + batchSize, documents.size());
             List<Document> batch = documents.subList(i, end);
-            
-            
+
             vectorStore.add(batch);
-            
-            
+
             jobStatus.setLoadedCount(i + batch.size());
         }
-        
-        
+
         cleanupOldData();
     }
-    
-    
+
     private void cleanupOldData() {
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(retentionDays);
         String cutoffDateStr = cutoffDate.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        
-        
+
         List<String> oldDocumentIds = jdbcTemplate.queryForList(
             "SELECT id FROM vector_store WHERE metadata->>'timestamp' < ?",
             String.class,
@@ -442,8 +399,7 @@ public class BehaviorETLPipeline {
             metrics.put("deletedOldDocuments", (long) oldDocumentIds.size());
         }
     }
-    
-    
+
     private void updateMetrics(ETLJobStatus jobStatus) {
         metrics.put("lastJobDuration", 
             java.time.Duration.between(jobStatus.getStartTime(), jobStatus.getEndTime()).toMillis());
@@ -452,38 +408,31 @@ public class BehaviorETLPipeline {
         metrics.put("totalDocumentsProcessed", 
             metrics.getOrDefault("totalDocumentsProcessed", 0L) + jobStatus.getLoadedCount());
     }
-    
-    
+
     public ETLJobStatus getJobStatus(String jobId) {
         return jobStatuses.get(jobId);
     }
-    
-    
+
     public List<ETLJobStatus> getAllJobStatuses() {
         return new ArrayList<>(jobStatuses.values());
     }
-    
-    
+
     public Map<String, Long> getMetrics() {
         return new HashMap<>(metrics);
     }
-    
-    
+
     public void shutdown() {
         executorService.shutdown();
     }
-    
-    
+
     public enum SourceType {
         FILE, DATABASE, API, STREAM
     }
-    
-    
+
     public enum JobStatus {
         PENDING, RUNNING, COMPLETED, FAILED
     }
-    
-    
+
     public static class ETLJobStatus {
         private final String jobId;
         private final LocalDateTime startTime;
@@ -498,8 +447,7 @@ public class BehaviorETLPipeline {
             this.jobId = jobId;
             this.startTime = startTime;
         }
-        
-        
+
         public String getJobId() { return jobId; }
         public LocalDateTime getStartTime() { return startTime; }
         public LocalDateTime getEndTime() { return endTime; }
@@ -515,8 +463,7 @@ public class BehaviorETLPipeline {
         public String getErrorMessage() { return errorMessage; }
         public void setErrorMessage(String message) { this.errorMessage = message; }
     }
-    
-    
+
     public static class ETLPipelineException extends RuntimeException {
         public ETLPipelineException(String message) {
             super(message);
@@ -526,8 +473,7 @@ public class BehaviorETLPipeline {
             super(message, cause);
         }
     }
-    
-    
+
     private static class BehaviorDataValidator implements DocumentTransformer {
         @Override
         public List<Document> apply(List<Document> documents) {
@@ -542,15 +488,13 @@ public class BehaviorETLPipeline {
                 .collect(Collectors.toList());
         }
     }
-    
-    
+
     private static class BehaviorAnonymizer implements DocumentTransformer {
         @Override
         public List<Document> apply(List<Document> documents) {
             for (Document doc : documents) {
                 Map<String, Object> metadata = doc.getMetadata();
-                
-                
+
                 if (metadata.containsKey("email")) {
                     String email = (String) metadata.get("email");
                     metadata.put("email", anonymizeEmail(email));
@@ -563,8 +507,7 @@ public class BehaviorETLPipeline {
                 if (metadata.containsKey("ssn")) {
                     metadata.remove("ssn");
                 }
-                
-                
+
                 if (metadata.containsKey("ipAddress")) {
                     String ip = (String) metadata.get("ipAddress");
                     metadata.put("ipAddress", maskIpAddress(ip));

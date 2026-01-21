@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class BackpressureManager {
 
@@ -35,15 +34,12 @@ public class BackpressureManager {
     @Value("${security.backpressure.circuit-breaker.wait-duration-open:60}")
     private int circuitBreakerWaitDurationOpen;
 
-    
     private Semaphore requestSemaphore;
 
-    
     private CircuitBreaker kafkaCircuitBreaker;
     private CircuitBreaker redisCircuitBreaker;
     private CircuitBreaker aiCircuitBreaker;
 
-    
     private final AtomicInteger activeRequests = new AtomicInteger(0);
     private final AtomicLong rejectedRequests = new AtomicLong(0);
     private final AtomicLong timeoutRequests = new AtomicLong(0);
@@ -58,7 +54,6 @@ public class BackpressureManager {
         
         requestSemaphore = new Semaphore(maxConcurrentRequests);
 
-        
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
             .failureRateThreshold(circuitBreakerFailureRate)
             .waitDurationInOpenState(Duration.ofSeconds(circuitBreakerWaitDurationOpen))
@@ -72,7 +67,6 @@ public class BackpressureManager {
         redisCircuitBreaker = circuitBreakerRegistry.circuitBreaker("redis", config);
         aiCircuitBreaker = circuitBreakerRegistry.circuitBreaker("ai-inference", config);
 
-        
         Gauge.builder("backpressure.active.requests", activeRequests, AtomicInteger::get)
             .description("Number of active concurrent requests")
             .register(meterRegistry);
@@ -89,19 +83,14 @@ public class BackpressureManager {
             .description("Number of available request permits")
             .register(meterRegistry);
 
-        log.info("BackpressureManager initialized: maxConcurrentRequests={}, timeoutMs={}, failureRate={}%",
-            maxConcurrentRequests, timeoutMs, circuitBreakerFailureRate);
-    }
+            }
 
-    
     public boolean tryAcquire() {
         try {
             boolean acquired = requestSemaphore.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
             if (acquired) {
                 activeRequests.incrementAndGet();
-                log.debug("Request permit acquired: active={}, available={}",
-                    activeRequests.get(), requestSemaphore.availablePermits());
-                return true;
+                                return true;
             } else {
                 rejectedRequests.incrementAndGet();
                 log.warn("Request REJECTED due to backpressure: active={}, max={}",
@@ -116,15 +105,11 @@ public class BackpressureManager {
         }
     }
 
-    
     public void release() {
         requestSemaphore.release();
         activeRequests.decrementAndGet();
-        log.debug("Request permit released: active={}, available={}",
-            activeRequests.get(), requestSemaphore.availablePermits());
-    }
+            }
 
-    
     public boolean isKafkaAvailable() {
         CircuitBreaker.State state = kafkaCircuitBreaker.getState();
         boolean available = state == CircuitBreaker.State.CLOSED || state == CircuitBreaker.State.HALF_OPEN;
@@ -136,7 +121,6 @@ public class BackpressureManager {
         return available;
     }
 
-    
     public boolean isRedisAvailable() {
         CircuitBreaker.State state = redisCircuitBreaker.getState();
         boolean available = state == CircuitBreaker.State.CLOSED || state == CircuitBreaker.State.HALF_OPEN;
@@ -148,7 +132,6 @@ public class BackpressureManager {
         return available;
     }
 
-    
     public boolean isAIAvailable() {
         CircuitBreaker.State state = aiCircuitBreaker.getState();
         boolean available = state == CircuitBreaker.State.CLOSED || state == CircuitBreaker.State.HALF_OPEN;
@@ -160,37 +143,30 @@ public class BackpressureManager {
         return available;
     }
 
-    
     public void recordKafkaSuccess() {
         kafkaCircuitBreaker.onSuccess(0, TimeUnit.MILLISECONDS);
     }
 
-    
     public void recordKafkaFailure(Throwable throwable) {
         kafkaCircuitBreaker.onError(0, TimeUnit.MILLISECONDS, throwable);
     }
 
-    
     public void recordRedisSuccess() {
         redisCircuitBreaker.onSuccess(0, TimeUnit.MILLISECONDS);
     }
 
-    
     public void recordRedisFailure(Throwable throwable) {
         redisCircuitBreaker.onError(0, TimeUnit.MILLISECONDS, throwable);
     }
 
-    
     public void recordAISuccess() {
         aiCircuitBreaker.onSuccess(0, TimeUnit.MILLISECONDS);
     }
 
-    
     public void recordAIFailure(Throwable throwable) {
         aiCircuitBreaker.onError(0, TimeUnit.MILLISECONDS, throwable);
     }
 
-    
     public BackpressureStatus getStatus() {
         return BackpressureStatus.builder()
             .activeRequests(activeRequests.get())
@@ -205,7 +181,6 @@ public class BackpressureManager {
             .build();
     }
 
-    
     public void adjustConcurrency(int newMaxConcurrentRequests) {
         if (newMaxConcurrentRequests <= 0 || newMaxConcurrentRequests > 1000) {
             log.warn("Invalid concurrency adjustment: {}", newMaxConcurrentRequests);
@@ -220,11 +195,8 @@ public class BackpressureManager {
         }
 
         maxConcurrentRequests = newMaxConcurrentRequests;
-        log.info("Concurrency adjusted: newMax={}, active={}",
-            maxConcurrentRequests, activeRequests.get());
-    }
+            }
 
-    
     @lombok.Data
     @lombok.Builder
     public static class BackpressureStatus {

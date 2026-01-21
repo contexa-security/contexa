@@ -11,29 +11,23 @@ import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 @Data
 @ConfigurationProperties(prefix = "spring.ai.security.mapping")
 public class SecurityMappingProperties {
 
-    
     @NestedConfigurationProperty
     private Map<String, Integer> taskToTier = new HashMap<>();
 
-    
     @NestedConfigurationProperty
     private Map<String, String> taskToAnalysisLevel = new HashMap<>();
 
-    
     @NestedConfigurationProperty
     private Map<String, TaskConfig> taskConfigs = new HashMap<>();
 
-    
     @NestedConfigurationProperty
     private DefaultMappings defaults = new DefaultMappings();
 
-    
     @Data
     public static class TaskConfig {
         private Integer tier = 2;
@@ -48,7 +42,6 @@ public class SecurityMappingProperties {
         private Map<String, Object> metadata = new HashMap<>();
     }
 
-    
     @Data
     public static class DefaultMappings {
         
@@ -57,14 +50,12 @@ public class SecurityMappingProperties {
             "QUICK_DETECTION"
         };
 
-        
         private String[] tier2Tasks = {
             "CONTEXTUAL_ANALYSIS",
             "BEHAVIOR_ANALYSIS",
             "CORRELATION"
         };
 
-        
         private String[] tier3Tasks = {
             "EXPERT_INVESTIGATION",
             "INCIDENT_RESPONSE",
@@ -73,14 +64,11 @@ public class SecurityMappingProperties {
             "APPROVAL_WORKFLOW"
         };
 
-        
         private Integer defaultTier = 2;
 
-        
         private String defaultAnalysisLevel = "NORMAL";
     }
 
-    
     public int getTierForSecurityTask(ExecutionContext.SecurityTaskType taskType) {
         if (taskType == null) {
             return defaults.getDefaultTier();
@@ -88,12 +76,10 @@ public class SecurityMappingProperties {
 
         String taskName = taskType.name();
 
-        
         if (taskToTier.containsKey(taskName)) {
             return taskToTier.get(taskName);
         }
 
-        
         if (taskConfigs.containsKey(taskName)) {
             TaskConfig config = taskConfigs.get(taskName);
             if (config.getTier() != null) {
@@ -101,7 +87,6 @@ public class SecurityMappingProperties {
             }
         }
 
-        
         for (String tier1Task : defaults.getTier1Tasks()) {
             if (tier1Task.equals(taskName)) {
                 return 1;
@@ -120,13 +105,9 @@ public class SecurityMappingProperties {
             }
         }
 
-        
-        log.debug("SecurityTaskType {}에 대한 매핑을 찾을 수 없음. 기본값 {} 사용",
-                taskName, defaults.getDefaultTier());
-        return defaults.getDefaultTier();
+                return defaults.getDefaultTier();
     }
 
-    
     public ExecutionContext.AnalysisLevel getAnalysisLevelForSecurityTask(ExecutionContext.SecurityTaskType taskType) {
         if (taskType == null) {
             return ExecutionContext.AnalysisLevel.valueOf(defaults.getDefaultAnalysisLevel());
@@ -134,7 +115,6 @@ public class SecurityMappingProperties {
 
         String taskName = taskType.name();
 
-        
         if (taskToAnalysisLevel.containsKey(taskName)) {
             String levelName = taskToAnalysisLevel.get(taskName);
             try {
@@ -145,7 +125,6 @@ public class SecurityMappingProperties {
             }
         }
 
-        
         if (taskConfigs.containsKey(taskName)) {
             TaskConfig config = taskConfigs.get(taskName);
             if (config.getAnalysisLevel() != null) {
@@ -157,7 +136,6 @@ public class SecurityMappingProperties {
             }
         }
 
-        
         int tier = getTierForSecurityTask(taskType);
         return switch (tier) {
             case 1 -> ExecutionContext.AnalysisLevel.QUICK;
@@ -167,7 +145,6 @@ public class SecurityMappingProperties {
         };
     }
 
-    
     public TaskConfig getTaskConfig(ExecutionContext.SecurityTaskType taskType) {
         if (taskType == null) {
             return createDefaultTaskConfig();
@@ -175,17 +152,14 @@ public class SecurityMappingProperties {
 
         String taskName = taskType.name();
 
-        
         TaskConfig config = taskConfigs.get(taskName);
         if (config != null) {
             return config;
         }
 
-        
         return createDefaultTaskConfig(taskType);
     }
 
-    
     private TaskConfig createDefaultTaskConfig() {
         TaskConfig config = new TaskConfig();
         config.setTier(defaults.getDefaultTier());
@@ -193,13 +167,11 @@ public class SecurityMappingProperties {
         return config;
     }
 
-    
     private TaskConfig createDefaultTaskConfig(ExecutionContext.SecurityTaskType taskType) {
         TaskConfig config = new TaskConfig();
         int tier = getTierForSecurityTask(taskType);
         config.setTier(tier);
 
-        
         switch (tier) {
             case 1 -> {
                 config.setAnalysisLevel("QUICK");
@@ -214,7 +186,6 @@ public class SecurityMappingProperties {
                 config.setAnalysisLevel("DEEP");
                 config.setPreferCloudModel(true);
 
-                
                 if (taskType == ExecutionContext.SecurityTaskType.SOAR_AUTOMATION ||
                     taskType == ExecutionContext.SecurityTaskType.APPROVAL_WORKFLOW) {
                     config.setToolExecutionEnabled(true);
@@ -225,46 +196,24 @@ public class SecurityMappingProperties {
         return config;
     }
 
-    
     @PostConstruct
     public void validateConfiguration() {
-        log.info("보안 태스크 매핑 설정 검증 시작");
 
-        
         if (!taskToTier.isEmpty()) {
-            log.info("명시적 TaskType -> Tier 매핑: {} 개", taskToTier.size());
-            for (Map.Entry<String, Integer> entry : taskToTier.entrySet()) {
-                log.debug("  - {} -> Tier {}", entry.getKey(), entry.getValue());
-            }
+                        for (Map.Entry<String, Integer> entry : taskToTier.entrySet()) {
+                            }
         }
 
-        
         if (!taskConfigs.isEmpty()) {
-            log.info("태스크별 상세 설정: {} 개", taskConfigs.size());
-            for (Map.Entry<String, TaskConfig> entry : taskConfigs.entrySet()) {
+                        for (Map.Entry<String, TaskConfig> entry : taskConfigs.entrySet()) {
                 TaskConfig config = entry.getValue();
-                log.debug("  - {}: tier={}, analysisLevel={}, toolExecution={}",
-                        entry.getKey(), config.getTier(), config.getAnalysisLevel(),
-                        config.getToolExecutionEnabled());
-            }
+                            }
         }
 
-        
-        log.info("기본 매핑 설정:");
-        log.debug("  - Tier 1 태스크: {} 개", defaults.getTier1Tasks().length);
-        log.debug("  - Tier 2 태스크: {} 개", defaults.getTier2Tasks().length);
-        log.debug("  - Tier 3 태스크: {} 개", defaults.getTier3Tasks().length);
-        log.debug("  - 기본 Tier: {}", defaults.getDefaultTier());
-        log.debug("  - 기본 AnalysisLevel: {}", defaults.getDefaultAnalysisLevel());
-
-        
         for (ExecutionContext.SecurityTaskType taskType : ExecutionContext.SecurityTaskType.values()) {
             int tier = getTierForSecurityTask(taskType);
             ExecutionContext.AnalysisLevel level = getAnalysisLevelForSecurityTask(taskType);
-            log.debug("매핑 확인 - {}: Tier={}, AnalysisLevel={}",
-                    taskType, tier, level);
-        }
+                    }
 
-        log.info("보안 태스크 매핑 설정 검증 완료");
-    }
+            }
 }

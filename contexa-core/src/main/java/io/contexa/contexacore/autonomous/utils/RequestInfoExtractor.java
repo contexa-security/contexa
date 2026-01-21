@@ -10,7 +10,6 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.UUID;
 
-
 @Slf4j
 public final class RequestInfoExtractor {
 
@@ -18,7 +17,6 @@ public final class RequestInfoExtractor {
         
     }
 
-    
     public static RequestInfo extract(HttpServletRequest request, TieredStrategyProperties.Security security) {
         if (request == null) {
             return null;
@@ -44,7 +42,6 @@ public final class RequestInfoExtractor {
                 .build();
     }
 
-    
     public static String extractClientIp(HttpServletRequest request, TieredStrategyProperties.Security security) {
         String remoteAddr = request.getRemoteAddr();
 
@@ -54,30 +51,24 @@ public final class RequestInfoExtractor {
 
         List<String> trustedProxies = security.getTrustedProxies();
 
-        
         if (trustedProxies == null || trustedProxies.isEmpty()) {
-            log.debug("[RequestInfoExtractor] No trusted proxies configured, using remoteAddr: {}", remoteAddr);
-            return remoteAddr;
+                        return remoteAddr;
         }
 
-        
         if (isTrustedProxy(remoteAddr, trustedProxies)) {
             
             String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
                 String clientIp = xForwardedFor.split(",")[0].trim();
-                log.debug("[RequestInfoExtractor] Trusted proxy {}, using X-Forwarded-For: {}", remoteAddr, clientIp);
-                return clientIp;
+                                return clientIp;
             }
 
             String xRealIp = request.getHeader("X-Real-IP");
             if (xRealIp != null && !xRealIp.isEmpty()) {
-                log.debug("[RequestInfoExtractor] Trusted proxy {}, using X-Real-IP: {}", remoteAddr, xRealIp);
-                return xRealIp;
+                                return xRealIp;
             }
         } else {
-            
-            
+
             String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
                 log.warn("[RequestInfoExtractor] Untrusted source {} sent X-Forwarded-For header (ignored): {}",
@@ -88,7 +79,6 @@ public final class RequestInfoExtractor {
         return remoteAddr;
     }
 
-    
     public static String extractUserAgent(HttpServletRequest request) {
         
         String userAgent = request.getHeader("X-Simulated-User-Agent");
@@ -99,14 +89,11 @@ public final class RequestInfoExtractor {
         return userAgent != null ? userAgent : "unknown";
     }
 
-    
     public static String extractRequestId(HttpServletRequest request) {
         String requestId = request.getHeader("X-Request-ID");
         return (requestId != null && !requestId.isEmpty()) ?
                 requestId : UUID.randomUUID().toString();
     }
-
-    
 
     private static String extractClientIpLegacy(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
@@ -164,23 +151,19 @@ public final class RequestInfoExtractor {
             byte[] ipBytes = inetIp.getAddress();
             byte[] networkBytes = inetNetwork.getAddress();
 
-            
             if (ipBytes.length != networkBytes.length) {
                 return false;
             }
 
-            
             int fullBytes = prefixLength / 8;
             int remainingBits = prefixLength % 8;
 
-            
             for (int i = 0; i < fullBytes; i++) {
                 if (ipBytes[i] != networkBytes[i]) {
                     return false;
                 }
             }
 
-            
             if (remainingBits > 0 && fullBytes < ipBytes.length) {
                 int mask = (0xFF << (8 - remainingBits)) & 0xFF;
                 return (ipBytes[fullBytes] & mask) == (networkBytes[fullBytes] & mask);
@@ -188,12 +171,9 @@ public final class RequestInfoExtractor {
 
             return true;
         } catch (Exception e) {
-            log.debug("[RequestInfoExtractor] CIDR check failed for ip={}, cidr={}: {}", ip, cidr, e.getMessage());
-            return false;
+                        return false;
         }
     }
-
-    
 
     @Builder
     @Getter
@@ -210,7 +190,6 @@ public final class RequestInfoExtractor {
         private final String protocol;
         private final boolean secure;
 
-        
         private final Boolean isNewSession;
         private final Boolean isNewUser;
         private final Boolean isNewDevice;

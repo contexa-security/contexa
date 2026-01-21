@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class RealtimeBlockStrategy implements ProcessingStrategy {
@@ -49,21 +48,18 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
                 context.addResponseAction("USER_BLOCKED", "User account blocked: " + event.getUserId());
             }
 
-            
             if (event.getSourceIp() != null) {
                 blockIpAddress(event.getSourceIp());
                 executedActions.add("IP_BLOCKED");
                 context.addResponseAction("IP_BLOCKED", "IP address blocked: " + event.getSourceIp());
             }
 
-            
             if (event.getSessionId() != null) {
                 invalidateSession(event.getSessionId(), event.getUserId());
                 executedActions.add("SESSION_INVALIDATED");
                 context.addResponseAction("SESSION_INVALIDATED", "Session invalidated: " + event.getSessionId());
             }
 
-            
             if (soarNotifier != null) {
                 NotificationResult notifyResult = sendCriticalAlert(event, context);
                 if (notifyResult.isSuccess()) {
@@ -72,7 +68,6 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
                 }
             }
 
-            
             isolateThreat(event, context);
             executedActions.add("THREAT_ISOLATED");
             context.addResponseAction("THREAT_ISOLATED", "Threat isolated and contained");
@@ -81,10 +76,6 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
             metadata.put("threatLevel", "CRITICAL");
             metadata.put("immediateAction", true);
 
-            log.info("[RealtimeBlockStrategy] Critical threat blocked - eventId: {}, actions: {}",
-                    event.getEventId(), executedActions);
-
-            
             return ProcessingResult.builder()
                     .success(true)
                     .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
@@ -104,13 +95,11 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private void blockUserAccount(String userId) {
         try {
             String blockKey = "security:blocked:users:" + userId;
             redisTemplate.opsForValue().set(blockKey, true);
 
-            
             String trustKey = "security:user:trust:" + userId;
             redisTemplate.opsForValue().set(trustKey, 0.0);
 
@@ -120,7 +109,6 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private void blockIpAddress(String ip) {
         try {
             String blockKey = "security:blocked:ips:" + ip;
@@ -132,14 +120,12 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private void invalidateSession(String sessionId, String userId) {
         try {
             
             String sessionKey = "security:sessions:" + sessionId;
             redisTemplate.delete(sessionKey);
 
-            
             Map<String, Object> invalidationEvent = new HashMap<>();
             invalidationEvent.put("sessionId", sessionId);
             invalidationEvent.put("userId", userId);
@@ -155,7 +141,6 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private NotificationResult sendCriticalAlert(SecurityEvent event, SecurityEventContext context) {
         try {
             Map<String, Object> notificationData = new HashMap<>();
@@ -174,7 +159,6 @@ public class RealtimeBlockStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private void isolateThreat(SecurityEvent event, SecurityEventContext context) {
         try {
             

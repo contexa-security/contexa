@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Data
 @EqualsAndHashCode(callSuper = false)
 public class StaticAccessAnalysisEvent extends ApplicationEvent implements LearnableEvent {
@@ -25,8 +24,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
     private final Map<String, Object> context;
     private final boolean responseSuccessful;
     private final String responseDescription;
-    
-    
+
     private final AnalysisType analysisType;
     private final List<AccessFinding> findings;
     private final String analyzedResource;
@@ -35,8 +33,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
     private final Integer unusedPermissions;
     private final Integer overPrivilegedCount;
     private final Map<String, Object> recommendations;
-    
-    
+
     public enum AnalysisType {
         UNUSED_PERMISSIONS,      
         OVER_PRIVILEGED,        
@@ -45,8 +42,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         ACCESS_REVIEW,          
         COMPLIANCE_CHECK        
     }
-    
-    
+
     @Data
     @Builder
     public static class AccessFinding {
@@ -61,8 +57,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         private String recommendation;
         private LocalDateTime lastUsed;
         private Integer riskScore;
-        
-        
+
         public String getFindingType() {
             return type;
         }
@@ -103,44 +98,36 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         this.recommendations = recommendations != null ? recommendations : new HashMap<>();
         this.responseSuccessful = true;  
         this.responseDescription = "권한 분석 완료";
-        
-        
+
         this.context = buildContext(additionalContext);
     }
-    
-    
+
     private Map<String, Object> buildContext(Map<String, Object> additionalContext) {
         Map<String, Object> ctx = new HashMap<>();
-        
-        
+
         ctx.put("analysisType", analysisType);
         ctx.put("analyzedResource", analyzedResource);
         ctx.put("analyzedUser", analyzedUser);
-        
-        
+
         ctx.put("totalPermissions", totalPermissions);
         ctx.put("unusedPermissions", unusedPermissions);
         ctx.put("overPrivilegedCount", overPrivilegedCount);
-        
-        
+
         if (findings != null && !findings.isEmpty()) {
             ctx.put("findingsCount", findings.size());
             ctx.put("criticalFindings", countCriticalFindings());
             ctx.put("highRiskFindings", countHighRiskFindings());
         }
-        
-        
+
         ctx.put("recommendations", recommendations);
-        
-        
+
         if (additionalContext != null) {
             ctx.putAll(additionalContext);
         }
         
         return ctx;
     }
-    
-    
+
     public String generateNaturalLanguageDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("분석 유형: ").append(getAnalysisTypeDescription()).append("\n");
@@ -162,8 +149,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         
         return sb.toString();
     }
-    
-    
+
     public Map<String, String> extractLearningFeatures() {
         Map<String, String> features = new HashMap<>();
         features.put("analysis_type", analysisType.toString());

@@ -11,74 +11,52 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProcessingResult {
 
-    
     private boolean success;
 
-
-    
     private double riskScore;
 
-    
     private double currentRiskLevel;
-    
-    
+
     private ProcessingPath processingPath;
-    
-    
+
     @Builder.Default
     private Map<String, Object> analysisData = new HashMap<>();
-    
-    
+
     private List<String> threatIndicators;
-    
-    
+
     private boolean requiresIncident;
-    
-    
+
     private IncidentSeverity incidentSeverity;
-    
-    
+
     private long processingTimeMs;
-    
-    
+
     private LocalDateTime processedAt;
-    
-    
+
     private boolean aiAnalysisPerformed;
-    
-    
+
     private int aiAnalysisLevel;
-    
-    
+
     private List<String> recommendedActions;
-    
-    
+
     private ProcessingStatus status;
 
-    
     private String errorMessage;
 
-    
     private boolean anomaly;
 
-    
     private List<String> executedActions;
 
-    
     @Builder.Default
     private Map<String, Object> metadata = new HashMap<>();
 
-    
     private String message;
-    
-    
+
     public enum ProcessingPath {
         COLD_PATH("Cold Path - AI Analysis"),
         BYPASS("Bypass - No Processing");
@@ -93,8 +71,7 @@ public class ProcessingResult {
             return description;
         }
     }
-    
-    
+
     public enum IncidentSeverity {
         LOW(1, "Low severity incident"),
         MEDIUM(2, "Medium severity incident"),
@@ -117,8 +94,7 @@ public class ProcessingResult {
             return description;
         }
     }
-    
-    
+
     public enum ProcessingStatus {
         SUCCESS("Processing completed successfully"),
         PARTIAL_SUCCESS("Processing partially completed"),
@@ -136,8 +112,7 @@ public class ProcessingResult {
             return description;
         }
     }
-    
-    
+
     public static ProcessingResult success(ProcessingPath path, double riskScore) {
         return ProcessingResult.builder()
                 .processingPath(path)
@@ -148,7 +123,6 @@ public class ProcessingResult {
                 .build();
     }
 
-    
     public static ProcessingResult failure(ProcessingPath path, String error) {
         return ProcessingResult.builder()
                 .processingPath(path)
@@ -159,50 +133,41 @@ public class ProcessingResult {
                 .build();
     }
 
-
-    
     public boolean isSuccess() {
         return success;
     }
 
-    
     public List<String> getExecutedActions() {
         return executedActions;
     }
 
-    
     public Map<String, Object> getMetadata() {
         return metadata;
     }
 
-    
     public String getIncidentSeverity() {
         if (incidentSeverity != null) {
             return incidentSeverity.name();
         }
         return null;
     }
-    
-    
+
     public void addAnalysisData(String key, Object value) {
         if (this.analysisData == null) {
             this.analysisData = new HashMap<>();
         }
         this.analysisData.put(key, value);
     }
-    
-    
+
     public void setProcessingComplete(long startTimeMs) {
         this.processingTimeMs = System.currentTimeMillis() - startTimeMs;
         this.processedAt = LocalDateTime.now();
     }
 
-    
     public boolean isAnomaly() {
         return anomaly;
     }
 
-    
     public void setAnomaly(boolean anomaly) {
         this.anomaly = anomaly;
     }

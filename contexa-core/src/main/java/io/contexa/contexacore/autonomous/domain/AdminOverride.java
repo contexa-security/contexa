@@ -4,60 +4,44 @@ import lombok.Builder;
 import lombok.Getter;
 import java.time.Instant;
 
-
 @Getter
 @Builder
 public class AdminOverride {
 
-    
     private final String overrideId;
 
-    
     private final String requestId;
 
-    
     private final String userId;
 
-    
     private final String adminId;
 
-    
     private final Instant timestamp;
 
-    
     private final String originalAction;
 
-    
     private final String overriddenAction;
 
-    
     private final String reason;
 
-    
     private final boolean approved;
 
-    
     private final boolean baselineUpdateAllowed;
 
-    
     private final double originalRiskScore;
 
-    
     private final double originalConfidence;
 
-    
     public boolean canUpdateBaseline() {
         return approved
             && baselineUpdateAllowed
             && "ALLOW".equalsIgnoreCase(overriddenAction);
     }
 
-    
     public boolean isBaselineUpdateAllowed() {
         return baselineUpdateAllowed;
     }
 
-    
     @Override
     public String toString() {
         return String.format(

@@ -5,7 +5,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 public class ComplexityThresholdCondition<T extends DomainContext>
         implements PipelineStepCondition<T> {
@@ -13,7 +12,6 @@ public class ComplexityThresholdCondition<T extends DomainContext>
     private final double threshold;
     private final String comparisonMode; 
 
-    
     public ComplexityThresholdCondition(double threshold, String comparisonMode) {
         if (threshold < 0.0 || threshold > 1.0) {
             throw new IllegalArgumentException("Threshold must be between 0.0 and 1.0");
@@ -22,7 +20,6 @@ public class ComplexityThresholdCondition<T extends DomainContext>
         this.comparisonMode = comparisonMode;
     }
 
-    
     public ComplexityThresholdCondition(double threshold) {
         this(threshold, "GREATER_THAN");
     }
@@ -34,8 +31,7 @@ public class ComplexityThresholdCondition<T extends DomainContext>
 
         if (complexity == null) {
             
-            log.debug("[ComplexityThreshold] 복잡도 정보 없음 - 기본 실행");
-            return true;
+                        return true;
         }
 
         boolean result;
@@ -44,9 +40,6 @@ public class ComplexityThresholdCondition<T extends DomainContext>
         } else {
             result = complexity >= threshold;
         }
-
-        log.debug("[ComplexityThreshold] 복잡도: {}, 임계값: {}, 모드: {}, 실행: {}",
-                complexity, threshold, comparisonMode, result);
 
         return result;
     }

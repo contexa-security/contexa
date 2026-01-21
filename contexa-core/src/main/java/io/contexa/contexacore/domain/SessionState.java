@@ -1,6 +1,5 @@
 package io.contexa.contexacore.domain;
 
-
 public enum SessionState {
     NEW("신규"),  
     INITIALIZED("초기화됨"),

@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public class DistributedAIStrategyCoordinator {
     
@@ -18,15 +17,13 @@ public class DistributedAIStrategyCoordinator {
     private final RedisDistributedLockService lockService;
     private final RedisEventPublisher eventPublisher;
     private final String nodeId;
-    
-    
+
     private static final String STRATEGY_STATE_KEY = "ai:strategy:state:%s";
     private static final String LAB_ALLOCATION_KEY = "ai:lab:allocation:%s";
     private static final String NODE_HEALTH_KEY = "ai:node:health:%s";
     private static final String EXECUTION_QUEUE_KEY = "ai:execution:queue";
     private static final String METRICS_KEY = "ai:metrics:%s";
-    
-    
+
     private final Map<String, StrategyExecutionState> localStateCache = new ConcurrentHashMap<>();
     
     public DistributedAIStrategyCoordinator(RedisTemplate<String, Object> redisTemplate,
@@ -36,13 +33,11 @@ public class DistributedAIStrategyCoordinator {
         this.lockService = lockService;
         this.eventPublisher = eventPublisher;
         this.nodeId = generateNodeId();
-        
-        
+
         registerNode();
         startHealthCheck();
     }
-    
-    
+
     public DistributedExecutionResult executeStrategy(LabExecutionStrategy strategy,
                                                       Map<String, Object> context) {
         String executionId = UUID.randomUUID().toString();
@@ -54,21 +49,17 @@ public class DistributedAIStrategyCoordinator {
             if (!lockAcquired) {
                 return DistributedExecutionResult.alreadyExecuting(strategy.getStrategyId());
             }
-            
-            
+
             StrategyExecutionState state = initializeExecutionState(executionId, strategy, context);
             saveExecutionState(state);
-            
-            
+
             NodeAllocationResult allocation = allocateOptimalResources(strategy);
             if (!allocation.isSuccessful()) {
                 return DistributedExecutionResult.resourceUnavailable(allocation.getReason());
             }
-            
-            
+
             queueExecution(executionId, allocation);
-            
-            
+
             broadcastExecutionStart(executionId, strategy, allocation);
             
             return DistributedExecutionResult.success(executionId, allocation);
@@ -79,8 +70,7 @@ public class DistributedAIStrategyCoordinator {
             return DistributedExecutionResult.error(e.getMessage());
         }
     }
-    
-    
+
     public void updateExecutionState(String executionId, 
                                    ExecutionPhase phase, 
                                    Map<String, Object> phaseData) {
@@ -92,14 +82,11 @@ public class DistributedAIStrategyCoordinator {
                 state.updatePhase(phase, phaseData);
                 state.setLastUpdateTime(System.currentTimeMillis());
                 state.setUpdatedByNode(nodeId);
-                
-                
+
                 redisTemplate.opsForValue().set(stateKey, state, Duration.ofHours(24));
-                
-                
+
                 localStateCache.put(executionId, state);
-                
-                
+
                 eventPublisher.publishSecurityEvent("STRATEGY_STATE_UPDATED", "system", nodeId, Map.of(
                     "executionId", executionId,
                     "phase", phase.toString(),
@@ -112,19 +99,16 @@ public class DistributedAIStrategyCoordinator {
             log.error("Failed to update execution state: {}", e.getMessage());
         }
     }
-    
-    
+
     public NodeAllocationResult allocateOptimalResources(LabExecutionStrategy strategy) {
         String allocationKey = String.format(LAB_ALLOCATION_KEY, strategy.getOperationType());
         
         try {
             
             Map<String, Double> labUtilization = getLabUtilization();
-            
-            
+
             Map<String, NodeMetrics> nodeMetrics = getNodeMetrics();
-            
-            
+
             OptimalAllocation allocation = calculateOptimalAllocation(
                 strategy, labUtilization, nodeMetrics);
             
@@ -142,14 +126,12 @@ public class DistributedAIStrategyCoordinator {
             return NodeAllocationResult.failure("Allocation calculation failed: " + e.getMessage());
         }
     }
-    
-    
+
     public DistributedMetrics aggregateMetrics() {
         try {
             
             Map<String, NodeMetrics> allNodeMetrics = getAllNodeMetrics();
-            
-            
+
             long totalRequests = allNodeMetrics.values().stream()
                     .mapToLong(NodeMetrics::getTotalRequests)
                     .sum();
@@ -175,22 +157,18 @@ public class DistributedAIStrategyCoordinator {
             return DistributedMetrics.error("Metrics aggregation failed: " + e.getMessage());
         }
     }
-    
-    
+
     public void handleNodeFailure(String failedNodeId) {
         try {
             
             List<String> runningExecutions = getRunningExecutionsByNode(failedNodeId);
-            
-            
+
             for (String executionId : runningExecutions) {
                 redistributeExecution(executionId, failedNodeId);
             }
-            
-            
+
             removeNodeFromCluster(failedNodeId);
-            
-            
+
             eventPublisher.publishEvent("node.failover", Map.of(
                 "failedNodeId", failedNodeId,
                 "redistributedExecutions", runningExecutions.size(),
@@ -202,9 +180,7 @@ public class DistributedAIStrategyCoordinator {
             System.err.println("Node failover failed: " + e.getMessage());
         }
     }
-    
-    
-    
+
     private String generateNodeId() {
         return "ai-node-" + UUID.randomUUID().toString().substring(0, 8);
     }
@@ -216,8 +192,7 @@ public class DistributedAIStrategyCoordinator {
     }
     
     private void startHealthCheck() {
-        
-        
+
     }
     
     private StrategyExecutionState initializeExecutionState(String executionId,
@@ -245,8 +220,7 @@ public class DistributedAIStrategyCoordinator {
         if (state != null) {
             return state;
         }
-        
-        
+
         String stateKey = String.format(STRATEGY_STATE_KEY, executionId);
         return (StrategyExecutionState) redisTemplate.opsForValue().get(stateKey);
     }
@@ -267,8 +241,7 @@ public class DistributedAIStrategyCoordinator {
             "timestamp", System.currentTimeMillis()
         ));
     }
-    
-    
+
     private Map<String, Double> getLabUtilization() { return Map.of(); }
     private Map<String, NodeMetrics> getNodeMetrics() { return Map.of(); }
     private OptimalAllocation calculateOptimalAllocation(LabExecutionStrategy strategy, 
@@ -280,14 +253,11 @@ public class DistributedAIStrategyCoordinator {
     private List<String> getRunningExecutionsByNode(String nodeId) { return List.of(); }
     private void redistributeExecution(String executionId, String failedNodeId) {}
     private void removeNodeFromCluster(String failedNodeId) {}
-    
-    
-    
+
     public enum ExecutionPhase {
         INITIALIZED, PLANNING, EXECUTING, VALIDATING, COMPLETED, FAILED
     }
-    
-    
+
     public static class StrategyExecutionState {
         private final String executionId;
         private final String strategyId;
@@ -316,8 +286,7 @@ public class DistributedAIStrategyCoordinator {
                 this.context.putAll(phaseData);
             }
         }
-        
-        
+
         public String getExecutionId() { return executionId; }
         public String getStrategyId() { return strategyId; }
         public ExecutionPhase getPhase() { return phase; }
@@ -329,8 +298,7 @@ public class DistributedAIStrategyCoordinator {
         public void setLastUpdateTime(long lastUpdateTime) { this.lastUpdateTime = lastUpdateTime; }
         public Map<String, Object> getContext() { return context; }
     }
-    
-    
+
     public static class DistributedExecutionResult {
         private final boolean success;
         private final String executionId;
@@ -361,8 +329,7 @@ public class DistributedAIStrategyCoordinator {
         public static DistributedExecutionResult error(String message) { 
             return new DistributedExecutionResult(false, null, null, message, null); 
         }
-        
-        
+
         public boolean isSuccess() { return success; }
         public String getExecutionId() { return executionId; }
         public String getStrategyId() { return strategyId; }
@@ -391,8 +358,7 @@ public class DistributedAIStrategyCoordinator {
         public static NodeAllocationResult failure(String reason) { 
             return new NodeAllocationResult(false, reason, null); 
         }
-        
-        
+
         public boolean getSuccessful() { return successful; }
         public OptimalAllocation getAllocation() { return allocation; }
     }
@@ -412,8 +378,7 @@ public class DistributedAIStrategyCoordinator {
         }
         
         public boolean isValid() { return valid; }
-        
-        
+
         public boolean getValid() { return valid; }
         public String getAllocationId() { return allocationId; }
     }
@@ -463,8 +428,7 @@ public class DistributedAIStrategyCoordinator {
         public static DistributedMetrics error(String message) { 
             return new DistributedMetrics(message); 
         }
-        
-        
+
         public long getTotalRequests() { return totalRequests; }
         public long getTotalSuccesses() { return totalSuccesses; }
         public double getAvgResponseTime() { return avgResponseTime; }
@@ -483,8 +447,7 @@ public class DistributedAIStrategyCoordinator {
             this.timestamp = timestamp;
             this.status = status;
         }
-        
-        
+
         public String getNodeId() {
             return nodeId;
         }
@@ -508,8 +471,7 @@ public class DistributedAIStrategyCoordinator {
             this.allocation = allocation;
             this.nodeId = nodeId;
         }
-        
-        
+
         public String getExecutionId() { return executionId; }
         public NodeAllocationResult getAllocation() { return allocation; }
         public String getNodeId() { return nodeId; }

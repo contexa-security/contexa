@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 
-
 @Slf4j
 @Configuration
 public class RedissonConfiguration {
@@ -32,7 +31,6 @@ public class RedissonConfiguration {
     public RedissonClient redissonClient() {
         Config config = new Config();
 
-        
         String address = String.format("redis://%s:%d", redisHost, redisPort);
         config.useSingleServer()
             .setAddress(address)
@@ -46,8 +44,6 @@ public class RedissonConfiguration {
             .setRetryAttempts(3)
             .setRetryInterval(1500)
             .setPingConnectionInterval(0);
-
-        log.info("Creating RedissonClient with address: {} (no password)", address);
 
         return Redisson.create(config);
     }

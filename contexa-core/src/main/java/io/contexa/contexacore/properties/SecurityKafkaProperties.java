@@ -4,20 +4,16 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-
 @Data
 @ConfigurationProperties(prefix = "security.kafka")
 public class SecurityKafkaProperties {
 
-    
     @NestedConfigurationProperty
     private TopicSettings topic = new TopicSettings();
 
-    
     @NestedConfigurationProperty
     private DlqSettings dlq = new DlqSettings();
 
-    
     @Data
     public static class TopicSettings {
         private String authorization = "security-authorization-events";
@@ -29,7 +25,6 @@ public class SecurityKafkaProperties {
         private String dlq = "security-events-dlq";
     }
 
-    
     @Data
     public static class DlqSettings {
         private int maxRetries = 3;

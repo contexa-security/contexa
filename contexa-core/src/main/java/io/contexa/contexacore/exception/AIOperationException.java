@@ -1,6 +1,5 @@
 package io.contexa.contexacore.exception;
 
-
 public class AIOperationException extends RuntimeException {
     
     public AIOperationException(String message) {

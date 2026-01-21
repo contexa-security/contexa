@@ -10,7 +10,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 public class AdminOverrideRepository {
 
@@ -27,7 +26,6 @@ public class AdminOverrideRepository {
     private static final Duration TTL = Duration.ofDays(30);
     private static final Duration PENDING_TTL = Duration.ofDays(7);
 
-    
     public void save(AdminOverride override) {
         if (override == null || override.getRequestId() == null) {
             log.warn("[AdminOverrideRepository] null override 또는 requestId로 저장 시도");
@@ -41,25 +39,18 @@ public class AdminOverrideRepository {
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, TTL);
 
-            
             if (override.getUserId() != null) {
                 String userIndexKey = USER_INDEX_PREFIX + override.getUserId();
                 redisTemplate.opsForSet().add(userIndexKey, override.getRequestId());
                 redisTemplate.expire(userIndexKey, TTL);
             }
 
-            log.info("[AdminOverrideRepository][AI Native] 관리자 개입 저장 완료: " +
-                    "requestId={}, userId={}, approved={}, baselineUpdateAllowed={}",
-                override.getRequestId(), override.getUserId(),
-                override.isApproved(), override.isBaselineUpdateAllowed());
-
         } catch (Exception e) {
             log.error("[AdminOverrideRepository] Redis 저장 실패: requestId={}",
-                override.getRequestId(), e);
+                    override.getRequestId(), e);
         }
     }
 
-    
     public void savePending(String requestId, String userId, Map<String, Object> analysisData) {
         if (requestId == null) {
             log.warn("[AdminOverrideRepository] null requestId로 pending 저장 시도");
@@ -81,15 +72,11 @@ public class AdminOverrideRepository {
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, PENDING_TTL);
 
-            log.debug("[AdminOverrideRepository] 대기 요청 저장: requestId={}, userId={}",
-                requestId, userId);
-
         } catch (Exception e) {
             log.error("[AdminOverrideRepository] pending 저장 실패: requestId={}", requestId, e);
         }
     }
 
-    
     public void saveSecurityEvent(String requestId, SecurityEvent event) {
         if (requestId == null || event == null) {
             log.warn("[AdminOverrideRepository] null requestId 또는 event로 saveSecurityEvent 시도");
@@ -103,15 +90,11 @@ public class AdminOverrideRepository {
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, PENDING_TTL);
 
-            log.debug("[AdminOverrideRepository] SecurityEvent 저장 완료: requestId={}, eventId={}",
-                requestId, event.getEventId());
-
         } catch (Exception e) {
             log.error("[AdminOverrideRepository] SecurityEvent 저장 실패: requestId={}", requestId, e);
         }
     }
 
-    
     public Optional<SecurityEvent> findSecurityEvent(String requestId) {
         if (requestId == null) {
             return Optional.empty();
@@ -134,7 +117,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    
     public void deleteSecurityEvent(String requestId) {
         if (requestId == null) {
             return;
@@ -145,7 +127,6 @@ public class AdminOverrideRepository {
         try {
             Boolean deleted = redisTemplate.delete(key);
             if (Boolean.TRUE.equals(deleted)) {
-                log.debug("[AdminOverrideRepository] SecurityEvent 삭제 완료: requestId={}", requestId);
             }
 
         } catch (Exception e) {
@@ -153,7 +134,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    
     public Optional<AdminOverride> findByRequestId(String requestId) {
         if (requestId == null) {
             return Optional.empty();
@@ -176,7 +156,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    
     public Optional<Map<Object, Object>> findPending(String requestId) {
         if (requestId == null) {
             return Optional.empty();
@@ -194,7 +173,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    
     public void deletePending(String requestId) {
         if (requestId == null) {
             return;
@@ -205,7 +183,6 @@ public class AdminOverrideRepository {
         try {
             Boolean deleted = redisTemplate.delete(key);
             if (Boolean.TRUE.equals(deleted)) {
-                log.debug("[AdminOverrideRepository] 대기 요청 삭제 완료: requestId={}", requestId);
             }
 
         } catch (Exception e) {
@@ -213,7 +190,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    
     public List<AdminOverride> findByUserId(String userId) {
         if (userId == null) {
             return Collections.emptyList();
@@ -241,7 +217,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    
     private Map<String, Object> toMap(AdminOverride override) {
         Map<String, Object> map = new HashMap<>();
         map.put("overrideId", override.getOverrideId());
@@ -259,22 +234,21 @@ public class AdminOverrideRepository {
         return map;
     }
 
-    
     private AdminOverride fromMap(Map<Object, Object> data) {
         return AdminOverride.builder()
-            .overrideId(getStringFromMap(data, "overrideId"))
-            .requestId(getStringFromMap(data, "requestId"))
-            .userId(getStringFromMap(data, "userId"))
-            .adminId(getStringFromMap(data, "adminId"))
-            .timestamp(parseInstant(getStringFromMap(data, "timestamp")))
-            .originalAction(getStringFromMap(data, "originalAction"))
-            .overriddenAction(getStringFromMap(data, "overriddenAction"))
-            .reason(getStringFromMap(data, "reason"))
-            .approved(parseBoolean(getStringFromMap(data, "approved")))
-            .baselineUpdateAllowed(parseBoolean(getStringFromMap(data, "baselineUpdateAllowed")))
-            .originalRiskScore(parseDouble(getStringFromMap(data, "originalRiskScore")))
-            .originalConfidence(parseDouble(getStringFromMap(data, "originalConfidence")))
-            .build();
+                .overrideId(getStringFromMap(data, "overrideId"))
+                .requestId(getStringFromMap(data, "requestId"))
+                .userId(getStringFromMap(data, "userId"))
+                .adminId(getStringFromMap(data, "adminId"))
+                .timestamp(parseInstant(getStringFromMap(data, "timestamp")))
+                .originalAction(getStringFromMap(data, "originalAction"))
+                .overriddenAction(getStringFromMap(data, "overriddenAction"))
+                .reason(getStringFromMap(data, "reason"))
+                .approved(parseBoolean(getStringFromMap(data, "approved")))
+                .baselineUpdateAllowed(parseBoolean(getStringFromMap(data, "baselineUpdateAllowed")))
+                .originalRiskScore(parseDouble(getStringFromMap(data, "originalRiskScore")))
+                .originalConfidence(parseDouble(getStringFromMap(data, "originalConfidence")))
+                .build();
     }
 
     private String getStringFromMap(Map<Object, Object> data, String key) {
@@ -310,7 +284,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    
     @SuppressWarnings("unchecked")
     private Map<String, Object> securityEventToMap(SecurityEvent event) {
         Map<String, Object> map = new HashMap<>();
@@ -327,7 +300,6 @@ public class AdminOverrideRepository {
         map.put("description", event.getDescription());
         map.put("timestamp", event.getTimestamp() != null ? event.getTimestamp().toString() : null);
 
-        
         if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
             try {
                 StringBuilder sb = new StringBuilder("{");
@@ -335,7 +307,7 @@ public class AdminOverrideRepository {
                 for (Map.Entry<String, Object> entry : event.getMetadata().entrySet()) {
                     if (!first) sb.append(",");
                     sb.append("\"").append(entry.getKey()).append("\":\"")
-                        .append(entry.getValue() != null ? entry.getValue().toString() : "").append("\"");
+                            .append(entry.getValue() != null ? entry.getValue().toString() : "").append("\"");
                     first = false;
                 }
                 sb.append("}");
@@ -348,20 +320,18 @@ public class AdminOverrideRepository {
         return map;
     }
 
-    
     private SecurityEvent securityEventFromMap(Map<Object, Object> data) {
         SecurityEvent.SecurityEventBuilder builder = SecurityEvent.builder()
-            .eventId(getStringFromMap(data, "eventId"))
-            .userId(getStringFromMap(data, "userId"))
-            .sourceIp(getStringFromMap(data, "sourceIp"))
-            .sessionId(getStringFromMap(data, "sessionId"))
-            .userAgent(getStringFromMap(data, "userAgent"))
-            .userName(getStringFromMap(data, "userName"))
-            .protocol(getStringFromMap(data, "protocol"))
-            .blocked(parseBoolean(getStringFromMap(data, "blocked")))
-            .description(getStringFromMap(data, "description"));
+                .eventId(getStringFromMap(data, "eventId"))
+                .userId(getStringFromMap(data, "userId"))
+                .sourceIp(getStringFromMap(data, "sourceIp"))
+                .sessionId(getStringFromMap(data, "sessionId"))
+                .userAgent(getStringFromMap(data, "userAgent"))
+                .userName(getStringFromMap(data, "userName"))
+                .protocol(getStringFromMap(data, "protocol"))
+                .blocked(parseBoolean(getStringFromMap(data, "blocked")))
+                .description(getStringFromMap(data, "description"));
 
-        
         String sourceStr = getStringFromMap(data, "source");
         if (sourceStr != null && !sourceStr.isEmpty()) {
             try {
@@ -371,7 +341,6 @@ public class AdminOverrideRepository {
             }
         }
 
-        
         String severityStr = getStringFromMap(data, "severity");
         if (severityStr != null && !severityStr.isEmpty()) {
             try {
@@ -381,7 +350,6 @@ public class AdminOverrideRepository {
             }
         }
 
-        
         String timestampStr = getStringFromMap(data, "timestamp");
         if (timestampStr != null && !timestampStr.isEmpty()) {
             try {
@@ -391,7 +359,6 @@ public class AdminOverrideRepository {
             }
         }
 
-        
         String metadataStr = getStringFromMap(data, "metadata");
         if (metadataStr != null && !metadataStr.isEmpty() && metadataStr.startsWith("{")) {
             try {

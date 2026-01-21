@@ -1,6 +1,5 @@
 package io.contexa.contexacore.autonomous.config;
 
-
 public final class FeedbackConstants {
 
     public static final String DEFAULT_USER_ID = "unknown";

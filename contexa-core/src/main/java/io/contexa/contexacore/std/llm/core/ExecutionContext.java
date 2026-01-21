@@ -14,32 +14,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Data
 @Builder
 @Accessors(chain = true)
 public class ExecutionContext {
-    
-    
+
     private Prompt prompt;
     private String requestId;
     private String userId;
     private String sessionId;
-    
-    
+
     private String preferredModel;  
     private AIModelManager.TaskType taskType;  
     private SecurityTaskType securityTaskType;  
     private Integer tier;  
     private AnalysisLevel analysisLevel;  
-    
-    
+
     private Integer timeoutMs;
     private Boolean requireFastResponse;
     private Boolean preferLocalModel;  
     private Boolean preferCloudModel;   
-    
-    
+
     @Builder.Default
     private List<ToolCallback> toolCallbacks = new ArrayList<>();
     
@@ -48,23 +43,19 @@ public class ExecutionContext {
     
     @Builder.Default
     private List<Advisor> advisors = new ArrayList<>();
-    
-    
+
     private ChatOptions chatOptions;
     private Double temperature;
     private Double topP;  
     private Integer maxTokens;
-    
-    
+
     @Builder.Default
     private Map<String, Object> metadata = new HashMap<>();
-    
-    
+
     private Boolean streamingMode;
     private Boolean toolExecutionEnabled;
     private Boolean advisorEnabled;
-    
-    
+
     public enum AnalysisLevel {
         QUICK(1),     
         NORMAL(2),    
@@ -97,27 +88,22 @@ public class ExecutionContext {
         }
     }
 
-    
     public enum SecurityTaskType {
         
         THREAT_FILTERING,      
         QUICK_DETECTION,       
 
-        
         CONTEXTUAL_ANALYSIS,   
         BEHAVIOR_ANALYSIS,     
         CORRELATION,           
 
-        
         EXPERT_INVESTIGATION,  
         INCIDENT_RESPONSE,     
         FORENSIC_ANALYSIS,     
 
-        
         SOAR_AUTOMATION,       
         APPROVAL_WORKFLOW;     
 
-        
         public int getDefaultTier() {
             return switch (this) {
                 case THREAT_FILTERING, QUICK_DETECTION -> 1;
@@ -127,8 +113,7 @@ public class ExecutionContext {
             };
         }
     }
-    
-    
+
     public static ExecutionContext from(Prompt prompt) {
         return ExecutionContext.builder()
                 .prompt(prompt)
@@ -137,27 +122,23 @@ public class ExecutionContext {
                 .advisorEnabled(true)
                 .build();
     }
-    
-    
+
     public ExecutionContext addMetadata(String key, Object value) {
         this.metadata.put(key, value);
         return this;
     }
-    
-    
+
     public ExecutionContext addAdvisor(Advisor advisor) {
         this.advisors.add(advisor);
         return this;
     }
-    
-    
+
     public ExecutionContext addToolCallback(ToolCallback callback) {
         this.toolCallbacks.add(callback);
         this.toolExecutionEnabled = true;
         return this;
     }
 
-    
     public static ExecutionContext forTier(int tier, Prompt prompt) {
         return ExecutionContext.builder()
                 .prompt(prompt)
@@ -168,7 +149,6 @@ public class ExecutionContext {
                 .build();
     }
 
-    
     public static ExecutionContext forAnalysisLevel(AnalysisLevel level, Prompt prompt) {
         return ExecutionContext.builder()
                 .prompt(prompt)
@@ -180,7 +160,6 @@ public class ExecutionContext {
                 .build();
     }
 
-    
     public Integer getEffectiveTier() {
         if (analysisLevel != null) {
             return analysisLevel.getDefaultTier();
@@ -188,10 +167,8 @@ public class ExecutionContext {
         return tier;
     }
 
-    
     public String getEffectiveModelName() {
-        
-        
+
         return preferredModel;
     }
 

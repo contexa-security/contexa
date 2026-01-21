@@ -3,29 +3,22 @@ package io.contexa.contexacore.autonomous.security.processor;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 
-
 public interface IPathProcessor {
-    
-    
+
     ProcessingResult processEvent(SecurityEvent event, double riskScore);
-    
-    
+
     ProcessingMode getProcessingMode();
-    
-    
+
     String getProcessorName();
-    
-    
+
     default boolean isReady() {
         return true;
     }
-    
-    
+
     default ProcessorStatistics getStatistics() {
         return ProcessorStatistics.empty();
     }
-    
-    
+
     class ProcessorStatistics {
         private long processedCount;
         private double averageProcessingTime;
@@ -34,8 +27,7 @@ public interface IPathProcessor {
         public static ProcessorStatistics empty() {
             return new ProcessorStatistics();
         }
-        
-        
+
         public long getProcessedCount() {
             return processedCount;
         }

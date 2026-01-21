@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class MaliciousPatternDetector {
@@ -28,7 +27,6 @@ public class MaliciousPatternDetector {
 
     private final RedisTemplate<String, String> stringRedisTemplate;
 
-    
     @Value("${spring.ai.security.pattern-detection.min-similarity-filter:0.5}")
     private double minSimilarityFilter;
 
@@ -41,7 +39,6 @@ public class MaliciousPatternDetector {
     @Value("${spring.ai.security.pattern-detection.heuristic-enabled:true}")
     private boolean heuristicEnabled;
 
-    
     public PatternAnalysisResult analyze(String payload) {
         if (payload == null || payload.isEmpty()) {
             return PatternAnalysisResult.safe("Empty payload");
@@ -50,42 +47,32 @@ public class MaliciousPatternDetector {
         try {
             long startTime = System.currentTimeMillis();
 
-            
             PatternAnalysisResult cachedResult = checkCache(payload);
             if (cachedResult != null) {
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 cachedResult.setAnalysisTimeMs(elapsedTime);
-                log.debug("[PatternDetector] Cache hit: {}ms", elapsedTime);
-                return cachedResult;
+                                return cachedResult;
             }
 
-            
             PatternAnalysisResult aiResult = analyzeWithAI(payload);
             if (aiResult != null) {
                 long elapsedTime = System.currentTimeMillis() - startTime;
                 aiResult.setAnalysisTimeMs(elapsedTime);
 
-                
                 cacheResult(payload, aiResult);
 
-                
                 if (autoLearn && aiResult.isMalicious() && aiResult.getSimilarityScore() < 0.95) {
                     learnNewPattern(payload, aiResult);
                 }
 
-                log.debug("[PatternDetector] AI analysis: {}ms, malicious={}, score={}",
-                        elapsedTime, aiResult.isMalicious(), aiResult.getSimilarityScore());
-                return aiResult;
+                                return aiResult;
             }
 
-            
             PatternAnalysisResult heuristicResult = analyzeWithHeuristics(payload);
             long elapsedTime = System.currentTimeMillis() - startTime;
             heuristicResult.setAnalysisTimeMs(elapsedTime);
 
-            log.debug("[PatternDetector] Heuristic analysis: {}ms, malicious={}",
-                    elapsedTime, heuristicResult.isMalicious());
-            return heuristicResult;
+                        return heuristicResult;
 
         } catch (Exception e) {
             log.error("[PatternDetector] Error analyzing payload", e);
@@ -93,7 +80,6 @@ public class MaliciousPatternDetector {
         }
     }
 
-    
     private PatternAnalysisResult checkCache(String payload) {
         if (!cacheEnabled) {
             return null;
@@ -118,7 +104,6 @@ public class MaliciousPatternDetector {
         return null;
     }
 
-    
     private PatternAnalysisResult analyzeWithAI(String payload) {
         if (vectorStoreCacheLayer == null) {
             return null;
@@ -132,10 +117,8 @@ public class MaliciousPatternDetector {
                     .similarityThreshold(0.5)  
                     .build();
 
-            
             List<Document> similarDocuments = vectorStoreCacheLayer.similaritySearch(searchRequest);
 
-            
             if (similarDocuments == null || similarDocuments.isEmpty()) {
                 return PatternAnalysisResult.builder()
                         .malicious(false)
@@ -145,13 +128,9 @@ public class MaliciousPatternDetector {
                         .build();
             }
 
-            
             Document topMatch = similarDocuments.get(0);
             double maxSimilarity = extractSimilarity(topMatch);
 
-            
-            
-            
             boolean hasHighSimilarity = maxSimilarity >= 0.7; 
 
             return PatternAnalysisResult.builder()
@@ -169,7 +148,6 @@ public class MaliciousPatternDetector {
         }
     }
 
-    
     private PatternAnalysisResult analyzeWithHeuristics(String payload) {
         if (!heuristicEnabled) {
             return PatternAnalysisResult.safe("Heuristic analysis disabled");
@@ -178,20 +156,17 @@ public class MaliciousPatternDetector {
         int suspicionScore = 0;
         StringBuilder reasons = new StringBuilder();
 
-        
         if (payload.length() > 10000) {
             suspicionScore += 3;
             reasons.append("Abnormally long payload (").append(payload.length()).append(" chars); ");
         }
 
-        
         double entropy = calculateEntropy(payload);
         if (entropy > 4.5) {
             suspicionScore += 3;
             reasons.append(String.format("High entropy (%.2f, possible obfuscation); ", entropy));
         }
 
-        
         long specialCharCount = payload.chars()
                 .filter(ch -> !Character.isLetterOrDigit(ch) && !Character.isWhitespace(ch))
                 .count();
@@ -201,13 +176,11 @@ public class MaliciousPatternDetector {
             reasons.append(String.format("High special char ratio (%.1f%%); ", specialCharRatio * 100));
         }
 
-        
         if (containsMultipleEncodings(payload)) {
             suspicionScore += 2;
             reasons.append("Multiple encoding layers detected; ");
         }
 
-        
         boolean isMalicious = suspicionScore >= 5;
 
         return PatternAnalysisResult.builder()
@@ -220,7 +193,6 @@ public class MaliciousPatternDetector {
                 .build();
     }
 
-    
     private void learnNewPattern(String payload, PatternAnalysisResult result) {
         CompletableFuture.runAsync(() -> {
             try {
@@ -231,18 +203,11 @@ public class MaliciousPatternDetector {
                 metadata.put("type", "malicious_pattern");
                 metadata.put("severity", determineSeverity(result.getSimilarityScore()));
 
-                
                 Document document = new Document(
                         "malicious_pattern_" + System.currentTimeMillis(),
                         payload,
                         metadata
                 );
-
-                
-                
-
-                log.info("[PatternDetector] New malicious pattern learned with similarity: {:.3f}",
-                        result.getSimilarityScore());
 
             } catch (Exception e) {
                 log.error("[PatternDetector] Failed to learn new pattern", e);
@@ -250,7 +215,6 @@ public class MaliciousPatternDetector {
         });
     }
 
-    
     private void cacheResult(String payload, PatternAnalysisResult result) {
         if (!cacheEnabled) {
             return;
@@ -268,19 +232,16 @@ public class MaliciousPatternDetector {
         }
     }
 
-    
     private double extractSimilarity(Document document) {
         if (document == null || document.getMetadata() == null) {
             return 0.0;
         }
 
-        
         if (document.getMetadata().containsKey("distance")) {
             double distance = (Double) document.getMetadata().get("distance");
             return Math.max(0.0, 1.0 - distance);
         }
 
-        
         if (document.getMetadata().containsKey("score")) {
             return (Double) document.getMetadata().get("score");
         }
@@ -288,7 +249,6 @@ public class MaliciousPatternDetector {
         return 0.5;  
     }
 
-    
     private double calculateEntropy(String text) {
         if (text == null || text.isEmpty()) {
             return 0;
@@ -308,26 +268,21 @@ public class MaliciousPatternDetector {
         return entropy;
     }
 
-    
     private boolean containsMultipleEncodings(String payload) {
         int encodingCount = 0;
 
-        
         if (payload.matches(".*[A-Za-z0-9+/]{20,}={0,2}.*")) {
             encodingCount++;
         }
 
-        
         if (payload.contains("%") && payload.matches(".*%[0-9A-Fa-f]{2}.*")) {
             encodingCount++;
         }
 
-        
         if (payload.matches(".*&#[0-9]{2,4};.*") || payload.matches(".*&[a-z]{2,6};.*")) {
             encodingCount++;
         }
 
-        
         if (payload.matches(".*\\\\u[0-9A-Fa-f]{4}.*")) {
             encodingCount++;
         }
@@ -335,10 +290,8 @@ public class MaliciousPatternDetector {
         return encodingCount >= 2;
     }
 
-    
     private String determineSeverity(double similarityScore) {
-        
-        
+
         if (similarityScore >= 0.9) {
             return "CRITICAL";
         } else if (similarityScore >= 0.8) {
@@ -350,7 +303,6 @@ public class MaliciousPatternDetector {
         }
     }
 
-    
     @Data
     @Builder
     public static class PatternAnalysisResult {
@@ -362,7 +314,6 @@ public class MaliciousPatternDetector {
         private String reason;
         private long analysisTimeMs;
 
-        
         private Double entropy;
         private Double specialCharRatio;
         private Document matchedDocument;
@@ -384,7 +335,6 @@ public class MaliciousPatternDetector {
         }
     }
 
-    
     public enum DetectionMethod {
         CACHE,          
         AI_VECTOR,      

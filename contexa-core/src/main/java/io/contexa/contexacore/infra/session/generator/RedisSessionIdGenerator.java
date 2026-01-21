@@ -15,7 +15,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class RedisSessionIdGenerator implements SessionIdGenerator {

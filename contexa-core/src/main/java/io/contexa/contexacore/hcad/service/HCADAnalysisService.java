@@ -14,20 +14,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 
-
 @Slf4j
 public class HCADAnalysisService {
 
     private final HCADContextExtractor contextExtractor;
     private RedisTemplate<String, Object> redisTemplate;
 
-    
     @Value("${hcad.analysis.max-age-ms:3600000}")
     private long analysisMaxAgeMs;
-
-    
-    
-    
 
     public HCADAnalysisService(HCADContextExtractor contextExtractor) {
         this.contextExtractor = contextExtractor;
@@ -38,7 +32,6 @@ public class HCADAnalysisService {
         this.redisTemplate = redisTemplate;
     }
 
-    
     public HCADAnalysisResult analyze(HttpServletRequest request, Authentication authentication) {
         long startTime = System.currentTimeMillis();
 
@@ -48,43 +41,27 @@ public class HCADAnalysisService {
             String userId = context.getUserId();
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCADAnalysisService][AI Native] 컨텍스트 추출 완료: userId={}, path={}, ip={}",
-                    userId, context.getRequestPath(), context.getRemoteIp());
-            }
+                            }
 
-            
-            
             Map<String, Object> llmAnalysis = getLLMAnalysisFromRedis(userId);
 
-            
             double riskScore = (double) llmAnalysis.getOrDefault("riskScore", 0.0);
             boolean isAnomaly = (boolean) llmAnalysis.getOrDefault("isAnomaly", false);
             double anomalyScore = riskScore;
             
             double trustScore = (double) llmAnalysis.getOrDefault("trustScore", 1.0);
 
-            
             String threatType = (String) llmAnalysis.getOrDefault("threatType", "NONE");
             String threatEvidence = (String) llmAnalysis.getOrDefault("threatEvidence", "");
 
-            
-            
             String action = (String) llmAnalysis.get("action");  
             double confidence = (double) llmAnalysis.getOrDefault("confidence", Double.NaN);
 
             long processingTime = System.currentTimeMillis() - startTime;
 
             if (log.isDebugEnabled()) {
-                log.debug("[HCADAnalysisService][AI Native] 분석 완료: userId={}, action={}, riskScore={}, isAnomaly={}, confidence={}, time={}ms",
-                    userId,
-                    action,
-                    String.format("%.3f", riskScore),
-                    isAnomaly,
-                    String.format("%.3f", confidence),
-                    processingTime);
-            }
+                            }
 
-            
             return HCADAnalysisResult.builder()
                 .userId(userId)
                 .trustScore(trustScore)
@@ -102,18 +79,12 @@ public class HCADAnalysisService {
         } catch (Exception e) {
             log.error("[HCADAnalysisService][AI Native] 분석 실패: request={}", request.getRequestURI(), e);
 
-            
-            
-            
             HCADContext errorContext = new HCADContext();
             errorContext.setIsNewSession(true);      
             errorContext.setNewUser(true);           
             errorContext.setIsNewDevice(true);       
             errorContext.setRecentRequestCount(0);   
 
-            
-            
-            
             return HCADAnalysisResult.builder()
                 .userId("error")
                 .trustScore(Double.NaN)
@@ -130,20 +101,16 @@ public class HCADAnalysisService {
         }
     }
 
-    
     @SuppressWarnings("unchecked")
     private Map<String, Object> getLLMAnalysisFromRedis(String userId) {
         Map<String, Object> result = new HashMap<>();
 
-        
-        
         result.put("riskScore", Double.NaN);
         result.put("isAnomaly", false);  
         result.put("trustScore", Double.NaN);  
         result.put("threatType", "NOT_ANALYZED");
         result.put("threatEvidence", "LLM analysis not yet performed for this user");
-        
-        
+
         result.put("confidence", Double.NaN);  
 
         if (redisTemplate == null) {
@@ -169,11 +136,9 @@ public class HCADAnalysisService {
                     }
                 } else {
                     
-                    log.debug("[HCADAnalysisService][D3] No analyzedAt field, treating as legacy data: userId={}", userId);
-                }
+                                    }
                 result.put("isStale", isStale);
 
-                
                 if (analysis.containsKey("riskScore")) {
                     result.put("riskScore", parseDouble(analysis.get("riskScore")));
                 }
@@ -198,13 +163,8 @@ public class HCADAnalysisService {
                 }
 
                 if (log.isDebugEnabled()) {
-                    log.debug("[HCADAnalysisService][AI Native] LLM 분석 결과 조회: userId={}, action={}, riskScore={}, isAnomaly={}, confidence={}, isStale={}",
-                        userId, result.get("action"), result.get("riskScore"), result.get("isAnomaly"), result.get("confidence"), isStale);
-                }
+                                    }
             }
-            
-            
-            
 
         } catch (Exception e) {
             log.error("[HCADAnalysisService][AI Native] Redis 조회 실패: userId={}", userId, e);
@@ -213,7 +173,6 @@ public class HCADAnalysisService {
         return result;
     }
 
-    
     private double parseDouble(Object value) {
         if (value instanceof Number) {
             return ((Number) value).doubleValue();
@@ -228,7 +187,6 @@ public class HCADAnalysisService {
         return 0.0;
     }
 
-    
     private boolean parseBoolean(Object value) {
         if (value instanceof Boolean) {
             return (Boolean) value;
@@ -239,7 +197,6 @@ public class HCADAnalysisService {
         return false;
     }
 
-    
     private long parseLong(Object value) {
         if (value instanceof Number) {
             return ((Number) value).longValue();
@@ -254,21 +211,10 @@ public class HCADAnalysisService {
         return 0L;
     }
 
-    
-    
-    
-
-    
     public void updateBaselineIfNeeded(HCADAnalysisResult result) {
-        
-        
+
         if (result.isAnomaly() && log.isDebugEnabled()) {
-            log.debug("[HCADAnalysisService][AI Native] 이상 탐지 - Cold Path에서 학습 예정: userId={}", result.getUserId());
-        }
+                    }
     }
 
-    
-    
-    
-    
 }

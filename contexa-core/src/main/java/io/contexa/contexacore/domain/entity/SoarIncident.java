@@ -44,10 +44,6 @@ public class SoarIncident {
     @Column(columnDefinition = "TEXT")
     private String metadata;
 
-    
-    
-    
-
     @Convert(converter = JpaListConverter.class)
     @Lob
     @Column(columnDefinition = "TEXT")
@@ -68,7 +64,6 @@ public class SoarIncident {
         this.history.add(new IncidentHistoryLog(LocalDateTime.now(), log));
     }
 
-    
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
     public String getTitle() { return title; }

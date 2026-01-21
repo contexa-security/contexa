@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
 
@@ -26,7 +25,6 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         this.stepRegistry = stepRegistry;
     }
 
-    
     public DynamicPipelineConfigurationBuilder<T> addStandardStep(
             PipelineStep step,
             PipelineStepCondition<T> condition) {
@@ -35,22 +33,18 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         orderedSteps.add(new StepWithOrder(step, null, order));
         stepConditions.put(step, condition);
 
-        log.debug("[DynamicBuilder] 표준 단계 추가: {} (order: {})", step, order);
-        return this;
+                return this;
     }
 
-    
     public DynamicPipelineConfigurationBuilder<T> addStandardStep(PipelineStep step) {
         return addStandardStep(step, new AlwaysExecuteCondition<>());
     }
 
-    
     public DynamicPipelineConfigurationBuilder<T> addCustomStep(
             String customStepName,
             int order,
             PipelineStepCondition<T> condition) {
 
-        
         Optional<io.contexa.contexacore.std.pipeline.step.PipelineStep> stepOpt =
                 stepRegistry.getCustomStep(customStepName);
 
@@ -63,11 +57,9 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         orderedSteps.add(new StepWithOrder(null, customStepName, order));
         customSteps.put(customStepName, step);
 
-        log.debug("[DynamicBuilder] 커스텀 단계 추가: {} (order: {})", customStepName, order);
-        return this;
+                return this;
     }
 
-    
     public DynamicPipelineConfigurationBuilder<T> insertCustomStepBefore(
             PipelineStep existingStep,
             String customStepName,
@@ -79,7 +71,6 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         return addCustomStep(customStepName, insertOrder, condition);
     }
 
-    
     public DynamicPipelineConfigurationBuilder<T> insertCustomStepAfter(
             PipelineStep existingStep,
             String customStepName,
@@ -91,14 +82,12 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         return addCustomStep(customStepName, insertOrder, condition);
     }
 
-    
     public PipelineConfiguration<T> build() {
         
         orderedSteps.sort(Comparator.comparingInt(StepWithOrder::getOrder));
 
         PipelineConfiguration.Builder<T> builder = PipelineConfiguration.builder();
 
-        
         for (StepWithOrder stepWithOrder : orderedSteps) {
             if (stepWithOrder.isStandardStep()) {
                 PipelineStep step = stepWithOrder.getStandardStep();
@@ -118,11 +107,9 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
             }
         }
 
-        log.info("[DynamicBuilder] 파이프라인 구성 완료 - 총 {}개 단계", orderedSteps.size());
-        return builder.build();
+                return builder.build();
     }
 
-    
     private int getStandardStepOrder(PipelineStep step) {
         switch (step) {
             case PREPROCESSING:
@@ -144,7 +131,6 @@ public class DynamicPipelineConfigurationBuilder<T extends DomainContext> {
         }
     }
 
-    
     private static class StepWithOrder {
         private final PipelineStep standardStep;
         private final String customStepName;

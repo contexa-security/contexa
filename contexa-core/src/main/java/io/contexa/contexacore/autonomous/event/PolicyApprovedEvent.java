@@ -2,7 +2,6 @@ package io.contexa.contexacore.autonomous.event;
 
 import org.springframework.context.ApplicationEvent;
 
-
 public class PolicyApprovedEvent extends ApplicationEvent {
 
     private final String policyId;
@@ -13,7 +12,6 @@ public class PolicyApprovedEvent extends ApplicationEvent {
     private final String targetSystem;
     private final double confidenceScore;
 
-    
     public PolicyApprovedEvent(Object source, String policyId, String policyName,
                               String policyDescription, String policyRules,
                               String approvedBy, String targetSystem, double confidenceScore) {
@@ -27,7 +25,6 @@ public class PolicyApprovedEvent extends ApplicationEvent {
         this.confidenceScore = confidenceScore;
     }
 
-    
     public String getPolicyId() {
         return policyId;
     }

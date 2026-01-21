@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 
 @RequiredArgsConstructor
@@ -22,12 +21,10 @@ public class MetricsHandler implements SecurityEventHandler {
 
     private final RedisTemplate<String, Object> redisTemplate;
 
-    
     private static final AtomicLong processedEvents = new AtomicLong(0);
     private static final AtomicLong executedActions = new AtomicLong(0);
     private static final AtomicLong createdIncidents = new AtomicLong(0);
 
-    
     private static final String METRICS_KEY_PREFIX = "security:metrics:";
     private static final String PROCESSED_EVENTS_KEY = METRICS_KEY_PREFIX + "processed_events";
     private static final String EXECUTED_ACTIONS_KEY = METRICS_KEY_PREFIX + "executed_actions";
@@ -37,29 +34,20 @@ public class MetricsHandler implements SecurityEventHandler {
     public boolean handle(SecurityEventContext context) {
         SecurityEvent event = context.getSecurityEvent();
 
-        log.debug("[MetricsHandler] Updating metrics for event: {}", event.getEventId());
-
         try {
             
             long processed = processedEvents.incrementAndGet();
             updateRedisCounter(PROCESSED_EVENTS_KEY, processed);
 
-            
             updateExecutedActions(context);
 
-            
             updateCreatedIncidents(context);
 
-            
             addMetricsToContext(context);
 
-            
             if (processed % 100 == 0) {
                 logStatistics();
             }
-
-            log.debug("[MetricsHandler] Metrics updated - processed: {}, actions: {}, incidents: {}",
-                processed, executedActions.get(), createdIncidents.get());
 
             return true; 
 
@@ -70,7 +58,6 @@ public class MetricsHandler implements SecurityEventHandler {
         }
     }
 
-    
     private void updateExecutedActions(SecurityEventContext context) {
         
         ProcessingResult result = (ProcessingResult) context.getMetadata().get("processingResult");
@@ -79,11 +66,9 @@ public class MetricsHandler implements SecurityEventHandler {
             if (actionCount > 0) {
                 long total = executedActions.addAndGet(actionCount);
                 updateRedisCounter(EXECUTED_ACTIONS_KEY, total);
-                log.debug("[MetricsHandler] {} actions executed, total: {}", actionCount, total);
-            }
+                            }
         }
 
-        
         if (context.getResponseActions() != null && !context.getResponseActions().isEmpty()) {
             int actionCount = context.getResponseActions().size();
             long total = executedActions.addAndGet(actionCount);
@@ -91,17 +76,14 @@ public class MetricsHandler implements SecurityEventHandler {
         }
     }
 
-    
     private void updateCreatedIncidents(SecurityEventContext context) {
         
         ProcessingResult result = (ProcessingResult) context.getMetadata().get("processingResult");
         if (result != null && result.isRequiresIncident()) {
             long total = createdIncidents.incrementAndGet();
             updateRedisCounter(CREATED_INCIDENTS_KEY, total);
-            log.info("[MetricsHandler] Incident created, total: {}", total);
-        }
+                    }
 
-        
         Boolean incidentCreated = (Boolean) context.getMetadata().get("incidentCreated");
         if (Boolean.TRUE.equals(incidentCreated)) {
             long total = createdIncidents.incrementAndGet();
@@ -109,7 +91,6 @@ public class MetricsHandler implements SecurityEventHandler {
         }
     }
 
-    
     private void updateRedisCounter(String key, long value) {
         try {
             redisTemplate.opsForValue().set(key, value, Duration.ofDays(30));
@@ -118,7 +99,6 @@ public class MetricsHandler implements SecurityEventHandler {
         }
     }
 
-    
     private void addMetricsToContext(SecurityEventContext context) {
         context.addMetadata("metrics.processedEvents", processedEvents.get());
         context.addMetadata("metrics.executedActions", executedActions.get());
@@ -126,20 +106,15 @@ public class MetricsHandler implements SecurityEventHandler {
         context.addMetadata("metrics.timestamp", System.currentTimeMillis());
     }
 
-    
     private void logStatistics() {
-        log.info("[MetricsHandler] Statistics - Processed Events: {}, Executed Actions: {}, Created Incidents: {}",
-            processedEvents.get(), executedActions.get(), createdIncidents.get());
-    }
+            }
 
-    
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("processedEvents", processedEvents.get());
         stats.put("executedActions", executedActions.get());
         stats.put("createdIncidents", createdIncidents.get());
 
-        
         try {
             Long redisProcessed = (Long) redisTemplate.opsForValue().get(PROCESSED_EVENTS_KEY);
             Long redisActions = (Long) redisTemplate.opsForValue().get(EXECUTED_ACTIONS_KEY);
@@ -155,13 +130,11 @@ public class MetricsHandler implements SecurityEventHandler {
         return stats;
     }
 
-    
     public void resetStatistics() {
         processedEvents.set(0);
         executedActions.set(0);
         createdIncidents.set(0);
 
-        
         try {
             redisTemplate.delete(PROCESSED_EVENTS_KEY);
             redisTemplate.delete(EXECUTED_ACTIONS_KEY);
@@ -170,8 +143,7 @@ public class MetricsHandler implements SecurityEventHandler {
             log.error("[MetricsHandler] Failed to reset Redis statistics", e);
         }
 
-        log.info("[MetricsHandler] Statistics reset");
-    }
+            }
 
     @Override
     public String getName() {

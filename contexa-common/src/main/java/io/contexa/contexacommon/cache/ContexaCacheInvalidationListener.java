@@ -14,8 +14,7 @@ public class ContexaCacheInvalidationListener {
     
     public void handleMessage(String message, String channel) {
         if (!properties.getPubsub().getChannel().equals(channel)) {
-            log.trace("다른 채널 메시지 무시: {}", channel);
-            return;
+                        return;
         }
 
         

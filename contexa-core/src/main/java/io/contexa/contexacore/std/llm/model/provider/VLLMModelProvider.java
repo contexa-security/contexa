@@ -19,11 +19,9 @@ import org.springframework.web.client.RestClientException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public class VLLMModelProvider implements ModelProvider {
 
-    
     private String baseUrl;
 
     @Autowired
@@ -36,7 +34,6 @@ public class VLLMModelProvider implements ModelProvider {
     private final Map<String, VLLMModelInfo> discoveredModels = new ConcurrentHashMap<>();
     private boolean ready = false;
 
-    
     @Data
     public static class VLLMModelsResponse {
         private List<VLLMModelInfo> data;
@@ -67,7 +64,6 @@ public class VLLMModelProvider implements ModelProvider {
     public List<ModelDescriptor> getAvailableModels() {
         List<ModelDescriptor> models = new ArrayList<>();
 
-        
         ModelProviderProperties.VLLMConfig vllmConfig = modelProviderProperties.getVllm();
         if (vllmConfig != null && vllmConfig.getModels() != null) {
             for (Map.Entry<String, ModelProviderProperties.ModelSpec> entry :
@@ -83,7 +79,6 @@ public class VLLMModelProvider implements ModelProvider {
             }
         }
 
-        
         for (Map.Entry<String, VLLMModelInfo> entry : discoveredModels.entrySet()) {
             String modelId = entry.getKey();
             if (!modelCache.containsKey(modelId)) {
@@ -102,7 +97,6 @@ public class VLLMModelProvider implements ModelProvider {
             return modelCache.get(modelId);
         }
 
-        
         ModelProviderProperties.VLLMConfig vllmConfig = modelProviderProperties.getVllm();
         if (vllmConfig != null && vllmConfig.getModels() != null) {
             ModelProviderProperties.ModelSpec spec = vllmConfig.getModels().get(modelId);
@@ -113,7 +107,6 @@ public class VLLMModelProvider implements ModelProvider {
             }
         }
 
-        
         VLLMModelInfo info = discoveredModels.get(modelId);
         if (info != null) {
             ModelDescriptor descriptor = createModelDescriptorFromDiscovery(modelId, info);
@@ -121,7 +114,6 @@ public class VLLMModelProvider implements ModelProvider {
             return descriptor;
         }
 
-        
         loadModelsFromVLLM();
         info = discoveredModels.get(modelId);
         if (info != null) {
@@ -137,7 +129,6 @@ public class VLLMModelProvider implements ModelProvider {
     public ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config) {
         String modelId = descriptor.getModelId();
 
-        
         if (modelInstances.containsKey(modelId)) {
             return modelInstances.get(modelId);
         }
@@ -147,7 +138,6 @@ public class VLLMModelProvider implements ModelProvider {
             OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
                 .model(modelId);
 
-            
             if (descriptor.getOptions() != null) {
                 ModelDescriptor.ModelOptions options = descriptor.getOptions();
                 if (options.getTemperature() != null) {
@@ -158,12 +148,10 @@ public class VLLMModelProvider implements ModelProvider {
                 }
             }
 
-            
             if (descriptor.getCapabilities() != null) {
                 optionsBuilder.maxTokens(descriptor.getCapabilities().getMaxOutputTokens());
             }
 
-            
             if (config != null) {
                 if (config.containsKey("temperature")) {
                     optionsBuilder.temperature((Double) config.get("temperature"));
@@ -178,23 +166,19 @@ public class VLLMModelProvider implements ModelProvider {
 
             OpenAiChatOptions vllmOptions = optionsBuilder.build();
 
-            
             if (!isReady()) {
                 throw new ModelSelectionException("vLLM server not available at " + baseUrl, modelId);
             }
 
-            
             OpenAiApi api = getVLLMApi();
 
-            
             OpenAiChatModel chatModel = OpenAiChatModel.builder()
                 .openAiApi(api)
                 .defaultOptions(vllmOptions)
                 .build();
 
             modelInstances.put(modelId, chatModel);
-            log.info("vLLM 모델 생성 완료: {} (baseUrl: {})", modelId, baseUrl);
-
+            
             return chatModel;
 
         } catch (Exception e) {
@@ -218,12 +202,10 @@ public class VLLMModelProvider implements ModelProvider {
             return true;
         }
 
-        
         if (modelCache.containsKey(modelId)) {
             return true;
         }
 
-        
         return discoveredModels.containsKey(modelId);
     }
 
@@ -234,7 +216,6 @@ public class VLLMModelProvider implements ModelProvider {
                 return HealthStatus.unhealthy("vLLM not initialized");
             }
 
-            
             String healthUrl = baseUrl + "/health";
 
             try {
@@ -247,7 +228,6 @@ public class VLLMModelProvider implements ModelProvider {
                     details.put("provider", "vLLM");
                     details.put("feature", "PagedAttention high-throughput inference");
 
-                    
                     if (modelId != null && !modelId.isEmpty()) {
                         boolean modelExists = discoveredModels.containsKey(modelId) ||
                                             (modelProviderProperties.getVllm() != null &&
@@ -269,7 +249,6 @@ public class VLLMModelProvider implements ModelProvider {
         }
     }
 
-    
     private HealthStatus checkHealthViaModels(String modelId) {
         try {
             String modelsUrl = baseUrl + "/v1/models";
@@ -297,8 +276,7 @@ public class VLLMModelProvider implements ModelProvider {
 
     @Override
     public void initialize(Map<String, Object> config) {
-        log.info("VLLMModelProvider 초기화 시작");
-
+        
         try {
             
             ModelProviderProperties.VLLMConfig vllmConfig = modelProviderProperties.getVllm();
@@ -310,16 +288,13 @@ public class VLLMModelProvider implements ModelProvider {
                 return;
             }
 
-            
             this.restTemplate = new RestTemplate();
 
-            
             this.vllmApi = OpenAiApi.builder()
                 .baseUrl(baseUrl)
                 .apiKey("dummy-key-for-local-vllm")  
                 .build();
 
-            
             boolean modelsLoaded = loadModelsFromVLLM();
 
             if (!modelsLoaded) {
@@ -327,8 +302,7 @@ public class VLLMModelProvider implements ModelProvider {
             }
 
             ready = true;
-            log.info("VLLMModelProvider 초기화 완료 - baseUrl: {}, 모델 로드: {}", baseUrl, modelsLoaded);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("VLLMModelProvider 초기화 실패", e);
             ready = false;
         }
@@ -336,8 +310,7 @@ public class VLLMModelProvider implements ModelProvider {
 
     @Override
     public void shutdown() {
-        log.info("VLLMModelProvider 종료");
-        modelInstances.clear();
+                modelInstances.clear();
         modelCache.clear();
         discoveredModels.clear();
         ready = false;
@@ -350,14 +323,12 @@ public class VLLMModelProvider implements ModelProvider {
 
     @Override
     public void refreshModels() {
-        log.info("vLLM 모델 목록 새로고침");
-        loadModelsFromVLLM();
+                loadModelsFromVLLM();
     }
 
     @Override
     public int getPriority() {
-        
-        
+
         return 5;
     }
 
@@ -375,7 +346,6 @@ public class VLLMModelProvider implements ModelProvider {
         return metrics;
     }
 
-    
     private boolean loadModelsFromVLLM() {
         if (restTemplate == null || baseUrl == null) {
             log.warn("RestTemplate 또는 baseUrl이 설정되지 않아 모델 목록을 로드할 수 없습니다");
@@ -385,8 +355,7 @@ public class VLLMModelProvider implements ModelProvider {
         try {
             
             String modelsUrl = baseUrl + "/v1/models";
-            log.debug("vLLM API 호출: {}", modelsUrl);
-
+            
             ResponseEntity<VLLMModelsResponse> response = restTemplate.getForEntity(
                 modelsUrl, VLLMModelsResponse.class);
 
@@ -399,11 +368,9 @@ public class VLLMModelProvider implements ModelProvider {
                     for (VLLMModelInfo model : modelsResponse.getData()) {
                         String modelId = model.getId();
                         discoveredModels.put(modelId, model);
-                        log.info("vLLM 모델 발견: {}", modelId);
-                    }
+                                            }
 
-                    log.info("vLLM에서 {} 개의 모델을 발견했습니다", discoveredModels.size());
-                    return true;
+                                        return true;
                 }
             } else {
                 log.warn("vLLM API 응답이 비정상입니다: {}", response.getStatusCode());
@@ -416,7 +383,6 @@ public class VLLMModelProvider implements ModelProvider {
         return false;
     }
 
-    
     private ModelDescriptor createModelDescriptorFromSpec(String modelId, ModelProviderProperties.ModelSpec spec) {
         var capBuilder = ModelDescriptor.ModelCapabilities.builder()
             .streaming(spec.getCapabilities().getStreaming())
@@ -471,12 +437,10 @@ public class VLLMModelProvider implements ModelProvider {
             .build();
     }
 
-    
     private ModelDescriptor createModelDescriptorFromDiscovery(String modelId, VLLMModelInfo info) {
         
         int tier = estimateTierFromModelId(modelId);
 
-        
         ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
             modelProviderProperties.getTierDefaults(tier);
 
@@ -536,24 +500,20 @@ public class VLLMModelProvider implements ModelProvider {
             .build();
     }
 
-    
     private int estimateTierFromModelId(String modelId) {
         if (modelId == null) return 2;
 
         String lower = modelId.toLowerCase();
 
-        
         if (lower.contains("70b") || lower.contains("72b") || lower.contains("llama-3.1-70b")) {
             return 3;
         }
 
-        
         if (lower.contains("7b") || lower.contains("8b") || lower.contains("13b") ||
             lower.contains("llama-3") || lower.contains("mistral")) {
             return 2;
         }
 
-        
         if (lower.contains("3b") || lower.contains("1b") || lower.contains("tiny") || lower.contains("small")) {
             return 1;
         }
@@ -561,7 +521,6 @@ public class VLLMModelProvider implements ModelProvider {
         return 2;  
     }
 
-    
     private OpenAiApi getVLLMApi() {
         if (vllmApi == null) {
             

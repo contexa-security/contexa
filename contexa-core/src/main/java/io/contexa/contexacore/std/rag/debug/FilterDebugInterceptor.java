@@ -9,7 +9,6 @@ import org.springframework.ai.vectorstore.filter.converter.PrintFilterExpression
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-
 @Slf4j
 @Aspect
 @ConditionalOnProperty(
@@ -22,14 +21,12 @@ public class FilterDebugInterceptor {
 
     private final PrintFilterExpressionConverter filterPrinter = new PrintFilterExpressionConverter();
 
-    
     @Around("execution(* io.contexa.contexacore..*.similaritySearch(..))")
     public Object debugFilter(ProceedingJoinPoint joinPoint) throws Throwable {
         Object[] args = joinPoint.getArgs();
         String methodName = joinPoint.getSignature().getName();
         String className = joinPoint.getTarget().getClass().getSimpleName();
 
-        
         for (Object arg : args) {
             if (arg instanceof SearchRequest request) {
                 debugSearchRequest(request, className, methodName);
@@ -37,11 +34,9 @@ public class FilterDebugInterceptor {
             }
         }
 
-        
         return joinPoint.proceed();
     }
 
-    
     private void debugSearchRequest(SearchRequest request, String className, String methodName) {
         if (!log.isDebugEnabled()) {
             return;
@@ -50,7 +45,6 @@ public class FilterDebugInterceptor {
         StringBuilder debugInfo = new StringBuilder();
         debugInfo.append(String.format("[VectorStore Filter Debug] %s.%s()\n", className, methodName));
 
-        
         if (request.getQuery() != null && !request.getQuery().isBlank()) {
             String truncatedQuery = request.getQuery().length() > 100
                 ? request.getQuery().substring(0, 100) + "..."
@@ -58,19 +52,15 @@ public class FilterDebugInterceptor {
             debugInfo.append(String.format("  Query: %s\n", truncatedQuery));
         }
 
-        
         debugInfo.append(String.format("  Top-K: %d\n", request.getTopK()));
 
-        
         debugInfo.append(String.format("  Similarity Threshold: %.3f\n", request.getSimilarityThreshold()));
 
-        
         if (request.getFilterExpression() != null) {
             try {
                 String readableFilter = filterPrinter.convertExpression(request.getFilterExpression());
                 debugInfo.append(String.format("  Filter Expression:\n    %s\n", readableFilter));
 
-                
                 int andCount = countOccurrences(readableFilter, "AND");
                 int orCount = countOccurrences(readableFilter, "OR");
                 int totalConditions = andCount + orCount + 1;
@@ -86,10 +76,8 @@ public class FilterDebugInterceptor {
             debugInfo.append("  Filter Expression: [None]\n");
         }
 
-        log.debug(debugInfo.toString());
-    }
+            }
 
-    
     private int countOccurrences(String text, String pattern) {
         int count = 0;
         int index = 0;

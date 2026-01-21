@@ -1,21 +1,15 @@
 package io.contexa.contexacore.autonomous.event.decision;
 
-
 public enum EventTier {
 
-    
     CRITICAL(0.8, 1.0, 1.0, true),
 
-    
     HIGH(0.6, 0.8, 0.8, false),
 
-    
     MEDIUM(0.4, 0.6, 0.5, false),
 
-    
     LOW(0.2, 0.4, 0.2, false),
 
-    
     BENIGN(0.0, 0.2, 0.1, false);
 
     private final double minRisk;
@@ -30,14 +24,12 @@ public enum EventTier {
         this.immediatePublishing = immediatePublishing;
     }
 
-    
     public static EventTier fromAction(String action, Boolean isAnomaly) {
         
         if (action == null || action.isEmpty()) {
             return CRITICAL;
         }
 
-        
         return switch (action.toUpperCase()) {
             case "BLOCK" -> CRITICAL;
             case "ESCALATE" -> HIGH;
@@ -48,7 +40,6 @@ public enum EventTier {
         };
     }
 
-    
     @Deprecated
     public static EventTier fromRiskScore(Double riskScore) {
         
@@ -56,10 +47,8 @@ public enum EventTier {
             return CRITICAL;
         }
 
-        
         double risk = Math.max(0.0, Math.min(1.0, riskScore));
 
-        
         if (risk > 0.8) {
             return CRITICAL;
         } else if (risk > 0.6) {
@@ -73,27 +62,22 @@ public enum EventTier {
         }
     }
 
-    
     public boolean requiresImmediatePublishing() {
         return immediatePublishing;
     }
 
-    
     public double getBaseSamplingRate() {
         return baseSamplingRate;
     }
 
-    
     public double getMinRisk() {
         return minRisk;
     }
 
-    
     public double getMaxRisk() {
         return maxRisk;
     }
 
-    
     public EventTier escalate() {
         return switch (this) {
             case BENIGN -> LOW;

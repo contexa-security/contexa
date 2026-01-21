@@ -22,7 +22,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-
 @Slf4j
 public class BehaviorVectorService extends AbstractVectorLabService {
     
@@ -39,8 +38,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     private boolean feedbackLearningEnabled;
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    
-    
+
     @Autowired
     public BehaviorVectorService(StandardVectorStoreService standardVectorStoreService,
                                 @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
@@ -60,29 +58,16 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     protected String getDocumentType() {
         return VectorDocumentType.BEHAVIOR.getValue();
     }
-    
-    
+
     @Override
     protected Document enrichLabSpecificMetadata(Document document) {
         Map<String, Object> metadata = new HashMap<>(document.getMetadata());
 
         try {
-            
 
-            
             enrichTimeFactsOnly(metadata);
 
-            
             enrichNetworkFactsOnly(metadata);
-
-            
-            
-            
-            
-            
-            
-            
-            
 
             return new Document(document.getText(), metadata);
 
@@ -92,7 +77,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         }
     }
 
-    
     private void enrichTimeFactsOnly(Map<String, Object> metadata) {
         LocalDateTime now = LocalDateTime.now();
 
@@ -100,11 +84,8 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         metadata.put("dayOfWeek", now.getDayOfWeek().toString());
         metadata.put("isWeekend", now.getDayOfWeek().getValue() >= 6);
 
-        
-        
     }
 
-    
     private void enrichNetworkFactsOnly(Map<String, Object> metadata) {
         String ipAddress = (String) metadata.get("remoteIp");
         if (ipAddress != null && ipAddress.contains(".")) {
@@ -113,47 +94,39 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 metadata.put("networkSegment", ipAddress.substring(0, lastDot));
             }
         }
-        
-        
+
     }
     
     @Override
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         if (!metadata.containsKey("userId") && 
             !metadata.containsKey("sessionId") && 
             !metadata.containsKey("ipAddress")) {
             throw new IllegalArgumentException(
                 "행동 분석 문서는 userId, sessionId, ipAddress 중 최소 하나는 포함해야 합니다");
         }
-        
-        
+
         String text = document.getText();
         if (text == null || text.trim().length() < 10) {
             throw new IllegalArgumentException("행동 분석 문서 내용이 너무 짧습니다 (최소 10자 필요)");
         }
-        
-        
+
         if (containsSensitiveInfo(text)) {
             log.warn("[BehaviorVectorService] 문서에 민감 정보가 포함될 수 있습니다");
         }
     }
-    
-    
+
     @Override
     protected void postProcessDocument(Document document, OperationType operationType) {
         try {
             Map<String, Object> metadata = document.getMetadata();
 
-            
             if (operationType == OperationType.STORE) {
                 Double riskScore = (Double) metadata.get("riskScore");
                 if (riskScore != null) {
-                    log.info("[BehaviorVectorService][AI Native] 행동 저장: 사용자={}, riskScore={} (LLM 결정)",
-                            metadata.get("userId"), riskScore);
-                    
+                                        
                 }
             }
 
@@ -168,8 +141,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         filters.put("labName", getLabName());
         return filters;
     }
-    
-    
+
     public void storeBehavior(BehavioralAnalysisContext context) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -179,7 +151,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             }
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
 
-            
             if (context.getCurrentActivity() != null) {
                 metadata.put("currentActivity", context.getCurrentActivity());
             }
@@ -193,14 +164,12 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 metadata.put("organizationId", context.getOrganizationId());
             }
 
-            
             if (context.getRecentActivitySequence() != null && !context.getRecentActivitySequence().isEmpty()) {
                 metadata.put("activitySequence", context.getRecentActivitySequence());
                 metadata.put("sequenceLength", context.getRecentActivitySequence().size());
                 metadata.put("sequencePattern", context.getSequencePattern());
             }
 
-            
             if (context.getTimeSinceLastActivity() != null) {
                 metadata.put("timeSinceLastActivity", context.getTimeSinceLastActivity().toSeconds());
             }
@@ -215,7 +184,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 }
             }
 
-            
             if (context.getSessionFingerprint() != null) {
                 metadata.put("sessionFingerprint", context.getSessionFingerprint());
             } else {
@@ -225,7 +193,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 metadata.put("deviceFingerprint", context.getDeviceFingerprint());
             }
 
-            
             if (context.getUserAgent() != null) {
                 metadata.put("userAgent", context.getUserAgent());
             }
@@ -238,12 +205,10 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             metadata.put("isNewDevice", context.isNewDevice());
             metadata.put("isNewLocation", context.isNewLocation());
 
-            
             metadata.put("dailyActivityCount", context.getDailyActivityCount());
             metadata.put("hourlyActivityCount", context.getHourlyActivityCount());
             metadata.put("activityVelocity", context.getActivityVelocity());
 
-            
             if (context.getActivityFrequency() != null && !context.getActivityFrequency().isEmpty()) {
                 metadata.put("activityFrequency", context.getActivityFrequency());
                 
@@ -256,13 +221,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 }
             }
 
-            
-            
-            
-            
-            
-
-            
             if (context.getAccessContext() != null) {
                 metadata.put("accessContext", context.getAccessContext());
             }
@@ -274,7 +232,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             }
             metadata.put("isVpnConnection", context.isVpnConnection());
 
-            
             if (context.getMetadata() != null && !context.getMetadata().isEmpty()) {
                 for (Map.Entry<String, Object> entry : context.getMetadata().entrySet()) {
                     
@@ -284,10 +241,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 }
             }
 
-            
-            
-            
-            
             StringBuilder behaviorText = new StringBuilder();
 
             if (context.getUserId() != null) {
@@ -297,8 +250,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 if (behaviorText.length() > 0) behaviorText.append(", ");
                 behaviorText.append("IP: ").append(context.getRemoteIp());
             }
-            
-            
+
             String requestPath = null;
             if (context.getMetadata() != null) {
                 Object pathObj = context.getMetadata().get("requestPath");
@@ -322,42 +274,29 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             Document behaviorDoc = new Document(behaviorText.toString(), metadata);
             storeDocument(behaviorDoc);
 
-            log.debug("[BehaviorVectorService] 행동 패턴 저장 완료: 사용자={}, 시퀀스={}",
-                context.getUserId(), context.getSequencePattern());
-
         } catch (Exception e) {
             log.error("[BehaviorVectorService] 행동 패턴 저장 실패", e);
             throw new VectorStoreException("행동 패턴 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeThreatPattern(BehavioralAnalysisContext context, BehavioralAnalysisResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
 
-            
             metadata.put("documentType", "threat");
             metadata.put("threatConfirmed", true);
-            
-            
 
-            
-            
-            
             List<String> indicators = context.getAnomalyIndicators();
             if (indicators != null && !indicators.isEmpty()) {
                 metadata.put("threatIndicators", String.join(",", indicators));
             }
-            
 
-            
             List<String> iocIndicators = extractIocIndicators(context);
             if (!iocIndicators.isEmpty()) {
                 metadata.put("iocIndicators", String.join(",", iocIndicators));
             }
 
-            
             if (context.getUserId() != null) {
                 metadata.put("userId", context.getUserId());
             }
@@ -374,35 +313,20 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             metadata.put("isNewLocation", context.isNewLocation());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
 
-            
             if (context.getAnomalyIndicators() != null && !context.getAnomalyIndicators().isEmpty()) {
                 metadata.put("anomalyIndicators", String.join(",", context.getAnomalyIndicators()));
             }
 
-            
             String threatDescription = buildThreatDescription(context, response);
             Document threatDoc = new Document(threatDescription, metadata);
 
             storeDocument(threatDoc);
-
-            
-            log.info("[ThreatPattern] 위협 패턴 저장 완료: userId={}, indicators={}",
-                context.getUserId(), metadata.get("threatIndicators"));
 
         } catch (Exception e) {
             log.error("[ThreatPattern] 위협 패턴 저장 실패: userId={}", context.getUserId(), e);
         }
     }
 
-    
-    
-    
-
-    
-    
-    
-
-    
     private List<String> extractIocIndicators(BehavioralAnalysisContext context) {
         List<String> indicators = new ArrayList<>();
 
@@ -410,8 +334,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             indicators.add("ip:" + context.getRemoteIp());
         }
 
-        
-        
         if (context.getUserAgent() != null && !context.getUserAgent().isEmpty()) {
             indicators.add("ua:" + context.getUserAgent());
         }
@@ -423,11 +345,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         return indicators;
     }
 
-    
-    
-    
-
-    
     private String buildThreatDescription(BehavioralAnalysisContext context, BehavioralAnalysisResponse response) {
         
         StringBuilder desc = new StringBuilder("Threat:");
@@ -447,16 +364,10 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         return desc.toString();
     }
 
-    
-    
-    
-
-    
     public void storeAnalysisResult(BehavioralAnalysisContext context, BehavioralAnalysisResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
 
-            
             if (context.getUserId() != null) {
                 metadata.put("userId", context.getUserId());
             }
@@ -467,15 +378,12 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             }
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
 
-            
-
             if (context.getOrganizationId() != null) {
                 metadata.put("organizationId", context.getOrganizationId());
             }
 
             metadata.put("documentType", "behavior_analysis");
 
-            
             StringBuilder analysisText = new StringBuilder("Analysis:");
             if (context.getUserId() != null) {
                 analysisText.append(" User=").append(context.getUserId());
@@ -483,24 +391,19 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             if (context.getOrganizationId() != null) {
                 analysisText.append(", Org=").append(context.getOrganizationId());
             }
-            
 
             Document analysisDoc = new Document(analysisText.toString(), metadata);
             storeDocument(analysisDoc);
-
-            log.debug("[BehaviorVectorService] 분석 결과 저장 완료: 분석ID={}", response.getAnalysisId());
 
         } catch (Exception e) {
             log.error("[BehaviorVectorService] 분석 결과 저장 실패", e);
             throw new VectorStoreException("분석 결과 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeFeedback(String analysisId, boolean isCorrect, String feedback) {
         if (!feedbackLearningEnabled) {
-            log.debug("📚 [BehaviorVectorService] 피드백 학습이 비활성화되어 있습니다");
-            return;
+                        return;
         }
         
         try {
@@ -521,29 +424,22 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             
             Document feedbackDoc = new Document(feedbackText, metadata);
             storeDocument(feedbackDoc);
-            
-            log.info("📚 [BehaviorVectorService] 피드백 저장 완료: 분석ID={}, 정확도={}", 
-                    analysisId, isCorrect);
-            
+
         } catch (Exception e) {
             log.error("[BehaviorVectorService] 피드백 저장 실패", e);
             throw new VectorStoreException("피드백 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     @Async
     public CompletableFuture<Void> runBatchLearning() {
         if (!batchLearningEnabled) {
-            log.debug("📚 [BehaviorVectorService] 배치 학습이 비활성화되어 있습니다");
-            return CompletableFuture.completedFuture(null);
+                        return CompletableFuture.completedFuture(null);
         }
         
         return CompletableFuture.runAsync(() -> {
             try {
-                log.info("📚 [BehaviorVectorService] 배치 학습 시작...");
-                
-                
+
                 LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
                 List<AuditLog> yesterdayLogs = auditLogRepository.findByTimestampBetween(
                     yesterday.withHour(0).withMinute(0),
@@ -551,51 +447,37 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 );
                 
                 if (yesterdayLogs.isEmpty()) {
-                    log.info("📚 [BehaviorVectorService] 배치 학습할 로그가 없습니다");
-                    return;
+                                        return;
                 }
-                
-                
+
                 List<Document> batchDocuments = new ArrayList<>();
                 
                 for (AuditLog auditLog : yesterdayLogs) {
                     Document logDoc = convertAuditLogToDocument(auditLog);
                     batchDocuments.add(logDoc);
-                    
-                    
+
                     if (batchDocuments.size() >= labBatchSize) {
                         storeDocuments(new ArrayList<>(batchDocuments));
                         batchDocuments.clear();
                     }
                 }
-                
-                
+
                 if (!batchDocuments.isEmpty()) {
                     storeDocuments(batchDocuments);
                 }
-                
-                log.info("[BehaviorVectorService] 배치 학습 완료: {}개 로그 처리", yesterdayLogs.size());
-                
+
             } catch (Exception e) {
                 log.error("[BehaviorVectorService] 배치 학습 실패", e);
                 throw new VectorStoreException("배치 학습 실패: " + e.getMessage(), e);
             }
         });
     }
-    
-    
+
     public CompletableFuture<String> runETLPipeline(String dataSource, 
                                                   BehaviorETLPipeline.SourceType sourceType) {
         return behaviorETLPipeline.executePipeline(dataSource, sourceType);
     }
-    
-    
-    
-    
-    
-    
-    
-    
+
     private Document convertAuditLogToDocument(AuditLog auditLog) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("userId", auditLog.getPrincipalName());
@@ -617,8 +499,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         
         return new Document(logText, metadata);
     }
-    
-    
+
     private boolean containsSensitiveInfo(String text) {
         String lowerText = text.toLowerCase();
         return lowerText.contains("password") || 
@@ -626,14 +507,11 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                lowerText.contains("credit") ||
                lowerText.contains("secret");
     }
-    
-    
-    
+
     public void storeBehaviorContext(BehavioralAnalysisContext context) {
         storeBehavior(context); 
     }
-    
-    
+
     public List<Document> findSimilarBehaviors(String userId, String ip, String path, int topK) {
         try {
             Map<String, Object> filters = new HashMap<>();
@@ -641,8 +519,6 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             filters.put("userId", userId);
             filters.put("topK", topK);
 
-            
-            
             StringBuilder query = new StringBuilder();
             if (userId != null) {
                 query.append("User: ").append(userId);

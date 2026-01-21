@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class RedisEventListener implements MessageListener {
@@ -33,8 +32,7 @@ public class RedisEventListener implements MessageListener {
         
         TOPICS.forEach(topic -> {
             messageListenerContainer.addMessageListener(this, new ChannelTopic(topic));
-            log.info("Subscribed to Redis topic: {}", topic);
-        });
+                    });
     }
 
     @Override
@@ -43,14 +41,11 @@ public class RedisEventListener implements MessageListener {
             String channel = new String(message.getChannel());
             String eventJson = new String(message.getBody());
 
-            
-
         } catch (Exception e) {
             log.error("Failed to process Redis message: {}", e.getMessage());
         }
     }
 
-    
     private void processEvent(String channel, Map<String, Object> event) {
         String category = (String) event.get("category");
         String eventType = (String) event.get("eventType");
@@ -72,32 +67,23 @@ public class RedisEventListener implements MessageListener {
         }
     }
 
-    
     private void handleAuthenticationEvent(String eventType, String username,
                                            Map<String, Object> data) {
-        log.info("Authentication event - Type: {}, User: {}", eventType, username);
 
-        
         if ("LOGIN_SUCCESS".equals(eventType)) {
             
         }
     }
 
-    
     private void handleMfaEvent(String eventType, String username,
                                 Map<String, Object> data) {
         String sessionId = (String) data.get("sessionId");
-        log.info("MFA event - Type: {}, User: {}, Session: {}", eventType, username, sessionId);
 
-        
     }
 
-    
     private void handleSecurityEvent(String eventType, String username,
                                      Map<String, Object> data) {
         String ipAddress = (String) data.get("ipAddress");
-        log.info("Security event - Type: {}, User: {}, IP: {}", eventType, username, ipAddress);
 
-        
     }
 }

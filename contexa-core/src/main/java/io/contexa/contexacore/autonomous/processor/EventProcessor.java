@@ -1,27 +1,21 @@
 package io.contexa.contexacore.autonomous.processor;
 
-
 public interface EventProcessor<T> {
-    
-    
+
     T process(T event);
-    
-    
+
     default int getPriority() {
         return 0;
     }
-    
-    
+
     default String getName() {
         return this.getClass().getSimpleName();
     }
-    
-    
+
     default boolean isEnabled() {
         return true;
     }
-    
-    
+
     default java.util.List<T> processBatch(java.util.List<T> events) {
         if (events == null || events.isEmpty()) {
             return events;

@@ -5,27 +5,20 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-
 @Builder
 @Data
 public class ActivationResult {
 
-    
     private Long proposalId;
 
-    
     private Long versionId;
 
-    
     private boolean success;
 
-    
     private String message;
 
-    
     private LocalDateTime timestamp;
 
-    
     public static ActivationResult success(Long proposalId, Long versionId) {
         return ActivationResult.builder()
             .proposalId(proposalId)
@@ -36,7 +29,6 @@ public class ActivationResult {
             .build();
     }
 
-    
     public static ActivationResult failure(Long proposalId, String message) {
         return ActivationResult.builder()
             .proposalId(proposalId)

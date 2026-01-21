@@ -5,7 +5,6 @@ import lombok.Getter;
 import java.util.List;
 import java.util.Map;
 
-
 @Getter
 public class LabExecutionStrategy {
     
@@ -29,8 +28,7 @@ public class LabExecutionStrategy {
         this.fallbackStrategy = fallbackStrategy;
         this.qualityGate = qualityGate;
     }
-    
-    
+
     public static class LabExecutionStep {
         private final String stepId;
         private final String labType;
@@ -54,8 +52,7 @@ public class LabExecutionStrategy {
         }
         
     }
-    
-    
+
     public static class FallbackStrategy {
         private final FallbackType type;
         private final String fallbackLabType;
@@ -77,8 +74,7 @@ public class LabExecutionStrategy {
         }
         
     }
-    
-    
+
     public static class QualityGate {
         private final double minAccuracyThreshold;
         private final double maxResponseTimeMs;
@@ -94,27 +90,23 @@ public class LabExecutionStrategy {
             this.minConfidenceScore = minConfidenceScore;
             this.requiredValidations = requiredValidations;
         }
-        
-        
+
         public boolean passesQualityGate(double accuracy, double responseTime, double confidence) {
             return accuracy >= minAccuracyThreshold &&
                    responseTime <= maxResponseTimeMs &&
                    confidence >= minConfidenceScore;
         }
-        
-        
+
         public double getMinAccuracyThreshold() { return minAccuracyThreshold; }
         public double getMaxResponseTimeMs() { return maxResponseTimeMs; }
         public double getMinConfidenceScore() { return minConfidenceScore; }
         public List<String> getRequiredValidations() { return requiredValidations; }
     }
-    
-    
+
     public static Builder builder() {
         return new Builder();
     }
-    
-    
+
     public static class Builder {
         private String strategyId;
         private String requestType;
@@ -152,18 +144,15 @@ public class LabExecutionStrategy {
             );
         }
     }
-    
-    
+
     public String getStrategyName() {
         return "Strategy-" + strategyId;
     }
-    
-    
+
     public long getExpectedDuration() {
         return 5000; 
     }
-    
-    
+
     public String getStrategyId() { return strategyId; }
     public String getOperationType() { return operationType; }
     public List<LabExecutionStep> getExecutionSteps() { return executionSteps; }

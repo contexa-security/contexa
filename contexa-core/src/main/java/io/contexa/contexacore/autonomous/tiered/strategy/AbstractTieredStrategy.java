@@ -23,10 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
-
 
     protected String getUserId(SecurityEvent event) {
         return event.getUserId() != null ?
@@ -40,7 +38,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return getLayerName();
     }
 
-    
     protected String extractJsonObject(String response) {
         if (response == null || response.isEmpty()) {
             return "{}";
@@ -51,8 +48,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return response;
         }
 
-        
-        
         int braceCount = 0;
         int endIndex = -1;
         boolean inString = false;

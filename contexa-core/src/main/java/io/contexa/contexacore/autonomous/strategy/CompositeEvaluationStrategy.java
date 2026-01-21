@@ -18,7 +18,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     
@@ -43,39 +42,29 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     
     @PostConstruct
     public void initialize() {
-        log.info("Initializing CompositeEvaluationStrategy with {} available strategies", 
-            availableStrategies.size());
-        
-        
+
         availableStrategies = availableStrategies.stream()
             .filter(s -> !(s instanceof CompositeEvaluationStrategy))
             .collect(Collectors.toList());
-        
-        
+
         for (ThreatEvaluationStrategy strategy : availableStrategies) {
             strategiesMap.put(strategy.getStrategyName(), strategy);
             
             double weight = 1.0 / (strategy.getPriority() / 10.0 + 1.0);
             strategyWeights.put(strategy.getStrategyName(), weight);
         }
-        
-        
+
         normalizeWeights();
-        
-        
+
         if (parallelExecutionEnabled) {
             executorService = Executors.newFixedThreadPool(threadPoolSize);
         }
         
-        log.info("CompositeEvaluationStrategy initialized with strategies: {}", 
-            strategiesMap.keySet());
-    }
+            }
     
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
-        log.debug("Composite evaluation starting for event: {}", event.getEventId());
-        
-        
+
         List<ThreatEvaluationStrategy> applicableStrategies = filterApplicableStrategies(event);
         
         if (applicableStrategies.size() < minStrategiesRequired) {
@@ -83,17 +72,14 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
                 minStrategiesRequired, applicableStrategies.size());
             return createFallbackAssessment(event, applicableStrategies);
         }
-        
-        
+
         List<StrategyResult> results = parallelExecutionEnabled ?
             executeStrategiesInParallel(applicableStrategies, event) :
             executeStrategiesSequentially(applicableStrategies, event);
-        
-        
+
         return mergeAssessments(event, results);
     }
-    
-    
+
     private List<ThreatEvaluationStrategy> filterApplicableStrategies(SecurityEvent event) {
         return availableStrategies.stream()
             .filter(ThreatEvaluationStrategy::isEnabled)
@@ -102,8 +88,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             .sorted(Comparator.comparingInt(ThreatEvaluationStrategy::getPriority))
             .collect(Collectors.toList());
     }
-    
-    
+
     private List<StrategyResult> executeStrategiesInParallel(
             List<ThreatEvaluationStrategy> strategies, SecurityEvent event) {
         
@@ -132,15 +117,13 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
                 }
             }, executorService))
             .collect(Collectors.toList());
-        
-        
+
         return futures.stream()
             .map(CompletableFuture::join)
             .filter(StrategyResult::isSuccess)
             .collect(Collectors.toList());
     }
-    
-    
+
     private List<StrategyResult> executeStrategiesSequentially(
             List<ThreatEvaluationStrategy> strategies, SecurityEvent event) {
         
@@ -166,29 +149,22 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         
         return results;
     }
-    
-    
+
     private ThreatAssessment mergeAssessments(SecurityEvent event, List<StrategyResult> results) {
         if (results.isEmpty()) {
             return createMinimalAssessment(event);
         }
 
-        
         double weightedRiskScore = calculateWeightedRiskScore(results);
 
-        
         String consensusAction = determineConsensusAction(results);
 
-        
         List<ThreatIndicator> allIndicators = collectAllIndicators(results, event);
 
-        
         List<String> recommendedActions = mergeRecommendedActions(results);
 
-        
         double confidence = calculateCompositeConfidence(results);
 
-        
         Map<String, Object> metadata = createCompositeMetadata(results);
 
         return ThreatAssessment.builder()
@@ -206,8 +182,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             .action(consensusAction)  
             .build();
     }
-    
-    
+
     private double calculateWeightedRiskScore(List<StrategyResult> results) {
         double totalWeightedScore = 0.0;
         double totalWeight = 0.0;
@@ -222,8 +197,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         
         return totalWeight > 0 ? totalWeightedScore / totalWeight : 0.0;
     }
-    
-    
+
     private String determineConsensusAction(List<StrategyResult> results) {
         
         Map<String, Double> votes = new HashMap<>();
@@ -240,7 +214,6 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             }
         }
 
-        
         if (votes.containsKey("BLOCK")) {
             return "BLOCK";
         }
@@ -254,11 +227,9 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             return "ALLOW";
         }
 
-        
         return "ESCALATE";
     }
 
-    
     private String normalizeAction(String action) {
         if (action == null) return "ESCALATE";
         String upper = action.toUpperCase();
@@ -267,11 +238,9 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             default -> upper;
         };
     }
-    
-    
+
     private List<ThreatIndicator> collectAllIndicators(List<StrategyResult> results, SecurityEvent event) {
-        
-        
+
         List<ThreatIndicator> allIndicators = new ArrayList<>();
         
         if (event == null) {
@@ -297,8 +266,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         
         return allIndicators;
     }
-    
-    
+
     private List<String> mergeRecommendedActions(List<StrategyResult> results) {
         Set<String> uniqueActions = new LinkedHashSet<>();
         
@@ -308,14 +276,12 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         
         return new ArrayList<>(uniqueActions);
     }
-    
-    
+
     private double calculateCompositeConfidence(List<StrategyResult> results) {
         if (results.isEmpty()) {
             return 0.0;
         }
-        
-        
+
         double totalWeightedConfidence = 0.0;
         double totalWeight = 0.0;
         
@@ -328,14 +294,12 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         }
         
         double baseConfidence = totalWeight > 0 ? totalWeightedConfidence / totalWeight : 0.5;
-        
-        
+
         double strategyCountBonus = Math.min(0.2, results.size() * 0.05);
         
         return Math.min(1.0, baseConfidence + strategyCountBonus);
     }
-    
-    
+
     private Map<String, Object> createCompositeMetadata(List<StrategyResult> results) {
         Map<String, Object> metadata = new HashMap<>();
         
@@ -352,8 +316,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             )));
         
         metadata.put("parallelExecution", parallelExecutionEnabled);
-        
-        
+
         Map<String, String> strategyActions = new HashMap<>();
         for (StrategyResult result : results) {
             if (result.getAssessment() != null) {
@@ -368,8 +331,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         
         return metadata;
     }
-    
-    
+
     private ThreatAssessment createFallbackAssessment(SecurityEvent event, 
                                                      List<ThreatEvaluationStrategy> strategies) {
         
@@ -383,8 +345,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         
         return createMinimalAssessment(event);
     }
-    
-    
+
     private ThreatAssessment createMinimalAssessment(SecurityEvent event) {
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
@@ -398,8 +359,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             .action("ESCALATE")  
             .build();
     }
-    
-    
+
     private void normalizeWeights() {
         double totalWeight = strategyWeights.values().stream()
             .mapToDouble(Double::doubleValue)
@@ -409,14 +369,12 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
             strategyWeights.replaceAll((k, v) -> v / totalWeight);
         }
     }
-    
-    
+
     public void updateStrategyWeight(String strategyName, double weight) {
         if (strategiesMap.containsKey(strategyName)) {
             strategyWeights.put(strategyName, weight);
             normalizeWeights();
-            log.info("Updated weight for strategy {}: {}", strategyName, weight);
-        }
+                    }
     }
     
     @Override
@@ -450,12 +408,10 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     public String getDescription() {
         return "Composite evaluation strategy that combines multiple threat evaluation strategies";
     }
-    
-    
+
     public Map<String, String> mapToFramework(SecurityEvent event) {
         Map<String, String> mapping = new HashMap<>();
 
-        
         mapping.put("EVALUATION_TYPE", "COMPOSITE");
         mapping.put("STRATEGIES_COUNT", String.valueOf(availableStrategies.size()));
         
@@ -497,8 +453,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
     public int getPriority() {
         return 10; 
     }
-    
-    
+
     private static class StrategyResult {
         private final String strategyName;
         private final ThreatAssessment assessment;
@@ -518,8 +473,7 @@ public class CompositeEvaluationStrategy implements ThreatEvaluationStrategy {
         public long getExecutionTime() { return executionTime; }
         public boolean isSuccess() { return success; }
     }
-    
-    
+
     @Override
     public ThreatAssessment evaluateWithContext(SecurityEvent event, SecurityContext context) {
         return evaluate(event);

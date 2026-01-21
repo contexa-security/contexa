@@ -14,15 +14,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-
 public class AuditLogger {
     
     private static final Logger log = LoggerFactory.getLogger(AuditLogger.class);
     private static final Logger auditLog = LoggerFactory.getLogger("IAM_AUDIT");
     
     private final ConcurrentMap<String, AuditEntry> activeAudits = new ConcurrentHashMap<>();
-    
-    
+
     public <T extends DomainContext> String startAudit(AIRequest<T> request) {
         String auditId = generateAuditId();
         
@@ -42,8 +40,7 @@ public class AuditLogger {
         
         return auditId;
     }
-    
-    
+
     public <T extends DomainContext, R extends AIResponse> void completeAudit(
             String auditId, AIRequest<T> request, R response) {
         
@@ -60,12 +57,10 @@ public class AuditLogger {
         
         auditLog.info("AUDIT_SUCCESS: {} - Duration: {}ms - Response: {} - Status: {}", 
                      auditId, entry.duration, entry.responseType, response.getStatus());
-        
-        
+
         collectMetrics(entry, request, response);
     }
-    
-    
+
     public <T extends DomainContext> void failAudit(String auditId, AIRequest<T> request, Exception error) {
         AuditEntry entry = activeAudits.remove(auditId);
         if (entry == null) {
@@ -81,13 +76,10 @@ public class AuditLogger {
         
         auditLog.error("AUDIT_FAILED: {} - Duration: {}ms - Error: {} - Message: {}", 
                       auditId, entry.duration, entry.errorType, entry.errorMessage);
-        
-        
+
         checkSecurityEvent(entry, request, error);
     }
-    
-    
-    
+
     private String generateAuditId() {
         return "AUDIT-" + UUID.randomUUID().toString().substring(0, 8);
     }
@@ -119,11 +111,7 @@ public class AuditLogger {
     
     private <T extends DomainContext, R extends AIResponse> void collectMetrics(
             AuditEntry entry, AIRequest<T> request, R response) {
-        
-        log.debug("Metrics - Operation: {} - Duration: {}ms - Success: true", 
-                 entry.operationType, entry.duration);
-        
-        
+
     }
     
     private <T extends DomainContext> void checkSecurityEvent(
@@ -134,9 +122,7 @@ public class AuditLogger {
                          entry.auditId, entry.userId, entry.operationType);
         }
     }
-    
-    
-    
+
     private static class AuditEntry {
         final String auditId;
         final String operationType;

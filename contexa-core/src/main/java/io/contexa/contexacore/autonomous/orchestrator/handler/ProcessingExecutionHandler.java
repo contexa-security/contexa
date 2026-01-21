@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ProcessingExecutionHandler implements SecurityEventHandler {
@@ -35,7 +34,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     @Value("${security.plane.agent.name:SecurityPlaneAgent-1}")
     private String agentName;
 
-    
     private final Map<ProcessingMode, ProcessingStrategy> strategyCache = new ConcurrentHashMap<>();
 
     @Override
@@ -44,42 +42,29 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
 
         if (mode == null) {
-            log.info("[ProcessingExecutionHandler] No processing mode found for event: {}", event.getEventId());
-            context.markAsFailed("No processing mode determined");
+                        context.markAsFailed("No processing mode determined");
             return false;
         }
-
-        log.info("[ProcessingExecutionHandler] Executing processing for event: {} with mode: {}",
-            event.getEventId(), mode);
 
         try {
             
             ProcessingStrategy strategy = selectStrategy(mode);
 
             if (strategy == null) {
-                log.info("[ProcessingExecutionHandler] No strategy found for mode: {} - event: {}",
-                    mode, event.getEventId());
-                return handleNoStrategyAvailable(context, mode);
+                                return handleNoStrategyAvailable(context, mode);
             }
 
-            
             long startTime = System.currentTimeMillis();
             ProcessingResult result = strategy.process(context);
             long executionTime = System.currentTimeMillis() - startTime;
 
-            
             handleProcessingResult(context, result, executionTime);
 
-            
             if (result.isRequiresIncident()) {
                 createIncidentFromResult(event, result, context);
             }
 
-            
             publishProcessingCompletedEvent(event, result, mode, executionTime);
-
-            log.info("[ProcessingExecutionHandler] Event {} processed with {} strategy - success: {}, time: {}ms",
-                event.getEventId(), strategy.getName(), result.isSuccess(), executionTime);
 
             return result.isSuccess(); 
 
@@ -90,7 +75,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         }
     }
 
-    
     private ProcessingStrategy selectStrategy(ProcessingMode mode) {
         ProcessingStrategy cached = strategyCache.get(mode);
         if (cached != null) {
@@ -107,11 +91,9 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         return null;
     }
 
-    
     private boolean handleNoStrategyAvailable(SecurityEventContext context, ProcessingMode mode) {
         log.warn("[ProcessingExecutionHandler] No strategy available for mode: {}, using fallback", mode);
 
-        
         ProcessingResult fallbackResult = ProcessingResult.builder()
             .success(true)
             .processingPath(ProcessingResult.ProcessingPath.BYPASS)
@@ -122,7 +104,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         context.addMetadata("fallbackUsed", true);
         context.addResponseAction("FALLBACK", "Event logged without specific processing");
 
-        
         if (mode.needsEscalation()) {
             context.updateProcessingStatus(SecurityEventContext.ProcessingStatus.AWAITING_APPROVAL);
         }
@@ -130,7 +111,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         return true; 
     }
 
-    
     private void handleProcessingResult(SecurityEventContext context, ProcessingResult result, long executionTime) {
         
         context.addMetadata("processingResult", result);
@@ -138,31 +118,24 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         context.addMetadata("processingPath", result.getProcessingPath());
         context.addMetadata("processingExecutionTime", executionTime);
 
-        
         double riskScore = result.getRiskScore();
         context.addMetadata("riskScore", riskScore);
-        log.debug("[ProcessingExecutionHandler] riskScore added to context: {}",
-            String.format("%.3f", riskScore));
 
-        
         if (result.getExecutedActions() != null && !result.getExecutedActions().isEmpty()) {
             for (String action : result.getExecutedActions()) {
                 context.addResponseAction(action, "Executed by " + result.getProcessingPath());
             }
         }
 
-        
         if (result.getMetadata() != null) {
             result.getMetadata().forEach(context::addMetadata);
         }
 
-        
         if (result.getIncidentSeverity() != null) {
             context.addMetadata("incidentCreated", true);
             context.addMetadata("incidentSeverity", result.getIncidentSeverity());
         }
 
-        
         if (result.isSuccess()) {
             if (context.getProcessingStatus() != SecurityEventContext.ProcessingStatus.AWAITING_APPROVAL) {
                 context.updateProcessingStatus(SecurityEventContext.ProcessingStatus.RESPONDING);
@@ -171,7 +144,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             context.markAsFailed(result.getMessage());
         }
 
-        
         SecurityEventContext.ProcessingMetrics metrics = context.getProcessingMetrics();
         if (metrics == null) {
             metrics = new SecurityEventContext.ProcessingMetrics();
@@ -180,7 +152,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         metrics.setResponseTimeMs(executionTime);
     }
 
-    
     private void createIncidentFromResult(SecurityEvent event, ProcessingResult result,
                                          SecurityEventContext context) {
         if (incidentRepository == null) {
@@ -214,10 +185,8 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
                 .autoResponseEnabled(severity == ProcessingResult.IncidentSeverity.CRITICAL)
                 .build();
 
-            
             SecurityIncident saved = incidentRepository.save(incident);
 
-            
             context.addMetadata("incidentId", saved.getIncidentId());
             context.addMetadata("incidentCreated", true);
             context.addMetadata("incidentSeverity", severity.toString());
@@ -225,20 +194,12 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             log.warn("[ProcessingExecutionHandler] Incident created: {} for event: {} - severity: {}",
                 saved.getIncidentId(), event.getEventId(), severity);
 
-            
-            
-            
-
-            
-            
-
         } catch (Exception e) {
             log.error("[ProcessingExecutionHandler] Failed to create incident for event: {}",
                 event.getEventId(), e);
         }
     }
 
-    
     private SecurityIncident.ThreatLevel mapSeverityToThreatLevel(ProcessingResult.IncidentSeverity severity) {
         switch (severity) {
             case CRITICAL:
@@ -254,16 +215,13 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         }
     }
 
-    
     private SecurityIncident.IncidentType determineIncidentType(ProcessingResult result) {
         if (result == null) {
             return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
         }
 
-        
         String action = null;
 
-        
         if (result.getMetadata() != null) {
             Object actionObj = result.getMetadata().get("action");
             if (actionObj != null) {
@@ -271,7 +229,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             }
         }
 
-        
         if (action == null && result.getAnalysisData() != null) {
             Object actionObj = result.getAnalysisData().get("action");
             if (actionObj != null) {
@@ -279,7 +236,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             }
         }
 
-        
         if (action != null) {
             switch (action.toUpperCase()) {
                 case "BLOCK":
@@ -298,7 +254,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             }
         }
 
-        
         double riskScore = result.getRiskScore();
         if (riskScore >= 0.8) {
             return SecurityIncident.IncidentType.INTRUSION;
@@ -309,14 +264,12 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
     }
 
-    
     @Deprecated(since = "4.1.0", forRemoval = true)
     private SecurityIncident.IncidentType mapSeverityToIncidentType(SecurityEvent.Severity severity) {
         
         return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
     }
 
-    
     private void publishProcessingCompletedEvent(SecurityEvent event, ProcessingResult result,
                                                 ProcessingMode mode, long processingTimeMs) {
         try {
@@ -333,7 +286,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
                 }
             }
 
-            
             ProcessingCompletedEvent completedEvent = new ProcessingCompletedEvent(
                 this,
                 event,
@@ -344,9 +296,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             );
 
             eventPublisher.publishEvent(completedEvent);
-
-            log.debug("[ProcessingExecutionHandler] ProcessingCompletedEvent published - eventId: {}, mode: {}, layer: {}, highValue: {}",
-                event.getEventId(), mode, layer, completedEvent.isHighValueForLearning());
 
         } catch (Exception e) {
             

@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-
 @Slf4j
 public class SecurityPromptTemplate {
 
@@ -37,35 +36,25 @@ public class SecurityPromptTemplate {
         this.baselineLearningService = baselineLearningService;
     }
 
-    
     public String buildPrompt(SecurityEvent event,
                                SessionContext sessionContext,
                                BehaviorAnalysis behaviorAnalysis,
                                List<Document> relatedDocuments) {
 
-        
         Optional<String> decodedPayload = eventEnricher.getDecodedPayload(event);
 
-        
         Optional<String> payloadSummary = summarizePayload(decodedPayload.orElse(null));
 
         String networkSection = buildNetworkSection(event);
 
-        
         String baselineContextForQuality = (behaviorAnalysis != null) ? behaviorAnalysis.getBaselineContext() : null;
         String dataQualitySection = PromptTemplateUtils.buildDataQualitySection(event, baselineContextForQuality);
 
-        
         String userId = (sessionContext != null) ? sessionContext.getUserId() : null;
 
-        
         String baselineContext = (behaviorAnalysis != null) ? behaviorAnalysis.getBaselineContext() : null;
         BaselineStatus baselineStatus = determineBaselineStatus(behaviorAnalysis, baselineContext);
 
-        
-        
-        
-        
         StringBuilder baselineSectionBuilder = new StringBuilder();
 
         if (baselineStatus == BaselineStatus.NEW_USER) {
@@ -73,9 +62,6 @@ public class SecurityPromptTemplate {
             baselineSectionBuilder.append("STATUS: ").append(baselineStatus.getStatusLabel()).append("\n");
             baselineSectionBuilder.append("IMPACT: ").append(baselineStatus.getImpactDescription()).append("\n");
 
-            
-            
-            
             baselineSectionBuilder.append("\nZERO TRUST WARNING:\n");
             baselineSectionBuilder.append("- This is a new user without established behavioral baseline.\n");
             baselineSectionBuilder.append("- Cannot verify if this is the legitimate user or an attacker.\n");
@@ -85,10 +71,6 @@ public class SecurityPromptTemplate {
 
         String baselineSection = baselineSectionBuilder.toString();
 
-        
-        
-        
-        
         StringBuilder relatedContextBuilder = new StringBuilder();
         Set<String> detectedOSSet = new HashSet<>();
         Set<String> detectedIPSet = new HashSet<>();
@@ -102,16 +84,12 @@ public class SecurityPromptTemplate {
         for (int i = 0; i < maxDocs && addedDocs < maxRagDocs; i++) {
             Document doc = relatedDocuments.get(i);
 
-            
-            
             Map<String, Object> docMetadata = doc.getMetadata();
             if (userId != null) {
                 Object docUserId = docMetadata.get("userId");
                 if (docUserId != null && !userId.equals(docUserId.toString())) {
                     filteredDocs++;
-                    log.debug("[SecurityPromptTemplate] 다른 사용자 문서 제외: docUser={}, currentUser={}",
-                        docUserId, userId);
-                    continue;  
+                                        continue;  
                 }
             }
 
@@ -129,14 +107,11 @@ public class SecurityPromptTemplate {
 
                 relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
 
-                
-                
                 Object userAgentOS = docMetadata.get("userAgentOS");
                 if (userAgentOS != null && !userAgentOS.toString().isEmpty()) {
                     detectedOSSet.add(userAgentOS.toString());
                 }
 
-                
                 Object sourceIp = docMetadata.get("sourceIp");
                 if (sourceIp != null && !sourceIp.toString().isEmpty()) {
                     String ipStr = sourceIp.toString();
@@ -147,19 +122,16 @@ public class SecurityPromptTemplate {
                     }
                 }
 
-                
                 Object hour = docMetadata.get("hour");
                 if (hour != null) {
                     detectedHourSet.add(hour.toString());
                 }
 
-                
                 Object userAgentBrowser = docMetadata.get("userAgentBrowser");
                 if (userAgentBrowser != null && !userAgentBrowser.toString().isEmpty()) {
                     detectedUASet.add(userAgentBrowser.toString());
                 }
 
-                
                 Object requestPath = docMetadata.get("requestPath");
                 if (requestPath != null && !requestPath.toString().isEmpty()) {
                     String pathStr = requestPath.toString();
@@ -177,9 +149,6 @@ public class SecurityPromptTemplate {
             }
         }
 
-        
-        
-        
         if (userId != null && baselineLearningService != null) {
             BaselineVector baseline = baselineLearningService.getBaseline(userId);
             if (baseline != null) {
@@ -223,29 +192,14 @@ public class SecurityPromptTemplate {
                         }
                     }
                 }
-                log.debug("[SecurityPromptTemplate][AI Native v11.6] Baseline 데이터 병합: userId={}, " +
-                    "IPs={}, Hours={}, UAs={}, Paths={}, OSs={}",
-                    userId,
-                    baseline.getNormalIpRanges() != null ? baseline.getNormalIpRanges().length : 0,
-                    baseline.getNormalAccessHours() != null ? baseline.getNormalAccessHours().length : 0,
-                    baseline.getNormalUserAgents() != null ? baseline.getNormalUserAgents().length : 0,
-                    baseline.getFrequentPaths() != null ? baseline.getFrequentPaths().length : 0,
-                    baseline.getNormalOperatingSystems() != null ? baseline.getNormalOperatingSystems().length : 0);
-            }
+                            }
         }
 
         if (filteredDocs > 0) {
-            log.info("[SecurityPromptTemplate][AI Native v7.1] userId 필터링: {}개 문서 제외, {}개 포함",
-                filteredDocs, addedDocs);
-        }
+                    }
         boolean hasRelatedDocs = relatedContextBuilder.length() > 0;
         String relatedContext = hasRelatedDocs ? relatedContextBuilder.toString() : null;
 
-        
-        
-        
-        
-        
         StringBuilder prompt = new StringBuilder();
         prompt.append("""
             You are a Zero Trust security analyst AI.
@@ -254,7 +208,6 @@ public class SecurityPromptTemplate {
 
             """);
 
-        
         prompt.append("=== EVENT ===\n");
         if (isValidData(event.getEventId())) {
             prompt.append("EventId: ").append(PromptTemplateUtils.sanitizeUserInput(event.getEventId())).append("\n");
@@ -262,14 +215,12 @@ public class SecurityPromptTemplate {
         if (event.getTimestamp() != null) {
             prompt.append("Timestamp: ").append(event.getTimestamp()).append("\n");
 
-            
             prompt.append("CurrentHour: ").append(event.getTimestamp().getHour()).append("\n");
         }
         if (userId != null) {
             prompt.append("User: ").append(PromptTemplateUtils.sanitizeUserInput(userId)).append("\n");
         }
 
-        
         Map<String, Object> metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
             Object httpMethod = metadataObj.get("httpMethod");
@@ -280,15 +231,11 @@ public class SecurityPromptTemplate {
             appendMetadataIfPresent(prompt, metadataObj, "auth.failure_count", "FailureCount");
         }
 
-        
         String eventPath = extractRequestPath(event);
         if (eventPath != null && !eventPath.isEmpty()) {
             prompt.append("Path: ").append(PromptTemplateUtils.sanitizeUserInput(eventPath)).append("\n");
         }
 
-        
-        
-        
         String currentOS = extractOSFromUserAgent(event.getUserAgent());
         String currentIP = normalizeIP(event.getSourceIp());
         
@@ -303,8 +250,6 @@ public class SecurityPromptTemplate {
         prompt.append("Hour: ").append(currentHour != null ? currentHour : "N/A").append("\n");
         prompt.append("UA: ").append(currentUA != null ? currentUA : "N/A").append("\n");
 
-        
-        
         String knownOSStr = !detectedOSSet.isEmpty() ? String.join(", ", detectedOSSet) : "N/A";
         String knownIPStr = !detectedIPSet.isEmpty() ? String.join(", ", normalizeIPSet(detectedIPSet)) : "N/A";
         String knownHourStr = !detectedHourSet.isEmpty() ? String.join(", ", detectedHourSet) : "N/A";
@@ -318,9 +263,6 @@ public class SecurityPromptTemplate {
         prompt.append("UA: [").append(knownUAStr).append("]\n");
         prompt.append("Path: [").append(knownPathStr).append("]\n");
 
-        
-        
-        
         prompt.append("\n=== SIGNAL COMPARISON ===\n");
         prompt.append("For OS, IP, Hour, UA - check if CURRENT value exists in KNOWN list:\n");
         prompt.append("- IN list = MATCH (established pattern)\n");
@@ -336,17 +278,14 @@ public class SecurityPromptTemplate {
         prompt.append("- 1 = Single deviation (evaluate context)\n");
         prompt.append("- 2+ = Multiple deviations (elevated risk)\n");
 
-        
         prompt.append("\n=== NETWORK ===\n");
         prompt.append(networkSection).append("\n");
 
-        
         if (payloadSummary.isPresent()) {
             prompt.append("\n=== PAYLOAD ===\n");
             prompt.append(payloadSummary.get()).append("\n");
         }
 
-        
         prompt.append("\n=== SESSION ===\n");
         if (sessionContext != null) {
             
@@ -359,26 +298,18 @@ public class SecurityPromptTemplate {
                 prompt.append("RequestCount: ").append(requestCount).append("\n");
             }
 
-            
-            
-            
-
-            
             String authMethod = sessionContext.getAuthMethod();
             if (authMethod != null && !authMethod.isEmpty()) {
                 String sanitizedAuthMethod = PromptTemplateUtils.sanitizeUserInput(authMethod);
                 prompt.append("AuthMethod: ").append(sanitizedAuthMethod).append("\n");
             }
-            
-            
+
             appendZeroTrustSignals(prompt, event, behaviorAnalysis, baselineStatus);
         } else {
             
             prompt.append("Session context not available (see DATA AVAILABILITY)\n");
         }
 
-        
-        
         if (behaviorAnalysis != null) {
             String previousSessionOS = behaviorAnalysis.getPreviousUserAgentOS();
             String currentSessionOS = behaviorAnalysis.getCurrentUserAgentOS();
@@ -393,7 +324,6 @@ public class SecurityPromptTemplate {
             }
         }
 
-        
         prompt.append("\n=== BEHAVIOR ===\n");
         if (behaviorAnalysis != null) {
             List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
@@ -414,10 +344,6 @@ public class SecurityPromptTemplate {
             prompt.append("Behavior analysis not available (see DATA AVAILABILITY)\n");
         }
 
-        
-        
-        
-        
         prompt.append("\n=== RELATED CONTEXT ===\n");
         prompt.append("Historical events for this user:\n\n");
         if (hasRelatedDocs) {
@@ -428,17 +354,10 @@ public class SecurityPromptTemplate {
             prompt.append("No related context found (see DATA AVAILABILITY)\n");
         }
 
-        
-
-        
         if (baselineStatus == BaselineStatus.NEW_USER) {
             prompt.append("\n").append(baselineSection);
         }
 
-        
-        
-        
-        
         prompt.append("""
 
             === DECISION ===
@@ -459,13 +378,9 @@ public class SecurityPromptTemplate {
         return prompt.toString();
     }
 
-    
     private void appendZeroTrustSignals(StringBuilder prompt, SecurityEvent event,
                                         BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
-        
 
-        
-        
         boolean isNewUserForLlm = (baselineStatus != BaselineStatus.ESTABLISHED);
         prompt.append("IsNewUser: ").append(isNewUserForLlm);
         if (isNewUserForLlm) {
@@ -473,26 +388,21 @@ public class SecurityPromptTemplate {
         }
         prompt.append("\n");
 
-        
         Boolean isNewSession = getIsNewSession(behaviorAnalysis, event);
         if (isNewSession != null) {
             prompt.append("IsNewSession: ").append(isNewSession).append("\n");
         }
 
-        
-        
         Boolean isNewDevice = getIsNewDevice(behaviorAnalysis, event);
         if (isNewDevice != null) {
             prompt.append("IsNewDevice: ").append(isNewDevice).append("\n");
 
-            
             if (isNewDevice) {
                 prompt.append("  -> First time seeing this device for this user\n");
             }
         }
     }
 
-    
     private Boolean getIsNewSession(BehaviorAnalysis behaviorAnalysis, SecurityEvent event) {
         if (behaviorAnalysis != null && behaviorAnalysis.getIsNewSession() != null) {
             return behaviorAnalysis.getIsNewSession();
@@ -510,7 +420,6 @@ public class SecurityPromptTemplate {
         return null;
     }
 
-    
     private Boolean getIsNewDevice(BehaviorAnalysis behaviorAnalysis, SecurityEvent event) {
         if (behaviorAnalysis != null && behaviorAnalysis.getIsNewDevice() != null) {
             return behaviorAnalysis.getIsNewDevice();
@@ -528,7 +437,6 @@ public class SecurityPromptTemplate {
         return null;
     }
 
-    
     private String buildDocumentMetadata(Document doc, int docIndex) {
         StringBuilder meta = new StringBuilder();
         meta.append("[Doc").append(docIndex);
@@ -544,7 +452,6 @@ public class SecurityPromptTemplate {
                 meta.append("|sim=").append(String.format("%.2f", ((Number) scoreObj).doubleValue()));
             }
 
-            
             Object typeObj = metadata.get("documentType");
             if (typeObj == null) {
                 typeObj = metadata.get("type");
@@ -553,30 +460,16 @@ public class SecurityPromptTemplate {
                 meta.append("|type=").append(typeObj.toString());
             }
 
-            
-            
-            
             Object userId = metadata.get("userId");
             if (userId != null) {
                 meta.append("|user=").append(userId);
             }
-
-            
-            
-            
-            
-
-            
-            
 
             Object sourceIp = metadata.get("sourceIp");
             if (sourceIp != null) {
                 meta.append("|ip=").append(sourceIp);
             }
 
-            
-            
-            
             Object hour = metadata.get("hour");
             if (hour != null) {
                 meta.append("|hour=").append(hour);
@@ -590,23 +483,17 @@ public class SecurityPromptTemplate {
                 }
             }
 
-            
             Object requestUri = metadata.get("requestPath");
             if (requestUri != null) {
                 meta.append("|path=").append(requestUri);
             }
 
-            
-            
-            
-            
         }
 
         meta.append("]");
         return meta.toString();
     }
 
-    
     private Optional<String> summarizePayload(String payload) {
         if (payload == null || payload.isEmpty()) {
             return Optional.empty();
@@ -618,14 +505,11 @@ public class SecurityPromptTemplate {
         return Optional.of(payload);
     }
 
-    
     private String buildNetworkSection(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
 
-        
         PromptTemplateUtils.appendIpWithValidation(network, event.getSourceIp());
 
-        
         if (isValidData(event.getSessionId())) {
             String sanitizedSessionId = PromptTemplateUtils.sanitizeUserInput(event.getSessionId());
             network.append("SessionId: ").append(sanitizedSessionId).append("\n");
@@ -633,21 +517,17 @@ public class SecurityPromptTemplate {
             network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
         }
 
-        
         if (isValidData(event.getUserAgent())) {
             String ua = event.getUserAgent();
             int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer1().getUserAgent();
             String sanitizedUa = PromptTemplateUtils.sanitizeAndTruncate(ua, maxUserAgent);
             network.append("UserAgent: ").append(sanitizedUa).append("\n");
 
-            
             String currentOS = extractOSFromUserAgent(ua);
             if (currentOS != null) {
                 network.append("CurrentOS: ").append(currentOS).append("\n");
             }
 
-            
-            
             String currentUA = extractUASignature(ua);
             network.append("CurrentUA: ").append(currentUA).append("\n");
         }
@@ -655,18 +535,15 @@ public class SecurityPromptTemplate {
         return network.toString().trim();
     }
 
-    
     private boolean isValidData(String value) {
         return PromptTemplateUtils.isValidData(value);
     }
 
-    
     private String extractOSFromUserAgent(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return null;
         }
 
-        
         if (userAgent.contains("Android")) {
             return "Android";
         }
@@ -674,7 +551,6 @@ public class SecurityPromptTemplate {
             return "iOS";
         }
 
-        
         if (userAgent.contains("Windows")) {
             return "Windows";
         }
@@ -691,7 +567,6 @@ public class SecurityPromptTemplate {
         return null;
     }
 
-    
     private String normalizeIP(String ip) {
         if (ip == null || ip.isEmpty()) {
             return ip;
@@ -699,7 +574,6 @@ public class SecurityPromptTemplate {
 
         String trimmed = ip.trim().toLowerCase();
 
-        
         if (trimmed.equals("loopback") ||
             trimmed.equals("::1") ||
             trimmed.equals("0:0:0:0:0:0:0:1") ||
@@ -711,7 +585,6 @@ public class SecurityPromptTemplate {
         return ip;
     }
 
-    
     private Set<String> normalizeIPSet(Set<String> ipSet) {
         if (ipSet == null || ipSet.isEmpty()) {
             return ipSet;
@@ -724,19 +597,16 @@ public class SecurityPromptTemplate {
         return normalized;
     }
 
-    
     private BaselineStatus determineBaselineStatus(BehaviorAnalysis behaviorAnalysis, String baselineContext) {
         
         if (behaviorAnalysis == null) {
             return BaselineStatus.ANALYSIS_UNAVAILABLE;
         }
 
-        
         if (isValidBaseline(baselineContext)) {
             return BaselineStatus.ESTABLISHED;
         }
 
-        
         if (baselineContext != null && baselineContext.startsWith("[")) {
             if (baselineContext.startsWith("[SERVICE_UNAVAILABLE]")) {
                 return BaselineStatus.SERVICE_UNAVAILABLE;
@@ -750,22 +620,18 @@ public class SecurityPromptTemplate {
             return BaselineStatus.NEW_USER;
         }
 
-        
         if (baselineContext != null &&
             (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
             return BaselineStatus.NEW_USER;
         }
 
-        
         if (behaviorAnalysis.isBaselineEstablished()) {
             return BaselineStatus.NOT_LOADED;
         }
 
-        
         return BaselineStatus.NEW_USER;
     }
 
-    
     private boolean isValidBaseline(String baseline) {
         if (baseline == null || baseline.isEmpty()) {
             return false;
@@ -784,7 +650,6 @@ public class SecurityPromptTemplate {
             && !baseline.equalsIgnoreCase("N/A");
     }
 
-    
     private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
         if (metadata == null) {
             return;
@@ -795,13 +660,11 @@ public class SecurityPromptTemplate {
         }
     }
 
-    
     private String extractUASignature(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return "Browser";
         }
 
-        
         if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
             return extractBrowserVersion(userAgent, "Chrome/");
         } else if (userAgent.contains("Edg/")) {
@@ -817,7 +680,6 @@ public class SecurityPromptTemplate {
         return "Browser";
     }
 
-    
     private String extractBrowserVersion(String userAgent, String prefix) {
         int idx = userAgent.indexOf(prefix);
         if (idx == -1) return "Browser";
@@ -841,13 +703,11 @@ public class SecurityPromptTemplate {
         return browserName + "/" + version;
     }
 
-    
     private String extractRequestPath(SecurityEvent event) {
         if (event == null) {
             return null;
         }
 
-        
         Map<String, Object> metadata = event.getMetadata();
         if (metadata != null) {
             Object path = metadata.get("requestPath");
@@ -855,15 +715,12 @@ public class SecurityPromptTemplate {
                 return path.toString();
             }
 
-            
             Object uri = metadata.get("requestUri");
             if (uri != null && !uri.toString().isEmpty()) {
                 return uri.toString();
             }
         }
 
-        
-        
         String desc = event.getDescription();
         if (desc != null && desc.contains(" /")) {
             int pathStart = desc.indexOf(" /") + 1;
@@ -878,7 +735,6 @@ public class SecurityPromptTemplate {
         return null;
     }
 
-    
     private boolean matchesPathPattern(String currentPath, Set<String> knownPaths) {
         if (currentPath == null || knownPaths == null || knownPaths.isEmpty()) {
             return false;
@@ -890,7 +746,6 @@ public class SecurityPromptTemplate {
                 return true;
             }
 
-            
             if (knownPath.endsWith("/*")) {
                 String prefix = knownPath.substring(0, knownPath.length() - 1); 
                 if (currentPath.startsWith(prefix)) {
@@ -898,7 +753,6 @@ public class SecurityPromptTemplate {
                 }
             }
 
-            
             if (currentPath.startsWith(knownPath) || knownPath.startsWith(currentPath)) {
                 return true;
             }
@@ -907,14 +761,12 @@ public class SecurityPromptTemplate {
         return false;
     }
 
-    
     public static class SessionContext {
         private String sessionId;
         private String userId;
         private String authMethod;
         private List<String> recentActions;
 
-        
         private Integer sessionAgeMinutes;    
         private Integer requestCount;         
 
@@ -930,7 +782,6 @@ public class SecurityPromptTemplate {
         public List<String> getRecentActions() { return recentActions != null ? recentActions : List.of(); }
         public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
 
-        
         public Integer getSessionAgeMinutes() { return sessionAgeMinutes; }
         public void setSessionAgeMinutes(Integer sessionAgeMinutes) { this.sessionAgeMinutes = sessionAgeMinutes; }
 
@@ -938,22 +789,15 @@ public class SecurityPromptTemplate {
         public void setRequestCount(Integer requestCount) { this.requestCount = requestCount; }
     }
 
-    
     public static class BehaviorAnalysis {
         private List<String> similarEvents;
         private String baselineContext;
         private boolean baselineEstablished;
 
-        
         private Boolean isNewUser;
         private Boolean isNewSession;
         private Boolean isNewDevice;
 
-        
-        
-        
-
-        
         private String previousUserAgentOS;
         private String currentUserAgentOS;
 
@@ -966,7 +810,6 @@ public class SecurityPromptTemplate {
         public boolean isBaselineEstablished() { return baselineEstablished; }
         public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
 
-        
         public Boolean getIsNewUser() { return isNewUser; }
         public void setIsNewUser(Boolean isNewUser) { this.isNewUser = isNewUser; }
 
@@ -976,9 +819,6 @@ public class SecurityPromptTemplate {
         public Boolean getIsNewDevice() { return isNewDevice; }
         public void setIsNewDevice(Boolean isNewDevice) { this.isNewDevice = isNewDevice; }
 
-        
-
-        
         public String getPreviousUserAgentOS() { return previousUserAgentOS; }
         public void setPreviousUserAgentOS(String previousUserAgentOS) { this.previousUserAgentOS = previousUserAgentOS; }
 

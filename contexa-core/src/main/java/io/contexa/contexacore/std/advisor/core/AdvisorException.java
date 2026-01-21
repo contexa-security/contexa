@@ -1,18 +1,15 @@
 package io.contexa.contexacore.std.advisor.core;
 
-
 public class AdvisorException extends RuntimeException {
     
     private final boolean blocking;
     private final String domain;
     private final String advisorName;
-    
-    
+
     public static AdvisorException blocking(String domain, String advisorName, String message) {
         return new AdvisorException(domain, advisorName, message, true);
     }
-    
-    
+
     public static AdvisorException nonBlocking(String domain, String advisorName, String message) {
         return new AdvisorException(domain, advisorName, message, false);
     }

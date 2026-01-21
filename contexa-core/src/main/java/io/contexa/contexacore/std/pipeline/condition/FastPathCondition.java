@@ -5,7 +5,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 public class FastPathCondition<T extends DomainContext>
         implements PipelineStepCondition<T> {
@@ -16,12 +15,10 @@ public class FastPathCondition<T extends DomainContext>
         Boolean requiresFast = context.get("requires_fast_response", Boolean.class);
 
         if (requiresFast != null && requiresFast) {
-            log.debug("[FastPath] 고속 경로 요청 - 단계 건너뜀");
-            return false;
+                        return false;
         }
 
-        log.debug("[FastPath] 일반 경로 - 단계 실행");
-        return true;
+                return true;
     }
 
     @Override

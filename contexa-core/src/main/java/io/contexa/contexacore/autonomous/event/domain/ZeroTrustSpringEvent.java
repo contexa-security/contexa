@@ -12,7 +12,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Getter
 @JsonIgnoreProperties({"source"})
 @JsonDeserialize(builder = ZeroTrustSpringEvent.Builder.class)
@@ -21,57 +20,38 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    
-
-    
     public static final String TYPE_AUTHENTICATION_SUCCESS = "SUCCESS";
     public static final String TYPE_AUTHENTICATION_FAILURE = "FAILURE";
     public static final String TYPE_AUTHENTICATION_MFA = "MFA";
 
-    
     public static final String TYPE_AUTHORIZATION_WEB = "WEB";
     public static final String TYPE_AUTHORIZATION_METHOD = "METHOD";
 
-    
     public static final String TYPE_SESSION_CREATED = "CREATED";
     public static final String TYPE_SESSION_EXPIRED = "EXPIRED";
     public static final String TYPE_SESSION_INVALIDATED = "INVALIDATED";
 
-    
     public static final String TYPE_THREAT_DETECTED = "DETECTED";
     public static final String TYPE_THREAT_ANOMALY = "ANOMALY";
     public static final String TYPE_THREAT_BLOCKED = "BLOCKED";
 
-    
-
-    
     private final ZeroTrustEventCategory category;
 
-    
     private final String eventType;
 
-    
     private final String userId;
 
-    
     private final String sessionId;
 
-    
     private final String clientIp;
 
-    
     private final String userAgent;
 
-    
     private final String resource;
 
-    
     private final Instant eventTimestamp;
 
-    
     private final Map<String, Object> payload;
-
-    
 
     private ZeroTrustSpringEvent(
             Object source,
@@ -96,43 +76,33 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
         this.payload = payload != null ? Collections.unmodifiableMap(new HashMap<>(payload)) : Collections.emptyMap();
     }
 
-    
-
-    
     public String getFullEventType() {
         return category.name() + "_" + eventType;
     }
 
-    
     public boolean isCategory(ZeroTrustEventCategory target) {
         return category == target;
     }
 
-    
     public boolean isEventType(String target) {
         return eventType != null && eventType.equals(target);
     }
 
-    
     @SuppressWarnings("unchecked")
     public <T> T getPayloadValue(String key) {
         return (T) payload.get(key);
     }
 
-    
     @SuppressWarnings("unchecked")
     public <T> T getPayloadValue(String key, T defaultValue) {
         Object value = payload.get(key);
         return value != null ? (T) value : defaultValue;
     }
 
-    
-
     public static Builder builder(Object source) {
         return new Builder(source);
     }
 
-    
     public static Builder builder() {
         return new Builder("kafka-deserialization");
     }
@@ -150,7 +120,6 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
         private Instant eventTimestamp;
         private Map<String, Object> payload;
 
-        
         public Builder() {
         }
 
@@ -203,7 +172,6 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
             return this;
         }
 
-        
         public Builder addPayload(String key, Object value) {
             if (this.payload == null) {
                 this.payload = new HashMap<>();

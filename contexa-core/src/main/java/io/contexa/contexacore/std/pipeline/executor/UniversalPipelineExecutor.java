@@ -1,27 +1,22 @@
 package io.contexa.contexacore.std.pipeline.executor;
 
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Context;
-import io.opentelemetry.context.Scope;
+import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.step.*;
-import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacommon.domain.request.AIResponse;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.stream.Stream;
-
 
 @Slf4j
 public class UniversalPipelineExecutor implements PipelineExecutor {
@@ -47,7 +42,6 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         this.llmExecutionStep = llmExecutionStep;
         this.soarToolExecutionStep = soarToolExecutionStep;
 
-        
         this.steps = Stream.of(
                         contextRetrievalStep,
                         preprocessingStep,
@@ -59,17 +53,14 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 .sorted((a, b) -> Integer.compare(a.getOrder(), b.getOrder()))
                 .toList();
 
-        
         this.stepHandlers = List.of(
                 new PostprocessingStepExecutionHandler(),
                 new DefaultStepExecutionHandler()
         );
 
-        
         this.responseBuilder = new FinalResponseBuilder();
 
-        log.info("UniversalPipelineExecutor (Refactored) 초기화 완료: {} 단계, {} 핸들러", steps.size(), stepHandlers.size());
-    }
+            }
 
     @Override
     public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
@@ -79,19 +70,15 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
         long pipelineStartTime = System.currentTimeMillis();
 
-        
         Span span = tracer.spanBuilder("pipeline.execute")
                 .setAttribute("request.id", request.getRequestId())
                 .setAttribute("domain", getSupportedDomain())
                 .setAttribute("response.type", responseType.getSimpleName())
                 .startSpan();
 
-        log.info("[PIPELINE] ===== Universal Pipeline 실행 시작 ===== Request: {}", request.getRequestId());
-
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         context.addMetadata("targetResponseType", responseType);
 
-        
         try (Scope scope = span.makeCurrent()) {
             return executeStepsSequentially(request, configuration, context, responseType)
                     .map(ctx -> responseBuilder.build(request, ctx, responseType)) 
@@ -99,9 +86,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                         long totalTime = System.currentTimeMillis() - pipelineStartTime;
                         span.setAttribute("duration.ms", totalTime);
                         span.setStatus(StatusCode.OK);
-                        log.info("[PIPELINE] ===== Pipeline 완료 ===== Request: {} 총 처리시간: {}ms",
-                                request.getRequestId(), totalTime);
-                    })
+                                            })
                     .doOnError(error -> {
                         long totalTime = System.currentTimeMillis() - pipelineStartTime;
                         span.setAttribute("duration.ms", totalTime);
@@ -116,8 +101,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
     @Override
     public <T extends DomainContext> Flux<String> executeStream(AIRequest<T> request, PipelineConfiguration<T> configuration) {
-        log.info("[{}] Universal Pipeline 스트리밍 시작: {}", getSupportedDomain(), request.getRequestId());
-        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+                PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         return executePreStreamingSteps(request, configuration, context)
                 .flatMapMany(ctx -> {
                     if (configuration.hasStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)) {
@@ -134,16 +118,12 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                                 getSupportedDomain(), request.getRequestId(), error.getMessage(), error));
     }
 
-    
     private <T extends DomainContext, R extends AIResponse> Mono<PipelineExecutionContext> executeStepsSequentially(
             AIRequest<T> request,
             PipelineConfiguration<T> configuration,
             PipelineExecutionContext context,
             Class<R> responseType) {
 
-        log.info("[PIPELINE] ===== 6단계 순차 실행 시작 (Handler 방식) ===== Request: {}", request.getRequestId());
-
-        
         setCurrentContext(request.getContext());
         
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
@@ -153,8 +133,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             PipelineStep actualStep;
             if (step == llmExecutionStep && isSoarContext() && soarToolExecutionStep != null) {
                 actualStep = soarToolExecutionStep;
-                log.info("SOAR 컨텍스트 감지: LLM_EXECUTION → SOAR_TOOL_EXECUTION 전환");
-            } else {
+                            } else {
                 actualStep = step;
             }
 
@@ -167,20 +146,16 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 pipeline = pipeline.flatMap(ctx -> {
                     
                     if (!configuration.shouldExecuteStep(configStep, request, ctx)) {
-                        log.info("[PIPELINE] STEP {} 건너뜀 (조건 미충족): {}", stepOrder, stepName);
-                        return Mono.just(ctx);
+                                                return Mono.just(ctx);
                     }
 
                     long stepStart = System.currentTimeMillis();
 
-                    
                     Span stepSpan = tracer.spanBuilder("pipeline.step." + stepName)
                             .setAttribute("step.name", stepName)
                             .setAttribute("step.order", stepOrder)
                             .setAttribute("request.id", request.getRequestId())
                             .startSpan();
-
-                    log.info("[PIPELINE] STEP {}: {} 시작", stepOrder, stepName);
 
                     try (Scope stepScope = stepSpan.makeCurrent()) {
 
@@ -190,8 +165,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                                     long stepTime = System.currentTimeMillis() - stepStart;
                                     stepSpan.setAttribute("step.duration.ms", stepTime);
                                     stepSpan.setStatus(StatusCode.OK);
-                                    log.info("[PIPELINE] STEP {} 완료: {} ({}ms)", stepOrder, stepName, stepTime);
-                                })
+                                                                    })
                                 .doOnError(error -> {
                                     long stepTime = System.currentTimeMillis() - stepStart;
                                     stepSpan.setAttribute("step.duration.ms", stepTime);
@@ -204,15 +178,12 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                     }
                 });
             } else {
-                log.debug("⏭️ [PIPELINE] STEP {} 건너뜀: {} (비활성화)", step.getOrder(), step.getStepName());
-            }
+                            }
         }
-        
-        
+
         return pipeline.doFinally(signal -> clearCurrentContext());
     }
 
-    
     protected StepExecutionHandler findHandlerFor(PipelineStep step) {
         return stepHandlers.stream()
                 .filter(handler -> handler.canHandle(step))
@@ -220,18 +191,13 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 .orElseThrow(() -> new IllegalStateException("No handler found for step: " + step.getStepName()));
     }
 
-
-
     private <T extends DomainContext> Mono<PipelineExecutionContext> executePreStreamingSteps(
             AIRequest<T> request,
             PipelineConfiguration<T> configuration,
             PipelineExecutionContext context) {
 
-        log.info("[PIPELINE] 스트리밍 전처리 단계 비동기 실행 시작");
-
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
-        
         for (PipelineStep step : steps.subList(0, Math.min(3, steps.size()))) {
             PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step);
 
@@ -239,13 +205,11 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 final String stepName = step.getStepName();
 
                 pipeline = pipeline.flatMap(ctx -> {
-                    log.debug("[PIPELINE] 스트리밍 전처리 단계: {} 시작", stepName);
-
+                    
                     StepExecutionHandler handler = findHandlerFor(step);
                     return handler.execute(step, request, configuration, ctx, null)
                             .doOnSuccess(c -> {
-                                log.debug("[{}] {} 완료 (스트리밍용)", getSupportedDomain(), stepName);
-                            })
+                                                            })
                             .doOnError(error -> {
                                 log.error("[PIPELINE] 스트리밍 전처리 단계 {} 실패: {}", stepName, error.getMessage());
                             });
@@ -254,11 +218,9 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         }
 
         return pipeline.doOnSuccess(ctx -> {
-            log.info("[PIPELINE] 스트리밍 전처리 단계 비동기 실행 완료");
-        });
+                    });
     }
 
-    
     private PipelineConfiguration.PipelineStep getConfigStepForStep(PipelineStep step) {
         
         if (step.getStepName().equals("LLM_EXECUTION") && isSoarContext()) {
@@ -276,16 +238,13 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             default -> throw new IllegalArgumentException("Unknown step: " + step.getStepName());
         };
     }
-    
-    
+
     private static final ThreadLocal<DomainContext> currentContext = new ThreadLocal<>();
-    
-    
+
     private void setCurrentContext(DomainContext context) {
         currentContext.set(context);
     }
-    
-    
+
     private void clearCurrentContext() {
         currentContext.remove();
     }

@@ -3,7 +3,6 @@ package io.contexa.contexacore.infra.session;
 import java.util.HashMap;
 import java.util.Map;
 
-
 public class AIExecutionMetrics {
     private final String sessionId;
     private final long startTime;
@@ -26,13 +25,11 @@ public class AIExecutionMetrics {
         this.errorCount = errorCount;
         this.customMetrics = customMetrics;
     }
-    
-    
+
     public static AIExecutionMetricsBuilder builder() {
         return new AIExecutionMetricsBuilder();
     }
-    
-    
+
     public static class AIExecutionMetricsBuilder {
         private String sessionId;
         private long startTime = System.currentTimeMillis();
@@ -102,8 +99,7 @@ public class AIExecutionMetrics {
                                         requestCount, successCount, errorCount, customMetrics);
         }
     }
-    
-    
+
     public String getSessionId() { return sessionId; }
     public long getStartTime() { return startTime; }
     public long getEndTime() { return endTime; }

@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "redis.cleanup.enabled", havingValue = "true", matchIfMissing = true)
@@ -19,9 +18,7 @@ public class RedisKeyCleanup {
 
     @PostConstruct
     public void cleanupConflictingKeys() {
-        log.info("Starting Redis key cleanup for type conflicts...");
 
-        
         Set<String> keysToCheck = Set.of(
             "security:user:context:admin",
             "security:user:context:dev_lead",
@@ -50,6 +47,5 @@ public class RedisKeyCleanup {
             }
         }
 
-        log.info("Redis key cleanup completed");
-    }
+            }
 }

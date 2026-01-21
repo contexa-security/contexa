@@ -3,27 +3,22 @@ package io.contexa.contexacore.autonomous.utils;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-
 public class UserIdentificationStrategy {
     
     private static final String ANONYMOUS_USER = "anonymousUser";
-    
-    
+
     public static String getUserId(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return null; 
         }
-        
-        
+
         if (ANONYMOUS_USER.equals(authentication.getPrincipal())) {
             return null;
         }
-        
-        
+
         return authentication.getName();
     }
-    
-    
+
     public static String getUserId(Object userDto) {
         if (userDto == null) {
             return null;
@@ -44,44 +39,37 @@ public class UserIdentificationStrategy {
         
         return null;
     }
-    
-    
+
     public static String getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return getUserId(authentication);
     }
-    
-    
+
     public static boolean isAuthenticated() {
         String userId = getCurrentUserId();
         return userId != null && !userId.isEmpty();
     }
-    
-    
+
     public static boolean isAnonymous() {
         return !isAuthenticated();
     }
-    
-    
+
     public static boolean isValidUserId(String userId) {
         return userId != null && !userId.trim().isEmpty() && !ANONYMOUS_USER.equals(userId);
     }
-    
-    
+
     public static boolean isSameUser(String userId1, String userId2) {
         if (userId1 == null || userId2 == null) {
             return false;
         }
         return userId1.equals(userId2);
     }
-    
-    
+
     public static boolean isCurrentUser(String userId) {
         String currentUserId = getCurrentUserId();
         return isSameUser(currentUserId, userId);
     }
-    
-    
+
     public static String getUserIdWithContext(Object userDto) {
         if (userDto == null) {
             return null;
@@ -102,8 +90,7 @@ public class UserIdentificationStrategy {
         
         return null;
     }
-    
-    
+
     public static UserIdentity createUserIdentity(Authentication authentication, String sessionId) {
         String userId = getUserId(authentication);
         
@@ -114,8 +101,7 @@ public class UserIdentificationStrategy {
             .timestamp(System.currentTimeMillis())
             .build();
     }
-    
-    
+
     public static class UserIdentity {
         private final String userId;
         private final String sessionId;

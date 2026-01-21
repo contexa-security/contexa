@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-
 @Slf4j
 public class InMemorySessionIdGenerator implements SessionIdGenerator {
 

@@ -23,12 +23,10 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
 public class SecurityMonitoringService {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityMonitoringService.class);
 
-    
     @FunctionalInterface
     public interface SecurityEventBatchProcessor {
         void processBatch(List<SecurityEvent> events);
@@ -46,7 +44,6 @@ public class SecurityMonitoringService {
     private final AtomicLong eventCounter;
     private final AtomicLong incidentCounter;
 
-    
     private volatile SecurityEventBatchProcessor batchProcessor;
 
     public SecurityMonitoringService(
@@ -68,7 +65,6 @@ public class SecurityMonitoringService {
         this.incidentCounter = new AtomicLong(0);
     }
 
-    
     public void setBatchProcessor(SecurityEventBatchProcessor processor) {
         this.batchProcessor = processor;
     }
@@ -93,7 +89,6 @@ public class SecurityMonitoringService {
         }
     }
 
-    
     public void startMonitoring(String sessionId, Map<String, Object> config) {
         if (activeSessions.containsKey(sessionId)) {
             log.warn("Monitoring session already exists for: {}", sessionId);
@@ -103,24 +98,19 @@ public class SecurityMonitoringService {
         activeSessions.put(sessionId, session);
     }
 
-    
     public void stopMonitoring(String sessionId) {
         MonitoringSession session = activeSessions.remove(sessionId);
         if (session != null) {
             session.stop();
 
-            
             if (activeSessions.isEmpty()) {
-                log.info("All monitoring sessions stopped");
-            }
+                            }
 
-            log.info("Monitoring session {} stopped", sessionId);
-        } else {
+                    } else {
             log.warn("No active monitoring session found for: {}", sessionId);
         }
     }
 
-    
     private SecurityEvent preprocessEvent(SecurityEvent event) {
         try {
             
@@ -163,7 +153,6 @@ public class SecurityMonitoringService {
         }
     }
 
-    
     private class DirectBatchListener implements BatchSecurityEventListener {
 
         @Override
@@ -204,7 +193,6 @@ public class SecurityMonitoringService {
             return "DirectBatchListener";
         }
 
-        
         private SecurityEvent preprocessEventSafe(SecurityEvent event) {
             try {
                 return preprocessEvent(event);
@@ -215,7 +203,6 @@ public class SecurityMonitoringService {
         }
     }
 
-    
     private static class MonitoringSession {
         private final String id;
         private final Map<String, Object> config;

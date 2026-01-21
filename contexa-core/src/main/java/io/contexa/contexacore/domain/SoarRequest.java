@@ -7,7 +7,6 @@ import lombok.Setter;
 import java.util.Map;
 import java.util.HashMap;
 
-
 @Getter
 @Setter
 public class SoarRequest extends AIRequest<SoarContext> {
@@ -19,7 +18,6 @@ public class SoarRequest extends AIRequest<SoarContext> {
     private String approvalId;
     private Map<String, Object> metadata;
 
-    
     public SoarRequest(SoarContext context, String operation, String organizationId, 
                        String incidentId, String threatType, String description, 
                        String initialQuery, String approvalId, Map<String, Object> metadata) {
@@ -32,7 +30,6 @@ public class SoarRequest extends AIRequest<SoarContext> {
         this.metadata = metadata != null ? metadata : new HashMap<>();
     }
 
-    
     public SoarRequest(SoarContext context, String operation) {
         super(context != null ? context : new SoarContext(), operation, "default-org");
     }
@@ -48,14 +45,12 @@ public class SoarRequest extends AIRequest<SoarContext> {
         }
         return "soar-inc-" + System.currentTimeMillis();
     }
-    
-    
+
     @Override
     public SoarContext getContext() {
         return super.getContext();
     }
-    
-    
+
     public String getSessionId() {
         if (getContext() != null) {
             return getContext().getSessionId();
@@ -73,8 +68,7 @@ public class SoarRequest extends AIRequest<SoarContext> {
     public String getQuery() {
         return this.initialQuery;
     }
-    
-    
+
     public void setQuery(String query) {
         this.initialQuery = query;
     }
@@ -147,8 +141,7 @@ public class SoarRequest extends AIRequest<SoarContext> {
         }
         metadata.put("timestamp", timestamp);
     }
-    
-    
+
     public static class SoarRequestBuilder {
         private SoarContext context;
         private String operation;
@@ -235,8 +228,7 @@ public class SoarRequest extends AIRequest<SoarContext> {
                                    initialQuery, approvalId, metadata);
         }
     }
-    
-    
+
     public static SoarRequestBuilder builder() {
         return new SoarRequestBuilder();
     }

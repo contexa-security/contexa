@@ -4,40 +4,31 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-
 @Data
 @ConfigurationProperties(prefix = "security.plane")
 public class SecurityPlaneProperties {
 
-    
     @NestedConfigurationProperty
     private AgentSettings agent = new AgentSettings();
 
-    
     @NestedConfigurationProperty
     private KafkaSettings kafka = new KafkaSettings();
 
-    
     @NestedConfigurationProperty
     private MonitorSettings monitor = new MonitorSettings();
 
-    
     @NestedConfigurationProperty
     private NotifierSettings notifier = new NotifierSettings();
 
-    
     @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
 
-    
     @NestedConfigurationProperty
     private LlmExecutorSettings llmExecutor = new LlmExecutorSettings();
 
-    
     @NestedConfigurationProperty
     private DeduplicationSettings deduplication = new DeduplicationSettings();
 
-    
     @Data
     public static class AgentSettings {
         private String name = "SecurityPlaneAgent-1";
@@ -48,7 +39,6 @@ public class SecurityPlaneProperties {
         private String executionMode = "ASYNC";
     }
 
-    
     @Data
     public static class KafkaSettings {
         private String bootstrapServers = "localhost:9092";
@@ -66,7 +56,6 @@ public class SecurityPlaneProperties {
         }
     }
 
-    
     @Data
     public static class MonitorSettings {
         private int queueSize = 10000;
@@ -77,7 +66,6 @@ public class SecurityPlaneProperties {
         private int dedupWindowMinutes = 5;
     }
 
-    
     @Data
     public static class NotifierSettings {
         private int batchSize = 10;
@@ -85,7 +73,6 @@ public class SecurityPlaneProperties {
         
     }
 
-    
     @Data
     public static class RedisSettings {
         private int batchSize = 50;
@@ -109,29 +96,23 @@ public class SecurityPlaneProperties {
         }
     }
 
-    
     @Data
     public static class LlmExecutorSettings {
         
         private int corePoolSize = 10;
 
-        
         private int maxPoolSize = 10;
 
-        
         private int queueCapacity = 1000;
     }
 
-    
     @Data
     public static class DeduplicationSettings {
         
         private boolean enabled = true;
 
-        
         private int windowMinutes = 5;
 
-        
         private int cacheSize = 10000;
     }
 }

@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ModelDiscoveryService {
@@ -23,18 +22,14 @@ public class ModelDiscoveryService {
     private final ApplicationContext applicationContext;
     private final DynamicModelRegistry modelRegistry;
 
-    
     private final Map<String, ModelDiscoveryStatus> discoveryStatus = new ConcurrentHashMap<>();
 
-    
     private final Map<String, ModelHealthStatus> healthStatus = new ConcurrentHashMap<>();
 
-    
     private final AtomicInteger totalDiscoveryAttempts = new AtomicInteger(0);
     private final AtomicInteger successfulDiscoveries = new AtomicInteger(0);
     private final AtomicInteger failedDiscoveries = new AtomicInteger(0);
 
-    
     public static class ModelDiscoveryStatus {
         private final String modelId;
         private final String provider;
@@ -57,7 +52,6 @@ public class ModelDiscoveryService {
             this.lastError = error;
         }
 
-        
         public String getModelId() { return modelId; }
         public String getProvider() { return provider; }
         public Date getDiscoveredAt() { return discoveredAt; }
@@ -66,7 +60,6 @@ public class ModelDiscoveryService {
         public String getLastError() { return lastError; }
     }
 
-    
     public static class ModelHealthStatus {
         private final String modelId;
         private boolean healthy;
@@ -108,7 +101,6 @@ public class ModelDiscoveryService {
                 .orElse(0);
         }
 
-        
         public String getModelId() { return modelId; }
         public boolean isHealthy() { return healthy; }
         public String getMessage() { return message; }
@@ -117,49 +109,35 @@ public class ModelDiscoveryService {
         public long getAverageResponseTime() { return averageResponseTime; }
     }
 
-    
     @PostConstruct
     public void initializeDiscovery() {
-        log.info("모델 발견 서비스 초기화 시작");
-        discoverAllModels();
-        log.info("모델 발견 서비스 초기화 완료 - 발견된 모델: {} 개", discoveryStatus.size());
-    }
-
-    
+                discoverAllModels();
+            }
 
     public void scheduledDiscovery() {
-        log.debug("주기적 모델 발견 시작");
-        discoverAllModels();
+                discoverAllModels();
     }
-
-    
 
     public void scheduledHealthCheck() {
-        log.debug("주기적 모델 헬스 체크 시작");
-        performHealthCheckForAllModels();
+                performHealthCheckForAllModels();
     }
 
-    
     public void discoverAllModels() {
         totalDiscoveryAttempts.incrementAndGet();
 
         Map<String, ModelProvider> providers = applicationContext.getBeansOfType(ModelProvider.class);
-        log.info("모델 발견 시작 - {} 개의 제공자 스캔", providers.size());
-
+        
         int newModelsCount = 0;
         int updatedModelsCount = 0;
 
         for (ModelProvider provider : providers.values()) {
             try {
                 if (!provider.isReady()) {
-                    log.debug("제공자 {} 가 준비되지 않음", provider.getProviderName());
-                    continue;
+                                        continue;
                 }
 
-                
                 provider.refreshModels();
 
-                
                 List<ModelDescriptor> models = provider.getAvailableModels();
 
                 for (ModelDescriptor model : models) {
@@ -170,12 +148,10 @@ public class ModelDiscoveryService {
                         ModelDiscoveryStatus status = new ModelDiscoveryStatus(modelId, provider.getProviderName());
                         discoveryStatus.put(modelId, status);
 
-                        
                         modelRegistry.registerModel(model);
 
                         newModelsCount++;
-                        log.info("새로운 모델 발견: {} (제공자: {})", modelId, provider.getProviderName());
-                    } else {
+                                            } else {
                         
                         ModelDiscoveryStatus status = discoveryStatus.get(modelId);
                         status.updateStatus(true, null);
@@ -190,14 +166,10 @@ public class ModelDiscoveryService {
             }
         }
 
-        
         checkForStaleModels();
 
-        log.info("모델 발견 완료 - 새로운 모델: {}, 업데이트된 모델: {}, 총 활성 모델: {}",
-                newModelsCount, updatedModelsCount, getActiveModelsCount());
-    }
+            }
 
-    
     public List<ModelDescriptor> discoverModelsFromProvider(String providerName) {
         Map<String, ModelProvider> providers = applicationContext.getBeansOfType(ModelProvider.class);
 
@@ -207,7 +179,6 @@ public class ModelDiscoveryService {
                     provider.refreshModels();
                     List<ModelDescriptor> models = provider.getAvailableModels();
 
-                    
                     for (ModelDescriptor model : models) {
                         String modelId = model.getModelId();
                         if (!discoveryStatus.containsKey(modelId)) {
@@ -229,7 +200,6 @@ public class ModelDiscoveryService {
         return Collections.emptyList();
     }
 
-    
     public void performHealthCheckForAllModels() {
         Map<String, ModelProvider> providers = applicationContext.getBeansOfType(ModelProvider.class);
 
@@ -241,7 +211,6 @@ public class ModelDiscoveryService {
                 continue; 
             }
 
-            
             for (ModelProvider provider : providers.values()) {
                 if (provider.getProviderName().equals(status.getProvider())) {
                     performHealthCheck(modelId, provider);
@@ -251,7 +220,6 @@ public class ModelDiscoveryService {
         }
     }
 
-    
     private void performHealthCheck(String modelId, ModelProvider provider) {
         long startTime = System.currentTimeMillis();
 
@@ -267,7 +235,6 @@ public class ModelDiscoveryService {
             if (!health.isHealthy()) {
                 log.warn("모델 {} 헬스 체크 실패: {}", modelId, health.getMessage());
 
-                
                 if (modelHealth.getConsecutiveFailures() >= 3) {
                     log.error("모델 {} 연속 실패로 비활성화", modelId);
                     modelRegistry.updateModelStatus(modelId, ModelDescriptor.ModelStatus.UNAVAILABLE);
@@ -278,8 +245,7 @@ public class ModelDiscoveryService {
                     }
                 }
             } else {
-                log.debug("모델 {} 헬스 체크 성공 (응답시간: {}ms)", modelId, responseTime);
-            }
+                            }
         } catch (Exception e) {
             log.error("모델 {} 헬스 체크 중 오류", modelId, e);
 
@@ -289,7 +255,6 @@ public class ModelDiscoveryService {
         }
     }
 
-    
     private void checkForStaleModels() {
         Date cutoffTime = new Date(System.currentTimeMillis() - 3600000); 
 
@@ -307,14 +272,12 @@ public class ModelDiscoveryService {
         }
     }
 
-    
     public int getActiveModelsCount() {
         return (int) discoveryStatus.values().stream()
             .filter(ModelDiscoveryStatus::isAvailable)
             .count();
     }
 
-    
     public Map<String, Integer> getModelCountByProvider() {
         return discoveryStatus.values().stream()
             .filter(ModelDiscoveryStatus::isAvailable)
@@ -324,22 +287,18 @@ public class ModelDiscoveryService {
             ));
     }
 
-    
     public ModelDiscoveryStatus getDiscoveryStatus(String modelId) {
         return discoveryStatus.get(modelId);
     }
 
-    
     public ModelHealthStatus getHealthStatus(String modelId) {
         return healthStatus.get(modelId);
     }
 
-    
     public List<String> getAllDiscoveredModels() {
         return new ArrayList<>(discoveryStatus.keySet());
     }
 
-    
     public List<String> getActiveModels() {
         return discoveryStatus.entrySet().stream()
             .filter(e -> e.getValue().isAvailable())
@@ -347,7 +306,6 @@ public class ModelDiscoveryService {
             .collect(Collectors.toList());
     }
 
-    
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalDiscoveryAttempts", totalDiscoveryAttempts.get());
@@ -357,14 +315,12 @@ public class ModelDiscoveryService {
         stats.put("activeModels", getActiveModelsCount());
         stats.put("modelsByProvider", getModelCountByProvider());
 
-        
         long healthyModels = healthStatus.values().stream()
             .filter(ModelHealthStatus::isHealthy)
             .count();
         stats.put("healthyModels", healthyModels);
         stats.put("unhealthyModels", healthStatus.size() - healthyModels);
 
-        
         double avgResponseTime = healthStatus.values().stream()
             .mapToLong(ModelHealthStatus::getAverageResponseTime)
             .average()
@@ -374,10 +330,8 @@ public class ModelDiscoveryService {
         return stats;
     }
 
-    
     public void forceRediscovery() {
-        log.info("강제 모델 재발견 시작");
-        discoveryStatus.clear();
+                discoveryStatus.clear();
         healthStatus.clear();
         modelRegistry.refreshModels();
         discoverAllModels();

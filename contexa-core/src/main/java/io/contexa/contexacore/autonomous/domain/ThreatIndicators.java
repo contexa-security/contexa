@@ -5,7 +5,6 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -14,51 +13,41 @@ import java.util.*;
 public class ThreatIndicators implements Serializable {
     
     private static final long serialVersionUID = 1L;
-    
-    
+
     private boolean iocPresent;
     private int iocCount;
     private List<String> iocTypes;
     private Map<String, Object> iocDetails;
-    
-    
+
     private boolean mitreMapping;
     private int mitreTechniques;
     private List<String> mitreTactics;
     private List<MitreIndicator> mitreIndicators;
-    
-    
+
     private boolean anomalyDetected;
     private double anomalyScore;
     private String anomalyType;
     private Map<String, Double> anomalyScores;
-    
-    
+
     private boolean historicalThreat;
     private int historicalCount;
     private List<HistoricalThreat> historicalThreats;
-    
-    
+
     private double riskScore;
     private String riskLevel; 
     private Map<String, Double> riskFactors;
-    
-    
+
     private NetworkIndicators networkIndicators;
-    
-    
+
     private BehaviorIndicators behaviorIndicators;
-    
-    
+
     private SystemIndicators systemIndicators;
-    
-    
+
     private String source;
     private LocalDateTime timestamp;
     private String detectionMethod;
     private Map<String, Object> metadata;
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -70,8 +59,7 @@ public class ThreatIndicators implements Serializable {
         private double confidence;
         private List<String> evidence;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -84,8 +72,7 @@ public class ThreatIndicators implements Serializable {
         private String resolution;
         private Map<String, Object> details;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -98,8 +85,7 @@ public class ThreatIndicators implements Serializable {
         private double networkAnomalyScore;
         private List<NetworkAnomaly> anomalies;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -113,8 +99,7 @@ public class ThreatIndicators implements Serializable {
         private double severity;
         private LocalDateTime detectedAt;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -127,8 +112,7 @@ public class ThreatIndicators implements Serializable {
         private List<BehaviorAnomaly> anomalies;
         private String riskProfile;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -140,8 +124,7 @@ public class ThreatIndicators implements Serializable {
         private LocalDateTime occurredAt;
         private Map<String, Object> context;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -155,8 +138,7 @@ public class ThreatIndicators implements Serializable {
         private List<SystemAnomaly> anomalies;
         private Map<String, Object> resourceMetrics;
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -169,8 +151,7 @@ public class ThreatIndicators implements Serializable {
         private LocalDateTime detectedAt;
         private Map<String, Object> details;
     }
-    
-    
+
     public String calculateRiskLevel() {
         if (riskScore >= 90) return "CRITICAL";
         if (riskScore >= 70) return "HIGH";
@@ -178,15 +159,12 @@ public class ThreatIndicators implements Serializable {
         if (riskScore >= 30) return "LOW";
         return "INFO";
     }
-    
-    
+
     public double calculateThreatScore() {
-        
-        
+
         return anomalyScore;
     }
-    
-    
+
     public Set<String> identifyThreatTypes() {
         Set<String> threatTypes = new HashSet<>();
         
@@ -225,19 +203,16 @@ public class ThreatIndicators implements Serializable {
         
         return threatTypes;
     }
-    
-    
+
     public int getUrgencyLevel() {
         int urgency = 0;
-        
-        
+
         if (riskScore >= 80) urgency = 5;
         else if (riskScore >= 60) urgency = 4;
         else if (riskScore >= 40) urgency = 3;
         else if (riskScore >= 20) urgency = 2;
         else urgency = 1;
-        
-        
+
         if (mitreMapping && mitreTactics != null && 
             (mitreTactics.contains("Exfiltration") || mitreTactics.contains("Impact"))) {
             urgency = Math.min(urgency + 2, 5);
@@ -250,8 +225,7 @@ public class ThreatIndicators implements Serializable {
         
         return urgency;
     }
-    
-    
+
     public List<String> generateRecommendations() {
         List<String> recommendations = new ArrayList<>();
         
@@ -284,8 +258,7 @@ public class ThreatIndicators implements Serializable {
         
         return recommendations;
     }
-    
-    
+
     public Map<String, Object> toSummary() {
         Map<String, Object> summary = new HashMap<>();
         

@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, RiskAssessmentResponse> {
 
@@ -48,12 +47,7 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         this.contextEnricher = contextEnricher;
         this.vectorService = vectorService;
 
-        log.info("RiskAssessmentLab 초기화 완료 - PipelineOrchestrator 기반 with Vector Storage");
-        log.info("  - AINativeProcessor: {}", ainativeProcessor.getClass().getSimpleName());
-        log.info("  - PipelineOrchestrator: {}", orchestrator.getClass().getSimpleName());
-        log.info("  - ContextEnricher: {}", contextEnricher.getClass().getSimpleName());
-        log.info("  - VectorService: {}", vectorService.getClass().getSimpleName());
-    }
+                                            }
 
     @Override
     public boolean supportsStreaming() {
@@ -75,57 +69,45 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         return processStreamingRequest(request);
     }
 
-    
     private Mono<RiskAssessmentResponse> performRiskAssessment(RiskAssessmentRequest request) {
         long totalStartTime = System.currentTimeMillis();
         String assessmentId = generateAssessmentId();
-        
-        
+
         try {
             vectorService.storeRiskAssessmentRequest(request);
         } catch (Exception e) {
             log.error("벡터 저장소 요청 저장 실패", e);
         }
-        
 
         return Mono.just(request.getContext())
                 .flatMap(ctx -> {
                     
                     long enrichStart = System.currentTimeMillis();
-                    log.info("[{}] STEP 1: 컨텍스트 강화 시작", assessmentId);
-
+                    
                     return enrichContextWithTimeout(ctx, assessmentId)
                             .doOnSuccess(enrichedContext -> {
                                 long enrichTime = System.currentTimeMillis() - enrichStart;
-                                log.info("[{}] STEP 1 완료: 컨텍스트 강화 {}ms", assessmentId, enrichTime);
-                            });
+                                                            });
                 })
                 .flatMap(enrichedContext -> {
                     
                     long requestStart = System.currentTimeMillis();
-                    log.info("[{}] STEP 2: 위험 평가 요청 생성 시작", assessmentId);
-
+                    
                     PipelineConfiguration config = createRiskAssessmentPipelineConfig();
 
                     long requestTime = System.currentTimeMillis() - requestStart;
-                    log.info("[{}] STEP 2 완료: 위험 평가 요청 생성 {}ms", assessmentId, requestTime);
 
-                    
                     long pipelineStart = System.currentTimeMillis();
-                    log.info("[{}] STEP 3: PipelineOrchestrator.execute() 호출 - 일반 executor 선택됨", assessmentId);
-
+                    
                     return orchestrator.execute(request, config, RiskAssessmentResponse.class)
                             .doOnSuccess(response -> {
                                 long pipelineTime = System.currentTimeMillis() - pipelineStart;
-                                log.info("[{}] STEP 3 완료: Pipeline 처리 {}ms", assessmentId, pipelineTime);
-                            });
+                                                            });
                 })
                 .map(response -> {
                     
                     long totalTime = System.currentTimeMillis() - totalStartTime;
-                    log.info("[{}] ===== 위험 평가 진단 완료 ===== 총 처리시간: {}ms", assessmentId, totalTime);
-                    
-                    
+
                     try {
                         vectorService.storeRiskAssessmentResult(request, (RiskAssessmentResponse) response);
                     } catch (Exception e) {
@@ -142,30 +124,17 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                 });
     }
 
-    
     private Flux<String> processStreamingRequest(RiskAssessmentRequest request) {
         return Flux.defer(() -> {
             try {
                 String assessmentId = generateAssessmentId();
                 RiskAssessmentContext context = request.getContext();
 
-                log.info("[STREAMING] RiskAssessment 스트리밍 시작 - User: {} (StreamingUniversalPipelineExecutor 자동선택)",
-                        context.getUserId());
-
-                
                 RiskAssessmentContext enrichedContext = contextEnricher.enrichContext(context);
-                log.info("[{}] 컨텍스트 강화 완료", assessmentId);
 
-                
                 AIRequest<RiskAssessmentContext> riskRequest = createRiskAssessmentRequest(enrichedContext);
-                log.info("[{}] 위험 평가 요청 생성 완료", assessmentId);
 
-                
                 PipelineConfiguration pipelineConfig = createRiskAssessmentStreamPipelineConfig();
-                log.info("⚙️ [{}] Pipeline 설정 완료", assessmentId);
-
-                
-                log.info("[{}] PipelineOrchestrator.executeStream() 호출 - StreamingUniversalPipelineExecutor 자동선택", assessmentId);
 
                 return orchestrator.executeStream(riskRequest, pipelineConfig)
                         .map(chunk -> {
@@ -173,10 +142,9 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
 
                             return chunkStr;
                         })
-                        .doOnSubscribe(subscription -> { log.info("[{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
+                        .doOnSubscribe(subscription -> { })
                         .doOnComplete(() -> {
-                            log.info("[{}] RiskAssessment 스트리밍 완료 (진단 결과도 함께 수집됨)", assessmentId);
-                        })
+                                                    })
                         .doOnError(error -> {
                             log.error("[{}] [STREAMING] 스트리밍 오류: {}", assessmentId,
                                     error instanceof Throwable ? ((Throwable) error).getMessage() : error.toString());
@@ -221,15 +189,13 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                 .build();
     }
 
-
     private Mono<RiskAssessmentContext> enrichContextWithTimeout(RiskAssessmentContext context, String assessmentId) {
         
         final AtomicLong enrichmentStart = new AtomicLong(System.currentTimeMillis());
 
         return Mono.defer(() -> {
             enrichmentStart.set(System.currentTimeMillis()); 
-            log.debug("[{}] 컨텍스트 강화 시작", assessmentId);
-
+            
             return Mono.fromCallable(() -> contextEnricher.enrichContext(context))
                     
                     .subscribeOn(Schedulers.boundedElastic())
@@ -242,16 +208,13 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                                     assessmentId, enrichmentTime, MAX_ENRICHMENT_TIME_MS);
                         }
 
-                        
                         try {
                             validateEnrichedContext(enrichedContext, assessmentId);
                         } catch (Exception e) {
                             log.error("[{}] 컨텍스트 검증 실패: {}", assessmentId, e.getMessage());
                         }
 
-                        log.debug("[{}] 컨텍스트 강화 완료 - 처리시간: {}ms, 복잡도: {}",
-                                assessmentId, enrichmentTime, enrichedContext.calculateRiskComplexity());
-                    })
+                                            })
                     .doOnError(TimeoutException.class, error -> {
                         log.warn("[{}] 컨텍스트 강화 타임아웃: {}ms 초과",
                                 assessmentId, MAX_ENRICHMENT_TIME_MS);
@@ -262,7 +225,6 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                     .onErrorResume(error -> {
                         log.error("[{}] 컨텍스트 강화 실패: {}", assessmentId, error.getMessage(), error);
 
-                        
                         context.withEnvironmentAttribute("enrichmentError", error.getMessage());
                         context.withEnvironmentAttribute("enrichmentFallback", true);
                         return Mono.just(context);
@@ -311,9 +273,6 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         double qualityScore = (double) validationScore / maxScore;
         context.withEnvironmentAttribute("contextQualityScore", qualityScore);
 
-        log.debug("[{}] 컨텍스트 품질 점수: {}/100 ({}%)",
-                assessmentId, validationScore, Math.round(qualityScore * 100));
-
         if (qualityScore < 0.5) {
             log.warn("[{}] 컨텍스트 품질이 낮음: {}% < 50%", assessmentId, Math.round(qualityScore * 100));
         }
@@ -347,8 +306,7 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                 return 0.8; 
             }
         } catch (Exception e) {
-            log.debug("신뢰도 접근 실패, 기본값 사용: {}", e.getMessage());
-        }
+                    }
         return 0.8;
     }
 
@@ -385,10 +343,8 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         return adjusted;
     }
 
-    
     private String determineConservativeRecommendation(double riskScore) {
-        
-        
+
         return "ESCALATE";
     }
 
@@ -444,8 +400,7 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         metrics.put("recommendation", response.recommendation());
         metrics.put("timestamp", LocalDateTime.now());
 
-        log.debug("[{}] 성능 메트릭 기록: {}", assessmentId, metrics);
-    }
+            }
 
     private String generateAssessmentId() {
         return "RISK-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 1000);
@@ -454,8 +409,7 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
     private String generateRequestId() {
         return java.util.UUID.randomUUID().toString();
     }
-    
-    
+
     private RiskAssessmentContext createRiskAssessmentContext(RiskAssessmentRequest request) {
         RiskAssessmentContext context = request.getContext();
         if (context == null) {
@@ -467,19 +421,13 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         }
         return context;
     }
-    
-    
+
     public void learnFromFeedback(RiskAssessmentRequest request, RiskAssessmentResponse response, String feedback) {
         try {
-            
-            
-            log.info("[RiskAssessmentLab] 피드백 학습 시작: {}", feedback.substring(0, Math.min(50, feedback.length())));
-            
-            
+
             vectorService.storeRiskAssessmentResult(request, response);
             
-            log.info("[RiskAssessmentLab] 피드백 학습 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("[RiskAssessmentLab] 피드백 학습 실패", e);
         }
     }

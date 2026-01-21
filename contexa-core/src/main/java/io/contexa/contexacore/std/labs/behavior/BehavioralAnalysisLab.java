@@ -1,27 +1,25 @@
 package io.contexa.contexacore.std.labs.behavior;
 
-import io.opentelemetry.api.trace.Tracer;
-import io.contexa.contexacore.std.components.retriever.BehavioralAnalysisContextRetriever;
-import io.contexa.contexacore.domain.SoarContext;
-import io.contexa.contexacore.domain.SoarRequest;
-import io.contexa.contexacore.domain.SoarResponse;
-import io.contexa.contexacore.std.labs.AbstractAILab;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
-import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
-import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.BehavioralAnalysisRequest;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
+import io.contexa.contexacore.domain.SoarContext;
+import io.contexa.contexacore.domain.SoarRequest;
+import io.contexa.contexacore.domain.SoarResponse;
+import io.contexa.contexacore.std.components.retriever.BehavioralAnalysisContextRetriever;
+import io.contexa.contexacore.std.labs.AbstractAILab;
+import io.contexa.contexacore.std.operations.AINativeProcessor;
+import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.opentelemetry.api.trace.Tracer;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
 
 @Slf4j
 public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisRequest, BehavioralAnalysisResponse> {
@@ -62,10 +60,8 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
         return processStreamingRequest(request);
     }
 
-    
     private Mono<BehavioralAnalysisResponse> performBehavioralAnalysis(AIRequest<BehavioralAnalysisContext> request) {
-        log.info("[DIAGNOSIS] ===== 사용자 행동 패턴 분석 시작 ===== User: {}", request.getContext().getUserId());
-
+        
         return Mono.fromCallable(() -> {
 
                     behaviorVectorService.storeBehavior(request.getContext());
@@ -82,26 +78,22 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
 
                     double riskScore = ((BehavioralAnalysisResponse)response).getBehavioralRiskScore();
 
-                    
                     if (riskScore >= 70.0) {
                         behaviorVectorService.storeThreatPattern(request.getContext(), (BehavioralAnalysisResponse)response);
                         log.warn("[ThreatPattern] 고위험 패턴 벡터 저장소 저장 완료: userId={}, riskScore={}",
                             request.getContext().getUserId(), riskScore);
                     }
 
-                    log.info("[DIAGNOSIS] ===== 행동 분석 완료 ===== 위험도: {}", riskScore);
-
-                    
                     if (riskScore >= 70.0) { 
                         log.warn("[DIAGNOSIS] 고위험 행동 감지! SOAR 워크플로우 트리거: User={}, RiskScore={}",
                                  request.getContext().getUserId(), riskScore);
                         try {
                             SoarRequest soarRequest = createSoarRequestFromBehavioralAnalysis(request.getContext(), (BehavioralAnalysisResponse)response);
                             aiNativeProcessor.process(soarRequest,  SoarResponse.class)
-                                             .subscribe(
-                                                 soarResponse -> log.info("SOAR 워크플로우 성공적으로 트리거됨: IncidentId={}", ((SoarResponse)soarResponse).getIncidentId()),
-                                                 soarError -> log.error("SOAR 워크플로우 트리거 실패: {}", ((Throwable)soarError).getMessage(), soarError)
-                                             );
+                                    .subscribe(
+                                            soarResponse -> log.info("SOAR 워크플로우 성공적으로 트리거됨: IncidentId={}", ((SoarResponse)soarResponse).getIncidentId()),
+                                            soarError -> log.error("SOAR 워크플로우 트리거 실패: {}", ((Throwable)soarError).getMessage(), soarError)
+                                    );
                         } catch (Exception e) {
                             log.error("SOAR 요청 생성 또는 트리거 중 오류 발생: {}", e.getMessage(), e);
                         }
@@ -110,10 +102,8 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 .doOnError(error -> log.error("[DIAGNOSIS] ===== 행동 분석 실패 =====", error));
     }
 
-    
     private Flux<String> processStreamingRequest(BehavioralAnalysisRequest request) {
-        log.info("[STREAMING] 사용자 행동 분석 스트리밍 시작 - User: {}", request.getContext().getUserId());
-
+        
         BehavioralAnalysisContext context = request.getContext();
 
         behaviorVectorService.storeBehavior(context);
@@ -127,20 +117,12 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 .doOnError(error -> log.error("[STREAMING] 행동 분석 스트리밍 오류", error));
     }
 
-    
-
-    
-
-
     public CompletableFuture<Void> performBatchLearning() {
-        log.info("배치 학습 시작...");
-        return behaviorVectorService.runBatchLearning();
+                return behaviorVectorService.runBatchLearning();
     }
 
-    
     public void learnFromFeedback(String analysisId, boolean isCorrect, String feedback) {
-        log.info("피드백 학습: analysisId={}, correct={}", analysisId, isCorrect);
-        behaviorVectorService.storeFeedback(analysisId, isCorrect, feedback);
+                behaviorVectorService.storeFeedback(analysisId, isCorrect, feedback);
     }
 
     private AIRequest<BehavioralAnalysisContext> createAIRequest(BehavioralAnalysisContext context) {
@@ -182,7 +164,6 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
         return "OTHER";
     }
 
-    
     private SoarRequest createSoarRequestFromBehavioralAnalysis(BehavioralAnalysisContext behavioralContext, BehavioralAnalysisResponse behavioralResponse) {
         String incidentId = "BA-" + behavioralResponse.getAnalysisId();
         String threatType = "Behavioral Anomaly: " + behavioralResponse.getRiskLevel().name();
@@ -214,7 +195,6 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
         return soarRequest;
     }
 
-    
     private String mapRiskLevelToSoarSeverity(BehavioralAnalysisResponse.RiskLevel riskLevel) {
         return switch (riskLevel) {
             case LOW -> "LOW";

@@ -8,17 +8,13 @@ import org.springframework.ai.chat.client.ChatClientResponse;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public abstract class DomainAdvisor extends BaseAdvisor {
-    
-    
+
     protected final AdvisorContext advisorContext;
-    
-    
+
     protected final Map<String, Object> domainConfig;
-    
-    
+
     protected final DomainPolicy domainPolicy;
     
     protected DomainAdvisor(Tracer tracer, String domain, String name, int order,
@@ -29,14 +25,11 @@ public abstract class DomainAdvisor extends BaseAdvisor {
         this.domainConfig = domainConfig != null ? domainConfig : new ConcurrentHashMap<>();
         this.domainPolicy = createDomainPolicy();
     }
-    
-    
+
     protected abstract DomainPolicy createDomainPolicy();
-    
-    
+
     protected abstract boolean validateDomainRequest(ChatClientRequest request);
-    
-    
+
     protected boolean performSecurityCheck(ChatClientRequest request) {
         return true; 
     }
@@ -48,17 +41,14 @@ public abstract class DomainAdvisor extends BaseAdvisor {
             throw AdvisorException.blocking(domain, name, 
                 "Domain validation failed for " + domain);
         }
-        
-        
+
         if (!performSecurityCheck(request)) {
             throw AdvisorException.blocking(domain, name, 
                 "Security check failed for " + domain);
         }
-        
-        
+
         updateDomainContext(request);
-        
-        
+
         return applyDomainPolicy(request);
     }
     
@@ -67,67 +57,50 @@ public abstract class DomainAdvisor extends BaseAdvisor {
         
         advisorContext.setLastResponse(response);
         advisorContext.incrementCallCount();
-        
-        
+
         return processDomainResponse(response, request);
     }
-    
-    
+
     protected void updateDomainContext(ChatClientRequest request) {
         advisorContext.setLastRequest(request);
         advisorContext.setLastAccessTime(System.currentTimeMillis());
-        
-        
+
         request.context().put(domain + ".context", advisorContext);
     }
-    
-    
+
     protected ChatClientRequest applyDomainPolicy(ChatClientRequest request) {
         if (domainPolicy != null && domainPolicy.isEnabled()) {
-            log.debug("Applying domain policy for {}", domain);
-            return domainPolicy.apply(request);
+                        return domainPolicy.apply(request);
         }
         return request;
     }
-    
-    
+
     protected ChatClientResponse processDomainResponse(ChatClientResponse response, 
                                                       ChatClientRequest request) {
-        
-        
+
         return response;
     }
-    
-    
+
     protected void communicateWithDomain(String targetDomain, String message, Object data) {
-        log.debug("Cross-domain communication from {} to {}: {}", 
-            domain, targetDomain, message);
-        
-        
-        
+
         Map<String, Object> crossDomainData = new ConcurrentHashMap<>();
         crossDomainData.put("source", domain);
         crossDomainData.put("target", targetDomain);
         crossDomainData.put("message", message);
         crossDomainData.put("data", data);
         crossDomainData.put("timestamp", System.currentTimeMillis());
-        
-        
+
         advisorContext.addCrossDomainMessage(crossDomainData);
     }
-    
-    
+
     public Object getConfig(String key) {
         return domainConfig.get(key);
     }
-    
-    
+
     public void setConfig(String key, Object value) {
         domainConfig.put(key, value);
-        log.debug("Domain config updated for {}: {} = {}", domain, key, value);
-    }
-    
-    
+            }
+
     public DomainStatus getDomainStatus() {
         return new DomainStatus(
             domain,
@@ -156,8 +129,7 @@ public abstract class DomainAdvisor extends BaseAdvisor {
         
         return true;
     }
-    
-    
+
     public static class DomainStatus {
         public final String domain;
         public final String advisorName;

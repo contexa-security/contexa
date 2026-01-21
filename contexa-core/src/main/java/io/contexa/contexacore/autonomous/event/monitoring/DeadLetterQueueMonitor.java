@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class DeadLetterQueueMonitor {
@@ -39,11 +38,9 @@ public class DeadLetterQueueMonitor {
     @Value("${security.kafka.dlq.alert-threshold:10}")
     private int alertThreshold;
 
-    
     private final Map<String, DLQMessage> dlqMessages = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> errorCountByType = new ConcurrentHashMap<>();
 
-    
     private Counter dlqMessageCounter;
     private Counter retrySuccessCounter;
     private Counter retryFailureCounter;
@@ -73,11 +70,8 @@ public class DeadLetterQueueMonitor {
             .description("Latency of retry operations")
             .register(meterRegistry);
 
-        log.info("DLQ Monitor initialized: maxRetries={}, retryDelayMs={}, alertThreshold={}",
-            maxRetries, retryDelayMs, alertThreshold);
-    }
+            }
 
-    
     @KafkaListener(topics = "${security.kafka.topic.dlq:security-dlq}",
                    groupId = "dlq-monitor-group",
                    containerFactory = "kafkaListenerContainerFactory")
@@ -103,36 +97,25 @@ public class DeadLetterQueueMonitor {
 
         dlqMessages.put(messageId, dlqMessage);
 
-        
         String errorType = extractErrorType(errorMessage);
         errorCountByType.computeIfAbsent(errorType, k -> new AtomicLong()).incrementAndGet();
 
         log.warn("DLQ message received: messageId={}, originalTopic={}, retryCount={}, error={}",
             messageId, originalTopic, retryCount, errorMessage);
 
-        
         scheduleRetry(dlqMessage);
     }
 
-    
     private void scheduleRetry(DLQMessage message) {
         if (message.getRetryCount() >= maxRetries) {
             handlePermanentFailure(message);
             return;
         }
 
-        
         long backoffDelay = retryDelayMs * (long) Math.pow(2, message.getRetryCount());
 
-        log.info("Scheduling retry for messageId={}, retryCount={}, delay={}ms",
-            message.getMessageId(), message.getRetryCount(), backoffDelay);
-
-        
-        
         message.setNextRetryAt(Instant.now().plusMillis(backoffDelay));
     }
-
-    
 
     public void processRetries() {
         Instant now = Instant.now();
@@ -142,11 +125,8 @@ public class DeadLetterQueueMonitor {
             .forEach(this::attemptRetry);
     }
 
-    
     private void attemptRetry(DLQMessage message) {
-        log.info("Attempting retry: messageId={}, retryCount={}",
-            message.getMessageId(), message.getRetryCount());
-
+        
         Instant start = Instant.now();
 
         try {
@@ -159,9 +139,7 @@ public class DeadLetterQueueMonitor {
                     if (ex == null) {
                         retrySuccessCounter.increment();
                         dlqMessages.remove(message.getMessageId());
-                        log.info("Retry successful: messageId={}, latency={}ms",
-                            message.getMessageId(), latency);
-                    } else {
+                                            } else {
                         retryFailureCounter.increment();
                         message.incrementRetryCount();
                         log.error("Retry failed: messageId={}, error={}",
@@ -178,7 +156,6 @@ public class DeadLetterQueueMonitor {
         }
     }
 
-    
     private void handlePermanentFailure(DLQMessage message) {
         permanentFailureCounter.increment();
 
@@ -186,57 +163,40 @@ public class DeadLetterQueueMonitor {
             message.getMessageId(), message.getOriginalTopic(),
             message.getRetryCount(), message.getErrorMessage());
 
-        
         sendAlert(message);
 
-        
         archivePermanentFailure(message);
 
         dlqMessages.remove(message.getMessageId());
     }
 
-    
     private void sendAlert(DLQMessage message) {
         log.error("ALERT: Permanent DLQ failure - messageId={}, topic={}",
             message.getMessageId(), message.getOriginalTopic());
 
-        
     }
 
-    
     private void archivePermanentFailure(DLQMessage message) {
         
-        log.info("Archiving permanent failure: messageId={}", message.getMessageId());
-    }
-
-    
+            }
 
     public void generateMonitoringReport() {
         int currentDLQSize = dlqMessages.size();
 
-        log.info("=== DLQ Monitoring Report ===");
-        log.info("Current DLQ size: {}", currentDLQSize);
-        log.info("Error types: {}", errorCountByType);
-
-        
         if (currentDLQSize > alertThreshold) {
             log.warn("DLQ size exceeded threshold: {} > {}", currentDLQSize, alertThreshold);
             sendThresholdAlert(currentDLQSize);
         }
 
-        
         meterRegistry.gauge("dlq.messages.current", currentDLQSize);
     }
 
-    
     private void sendThresholdAlert(int currentSize) {
         log.error("ALERT: DLQ size threshold exceeded - current={}, threshold={}",
             currentSize, alertThreshold);
 
-        
     }
 
-    
     private String extractErrorType(String errorMessage) {
         if (errorMessage == null) return "UNKNOWN";
 
@@ -248,7 +208,6 @@ public class DeadLetterQueueMonitor {
         return "OTHER";
     }
 
-    
     @lombok.Data
     @lombok.Builder
     private static class DLQMessage {

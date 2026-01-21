@@ -9,11 +9,9 @@ import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-
 
 @Slf4j
 
@@ -26,41 +24,28 @@ public class AuditingHandler implements SecurityEventHandler {
     @Override
     public boolean handle(SecurityEventContext context) {
         if (auditLogger == null) {
-            log.debug("[AuditingHandler] Audit logger not available, skipping audit");
-            return true; 
+            return true;
         }
 
         SecurityEvent event = context.getSecurityEvent();
-        log.debug("[AuditingHandler] Recording audit logs for event: {}", event.getEventId());
 
         try {
-            
             auditSecurityEvent(context);
-
-            
             auditThreatAssessment(context);
-
-            
             auditProcessingDecision(context);
-
-            
-            
-
             context.addMetadata("auditRecorded", true);
             context.addMetadata("auditTimestamp", System.currentTimeMillis());
 
-            log.debug("[AuditingHandler] Audit logs recorded for event: {}", event.getEventId());
-            return true; 
+            return true;
 
         } catch (Exception e) {
             log.error("[AuditingHandler] Error recording audit logs for event: {}", event.getEventId(), e);
-            
+
             context.addMetadata("auditError", e.getMessage());
             return true;
         }
     }
 
-    
     private void auditSecurityEvent(SecurityEventContext context) {
         try {
             SecurityEvent event = context.getSecurityEvent();
@@ -70,7 +55,7 @@ public class AuditingHandler implements SecurityEventHandler {
             }
 
             String auditContext = String.format("Processing by %s - Status: %s",
-                getName(), context.getProcessingStatus());
+                    getName(), context.getProcessingStatus());
 
             auditLogger.auditSecurityEvent(event, agentId, auditContext);
 
@@ -79,31 +64,24 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    
     private void auditThreatAssessment(SecurityEventContext context) {
         try {
             SecurityEventContext.AIAnalysisResult aiResult = context.getAiAnalysisResult();
             if (aiResult == null) {
                 return;
             }
-
             SecurityEvent event = context.getSecurityEvent();
-
-            
-            
             String action = determineActionFromRiskScore(aiResult.getThreatLevel());
 
-            
-            
             ThreatAssessment assessment = ThreatAssessment.builder()
-                .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
-                .riskScore(aiResult.getThreatLevel())
-                .confidence(aiResult.getConfidenceScore())
-                .description(aiResult.getSummary())  
-                .evaluator(aiResult.getAiModel())
-                .action(action)  
-                .assessedAt(LocalDateTime.now())
-                .build();
+                    .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
+                    .riskScore(aiResult.getThreatLevel())
+                    .confidence(aiResult.getConfidenceScore())
+                    .description(aiResult.getSummary())
+                    .evaluator(aiResult.getAiModel())
+                    .action(action)
+                    .assessedAt(LocalDateTime.now())
+                    .build();
 
             String evaluator = (String) context.getMetadata().get("evaluator");
             if (evaluator == null) {
@@ -124,7 +102,6 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    
     private void auditProcessingDecision(SecurityEventContext context) {
         try {
             ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
@@ -137,12 +114,12 @@ public class AuditingHandler implements SecurityEventHandler {
             String reason = (String) context.getMetadata().get("routingReason");
 
             Map<String, Object> decisionContext = Map.of(
-                "riskScore", context.getAiAnalysisResult() != null ?
-                    context.getAiAnalysisResult().getThreatLevel() : 0.0,
-                "confidence", context.getAiAnalysisResult() != null ?
-                    context.getAiAnalysisResult().getConfidenceScore() : 0.0,
-                "processingMode", mode.toString(),
-                "timestamp", System.currentTimeMillis()
+                    "riskScore", context.getAiAnalysisResult() != null ?
+                            context.getAiAnalysisResult().getThreatLevel() : 0.0,
+                    "confidence", context.getAiAnalysisResult() != null ?
+                            context.getAiAnalysisResult().getConfidenceScore() : 0.0,
+                    "processingMode", mode.toString(),
+                    "timestamp", System.currentTimeMillis()
             );
 
             auditLogger.auditProcessingDecision(event, mode, router, reason, decisionContext);
@@ -152,10 +129,7 @@ public class AuditingHandler implements SecurityEventHandler {
         }
     }
 
-    
     private String determineActionFromRiskScore(double riskScore) {
-        
-        
         return "ESCALATE";
     }
 
@@ -166,6 +140,6 @@ public class AuditingHandler implements SecurityEventHandler {
 
     @Override
     public int getOrder() {
-        return 45; 
+        return 45;
     }
 }

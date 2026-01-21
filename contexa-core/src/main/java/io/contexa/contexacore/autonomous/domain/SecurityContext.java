@@ -13,61 +13,45 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class SecurityContext {
-    
-    
+
     private String userId;
-    
-    
+
     private String organizationId;
-    
-    
+
     private UserSecurityContext userSecurityContext;
-    
-    
+
     @Builder.Default
     private List<Document> behaviorPatterns = new ArrayList<>();
-    
-    
+
     @Builder.Default
     private List<SecurityIncident> incidents = new ArrayList<>();
-    
-    
+
     @Builder.Default
     private List<ThreatIndicator> threatIndicators = new ArrayList<>();
-    
-    
+
     @Builder.Default
     private List<AuthorizationDecisionEvent> protectableAccessHistory = new ArrayList<>();
-    
-    
+
     @Builder.Default
     private Map<String, Object> metadata = new ConcurrentHashMap<>();
-    
-    
+
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
-    
-    
+
     @Builder.Default
     private LocalDateTime updatedAt = LocalDateTime.now();
-    
-    
+
     @Builder.Default
     private Long ttlSeconds = 3600L; 
-    
-    
+
     @Builder.Default
     private String version = "1.0.0";
-    
-    
-    
-    
+
     public void addProtectableAccess(AuthorizationDecisionEvent event) {
         if (protectableAccessHistory == null) {
             protectableAccessHistory = new ArrayList<>();
@@ -75,8 +59,7 @@ public class SecurityContext {
         protectableAccessHistory.add(event);
         updateTimestamp();
     }
-    
-    
+
     public void addBehaviorPattern(Document pattern) {
         if (behaviorPatterns == null) {
             behaviorPatterns = new ArrayList<>();
@@ -84,8 +67,7 @@ public class SecurityContext {
         behaviorPatterns.add(pattern);
         updateTimestamp();
     }
-    
-    
+
     public void addIncident(SecurityIncident incident) {
         if (incidents == null) {
             incidents = new ArrayList<>();
@@ -93,8 +75,7 @@ public class SecurityContext {
         incidents.add(incident);
         updateTimestamp();
     }
-    
-    
+
     public void addThreatIndicator(ThreatIndicator indicator) {
         if (threatIndicators == null) {
             threatIndicators = new ArrayList<>();
@@ -102,8 +83,7 @@ public class SecurityContext {
         threatIndicators.add(indicator);
         updateTimestamp();
     }
-    
-    
+
     public void addMetadata(String key, Object value) {
         if (metadata == null) {
             metadata = new ConcurrentHashMap<>();
@@ -111,45 +91,39 @@ public class SecurityContext {
         metadata.put(key, value);
         updateTimestamp();
     }
-    
-    
+
     public Double getCurrentTrustScore() {
         if (userSecurityContext != null) {
             return userSecurityContext.getCurrentTrustScore();
         }
         return 0.5; 
     }
-    
-    
+
     public UserSecurityContext.RiskLevel getCurrentRiskLevel() {
         if (userSecurityContext != null) {
             return userSecurityContext.getRiskLevel();
         }
         return UserSecurityContext.RiskLevel.MEDIUM;
     }
-    
-    
+
     public Double getTrustScore() {
         return getCurrentTrustScore();
     }
-    
-    
+
     public Map<String, Integer> getFailureCounters() {
         if (userSecurityContext != null) {
             return userSecurityContext.getFailureCounters();
         }
         return new HashMap<>();
     }
-    
-    
+
     public Map<String, Object> getThreatIndicators() {
         if (userSecurityContext != null) {
             return new HashMap<>(userSecurityContext.getThreatIndicators());
         }
         return new HashMap<>();
     }
-    
-    
+
     public Map<String, Object> getSecurityIncidents() {
         Map<String, Object> incidentMap = new HashMap<>();
         if (incidents != null && !incidents.isEmpty()) {
@@ -159,16 +133,14 @@ public class SecurityContext {
         }
         return incidentMap;
     }
-    
-    
+
     public Map<String, Object> getAccessPatterns() {
         if (userSecurityContext != null) {
             return new HashMap<>(userSecurityContext.getAccessPatterns());
         }
         return new HashMap<>();
     }
-    
-    
+
     public boolean requiresMfa() {
         if (userSecurityContext != null) {
             return userSecurityContext.requiresMfa();
@@ -178,16 +150,14 @@ public class SecurityContext {
         return riskLevel == UserSecurityContext.RiskLevel.HIGH ||
                riskLevel == UserSecurityContext.RiskLevel.CRITICAL;
     }
-    
-    
+
     public boolean requiresSessionInvalidation() {
         if (userSecurityContext != null) {
             return userSecurityContext.requiresSessionInvalidation();
         }
         return getCurrentRiskLevel() == UserSecurityContext.RiskLevel.CRITICAL;
     }
-    
-    
+
     public long getRecentProtectableAccessCount(int minutes) {
         if (protectableAccessHistory == null || protectableAccessHistory.isEmpty()) {
             return 0;
@@ -208,8 +178,7 @@ public class SecurityContext {
             })
             .count();
     }
-    
-    
+
     public long getRecentAccessDeniedCount(int minutes) {
         if (protectableAccessHistory == null || protectableAccessHistory.isEmpty()) {
             return 0;
@@ -230,19 +199,16 @@ public class SecurityContext {
             })
             .count();
     }
-    
-    
+
     public void merge(SecurityContext other) {
         if (other == null) {
             return;
         }
-        
-        
+
         if (other.getUserSecurityContext() != null) {
             this.userSecurityContext = other.getUserSecurityContext();
         }
-        
-        
+
         if (other.getBehaviorPatterns() != null) {
             this.behaviorPatterns.addAll(other.getBehaviorPatterns());
         }
@@ -250,9 +216,7 @@ public class SecurityContext {
         if (other.getIncidents() != null) {
             this.incidents.addAll(other.getIncidents());
         }
-        
-        
-        
+
         if (other.threatIndicators != null) {
             this.threatIndicators.addAll(other.threatIndicators);
         }
@@ -260,16 +224,14 @@ public class SecurityContext {
         if (other.getProtectableAccessHistory() != null) {
             this.protectableAccessHistory.addAll(other.getProtectableAccessHistory());
         }
-        
-        
+
         if (other.getMetadata() != null) {
             this.metadata.putAll(other.getMetadata());
         }
         
         updateTimestamp();
     }
-    
-    
+
     public boolean isValid() {
         
         if (ttlSeconds != null && ttlSeconds > 0) {
@@ -278,12 +240,10 @@ public class SecurityContext {
                 return false;
             }
         }
-        
-        
+
         return userId != null && !userId.isEmpty();
     }
-    
-    
+
     public void reset() {
         this.behaviorPatterns.clear();
         this.incidents.clear();
@@ -293,13 +253,11 @@ public class SecurityContext {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
-    
-    
+
     private void updateTimestamp() {
         this.updatedAt = LocalDateTime.now();
     }
-    
-    
+
     public Map<String, Object> getSummary() {
         Map<String, Object> summary = new HashMap<>();
         summary.put("userId", userId);

@@ -17,7 +17,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Primary
 @RequiredArgsConstructor
@@ -31,20 +30,16 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
     @Override
     public ChatModel selectModel(ExecutionContext context) {
-        log.debug("동적 모델 선택 시작 - RequestId: {}, Tier: {}, PreferredModel: {}",
-            context.getRequestId(), context.getTier(), context.getPreferredModel());
-
+        
         try {
             
             if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
                 ChatModel model = tryGetModel(context.getPreferredModel());
                 if (model != null) {
-                    log.info("지정된 모델 선택: {}", context.getPreferredModel());
-                    return model;
+                                        return model;
                 }
             }
 
-            
             if (context.getAnalysisLevel() != null) {
                 ChatModel model = selectByAnalysisLevel(context);
                 if (model != null) {
@@ -52,7 +47,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
-            
             if (context.getTier() != null) {
                 ChatModel model = selectByTier(context);
                 if (model != null) {
@@ -60,7 +54,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
-            
             if (context.getSecurityTaskType() != null) {
                 ChatModel model = selectBySecurityTaskType(context.getSecurityTaskType());
                 if (model != null) {
@@ -68,13 +61,11 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
-            
             ChatModel model = selectByPerformanceRequirements(context);
             if (model != null) {
                 return model;
             }
 
-            
             return selectDefaultModel();
 
         } catch (Exception e) {
@@ -83,44 +74,34 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         }
     }
 
-    
     private ChatModel selectByAnalysisLevel(ExecutionContext context) {
         int tier = context.getAnalysisLevel().getDefaultTier();
-        log.debug("AnalysisLevel {} -> Tier {} 로 매핑", context.getAnalysisLevel(), tier);
 
-        
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
         ChatModel model = tryGetModelWithFallback(modelName, tier);
 
         if (model != null) {
-            log.info("AnalysisLevel 기반 모델 선택: {} ({})",
-                modelName, context.getAnalysisLevel());
-        }
+                    }
 
         return model;
     }
 
-    
     private ChatModel selectByTier(ExecutionContext context) {
         int tier = context.getTier();
 
-        
         String primaryModelName = tieredLLMProperties.getModelNameForTier(tier);
         ChatModel model = tryGetModelWithFallback(primaryModelName, tier);
 
         if (model != null) {
-            log.info("Tier {} 기반 모델 선택: {}", tier, primaryModelName);
-            return model;
+                        return model;
         }
 
-        
         List<ModelDescriptor> tierModels = modelRegistry.getModelsByTier(tier);
         for (ModelDescriptor descriptor : tierModels) {
             if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
                 model = tryGetModel(descriptor.getModelId());
                 if (model != null) {
-                    log.info("Tier {} 대체 모델 선택: {}", tier, descriptor.getModelId());
-                    return model;
+                                        return model;
                 }
             }
         }
@@ -129,25 +110,20 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         return null;
     }
 
-    
     private ChatModel selectBySecurityTaskType(ExecutionContext.SecurityTaskType taskType) {
         int tier = taskType.getDefaultTier();
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
 
         ChatModel model = tryGetModelWithFallback(modelName, tier);
         if (model != null) {
-            log.info("SecurityTaskType {} -> Tier {} -> 모델 {}",
-                taskType, tier, modelName);
-        }
+                    }
 
         return model;
     }
 
-    
     private ChatModel selectByPerformanceRequirements(ExecutionContext context) {
         Collection<ModelDescriptor> allModels = modelRegistry.getAllModels();
 
-        
         if (Boolean.TRUE.equals(context.getRequireFastResponse())) {
             ModelDescriptor fastModel = allModels.stream()
                 .filter(m -> m.isFastResponse())
@@ -158,13 +134,11 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             if (fastModel != null) {
                 ChatModel model = tryGetModel(fastModel.getModelId());
                 if (model != null) {
-                    log.info("빠른 응답 모델 선택: {}", fastModel.getModelId());
-                    return model;
+                                        return model;
                 }
             }
         }
 
-        
         if (Boolean.TRUE.equals(context.getPreferLocalModel())) {
             ModelDescriptor localModel = allModels.stream()
                 .filter(m -> "ollama".equals(m.getProvider()))
@@ -175,13 +149,11 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             if (localModel != null) {
                 ChatModel model = tryGetModel(localModel.getModelId());
                 if (model != null) {
-                    log.info("로컬 모델 선택: {}", localModel.getModelId());
-                    return model;
+                                        return model;
                 }
             }
         }
 
-        
         if (Boolean.TRUE.equals(context.getPreferCloudModel())) {
             ModelDescriptor cloudModel = allModels.stream()
                 .filter(m -> !"ollama".equals(m.getProvider()))
@@ -193,8 +165,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             if (cloudModel != null) {
                 ChatModel model = tryGetModel(cloudModel.getModelId());
                 if (model != null) {
-                    log.info("클라우드 모델 선택: {}", cloudModel.getModelId());
-                    return model;
+                                        return model;
                 }
             }
         }
@@ -202,15 +173,13 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         return null;
     }
 
-    
     private ChatModel selectDefaultModel() {
         
         String defaultModel = tieredLLMProperties.getModelNameForTier(2);
         ChatModel model = tryGetModelWithFallback(defaultModel, 2);
 
         if (model != null) {
-            log.info("기본 모델 선택: {}", defaultModel);
-            return model;
+                        return model;
         }
 
         Collection<ModelDescriptor> allModels = modelRegistry.getAllModels();
@@ -229,17 +198,14 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             + "등록된 모델 수: " + allModels.size());
     }
 
-    
     private ChatModel tryGetModel(String modelId) {
         try {
             return modelRegistry.getModel(modelId);
         } catch (Exception e) {
-            log.debug("모델 {} 로드 실패: {}", modelId, e.getMessage());
-            return null;
+                        return null;
         }
     }
 
-    
     private ChatModel tryGetModelWithFallback(String modelId, int tier) {
         
         ChatModel model = tryGetModel(modelId);
@@ -247,11 +213,9 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             return model;
         }
 
-        
         String backupModelId = tieredLLMProperties.getBackupModelNameForTier(tier);
         if (backupModelId != null && !backupModelId.equals(modelId)) {
-            log.info("백업 모델로 전환: {} -> {}", modelId, backupModelId);
-            model = tryGetModel(backupModelId);
+                        model = tryGetModel(backupModelId);
             if (model != null) {
                 return model;
             }
@@ -259,7 +223,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
         return null;
     }
-
 
     @Override
     public Set<String> getSupportedModels() {
@@ -285,22 +248,16 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
         metric.recordExecution(responseTime, success);
 
-        
         if (metric.getSuccessRate() < 0.3 && metric.getTotalExecutions() > 10) {
             log.warn("모델 {} 성능 불량으로 비활성화: 성공률 {}%",
                 modelName, metric.getSuccessRate() * 100);
             modelRegistry.updateModelStatus(modelName, ModelDescriptor.ModelStatus.UNAVAILABLE);
         }
 
-        log.debug("모델 성능 기록 - {}: {}ms, 성공: {}, 평균: {}ms, 성공률: {}%",
-            modelName, responseTime, success,
-            metric.getAverageResponseTime(), metric.getSuccessRate() * 100);
-    }
+            }
 
-    
     public void refreshModels() {
         modelRegistry.refreshModels();
-        log.info("모델 목록 새로고침 완료");
-    }
+            }
 
 }

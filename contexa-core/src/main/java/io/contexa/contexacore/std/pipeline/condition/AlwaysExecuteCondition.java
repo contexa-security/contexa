@@ -4,7 +4,6 @@ import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 
-
 public class AlwaysExecuteCondition<T extends DomainContext>
         implements PipelineStepCondition<T> {
 

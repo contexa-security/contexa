@@ -12,46 +12,27 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.OllamaEmbeddingModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class AIModelManager {
 
-    
-    @Autowired(required = false)
-    private AnthropicChatModel anthropicChatModel;
-
-    @Autowired(required = false)
-    private OllamaChatModel ollamaChatModel;
-
-    @Autowired(required = false)
-    private OpenAiChatModel openAiChatModel;
-
-    
-    @Autowired(required = false)
-    private OllamaEmbeddingModel ollamaEmbeddingModel;
-
-    @Autowired(required = false)
-    private OpenAiEmbeddingModel openAiEmbeddingModel;
-
-    
+    private final AnthropicChatModel anthropicChatModel;
+    private final OllamaChatModel ollamaChatModel;
+    private final OpenAiChatModel openAiChatModel;
+    private final OllamaEmbeddingModel ollamaEmbeddingModel;
+    private final OpenAiEmbeddingModel openAiEmbeddingModel;
     private final Map<String, ChatClient> chatClientCache = new ConcurrentHashMap<>();
 
-    
     public ChatResponse chat(AIModelType modelType, String prompt) {
         ChatModel model = getChatModel(modelType);
         if (model == null) {
             throw new IllegalArgumentException("ChatModel not available: " + modelType);
         }
-
-        log.info("Using {} for chat request", modelType);
         ChatClient client = getChatClient(modelType);
 
         return client.prompt()
@@ -60,36 +41,29 @@ public class AIModelManager {
                 .chatResponse();
     }
 
-    
     public EmbeddingResponse embed(AIModelType modelType, String text) {
         EmbeddingModel model = getEmbeddingModel(modelType);
         if (model == null) {
             throw new IllegalArgumentException("EmbeddingModel not available: " + modelType);
         }
 
-        log.info("Using {} for embedding request", modelType);
         return model.call(new org.springframework.ai.embedding.EmbeddingRequest(List.of(text), null));
     }
 
-    
     public ChatResponse chatWithBestModel(TaskType taskType, String prompt) {
         AIModelType bestModel = selectBestModelForTask(taskType);
         return chat(bestModel, prompt);
     }
 
-    
     public ChatResponse chatWithFastest(String prompt) {
         List<AIModelType> availableModels = getAvailableChatModels();
         if (availableModels.isEmpty()) {
             throw new IllegalStateException("No chat models available");
         }
 
-        
-        
         return chat(availableModels.get(0), prompt);
     }
 
-    
     public Map<String, Boolean> getModelStatus() {
         return Map.of(
                 "anthropic", anthropicChatModel != null,
@@ -100,28 +74,26 @@ public class AIModelManager {
         );
     }
 
-    
     private AIModelType selectBestModelForTask(TaskType taskType) {
         switch (taskType) {
             case CODE_GENERATION:
-                
+
                 if (anthropicChatModel != null) return AIModelType.ANTHROPIC;
                 if (openAiChatModel != null) return AIModelType.OPENAI;
                 return AIModelType.OLLAMA;
 
             case QUICK_RESPONSE:
-                
+
                 if (ollamaChatModel != null) return AIModelType.OLLAMA;
                 return getFirstAvailableModel();
 
             case CREATIVE_WRITING:
-                
+
                 if (anthropicChatModel != null) return AIModelType.ANTHROPIC;
                 if (openAiChatModel != null) return AIModelType.OPENAI;
                 return AIModelType.OLLAMA;
 
             case ANALYSIS:
-                
                 return getFirstAvailableModel();
 
             default:
@@ -174,7 +146,6 @@ public class AIModelManager {
         return available.get(0);
     }
 
-    
     public enum AIModelType {
         ANTHROPIC("Claude"),
         OLLAMA("Ollama"),
@@ -191,13 +162,12 @@ public class AIModelManager {
         }
     }
 
-    
     public enum TaskType {
-        CODE_GENERATION,    
-        QUICK_RESPONSE,     
-        CREATIVE_WRITING,   
-        ANALYSIS,          
-        TRANSLATION,       
-        SUMMARIZATION      
+        CODE_GENERATION,
+        QUICK_RESPONSE,
+        CREATIVE_WRITING,
+        ANALYSIS,
+        TRANSLATION,
+        SUMMARIZATION
     }
 }

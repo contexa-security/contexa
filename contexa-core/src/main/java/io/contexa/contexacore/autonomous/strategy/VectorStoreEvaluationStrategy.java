@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
@@ -32,24 +31,17 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
         try {
-            log.debug("[VectorStoreEvaluationStrategy][AI Native] Vector Store threat evaluation for event: {}", event.getEventId());
-
+            
             if (unifiedVectorService == null) {
                 log.warn("[VectorStoreEvaluationStrategy][AI Native] UnifiedVectorService not available");
                 return createFallbackAssessment(event);
             }
 
-            
             String queryText = buildQueryFromEvent(event);
 
-            
             List<Document> similarPatterns = searchSimilarPatterns(queryText);
 
-            
             List<ThreatIndicator> indicators = extractIndicatorsFromPatterns(similarPatterns, event);
-
-            
-            
 
             return ThreatAssessment.builder()
                 .eventId(event.getEventId())
@@ -72,10 +64,7 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     
     @Override
     public ThreatAssessment evaluateWithContext(SecurityEvent event, SecurityContext context) {
-        log.debug("[VectorStoreEvaluationStrategy][AI Native] Context-aware evaluation for event: {}", event.getEventId());
 
-        
-        
         return evaluate(event);
     }
     
@@ -111,8 +100,7 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     public String getDescription() {
         return "Vector Store pattern-based threat evaluation using machine learning similarity search";
     }
-    
-    
+
     public Map<String, String> mapToFramework(SecurityEvent event) {
         Map<String, String> mapping = new HashMap<>();
         mapping.put("FRAMEWORK", "VECTOR_PATTERN_MATCHING");
@@ -122,23 +110,19 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
         mapping.put("ALGORITHM", "COSINE_SIMILARITY");
         return mapping;
     }
-    
-    
+
     @Override
     public List<String> getRecommendedActions(SecurityEvent event) {
-        
-        
+
         return List.of("LLM_ANALYSIS_REQUIRED");
     }
     
     @Override
     public double calculateRiskScore(List<ThreatIndicator> indicators) {
-        
-        
+
         return Double.NaN;
     }
-    
-    
+
     @Override
     public boolean canEvaluate(SecurityEvent.Severity severity) {
         
@@ -149,20 +133,16 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
     public int getPriority() {
         return 80; 
     }
-    
-    
-    
+
     private String buildQueryFromEvent(SecurityEvent event) {
         StringBuilder query = new StringBuilder();
-        
-        
+
         query.append("severity:").append(event.getSeverity() != null ? event.getSeverity() : "INFO");
         
         if (event.getSourceIp() != null) {
             query.append(" source_ip:").append(event.getSourceIp());
         }
-        
-        
+
         Object targetResource = event.getMetadata() != null ? event.getMetadata().get("targetResource") : null;
         if (targetResource != null) {
             query.append(" target:").append(targetResource);
@@ -187,8 +167,6 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
             query.append(" context_user:").append(context.getUserId());
         }
 
-        
-        
         if (context.getTrustScore() != null) {
             query.append(" trust_score:").append(context.getTrustScore());
         }
@@ -302,23 +280,7 @@ public class VectorStoreEvaluationStrategy implements ThreatEvaluationStrategy {
                 .map(e -> e.getKey() + ":" + e.getValue())
                 .collect(Collectors.joining(", ")));
     }
-    
-    
-    
 
-    
-    
-    
-
-    
-    
-
-    
-    
-    
-    
-    
-    
     private Map<String, Object> createMetadata(SecurityEvent event, List<Document> patterns) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("strategy", getStrategyName());

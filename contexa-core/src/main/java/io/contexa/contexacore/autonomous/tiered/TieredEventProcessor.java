@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class TieredEventProcessor {
     
@@ -27,8 +26,7 @@ public class TieredEventProcessor {
     
     @Value("${security.event.tier.general.sampling-rate:0.1}")
     private double generalSamplingRate;
-    
-    
+
     private final Map<EventTier, AtomicLong> tierCounters = new ConcurrentHashMap<>();
     
     public TieredEventProcessor() {
@@ -36,13 +34,11 @@ public class TieredEventProcessor {
             tierCounters.put(tier, new AtomicLong(0));
         }
     }
-    
-    
+
     public EventTier determineTier(AuthenticationSuccessEvent event) {
         
         AuthenticationSuccessEvent.RiskLevel riskLevel = event.calculateRiskLevel();
 
-        
         if (riskLevel == AuthenticationSuccessEvent.RiskLevel.CRITICAL ||
             riskLevel == AuthenticationSuccessEvent.RiskLevel.HIGH ||
             event.isAnomalyDetected()) {
@@ -50,19 +46,16 @@ public class TieredEventProcessor {
             return EventTier.CRITICAL;
         }
 
-        
         if (event.isMfaCompleted() ||
             riskLevel == AuthenticationSuccessEvent.RiskLevel.MEDIUM) {
             tierCounters.get(EventTier.CONTEXTUAL).incrementAndGet();
             return EventTier.CONTEXTUAL;
         }
 
-        
         tierCounters.get(EventTier.GENERAL).incrementAndGet();
         return EventTier.GENERAL;
     }
-    
-    
+
     public EventTier determineTier(AuthenticationFailureEvent event) {
         
         if (event.determineAttackType() == AuthenticationFailureEvent.AttackType.BRUTE_FORCE ||
@@ -71,20 +64,17 @@ public class TieredEventProcessor {
             tierCounters.get(EventTier.CRITICAL).incrementAndGet();
             return EventTier.CRITICAL;
         }
-        
-        
+
         if (event.determineAttackType() == AuthenticationFailureEvent.AttackType.SUSPICIOUS ||
             event.getFailureCount() > 3) {
             tierCounters.get(EventTier.CONTEXTUAL).incrementAndGet();
             return EventTier.CONTEXTUAL;
         }
-        
-        
+
         tierCounters.get(EventTier.GENERAL).incrementAndGet();
         return EventTier.GENERAL;
     }
-    
-    
+
     public TierConfiguration getConfiguration(EventTier tier) {
         TierConfiguration config = new TierConfiguration();
         
@@ -117,16 +107,14 @@ public class TieredEventProcessor {
         
         return config;
     }
-    
-    
+
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new ConcurrentHashMap<>();
         
         for (Map.Entry<EventTier, AtomicLong> entry : tierCounters.entrySet()) {
             metrics.put(entry.getKey().name().toLowerCase() + "_count", entry.getValue().get());
         }
-        
-        
+
         long total = tierCounters.values().stream()
             .mapToLong(AtomicLong::get)
             .sum();
@@ -142,22 +130,19 @@ public class TieredEventProcessor {
         
         return metrics;
     }
-    
-    
+
     public enum EventTier {
         CRITICAL,    
         CONTEXTUAL,  
         GENERAL      
     }
-    
-    
+
     public enum TierPriority {
         IMMEDIATE,   
         HIGH,        
         NORMAL       
     }
-    
-    
+
     @Data
     public static class TierConfiguration {
         private int maxLatencyMs;

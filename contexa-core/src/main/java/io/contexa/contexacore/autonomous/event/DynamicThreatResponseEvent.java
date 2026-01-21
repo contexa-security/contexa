@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Data
 @EqualsAndHashCode(callSuper = false)
 public class DynamicThreatResponseEvent extends ApplicationEvent implements LearnableEvent {
@@ -24,8 +23,7 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
     private final Map<String, Object> context;
     private final boolean responseSuccessful;
     private final String responseDescription;
-    
-    
+
     private final String threatType;
     private final String attackVector;
     private final String targetResource;
@@ -65,40 +63,33 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
         this.responseDescription = responseDescription;
         this.incidentId = incidentId;
         this.soarWorkflowId = soarWorkflowId;
-        
-        
+
         this.context = buildContext(additionalContext);
     }
-    
-    
+
     private Map<String, Object> buildContext(Map<String, Object> additionalContext) {
         Map<String, Object> ctx = new HashMap<>();
-        
-        
+
         ctx.put("threatType", threatType);
         ctx.put("attackVector", attackVector);
         ctx.put("targetResource", targetResource);
         ctx.put("attackerIdentity", attackerIdentity);
-        
-        
+
         ctx.put("mitigationAction", mitigationAction);
         ctx.put("responseSuccessful", responseSuccessful);
         ctx.put("responseDescription", responseDescription);
-        
-        
+
         ctx.put("incidentId", incidentId);
         ctx.put("soarWorkflowId", soarWorkflowId);
         ctx.put("occurredAt", occurredAt);
-        
-        
+
         if (additionalContext != null) {
             ctx.putAll(additionalContext);
         }
         
         return ctx;
     }
-    
-    
+
     public String generateNaturalLanguageDescription() {
         StringBuilder sb = new StringBuilder();
         sb.append("위협 유형: ").append(threatType).append("\n");
@@ -114,8 +105,7 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
         
         return sb.toString();
     }
-    
-    
+
     public Map<String, String> extractLearningFeatures() {
         Map<String, String> features = new HashMap<>();
         features.put("threat_type", threatType);

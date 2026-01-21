@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 public class EmergencyKillSwitch {
     
     private static final Logger logger = LoggerFactory.getLogger(EmergencyKillSwitch.class);
@@ -31,20 +30,15 @@ public class EmergencyKillSwitch {
     
     @Autowired
     private ApplicationEventPublisher eventPublisher;
-    
-    
+
     private final AtomicBoolean isActivated = new AtomicBoolean(false);
-    
-    
+
     private final AtomicBoolean isSafeMode = new AtomicBoolean(false);
-    
-    
+
     private final Map<Long, CircuitBreaker> circuitBreakers = new ConcurrentHashMap<>();
-    
-    
+
     private final List<KillSwitchEvent> activationHistory = Collections.synchronizedList(new ArrayList<>());
-    
-    
+
     private static final int ERROR_THRESHOLD = 5;
     private static final int TIME_WINDOW_SECONDS = 60;
     private static final double ERROR_RATE_THRESHOLD = 0.3;
@@ -55,8 +49,7 @@ public class EmergencyKillSwitch {
         
         performSafetyCheck();
     }
-    
-    
+
     @Transactional
     public boolean activate(String reason, Long targetProposalId) {
         logger.error("EMERGENCY KILL SWITCH ACTIVATED! Reason: {}, Target: {}", 
@@ -81,8 +74,7 @@ public class EmergencyKillSwitch {
             return false;
         }
     }
-    
-    
+
     @Transactional
     public boolean deactivate(String authorizedBy) {
         logger.info("Attempting to deactivate kill switch. Authorized by: {}", authorizedBy);
@@ -98,14 +90,11 @@ public class EmergencyKillSwitch {
                 logger.error("Safety check failed. Cannot deactivate kill switch");
                 return false;
             }
-            
-            
+
             isActivated.set(false);
-            
-            
+
             exitSafeMode();
-            
-            
+
             publishKillSwitchEvent(KillSwitchEventType.DEACTIVATED, null, 
                 "Deactivated by " + authorizedBy);
             
@@ -117,8 +106,7 @@ public class EmergencyKillSwitch {
             return false;
         }
     }
-    
-    
+
     public void monitorExecution(Long proposalId, boolean success) {
         CircuitBreaker breaker = circuitBreakers.computeIfAbsent(proposalId, 
             id -> new CircuitBreaker(id));
@@ -127,50 +115,40 @@ public class EmergencyKillSwitch {
             breaker.recordSuccess();
         } else {
             breaker.recordFailure();
-            
-            
+
             if (breaker.shouldTrip()) {
                 logger.error("Circuit breaker tripped for proposal: {}", proposalId);
                 activate("Circuit breaker threshold exceeded", proposalId);
             }
         }
-        
-        
+
         checkSystemHealth();
     }
-    
-    
+
     public void enterSafeMode() {
         if (isSafeMode.compareAndSet(false, true)) {
             logger.warn("System entering SAFE MODE");
-            
-            
+
             disableAutomaticPolicies();
-            
-            
+
             enableManualApprovalMode();
-            
-            
+
             publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_ENTERED, null, 
                 "System protection activated");
         }
     }
-    
-    
+
     public void exitSafeMode() {
         if (isSafeMode.compareAndSet(true, false)) {
             logger.info("System exiting safe mode");
-            
-            
+
             enableAutomaticPolicies();
-            
-            
+
             publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_EXITED, null, 
                 "Normal operation resumed");
         }
     }
-    
-    
+
     public KillSwitchStatus getStatus() {
         return KillSwitchStatus.builder()
             .isActivated(isActivated.get())
@@ -180,8 +158,7 @@ public class EmergencyKillSwitch {
             .systemHealth(calculateSystemHealth())
             .build();
     }
-    
-    
+
     @Transactional
     public boolean rollbackPolicy(Long proposalId, Long targetVersion) {
         logger.info("Rolling back policy {} to version {}", proposalId, targetVersion);
@@ -189,8 +166,7 @@ public class EmergencyKillSwitch {
         try {
             
             Long rolledBackVersion = versionManager.rollback(proposalId, targetVersion);
-            
-            
+
             publishKillSwitchEvent(KillSwitchEventType.POLICY_ROLLED_BACK, proposalId,
                 "Rolled back to version " + rolledBackVersion);
             
@@ -201,9 +177,7 @@ public class EmergencyKillSwitch {
             return false;
         }
     }
-    
-    
-    
+
     private boolean killSpecificPolicy(Long proposalId, String reason) {
         logger.info("Killing specific policy: {}", proposalId);
         
@@ -217,11 +191,9 @@ public class EmergencyKillSwitch {
             proposal.addMetadata("deactivation_reason", reason);
             
             proposalRepository.save(proposal);
-            
-            
+
             recordActivation(proposalId, reason);
-            
-            
+
             publishKillSwitchEvent(KillSwitchEventType.POLICY_KILLED, proposalId, reason);
             
             return true;
@@ -245,11 +217,9 @@ public class EmergencyKillSwitch {
         }
         
         logger.info("Killed {} out of {} active policies", killedCount, activeProposals.size());
-        
-        
+
         enterSafeMode();
-        
-        
+
         publishKillSwitchEvent(KillSwitchEventType.ALL_POLICIES_KILLED, null, 
             String.format("Killed %d policies: %s", killedCount, reason));
         
@@ -273,8 +243,7 @@ public class EmergencyKillSwitch {
                     }
                 }
             }
-            
-            
+
             SystemHealth health = calculateSystemHealth();
             if (health == SystemHealth.CRITICAL) {
                 logger.warn("System health is critical");
@@ -348,8 +317,7 @@ public class EmergencyKillSwitch {
             .build();
         
         activationHistory.add(event);
-        
-        
+
         eventPublisher.publishEvent(event);
     }
     
@@ -365,10 +333,7 @@ public class EmergencyKillSwitch {
         int fromIndex = Math.max(0, size - count);
         return new ArrayList<>(activationHistory.subList(fromIndex, size));
     }
-    
-    
-    
-    
+
     private static class CircuitBreaker {
         private final Long proposalId;
         private final AtomicInteger successCount = new AtomicInteger(0);
@@ -392,8 +357,7 @@ public class EmergencyKillSwitch {
         public void recordFailure() {
             failureCount.incrementAndGet();
             errorTimestamps.add(System.currentTimeMillis());
-            
-            
+
             long cutoff = System.currentTimeMillis() - (TIME_WINDOW_SECONDS * 1000);
             errorTimestamps.removeIf(ts -> ts < cutoff);
         }
@@ -429,8 +393,7 @@ public class EmergencyKillSwitch {
             isOpen = false;
         }
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class KillSwitchStatus {
@@ -440,8 +403,7 @@ public class EmergencyKillSwitch {
         private List<KillSwitchEvent> recentEvents;
         private SystemHealth systemHealth;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class KillSwitchEvent {
@@ -450,8 +412,7 @@ public class EmergencyKillSwitch {
         private String reason;
         private LocalDateTime timestamp;
     }
-    
-    
+
     public enum KillSwitchEventType {
         ACTIVATED,
         DEACTIVATED,
@@ -461,8 +422,7 @@ public class EmergencyKillSwitch {
         SAFE_MODE_ENTERED,
         SAFE_MODE_EXITED
     }
-    
-    
+
     public enum SystemHealth {
         HEALTHY,
         WARNING,

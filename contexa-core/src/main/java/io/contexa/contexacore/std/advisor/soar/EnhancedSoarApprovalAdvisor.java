@@ -21,7 +21,6 @@ import org.springframework.context.ApplicationContextAware;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements ApplicationContextAware {
     
@@ -53,8 +52,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
-        
-        
+
         try {
             this.policyManager = applicationContext.getBean(ToolApprovalPolicyManager.class);
             this.executionMetrics = applicationContext.getBean(ToolExecutionMetrics.class);
@@ -79,25 +77,20 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
                 return;
             }
         }
-        
-        
+
         if (sharedContext == null) {
             log.warn("SharedAdvisorContext가 없어 초기화를 건너뜀");
             return;
         }
-        
-        
+
         AdvisorContext context = sharedContext.getDomainContext(DOMAIN_NAME);
         context.setAttribute("advisor.type", "tool-policy");
         context.setAttribute("initialized", LocalDateTime.now());
         context.setAttribute("filtering.enabled", true);
-        
-        
+
         setEnabled(advisorEnabled);
         
-        log.info("SOAR Tool Policy Advisor 초기화 완료 (order: {}, enabled: {})", 
-            advisorOrder, advisorEnabled);
-    }
+            }
     
     @Override
     public int getOrder() {
@@ -111,11 +104,9 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
         policyConfig.put("risk.threshold", "HIGH");
         policyConfig.put("execution.timeout.seconds", defaultTimeoutSeconds);
         policyConfig.put("max.concurrent.tools", 5);
-        
-        
+
         policyConfig.put("blocked.tools", List.of("system_shutdown", "data_delete_all"));
-        
-        
+
         policyConfig.put("min.role.level", "OPERATOR");
         
         return new SoarDomainPolicy(policyConfig, true);
@@ -127,22 +118,14 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
         String sessionId = (String) request.context().get("session.id");
         String userId = (String) request.context().get("user.id");
         Boolean authenticated = (Boolean) request.context().get("authenticated");
-        
-        
-        log.debug("SOAR 도메인 요청 검증 - sessionId: {}, userId: {}, authenticated: {}", 
-            sessionId, userId, authenticated);
-        
-        
+
         if (!isProductionEnvironment()) {
             
             if (sessionId == null || userId == null) {
-                log.debug("개발 환경 - 보안 컨텍스트 누락 허용 (sessionId: {}, userId: {})", 
-                    sessionId, userId);
-            }
+                            }
             return true;
         }
-        
-        
+
         if (sessionId == null || sessionId.isEmpty()) {
             log.warn("프로덕션 환경 - 세션 ID 누락");
             return false;
@@ -152,19 +135,15 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
             log.warn("프로덕션 환경 - 사용자 ID 누락");
             return false;
         }
-        
-        
+
         if ("anonymous".equals(userId)) {
-            log.info("익명 사용자 요청 감지 - 정책에 따라 처리");
-            
-            
+
             return true;
         }
         
         return true;
     }
-    
-    
+
     private boolean isProductionEnvironment() {
         String profile = System.getProperty("spring.profiles.active", "dev");
         return "prod".equals(profile) || "production".equals(profile);
@@ -172,15 +151,12 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
     
     @Override
     protected boolean performSecurityCheck(ChatClientRequest request) {
-        
-        
-        
+
         if (!checkRateLimit(request)) {
             log.warn("Rate limit exceeded");
             return false;
         }
-        
-        
+
         if (!checkConcurrentExecutions(request)) {
             log.warn("Concurrent execution limit exceeded");
             return false;
@@ -193,28 +169,21 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
     protected ChatClientRequest beforeCall(ChatClientRequest request) {
         
         request = super.beforeCall(request);
-        
-        log.debug("SOAR Tool Policy Advisor - 도구 정책 검사 시작");
-        
-        
+
         if (policyManager == null) {
             log.warn("ToolApprovalPolicyManager가 없어 필터링을 건너뜀");
             return request;
         }
-        
-        
+
         FilteringResult filteringResult = applyToolPolicyFiltering(request);
-        
-        
+
         request.context().put(ALLOWED_TOOLS_KEY, filteringResult.getAllowedTools());
         request.context().put(FILTERED_TOOLS_KEY, filteringResult.getFilteredTools());
         request.context().put(TOOL_RISK_KEY, filteringResult.getToolRiskMap());
         request.context().put(TOOL_METADATA_KEY, filteringResult.getToolMetadata());
-        
-        
+
         if (!filteringResult.getHighRiskTools().isEmpty() && sharedContext != null) {
-            log.info("고위험 도구 감지: {}", filteringResult.getHighRiskTools());
-            try {
+                        try {
                 sharedContext.shareAcrossDomains(
                     "tool.high_risk.detected",
                     filteringResult.getHighRiskTools(),
@@ -225,8 +194,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
                 log.warn("도메인 간 정보 공유 실패: {}", e.getMessage());
             }
         }
-        
-        
+
         if (!filteringResult.getFilteredTools().isEmpty()) {
             log.warn("🚫 정책에 의해 차단된 도구: {}", filteringResult.getFilteredTools());
             for (String toolName : filteringResult.getFilteredTools()) {
@@ -240,8 +208,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
                 }
             }
         }
-        
-        
+
         for (String toolName : filteringResult.getAllowedTools()) {
             recordMetric("soar.tool.allowed", 1);
         }
@@ -253,8 +220,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
     protected ChatClientResponse afterCall(ChatClientResponse response, ChatClientRequest request) {
         
         response = super.afterCall(response, request);
-        
-        
+
         if (sharedContext != null) {
             @SuppressWarnings("unchecked")
             List<String> allowedTools = (List<String>) request.context().get(ALLOWED_TOOLS_KEY);
@@ -277,37 +243,30 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
         
         return response;
     }
-    
-    
+
     private FilteringResult applyToolPolicyFiltering(ChatClientRequest request) {
         FilteringResult result = new FilteringResult();
-        
-        
+
         if (request.prompt().getOptions() instanceof ToolCallingChatOptions toolOptions) {
             List<ToolCallback> callbacks = toolOptions.getToolCallbacks();
             
             if (callbacks == null || callbacks.isEmpty()) {
                 return result;
             }
-            
-            
+
             for (ToolCallback callback : callbacks) {
                 String toolName = callback.getToolDefinition().name();
                 SoarTool.RiskLevel riskLevel = policyManager.getRiskLevel(toolName);
-                
-                
+
                 result.addToolRisk(toolName, riskLevel);
-                
-                
+
                 if (policyManager.isBlocked(toolName)) {
-                    log.debug("도구 차단됨: {} (정책: BLOCKED)", toolName);
-                    result.addFilteredTool(toolName);
+                                        result.addFilteredTool(toolName);
                     
                     toolOptions.getToolCallbacks().remove(callback);
                 } else {
                     result.addAllowedTool(toolName);
-                    
-                    
+
                     Map<String, Object> metadata = new HashMap<>();
                     metadata.put("riskLevel", riskLevel.name());
                     metadata.put("requiresApproval", policyManager.requiresApproval(toolName));
@@ -316,8 +275,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
                     metadata.put("timestamp", System.currentTimeMillis());
                     
                     result.addToolMetadata(toolName, metadata);
-                    
-                    
+
                     if (riskLevel == SoarTool.RiskLevel.HIGH || 
                         riskLevel == SoarTool.RiskLevel.CRITICAL) {
                         result.addHighRiskTool(toolName);
@@ -328,14 +286,10 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
         
         return result;
     }
-    
-    
-    
-    
+
     private boolean checkRateLimit(ChatClientRequest request) {
         String userId = (String) request.context().get("user.id");
-        
-        
+
         Long lastCall = (Long) advisorContext.getAttribute("rateLimit." + userId);
         long currentTime = System.currentTimeMillis();
         
@@ -349,8 +303,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
         advisorContext.setAttribute("rateLimit." + userId, currentTime);
         return true;
     }
-    
-    
+
     private boolean checkConcurrentExecutions(ChatClientRequest request) {
         Integer maxConcurrent = (Integer) domainConfig.get("max.concurrent.executions");
         if (maxConcurrent == null) {
@@ -364,8 +317,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
         
         return current < maxConcurrent;
     }
-    
-    
+
     private static class HighRiskTool {
         final String name;
         final SoarTool.RiskLevel riskLevel;
@@ -375,8 +327,7 @@ public class EnhancedSoarApprovalAdvisor extends DomainAdvisor implements Applic
             this.riskLevel = riskLevel;
         }
     }
-    
-    
+
     private static class ApprovalCheckResult {
         private final boolean approved;
         private final String reason;

@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
-
 @Slf4j
 @PromptTemplateConfig(
         key = "behavioralAnalysis",
@@ -20,8 +19,7 @@ import java.util.Optional;
         description = "Spring AI Structured Output Behavioral Analysis Template"
 )
 public class BehavioralAnalysisTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<BehavioralAnalysisResponse> converter =
         new BeanOutputConverter<>(BehavioralAnalysisResponse.class);
 
@@ -121,12 +119,10 @@ public class BehavioralAnalysisTemplate implements PromptTemplate {
             LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
             history
         );
-        
-        
+
         return analysisRequest + "\n\n" + converter.getFormat();
     }
-    
-    
+
     public BeanOutputConverter<BehavioralAnalysisResponse> getConverter() {
         return converter;
     }

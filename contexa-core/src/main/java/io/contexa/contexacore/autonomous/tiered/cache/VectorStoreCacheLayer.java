@@ -15,7 +15,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 
 public class VectorStoreCacheLayer {
@@ -35,15 +34,11 @@ public class VectorStoreCacheLayer {
     @Value("${spring.ai.security.vector-cache.record-stats:true}")
     private boolean recordStats;
 
-    
     private Cache<String, List<Document>> cache;
 
-    
     @jakarta.annotation.PostConstruct
     public void init() {
-        log.info("Initializing VectorStoreCacheLayer with maxSize={}, expireMinutes={}, enabled={}",
-                maxCacheSize, expireMinutes, cacheEnabled);
-
+        
         Caffeine<Object, Object> builder = Caffeine.newBuilder()
                 .maximumSize(maxCacheSize)
                 .expireAfterWrite(expireMinutes, TimeUnit.MINUTES);
@@ -54,10 +49,8 @@ public class VectorStoreCacheLayer {
 
         cache = builder.build();
 
-        log.info("VectorStoreCacheLayer initialized successfully");
-    }
+            }
 
-    
     public List<Document> similaritySearch(SearchRequest request) {
         if (!cacheEnabled || vectorStoreService == null) {
             return fallbackSearch(request);
@@ -67,27 +60,20 @@ public class VectorStoreCacheLayer {
             
             String cacheKey = generateCacheKey(request);
 
-            
             List<Document> cachedResult = cache.getIfPresent(cacheKey);
             if (cachedResult != null) {
-                log.debug("[VectorStoreCacheLayer] Cache HIT for query: {}", request.getQuery());
-                return cachedResult;
+                                return cachedResult;
             }
 
-            
-            log.debug("[VectorStoreCacheLayer] Cache MISS for query: {}", request.getQuery());
-            long startTime = System.currentTimeMillis();
+                        long startTime = System.currentTimeMillis();
 
             List<Document> result = vectorStoreService.similaritySearch(request);
 
             long elapsedTime = System.currentTimeMillis() - startTime;
-            log.debug("[VectorStoreCacheLayer] Vector Store search took {}ms", elapsedTime);
 
-            
             if (result != null && !result.isEmpty()) {
                 cache.put(cacheKey, result);
-                log.debug("[VectorStoreCacheLayer] Cached result with {} documents", result.size());
-            }
+                            }
 
             return result;
 
@@ -97,25 +83,20 @@ public class VectorStoreCacheLayer {
         }
     }
 
-    
     private String generateCacheKey(SearchRequest request) {
         
         int initialCapacity = 50 + (request.getQuery() != null ? request.getQuery().length() : 0);
         StringBuilder keyBuilder = new StringBuilder(initialCapacity);
 
-        
         keyBuilder.append("q:");
         if (request.getQuery() != null) {
             keyBuilder.append(request.getQuery());
         }
 
-        
         keyBuilder.append("|k:").append(request.getTopK());
 
-        
         keyBuilder.append("|t:").append(request.getSimilarityThreshold());
 
-        
         if (request.getFilterExpression() != null) {
             
             keyBuilder.append("|f:").append(request.getFilterExpression().hashCode());
@@ -124,7 +105,6 @@ public class VectorStoreCacheLayer {
         return keyBuilder.toString();
     }
 
-    
     private List<Document> fallbackSearch(SearchRequest request) {
         if (vectorStoreService == null) {
             log.warn("[VectorStoreCacheLayer] VectorStoreService not available");
@@ -139,7 +119,6 @@ public class VectorStoreCacheLayer {
         }
     }
 
-    
     public void add(List<Document> documents) {
         if (vectorStoreService == null) {
             log.warn("[VectorStoreCacheLayer] VectorStoreService not available for adding documents");
@@ -148,37 +127,30 @@ public class VectorStoreCacheLayer {
 
         try {
             vectorStoreService.addDocuments(documents);
-            log.debug("[VectorStoreCacheLayer] Added {} documents to vector store", documents.size());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Failed to add documents to vector store", e);
         }
     }
 
-    
     public void invalidate(String query) {
         if (!cacheEnabled) {
             return;
         }
 
-        
         cache.asMap().keySet().stream()
                 .filter(key -> key.startsWith("q:" + query))
                 .forEach(cache::invalidate);
 
-        log.debug("[VectorStoreCacheLayer] Invalidated cache entries for query: {}", query);
-    }
+            }
 
-    
     public void invalidateAll() {
         if (!cacheEnabled) {
             return;
         }
 
         cache.invalidateAll();
-        log.info("[VectorStoreCacheLayer] All cache entries invalidated");
-    }
+            }
 
-    
     public CacheStatistics getStatistics() {
         if (!cacheEnabled || !recordStats) {
             return CacheStatistics.empty();
@@ -199,7 +171,6 @@ public class VectorStoreCacheLayer {
                 .build();
     }
 
-    
     public static class CacheStatistics {
         private final long hitCount;
         private final long missCount;
@@ -231,7 +202,6 @@ public class VectorStoreCacheLayer {
             return new Builder().build();
         }
 
-        
         public long getHitCount() { return hitCount; }
         public long getMissCount() { return missCount; }
         public double getHitRate() { return hitRate; }

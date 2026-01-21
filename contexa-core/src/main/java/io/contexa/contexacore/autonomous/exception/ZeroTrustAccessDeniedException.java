@@ -2,27 +2,20 @@ package io.contexa.contexacore.autonomous.exception;
 
 import org.springframework.security.access.AccessDeniedException;
 
-
 public class ZeroTrustAccessDeniedException extends AccessDeniedException {
 
     private static final long serialVersionUID = 1L;
 
-    
     private final String action;
 
-    
     private final String resourceId;
 
-    
     private final double riskScore;
 
-    
     private final String reason;
 
-    
     private final boolean analysisTimeout;
 
-    
     public ZeroTrustAccessDeniedException(String action, String resourceId,
                                           double riskScore, String reason) {
         super(formatMessage(action, reason));
@@ -33,7 +26,6 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         this.analysisTimeout = false;
     }
 
-    
     public ZeroTrustAccessDeniedException(String action, String resourceId,
                                           double riskScore, String reason,
                                           boolean analysisTimeout) {
@@ -45,7 +37,6 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         this.analysisTimeout = analysisTimeout;
     }
 
-    
     public static ZeroTrustAccessDeniedException analysisTimeout(String resourceId, long timeoutMs) {
         return new ZeroTrustAccessDeniedException(
             "PENDING_ANALYSIS",
@@ -56,7 +47,6 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         );
     }
 
-    
     public static ZeroTrustAccessDeniedException analysisRequired(String resourceId) {
         return new ZeroTrustAccessDeniedException(
             "PENDING_ANALYSIS",
@@ -66,7 +56,6 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         );
     }
 
-    
     public static ZeroTrustAccessDeniedException blocked(String resourceId, double riskScore) {
         return new ZeroTrustAccessDeniedException(
             "BLOCK",
@@ -76,7 +65,6 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         );
     }
 
-    
     public static ZeroTrustAccessDeniedException challengeRequired(String resourceId, double riskScore) {
         return new ZeroTrustAccessDeniedException(
             "CHALLENGE",
@@ -86,7 +74,6 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         );
     }
 
-    
     public static ZeroTrustAccessDeniedException pendingReview(String resourceId, double riskScore) {
         return new ZeroTrustAccessDeniedException(
             "ESCALATE",
@@ -100,7 +87,6 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         return String.format("Zero Trust: %s - %s", action, reason);
     }
 
-    
     public int getHttpStatus() {
         if (action == null) {
             return 403;
@@ -115,12 +101,9 @@ public class ZeroTrustAccessDeniedException extends AccessDeniedException {
         };
     }
 
-    
     public String getErrorCode() {
         return "ZERO_TRUST_" + (action != null ? action.toUpperCase() : "UNKNOWN");
     }
-
-    
 
     public String getAction() {
         return action;

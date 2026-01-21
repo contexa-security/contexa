@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SoarOrchestrationStrategy implements ProcessingStrategy {
@@ -26,8 +25,7 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
     @Override
     public ProcessingResult process(SecurityEventContext context) {
         SecurityEvent event = context.getSecurityEvent();
-        log.info("[SoarOrchestrationStrategy] Starting SOAR orchestration for event: {}", event.getEventId());
-
+        
         List<String> executedActions = new ArrayList<>();
         Map<String, Object> metadata = new HashMap<>();
 
@@ -35,7 +33,6 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
             
             prepareSoarWorkflow(context, executedActions);
 
-            
             if (coldPathProcessor != null) {
                 double riskScore = context.getAiAnalysisResult() != null ?
                     context.getAiAnalysisResult().getThreatLevel() : 0.7;
@@ -48,10 +45,8 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
                 }
             }
 
-            
             executeSoarActions(context, executedActions);
 
-            
             if (requiresApproval(context)) {
                 context.updateProcessingStatus(SecurityEventContext.ProcessingStatus.AWAITING_APPROVAL);
                 executedActions.add("APPROVAL_REQUESTED");
@@ -60,9 +55,6 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
 
             metadata.put("soarOrchestrated", true);
             metadata.put("workflowId", "SOAR-" + event.getEventId());
-
-            log.info("[SoarOrchestrationStrategy] SOAR orchestration completed - event: {}, actions: {}",
-                event.getEventId(), executedActions);
 
             return ProcessingResult.builder()
                 .success(true)
@@ -83,13 +75,11 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private void prepareSoarWorkflow(SecurityEventContext context, List<String> executedActions) {
         context.addResponseAction("SOAR_WORKFLOW_INIT", "SOAR workflow initialized");
         context.addMetadata("soarWorkflowStarted", System.currentTimeMillis());
         executedActions.add("SOAR_WORKFLOW_INITIALIZED");
 
-        
         if (context.getAiAnalysisResult() != null &&
             context.getAiAnalysisResult().getRecommendedActions() != null) {
 
@@ -100,29 +90,24 @@ public class SoarOrchestrationStrategy implements ProcessingStrategy {
         }
     }
 
-    
     private void executeSoarActions(SecurityEventContext context, List<String> executedActions) {
         
         context.addResponseAction("INCIDENT_TICKET", "Incident ticket created in SOAR system");
         executedActions.add("INCIDENT_TICKET_CREATED");
 
-        
         context.addResponseAction("PLAYBOOK_EXECUTION", "Security playbook executed");
         executedActions.add("PLAYBOOK_EXECUTED");
 
-        
         context.addResponseAction("FORENSIC_COLLECTION", "Forensic data collection initiated");
         executedActions.add("FORENSIC_DATA_COLLECTED");
     }
 
-    
     private boolean requiresApproval(SecurityEventContext context) {
         
         if (context.getAiAnalysisResult() != null && context.getAiAnalysisResult().getThreatLevel() >= 0.7) {
             return true;
         }
 
-        
         SecurityEventContext.AIAnalysisResult aiResult = context.getAiAnalysisResult();
         if (aiResult != null && aiResult.getRecommendedActions() != null) {
             for (String action : aiResult.getRecommendedActions().keySet()) {

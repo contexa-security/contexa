@@ -10,37 +10,29 @@ import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 @Data
 @ConfigurationProperties(prefix = "spring.ai.providers")
 public class ModelProviderProperties {
 
-    
     @NestedConfigurationProperty
     private OllamaConfig ollama = new OllamaConfig();
 
-    
     @NestedConfigurationProperty
     private AnthropicConfig anthropic = new AnthropicConfig();
 
-    
     @NestedConfigurationProperty
     private OpenAIConfig openai = new OpenAIConfig();
 
-    
     @NestedConfigurationProperty
     private VLLMConfig vllm = new VLLMConfig();
 
-    
     @NestedConfigurationProperty
     private Map<String, String> providerMapping = new HashMap<>();
 
-    
     @NestedConfigurationProperty
     private DefaultSpecs defaults = new DefaultSpecs();
 
-    
     @Data
     public static class OllamaConfig {
         private String baseUrl = "http://127.0.0.1:11434";
@@ -67,7 +59,6 @@ public class ModelProviderProperties {
         }
     }
 
-    
     @Data
     public static class AnthropicConfig {
         private String baseUrl = "https://api.anthropic.com";
@@ -84,7 +75,6 @@ public class ModelProviderProperties {
         }
     }
 
-    
     @Data
     public static class OpenAIConfig {
         private String baseUrl = "https://api.openai.com";
@@ -92,7 +82,6 @@ public class ModelProviderProperties {
         private Map<String, ModelSpec> models = new HashMap<>();
     }
 
-    
     @Data
     public static class VLLMConfig {
         private String baseUrl = "http://localhost:8000";
@@ -110,7 +99,6 @@ public class ModelProviderProperties {
         }
     }
 
-    
     @Data
     public static class ModelSpec {
         private String displayName;
@@ -118,19 +106,14 @@ public class ModelProviderProperties {
         private String modelSize;
         private Integer tier;
 
-        
         private ModelCapabilities capabilities = new ModelCapabilities();
 
-        
         private PerformanceSpec performance = new PerformanceSpec();
 
-        
         private CostSpec cost = new CostSpec();
 
-        
         private ModelOptions options = new ModelOptions();
 
-        
         private Map<String, Object> metadata = new HashMap<>();
 
         @Data
@@ -174,7 +157,6 @@ public class ModelProviderProperties {
         }
     }
 
-    
     @Data
     public static class DefaultSpecs {
         private Map<Integer, TierDefaults> tierDefaults = new HashMap<>();
@@ -191,13 +173,11 @@ public class ModelProviderProperties {
         }
     }
 
-    
     public String getProviderForModel(String modelName) {
         if (modelName == null || modelName.isEmpty()) {
             return "unknown";
         }
 
-        
         for (Map.Entry<String, String> entry : providerMapping.entrySet()) {
             String pattern = entry.getKey();
             if (modelName.matches(pattern) || modelName.startsWith(pattern)) {
@@ -205,31 +185,25 @@ public class ModelProviderProperties {
             }
         }
 
-        
         if (ollama.getModels().containsKey(modelName)) {
             return "ollama";
         }
 
-        
         if (anthropic.getModels().containsKey(modelName)) {
             return "anthropic";
         }
 
-        
         if (openai.getModels().containsKey(modelName)) {
             return "openai";
         }
 
-        
         if (vllm.getModels().containsKey(modelName)) {
             return "vllm";
         }
 
-        log.debug("프로바이더를 찾을 수 없음: {}", modelName);
-        return "unknown";
+                return "unknown";
     }
 
-    
     public ModelSpec getModelSpec(String provider, String modelName) {
         switch (provider.toLowerCase()) {
             case "ollama":
@@ -245,67 +219,39 @@ public class ModelProviderProperties {
         }
     }
 
-    
     public DefaultSpecs.TierDefaults getTierDefaults(int tier) {
         return defaults.getTierDefaults().get(tier);
     }
 
-    
     @PostConstruct
     public void validateConfiguration() {
-        log.info("모델 제공자 설정 검증 시작");
 
-        
         if (ollama.isEnabled()) {
-            log.info("Ollama 설정: baseUrl={}, 모델 수={}",
-                    ollama.getBaseUrl(), ollama.getModels().size());
-            for (String modelId : ollama.getModels().keySet()) {
-                log.debug("  - Ollama 모델: {}", modelId);
-            }
+                        for (String modelId : ollama.getModels().keySet()) {
+                            }
         }
 
-        
         if (anthropic.isEnabled()) {
-            log.info("Anthropic 설정: baseUrl={}, 모델 수={}",
-                    anthropic.getBaseUrl(), anthropic.getModels().size());
-            for (String modelId : anthropic.getModels().keySet()) {
-                log.debug("  - Anthropic 모델: {}", modelId);
-            }
+                        for (String modelId : anthropic.getModels().keySet()) {
+                            }
         }
 
-        
         if (openai.isEnabled()) {
-            log.info("OpenAI 설정: baseUrl={}, 모델 수={}",
-                    openai.getBaseUrl(), openai.getModels().size());
-            for (String modelId : openai.getModels().keySet()) {
-                log.debug("  - OpenAI 모델: {}", modelId);
-            }
+                        for (String modelId : openai.getModels().keySet()) {
+                            }
         }
 
-        
         if (vllm.isEnabled()) {
-            log.info("vLLM 설정: baseUrl={}, 모델 수={}, 처리량 배수={}x",
-                    vllm.getBaseUrl(), vllm.getModels().size(),
-                    vllm.getPerformance().getThroughputMultiplier());
-            for (String modelId : vllm.getModels().keySet()) {
-                log.debug("  - vLLM 모델: {}", modelId);
-            }
+                        for (String modelId : vllm.getModels().keySet()) {
+                            }
         }
 
-        
-        log.info("프로바이더 매핑 규칙: {} 개", providerMapping.size());
-        for (Map.Entry<String, String> entry : providerMapping.entrySet()) {
-            log.debug("  - {} -> {}", entry.getKey(), entry.getValue());
-        }
+                for (Map.Entry<String, String> entry : providerMapping.entrySet()) {
+                    }
 
-        
-        log.info("Tier 기본값 설정: {} 개", defaults.getTierDefaults().size());
-        for (Map.Entry<Integer, DefaultSpecs.TierDefaults> entry : defaults.getTierDefaults().entrySet()) {
+                for (Map.Entry<Integer, DefaultSpecs.TierDefaults> entry : defaults.getTierDefaults().entrySet()) {
             DefaultSpecs.TierDefaults td = entry.getValue();
-            log.debug("  - Tier {}: timeout={}ms, temperature={}, maxTokens={}",
-                    entry.getKey(), td.getTimeoutMs(), td.getTemperature(), td.getMaxTokens());
-        }
+                    }
 
-        log.info("모델 제공자 설정 검증 완료");
-    }
+            }
 }

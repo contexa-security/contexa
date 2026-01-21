@@ -6,14 +6,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Component;
 
-
 @RequiredArgsConstructor
 public class ExecutionContextFactory {
 
     private final TieredLLMProperties tieredLLMProperties;
     private final SecurityMappingProperties securityMappingProperties;
 
-    
     public ExecutionContext forAnalysisLevel(ExecutionContext.AnalysisLevel level, Prompt prompt) {
         int tier = level.getDefaultTier();
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
@@ -29,7 +27,6 @@ public class ExecutionContextFactory {
                 .temperature(temperature)
                 .advisorEnabled(true);
 
-        
         switch (level) {
             case QUICK -> {
                 builder.requireFastResponse(true)
@@ -48,7 +45,6 @@ public class ExecutionContextFactory {
         return builder.build();
     }
 
-    
     public ExecutionContext forTier(int tier, Prompt prompt) {
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
         Integer timeout = tieredLLMProperties.getTimeoutForTier(tier);
@@ -62,7 +58,6 @@ public class ExecutionContextFactory {
                 .temperature(temperature)
                 .advisorEnabled(true);
 
-        
         switch (tier) {
             case 1 -> {
                 
@@ -86,13 +81,11 @@ public class ExecutionContextFactory {
         return builder.build();
     }
 
-    
     public ExecutionContext forSecurityTask(ExecutionContext.SecurityTaskType taskType, Prompt prompt) {
         
         int tier = securityMappingProperties.getTierForSecurityTask(taskType);
         String modelName = tieredLLMProperties.getModelNameForTier(tier);
 
-        
         SecurityMappingProperties.TaskConfig taskConfig = securityMappingProperties.getTaskConfig(taskType);
 
         ExecutionContext.ExecutionContextBuilder builder = ExecutionContext.builder()
@@ -107,7 +100,6 @@ public class ExecutionContextFactory {
                     taskConfig.getTemperature() : tieredLLMProperties.getTemperatureForTier(tier))
                 .advisorEnabled(true);
 
-        
         if (taskConfig.getToolExecutionEnabled() != null) {
             builder.toolExecutionEnabled(taskConfig.getToolExecutionEnabled());
         }
@@ -124,13 +116,11 @@ public class ExecutionContextFactory {
         return builder.build();
     }
 
-    
     public ExecutionContext createDefault(Prompt prompt) {
         
         return forTier(2, prompt);
     }
 
-    
     public ExecutionContext withFallbackModel(ExecutionContext original) {
         if (original.getTier() == null) {
             return original;

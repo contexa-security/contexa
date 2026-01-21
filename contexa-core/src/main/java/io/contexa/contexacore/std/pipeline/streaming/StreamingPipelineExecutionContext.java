@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import reactor.core.publisher.Sinks;
 
-
 @Getter
 @Setter
 public class StreamingPipelineExecutionContext extends PipelineExecutionContext

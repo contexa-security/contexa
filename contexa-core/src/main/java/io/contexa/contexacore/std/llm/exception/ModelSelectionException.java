@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.llm.exception;
 
-
 public class ModelSelectionException extends RuntimeException {
 
     private final String modelName;

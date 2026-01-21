@@ -48,8 +48,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Qualifier;
 
-
-
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgent {
@@ -60,7 +58,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final ApplicationEventPublisher eventPublisher;
     private final SecurityPlaneAuditLogger auditLogger;
 
-    
     @Autowired(required = false)
     private ApprovalService approvalService;
 
@@ -127,9 +124,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     
     @PostConstruct
     public void initialize() {
-        log.info("Initializing Security Plane Agent: {} (AI Native v5.0.0)", agentName);
 
-        
         if (auditLogger != null) {
             auditLogger.auditAgentStateChange(agentName, "UNINITIALIZED", "INITIALIZING",
                 "Security Plane Agent initialization started", null);
@@ -137,28 +132,21 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         currentState = AgentState.INITIALIZING;
 
-        
-        
         securityMonitor.setBatchProcessor(this::processBatch);
 
-        
         scheduler = Executors.newScheduledThreadPool(2, r -> {
             Thread t = new Thread(r, agentName + "-Scheduler");
             t.setDaemon(true);
             return t;
         });
 
-        log.info("Security Plane Agent {} initialized successfully with batch processor callback", agentName);
-    }
+            }
 
-    
     private void processBatch(List<SecurityEvent> events) {
         if (!running.get()) {
             log.warn("[SecurityPlaneAgent] Agent not running, dropping {} events", events.size());
             return;
         }
-
-        log.debug("[SecurityPlaneAgent] Processing batch of {} events", events.size());
 
         for (SecurityEvent event : events) {
             
@@ -172,56 +160,44 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             });
         }
 
-        log.debug("[SecurityPlaneAgent] Dispatched {} events to LLM analysis executor", events.size());
-    }
+            }
     
     @Override
     public void run(String... args) throws Exception {
-        log.info("Starting Security Plane Agent: {}", agentName);
-        
+                
         if (autoStart) {
             start();
         } else {
-            log.info("Auto-start disabled. Agent {} is in standby mode", agentName);
-        }
+                    }
     }
-    
-    
+
     @Override
     public void start() {
         if (running.compareAndSet(false, true)) {
-            log.info("Starting Security Plane Agent {} (AI Native v5.0.0 - callback mode)", agentName);
-            currentState = AgentState.RUNNING;
+                        currentState = AgentState.RUNNING;
 
             Map<String, Object> config = createMonitoringConfig();
             securityMonitor.startMonitoring(agentName, config);
 
-            
             scheduler.scheduleWithFixedDelay(
                 this::cleanupIncidentHandlers,
                 5, 5, TimeUnit.MINUTES
             );
 
-            log.info("Security Plane Agent {} is now running in callback mode", agentName);
-        } else {
+                    } else {
             log.warn("Agent {} is already running", agentName);
         }
     }
-    
-    
+
     @Override
     public void stop() {
         if (running.compareAndSet(true, false)) {
-            log.info("Stopping Security Plane Agent {}", agentName);
-            currentState = AgentState.STOPPING;
+                        currentState = AgentState.STOPPING;
 
-            
             securityMonitor.stopMonitoring(agentName);
 
-            
             waitForActiveHandlers();
 
-            
             if (scheduler != null) {
                 scheduler.shutdown();
                 try {
@@ -235,20 +211,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             }
 
             currentState = AgentState.STOPPED;
-            log.info("Security Plane Agent {} has stopped", agentName);
-        }
+                    }
     }
     
     @PreDestroy
     public void shutdown() {
-        log.info("Shutting down Security Plane Agent {}", agentName);
-        stop();
+                stop();
     }
-    
-    
 
-
-    
     @Override
 
     public void checkPendingApprovals() {
@@ -256,29 +226,19 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return;
         }
 
-        
         if (approvalService == null || notificationService == null) {
-            log.trace("Approval check skipped (Enterprise-only feature not available)");
-            return;
+                        return;
         }
 
         try {
-            log.debug("Agent {} checking pending approvals", agentName);
 
-            
             Set<String> pendingApprovalIds = approvalService.getPendingApprovalIds();
             int pendingCount = approvalService.getPendingCount();
 
-            
             if (pendingCount > 0) {
-                log.info("Agent {} has {} pending approvals waiting for review",
-                    agentName, pendingCount);
 
-                
                 for (String approvalId : pendingApprovalIds) {
-                    log.info("Pending approval ID: {}", approvalId);
 
-                    
                     ApprovalRequest.ApprovalStatus status = approvalService.getApprovalStatus(approvalId);
                     if (status == ApprovalRequest.ApprovalStatus.PENDING) {
                         
@@ -293,8 +253,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.error("Error checking approvals", e);
         }
     }
-    
-    
+
     @Override
     @Scheduled(fixedDelayString = "#{${security.plane.agent.health-check-interval-minutes:5} * 60 * 1000}")
     public void performHealthCheck() {
@@ -303,12 +262,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
         
         try {
-            log.info("Performing health check for agent {}", agentName);
-            
+                        
             Map<String, Object> health = getHealthStatus();
-            log.info("Agent {} health status: {}", agentName, health);
-            
-            
+
             if (needsAttention(health)) {
                 log.warn("Agent {} needs attention: {}", agentName, health);
                 
@@ -318,11 +274,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.error("Error in health check", e);
         }
     }
-    
-    
+
     public void processSecurityEvent(SecurityEvent event) {
-        log.info("[SecurityPlaneAgent]  is SecurityEventProcessingOrchestrator");
-        if (processingOrchestrator != null) {
+                if (processingOrchestrator != null) {
             processWithOrchestrator(event);
         } else {
             log.error("SecurityEventProcessingOrchestrator is not configured. Cannot process event: {}", event.getEventId());
@@ -330,7 +284,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    
     @Transactional(rollbackFor = Exception.class)
     public void processWithOrchestrator(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
@@ -344,37 +297,27 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 return;
             }
 
-            
-            log.info("[SecurityPlaneAgent] Processing event with orchestrator - eventId: {}",
-                event.getEventId());
-            context = processingOrchestrator.process(event);
+                        context = processingOrchestrator.process(event);
 
-            
             long processingTime = System.currentTimeMillis() - startTime;
             if (context.getProcessingMetrics() == null) {
                 context.setProcessingMetrics(new SecurityEventContext.ProcessingMetrics());
             }
             context.getProcessingMetrics().setResponseTimeMs(processingTime);
 
-            
             ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
-            log.info("[SecurityPlaneAgent] Event {} processed in {}ms with mode: {}, status: {}",
-                event.getEventId(), processingTime, mode, context.getProcessingStatus());
 
-            
             ProcessingResult result = (ProcessingResult) context.getMetadata().get("processingResult");
             if (result != null) {
                 handleProcessingResult(event, result);
             }
 
-            
             markEventAsProcessed(event.getEventId());
 
         } catch (Exception e) {
             log.error("[SecurityPlaneAgent] Error processing event with orchestrator: {}",
                 event.getEventId(), e);
 
-            
             if (context == null) {
                 context = SecurityEventContext.builder()
                     .securityEvent(event)
@@ -385,7 +328,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
             context.markAsFailed("Processing error: " + e.getMessage());
 
-            
             if (auditLogger != null) {
                 Map<String, Object> errorContext = Map.of(
                     "eventId", event.getEventId(),
@@ -396,7 +338,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 auditLogger.auditError("SecurityPlaneAgent", "processWithOrchestrator", e, errorContext);
             }
 
-            
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
 
         } finally {
@@ -404,7 +345,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    
     private boolean isEventAlreadyProcessed(String eventId) {
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
@@ -416,19 +356,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    
     private void markEventAsProcessed(String eventId) {
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
             
             redisTemplate.opsForValue().set(processingKey, "1", Duration.ofHours(24));
-            log.debug("[SecurityPlaneAgent] Event marked as processed: {}", eventId);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("[SecurityPlaneAgent] Failed to mark event as processed: {}", eventId, e);
         }
     }
-
-    
 
     public void handleNewIncident(SecurityIncident incident) {
         handleNewIncident(incident, null);
@@ -440,13 +376,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return;
         }
 
-        log.info("Agent {} handling new incident: {}", agentName, incident.getIncidentId());
-
         try {
             
             IncidentHandler handler = new IncidentHandler(incident.getIncidentId());
 
-            
             SoarIncident soarIncident = new SoarIncident();
             soarIncident.setIncidentId(incident.getIncidentId());
             soarIncident.setType(incident.getType().toString());
@@ -457,15 +390,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             soarIncident.setMetadata(new HashMap<>());
             handler.setSoarIncident(soarIncident);
 
-            
             if (sourceEvent != null) {
                 handler.setSecurityEvent(sourceEvent);
             }
 
             activeIncidentHandlers.put(incident.getIncidentId(), handler);
-            
-            
-            
+
             if (incident.getAffectedUser() != null) {
                 SecurityEvent relatedEvent = new SecurityEvent();
                 relatedEvent.setUserId(incident.getAffectedUser());
@@ -477,30 +407,26 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 String response = "INCIDENT_" + incident.getType();
                 double effectiveness = incident.getRiskScore();
 
-                
                 if (learningEngine != null) {
                     try {
                         learningEngine.learnFromEvent(relatedEvent, response, effectiveness).subscribe(
-                            result -> log.debug("[SecurityPlaneAgent] Learning from incident {} completed",
-                                incident.getIncidentId()),
-                            error -> log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
-                                incident.getIncidentId(), error.getMessage(), error)
+                                result -> log.debug("[SecurityPlaneAgent] Learning from incident {} completed",
+                                        incident.getIncidentId()),
+                                error -> log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
+                                        incident.getIncidentId(), error.getMessage(), error)
                         );
                     } catch (Exception e) {
-                        
+
                         log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
-                            incident.getIncidentId(), e.getMessage(), e);
+                                incident.getIncidentId(), e.getMessage(), e);
                     }
                 } else {
-                    log.debug("[SecurityPlaneAgent] Learning Engine 없음 - 학습 건너뜀");
-                }
+                                    }
             }
-            
-            
+
             String key = "incident:" + incident.getIncidentId();
             storeInMemory(key, incident);
-            
-            
+
             if (contextProvider != null && soarNotifier != null) {
                 
                 if (incident.getThreatLevel() != null &&
@@ -508,34 +434,25 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                      incident.getThreatLevel() == SecurityIncident.ThreatLevel.HIGH ||
                      (incident.getRiskScore() != null && incident.getRiskScore() >= threatThreshold))) {
 
-                    log.info("High risk incident detected ({}), notifying SOAR - ThreatLevel: {}, RiskScore: {}",
-                            incident.getIncidentId(), incident.getThreatLevel(), incident.getRiskScore());
-
                     SoarContext context = contextProvider.createContextFromIncident(incident);
 
-                    
                     CompletableFuture<NotificationResult> notificationResult =
                         soarNotifier.notifyIncident(incident, context);
 
                     notificationResult.thenAccept(result -> {
                         if (result.isSuccess()) {
-                            log.info("SOAR notified successfully for high risk incident {}, request ID: {}",
-                                incident.getIncidentId(), result.getRequestId());
-                            handler.setSoarRequestId(result.getRequestId());
+                                                        handler.setSoarRequestId(result.getRequestId());
                         } else {
                             log.error("Failed to notify SOAR for high risk incident {}: {}",
                                 incident.getIncidentId(), result.getMessage());
                         }
                     });
                 } else {
-                    log.debug("Incident {} is not high risk (ThreatLevel: {}, RiskScore: {}), skipping SOAR notification",
-                            incident.getIncidentId(), incident.getThreatLevel(), incident.getRiskScore());
-                }
+                                    }
             } else {
                 log.warn("SOAR integration not available for incident {}", incident.getIncidentId());
             }
-            
-            
+
             createdIncidents.incrementAndGet();
             
         } catch (Exception e) {
@@ -543,7 +460,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    
     public void resolveIncident(String incidentId, String resolvedBy, String resolutionMethod, boolean wasSuccessful) {
         IncidentHandler handler = activeIncidentHandlers.get(incidentId);
         if (handler == null) {
@@ -555,7 +471,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             
             handler.resolveIncident(resolvedBy, resolutionMethod);
 
-            
             IncidentResolvedEvent resolvedEvent = new IncidentResolvedEvent(
                 this,
                 incidentId,
@@ -569,15 +484,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
             eventPublisher.publishEvent(resolvedEvent);
 
-            log.info("Incident resolved and event published: {} by {} using {} (success: {}, time: {}ms)",
-                incidentId, resolvedBy, resolutionMethod, wasSuccessful, handler.getResolutionTimeMs());
-
-            
             if (wasSuccessful && shouldCreateDynamicThreatResponse(handler)) {
                 publishDynamicThreatResponseEvent(handler, resolutionMethod);
             }
 
-            
             activeIncidentHandlers.remove(incidentId);
 
         } catch (Exception e) {
@@ -585,7 +495,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    
     private boolean shouldCreateDynamicThreatResponse(IncidentHandler handler) {
         SoarIncident soarIncident = handler.getSoarIncident();
         if (soarIncident == null) {
@@ -597,14 +506,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return false;
         }
 
-        
         int incidentSeverityRank = getSeverityRank(severity);
         int minSeverityRank = getSeverityRank(dynamicResponseMinSeverity);
 
         return incidentSeverityRank >= minSeverityRank;
     }
 
-    
     @Deprecated(since = "3.1.0", forRemoval = true)
     private int getSeverityRank(String severity) {
         if (severity == null) {
@@ -620,14 +527,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         };
     }
 
-    
     private void publishDynamicThreatResponseEvent(IncidentHandler handler, String resolutionMethod) {
         try {
             SoarIncident soarIncident = handler.getSoarIncident();
             SecurityEvent securityEvent = handler.getSecurityEvent();
 
-            
-            
             String attackVector = null;
             if (securityEvent != null && securityEvent.getMetadata() != null) {
                 Object av = securityEvent.getMetadata().get("attackVector");
@@ -653,16 +557,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
             eventPublisher.publishEvent(threatEvent);
 
-            log.info("DynamicThreatResponseEvent published: incidentId={}, severity={}, threatType={}",
-                soarIncident.getIncidentId(), soarIncident.getSeverity(), soarIncident.getType());
-
         } catch (Exception e) {
             log.error("Failed to publish DynamicThreatResponseEvent for incident: {}",
                 handler.getIncidentId(), e);
         }
     }
 
-    
     private Long parseIncidentIdToLong(String incidentId) {
         if (incidentId == null || incidentId.isEmpty()) {
             return null;
@@ -670,12 +570,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         try {
             return Long.parseLong(incidentId);
         } catch (NumberFormatException e) {
-            log.debug("incidentId '{}' cannot be parsed to Long, returning null", incidentId);
-            return null;
+                        return null;
         }
     }
 
-    
     private String extractTargetResource(SoarIncident soarIncident, SecurityEvent securityEvent) {
         
         if (securityEvent != null && securityEvent.getMetadata() != null) {
@@ -696,37 +594,31 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     return resource.toString();
                 }
             } catch (Exception e) {
-                log.debug("Failed to parse metadata JSON for targetResource extraction", e);
-            }
+                            }
         }
         return null;
     }
 
     protected void executeRecommendedAction(String action, SecurityEvent event, ThreatAssessment assessment) {
-        log.debug("Creating SOAR context for recommended action: {}", action);
-        
+                
         if (contextProvider == null || soarNotifier == null) {
             log.warn("SOAR integration not available for recommended action: {}", action);
             return;
         }
-        
-        
+
         Map<String, Object> additionalInfo = new HashMap<>();
         additionalInfo.put("recommendedAction", action);
         additionalInfo.put("eventId", event.getEventId());
         additionalInfo.put("action", assessment.getAction());  
         additionalInfo.put("riskScore", assessment.getRiskScore());
 
-        
         SoarContext context = contextProvider.createContextFromEvents(List.of(event));
         context = contextProvider.enrichContext(context, additionalInfo);
 
-        
         if ("BLOCK".equals(assessment.getAction()) || assessment.getRiskScore() >= 0.9) {
             if (soarLab != null) {
                 
-                log.info("Invoking SOAR Lab for critical threat analysis");
-                try {
+                                try {
                     
                     SoarContext finalContext = context;
                     String prompt = String.format(
@@ -734,7 +626,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         event.getEventId(), assessment.getAction(), assessment.getRiskScore(), action
                     );
 
-                    
                     finalContext.setExecutionMode(SoarExecutionMode.ASYNC);
                     SoarRequest soarRequest = SoarRequest.builder()
                         .context(finalContext)
@@ -744,28 +635,22 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         .organizationId("security-plane")
                         .build();
 
-                    
                     soarLab.processAsync(soarRequest)
                             .subscribe(
                                 soarResponse -> {
-                                    log.info("SOAR 분석 완료 - Event: {}", event.getEventId());
 
-                                    
                                     executedActions.incrementAndGet();
 
-                                    
                                     evolveThreadEvaluationPolicy(event, assessment);
                                     learnFromSecurityEvent(event, action);
                                     storeInMemory("assessment:" + assessment.getAssessmentId(), assessment);
 
-                                    
                                     Map<String, Object> resultData = new HashMap<>();
                                     resultData.put("eventId", event.getEventId());
                                     resultData.put("action", action);
                                     resultData.put("soarResponse", soarResponse);
                                     resultData.put("assessmentId", assessment.getAssessmentId());
 
-                                    
                                     soarNotifier.notifyHighRiskTool(
                                         action,
                                         resultData,
@@ -781,8 +666,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     log.error("Error invoking SOAR Lab for critical event", e);
                 }
             } else {
-                log.debug("[SecurityPlaneAgent] SOAR Lab 없음 - SOAR 분석 건너뜀");
-            }
+                            }
         }
     }
 
@@ -807,12 +691,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             }
         }
     }
-    
-    
+
     private void handleMonitoringError(Exception e) {
         log.error("Monitoring error in agent {}: {}", agentName, e.getMessage(), e);
-        
-        
+
         if (currentState == AgentState.ERROR) {
             
             log.error("Agent {} is in ERROR state, considering shutdown", agentName);
@@ -821,8 +703,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             
             log.warn("Temporary monitoring error in agent {}, will retry", agentName);
         }
-        
-        
+
         try {
             Thread.sleep(retryBackoffMs);
         } catch (InterruptedException ie) {
@@ -859,11 +740,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         health.put("created_incidents", createdIncidents.get());
         health.put("executed_actions", executedActions.get());
         health.put("active_incident_handlers", activeIncidentHandlers.size());
-        
-        
+
         health.putAll(securityMonitor.getMonitoringStatistics());
 
-        
         if (approvalService != null) {
             health.put("pending_approvals", approvalService.getPendingCount());
         } else {
@@ -872,9 +751,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         return health;
     }
-    
 
-    
     private void handleProcessingResult(SecurityEvent event, ProcessingResult result) {
         if (result == null) {
             log.warn("Processing result is null for event: {}", event.getEventId());
@@ -888,31 +765,21 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         
         try {
 
-            
             if (result.isRequiresIncident()) {
                 createIncidentFromResult(event, result);
             }
-            
-            
+
             if (result.getRecommendedActions() != null && !result.getRecommendedActions().isEmpty()) {
                 for (String action : result.getRecommendedActions()) {
                     executeRecommendedAction(action, event, null);
                 }
             }
-            
-            
-            log.info("Processed event {} via {} - riskScore: {}, processingTime: {}ms",
-                    event.getEventId(),
-                    result.getProcessingPath(),
-                    result.getRiskScore(),
-                    result.getProcessingTimeMs());
 
         } catch (Exception e) {
             log.error("Failed to handle processing result for event: {}", event.getEventId(), e);
         }
     }
-    
-    
+
     private void createIncidentFromResult(SecurityEvent event, ProcessingResult result) {
         try {
             
@@ -921,8 +788,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 ProcessingResult.IncidentSeverity.valueOf(severityStr) :
                 ProcessingResult.IncidentSeverity.MEDIUM;
             SecurityIncident.ThreatLevel threatLevel = mapSeverityToThreatLevel(severity);
-            
-            
+
             SecurityIncident incident = SecurityIncident.builder()
                     .incidentId("INC-" + result.getProcessingPath() + "-" + System.currentTimeMillis())
                     .type(mapSeverityToIncidentType(severity))
@@ -945,8 +811,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.error("Failed to create incident from processing result", e);
         }
     }
-    
-    
+
     private SecurityIncident.ThreatLevel mapSeverityToThreatLevel(ProcessingResult.IncidentSeverity severity) {
         if (severity == null) {
             return SecurityIncident.ThreatLevel.MEDIUM;
@@ -965,8 +830,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 return SecurityIncident.ThreatLevel.MEDIUM;
         }
     }
-    
-    
+
     private SecurityIncident.IncidentType mapSeverityToIncidentType(ProcessingResult.IncidentSeverity severity) {
         switch (severity) {
             case CRITICAL:
@@ -980,7 +844,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    
     private void evolveThreadEvaluationPolicy(SecurityEvent event, ThreatAssessment assessment) {
         if (policyEvolutionService != null) {
             try {
@@ -989,33 +852,27 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 String outcome = assessment.getRiskScore() > threatThreshold ? "HIGH_RISK" : "NORMAL";
 
                 policyEvolutionService.learnFromEvent(event, decision, outcome)
-                    .subscribe(
-                        result -> log.debug("정책 학습 완료"),
-                        error -> log.error("정책 학습 실패", error)
-                    );
+                        .subscribe(
+                                result -> log.debug("정책 학습 완료"),
+                                error -> log.error("정책 학습 실패", error)
+                        );
             } catch (Exception e) {
                 log.error("정책 진화 중 오류 발생", e);
             }
         } else {
-            log.debug("[SecurityPlaneAgent] Policy Evolution Service 없음 - 정책 진화 건너뜀");
-        }
+                    }
     }
-    
-    
+
     private void learnFromSecurityEvent(SecurityEvent event, String response) {
         if (learningEngine != null) {
             try {
-                
-                
+
                 double effectiveness = -1.0;
 
-                
                 learningEngine.learnFromEvent(event, response, effectiveness)
                     .subscribe(
                         result -> {
-                            log.debug("학습 완료");
 
-                            
                             applyLearningPrediction(event);
                         },
                         error -> log.error("학습 실패", error)
@@ -1024,29 +881,24 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 log.error("학습 엔진 처리 중 오류", e);
             }
         } else {
-            log.debug("[SecurityPlaneAgent] Learning Engine 없음 - 학습 건너뜀");
-        }
+                    }
     }
-    
-    
+
     private void applyLearningPrediction(SecurityEvent event) {
         if (learningEngine != null) {
             
             learningEngine.applyLearning(event)
                 .subscribe(
                     prediction -> {
-                        log.debug("학습 기반 예측 완료: {}", event.getEventId());
-                        
+                                                
                         storeInMemory("prediction:" + event.getEventId(), prediction);
                     },
                     error -> log.error("예측 적용 실패: {}", event.getEventId(), error)
                 );
         } else {
-            log.debug("[SecurityPlaneAgent] Learning Engine 없음 - 예측 건너뜀");
-        }
+                    }
     }
-    
-    
+
     private void storeInMemory(String key, Object value) {
         if (memorySystem != null) {
             try {
@@ -1054,19 +906,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 metadata.put("timestamp", LocalDateTime.now().toString());
                 metadata.put("agentName", agentName);
 
-                
                 Object valueToStore = value;
                 if (value instanceof SecurityIncident) {
                     valueToStore = SecurityIncidentDTO.fromEntity((SecurityIncident) value);
                 }
 
-                
                 memorySystem.storeInWM(key, valueToStore, "security-plane")
-                    .subscribe(
-                        result -> log.debug("메모리 저장 완료: {}", key),
-                        error -> log.error("메모리 저장 실패", error)
-                    );
-
+                        .subscribe(
+                                result -> log.debug("메모리 저장 완료: {}", key),
+                                error -> log.error("메모리 저장 실패", error)
+                        );
                 
                 if (value instanceof ThreatAssessment) {
                     ThreatAssessment ta = (ThreatAssessment) value;
@@ -1079,16 +928,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 log.error("메모리 저장 중 오류", e);
             }
         } else {
-            log.debug("[SecurityPlaneAgent] Memory System 없음 - 메모리 저장 건너뜀");
-        }
+                    }
     }
 
-    
-    
-    
-
-
-    
     @Deprecated(since = "3.1.0")
     private SecurityEvent.Severity mapThreatLevelToSeverity(SecurityIncident.ThreatLevel threatLevel) {
         if (threatLevel == null) {
@@ -1112,15 +954,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Qualifier("llmAnalysisExecutor")
     private Executor llmAnalysisExecutor;
 
-    
-    
-
-
-    
     private void cleanupIncidentHandlers() {
         try {
-            log.debug("Cleaning up incident handlers for agent {}", agentName);
-            
+                        
             List<String> toRemove = new ArrayList<>();
             
             activeIncidentHandlers.forEach((id, handler) -> {
@@ -1131,18 +967,15 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             
             toRemove.forEach(id -> {
                 activeIncidentHandlers.remove(id);
-                log.debug("Removed completed/expired incident handler: {}", id);
-            });
+                            });
             
             if (!toRemove.isEmpty()) {
-                log.info("Cleaned up {} incident handlers for agent {}", toRemove.size(), agentName);
-            }
+                            }
         } catch (Exception e) {
             log.error("Error cleaning up incident handlers", e);
         }
     }
-    
-    
+
     private static class IncidentHandler {
         private final String incidentId;
         private final LocalDateTime createdAt;
@@ -1201,7 +1034,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             this.resolvedAt = LocalDateTime.now();
         }
 
-        
         @Deprecated
         public void resolveIncident() {
             resolveIncident("system", "auto-resolved");
@@ -1243,7 +1075,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    
     private enum AgentState {
         INITIALIZING,
         RUNNING,

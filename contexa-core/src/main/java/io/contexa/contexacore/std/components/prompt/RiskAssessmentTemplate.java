@@ -7,15 +7,13 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 
-
 @PromptTemplateConfig(
         key = "riskAssessment",
         aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessment"},
         description = "Spring AI Structured Output Risk Assessment Template"
 )
 public class RiskAssessmentTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<TrustAssessment> converter = new BeanOutputConverter<>(TrustAssessment.class);
 
     @Override
@@ -31,7 +29,6 @@ public class RiskAssessmentTemplate implements PromptTemplate {
         throw new IllegalArgumentException("Unsupported context type: " + request.getContext().getClass());
     }
 
-    
     private String buildSystemPrompt(String systemMetadata) {
         
         String formatInstructions = converter.getFormat();
@@ -64,7 +61,6 @@ public class RiskAssessmentTemplate implements PromptTemplate {
             """, formatInstructions, systemMetadata != null ? systemMetadata : "");
     }
 
-    
     private String buildUserPrompt(RiskAssessmentContext ctx, AIRequest<? extends DomainContext> request, String contextInfo) {
         
         String assessmentRequest = String.format("""
@@ -100,22 +96,18 @@ public class RiskAssessmentTemplate implements PromptTemplate {
                 contextInfo == null ? "none" : (contextInfo.length() > 200 ? 
                     contextInfo.substring(0, 200) + "..." : contextInfo)
         );
-        
-        
+
         return assessmentRequest + "\n\n" + converter.getFormat();
     }
-    
-    
+
     public BeanOutputConverter<TrustAssessment> getConverter() {
         return converter;
     }
-    
-    
+
     public String getTemplateKey() {
         return "riskAssessment";
     }
-    
-    
+
     @Override
     public Class<?> getAIGenerationType() {
         return TrustAssessment.class;

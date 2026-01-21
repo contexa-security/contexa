@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -78,9 +77,6 @@ public class AuthorizationDecisionEvent {
     @JsonProperty("metadata")
     private Map<String, Object> metadata;
 
-    
-    
-    
     @JsonProperty("is_new_session")
     private Boolean isNewSession;
 
@@ -93,7 +89,6 @@ public class AuthorizationDecisionEvent {
     @JsonProperty("recent_request_count")
     private Integer recentRequestCount;
 
-    
     public enum AuthorizationResult {
         ALLOWED,
         DENIED,
@@ -101,8 +96,7 @@ public class AuthorizationDecisionEvent {
         PENDING_APPROVAL,
         ERROR
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -127,17 +121,14 @@ public class AuthorizationDecisionEvent {
         @JsonProperty("confidence")
         private Double confidence;
     }
-    
-    
+
     public static class AuthorizationDecisionEventBuilder {
         public AuthorizationDecisionEventBuilder() {
             this.eventId = UUID.randomUUID().toString();
             this.timestamp = Instant.now();
         }
     }
-    
-    
-    
+
     @JsonIgnore
     public String getIpAddress() {
         return clientIp;

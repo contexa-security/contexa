@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.llm.strategy;
 
-
 public class ModelSelectionException extends RuntimeException {
     
     private final String requestedModel;

@@ -9,15 +9,12 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-
 @Configuration
 @RequiredArgsConstructor
 public class AsyncConfig {
 
-    
     private final SecurityPlaneProperties securityPlaneProperties;
 
-    
     @Bean(name = "taskExecutor")
     @Primary
     public Executor taskExecutor() {
@@ -32,8 +29,7 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
-    
-    
+
     @Bean(name = "coldPathExecutor")
     public Executor coldPathExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -47,8 +43,7 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
-    
-    
+
     @Bean(name = "contextExecutor")
     public Executor contextExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -62,8 +57,7 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
-    
-    
+
     @Bean(name = "securityPlaneExecutor")
     public Executor securityPlaneExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -78,12 +72,6 @@ public class AsyncConfig {
         return executor;
     }
 
-    
-    
-    
-    
-
-    
     @Bean(name = "llmAnalysisExecutor")
     public Executor llmAnalysisExecutor() {
         SecurityPlaneProperties.LlmExecutorSettings settings = securityPlaneProperties.getLlmExecutor();

@@ -7,7 +7,6 @@ import org.springframework.security.core.GrantedAuthority;
 import java.time.LocalDateTime;
 import java.util.Collection;
 
-
 public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthenticationToken {
 
     private double trustScore;
@@ -17,7 +16,6 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
     private String sessionId;
     private ZeroTrustSecurityService.TrustTier trustTier;
 
-    
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
                                         double trustScore, double threatScore) {
@@ -27,7 +25,6 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
         this.lastEvaluated = LocalDateTime.now();
     }
 
-    
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
                                         double trustScore, double threatScore,

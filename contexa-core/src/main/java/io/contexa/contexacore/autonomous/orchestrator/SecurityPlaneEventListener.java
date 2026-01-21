@@ -8,14 +8,12 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SecurityPlaneEventListener {
 
     private final ISecurityPlaneAgent securityPlaneAgent;
 
-    
     @EventListener
     @Async
     public void onIncidentCompleted(IncidentCompletedEvent event) {
@@ -25,14 +23,7 @@ public class SecurityPlaneEventListener {
             String resolutionMethod = event.getResolutionMethod();
             boolean wasSuccessful = event.wasSuccessful();
 
-            log.info("[SecurityPlaneEventListener] Received IncidentCompletedEvent: {} resolved by {} using {} (success: {})",
-                incidentId, resolvedBy, resolutionMethod, wasSuccessful);
-
-            
-            
             securityPlaneAgent.resolveIncident(incidentId, resolvedBy, resolutionMethod, wasSuccessful);
-
-            log.debug("[SecurityPlaneEventListener] Successfully delegated incident completion to SecurityPlaneAgent");
 
         } catch (Exception e) {
             log.error("[SecurityPlaneEventListener] Failed to handle IncidentCompletedEvent: {}", event, e);

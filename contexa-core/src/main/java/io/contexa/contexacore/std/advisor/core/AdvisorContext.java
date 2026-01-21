@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Getter
 @Setter
 public class AdvisorContext {
@@ -34,43 +33,35 @@ public class AdvisorContext {
         this.crossDomainMessages = new ArrayList<>();
         this.lastAccessTime = System.currentTimeMillis();
     }
-    
-    
+
     public void setAttribute(String key, Object value) {
         attributes.put(key, value);
     }
-    
-    
+
     public Object getAttribute(String key) {
         return attributes.get(key);
     }
-    
-    
+
     public Object removeAttribute(String key) {
         return attributes.remove(key);
     }
-    
-    
+
     public long incrementCallCount() {
         return callCount.incrementAndGet();
     }
-    
-    
+
     public long getCallCount() {
         return callCount.get();
     }
-    
-    
+
     public void addCrossDomainMessage(Map<String, Object> message) {
         crossDomainMessages.add(message);
-        
-        
+
         if (crossDomainMessages.size() > 100) {
             crossDomainMessages.remove(0);
         }
     }
-    
-    
+
     public void clear() {
         attributes.clear();
         crossDomainMessages.clear();
@@ -79,8 +70,7 @@ public class AdvisorContext {
         currentUser = null;
         sessionId = null;
     }
-    
-    
+
     public AdvisorContext copy() {
         AdvisorContext copy = new AdvisorContext(domain);
         copy.attributes.putAll(this.attributes);

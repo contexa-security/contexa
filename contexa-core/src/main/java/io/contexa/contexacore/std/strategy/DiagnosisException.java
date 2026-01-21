@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.strategy;
 
-
 public class DiagnosisException extends RuntimeException {
     
     private final String diagnosisType;

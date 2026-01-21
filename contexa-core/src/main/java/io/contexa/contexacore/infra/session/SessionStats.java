@@ -1,6 +1,5 @@
 package io.contexa.contexacore.infra.session;
 
-
 public class SessionStats {
     private final long activeSessions;
     private final long totalSessionsCreated;
@@ -18,7 +17,6 @@ public class SessionStats {
         this.repositoryType = repositoryType;
     }
 
-    
     public long getActiveSessions() { return activeSessions; }
     public long getTotalSessionsCreated() { return totalSessionsCreated; }
     public long getSessionCollisions() { return sessionCollisions; }

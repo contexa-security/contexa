@@ -5,7 +5,6 @@ import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import org.springframework.stereotype.Component;
 
-
 @PromptTemplateConfig(
         key = "riskAssessmentStreaming",
         aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessmentStreaming"},
@@ -26,7 +25,6 @@ public class RiskAssessmentStreamingTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(null, contextInfo);
     }
 
-    
     private String buildUnifiedSystemPrompt(String systemMetadata) {
         
         return String.format("""
@@ -75,7 +73,6 @@ public class RiskAssessmentStreamingTemplate implements PromptTemplate {
             """, systemMetadata);
     }
 
-    
     private String buildUnifiedUserPrompt(RiskAssessmentContext context, String contextInfo) {
         
         String requestDetails = (context != null) ?

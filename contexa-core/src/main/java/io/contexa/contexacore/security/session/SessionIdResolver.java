@@ -2,19 +2,14 @@ package io.contexa.contexacore.security.session;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-
 public interface SessionIdResolver {
 
-    
     String resolve(HttpServletRequest request);
 
-    
     boolean isValid(String sessionId);
 
-    
     SessionSource getSource(HttpServletRequest request);
 
-    
     enum SessionSource {
         COOKIE("Cookie에서 추출"),
         HEADER("HTTP Header에서 추출"),

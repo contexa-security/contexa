@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 public class RiskScoreAggregator implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.risk.aggregation.method:WEIGHTED_AVERAGE}")
@@ -29,31 +28,25 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         if (documents.isEmpty()) {
             return documents;
         }
-        
-        
+
         RiskProfile riskProfile = aggregateRiskScores(documents);
-        
-        
+
         for (Document doc : documents) {
             enrichDocumentWithRiskProfile(doc, riskProfile);
         }
-        
-        
+
         documents.sort((d1, d2) -> {
             double risk1 = getRiskScore(d1);
             double risk2 = getRiskScore(d2);
             return Double.compare(risk2, risk1);
         });
-        
-        
+
         return prioritizeHighRiskDocuments(documents);
     }
-    
-    
+
     private RiskProfile aggregateRiskScores(List<Document> documents) {
         RiskProfile profile = new RiskProfile();
-        
-        
+
         List<Double> riskScores = documents.stream()
             .map(this::getRiskScore)
             .filter(score -> score > 0)
@@ -62,15 +55,13 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         if (riskScores.isEmpty()) {
             return profile;
         }
-        
-        
+
         profile.setDocumentCount(documents.size());
         profile.setMaxRisk(riskScores.stream().max(Double::compare).orElse(0.0));
         profile.setMinRisk(riskScores.stream().min(Double::compare).orElse(0.0));
         profile.setAverageRisk(calculateAverage(riskScores));
         profile.setMedianRisk(calculateMedian(riskScores));
-        
-        
+
         double aggregatedScore = switch (aggregationMethod) {
             case MAXIMUM -> profile.getMaxRisk();
             case AVERAGE -> profile.getAverageRisk();
@@ -80,21 +71,18 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         
         profile.setAggregatedRisk(aggregatedScore);
         profile.setRiskLevel(determineRiskLevel(aggregatedScore));
-        
-        
+
         profile.setCriticalCount(countByThreshold(riskScores, criticalThreshold));
         profile.setHighCount(countByThreshold(riskScores, highThreshold) - profile.getCriticalCount());
         profile.setMediumCount(countByThreshold(riskScores, mediumThreshold) - profile.getHighCount() - profile.getCriticalCount());
         profile.setLowCount(riskScores.size() - profile.getMediumCount() - profile.getHighCount() - profile.getCriticalCount());
-        
-        
+
         profile.setRiskFactors(analyzeRiskFactors(documents));
         profile.setTopThreats(identifyTopThreats(documents));
         
         return profile;
     }
-    
-    
+
     private double calculateWeightedAverage(List<Document> documents) {
         double weightedSum = 0.0;
         double totalWeight = 0.0;
@@ -109,22 +97,16 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         
         return totalWeight > 0 ? weightedSum / totalWeight : 0.0;
     }
-    
-    
+
     private double calculateDocumentWeight(Document document) {
         double weight = 1.0;
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         Object score = metadata.get("score");
         if (score != null) {
             weight *= ((Number) score).doubleValue();
         }
-        
-        
-        
-        
-        
+
         Object confidence = metadata.get("confidence");
         if (confidence != null) {
             weight *= ((Number) confidence).doubleValue();
@@ -132,8 +114,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         
         return weight;
     }
-    
-    
+
     private Map<String, Integer> analyzeRiskFactors(List<Document> documents) {
         Map<String, Integer> factors = new HashMap<>();
         
@@ -146,8 +127,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
                 }
             }
         }
-        
-        
+
         return factors.entrySet().stream()
             .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
             .collect(Collectors.toMap(
@@ -157,8 +137,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
                 LinkedHashMap::new
             ));
     }
-    
-    
+
     private List<ThreatInfo> identifyTopThreats(List<Document> documents) {
         Map<String, ThreatInfo> threats = new HashMap<>();
         
@@ -175,8 +154,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
             .limit(5)
             .collect(Collectors.toList());
     }
-    
-    
+
     private void enrichDocumentWithRiskProfile(Document document, RiskProfile profile) {
         Map<String, Object> metadata = document.getMetadata();
         
@@ -188,18 +166,15 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
             "medium", profile.getMediumCount(),
             "low", profile.getLowCount()
         ));
-        
-        
+
         double docRisk = getRiskScore(document);
         double relativeRisk = profile.getMaxRisk() > 0 ? 
             docRisk / profile.getMaxRisk() : 0.0;
         metadata.put("relativeRisk", relativeRisk);
-        
-        
+
         metadata.put("riskPercentile", calculateRiskPercentile(docRisk, profile));
     }
-    
-    
+
     private List<Document> prioritizeHighRiskDocuments(List<Document> documents) {
         
         List<Document> critical = new ArrayList<>();
@@ -216,8 +191,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
                 others.add(doc);
             }
         }
-        
-        
+
         List<Document> prioritized = new ArrayList<>();
         prioritized.addAll(critical);
         prioritized.addAll(high);
@@ -225,15 +199,13 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         
         return prioritized;
     }
-    
-    
+
     private double getRiskScore(Document document) {
         Object riskScore = document.getMetadata().get("riskScore");
         if (riskScore != null) {
             return ((Number) riskScore).doubleValue();
         }
-        
-        
+
         Object anomalyScore = document.getMetadata().get("anomalyScore");
         if (anomalyScore != null) {
             return ((Number) anomalyScore).doubleValue();
@@ -241,11 +213,9 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         
         return 0.0;
     }
-    
-    
+
     private String determineRiskLevel(double riskScore) {
-        
-        
+
         if (riskScore >= 0.8) {
             return "CRITICAL";
         } else if (riskScore >= 0.6) {
@@ -256,8 +226,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
             return "LOW";
         }
     }
-    
-    
+
     private double calculateAverage(List<Double> values) {
         return values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
     }
@@ -291,16 +260,14 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         if (risk <= profile.getMinRisk()) return 0.0;
         return (risk - profile.getMinRisk()) / (profile.getMaxRisk() - profile.getMinRisk()) * 100.0;
     }
-    
-    
+
     public enum AggregationMethod {
         MAXIMUM,
         AVERAGE,
         WEIGHTED_AVERAGE,
         PERCENTILE_95
     }
-    
-    
+
     private static class RiskProfile {
         private int documentCount;
         private double maxRisk;
@@ -315,8 +282,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         private long lowCount;
         private Map<String, Integer> riskFactors;
         private List<ThreatInfo> topThreats;
-        
-        
+
         public int getDocumentCount() { return documentCount; }
         public void setDocumentCount(int count) { this.documentCount = count; }
         
@@ -356,8 +322,7 @@ public class RiskScoreAggregator implements DocumentPostProcessor {
         public List<ThreatInfo> getTopThreats() { return topThreats; }
         public void setTopThreats(List<ThreatInfo> threats) { this.topThreats = threats; }
     }
-    
-    
+
     private static class ThreatInfo {
         private final String type;
         private int occurrences = 0;

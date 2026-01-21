@@ -46,10 +46,8 @@ public class RedisMfaRepository implements MfaSessionRepository {
     @Value("${spring.auth.cookie-secure:true}") 
     private boolean cookieSecure;
 
-
     private final AtomicLong totalSessionsCreated = new AtomicLong(0);
     private final AtomicLong sessionCollisionsResolved = new AtomicLong(0); 
-
 
     private static final String CREATE_SESSION_IF_NOT_EXISTS_SCRIPT = 
             "local key_exists = redis.call('EXISTS', KEYS[1]) " +
@@ -89,11 +87,8 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 setSessionCookie(response, sessionId, request.isSecure()); 
             }
             request.setAttribute(TEMP_SESSION_ATTR, sessionId);
-            log.debug("MFA session stored in Redis: {}. Cookie set if response provided.", sessionId);
-        } else {
-            
-            
-            
+                    } else {
+
             log.error("Failed to store session ID {} in Redis. It might already exist or script failed. Result: {}", sessionId, result);
             throw new SessionIdGenerationException("Failed to exclusively store session ID in Redis: " + sessionId);
         }
@@ -106,9 +101,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
             String sessionId = sessionIdGenerator.generate(baseId, request); 
 
             if (isSessionIdUnique(sessionId)) {
-                log.debug("Generated unique and secure session ID for Redis: {} (attempt: {})",
-                        sessionId, attempt + 1);
-                request.setAttribute(TEMP_SESSION_ATTR, sessionId);
+                                request.setAttribute(TEMP_SESSION_ATTR, sessionId);
                 return sessionId;
             }
             log.warn("Generated session ID {} was not unique or secure enough for Redis (attempt: {}). Retrying.",
@@ -130,16 +123,13 @@ public class RedisMfaRepository implements MfaSessionRepository {
     public String getSessionId(HttpServletRequest request) {
         String sessionIdFromAttr = (String) request.getAttribute(TEMP_SESSION_ATTR);
         if (StringUtils.hasText(sessionIdFromAttr)) {
-            
-            
-            log.trace("Found session ID in request attribute (temp): {}", sessionIdFromAttr);
-            return sessionIdFromAttr;
+
+                        return sessionIdFromAttr;
         }
 
         String sessionIdFromCookie = getSessionIdFromCookie(request);
         if (!StringUtils.hasText(sessionIdFromCookie)) {
-            log.trace("No MFA session ID found in cookie.");
-            return null;
+                        return null;
         }
 
         if (!isValidSessionIdFormat(sessionIdFromCookie)) {
@@ -154,8 +144,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
             return sessionIdFromCookie;
         }
 
-        log.trace("Session ID {} found in cookie but not valid or not present in Redis.", sessionIdFromCookie);
-        return null;
+                return null;
     }
 
     @Override
@@ -171,9 +160,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             String newId = sessionIdGenerator.resolveCollision(originalId, attempt, request);
             if (isSessionIdUnique(newId)) {
-                log.info("Redis Session ID collision resolved: {} -> {} (attempt: {})",
-                        originalId, newId, attempt + 1);
-                request.setAttribute(TEMP_SESSION_ATTR, newId);
+                                request.setAttribute(TEMP_SESSION_ATTR, newId);
                 return newId;
             }
         }
@@ -197,10 +184,8 @@ public class RedisMfaRepository implements MfaSessionRepository {
         String redisKey = SESSION_PREFIX + sessionId;
         Boolean deleted = redisTemplate.delete(redisKey);
         if (Boolean.TRUE.equals(deleted)) {
-            log.debug("MFA session removed from Redis: {}", sessionId);
-        } else {
-            log.debug("MFA session {} not found in Redis for removal, or already removed.", sessionId);
-        }
+                    } else {
+                    }
 
         request.removeAttribute(TEMP_SESSION_ATTR); 
         if (response != null) {
@@ -214,8 +199,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
         String redisKey = SESSION_PREFIX + sessionId;
         Boolean refreshed = redisTemplate.expire(redisKey, sessionTimeout);
         if (Boolean.TRUE.equals(refreshed)) {
-            log.trace("Redis session TTL refreshed for: {}", sessionId);
-        } else {
+                    } else {
             log.warn("Attempted to refresh TTL for non-existent or already expired session in Redis: {}", sessionId);
         }
     }
@@ -233,8 +217,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
     public void setSessionTimeout(Duration timeout) {
         if (timeout != null && !timeout.isNegative() && !timeout.isZero()) {
             this.sessionTimeout = timeout;
-            log.info("RedisMfaRepository session timeout set to: {}", this.sessionTimeout);
-        } else {
+                    } else {
             log.warn("Invalid session timeout value provided: {}. Retaining current: {}", timeout, this.sessionTimeout);
         }
     }
@@ -266,8 +249,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
     }
 
     private String createSessionValue(String sessionId, HttpServletRequest request) {
-        
-        
+
         return String.format("user:%s|ip:%s|ua:%s|created:%d",
                 request.getRemoteUser() != null ? request.getRemoteUser() : "anonymous",
                 getClientIpAddress(request),
@@ -294,9 +276,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 .sameSite("Lax") 
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-        log.trace("MFA session cookie set: {} with secure flag: {} (derived from properties {} and request {})",
-                sessionId, (cookieSecure && isSecureRequest), cookieSecure, isSecureRequest);
-    }
+            }
 
     private void invalidateSessionCookie(HttpServletResponse response, boolean isSecureRequest) {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, "")
@@ -307,8 +287,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-        log.trace("MFA session cookie invalidated with secure flag: {}", (cookieSecure && isSecureRequest));
-    }
+            }
 
     private String getClientIpAddress(HttpServletRequest request) {
         String xfHeader = request.getHeader("X-Forwarded-For");

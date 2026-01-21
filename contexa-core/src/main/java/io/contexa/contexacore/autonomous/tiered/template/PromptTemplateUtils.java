@@ -5,19 +5,16 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-
 public final class PromptTemplateUtils {
 
     private PromptTemplateUtils() {
         
     }
 
-    
     public static boolean isValidData(String value) {
         return value != null && !value.isEmpty() && !value.equalsIgnoreCase("unknown");
     }
 
-    
     public static String getStringFromMetadata(Map<String, Object> metadata, String key) {
         if (metadata == null) {
             return null;
@@ -30,7 +27,6 @@ public final class PromptTemplateUtils {
         return strValue.isEmpty() ? null : strValue;
     }
 
-    
     public static String extractSimpleClassName(String fullClassName) {
         if (fullClassName == null || fullClassName.isEmpty()) {
             return null;
@@ -42,21 +38,17 @@ public final class PromptTemplateUtils {
         return fullClassName;
     }
 
-    
     public static int calculateDataQuality(SecurityEvent event) {
         int score = 0;
 
-        
         if (event.getSeverity() != null) score++;
         if (isValidData(event.getUserId())) score++;
         if (isValidData(event.getSourceIp())) score++;
         if (isValidData(event.getUserAgent())) score++;
 
-        
         if (isValidData(event.getSessionId())) score++;
         if (event.getTimestamp() != null) score++;
 
-        
         Map<String, Object> metadata = event.getMetadata();
         if (metadata != null && !metadata.isEmpty()) {
             if (metadata.containsKey("methodClass")) score++;
@@ -65,16 +57,12 @@ public final class PromptTemplateUtils {
         return Math.min(10, score);
     }
 
-    
     public static String buildDataQualitySection(SecurityEvent event, String baselineContext) {
         StringBuilder result = new StringBuilder();
         java.util.List<String> criticalMissing = new java.util.ArrayList<>();
         java.util.List<String> criticalPresent = new java.util.ArrayList<>();
         java.util.List<String> highMissing = new java.util.ArrayList<>();
 
-        
-
-        
         boolean hasBaseline = baselineContext != null
             && !baselineContext.startsWith("[NO")
             && !baselineContext.startsWith("[SERVICE")
@@ -86,32 +74,24 @@ public final class PromptTemplateUtils {
             criticalMissing.add("baseline");
         }
 
-        
-        
-
-        
         if (isValidData(event.getUserId())) {
             criticalPresent.add("userId");
         } else {
             criticalMissing.add("userId");
         }
 
-        
         if (isValidData(event.getSourceIp())) {
             criticalPresent.add("sourceIp");
         } else {
             criticalMissing.add("sourceIp");
         }
 
-        
         if (isValidData(event.getSessionId())) {
             criticalPresent.add("sessionId");
         } else {
             criticalMissing.add("sessionId");
         }
 
-        
-        
         java.util.List<String> highPresent = new java.util.ArrayList<>();
         Map<String, Object> metadata = event.getMetadata();
         if (metadata != null && metadata.containsKey("isNewSession")) {
@@ -130,12 +110,9 @@ public final class PromptTemplateUtils {
             highMissing.add("recentRequestCount");
         }
 
-        
-        
         int score = criticalPresent.size() + highPresent.size();
         int maxScore = 7;
 
-        
         result.append(String.format("Decision Data: %d/%d fields available\n", score, maxScore));
 
         if (!criticalMissing.isEmpty()) {
@@ -145,9 +122,6 @@ public final class PromptTemplateUtils {
             result.append(String.format("HIGH MISSING: %s\n", String.join(", ", highMissing)));
         }
 
-        
-        
-        
         if (!hasBaseline) {
             result.append("\n=== ZERO TRUST: NO BASELINE DATA ===\n");
             result.append("- Verification not possible: No historical behavior data to compare\n");
@@ -158,14 +132,12 @@ public final class PromptTemplateUtils {
         return result.toString();
     }
 
-    
     @Deprecated
     public static String buildDataQualitySection(SecurityEvent event) {
         
         return buildDataQualitySection(event, null);
     }
 
-    
     public static String buildNetworkSection(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
 
@@ -184,7 +156,6 @@ public final class PromptTemplateUtils {
         return network.toString().trim();
     }
 
-    
     public static String truncate(String value, int maxLength) {
         if (value == null) {
             return null;
@@ -195,7 +166,6 @@ public final class PromptTemplateUtils {
         return value.substring(0, maxLength - 3) + "...";
     }
 
-    
     public static String truncateOrNA(String value, int maxLength) {
         if (value == null || value.isEmpty()) {
             return "N/A";
@@ -203,7 +173,6 @@ public final class PromptTemplateUtils {
         return truncate(value, maxLength);
     }
 
-    
     public static String sanitizeUserInput(String input) {
         if (input == null) {
             return null;
@@ -218,19 +187,14 @@ public final class PromptTemplateUtils {
             .replace("}", ")");
     }
 
-    
     public static String sanitizeAndTruncate(String input, int maxLength) {
         String sanitized = sanitizeUserInput(input);
         return truncate(sanitized, maxLength);
     }
 
-    
-
-    
     private static final Pattern IPV4_PATTERN = Pattern.compile(
         "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
 
-    
     private static final Pattern IPV6_PATTERN = Pattern.compile(
         "^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|" +
         "([0-9a-fA-F]{1,4}:){1,7}:|" +
@@ -245,7 +209,6 @@ public final class PromptTemplateUtils {
         "::(ffff(:0{1,4})?:)?((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9])|" +
         "([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1?[0-9])?[0-9])\\.){3}(25[0-5]|(2[0-4]|1?[0-9])?[0-9]))$");
 
-    
     public static boolean isValidIpFormat(String ip) {
         if (ip == null || ip.isEmpty()) {
             return false;
@@ -253,7 +216,6 @@ public final class PromptTemplateUtils {
         return IPV4_PATTERN.matcher(ip).matches() || IPV6_PATTERN.matcher(ip).matches();
     }
 
-    
     public static void appendIpWithValidation(StringBuilder sb, String ip) {
         if (ip == null || ip.isEmpty()) {
             sb.append("IP: NOT_PROVIDED [CRITICAL]\n");

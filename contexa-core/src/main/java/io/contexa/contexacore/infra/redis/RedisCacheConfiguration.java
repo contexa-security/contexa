@@ -14,23 +14,19 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-
 @Configuration
 public class RedisCacheConfiguration {
-    
-    
+
     @Bean
     public RedisTemplate<String, AttackPattern> attackPatternRedisTemplate(
             RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, AttackPattern> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
-        
-        
+
         ObjectMapper objectMapper = createObjectMapper();
         GenericJackson2JsonRedisSerializer serializer = 
             new GenericJackson2JsonRedisSerializer(objectMapper);
-        
-        
+
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(serializer);
         template.setHashKeySerializer(new StringRedisSerializer());
@@ -39,20 +35,17 @@ public class RedisCacheConfiguration {
         template.afterPropertiesSet();
         return template;
     }
-    
-    
+
     @Bean
     public RedisTemplate<String, PolicyEvolutionProposal> policyProposalRedisTemplate(
             RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, PolicyEvolutionProposal> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
-        
-        
+
         ObjectMapper objectMapper = createObjectMapper();
         GenericJackson2JsonRedisSerializer serializer = 
             new GenericJackson2JsonRedisSerializer(objectMapper);
-        
-        
+
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(serializer);
         template.setHashKeySerializer(new StringRedisSerializer());
@@ -61,20 +54,17 @@ public class RedisCacheConfiguration {
         template.afterPropertiesSet();
         return template;
     }
-    
-    
+
     @Bean
     public RedisTemplate<String, SecurityEvent> securityEventRedisTemplate(
             RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, SecurityEvent> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
-        
-        
+
         ObjectMapper objectMapper = createObjectMapper();
         GenericJackson2JsonRedisSerializer serializer = 
             new GenericJackson2JsonRedisSerializer(objectMapper);
-        
-        
+
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(serializer);
         template.setHashKeySerializer(new StringRedisSerializer());
@@ -83,15 +73,12 @@ public class RedisCacheConfiguration {
         template.afterPropertiesSet();
         return template;
     }
-    
-    
+
     private ObjectMapper createObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
-        
-        
+
         objectMapper.registerModule(new JavaTimeModule());
-        
-        
+
         objectMapper.activateDefaultTyping(
             BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType(Object.class)

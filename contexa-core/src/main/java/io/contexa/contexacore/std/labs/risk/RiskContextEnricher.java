@@ -19,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class RiskContextEnricher {
 
@@ -27,7 +26,6 @@ public class RiskContextEnricher {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final BusinessResourceActionRepository resourceActionRepository;
-
 
     @Autowired
     public RiskContextEnricher(RedisTemplate<String, Object> redisTemplate,
@@ -39,55 +37,36 @@ public class RiskContextEnricher {
         this.auditLogRepository = auditLogRepository;
         this.resourceActionRepository = resourceActionRepository;
 
-        log.info("RiskContextEnricher initialized with production data sources");
-    }
+            }
 
-    
     public RiskAssessmentContext enrichContext(RiskAssessmentContext context) {
         long totalStartTime = System.currentTimeMillis();
-        log.info("[ENRICHER] ===== 컨텍스트 강화 시작 ===== User: {}", context.getUserId());
-
+        
         try {
-            
 
-            
             long step1Start = System.currentTimeMillis();
-            log.info("[ENRICHER] STEP 1: 사용자 프로파일 강화 시작");
-
+            
             enrichUserProfileFast(context);
 
             long step1Time = System.currentTimeMillis() - step1Start;
-            log.info("[ENRICHER] STEP 1 완료: 사용자 프로파일 {}ms", step1Time);
 
-            
             long step2Start = System.currentTimeMillis();
-            log.info("[ENRICHER] STEP 2: 행동 메트릭 수집 시작");
-
+            
             enrichBehaviorMetricsFast(context);
 
             long step2Time = System.currentTimeMillis() - step2Start;
-            log.info("[ENRICHER] STEP 2 완료: 행동 메트릭 {}ms", step2Time);
 
-            
             long step3Start = System.currentTimeMillis();
-            log.info("[ENRICHER] STEP 3: 환경 컨텍스트 강화 시작");
-
+            
             enrichEnvironmentContext(context);
 
             long step3Time = System.currentTimeMillis() - step3Start;
-            log.info("[ENRICHER] STEP 3 완료: 환경 컨텍스트 {}ms", step3Time);
-
-            
-            
 
             long totalTime = System.currentTimeMillis() - totalStartTime;
             context.withEnvironmentAttribute("enrichmentTotalTimeMs", totalTime);
             context.withEnvironmentAttribute("enrichmentStep1TimeMs", step1Time);
             context.withEnvironmentAttribute("enrichmentStep2TimeMs", step2Time);
             context.withEnvironmentAttribute("enrichmentStep3TimeMs", step3Time);
-
-            log.info("[ENRICHER] ===== 컨텍스트 강화 완료 ===== 총 {}ms (1단계:{}ms, 2단계:{}ms, 3단계:{}ms)",
-                    totalTime, step1Time, step2Time, step3Time);
 
             return context;
 
@@ -98,7 +77,6 @@ public class RiskContextEnricher {
         }
     }
 
-    
     private void enrichUserProfileFast(RiskAssessmentContext context) {
         try {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(context.getUserId());
@@ -107,7 +85,6 @@ public class RiskContextEnricher {
                 context.setUserName(user.getName());
                 context.setUserRoles(user.getRoleNames());
 
-                
                 Map<String, Object> userMetrics = new HashMap<>();
                 userMetrics.put("mfaEnabled", user.isMfaEnabled());
                 userMetrics.put("roleCount", user.getRoleNames().size());
@@ -119,22 +96,18 @@ public class RiskContextEnricher {
         }
     }
 
-    
     private void enrichBehaviorMetricsFast(RiskAssessmentContext context) {
         try {
             Map<String, Object> behaviorMetrics = new HashMap<>();
 
-            
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
 
             behaviorMetrics.put("requestsInLastHour",
                     auditLogRepository.countByPrincipalNameAndTimeRange(
                             context.getUserId(), oneHourAgo, LocalDateTime.now()));
 
-            
             context.withHistoryContext("최근 1시간 접근 기록 기반 간단 분석");
 
-            
             behaviorMetrics.put("deviceFingerprint", "fast-mode");
             behaviorMetrics.put("accessVelocity", 0.5);
 
@@ -148,7 +121,6 @@ public class RiskContextEnricher {
         }
     }
 
-    
     private void enrichEnvironmentContext(RiskAssessmentContext context) {
         try {
             LocalDateTime now = LocalDateTime.now();
@@ -162,15 +134,10 @@ public class RiskContextEnricher {
             context.withEnvironmentAttribute("activeUserCount", getActiveUserCount());
             context.withEnvironmentAttribute("recentSecurityAlerts", getRecentSecurityAlerts());
 
-            log.debug("🌍 Environment context enriched - Business hours: {}, Weekend: {}",
-                    isBusinessHours(now), isWeekend(now));
-
         } catch (Exception e) {
             log.warn("Environment context enrichment failed: {}", e.getMessage());
         }
     }
-
-    
 
     private long calculateAccountAge(java.util.Date createdAt) {
         if (createdAt == null) return 0;
@@ -239,7 +206,6 @@ public class RiskContextEnricher {
             List<AuditLog> recentLogs = auditLogRepository.findRecentLogsByPrincipalName(userId);
             if (recentLogs.size() < 2) return 0.0;
 
-            
             double totalDuration = 0;
             int sessionCount = 0;
 

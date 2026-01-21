@@ -1,23 +1,20 @@
 package io.contexa.contexacore.std.components.prompt;
 
-import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
+import jakarta.annotation.PostConstruct;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 public class PromptGenerator {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PromptGenerator.class);
 
-    
     private static final Map<String, PromptTemplate> promptTemplates = new ConcurrentHashMap<>();
     private final List<PromptTemplate> templateBeans;
 
@@ -26,63 +23,41 @@ public class PromptGenerator {
         this.templateBeans = templateBeans;
     }
 
-    
     @PostConstruct
     private void autoRegisterTemplates() {
-        log.info("PromptGenerator 초기화 시작 - 템플릿 빈 수: {}", templateBeans.size());
 
-        
         for (PromptTemplate template : templateBeans) {
             registerTemplateFromBean(template);
         }
 
-        
         if (!promptTemplates.containsKey("default")) {
             promptTemplates.put("default", new DefaultIAMPolicyTemplate());
         }
-
-        
-        log.info("등록된 프롬프트 템플릿들:");
-        promptTemplates.forEach((key, template) ->
-                log.info("  - {} -> {}", key, template.getClass().getSimpleName()));
     }
 
-    
     private void registerTemplateFromBean(PromptTemplate template) {
         Class<?> templateClass = template.getClass();
 
-        log.debug("템플릿 등록 시도: {}", templateClass.getSimpleName());
-
-        
         if (templateClass.isAnnotationPresent(PromptTemplateConfig.class)) {
             PromptTemplateConfig config = templateClass.getAnnotation(PromptTemplateConfig.class);
 
-            log.info("@PromptTemplateConfig 발견: {} -> key: {}", templateClass.getSimpleName(), config.key());
-
-            
             promptTemplates.put(config.key(), template);
-            log.debug("  - 주요 키 등록: {}", config.key());
 
-            
             for (String alias : config.aliases()) {
                 promptTemplates.put(alias, template);
-                log.debug("  - 별칭 등록: {}", alias);
-            }
+                            }
         } else {
             
             String className = templateClass.getSimpleName();
             String key = className.replace("Template", "").toLowerCase();
             promptTemplates.put(key, template);
-            log.info("어노테이션 없음 - 클래스명 기반 등록: {} -> {}", className, key);
-        }
+                    }
     }
 
-    
     public PromptGenerationResult generatePrompt(AIRequest<? extends DomainContext> request,
                                                  String contextInfo,
                                                  String systemMetadata) {
 
-        
         String templateKey = determineTemplateKey(request);
         PromptTemplate template = promptTemplates.get(templateKey);
 
@@ -90,11 +65,9 @@ public class PromptGenerator {
             template = promptTemplates.get("default");
         }
 
-        
         String systemPrompt = template.generateSystemPrompt(request, systemMetadata);
         String userPrompt = template.generateUserPrompt(request, contextInfo);
 
-        
         Map<String, Object> metadata = Map.of(
                 "templateKey", templateKey,
                 "systemPromptLength", systemPrompt.length(),
@@ -102,22 +75,17 @@ public class PromptGenerator {
                 "generationTime", System.currentTimeMillis()
         );
 
-        
         SystemMessage systemMessage = SystemMessage.builder().text(systemPrompt).metadata(metadata).build();
         UserMessage userMessage = UserMessage.builder().text(userPrompt).metadata(metadata).build();
         Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
 
-
-
         return new PromptGenerationResult(prompt, systemPrompt, userPrompt, metadata);
     }
 
-    
     public void registerTemplate(String key, PromptTemplate template) {
         promptTemplates.put(key, template);
     }
 
-    
     public Class<?> getAIGenerationType(AIRequest<? extends DomainContext> request) {
         String templateKey = determineTemplateKey(request);
         PromptTemplate template = promptTemplates.get(templateKey);
@@ -132,41 +100,28 @@ public class PromptGenerator {
         
         return null;
     }
-    
-    
+
     public static String determineTemplateKey(AIRequest<? extends DomainContext> request) {
         String promptTemplate = request.getPromptTemplate();
         String domainType = request.getContext().getDomainType();
 
-        log.debug("템플릿 키 결정 시작:");
-        log.debug("  - promptTemplate: {}", promptTemplate);
-        log.debug("  - domainType: {}", domainType);
-
-        
         String specificKey = promptTemplate + "_" + domainType;
-        log.debug("  - specificKey 시도: {}", specificKey);
-        if (promptTemplates.containsKey(specificKey)) {
-            log.info("템플릿 매칭 성공: specificKey = {}", specificKey);
-            return specificKey;
+                if (promptTemplates.containsKey(specificKey)) {
+                        return specificKey;
         }
 
-        log.debug("  - promptTemplate 키 시도: {}", promptTemplate);
-        if (promptTemplates.containsKey(promptTemplate)) {
-            log.info("템플릿 매칭 성공: promptTemplate = {}", promptTemplate);
-            return promptTemplate;
+                if (promptTemplates.containsKey(promptTemplate)) {
+                        return promptTemplate;
         }
 
-        log.debug("  - domainType 키 시도: {}", domainType);
-        if (promptTemplates.containsKey(domainType)) {
-            log.info("템플릿 매칭 성공: domainType = {}", domainType);
-            return domainType;
+                if (promptTemplates.containsKey(domainType)) {
+                        return domainType;
         }
 
         log.warn("템플릿 매칭 실패 - default 사용. 사용 가능한 키들: {}", promptTemplates.keySet());
         return "default";
     }
 
-    
     private static class DefaultIAMPolicyTemplate implements PromptTemplate {
         @Override
         public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
@@ -235,12 +190,10 @@ public class PromptGenerator {
         }
     }
 
-    
     private static String extractQueryFromRequest(AIRequest<? extends DomainContext> request) {
         return request.getParameter("naturalLanguageQuery", String.class); 
     }
 
-    
     public static class PromptGenerationResult {
         private final Prompt prompt;
         private final String systemPrompt;

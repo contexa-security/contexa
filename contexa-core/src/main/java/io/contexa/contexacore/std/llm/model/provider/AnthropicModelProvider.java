@@ -15,13 +15,14 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
 
 @Slf4j
 public class AnthropicModelProvider implements ModelProvider {
@@ -32,10 +33,10 @@ public class AnthropicModelProvider implements ModelProvider {
     @Autowired
     private ModelProviderProperties modelProviderProperties;
 
-    @Autowired(required = false)
+    @Autowired
     private AnthropicChatModel defaultAnthropicChatModel;
 
-    @Autowired(required = false)
+    @Autowired
     private AnthropicApi anthropicApi;
 
     private String baseUrl;
@@ -58,7 +59,6 @@ public class AnthropicModelProvider implements ModelProvider {
     public List<ModelDescriptor> getAvailableModels() {
         List<ModelDescriptor> models = new ArrayList<>();
 
-        
         ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
         if (anthropicConfig != null && anthropicConfig.getModels() != null) {
             for (Map.Entry<String, ModelProviderProperties.ModelSpec> entry :
@@ -83,7 +83,6 @@ public class AnthropicModelProvider implements ModelProvider {
             return modelCache.get(modelId);
         }
 
-        
         ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
         if (anthropicConfig != null && anthropicConfig.getModels() != null) {
             ModelProviderProperties.ModelSpec spec = anthropicConfig.getModels().get(modelId);
@@ -101,13 +100,10 @@ public class AnthropicModelProvider implements ModelProvider {
     public ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config) {
         String modelId = descriptor.getModelId();
 
-        
         if (modelInstances.containsKey(modelId)) {
             return modelInstances.get(modelId);
         }
-
         try {
-            
             ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
             ModelProviderProperties.ModelSpec modelSpec = null;
 
@@ -120,11 +116,9 @@ public class AnthropicModelProvider implements ModelProvider {
                 apiModelId = modelSpec.getVersion();
             }
 
-            
             AnthropicChatOptions.Builder optionsBuilder = AnthropicChatOptions.builder()
-                .model(apiModelId);
+                    .model(apiModelId);
 
-            
             if (descriptor.getOptions() != null) {
                 ModelDescriptor.ModelOptions options = descriptor.getOptions();
                 if (options.getTemperature() != null) {
@@ -138,12 +132,10 @@ public class AnthropicModelProvider implements ModelProvider {
                 }
             }
 
-            
             if (descriptor.getCapabilities() != null) {
                 optionsBuilder.maxTokens(descriptor.getCapabilities().getMaxOutputTokens());
             }
 
-            
             if (config != null) {
                 if (config.containsKey("temperature")) {
                     optionsBuilder.temperature((Double) config.get("temperature"));
@@ -160,19 +152,16 @@ public class AnthropicModelProvider implements ModelProvider {
 
             AnthropicChatOptions anthropicOptions = optionsBuilder.build();
 
-            
             if (!isReady()) {
                 throw new ModelSelectionException("Anthropic API not configured. Please set ANTHROPIC_API_KEY", modelId);
             }
 
-            
             AnthropicChatModel chatModel = AnthropicChatModel.builder()
-                .anthropicApi(getAnthropicApi())
-                .defaultOptions(anthropicOptions)
-                .build();
+                    .anthropicApi(getAnthropicApi())
+                    .defaultOptions(anthropicOptions)
+                    .build();
 
             modelInstances.put(modelId, chatModel);
-            log.info("Anthropic 모델 생성 완료: {}", modelId);
 
             return chatModel;
 
@@ -189,14 +178,13 @@ public class AnthropicModelProvider implements ModelProvider {
 
     @Override
     public boolean supportsModel(String modelId) {
-        
+
         ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
         if (anthropicConfig != null && anthropicConfig.getModels() != null &&
-            anthropicConfig.getModels().containsKey(modelId)) {
+                anthropicConfig.getModels().containsKey(modelId)) {
             return true;
         }
 
-        
         return modelCache.containsKey(modelId);
     }
 
@@ -210,8 +198,6 @@ public class AnthropicModelProvider implements ModelProvider {
             if (restTemplate == null || baseUrl == null) {
                 return HealthStatus.unhealthy("Anthropic not initialized");
             }
-
-            
             String messagesUrl = baseUrl + "/v1/messages";
 
             HttpHeaders headers = new HttpHeaders();
@@ -219,52 +205,49 @@ public class AnthropicModelProvider implements ModelProvider {
             headers.set("anthropic-version", "2023-06-01");
             headers.set("content-type", "application/json");
 
-            
-            String testModel = "claude-3-haiku-20240307"; 
+            String testModel = "claude-3-haiku-20240307";
             ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
             if (anthropicConfig != null && anthropicConfig.getModels() != null && !anthropicConfig.getModels().isEmpty()) {
-                
+
                 ModelProviderProperties.ModelSpec firstSpec = anthropicConfig.getModels().values().iterator().next();
                 if (firstSpec != null && firstSpec.getVersion() != null) {
                     testModel = firstSpec.getVersion();
                 }
             }
 
-            
             String testPayload = "{"
-                + "\"model\": \"" + testModel + "\","
-                + "\"max_tokens\": 1,"
-                + "\"messages\": [{\"role\": \"user\", \"content\": \"test\"}]"
-                + "}";
+                    + "\"model\": \"" + testModel + "\","
+                    + "\"max_tokens\": 1,"
+                    + "\"messages\": [{\"role\": \"user\", \"content\": \"test\"}]"
+                    + "}";
 
             HttpEntity<String> entity = new HttpEntity<>(testPayload, headers);
 
             try {
                 ResponseEntity<Map> response = restTemplate.exchange(
-                    messagesUrl, HttpMethod.POST, entity, Map.class);
+                        messagesUrl, HttpMethod.POST, entity, Map.class);
 
                 Map<String, Object> details = new HashMap<>();
                 details.put("status", "healthy");
                 details.put("baseUrl", baseUrl);
                 details.put("apiKeyConfigured", true);
 
-                
                 if (modelId != null && !modelId.isEmpty()) {
                     ModelProviderProperties.AnthropicConfig configForModel = modelProviderProperties.getAnthropic();
                     boolean modelExists = configForModel != null &&
-                                        configForModel.getModels() != null &&
-                                        configForModel.getModels().containsKey(modelId);
+                            configForModel.getModels() != null &&
+                            configForModel.getModels().containsKey(modelId);
                     details.put("modelAvailable", modelExists);
                 }
 
                 return new HealthStatus(true, "Healthy", 0, details);
 
             } catch (RestClientException e) {
-                
+
                 if (e.getMessage() != null && e.getMessage().contains("401")) {
                     return HealthStatus.unhealthy("Invalid API key");
                 } else if (e.getMessage() != null && e.getMessage().contains("429")) {
-                    
+
                     Map<String, Object> details = new HashMap<>();
                     details.put("status", "rate_limited");
                     details.put("baseUrl", baseUrl);
@@ -279,10 +262,8 @@ public class AnthropicModelProvider implements ModelProvider {
 
     @Override
     public void initialize(Map<String, Object> config) {
-        log.info("AnthropicModelProvider 초기화 시작");
-
         try {
-            
+
             ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
             if (anthropicConfig != null && anthropicConfig.isEnabled()) {
                 this.baseUrl = anthropicConfig.getBaseUrl();
@@ -294,15 +275,12 @@ public class AnthropicModelProvider implements ModelProvider {
 
             if (apiKey == null || apiKey.isEmpty()) {
                 log.warn("Anthropic API 키가 설정되지 않았지만 계속 진행합니다");
-                
+
             }
 
-            
             this.restTemplate = new RestTemplate();
 
-            ready = true; 
-            log.info("AnthropicModelProvider 초기화 완료 - baseUrl: {}, API 키 설정: {}",
-                     baseUrl, apiKey != null && !apiKey.isEmpty());
+            ready = true;
         } catch (Exception e) {
             log.error("AnthropicModelProvider 초기화 실패", e);
             ready = false;
@@ -311,7 +289,6 @@ public class AnthropicModelProvider implements ModelProvider {
 
     @Override
     public void shutdown() {
-        log.info("AnthropicModelProvider 종료");
         modelInstances.clear();
         modelCache.clear();
         ready = false;
@@ -323,14 +300,11 @@ public class AnthropicModelProvider implements ModelProvider {
     }
 
     @Override
-    public void refreshModels() {
-        log.info("Anthropic 모델 목록 새로고침");
-        
-    }
+    public void refreshModels() {}
 
     @Override
     public int getPriority() {
-        return 20; 
+        return 20;
     }
 
     @Override
@@ -343,61 +317,59 @@ public class AnthropicModelProvider implements ModelProvider {
         return metrics;
     }
 
-    
     private ModelDescriptor createModelDescriptorFromSpec(String modelId, ModelProviderProperties.ModelSpec spec) {
         var capBuilder = ModelDescriptor.ModelCapabilities.builder()
-            .streaming(spec.getCapabilities().getStreaming())
-            .toolCalling(spec.getCapabilities().getToolCalling())
-            .functionCalling(spec.getCapabilities().getFunctionCalling())
-            .vision(spec.getCapabilities().getVision())
-            .multiModal(spec.getCapabilities().getMultiModal())
-            .maxTokens(spec.getCapabilities().getMaxTokens())
-            .contextWindow(spec.getCapabilities().getContextWindow())
-            .supportsSystemMessage(spec.getCapabilities().getSupportsSystemMessage());
+                .streaming(spec.getCapabilities().getStreaming())
+                .toolCalling(spec.getCapabilities().getToolCalling())
+                .functionCalling(spec.getCapabilities().getFunctionCalling())
+                .vision(spec.getCapabilities().getVision())
+                .multiModal(spec.getCapabilities().getMultiModal())
+                .maxTokens(spec.getCapabilities().getMaxTokens())
+                .contextWindow(spec.getCapabilities().getContextWindow())
+                .supportsSystemMessage(spec.getCapabilities().getSupportsSystemMessage());
 
         if (spec.getCapabilities().getMaxOutputTokens() != null) {
             capBuilder.maxOutputTokens(spec.getCapabilities().getMaxOutputTokens());
         }
 
         ModelDescriptor.ThroughputLevel throughput = ModelDescriptor.ThroughputLevel.valueOf(
-            spec.getPerformance().getThroughputLevel());
+                spec.getPerformance().getThroughputLevel());
 
         return ModelDescriptor.builder()
-            .modelId(modelId)
-            .displayName(spec.getDisplayName())
-            .provider(getProviderName())
-            .version(spec.getVersion())
-            .modelSize(spec.getModelSize() != null ? spec.getModelSize() : "N/A")
-            .tier(spec.getTier())
-            .capabilities(capBuilder.build())
-            .performance(ModelDescriptor.PerformanceProfile.builder()
-                .latency(spec.getPerformance().getLatencyMs())
-                .throughput(throughput)
-                .concurrency(spec.getPerformance().getConcurrency())
-                .recommendedTimeout(spec.getPerformance().getRecommendedTimeoutMs())
-                .performanceScore(spec.getPerformance().getPerformanceScore())
-                .build())
-            .cost(ModelDescriptor.CostProfile.builder()
-                .costPerInputToken(spec.getCost().getCostPerInputToken())
-                .costPerOutputToken(spec.getCost().getCostPerOutputToken())
-                .costEfficiency(spec.getCost().getCostEfficiency())
-                .build())
-            .options(ModelDescriptor.ModelOptions.builder()
-                .temperature(spec.getOptions().getTemperature())
-                .topP(spec.getOptions().getTopP())
-                .topK(spec.getOptions().getTopK())
-                .build())
-            .status(apiKey != null && !apiKey.isEmpty() ?
-                ModelDescriptor.ModelStatus.AVAILABLE :
-                ModelDescriptor.ModelStatus.UNAVAILABLE)
-            .metadata(spec.getMetadata() != null ? spec.getMetadata() : Map.of(
-                "cloud", true,
-                "requiresApiKey", true
-            ))
-            .build();
+                .modelId(modelId)
+                .displayName(spec.getDisplayName())
+                .provider(getProviderName())
+                .version(spec.getVersion())
+                .modelSize(spec.getModelSize() != null ? spec.getModelSize() : "N/A")
+                .tier(spec.getTier())
+                .capabilities(capBuilder.build())
+                .performance(ModelDescriptor.PerformanceProfile.builder()
+                        .latency(spec.getPerformance().getLatencyMs())
+                        .throughput(throughput)
+                        .concurrency(spec.getPerformance().getConcurrency())
+                        .recommendedTimeout(spec.getPerformance().getRecommendedTimeoutMs())
+                        .performanceScore(spec.getPerformance().getPerformanceScore())
+                        .build())
+                .cost(ModelDescriptor.CostProfile.builder()
+                        .costPerInputToken(spec.getCost().getCostPerInputToken())
+                        .costPerOutputToken(spec.getCost().getCostPerOutputToken())
+                        .costEfficiency(spec.getCost().getCostEfficiency())
+                        .build())
+                .options(ModelDescriptor.ModelOptions.builder()
+                        .temperature(spec.getOptions().getTemperature())
+                        .topP(spec.getOptions().getTopP())
+                        .topK(spec.getOptions().getTopK())
+                        .build())
+                .status(apiKey != null && !apiKey.isEmpty() ?
+                        ModelDescriptor.ModelStatus.AVAILABLE :
+                        ModelDescriptor.ModelStatus.UNAVAILABLE)
+                .metadata(spec.getMetadata() != null ? spec.getMetadata() : Map.of(
+                        "cloud", true,
+                        "requiresApiKey", true
+                ))
+                .build();
     }
 
-    
     private AnthropicApi getAnthropicApi() {
         if (anthropicApi == null) {
             throw new IllegalStateException("AnthropicApi not available. Please check Anthropic configuration.");

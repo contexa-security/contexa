@@ -6,11 +6,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
 
-
 @Configuration
 public class KafkaTopicConfiguration {
 
-    
     @Bean
     public KafkaAdmin.NewTopics allSecurityTopics() {
         return new KafkaAdmin.NewTopics(
@@ -19,22 +17,18 @@ public class KafkaTopicConfiguration {
             authEventsContextualTopic().build(),
             authEventsGeneralTopic().build(),
 
-            
             securityAuthorizationEventsTopic().build(),
             securityIncidentEventsTopic().build(),
             securityAuditEventsTopic().build(),
 
-            
             securityEventsTopic().build(),
             threatIndicatorsTopic().build(),
             networkEventsTopic().build(),
 
-            
             deadLetterQueueTopic().build()
         );
     }
 
-    
     private TopicBuilder authEventsCriticalTopic() {
         return TopicBuilder.name("auth-events-critical")
             .partitions(3)  
@@ -44,7 +38,6 @@ public class KafkaTopicConfiguration {
             .compact();  
     }
 
-    
     private TopicBuilder authEventsContextualTopic() {
         return TopicBuilder.name("auth-events-contextual")
             .partitions(3)
@@ -52,7 +45,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
     }
 
-    
     private TopicBuilder authEventsGeneralTopic() {
         return TopicBuilder.name("auth-events-general")
             .partitions(3)
@@ -60,7 +52,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "259200000");  
     }
 
-    
     private TopicBuilder securityAuthorizationEventsTopic() {
         return TopicBuilder.name("security-authorization-events")
             .partitions(3)
@@ -68,7 +59,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
     }
 
-    
     private TopicBuilder securityIncidentEventsTopic() {
         return TopicBuilder.name("security-incident-events")
             .partitions(3)
@@ -76,7 +66,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "2592000000");  
     }
 
-    
     private TopicBuilder securityAuditEventsTopic() {
         return TopicBuilder.name("security-audit-events")
             .partitions(3)
@@ -84,7 +73,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "7776000000");  
     }
 
-    
     private TopicBuilder securityEventsTopic() {
         return TopicBuilder.name("security-events")
             .partitions(5)  
@@ -92,7 +80,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");  
     }
 
-    
     private TopicBuilder threatIndicatorsTopic() {
         return TopicBuilder.name("threat-indicators")
             .partitions(3)
@@ -100,7 +87,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "1209600000");  
     }
 
-    
     private TopicBuilder networkEventsTopic() {
         return TopicBuilder.name("network-events")
             .partitions(5)  
@@ -108,7 +94,6 @@ public class KafkaTopicConfiguration {
             .config(TopicConfig.RETENTION_MS_CONFIG, "259200000");  
     }
 
-    
     private TopicBuilder deadLetterQueueTopic() {
         return TopicBuilder.name("security-events-dlq")
             .partitions(1)  

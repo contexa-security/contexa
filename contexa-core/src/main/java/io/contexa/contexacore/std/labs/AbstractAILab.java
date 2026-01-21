@@ -10,7 +10,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
-
 @Slf4j
 public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
 
@@ -22,8 +21,6 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         this.labId = generateLabId();
         this.labName = labName;
         this.tracer = tracer;
-
-        log.info("AI Lab initialized: {} [{}]", labName, labId);
     }
 
     private String generateLabId() {
@@ -40,36 +37,28 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         return labName;
     }
 
-    
     @Override
     public Res process(Req request) {
         long startTime = System.currentTimeMillis();
 
-        
         Span span = tracer.spanBuilder("lab.process")
                 .setAttribute("lab.id", labId)
                 .setAttribute("lab.name", labName)
                 .setAttribute("processing.mode", "sync")
                 .startSpan();
 
-        log.info("{} processing request synchronously", labName);
-
         try (Scope scope = span.makeCurrent()) {
-            
+
             validateRequest(request);
             preProcess(request);
 
-            
             Res result = doProcess(request);
 
-            
             postProcess(request, result);
 
             long duration = System.currentTimeMillis() - startTime;
             span.setAttribute("processing.duration.ms", duration);
             span.setStatus(StatusCode.OK);
-
-            log.info("{} processing completed successfully ({}ms)", labName, duration);
             return result;
 
         } catch (Exception e) {
@@ -85,19 +74,15 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         }
     }
 
-    
     @Override
     public Mono<Res> processAsync(Req request) {
         long startTime = System.currentTimeMillis();
 
-        
         Span span = tracer.spanBuilder("lab.processAsync")
                 .setAttribute("lab.id", labId)
                 .setAttribute("lab.name", labName)
                 .setAttribute("processing.mode", "async")
                 .startSpan();
-
-        log.info("{} processing request asynchronously", labName);
 
         try (Scope scope = span.makeCurrent()) {
             return Mono.fromCallable(() -> {
@@ -111,7 +96,6 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
                         long duration = System.currentTimeMillis() - startTime;
                         span.setAttribute("processing.duration.ms", duration);
                         span.setStatus(StatusCode.OK);
-                        log.info("{} async processing completed successfully ({}ms)", labName, duration);
                     })
                     .doOnError(error -> {
                         long duration = System.currentTimeMillis() - startTime;
@@ -125,7 +109,6 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         }
     }
 
-    
     @Override
     public Flux<String> processStream(Req request) {
         if (!supportsStreaming()) {
@@ -134,21 +117,17 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
 
         long startTime = System.currentTimeMillis();
 
-        
         Span span = tracer.spanBuilder("lab.processStream")
                 .setAttribute("lab.id", labId)
                 .setAttribute("lab.name", labName)
                 .setAttribute("processing.mode", "stream")
                 .startSpan();
 
-        log.info("{} processing request in streaming mode", labName);
-
         try (Scope scope = span.makeCurrent()) {
             return Flux.defer(() -> {
                         try {
                             validateRequest(request);
                             preProcess(request);
-                            log.info("{} processing request in streaming mode", labName);
                             return doProcessStream(request);
                         } catch (Exception e) {
                             return Flux.error(new LabProcessingException(labName + " streaming failed: " + e.getMessage(), e));
@@ -160,7 +139,6 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
                         long duration = System.currentTimeMillis() - startTime;
                         span.setAttribute("processing.duration.ms", duration);
                         span.setStatus(StatusCode.OK);
-                        log.info("{} streaming completed ({}ms)", labName, duration);
                     })
                     .doOnError(error -> {
                         long duration = System.currentTimeMillis() - startTime;
@@ -173,46 +151,28 @@ public abstract class AbstractAILab<Req, Res> implements AILab<Req, Res> {
         }
     }
 
-    
-
-    
     protected abstract Res doProcess(Req request) throws Exception;
-
-    
     protected Mono<Res> doProcessAsync(Req request) {
         return Mono.fromCallable(() -> doProcess(request));
     }
-
-    
     protected Flux<String> doProcessStream(Req request) {
         return Flux.error(new UnsupportedOperationException("Streaming not implemented"));
     }
 
-    
-
-    
     protected void validateRequest(Req request) {
         if (request == null) {
             throw new IllegalArgumentException("Request cannot be null");
         }
     }
-
-    
     protected void preProcess(Req request) {
-        
     }
-
-    
     protected void postProcess(Req request, Res result) {
-        
     }
 
-    
     public static class LabProcessingException extends RuntimeException {
         public LabProcessingException(String message) {
             super(message);
         }
-
         public LabProcessingException(String message, Throwable cause) {
             super(message, cause);
         }

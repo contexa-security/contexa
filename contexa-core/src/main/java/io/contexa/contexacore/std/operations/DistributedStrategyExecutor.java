@@ -14,14 +14,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class DistributedStrategyExecutor<T extends DomainContext> {
 
     private final PipelineOrchestrator orchestrator;
     private final RedisEventPublisher eventPublisher;
 
-    
     private final AIStrategyRegistry strategyRegistry; 
 
     @Autowired
@@ -32,73 +30,58 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         this.eventPublisher = eventPublisher;
         this.strategyRegistry = strategyRegistry; 
 
-        log.info("DistributedStrategyExecutor initialized with DiagnosisStrategyRegistry - PipelineOrchestrator 직접 사용");
-    }
-    
-    
+            }
+
     public <R extends AIResponse> R executeDistributedStrategy(AIRequest<T> request,
                                                                Class<R> responseType,
                                                                String sessionId,
                                                                String auditId) {
-        log.info("Distributed Strategy Executor: Starting strategy execution for session: {}", sessionId);
-
+        
         try {
             
             R result = executeStrategyThroughRegistry(request, responseType, sessionId);
 
-            
             validateResult(result, sessionId);
 
-            log.info("Distributed Strategy Executor: Strategy execution completed successfully for session: {}", sessionId);
-            return result;
+                        return result;
 
         } catch (Exception e) {
             log.warn("Strategy execution failed for session: {}, falling back to AI Pipeline", sessionId, e);
 
-            
             R fallbackResult = executeAIPipelineFallback(request, responseType, sessionId);
 
             return fallbackResult;
         }
     }
-    
-    
+
     public <R extends AIResponse> Mono<R> executeDistributedStrategyAsync(AIRequest<T> request,
                                                                          Class<R> responseType,
                                                                          String sessionId,
                                                                          String auditId) {
-        log.info("Distributed Strategy Executor: Starting ASYNC strategy execution for session: {}", sessionId);
 
-        
         return executeStrategyThroughRegistryAsync(request, responseType, sessionId)
             .doOnSuccess(result -> {
                 
                 validateResult(result, sessionId);
-                log.info("Distributed Strategy Executor: ASYNC strategy execution completed successfully for session: {}", sessionId);
-            })
+                            })
             .onErrorResume(error -> {
                 log.warn("ASYNC strategy execution failed for session: {}, falling back to AI Pipeline", sessionId, error);
                 
                 return executeAIPipelineFallbackAsync(request, responseType, sessionId);
             });
     }
-    
-    
+
     public <R extends AIResponse> Flux<String> executeDistributedStrategyStream(AIRequest<T> request,
                                                                                 Class<R> responseType,
                                                                                 String sessionId,
                                                                                 String auditId) {
         try {
-            log.info("Starting streaming strategy execution for session: {}", sessionId);
 
-            
             return executeStrategyThroughRegistryStream(request, responseType, sessionId)
                 .doOnNext(chunk -> {
-                    log.debug("Streaming chunk received for session: {} - length: {}", sessionId, chunk.length());
-                })
+                                    })
                 .doOnComplete(() -> {
-                    log.info("Streaming strategy execution completed for session: {}", sessionId);
-                })
+                                    })
                 .doOnError(error -> {
                     log.error("Streaming strategy execution failed for session: {} - {}", sessionId, error.getMessage());
                 });
@@ -108,28 +91,20 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
             return Flux.error(new AIOperationException("Streaming strategy execution failed", e));
         }
     }
-    
-    
+
     private <R extends AIResponse> R executeStrategyThroughRegistry(AIRequest<T> request,
                                                                    Class<R> responseType, 
                                                                    String sessionId) {
         try {
-            log.debug("Executing strategy through registry for session: {} - diagnosisType: {}", 
-                sessionId, request.getDiagnosisType());
-            
+                        
             R result = strategyRegistry.executeStrategy(request, responseType);
-            
-            log.debug("Strategy execution completed for session: {} - resultType: {}", 
-                sessionId, result.getClass().getSimpleName());
-            
+
             return result;
             
         } catch (DiagnosisException e) {
             log.error("Strategy registry execution failed for session: {} - {}", sessionId, e.getMessage());
-            
-            
-            log.info("Attempting fallback to AI pipeline for session: {}", sessionId);
-            return executeAIPipelineFallback(request, responseType, sessionId);
+
+                        return executeAIPipelineFallback(request, responseType, sessionId);
             
         } catch (Exception e) {
             log.error("Unexpected error in strategy execution for session: {}", sessionId, e);
@@ -140,31 +115,22 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
             );
         }
     }
-    
-    
+
     private <R extends AIResponse> Flux<String> executeStrategyThroughRegistryStream(AIRequest<T> request,
                                                                                     Class<R> responseType, 
                                                                                     String sessionId) {
         try {
-            log.debug("Executing streaming strategy through registry for session: {} - diagnosisType: {}", 
-                sessionId, request.getDiagnosisType());
-            
-            
-            log.debug("실시간 스트리밍 전략 실행 시작 for session: {} - diagnosisType: {}", 
-                sessionId, request.getDiagnosisType());
-            
+
             return strategyRegistry.executeStrategyStream(request, responseType)
-                .doOnNext(chunk -> log.debug("실시간 청크 수신 for session: {} - length: {}", 
-                    sessionId, chunk.length()))
-                .doOnComplete(() -> log.debug("실시간 스트리밍 전략 실행 완료 for session: {}", sessionId))
-                .doOnError(error -> log.error("실시간 스트리밍 전략 실행 실패 for session: {}", sessionId, error));
-            
+                    .doOnNext(chunk -> log.debug("실시간 청크 수신 for session: {} - length: {}",
+                            sessionId, chunk.length()))
+                    .doOnComplete(() -> log.debug("실시간 스트리밍 전략 실행 완료 for session: {}", sessionId))
+                    .doOnError(error -> log.error("실시간 스트리밍 전략 실행 실패 for session: {}", sessionId, error));
+
         } catch (DiagnosisException e) {
             log.error("Streaming strategy registry execution failed for session: {} - {}", sessionId, e.getMessage());
-            
-            
-            log.info("Attempting fallback to AI pipeline streaming for session: {}", sessionId);
-            return executeAIPipelineStreamingFallback(request, responseType, sessionId);
+
+                        return executeAIPipelineStreamingFallback(request, responseType, sessionId);
             
         } catch (Exception e) {
             log.error("Unexpected error in streaming strategy execution for session: {}", sessionId, e);
@@ -175,18 +141,14 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
             ));
         }
     }
-    
-    
+
     private <R extends AIResponse> Flux<String> executeAIPipelineStreamingFallback(AIRequest<T> request,
                                                                                   Class<R> responseType, 
                                                                                   String sessionId) {
         try {
-            log.info("Fallback: AI Pipeline streaming execution for session: {}", sessionId);
-            
-            
+
             PipelineConfiguration config = createPipelineConfiguration();
-            
-            
+
             return orchestrator.executeStream(request, config)
                 .ofType(String.class) 
                 .onErrorResume(error -> {
@@ -200,8 +162,7 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
             return createMockStreamingResponse(request, responseType, sessionId);
         }
     }
-    
-    
+
     private <R extends AIResponse> Flux<String> createMockStreamingResponse(AIRequest<T> request,
                                                                            Class<R> responseType, 
                                                                            String sessionId) {
@@ -218,15 +179,11 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
     
     private <R extends AIResponse> R executeAIPipelineFallback(AIRequest<T> request, Class<R> responseType, String sessionId) {
         try {
-            log.info("Fallback: AI Pipeline execution for session: {}", sessionId);
-            
-            
+
             PipelineConfiguration config = createPipelineConfiguration();
-            
-            
+
             Object rawResult = orchestrator.execute(request, config, responseType).block();
-            
-            
+
             if (rawResult != null && responseType.isInstance(rawResult)) {
                 return responseType.cast(rawResult);
             } else {
@@ -242,20 +199,15 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
             return createMockResponse(request, responseType, sessionId);
         }
     }
-    
-    
+
     private <R extends AIResponse> Mono<R> executeStrategyThroughRegistryAsync(AIRequest<T> request,
                                                                               Class<R> responseType, 
                                                                               String sessionId) {
         try {
-            log.debug("비동기 전략 실행: {} - session: {}", 
-                request.getDiagnosisType(), sessionId);
-            
+                        
             return strategyRegistry.executeStrategyAsync(request, responseType)
                 .doOnSuccess(result -> {
-                    log.debug("비동기 전략 실행 성공: {} - session: {}", 
-                        result.getClass().getSimpleName(), sessionId);
-                })
+                                    })
                 .doOnError(error -> {
                     log.error("비동기 전략 실행 실패: session: {} - {}", sessionId, error.getMessage());
                 });
@@ -266,14 +218,12 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         }
     }
 
-    
     private <R extends AIResponse> Mono<R> executeAIPipelineFallbackAsync(AIRequest<T> request,
                                                                          Class<R> responseType, 
                                                                          String sessionId) {
         return Mono.fromCallable(() -> executeAIPipelineFallback(request, responseType, sessionId));
     }
-    
-    
+
     private PipelineConfiguration createPipelineConfiguration() {
         return PipelineConfiguration.builder()
             .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
@@ -289,8 +239,7 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
             .enableCaching(true)
             .build();
     }
-    
-    
+
     @SuppressWarnings("unchecked")
     private <R extends AIResponse> R createMockResponse(AIRequest<T> request,
                                                         Class<R> responseType,
@@ -299,15 +248,12 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         log.warn("Mock response creation not implemented in generic version - session: {}", sessionId);
         throw new AIOperationException("Mock response creation not supported in generic version");
     }
-    
-    
+
     private void validateResult(AIResponse result, String sessionId) {
         if (result == null) {
             throw new AIOperationException("Strategy execution returned null result for session: " + sessionId);
         }
-        
-        
-        log.debug("Result validation completed for session: {}", sessionId);
-    }
+
+            }
     
 } 

@@ -17,21 +17,15 @@ class FinalResponseBuilder {
             Class<R> responseType) {
 
         long responseStart = System.currentTimeMillis();
-        log.info("[PIPELINE] 최종 응답 생성 시작: {}", request.getRequestId());
 
-        
         R typedResult = context.getStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, responseType);
         
         if (typedResult != null) {
-            log.info("[{}] POSTPROCESSING 결과 타입 안전 반환: {}",
-                    "UNIVERSAL", responseType.getSimpleName());
-            
+                        
             long responseTime = System.currentTimeMillis() - responseStart;
-            log.info("[PIPELINE] 최종 응답 생성 완료: {}ms", responseTime);
-            return typedResult;
+                        return typedResult;
         }
-        
-        
+
         Object postprocessingResult = context.getStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, Object.class);
         
         if (postprocessingResult != null) {
@@ -55,7 +49,6 @@ class FinalResponseBuilder {
             }
         }
 
-        
         log.error("[{}] POSTPROCESSING 결과가 null! 긴급 fallback 생성", "UNIVERSAL");
         try {
             if (!responseType.isInterface() && !Modifier.isAbstract(responseType.getModifiers())) {
@@ -80,7 +73,6 @@ class FinalResponseBuilder {
             throw new RuntimeException("Complete pipeline failure - no response generated", e);
         } finally {
             long responseTime = System.currentTimeMillis() - responseStart;
-            log.info("[PIPELINE] 최종 응답 생성 완료: {}ms", responseTime);
-        }
+                    }
     }
 }

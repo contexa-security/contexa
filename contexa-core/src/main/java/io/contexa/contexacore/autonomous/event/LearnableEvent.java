@@ -3,55 +3,39 @@ package io.contexa.contexacore.autonomous.event;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-
 public interface LearnableEvent {
-    
-    
+
     enum EventType {
         
         DYNAMIC_THREAT_RESPONSE,
-        
-        
+
         STATIC_ACCESS_ANALYSIS,
-        
-        
+
         PERFORMANCE_ANOMALY,
-        
-        
+
         COMPLIANCE_VIOLATION,
-        
-        
+
         USER_BEHAVIOR_ANOMALY
     }
-    
-    
+
     String getEventId();
-    
-    
+
     EventType getEventType();
-    
-    
+
     LocalDateTime getOccurredAt();
-    
-    
+
     String getSource();
-    
-    
+
     String getSeverity();
-    
-    
+
     String getDescription();
-    
-    
+
     Map<String, Object> getContext();
-    
-    
+
     boolean isResponseSuccessful();
-    
-    
+
     String getResponseDescription();
-    
-    
+
     default int getLearningPriority() {
         switch (getSeverity()) {
             case "CRITICAL":
@@ -66,8 +50,7 @@ public interface LearnableEvent {
                 return 10;
         }
     }
-    
-    
+
     default boolean requiresPolicyGeneration() {
         return isResponseSuccessful() && 
                (getEventType() == EventType.DYNAMIC_THREAT_RESPONSE || 

@@ -4,50 +4,40 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-
 @Data
 @ConfigurationProperties(prefix = "security.session")
 public class SecuritySessionProperties {
 
-    
     @NestedConfigurationProperty
     private CreateSettings create = new CreateSettings();
 
-    
     @NestedConfigurationProperty
     private HeaderSettings header = new HeaderSettings();
 
-    
     @NestedConfigurationProperty
     private BearerSettings bearer = new BearerSettings();
 
-    
     @NestedConfigurationProperty
     private HijackSettings hijack = new HijackSettings();
 
-    
     @NestedConfigurationProperty
     private ThreatSettings threat = new ThreatSettings();
 
-    
     @Data
     public static class CreateSettings {
         private boolean allowed = true;
     }
 
-    
     @Data
     public static class HeaderSettings {
         private String name = "X-Auth-Token";
     }
 
-    
     @Data
     public static class BearerSettings {
         private boolean enabled = true;
     }
 
-    
     @Data
     public static class HijackSettings {
         private String channel = "security:session:hijack:event";
@@ -61,7 +51,6 @@ public class SecuritySessionProperties {
         }
     }
 
-    
     @Data
     public static class ThreatSettings {
         private double ipChangeRisk = 0.4;

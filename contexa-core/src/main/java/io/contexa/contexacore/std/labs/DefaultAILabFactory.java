@@ -7,7 +7,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-
 @Slf4j
 public class DefaultAILabFactory implements AILabFactory {
 
@@ -16,18 +15,15 @@ public class DefaultAILabFactory implements AILabFactory {
     @Autowired
     public DefaultAILabFactory(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
-        log.info("IAMLabFactory initialized with backward compatibility");
-    }
+            }
 
     @Override
     public <T extends AILab<?, ?>> Optional<T> getLab(Class<T> labType) {
         try {
             T lab = applicationContext.getBean(labType);
-            log.debug("Found AILab implementation: {}", labType.getSimpleName());
-            return Optional.of(lab);
+                        return Optional.of(lab);
         } catch (Exception e) {
-            log.debug("AILab not found, trying legacy LabAccessor: {}", labType.getSimpleName());
-        }
+                    }
 
         log.warn("Lab not found: {}", labType.getSimpleName());
         return Optional.empty();
@@ -51,8 +47,7 @@ public class DefaultAILabFactory implements AILabFactory {
                 return getLab((Class<AILab<?, ?>>) clazz);
             }
         } catch (ClassNotFoundException e) {
-            log.debug("Class not found: {}", className);
-        }
+                    }
         return Optional.empty();
     }
 }

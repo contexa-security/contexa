@@ -9,13 +9,11 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 
-
 @Slf4j
 public class SessionFingerprintUtil {
 
     private static final HexFormat HEX_FORMAT = HexFormat.of();
 
-    
     public static String generateFingerprint(SecurityEvent event) {
         if (event == null) {
             log.warn("[SessionFingerprint] Event is null, returning default fingerprint");
@@ -24,41 +22,29 @@ public class SessionFingerprintUtil {
 
         StringBuilder fingerprint = new StringBuilder();
 
-        
         if (event.getUserAgent() != null) {
             fingerprint.append("UA:").append(hashString(event.getUserAgent())).append("|");
         }
 
-        
         if (event.getSourceIp() != null) {
             fingerprint.append("IP:").append(hashString(event.getSourceIp())).append("|");
         }
 
-        
         int hourOfDay = event.getTimestamp().getHour();
         fingerprint.append("TH:").append(hourOfDay).append("|");
 
-        
         fingerprint.append("SV:").append(event.getSeverity() != null ? event.getSeverity().toString() : "INFO").append("|");
 
-        
         if (event.getMetadata() != null && !event.getMetadata().isEmpty()) {
             String metadataHash = hashString(event.getMetadata().toString());
             fingerprint.append("MD:").append(metadataHash).append("|");
         }
 
-        
-
-        
         String finalFingerprint = hashString(fingerprint.toString());
-
-        log.debug("[SessionFingerprint] Generated from SecurityEvent - userId: {}, sessionId: {}, fingerprint: {}",
-            event.getUserId(), event.getSessionId(), finalFingerprint);
 
         return finalFingerprint;
     }
 
-    
     public static String generateFingerprint(HCADContext context) {
         if (context == null) {
             log.warn("[SessionFingerprint] Context is null, returning default fingerprint");
@@ -67,17 +53,14 @@ public class SessionFingerprintUtil {
 
         StringBuilder fingerprint = new StringBuilder();
 
-        
         if (context.getUserAgent() != null) {
             fingerprint.append("UA:").append(hashString(context.getUserAgent())).append("|");
         }
 
-        
         if (context.getRemoteIp() != null) {
             fingerprint.append("IP:").append(hashString(context.getRemoteIp())).append("|");
         }
 
-        
         if (context.getTimestamp() != null) {
             LocalDateTime dateTime = LocalDateTime.ofInstant(context.getTimestamp(),
                 java.time.ZoneId.systemDefault());
@@ -85,7 +68,6 @@ public class SessionFingerprintUtil {
             fingerprint.append("TH:").append(hourOfDay).append("|");
         }
 
-        
         if (context.getHttpMethod() != null && context.getRequestPath() != null) {
             fingerprint.append("RT:")
                 .append(context.getHttpMethod())
@@ -94,22 +76,16 @@ public class SessionFingerprintUtil {
                 .append("|");
         }
 
-        
         if (context.getAdditionalAttributes() != null && !context.getAdditionalAttributes().isEmpty()) {
             String metadataHash = hashString(context.getAdditionalAttributes().toString());
             fingerprint.append("MD:").append(metadataHash).append("|");
         }
 
-        
         String finalFingerprint = hashString(fingerprint.toString());
-
-        log.debug("[SessionFingerprint] Generated from HCADContext - userId: {}, sessionId: {}, fingerprint: {}",
-            context.getUserId(), context.getSessionId(), finalFingerprint);
 
         return finalFingerprint;
     }
 
-    
     private static String hashString(String input) {
         if (input == null || input.isEmpty()) {
             return "00000000";
@@ -126,7 +102,6 @@ public class SessionFingerprintUtil {
         }
     }
 
-    
     public static double calculateSimilarity(String fp1, String fp2) {
         if (fp1 == null || fp2 == null) {
             return 0.0;
@@ -146,7 +121,6 @@ public class SessionFingerprintUtil {
         return 1.0 - ((double) distance / maxLength);
     }
 
-    
     private static int levenshteinDistance(String s1, String s2) {
         int len1 = s1.length();
         int len2 = s2.length();

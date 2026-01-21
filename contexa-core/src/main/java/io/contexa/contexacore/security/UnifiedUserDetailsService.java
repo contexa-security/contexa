@@ -27,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedUserDetailsService implements UserDetailsService {
@@ -46,27 +45,21 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        
         Set<GrantedAuthority> authorities = initializeAuthorities(user);
 
-        
         UserDto userDto = convertToDto(user);
 
-        
         if (anomalyDetectionProperties.isEnabled()) {
             checkAndHandleAnomalyBlocking(username);
         }
 
-        
         if (trustTierProperties.isEnabled() && redisTemplate != null) {
             adjustAuthoritiesByTrustTier(userDto, authorities);
         }
 
-        
         return new UnifiedCustomUserDetails(userDto, authorities);
     }
 
-    
     private Set<GrantedAuthority> initializeAuthorities(Users user) {
         Set<GrantedAuthority> authorities = new HashSet<>();
 
@@ -83,7 +76,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                     
                     authorities.add(new RoleAuthority(role));
 
-                    
                     Optional.ofNullable(role.getRolePermissions())
                             .orElse(Collections.emptySet())
                             .stream()
@@ -97,7 +89,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         return authorities;
     }
 
-    
     private UserDto convertToDto(Users user) {
         return UserDto.builder()
                 .id(user.getId())
@@ -113,7 +104,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                 .build();
     }
 
-    
     private void checkAndHandleAnomalyBlocking(String username) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getDetails() == null) {
@@ -128,7 +118,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
             if (anomalyData != null) {
                 log.warn("[Zero Trust] Anomaly detected for user: {}", username);
 
-                
                 AuditLog auditLog = AuditLog.builder()
                         .principalName(username)
                         .action("AUTHENTICATION_BLOCKED")
@@ -137,7 +126,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                         .build();
                 auditLogRepository.save(auditLog);
 
-                
                 if (anomalyDetectionProperties.getNotification().isEnabled() && notificationService != null) {
                     Map<String, Object> notificationData = new HashMap<>();
                     notificationData.put("username", username);
@@ -152,7 +140,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                     );
                 }
 
-                
                 if (anomalyDetectionProperties.isBlockOnAnomaly()) {
                     throw new AnomalyDetectedException("Authentication blocked due to anomaly");
                 }
@@ -160,7 +147,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         }
     }
 
-    
     private void adjustAuthoritiesByTrustTier(UserDto userDto, Set<GrantedAuthority> originalAuthorities) {
         Double trustScore = getTrustScore(userDto.getUsername());
         if (trustScore == null) {
@@ -170,7 +156,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         TrustTier trustTier = determineTrustTier(trustScore);
         Set<GrantedAuthority> adjustedAuthorities = filterAuthoritiesByTier(originalAuthorities, trustTier);
 
-        
         userDto.setAuthorities(adjustedAuthorities);  
         userDto.setTrustScore(trustScore);
         userDto.setTrustTier(trustTier.name());  
@@ -181,7 +166,6 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         metadata.put("filteredCount", originalAuthorities.size() - adjustedAuthorities.size());
         userDto.setTrustMetadata(metadata);
 
-        
         if (redisTemplate != null) {
             String key = String.format("zerotrust:user:trust_tier:%s", userDto.getUsername());
             redisTemplate.opsForValue().set(
@@ -192,11 +176,8 @@ public class UnifiedUserDetailsService implements UserDetailsService {
             );
         }
 
-        log.info("Trust Tier applied for user {}: {} (score: {})",
-                userDto.getUsername(), trustTier, trustScore);
-    }
+            }
 
-    
     private Double getTrustScore(String username) {
         if (redisTemplate == null) {
             return null;
@@ -210,12 +191,10 @@ public class UnifiedUserDetailsService implements UserDetailsService {
         return 1.0 - threatScore;
     }
 
-    
     private TrustTier determineTrustTier(Double trustScore) {
         return TrustTier.fromScore(trustScore, trustTierProperties.getThresholds());
     }
 
-    
     private Set<GrantedAuthority> filterAuthoritiesByTier(
             Set<GrantedAuthority> authorities, TrustTier tier) {
         Set<GrantedAuthority> filtered = new HashSet<>();

@@ -4,23 +4,18 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-
 @Data
 @ConfigurationProperties(prefix = "contexa.advisor")
 public class ContexaAdvisorProperties {
 
-    
     private String chainProfile = "STANDARD";
 
-    
     @NestedConfigurationProperty
     private SecurityAdvisorSettings security = new SecurityAdvisorSettings();
 
-    
     @NestedConfigurationProperty
     private SoarAdvisorSettings soar = new SoarAdvisorSettings();
 
-    
     @Data
     public static class SecurityAdvisorSettings {
         private boolean enabled = true;
@@ -28,7 +23,6 @@ public class ContexaAdvisorProperties {
         private boolean requireAuthentication = false;
     }
 
-    
     @Data
     public static class SoarAdvisorSettings {
         @NestedConfigurationProperty

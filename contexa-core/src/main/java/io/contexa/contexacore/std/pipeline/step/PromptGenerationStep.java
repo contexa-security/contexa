@@ -12,7 +12,6 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class PromptGenerationStep implements PipelineStep {
     
@@ -32,8 +31,7 @@ public class PromptGenerationStep implements PipelineStep {
             PipelineExecutionContext context) {
         
         return Mono.fromCallable(() -> {
-            log.info("✏️ [{}] Tool-Aware 프롬프트 생성 단계 실행", getStepName());
-            
+                        
             ContextRetriever.ContextRetrievalResult contextResult =
                 context.getStepResult(
                     PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL, 
@@ -52,12 +50,10 @@ public class PromptGenerationStep implements PipelineStep {
             Class<?> aiGenerationType = promptGenerator.getAIGenerationType(request);
             if (aiGenerationType != null) {
                 context.addMetadata("aiGenerationType", aiGenerationType);
-                log.debug("AI 생성 타입 설정: {}", aiGenerationType.getSimpleName());
-            }
+                            }
 
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
-            
             ToolCallback[] availableTools = chainedToolResolver != null
                 ? chainedToolResolver.getAllToolCallbacks()
                 : new ToolCallback[0];
@@ -67,25 +63,13 @@ public class PromptGenerationStep implements PipelineStep {
         });
     }
 
-    
     private void logPromptGenerationDetails(
             PromptGenerator.PromptGenerationResult promptResult,
             ToolCallback[] availableTools) {
-        
-        log.info("Tool-Aware 프롬프트 생성 완료:");
-        log.info("  - 시스템 프롬프트 길이: {} 문자", 
-            promptResult.getSystemPrompt() != null ? promptResult.getSystemPrompt().length() : 0);
-        log.info("  - 사용자 프롬프트 길이: {} 문자", 
-            promptResult.getUserPrompt() != null ? promptResult.getUserPrompt().length() : 0);
-        log.info("  - 통합된 도구 수: {} 개", availableTools.length);
-        
+
         if (log.isDebugEnabled()) {
-            log.debug("도구 목록:");
-            for (ToolCallback tool : availableTools) {
-                log.debug("  - {}: {}", 
-                    tool.getToolDefinition().name(),
-                    tool.getToolDefinition().description());
-            }
+                        for (ToolCallback tool : availableTools) {
+                            }
         }
     }
     

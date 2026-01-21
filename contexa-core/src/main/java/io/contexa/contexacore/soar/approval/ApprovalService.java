@@ -9,50 +9,38 @@ import java.util.concurrent.CompletableFuture;
 
 import reactor.core.publisher.Mono;
 
-
 public interface ApprovalService {
 
-    
     String requestApproval(SoarContext soarContext, ApprovalRequestDetails requestDetails);
 
-    
     ApprovalRequest.ApprovalStatus getApprovalStatus(String approvalId);
 
-    
     void handleApprovalResponse(String approvalId, boolean isApproved, String comment, String reviewer);
 
-    
     Set<String> getPendingApprovalIds();
 
-    
     int getPendingCount();
 
-    
     default CompletableFuture<Boolean> requestApproval(ApprovalRequest request) {
         throw new UnsupportedOperationException("requestApproval(ApprovalRequest) not implemented");
     }
 
-    
     default void processApprovalResponse(String requestId, boolean approved, String reviewer, String comment) {
         handleApprovalResponse(requestId, approved, comment, reviewer);
     }
 
-    
     default boolean waitForApprovalSync(ApprovalRequest request) {
         throw new UnsupportedOperationException("waitForApprovalSync not implemented");
     }
 
-    
     default ApprovalRequest saveApprovalRequest(ApprovalRequest request) {
         throw new UnsupportedOperationException("saveApprovalRequest not implemented");
     }
 
-    
     default void sendApprovalNotification(ApprovalRequest request) {
         throw new UnsupportedOperationException("sendApprovalNotification not implemented");
     }
 
-    
     default Mono<Boolean> waitForApproval(String requestId) {
         return Mono.defer(() -> {
             ApprovalRequest.ApprovalStatus status = getApprovalStatus(requestId);
@@ -60,33 +48,27 @@ public interface ApprovalService {
         });
     }
 
-    
     default void processApproval(String approvalId, boolean approved, String reason) {
         handleApprovalResponse(approvalId, approved, reason, "system");
     }
 
-    
     default List<ApprovalRequest> getPendingApprovals() {
         return List.of();
     }
 
-    
     default void submitApprovalRequest(ApprovalRequest request) {
         saveApprovalRequest(request);
         sendApprovalNotification(request);
     }
 
-    
     default void approve(String approvalId) {
         handleApprovalResponse(approvalId, true, "Approved", "system");
     }
 
-    
     default void reject(String approvalId) {
         handleApprovalResponse(approvalId, false, "Rejected", "system");
     }
 
-    
     default ApprovalRequest getApprovalRequest(String approvalId) {
         return null;
     }

@@ -6,14 +6,12 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.observation.SecurityVectorStoreObservationConvention;
-import io.contexa.contexacore.infra.redis.DistributedAIStrategyCoordinator;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
 import io.contexa.contexacore.std.llm.dynamic.AIModelManager;
-import io.contexa.contexacore.std.llm.dynamic.AIModelUsage;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.service.ModelDiscoveryService;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
@@ -26,11 +24,15 @@ import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.ollama.OllamaEmbeddingModel;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
-import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -46,7 +48,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -117,8 +118,13 @@ public class CoreRAGAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    public AIModelManager aiModelManager() {
-        return new AIModelManager();
+    public AIModelManager aiModelManager(
+            AnthropicChatModel anthropicChatModel,
+            OllamaChatModel ollamaChatModel,
+            OpenAiChatModel openAiChatModel,
+            OllamaEmbeddingModel ollamaEmbeddingModel,
+            OpenAiEmbeddingModel openAiEmbeddingModel) {
+        return new AIModelManager(anthropicChatModel,ollamaChatModel,openAiChatModel,ollamaEmbeddingModel,openAiEmbeddingModel);
     }
 
     
@@ -156,15 +162,6 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AIModelUsage aiModelUsage(
-            AIModelManager aiModelManager) {
-        return new AIModelUsage(aiModelManager);
-    }
-
-    
     @Bean
     @ConditionalOnMissingBean
     public DistributedStrategyExecutor distributedStrategyExecutor(

@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ColdPathEventProcessor implements IPathProcessor {
@@ -32,15 +31,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private final Layer1ContextualStrategy contextualStrategy;
     private final Layer2ExpertStrategy expertStrategy;
 
-    
     @Autowired(required = false)
     private BaselineLearningService baselineLearningService;
 
-    
     @Autowired(required = false)
     private AdminOverrideService adminOverrideService;
 
-    
     @Autowired(required = false)
     private LlmAnalysisEventListener llmAnalysisEventListener;
 
@@ -48,12 +44,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
     private volatile long lastProcessedTimestamp = 0;
 
-    
-    
-    
-    
-
-    
     @Override
     public ProcessingResult processEvent(SecurityEvent event, double riskScore) {
         long startTime = System.currentTimeMillis();
@@ -68,15 +58,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 );
             }
 
-            log.info("Cold Path 계층적 AI 진단 시작 - userId: {}, eventId: {}, riskScore: {}",
-                    userId, event.getEventId(), riskScore);
-
-            
             String requestPath = extractRequestPath(event);
             String analysisRequirement = extractAnalysisRequirement(event);
             publishContextCollected(userId, requestPath, analysisRequirement);
-            
-            
+
             ProcessingResult result = ProcessingResult.builder()
                     .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                     .currentRiskLevel(riskScore)
@@ -84,26 +69,20 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     .success(true)
                     .build();
 
-            
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore);
 
-            
             result.setRiskScore(analysisResult.getFinalScore());
 
             result.addAnalysisData("aiAssessment", analysisResult);
             
             result.addAnalysisData("action", analysisResult.getAction());
 
-            
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
 
-            
             final String finalUserId = userId;
             final SecurityEvent finalEvent = event;
             final ThreatAnalysisResult finalAnalysisResult = analysisResult;
 
-            
-            
             try {
                 saveAnalysisToRedis(finalUserId, finalAnalysisResult);
             } catch (Exception ex) {
@@ -112,28 +91,20 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 
             }
 
-            
-            
-            
             CompletableFuture.runAsync(() -> {
                 learnFromAnalysisResult(finalUserId, finalEvent, finalAnalysisResult);
             }).exceptionally(ex -> {
                 log.error("[ColdPath] Baseline 학습 실패 (비-치명적): userId={}", finalUserId, ex);
                 return null;
             });
-            
-            
+
             long processingTime = System.currentTimeMillis() - startTime;
             updateStatistics(processingTime);
-            
-            
+
             result.setProcessingTimeMs(processingTime);
             result.setProcessedAt(LocalDateTime.now());
             result.setStatus(ProcessingResult.ProcessingStatus.SUCCESS);
-            
-            log.info("Cold Path AI 진단 완료 - userId: {}, finalScore: {}, action: {}, 시간: {}ms",
-                    userId, analysisResult.getFinalScore(), analysisResult.getAction(), processingTime);
-            
+
             return result;
             
         } catch (Exception e) {
@@ -145,8 +116,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
     }
 
-
-    
     private ThreatAnalysisResult performTieredAIAnalysis(SecurityEvent event, double riskScore) {
         ThreatAnalysisResult result = new ThreatAnalysisResult();
         result.setBaseScore(riskScore);
@@ -156,28 +125,16 @@ public class ColdPathEventProcessor implements IPathProcessor {
         String requestPath = extractRequestPath(event);
 
         try {
-            
-            log.info("계층적 분석 시작 - riskScore: {}, eventId: {}",
-                    riskScore, event.getEventId());
 
             ThreatAssessment layer1Assessment = null;
             if (contextualStrategy != null) {
-                log.debug("Layer 1 컨텍스트 분석 시작 - eventId: {}", event.getEventId());
 
-                
                 publishLayer1Start(userId, requestPath);
 
                 long layer1StartTime = System.currentTimeMillis();
                 layer1Assessment = contextualStrategy.evaluate(event);
                 long layer1ElapsedMs = System.currentTimeMillis() - layer1StartTime;
 
-                
-                log.info("Layer 1 평가: riskScore={}, confidence={}, action={}, shouldEscalate={}",
-                        layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
-                        layer1Assessment.getAction(), layer1Assessment.isShouldEscalate());
-
-                
-                
                 if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.getRiskScore());
                     result.setConfidence(layer1Assessment.getConfidence());
@@ -186,38 +143,26 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     result.setAnalysisDepth(1); 
                     result.setAction(layer1Assessment.getAction()); 
 
-                    
-                    
                     String reasoning = layer1Assessment.getReasoning() != null
                             ? layer1Assessment.getReasoning() : "Layer1 analysis completed";
                     publishLayer1Complete(userId, layer1Assessment.getAction(),
                             layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
                             reasoning, extractMitre(layer1Assessment), layer1ElapsedMs);
 
-                    
                     publishDecisionApplied(userId, layer1Assessment.getAction(), "LAYER1", requestPath);
-
-                    log.info("Layer 1에서 처리 완료 - LLM이 에스컬레이션 불필요 판단, action: {}, 시간: {}ms",
-                            layer1Assessment.getAction(), System.currentTimeMillis() - startTime);
 
                     return result;
                 }
 
-                
                 publishLayer1Complete(userId, "ESCALATE",
                         layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
                         "Escalating to Layer2 for deeper analysis", "none", layer1ElapsedMs);
 
-                
                 event.getMetadata().put("layer1Assessment", layer1Assessment);
-                log.debug("Layer 1 결과를 metadata에 저장 - Layer2로 전달");
-            }
+                            }
 
-            
             if (expertStrategy != null) {
-                log.debug("Layer 2 전문가 분석 시작 - eventId: {}", event.getEventId());
 
-                
                 String escalationReason = layer1Assessment != null
                         ? "Low confidence in Layer1: " + layer1Assessment.getConfidence()
                         : "Direct escalation to expert analysis";
@@ -227,11 +172,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 ThreatAssessment layer2Assessment = expertStrategy.evaluate(event);
                 long layer2ElapsedMs = System.currentTimeMillis() - layer2StartTime;
 
-                
-                log.info("Layer 2 평가: riskScore={}, confidence={}, action={}",
-                        layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
-                        layer2Assessment.getAction());
-
                 result.setFinalScore(layer2Assessment.getRiskScore());
                 result.setConfidence(layer2Assessment.getConfidence());
                 result.addIndicators(layer2Assessment.getIndicators());
@@ -239,19 +179,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 result.setAnalysisDepth(2); 
                 result.setAction(layer2Assessment.getAction()); 
 
-                
-                
                 String layer2Reasoning = layer2Assessment.getReasoning() != null
                         ? layer2Assessment.getReasoning() : "Layer2 expert analysis completed";
                 publishLayer2Complete(userId, layer2Assessment.getAction(),
                         layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
                         layer2Reasoning, extractMitre(layer2Assessment), layer2ElapsedMs);
 
-                
                 publishDecisionApplied(userId, layer2Assessment.getAction(), "LAYER2", requestPath);
-
-                log.info("Layer 2에서 최종 처리 완료 (5% 케이스) - action: {}, 시간: {}ms",
-                        layer2Assessment.getAction(), System.currentTimeMillis() - startTime);
 
                 return result;
             }
@@ -259,28 +193,23 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
         } catch (Exception e) {
             log.error("계층적 AI 분석 실패 - eventId: {}, riskScore를 fallback으로 사용", event.getEventId(), e);
-            
-            
+
             result.setFinalScore(riskScore);
 
-            
             result.setAction("ESCALATE");
 
-            
             result.setConfidence(Double.NaN);
             result.setAnalysisDepth(0);  
             return result;
         }
     }
 
-    
     private synchronized void updateStatistics(long processingTime) {
         processedCount.incrementAndGet();
         totalProcessingTime.addAndGet(processingTime);
         lastProcessedTimestamp = System.currentTimeMillis();
     }
 
-    
     private void saveAnalysisToRedis(String userId, ThreatAnalysisResult analysisResult) {
         if (userId == null || userId.isBlank()) {
             return;
@@ -295,11 +224,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 log.warn("[ColdPath][AI Native] LLM action 미반환, ESCALATE 설정 - userId: {}", userId);
             }
 
-            
-            
-            
-            
-            
             Duration ttl = switch (action.toUpperCase()) {
                 case "BLOCK" -> null;  
                 case "ESCALATE" -> Duration.ofMinutes(5);
@@ -307,7 +231,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 default -> Duration.ofSeconds(30);  
             };
 
-            
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Map<String, Object> fields = new HashMap<>();
             fields.put("action", action);
@@ -322,13 +245,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 redisTemplate.expire(analysisKey, ttl);
             }
 
-            log.info("[ColdPath][AI Native] Analysis saved to Redis: userId={}, action={}, riskScore={}, confidence={}, ttl={}",
-                    userId, action,
-                    String.format("%.3f", analysisResult.getFinalScore()),
-                    String.format("%.3f", analysisResult.getConfidence()),
-                    ttl != null ? ttl.toSeconds() + "s" : "permanent");
-
-            
             if ("BLOCK".equalsIgnoreCase(action) && adminOverrideService != null) {
                 String requestId = (String) fields.get("requestId");
                 if (requestId == null) {
@@ -344,20 +260,16 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     reasoning
                 );
 
-                log.info("[ColdPath][AI Native] BLOCK 요청을 관리자 검토 대기열에 추가: userId={}, requestId={}",
-                    userId, requestId);
-            }
+                            }
 
         } catch (Exception e) {
             log.error("[ColdPath] Failed to save analysis to Redis: userId={}", userId, e);
         }
     }
 
-    
     private void learnFromAnalysisResult(String userId, SecurityEvent event, ThreatAnalysisResult analysisResult) {
         if (baselineLearningService == null) {
-            log.debug("[ColdPath] BaselineLearningService not available, skipping baseline learning");
-            return;
+                        return;
         }
 
         if (userId == null || userId.isBlank() || analysisResult == null) {
@@ -368,14 +280,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
             
             SecurityDecision decision = analysisResult.getFinalDecision();
 
-            
-            
             boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
 
             if (learned) {
-                log.debug("[ColdPath][AI Native] Baseline learning completed: userId={}, action={}, confidence={}",
-                    userId, decision.getAction(), String.format("%.3f", decision.getConfidence()));
-            }
+                            }
 
         } catch (Exception e) {
             log.warn("[ColdPath] Baseline learning failed (non-critical): userId={}", userId, e);
@@ -392,15 +300,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
     public String getProcessorName() {
         return "ColdPathEventProcessor-AI";
     }
-    
-    
-    
-    
-
-    
-    
-    
-    
 
     @Override
     public ProcessorStatistics getStatistics() {
@@ -416,8 +315,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
         
         return stats;
     }
-    
-    
+
     @Getter @Setter
     public static class ThreatAnalysisResult {
         private double baseScore;
@@ -426,8 +324,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private Set<String> indicators = new HashSet<>();
         private Set<String> recommendedActions = new HashSet<>();
         private int analysisDepth = 0;
-        
-        
+
         private String action;
 
         public List<String> getIndicators() { return new ArrayList<>(indicators); }
@@ -444,7 +341,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
             }
         }
 
-        
         public SecurityDecision getFinalDecision() {
             
             SecurityDecision.Action decisionAction;
@@ -476,15 +372,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
     }
 
-    
-
     private void publishContextCollected(String userId, String requestPath, String analysisRequirement) {
         if (llmAnalysisEventListener != null) {
             try {
                 llmAnalysisEventListener.onContextCollected(userId, requestPath, analysisRequirement);
             } catch (Exception e) {
-                log.debug("[ColdPath][SSE] 컨텍스트 수집 이벤트 발행 실패: {}", e.getMessage());
-            }
+                            }
         }
     }
 
@@ -532,8 +425,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
             try {
                 llmAnalysisEventListener.onLayer1Start(userId, requestPath);
             } catch (Exception e) {
-                log.debug("[ColdPath][SSE] Layer1 시작 이벤트 발행 실패: {}", e.getMessage());
-            }
+                            }
         }
     }
 
@@ -544,8 +436,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 llmAnalysisEventListener.onLayer1Complete(userId, action, riskScore,
                         confidence, reasoning, mitre, elapsedMs);
             } catch (Exception e) {
-                log.debug("[ColdPath][SSE] Layer1 완료 이벤트 발행 실패: {}", e.getMessage());
-            }
+                            }
         }
     }
 
@@ -554,8 +445,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
             try {
                 llmAnalysisEventListener.onLayer2Start(userId, requestPath, reason);
             } catch (Exception e) {
-                log.debug("[ColdPath][SSE] Layer2 시작 이벤트 발행 실패: {}", e.getMessage());
-            }
+                            }
         }
     }
 
@@ -566,8 +456,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 llmAnalysisEventListener.onLayer2Complete(userId, action, riskScore,
                         confidence, reasoning, mitre, elapsedMs);
             } catch (Exception e) {
-                log.debug("[ColdPath][SSE] Layer2 완료 이벤트 발행 실패: {}", e.getMessage());
-            }
+                            }
         }
     }
 
@@ -576,8 +465,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
             try {
                 llmAnalysisEventListener.onDecisionApplied(userId, action, layer, requestPath);
             } catch (Exception e) {
-                log.debug("[ColdPath][SSE] 최종 결정 이벤트 발행 실패: {}", e.getMessage());
-            }
+                            }
         }
     }
 }

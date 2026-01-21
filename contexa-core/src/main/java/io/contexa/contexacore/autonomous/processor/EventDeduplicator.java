@@ -13,11 +13,9 @@ import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class EventDeduplicator implements EventProcessor<SecurityEvent> {
 
-    
     private static final ThreadLocal<MessageDigest> MESSAGE_DIGEST = ThreadLocal.withInitial(() -> {
         try {
             return MessageDigest.getInstance("SHA-256");
@@ -26,22 +24,17 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
         }
     });
 
-    
     private final SecurityPlaneProperties securityPlaneProperties;
 
-    
     private Cache<String, Long> deduplicationCache;
 
-    
     private final AtomicLong totalEvents = new AtomicLong(0);
     private final AtomicLong duplicateEvents = new AtomicLong(0);
 
-    
     public EventDeduplicator(SecurityPlaneProperties securityPlaneProperties) {
         this.securityPlaneProperties = securityPlaneProperties;
     }
 
-    
     private SecurityPlaneProperties.DeduplicationSettings getSettings() {
         return securityPlaneProperties.getDeduplication();
     }
@@ -55,11 +48,8 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
                 .recordStats()
                 .build();
 
-        log.info("EventDeduplicator initialized - window: {} minutes, cache size: {}, enabled: {}",
-                getSettings().getWindowMinutes(), getSettings().getCacheSize(), getSettings().isEnabled());
-    }
-    
-    
+            }
+
     @Override
     public SecurityEvent process(SecurityEvent event) {
         if (event == null) {
@@ -68,24 +58,19 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
         
         totalEvents.incrementAndGet();
 
-        
         if (!getSettings().isEnabled()) {
             return event;
         }
-        
-        
+
         if (isDuplicate(event)) {
             duplicateEvents.incrementAndGet();
             
-            log.debug("Duplicate event detected and filtered: eventId={}, userId={}",
-                     event.getEventId(), event.getUserId());
-            return null; 
+                        return null; 
         }
         
         return event;
     }
-    
-    
+
     private boolean isDuplicate(SecurityEvent event) {
         
         if (event.getEventId() != null && !event.getEventId().isEmpty()) {
@@ -93,61 +78,46 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
             Long existingTimestamp = deduplicationCache.getIfPresent(idKey);
             
             if (existingTimestamp != null) {
-                log.trace("Duplicate detected by event ID: {}", event.getEventId());
-                return true;
+                                return true;
             }
-            
-            
+
             deduplicationCache.put(idKey, System.currentTimeMillis());
         }
-        
-        
-        
-        
+
         String contentHash = calculateEventHash(event);
         if (contentHash != null) {
             String hashKey = "hash:" + contentHash;
 
             if (deduplicationCache.getIfPresent(hashKey) != null) {
                 
-                log.trace("Duplicate detected by content hash: {}", contentHash.substring(0, 8));
-                return true;
+                                return true;
             }
 
-            
             deduplicationCache.put(hashKey, System.currentTimeMillis());
         }
         
         return false;
     }
-    
-    
+
     private String calculateEventHash(SecurityEvent event) {
         
         MessageDigest md = MESSAGE_DIGEST.get();
         md.reset();  
 
-        
         StringBuilder sb = new StringBuilder();
 
-        
         if (event.getSourceIp() != null) {
             sb.append(event.getSourceIp()).append("|");
         }
 
-        
         if (event.getUserId() != null) {
             sb.append(event.getUserId()).append("|");
         }
 
-        
-
-        
         if (event.getSeverity() != null) {
             sb.append(event.getSeverity().name()).append("|");
         }
 
-        
         if (event.getTimestamp() != null) {
             sb.append(event.getTimestamp().getYear())
               .append(event.getTimestamp().getMonthValue())
@@ -156,7 +126,6 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
               .append(event.getTimestamp().getMinute());
         }
 
-        
         if (event.getMetadata() != null) {
             Object action = event.getMetadata().get("action");
             if (action != null) {
@@ -172,8 +141,7 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
         byte[] hashBytes = md.digest(sb.toString().getBytes());
         return Base64.getEncoder().encodeToString(hashBytes);
     }
-    
-    
+
     public DeduplicationStats getStatistics() {
         return DeduplicationStats.builder()
                 .totalEvents(totalEvents.get())
@@ -183,8 +151,7 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
                 .cacheStats(deduplicationCache.stats())
                 .build();
     }
-    
-    
+
     private double calculateDuplicateRate() {
         long total = totalEvents.get();
         if (total == 0) {
@@ -192,33 +159,27 @@ public class EventDeduplicator implements EventProcessor<SecurityEvent> {
         }
         return (double) duplicateEvents.get() / total * 100;
     }
-    
-    
+
     public void clearCache() {
         deduplicationCache.invalidateAll();
         deduplicationCache.cleanUp();
-        log.info("Deduplication cache cleared");
-    }
-    
-    
+            }
+
     @Override
     public int getPriority() {
         return 50;
     }
-    
-    
+
     @Override
     public String getName() {
         return "EventDeduplicator";
     }
-    
-    
+
     @Override
     public boolean isEnabled() {
         return getSettings().isEnabled();
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     public static class DeduplicationStats {

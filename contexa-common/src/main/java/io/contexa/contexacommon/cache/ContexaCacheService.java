@@ -46,8 +46,7 @@ public class ContexaCacheService {
             String cachedJson = localCache.getIfPresent(key);
             if (cachedJson != null) {
                 try {
-                    log.trace("L1 캐시 히트: {}", key);
-                    return objectMapper.readValue(cachedJson, typeRef);
+                                        return objectMapper.readValue(cachedJson, typeRef);
                 } catch (JsonProcessingException e) {
                     log.warn("L1 캐시 역직렬화 실패: {}", key, e);
                     localCache.invalidate(key);
@@ -66,8 +65,7 @@ public class ContexaCacheService {
                     if (properties.getType() == ContexaCacheProperties.CacheType.HYBRID) {
                         backfillToL1(key, redisJson, domain);
                     }
-                    log.trace("L2 캐시 히트 (Redis): {}", key);
-                    return value;
+                                        return value;
                 }
             } catch (Exception e) {
                 log.warn("L2 캐시 조회 실패: {}", key, e);
@@ -75,8 +73,7 @@ public class ContexaCacheService {
         }
 
 
-        log.trace("캐시 미스, 데이터 로드: {}", key);
-        T value = loader.get();
+                T value = loader.get();
         if (value != null) {
             put(key, value, domain);
         }
@@ -101,8 +98,7 @@ public class ContexaCacheService {
                 redisTemplate.opsForValue().set(redisKey, json, ttlSeconds, TimeUnit.SECONDS);
             }
 
-            log.trace("캐시 저장 완료: {}", key);
-
+            
         } catch (JsonProcessingException e) {
             log.error("캐시 직렬화 실패: {}", key, e);
         }
@@ -239,8 +235,7 @@ public class ContexaCacheService {
         try {
             Cache<String, String> localCache = getOrCreateDomainCache(domain);
             localCache.put(key, json);
-            log.trace("L1 백필 완료: {}", key);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("L1 백필 실패: {}", key, e);
         }
     }

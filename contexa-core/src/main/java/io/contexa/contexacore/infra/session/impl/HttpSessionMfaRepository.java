@@ -13,7 +13,6 @@ import org.springframework.lang.Nullable;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @ConditionalOnProperty(name = "security.mfa.session.storage-type", havingValue = "http-session", matchIfMissing = true)
 public class HttpSessionMfaRepository implements MfaSessionRepository {
@@ -39,8 +38,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
         session.setMaxInactiveInterval((int) sessionTimeout.toSeconds());
 
         totalSessionsCreated.incrementAndGet();
-        log.debug("MFA session stored in HTTP Session: {}", sessionId);
-    }
+            }
 
     @Override
     @Nullable
@@ -58,14 +56,12 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
         if (session != null) {
             session.removeAttribute(MFA_SESSION_ID_ATTRIBUTE);
             session.removeAttribute(SESSION_CREATION_TIME_ATTRIBUTE);
-            log.debug("MFA session removed from HTTP Session: {}", sessionId);
-        }
+                    }
     }
 
     @Override
     public void refreshSession(String sessionId) {
-        log.trace("HTTP Session auto-refresh for: {}", sessionId);
-    }
+            }
 
     @Override
     public boolean existsSession(String sessionId) {
@@ -75,8 +71,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
     @Override
     public void setSessionTimeout(Duration timeout) {
         this.sessionTimeout = timeout;
-        log.info("HTTP Session timeout set to: {}", timeout);
-    }
+            }
 
     @Override
     public String getRepositoryType() {
@@ -100,9 +95,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             String resolvedId = sessionIdGenerator.resolveCollision(originalId, attempt, request);
             if (isValidSessionIdFormat(resolvedId)) {
-                log.debug("HTTP Session ID collision resolved: {} -> {} (attempt: {})",
-                        originalId, resolvedId, attempt + 1);
-                return resolvedId;
+                                return resolvedId;
             }
         }
 

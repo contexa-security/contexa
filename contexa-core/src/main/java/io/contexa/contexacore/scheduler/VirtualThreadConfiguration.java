@@ -11,17 +11,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-
 @Configuration
 @ConditionalOnProperty(value = "spring.threads.virtual.enabled", havingValue = "true")
 @Slf4j
 public class VirtualThreadConfiguration {
 
-    
     @Bean(name = "parallelVirtualScheduler")
     public Scheduler parallelVirtualScheduler() {
-        log.info("병렬 Virtual Thread Scheduler 생성 (named)");
-        ThreadFactory virtualThreadFactory = Thread.ofVirtual()
+                ThreadFactory virtualThreadFactory = Thread.ofVirtual()
                 .name("ParallelLab-VT-", 0)  
                 .factory();
 
@@ -30,11 +27,8 @@ public class VirtualThreadConfiguration {
         return Schedulers.fromExecutorService(executor);
     }
 
-    
     @Bean(name = "streamingVirtualScheduler")
     public Scheduler streamingVirtualScheduler() {
-        log.info("스트리밍 전용 재사용 Virtual Thread Scheduler 생성 (newSingleThreadExecutor)");
-        
 
         ExecutorService singleVirtualThreadExecutor = Executors.newSingleThreadExecutor();
         return Schedulers.fromExecutorService(singleVirtualThreadExecutor);

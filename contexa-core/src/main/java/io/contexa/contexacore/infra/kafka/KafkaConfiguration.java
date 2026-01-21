@@ -20,7 +20,6 @@ import org.springframework.util.backoff.FixedBackOff;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Configuration
 @EnableKafka
 public class KafkaConfiguration {
@@ -43,7 +42,6 @@ public class KafkaConfiguration {
     @Value("${spring.kafka.listener.concurrency:3}")
     private int concurrency;
 
-    
     @Bean
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();
@@ -54,15 +52,13 @@ public class KafkaConfiguration {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, enableAutoCommit);
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollRecords);
-        
-        
+
         props.put(JsonDeserializer.TRUSTED_PACKAGES, "io.contexa.contexacore.*");
         props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, "io.contexa.contexacore.plane.domain.SecurityEvent");
         
         return props;
     }
 
-    
     @Bean
     public Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<>();
@@ -78,13 +74,11 @@ public class KafkaConfiguration {
         return props;
     }
 
-    
     @Bean
     public ConsumerFactory<String, String> consumerFactory() {
         return new DefaultKafkaConsumerFactory<>(consumerConfigs());
     }
 
-    
     @Bean
     public ProducerFactory<String, Object> producerFactory(ObjectMapper objectMapper) {
         Map<String, Object> props = new HashMap<>(producerConfigs());
@@ -93,13 +87,11 @@ public class KafkaConfiguration {
         return new DefaultKafkaProducerFactory<>(props, new StringSerializer(), serializer);
     }
 
-    
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
         return new KafkaTemplate<>(producerFactory);
     }
 
-    
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory = 
@@ -108,36 +100,28 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(consumerFactory());
         factory.setConcurrency(concurrency);
 
-        
-        
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
-        
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(1000L, 3));
         factory.setCommonErrorHandler(errorHandler);
 
         return factory;
     }
 
-    
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> batchKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
             new ConcurrentKafkaListenerContainerFactory<>();
 
-        
         factory.setBatchListener(true);
         factory.setConcurrency(concurrency);
 
-        
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.getContainerProperties().setPollTimeout(3000);
 
-        
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(new FixedBackOff(2000L, 3));
         factory.setCommonErrorHandler(errorHandler);
 
-        
         Map<String, Object> props = new HashMap<>(consumerConfigs());
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10);       
         props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1);         
@@ -150,7 +134,6 @@ public class KafkaConfiguration {
         return factory;
     }
 
-    
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> jsonKafkaListenerContainerFactory() {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
@@ -165,7 +148,6 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(jsonConsumerFactory);
         factory.setConcurrency(concurrency);
 
-        
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         return factory;

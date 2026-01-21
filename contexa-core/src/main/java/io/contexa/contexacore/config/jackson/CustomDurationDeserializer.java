@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import java.io.IOException;
 import java.time.Duration;
 
-
 public class CustomDurationDeserializer extends JsonDeserializer<Duration> {
 
     @Override
@@ -18,7 +17,6 @@ public class CustomDurationDeserializer extends JsonDeserializer<Duration> {
 
         value = value.trim();
 
-        
         if (value.startsWith("P")) {
             try {
                 return Duration.parse(value);
@@ -27,7 +25,6 @@ public class CustomDurationDeserializer extends JsonDeserializer<Duration> {
             }
         }
 
-        
         if (value.matches("\\d{2}:\\d{2}:\\d{2}")) {
             String[] parts = value.split(":");
             long hours = Long.parseLong(parts[0]);
@@ -38,7 +35,6 @@ public class CustomDurationDeserializer extends JsonDeserializer<Duration> {
                     .plusSeconds(seconds);
         }
 
-        
         try {
             long millis = Long.parseLong(value);
             return Duration.ofMillis(millis);
@@ -46,7 +42,6 @@ public class CustomDurationDeserializer extends JsonDeserializer<Duration> {
             
         }
 
-        
         return Duration.ZERO;
     }
 }

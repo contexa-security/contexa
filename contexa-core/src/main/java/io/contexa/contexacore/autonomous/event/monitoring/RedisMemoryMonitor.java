@@ -14,7 +14,6 @@ import jakarta.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class RedisMemoryMonitor {
@@ -31,7 +30,6 @@ public class RedisMemoryMonitor {
     @Value("${security.redis.memory.critical-threshold:0.9}")
     private double criticalThreshold;
 
-    
     private final AtomicLong usedMemoryBytes = new AtomicLong(0);
     private final AtomicLong totalKeys = new AtomicLong(0);
     private final AtomicLong peakMemoryBytes = new AtomicLong(0);
@@ -63,17 +61,12 @@ public class RedisMemoryMonitor {
             .description("Redis memory utilization ratio (0-1)")
             .register(meterRegistry);
 
-        log.info("RedisMemoryMonitor initialized: maxMemoryMb={}, warningThreshold={}, criticalThreshold={}",
-            maxMemoryMb, warningThreshold, criticalThreshold);
-    }
-
-    
+            }
 
     public void monitorMemory() {
         try {
             RedisMemoryInfo memoryInfo = getMemoryInfo();
 
-            
             usedMemoryBytes.set(memoryInfo.getUsedMemory());
             totalKeys.set(memoryInfo.getTotalKeys());
 
@@ -81,24 +74,10 @@ public class RedisMemoryMonitor {
                 peakMemoryBytes.set(memoryInfo.getUsedMemory());
             }
 
-            
             double utilizationRatio = (double) memoryInfo.getUsedMemory() / (maxMemoryMb * 1024 * 1024);
 
-            log.info("=== Redis Memory Report ===");
-            log.info("Used Memory: {}MB / {}MB ({:.1f}%)",
-                memoryInfo.getUsedMemory() / 1024 / 1024,
-                maxMemoryMb,
-                utilizationRatio * 100);
-            log.info("Total Keys: {}", memoryInfo.getTotalKeys());
-            log.info("Peak Memory: {}MB", peakMemoryBytes.get() / 1024 / 1024);
-            log.info("Fragmentation Ratio: {:.2f}", memoryInfo.getFragmentationRatio());
-            log.info("Evicted Keys: {}", memoryInfo.getEvictedKeys());
-
-            
             Map<String, Long> keysByPattern = analyzeKeyPatterns();
-            log.info("Keys by pattern: {}", keysByPattern);
 
-            
             checkThresholds(utilizationRatio, memoryInfo);
 
         } catch (Exception e) {
@@ -106,7 +85,6 @@ public class RedisMemoryMonitor {
         }
     }
 
-    
     private RedisMemoryInfo getMemoryInfo() {
         return redisTemplate.execute((RedisConnection connection) -> {
             Properties info = connection.info("memory");
@@ -129,7 +107,6 @@ public class RedisMemoryMonitor {
         });
     }
 
-    
     private Map<String, Long> analyzeKeyPatterns() {
         Map<String, Long> patternCounts = new HashMap<>();
 
@@ -139,7 +116,6 @@ public class RedisMemoryMonitor {
                 return patternCounts;
             }
 
-            
             List<String> sampleKeys = keys.stream()
                 .limit(100)
                 .toList();
@@ -149,7 +125,6 @@ public class RedisMemoryMonitor {
                 patternCounts.merge(pattern, 1L, Long::sum);
             }
 
-            
             long totalKeys = keys.size();
             long sampleSize = sampleKeys.size();
             if (sampleSize > 0) {
@@ -164,13 +139,11 @@ public class RedisMemoryMonitor {
         return patternCounts;
     }
 
-    
     private String extractPattern(String key) {
         if (key == null || key.isEmpty()) {
             return "UNKNOWN";
         }
 
-        
         String[] parts = key.split(":");
         if (parts.length >= 3) {
             return parts[0] + ":" + parts[1] + ":" + parts[2];
@@ -181,7 +154,6 @@ public class RedisMemoryMonitor {
         }
     }
 
-    
     private void checkThresholds(double utilizationRatio, RedisMemoryInfo memoryInfo) {
         if (utilizationRatio >= criticalThreshold) {
             log.error("CRITICAL: Redis memory usage at {:.1f}% (threshold: {:.1f}%)",
@@ -194,39 +166,30 @@ public class RedisMemoryMonitor {
             sendWarningAlert(utilizationRatio, memoryInfo);
         }
 
-        
         if (memoryInfo.getEvictedKeys() > 0) {
             log.warn("Redis is evicting keys: evictedKeys={}", memoryInfo.getEvictedKeys());
         }
 
-        
         if (memoryInfo.getFragmentationRatio() > 1.5) {
             log.warn("High memory fragmentation detected: ratio={:.2f}", memoryInfo.getFragmentationRatio());
         }
     }
 
-    
     private void sendWarningAlert(double utilizationRatio, RedisMemoryInfo memoryInfo) {
         log.warn("ALERT: Redis memory warning - utilization={:.1f}%, keys={}, fragmentation={:.2f}",
             utilizationRatio * 100, memoryInfo.getTotalKeys(), memoryInfo.getFragmentationRatio());
 
-        
     }
 
-    
     private void sendCriticalAlert(double utilizationRatio, RedisMemoryInfo memoryInfo) {
         log.error("ALERT: Redis memory CRITICAL - utilization={:.1f}%, keys={}, evicted={}",
             utilizationRatio * 100, memoryInfo.getTotalKeys(), memoryInfo.getEvictedKeys());
 
-        
     }
 
-    
     public void cleanupExpiredKeys() {
         try {
-            log.info("Starting Redis expired keys cleanup");
 
-            
             Set<String> keys = redisTemplate.keys("*");
             if (keys != null) {
                 long cleaned = keys.stream()
@@ -235,8 +198,8 @@ public class RedisMemoryMonitor {
                         Long ttl = redisTemplate.getExpire(key);
                         return ttl != null && ttl == -1;  
                     })
-                    .peek(key -> log.debug("Cleaning key without TTL: {}", key))
-                    .count();
+                        .peek(key -> log.debug("Cleaning key without TTL: {}", key))
+                        .count();
 
                 log.info("Cleanup completed: checked keys, found {} without TTL", cleaned);
             }
@@ -246,7 +209,6 @@ public class RedisMemoryMonitor {
         }
     }
 
-    
     @lombok.Data
     @lombok.Builder
     private static class RedisMemoryInfo {

@@ -4,63 +4,48 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-
 @Data
 @ConfigurationProperties(prefix = "hcad")
 public class HcadProperties {
 
-    
     private boolean enabled = true;
 
-    
     @NestedConfigurationProperty
     private ThresholdSettings threshold = new ThresholdSettings();
 
-    
     @NestedConfigurationProperty
     private CacheSettings cache = new CacheSettings();
 
-    
     @NestedConfigurationProperty
     private BaselineSettings baseline = new BaselineSettings();
 
-    
     @NestedConfigurationProperty
     private FeedbackSettings feedback = new FeedbackSettings();
 
-    
     @NestedConfigurationProperty
     private OrchestratorSettings orchestrator = new OrchestratorSettings();
 
-    
     @NestedConfigurationProperty
     private VectorSettings vector = new VectorSettings();
 
-    
     @NestedConfigurationProperty
     private SessionSettings session = new SessionSettings();
 
-    
     @NestedConfigurationProperty
     private SignalSettings signal = new SignalSettings();
 
-    
     @NestedConfigurationProperty
     private SamplingSettings sampling = new SamplingSettings();
 
-    
     @NestedConfigurationProperty
     private AdaptiveSettings adaptive = new AdaptiveSettings();
 
-    
     @NestedConfigurationProperty
     private SimilaritySettings similarity = new SimilaritySettings();
 
-    
     @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
 
-    
     @Data
     public static class ThresholdSettings {
         private double base = 0.7;
@@ -71,7 +56,6 @@ public class HcadProperties {
         private double warn = 0.7;
     }
 
-    
     @Data
     public static class CacheSettings {
         private int maxSize = 100000;
@@ -87,7 +71,6 @@ public class HcadProperties {
         }
     }
 
-    
     @Data
     public static class BaselineSettings {
         private double minConfidence = 0.3;
@@ -123,7 +106,6 @@ public class HcadProperties {
         }
     }
 
-    
     @Data
     public static class FeedbackSettings {
         private double learningRate = 0.1;
@@ -139,7 +121,6 @@ public class HcadProperties {
         }
     }
 
-    
     @Data
     public static class OrchestratorSettings {
         private boolean enabled = true;
@@ -148,7 +129,6 @@ public class HcadProperties {
         private boolean performanceTracking = true;
     }
 
-    
     @Data
     public static class VectorSettings {
         private int embeddingDimension = 384;
@@ -158,14 +138,12 @@ public class HcadProperties {
         private boolean scenarioDetectionEnabled = true;
     }
 
-    
     @Data
     public static class SessionSettings {
         private String cookieName = "JSESSIONID";
         private String headerName = "X-Session-Id";
     }
 
-    
     @Data
     public static class SignalSettings {
         private double chiSquareThreshold = 14.07;
@@ -205,7 +183,6 @@ public class HcadProperties {
         }
     }
 
-    
     @Data
     public static class SamplingSettings {
         @NestedConfigurationProperty
@@ -232,7 +209,6 @@ public class HcadProperties {
         }
     }
 
-    
     @Data
     public static class AdaptiveSettings {
         private double adjustmentRate = 0.1;
@@ -269,13 +245,11 @@ public class HcadProperties {
         }
     }
 
-    
     @Data
     public static class SimilaritySettings {
         private double hotPathThreshold = 0.7;
     }
 
-    
     @Data
     public static class RedisSettings {
         private String keyPrefix = "hcad:baseline:v2:";

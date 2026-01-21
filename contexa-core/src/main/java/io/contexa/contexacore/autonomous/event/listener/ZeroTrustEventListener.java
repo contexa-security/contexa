@@ -16,7 +16,6 @@ import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class ZeroTrustEventListener {
 
@@ -39,20 +38,15 @@ public class ZeroTrustEventListener {
         this.postProcessor = postProcessor;
     }
 
-    
-
-    
     @EventListener
     public void handleZeroTrustEvent(ZeroTrustSpringEvent event) {
         long startTime = System.currentTimeMillis();
 
         try {
             if (!zeroTrustEnabled) {
-                log.debug("Zero Trust is disabled, skipping event processing");
-                return;
+                                return;
             }
 
-            
             switch (event.getCategory()) {
                 case AUTHENTICATION:
                     processAuthenticationEvent(event);
@@ -74,9 +68,7 @@ public class ZeroTrustEventListener {
             }
 
             long duration = System.currentTimeMillis() - startTime;
-            log.debug("[ZeroTrustEventListener] Event processed - category: {}, type: {}, duration: {}ms",
-                    event.getCategory(), event.getEventType(), duration);
-
+            
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("[ZeroTrustEventListener] Failed to process event - category: {}, type: {}, duration: {}ms",
@@ -84,15 +76,9 @@ public class ZeroTrustEventListener {
         }
     }
 
-    
-
-    
     private void processAuthenticationEvent(ZeroTrustSpringEvent event) {
         String userId = event.getUserId();
-        log.debug("[ZeroTrustEventListener] Processing authentication event - type: {}, user: {}",
-                event.getEventType(), userId);
 
-        
         if (ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS.equals(event.getEventType())) {
             if (isLlmChallengeMfa(userId)) {
                 
@@ -101,35 +87,24 @@ public class ZeroTrustEventListener {
             }
         }
 
-        
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
-    
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {
         String userId = event.getUserId();
 
-        
         if (shouldSkipPublishing(userId)) {
-            log.debug("[ZeroTrustEventListener] Skipping authorization event - analysis in progress for user: {}", userId);
-            return;
+                        return;
         }
 
-        log.debug("[ZeroTrustEventListener] Processing authorization event - type: {}, user: {}, resource: {}",
-                event.getEventType(), userId, event.getResource());
-
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
-    
     private void processSessionEvent(ZeroTrustSpringEvent event) {
-        log.debug("[ZeroTrustEventListener] Processing session event - type: {}, user: {}, session: {}",
-                event.getEventType(), event.getUserId(), event.getSessionId());
-
+        
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
-    
     private void processThreatEvent(ZeroTrustSpringEvent event) {
         log.warn("[ZeroTrustEventListener] Processing threat event - type: {}, user: {}, resource: {}",
                 event.getEventType(), event.getUserId(), event.getResource());
@@ -137,17 +112,11 @@ public class ZeroTrustEventListener {
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
-    
     private void processCustomEvent(ZeroTrustSpringEvent event) {
-        log.debug("[ZeroTrustEventListener] Processing custom event - type: {}, user: {}, payload keys: {}",
-                event.getEventType(), event.getUserId(), event.getPayload().keySet());
-
+        
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
-    
-
-    
     private boolean isLlmChallengeMfa(String userId) {
         if (userId == null || userId.isBlank()) {
             return false;
@@ -162,21 +131,17 @@ public class ZeroTrustEventListener {
 
             if (isLlmAction) {
                 redisTemplate.opsForHash().delete(analysisKey, "previousAction");
-                log.debug("[ZeroTrustEventListener] LLM {} MFA confirmed - userId: {}", actionStr, userId);
-            }
+                            }
 
             return isLlmAction;
 
         } catch (Exception e) {
-            log.debug("[ZeroTrustEventListener] MFA check failed - userId: {}", userId, e);
-            return false;
+                        return false;
         }
     }
 
-    
     private void processMfaCompletion(ZeroTrustSpringEvent event) {
-        log.debug("[ZeroTrustEventListener] MFA completion processing - user: {}", event.getUserId());
-
+        
         if (postProcessor != null) {
             SecurityEvent securityEvent = convertToSecurityEvent(event);
             SecurityDecision decision = createMfaSuccessDecision(event);
@@ -184,11 +149,9 @@ public class ZeroTrustEventListener {
             postProcessor.updateSessionContext(securityEvent, decision);
             postProcessor.storeInVectorDatabase(securityEvent, decision);
 
-            log.debug("[ZeroTrustEventListener] MFA verification completed - userId: {}", event.getUserId());
-        }
+                    }
     }
 
-    
     private SecurityEvent convertToSecurityEvent(ZeroTrustSpringEvent event) {
         SecurityEvent securityEvent = new SecurityEvent();
 
@@ -208,7 +171,6 @@ public class ZeroTrustEventListener {
         return securityEvent;
     }
 
-    
     private SecurityDecision createMfaSuccessDecision(ZeroTrustSpringEvent event) {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.ALLOW)
@@ -220,9 +182,6 @@ public class ZeroTrustEventListener {
                 .build();
     }
 
-    
-
-    
     private boolean shouldSkipPublishing(String userId) {
         if (userId == null || userId.isBlank()) {
             return false;
@@ -235,16 +194,14 @@ public class ZeroTrustEventListener {
             if (Boolean.TRUE.equals(isAnalyzing)) {
                 Long ttl = redisTemplate.getExpire(analysisKey);
                 if (ttl != null && ttl > 0) {
-                    log.debug("[ZeroTrustEventListener] Analysis in progress - userId: {}, TTL: {}s", userId, ttl);
-                    return true;
+                                        return true;
                 }
             }
 
             return false;
 
         } catch (Exception e) {
-            log.debug("[ZeroTrustEventListener] Redis check failed, proceeding: {}", e.getMessage());
-            return false;
+                        return false;
         }
     }
 }

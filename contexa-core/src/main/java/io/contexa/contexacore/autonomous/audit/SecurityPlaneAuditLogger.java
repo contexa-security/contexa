@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class SecurityPlaneAuditLogger {
 
@@ -33,7 +32,6 @@ public class SecurityPlaneAuditLogger {
         this.objectMapper.registerModule(new JavaTimeModule());
     }
 
-    
     public void auditSecurityEvent(SecurityEvent event, String agentId, String context) {
         try {
             
@@ -56,15 +54,11 @@ public class SecurityPlaneAuditLogger {
 
             auditLogRepository.save(auditLog);
 
-            log.info("[SECURITY_AUDIT] Event: {} | User: {} | IP: {} | Agent: {} | Severity: {}",
-                event.getEventId(), event.getUserId(), event.getSourceIp(), agentId, event.getSeverity());
-
         } catch (Exception e) {
             log.error("Failed to audit security event: {}", event.getEventId(), e);
         }
     }
 
-    
     public void auditThreatAssessment(SecurityEvent event, ThreatAssessment assessment,
                                     String evaluator, String strategy, long processingTimeMs) {
         try {
@@ -89,16 +83,11 @@ public class SecurityPlaneAuditLogger {
 
             auditLogRepository.save(auditLog);
 
-            log.info("[THREAT_AUDIT] Assessment: {} | Risk: {:.2f} | Action: {} | Evaluator: {} | Time: {}ms",
-                assessment.getAssessmentId(), assessment.getRiskScore(), action,
-                evaluator, processingTimeMs);
-
         } catch (Exception e) {
             log.error("Failed to audit threat assessment: {}", assessment.getAssessmentId(), e);
         }
     }
 
-    
     public void auditProcessingDecision(SecurityEvent event, ProcessingMode mode, String router,
                                       String reason, Map<String, Object> decisionContext) {
         try {
@@ -121,15 +110,11 @@ public class SecurityPlaneAuditLogger {
 
             auditLogRepository.save(auditLog);
 
-            log.info("[DECISION_AUDIT] Event: {} | Mode: {} | Router: {} | Blocking: {} | Reason: {}",
-                event.getEventId(), mode, router, mode.isBlocking(), reason);
-
         } catch (Exception e) {
             log.error("Failed to audit processing decision for event: {}", event.getEventId(), e);
         }
     }
 
-    
     public void auditAgentStateChange(String agentId, String previousState, String newState,
                                     String reason, Map<String, Object> stateContext) {
         try {
@@ -151,15 +136,11 @@ public class SecurityPlaneAuditLogger {
 
             auditLogRepository.save(auditLog);
 
-            log.info("[AGENT_AUDIT] Agent: {} | {} -> {} | Reason: {}",
-                agentId, previousState, newState, reason);
-
         } catch (Exception e) {
             log.error("Failed to audit agent state change: {}", agentId, e);
         }
     }
 
-    
     public void auditPerformanceMetrics(String component, Map<String, Object> metrics,
                                       long measurementPeriodMs) {
         try {
@@ -181,15 +162,11 @@ public class SecurityPlaneAuditLogger {
 
             auditLogRepository.save(auditLog);
 
-            log.debug("[PERFORMANCE_AUDIT] Component: {} | Period: {}ms | Metrics: {}",
-                component, measurementPeriodMs, metrics.size());
-
         } catch (Exception e) {
             log.error("Failed to audit performance metrics for component: {}", component, e);
         }
     }
 
-    
     public void auditError(String component, String operation, Exception exception,
                          Map<String, Object> errorContext) {
         try {
@@ -218,8 +195,6 @@ public class SecurityPlaneAuditLogger {
             log.error("Failed to audit error for component: {}", component, e);
         }
     }
-
-    
 
     private String createSecurityEventParams(SecurityEvent event) {
         
@@ -272,8 +247,6 @@ public class SecurityPlaneAuditLogger {
         details.put("processingTimeMs", processingTimeMs);
         details.put("assessedAt", assessment.getAssessedAt().toString());
         details.put("recommendedActions", assessment.getRecommendedActions());
-
-        
 
         return toJsonString(details);
     }
@@ -366,7 +339,6 @@ public class SecurityPlaneAuditLogger {
         }
     }
 
-    
     private String getResourceFromMetadata(SecurityEvent event) {
         if (event == null || event.getMetadata() == null) {
             return null;

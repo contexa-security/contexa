@@ -11,7 +11,6 @@ import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 public class RedisSessionIdResolver implements SessionIdResolver {
 
@@ -39,42 +38,33 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         String sessionId = null;
         SessionSource source = SessionSource.NONE;
 
-        
         sessionId = extractFromCookie(request);
         if (StringUtils.hasText(sessionId)) {
             source = SessionSource.COOKIE;
-            log.trace("Session ID extracted from cookie: {}", maskSessionId(sessionId));
-            return sessionId;
+                        return sessionId;
         }
 
-        
         sessionId = extractFromHeader(request);
         if (StringUtils.hasText(sessionId)) {
             source = SessionSource.HEADER;
-            log.trace("Session ID extracted from header: {}", maskSessionId(sessionId));
-            return sessionId;
+                        return sessionId;
         }
 
-        
         if (bearerTokenEnabled) {
             sessionId = extractFromBearerToken(request);
             if (StringUtils.hasText(sessionId)) {
                 source = SessionSource.BEARER;
-                log.trace("Session ID extracted from bearer token: {}", maskSessionId(sessionId));
-                return sessionId;
+                                return sessionId;
             }
         }
 
-        
         sessionId = extractFromAttribute(request);
         if (StringUtils.hasText(sessionId)) {
             source = SessionSource.ATTRIBUTE;
-            log.trace("Session ID extracted from attribute: {}", maskSessionId(sessionId));
-            return sessionId;
+                        return sessionId;
         }
 
-        log.debug("No session ID found in request");
-        return null;
+                return null;
     }
 
     @Override
@@ -83,26 +73,20 @@ public class RedisSessionIdResolver implements SessionIdResolver {
             return false;
         }
 
-        
         if (!SESSION_ID_PATTERN.matcher(sessionId).matches()) {
-            log.debug("Invalid session ID format: {}", maskSessionId(sessionId));
-            return false;
+                        return false;
         }
 
-        
         String redisKey = "spring:session:sessions:" + sessionId;
         Boolean exists = redisTemplate.hasKey(redisKey);
 
         if (Boolean.FALSE.equals(exists)) {
-            log.debug("Session ID not found in Redis: {}", maskSessionId(sessionId));
-            return false;
+                        return false;
         }
 
-        
         Long ttl = redisTemplate.getExpire(redisKey, TimeUnit.SECONDS);
         if (ttl != null && ttl <= 0) {
-            log.debug("Session ID expired: {}", maskSessionId(sessionId));
-            return false;
+                        return false;
         }
 
         return true;
@@ -125,7 +109,6 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         return SessionSource.NONE;
     }
 
-    
     private String extractFromCookie(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
@@ -140,8 +123,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
                     try {
                         cookieValue = new String(Base64.getUrlDecoder().decode(cookieValue));
                     } catch (Exception e) {
-                        log.debug("Failed to decode session cookie: {}", e.getMessage());
-                    }
+                                            }
                 }
                 return cookieValue;
             }
@@ -150,7 +132,6 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         return null;
     }
 
-    
     private String extractFromHeader(HttpServletRequest request) {
         String sessionId = request.getHeader(sessionHeaderName);
         if (StringUtils.hasText(sessionId)) {
@@ -163,31 +144,26 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         return null;
     }
 
-    
     private String extractFromBearerToken(HttpServletRequest request) {
         String authorization = request.getHeader("Authorization");
         if (authorization != null && authorization.startsWith("Bearer ")) {
             String token = authorization.substring(7).trim();
 
-            
             if (isJwtToken(token)) {
                 return extractSessionIdFromJwt(token);
             }
 
-            
             return token;
         }
         return null;
     }
 
-    
     private String extractFromAttribute(HttpServletRequest request) {
         Object sessionId = request.getAttribute(SESSION_ATTRIBUTE_NAME);
         if (sessionId instanceof String) {
             return (String) sessionId;
         }
 
-        
         sessionId = request.getAttribute("sessionId");
         if (sessionId instanceof String) {
             return (String) sessionId;
@@ -196,12 +172,10 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         return null;
     }
 
-    
     private boolean isJwtToken(String token) {
         return token != null && token.split("\\.").length == 3;
     }
 
-    
     private String extractSessionIdFromJwt(String jwt) {
         try {
             String[] parts = jwt.split("\\.");
@@ -209,10 +183,8 @@ public class RedisSessionIdResolver implements SessionIdResolver {
                 return null;
             }
 
-            
             String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
 
-            
             if (payload.contains("\"sessionId\":\"")) {
                 int start = payload.indexOf("\"sessionId\":\"") + 13;
                 int end = payload.indexOf("\"", start);
@@ -221,12 +193,10 @@ public class RedisSessionIdResolver implements SessionIdResolver {
                 }
             }
         } catch (Exception e) {
-            log.debug("Failed to extract session ID from JWT: {}", e.getMessage());
-        }
+                    }
         return null;
     }
 
-    
     private boolean isBase64Encoded(String value) {
         if (value == null || value.isEmpty()) {
             return false;
@@ -239,7 +209,6 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         }
     }
 
-    
     private String maskSessionId(String sessionId) {
         if (sessionId == null || sessionId.length() < 8) {
             return "***";

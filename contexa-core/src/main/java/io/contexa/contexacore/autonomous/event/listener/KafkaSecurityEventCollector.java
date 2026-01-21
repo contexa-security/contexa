@@ -20,7 +20,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class KafkaSecurityEventCollector {
 
@@ -48,20 +47,13 @@ public class KafkaSecurityEventCollector {
 
     @PostConstruct
     public void initialize() {
-        log.info("Initializing Kafka Security Event Collector (ZeroTrustSpringEvent unified)");
-        log.info("Bootstrap servers: {}", bootstrapServers);
-        log.info("Consumer group: {}", groupId);
-    }
+                            }
 
     @PreDestroy
     public void shutdown() {
-        log.info("Shutting down Kafka Security Event Collector");
-        running = false;
+                running = false;
     }
 
-    
-
-    
     @KafkaListener(
         topicPattern = "security\\.events\\.(authorization|authentication)\\..*",
         groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
@@ -74,8 +66,7 @@ public class KafkaSecurityEventCollector {
         @Header(KafkaHeaders.OFFSET) long offset,
         Acknowledgment acknowledgment) {
         long startTime = System.currentTimeMillis();
-        log.debug("[KafkaCollector] RECEIVED ZeroTrust event from topic '{}' - offset: {}", topic, offset);
-
+        
         try {
             ZeroTrustSpringEvent zeroTrustEvent = objectMapper.readValue(message, ZeroTrustSpringEvent.class);
             SecurityEvent event = convertZeroTrustToSecurityEvent(zeroTrustEvent);
@@ -90,9 +81,7 @@ public class KafkaSecurityEventCollector {
             eventCount.incrementAndGet();
 
             long duration = System.currentTimeMillis() - startTime;
-            log.debug("[KafkaCollector] PROCESSED ZeroTrust event - topic: {}, category: {}, type: {}, duration: {}ms",
-                topic, zeroTrustEvent.getCategory(), zeroTrustEvent.getEventType(), duration);
-
+            
             if (acknowledgment != null) {
                 acknowledgment.acknowledge();
             }
@@ -115,25 +104,19 @@ public class KafkaSecurityEventCollector {
 
     public void registerListener(SecurityEventListener listener) {
         listeners.add(listener);
-        log.info("Registered security event listener: {}", listener.getListenerName());
-    }
+            }
 
     public void unregisterListener(SecurityEventListener listener) {
         listeners.remove(listener);
-        log.info("Unregistered security event listener: {}", listener.getListenerName());
-    }
+            }
 
-    
     private void processEvent(SecurityEvent event) {
         if (event.getEventId() == null) {
             event.setEventId(UUID.randomUUID().toString());
-            log.debug("[KafkaCollector] Generated eventId: {}", event.getEventId());
-        }
+                    }
 
-        
         eventCache.put(event.getEventId(), event);
 
-        
         if (eventCache.size() > 10000) {
             eventCache.entrySet().stream()
                 .sorted(Map.Entry.comparingByValue(
@@ -143,17 +126,11 @@ public class KafkaSecurityEventCollector {
                 .forEach(eventCache::remove);
         }
 
-        
         if (!listeners.isEmpty()) {
             for (SecurityEventListener listener : listeners) {
                 try {
-                    log.debug("[KafkaCollector] Calling listener {} for event: {}",
-                        listener.getListenerName(), event.getEventId());
-
+                    
                     listener.onSecurityEvent(event);
-
-                    log.debug("[KafkaCollector] Listener {} processed event successfully: {}",
-                        listener.getListenerName(), event.getEventId());
 
                 } catch (Exception e) {
                     log.error("[KafkaCollector] Listener {} failed to process event {}: {}",
@@ -167,7 +144,6 @@ public class KafkaSecurityEventCollector {
         }
     }
 
-    
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("total_events", eventCount.get());
@@ -177,28 +153,21 @@ public class KafkaSecurityEventCollector {
         return stats;
     }
 
-    
-
-    
     private SecurityEvent convertZeroTrustToSecurityEvent(ZeroTrustSpringEvent zeroTrustEvent) {
         Map<String, Object> payload = zeroTrustEvent.getPayload();
 
-        
         String eventId = payload != null && payload.get("eventId") != null
             ? String.valueOf(payload.get("eventId"))
             : UUID.randomUUID().toString();
 
-        
         String userName = payload != null && payload.get("userName") != null
             ? String.valueOf(payload.get("userName"))
             : null;
 
-        
         String description = payload != null && payload.get("description") != null
             ? String.valueOf(payload.get("description"))
             : zeroTrustEvent.getCategory() + " event: " + zeroTrustEvent.getEventType();
 
-        
         SecurityEvent.Severity severity = determineSeverityFromPayload(payload);
 
         SecurityEvent event = SecurityEvent.builder()
@@ -214,7 +183,6 @@ public class KafkaSecurityEventCollector {
             .userAgent(zeroTrustEvent.getUserAgent())
             .build();
 
-        
         if (payload != null) {
             payload.forEach((key, value) -> {
                 if (value != null && !key.equals("eventId") && !key.equals("userName") && !key.equals("description")) {
@@ -223,7 +191,6 @@ public class KafkaSecurityEventCollector {
             });
         }
 
-        
         if (zeroTrustEvent.getResource() != null) {
             event.addMetadata("requestPath", zeroTrustEvent.getResource());
         }
@@ -231,13 +198,11 @@ public class KafkaSecurityEventCollector {
         return event;
     }
 
-    
     private SecurityEvent.Severity determineSeverityFromPayload(Map<String, Object> payload) {
         if (payload == null) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        
         Object bruteForce = payload.get("bruteForceDetected");
         Object credentialStuffing = payload.get("credentialStuffingDetected");
         if ((bruteForce != null && Boolean.parseBoolean(String.valueOf(bruteForce))) ||
@@ -245,25 +210,19 @@ public class KafkaSecurityEventCollector {
             return SecurityEvent.Severity.HIGH;
         }
 
-        
         Object anomaly = payload.get("anomalyDetected");
         if (anomaly != null && Boolean.parseBoolean(String.valueOf(anomaly))) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        
         Object failureReason = payload.get("failureReason");
         if (failureReason != null) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        
         return SecurityEvent.Severity.LOW;
     }
 
-    
-
-    
     private void sendToDeadLetterQueue(String message, String topic, int partition, long offset, Exception exception) {
         try {
             Map<String, Object> dlqMessage = new HashMap<>();

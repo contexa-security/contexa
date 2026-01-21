@@ -1,19 +1,17 @@
 package io.contexa.contexacore.std.strategy;
 
-import io.contexa.contexacore.std.labs.AILab;
-import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacore.std.labs.behavior.BehavioralAnalysisLab;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.BehavioralAnalysisRequest;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.enums.DiagnosisType;
+import io.contexa.contexacore.std.labs.AILab;
+import io.contexa.contexacore.std.labs.AILabFactory;
+import io.contexa.contexacore.std.labs.behavior.BehavioralAnalysisLab;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
 
 @Slf4j
 public class BehavioralAnalysisDiagnosisStrategy extends AbstractAIStrategy<BehavioralAnalysisContext, BehavioralAnalysisResponse> {

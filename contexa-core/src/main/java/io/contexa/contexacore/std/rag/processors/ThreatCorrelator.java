@@ -12,7 +12,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 public class ThreatCorrelator implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.threat.correlation-threshold:0.6}")
@@ -25,8 +24,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
     private int minPatternSize;
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    
-    
+
     private static final Map<String, String> ATTACK_TACTICS = Map.ofEntries(
         Map.entry("INITIAL_ACCESS", "Initial Access"),
         Map.entry("EXECUTION", "Execution"),
@@ -46,53 +44,41 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         if (documents.size() < minPatternSize) {
             return documents;
         }
-        
-        
+
         List<ThreatPattern> patterns = identifyThreatPatterns(documents);
-        
-        
+
         Map<String, CorrelationCluster> correlations = analyzeCorrelations(documents);
-        
-        
+
         List<AttackChain> attackChains = detectAttackChains(documents);
-        
-        
+
         enrichDocumentsWithCorrelations(documents, patterns, correlations, attackChains);
-        
-        
+
         return reorderByCorrelationStrength(documents);
     }
-    
-    
+
     public Map<String, Object> correlate(Map<String, Object> eventData) {
         Map<String, Object> result = new HashMap<>();
-        
-        
+
         if (eventData != null) {
             result.put("eventType", eventData.getOrDefault("eventType", "UNKNOWN"));
             result.put("userId", eventData.getOrDefault("userId", "unknown"));
             result.put("timestamp", LocalDateTime.now().toString());
             result.put("correlationId", UUID.randomUUID().toString());
-            
-            
+
             String eventType = eventData.getOrDefault("eventType", "").toString().toUpperCase();
             if (ATTACK_TACTICS.containsKey(eventType)) {
                 result.put("mitreTactic", ATTACK_TACTICS.get(eventType));
             }
 
-            
-            
             result.put("eventType", eventType);
         }
 
         return result;
     }
-    
-    
+
     private List<ThreatPattern> identifyThreatPatterns(List<Document> documents) {
         List<ThreatPattern> patterns = new ArrayList<>();
-        
-        
+
         Map<String, List<Document>> userGroups = documents.stream()
             .filter(doc -> doc.getMetadata().get("userId") != null)
             .collect(Collectors.groupingBy(doc -> 
@@ -105,8 +91,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             if (userDocs.size() >= minPatternSize) {
                 
                 userDocs.sort(Comparator.comparing(this::getDocumentTimestamp));
-                
-                
+
                 List<ThreatPattern> userPatterns = findSequentialPatterns(userId, userDocs);
                 patterns.addAll(userPatterns);
             }
@@ -114,15 +99,13 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         return patterns;
     }
-    
-    
+
     private List<ThreatPattern> findSequentialPatterns(String userId, List<Document> documents) {
         List<ThreatPattern> patterns = new ArrayList<>();
         
         for (int i = 0; i < documents.size() - minPatternSize + 1; i++) {
             List<Document> window = documents.subList(i, Math.min(i + 5, documents.size()));
-            
-            
+
             if (isWithinTimeWindow(window)) {
                 ThreatPattern pattern = analyzePatternWindow(userId, window);
                 if (pattern != null && pattern.getConfidence() >= correlationThreshold) {
@@ -133,74 +116,61 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         return patterns;
     }
-    
-    
+
     private ThreatPattern analyzePatternWindow(String userId, List<Document> window) {
         ThreatPattern pattern = new ThreatPattern();
         pattern.setUserId(userId);
         pattern.setDocuments(window);
-        
-        
+
         List<String> activitySequence = window.stream()
             .map(doc -> (String) doc.getMetadata().get("activityType"))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
         
         pattern.setActivitySequence(activitySequence);
-        
-        
+
         String patternType = identifyPatternType(activitySequence);
         pattern.setPatternType(patternType);
-        
-        
+
         String tactic = mapToAttackTactic(patternType, activitySequence);
         pattern.setMitreTactic(tactic);
-        
-        
+
         double confidence = calculatePatternConfidence(window, activitySequence);
         pattern.setConfidence(confidence);
-        
-        
+
         double riskScore = calculatePatternRisk(patternType, confidence, window);
         pattern.setRiskScore(riskScore);
         
         return pattern;
     }
-    
-    
+
     private String identifyPatternType(List<String> activitySequence) {
         String sequence = String.join(",", activitySequence).toUpperCase();
-        
-        
+
         if (sequence.contains("READ") && sequence.contains("EXPORT") ||
             sequence.contains("READ") && sequence.contains("DOWNLOAD")) {
             return "DATA_EXFILTRATION";
         }
-        
-        
+
         if (sequence.contains("LOGIN") && sequence.contains("ADMIN_ACTION") ||
             sequence.contains("UPDATE") && sequence.contains("PRIVILEGE")) {
             return "PRIVILEGE_ESCALATION";
         }
-        
-        
+
         if (countOccurrences(sequence, "READ") >= 3 ||
             countOccurrences(sequence, "LIST") >= 3) {
             return "RECONNAISSANCE";
         }
-        
-        
+
         if (sequence.contains("DELETE") && countOccurrences(sequence, "DELETE") >= 2) {
             return "DESTRUCTIVE_ACTION";
         }
-        
-        
+
         if (sequence.contains("FAILED_LOGIN") && 
             countOccurrences(sequence, "FAILED_LOGIN") >= 3) {
             return "BRUTE_FORCE";
         }
-        
-        
+
         if (sequence.contains("LOGIN") && sequence.contains("ACCESS") &&
             sequence.contains("CONNECT")) {
             return "LATERAL_MOVEMENT";
@@ -208,8 +178,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         return "UNKNOWN_PATTERN";
     }
-    
-    
+
     private String mapToAttackTactic(String patternType, List<String> activitySequence) {
         return switch (patternType) {
             case "DATA_EXFILTRATION" -> "EXFILTRATION";
@@ -221,12 +190,10 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             default -> "UNKNOWN";
         };
     }
-    
-    
+
     private Map<String, CorrelationCluster> analyzeCorrelations(List<Document> documents) {
         Map<String, CorrelationCluster> clusters = new HashMap<>();
-        
-        
+
         Map<String, List<Document>> ipGroups = documents.stream()
             .filter(doc -> doc.getMetadata().get("ipAddress") != null)
             .collect(Collectors.groupingBy(doc -> 
@@ -242,8 +209,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
                 clusters.put("IP_" + entry.getKey(), cluster);
             }
         }
-        
-        
+
         Map<String, List<Document>> resourceGroups = documents.stream()
             .filter(doc -> doc.getMetadata().get("resourceAccessed") != null)
             .collect(Collectors.groupingBy(doc -> 
@@ -262,37 +228,31 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         return clusters;
     }
-    
-    
+
     private List<AttackChain> detectAttackChains(List<Document> documents) {
         List<AttackChain> chains = new ArrayList<>();
-        
-        
+
         List<Document> sortedDocs = new ArrayList<>(documents);
         sortedDocs.sort(Comparator.comparing(this::getDocumentTimestamp));
-        
-        
+
         List<String> killChainOrder = Arrays.asList(
             "INITIAL_ACCESS", "EXECUTION", "PERSISTENCE", 
             "PRIVILEGE_ESCALATION", "DEFENSE_EVASION", 
             "CREDENTIAL_ACCESS", "DISCOVERY", "LATERAL_MOVEMENT",
             "COLLECTION", "EXFILTRATION", "IMPACT"
         );
-        
-        
+
         for (int i = 0; i < sortedDocs.size(); i++) {
             AttackChain chain = new AttackChain();
             chain.addLink(sortedDocs.get(i));
             
             String currentTactic = getTactic(sortedDocs.get(i));
             int currentIndex = killChainOrder.indexOf(currentTactic);
-            
-            
+
             for (int j = i + 1; j < sortedDocs.size() && j < i + 10; j++) {
                 String nextTactic = getTactic(sortedDocs.get(j));
                 int nextIndex = killChainOrder.indexOf(nextTactic);
-                
-                
+
                 if (nextIndex > currentIndex && 
                     isWithinTimeWindow(sortedDocs.get(i), sortedDocs.get(j))) {
                     chain.addLink(sortedDocs.get(j));
@@ -308,8 +268,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         return chains;
     }
-    
-    
+
     private void enrichDocumentsWithCorrelations(
             List<Document> documents,
             List<ThreatPattern> patterns,
@@ -318,8 +277,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         for (Document doc : documents) {
             Map<String, Object> metadata = doc.getMetadata();
-            
-            
+
             List<String> relatedPatterns = patterns.stream()
                 .filter(p -> p.getDocuments().contains(doc))
                 .map(ThreatPattern::getPatternType)
@@ -329,8 +287,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             if (!relatedPatterns.isEmpty()) {
                 metadata.put("threatPatterns", relatedPatterns);
             }
-            
-            
+
             List<String> correlationKeys = correlations.values().stream()
                 .filter(c -> c.getDocuments().contains(doc))
                 .map(CorrelationCluster::getCorrelationKey)
@@ -339,8 +296,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             if (!correlationKeys.isEmpty()) {
                 metadata.put("correlations", correlationKeys);
             }
-            
-            
+
             List<Integer> chainIds = new ArrayList<>();
             for (int i = 0; i < attackChains.size(); i++) {
                 if (attackChains.get(i).getLinks().contains(doc)) {
@@ -352,15 +308,13 @@ public class ThreatCorrelator implements DocumentPostProcessor {
                 metadata.put("attackChainIds", chainIds);
                 metadata.put("isPartOfAttackChain", true);
             }
-            
-            
+
             double correlationScore = calculateOverallCorrelationScore(
                 relatedPatterns, correlationKeys, chainIds);
             metadata.put("correlationScore", correlationScore);
         }
     }
-    
-    
+
     private List<Document> reorderByCorrelationStrength(List<Document> documents) {
         return documents.stream()
             .sorted((d1, d2) -> {
@@ -370,9 +324,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
             })
             .collect(Collectors.toList());
     }
-    
-    
-    
+
     private LocalDateTime getDocumentTimestamp(Document document) {
         Object timestamp = document.getMetadata().get("timestamp");
         if (timestamp instanceof LocalDateTime) {
@@ -409,11 +361,9 @@ public class ThreatCorrelator implements DocumentPostProcessor {
     
     private double calculatePatternConfidence(List<Document> window, List<String> activitySequence) {
         double baseConfidence = 0.5;
-        
-        
+
         baseConfidence += Math.min(activitySequence.size() * 0.1, 0.3);
-        
-        
+
         if (isWithinTimeWindow(window)) {
             baseConfidence += 0.2;
         }
@@ -437,16 +387,13 @@ public class ThreatCorrelator implements DocumentPostProcessor {
     
     private double calculateCorrelationStrength(List<Document> documents) {
         if (documents.size() < 2) return 0.0;
-        
-        
+
         double strength = Math.min(documents.size() / 10.0, 0.5);
-        
-        
+
         if (isWithinTimeWindow(documents)) {
             strength += 0.3;
         }
-        
-        
+
         long uniqueUsers = documents.stream()
             .map(d -> d.getMetadata().get("userId"))
             .filter(Objects::nonNull)
@@ -465,8 +412,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         if (tactic != null) {
             return tactic.toString();
         }
-        
-        
+
         String activityType = (String) document.getMetadata().get("activityType");
         if (activityType != null) {
             return mapActivityToTactic(activityType);
@@ -501,9 +447,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         
         return Math.min(score, 1.0);
     }
-    
-    
-    
+
     private static class ThreatPattern {
         private String userId;
         private List<Document> documents;
@@ -512,8 +456,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         private String mitreTactic;
         private double confidence;
         private double riskScore;
-        
-        
+
         public String getUserId() { return userId; }
         public void setUserId(String userId) { this.userId = userId; }
         
@@ -541,8 +484,7 @@ public class ThreatCorrelator implements DocumentPostProcessor {
         private String correlationKey;
         private List<Document> documents;
         private double strength;
-        
-        
+
         public String getCorrelationType() { return correlationType; }
         public void setCorrelationType(String type) { this.correlationType = type; }
         

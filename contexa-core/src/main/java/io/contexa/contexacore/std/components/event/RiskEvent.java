@@ -4,7 +4,6 @@ import io.contexa.contexacommon.enums.SecurityLevel;
 
 import java.time.LocalDateTime;
 
-
 public class RiskEvent {
     
     private final String eventType;
@@ -22,9 +21,7 @@ public class RiskEvent {
         this.description = description;
         this.timestamp = LocalDateTime.now();
     }
-    
-    
-    
+
     public String getEventType() {
         return eventType;
     }

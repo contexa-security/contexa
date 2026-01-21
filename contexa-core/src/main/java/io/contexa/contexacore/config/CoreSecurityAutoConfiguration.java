@@ -17,7 +17,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
-
 @Slf4j
 @AutoConfiguration
 @EnableConfigurationProperties({
@@ -33,10 +32,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 public class CoreSecurityAutoConfiguration {
 
     public CoreSecurityAutoConfiguration() {
-        log.info("Core Security AutoConfiguration activated");
-    }
+            }
 
-    
     @Bean
     @Primary
     @ConditionalOnProperty(
@@ -53,8 +50,6 @@ public class CoreSecurityAutoConfiguration {
             @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
             @Autowired(required = false) NotificationService notificationService,
             AuditLogRepository auditLogRepository) {
-
-        log.info("Registering UnifiedUserDetailsService as @Primary UserDetailsService");
 
         return new UnifiedUserDetailsService(
                 userRepository,

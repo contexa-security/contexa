@@ -13,7 +13,6 @@ import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class DefaultStreamingHandler implements StreamingHandler {
@@ -22,14 +21,12 @@ public class DefaultStreamingHandler implements StreamingHandler {
     
     @Override
     public Flux<String> handleStreaming(ChatClient chatClient, ExecutionContext context) {
-        log.debug("일반 스트리밍 처리 시작 - RequestId: {}", context.getRequestId());
-        
+                
         return Flux.defer(() -> {
             try {
                 
                 var promptSpec = chatClient.prompt(context.getPrompt());
-                
-                
+
                 if (context.getChatOptions() != null) {
                     promptSpec = promptSpec.options(context.getChatOptions());
                 } else {
@@ -45,8 +42,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                                 .temperature(temperature)
                                 .build();
                         promptSpec = promptSpec.options(ollamaOptions);
-                        log.debug("스트리밍 Ollama 모델 설정: {}, Temperature: {}", modelName, temperature);
-                    } else if (context.getTemperature() != null || context.getMaxTokens() != null) {
+                                            } else if (context.getTemperature() != null || context.getMaxTokens() != null) {
                         
                         ChatOptions options = ChatOptions.builder()
                             .temperature(temperature)
@@ -55,27 +51,24 @@ public class DefaultStreamingHandler implements StreamingHandler {
                         promptSpec = promptSpec.options(options);
                     }
                 }
-                
-                
+
                 Flux<String> responseFlux = promptSpec.stream().content();
-                
-                
+
                 if (context.getTimeoutMs() != null) {
                     responseFlux = responseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
                 }
-                
-                
+
                 Integer effectiveTier = context.getEffectiveTier();
                 if (effectiveTier != null) {
                     responseFlux = optimizeForTier(responseFlux, effectiveTier);
                 }
-                
+
                 return responseFlux
-                    .doOnNext(chunk -> log.trace("스트리밍 청크 수신 - RequestId: {}, 길이: {}", 
-                            context.getRequestId(), chunk.length()))
-                    .doOnComplete(() -> log.debug("스트리밍 완료 - RequestId: {}", context.getRequestId()))
-                    .doOnError(error -> log.error("스트리밍 오류 - RequestId: {}", context.getRequestId(), error));
-                
+                        .doOnNext(chunk -> log.trace("스트리밍 청크 수신 - RequestId: {}, 길이: {}",
+                                context.getRequestId(), chunk.length()))
+                        .doOnComplete(() -> log.debug("스트리밍 완료 - RequestId: {}", context.getRequestId()))
+                        .doOnError(error -> log.error("스트리밍 오류 - RequestId: {}", context.getRequestId(), error));
+
             } catch (Exception e) {
                 log.error("스트리밍 초기화 실패 - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
@@ -85,8 +78,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
     
     @Override
     public Flux<String> handleStreamingWithTools(ChatClient chatClient, ExecutionContext context) {
-        log.debug("도구 실행 스트리밍 처리 시작 - RequestId: {}", context.getRequestId());
-        
+                
         if (!hasToolsEnabled(context)) {
             log.warn("도구가 활성화되지 않았습니다. 일반 스트리밍으로 대체합니다.");
             return handleStreaming(chatClient, context);
@@ -98,13 +90,11 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 if (!context.getToolCallbacks().isEmpty()) {
                     return handleStreamingWithToolCallbacks(chatClient, context);
                 }
-                
-                
+
                 if (!context.getToolProviders().isEmpty()) {
                     return handleStreamingWithToolProviders(chatClient, context);
                 }
-                
-                
+
                 log.warn("도구 설정이 없습니다. 일반 스트리밍으로 처리합니다.");
                 return handleStreaming(chatClient, context);
                 
@@ -114,21 +104,16 @@ public class DefaultStreamingHandler implements StreamingHandler {
             }
         });
     }
-    
-    
+
     private Flux<String> handleStreamingWithToolCallbacks(ChatClient chatClient, ExecutionContext context) {
-        log.debug("ToolCallback 스트리밍 - 콜백 개수: {}", context.getToolCallbacks().size());
-        
-        
-        
+
         return Flux.fromIterable(context.getToolCallbacks())
             .flatMap(callback -> executeToolCallback(callback, context))
             .reduce("", (accumulated, current) -> accumulated + "\n" + current)
             .flatMapMany(result -> {
                 
                 String enhancedPrompt = context.getPrompt().getContents() + "\n\nTool Results:\n" + result;
-                
-                
+
                 ExecutionContext enhancedContext = ExecutionContext.builder()
                     .prompt(new Prompt(enhancedPrompt))
                     .requestId(context.getRequestId())
@@ -157,23 +142,18 @@ public class DefaultStreamingHandler implements StreamingHandler {
             })
             .doOnError(error -> log.error("ToolCallback 스트리밍 실패", error));
     }
-    
-    
+
     private Flux<String> handleStreamingWithToolProviders(ChatClient chatClient, ExecutionContext context) {
-        log.debug("도구 제공자 스트리밍 - 제공자 개수: {}", context.getToolProviders().size());
-        
-        
+
         try {
             var promptSpec = chatClient.prompt(context.getPrompt());
-            
-            
+
             if (context.getChatOptions() != null) {
                 promptSpec = promptSpec.options(context.getChatOptions());
             }
             
             Flux<String> responseFlux = promptSpec.stream().content();
-            
-            
+
             if (context.getTimeoutMs() != null) {
                 responseFlux = responseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
             }
@@ -185,20 +165,14 @@ public class DefaultStreamingHandler implements StreamingHandler {
             return Flux.error(e);
         }
     }
-    
-    
+
     private Flux<String> executeToolCallback(ToolCallback callback, ExecutionContext context) {
         return Flux.defer(() -> {
             try {
-                log.debug("ToolCallback 실행: {}", callback.getToolDefinition().name());
-                
-                
+
                 String input = extractToolInput(context.getPrompt().getContents(), callback.getToolDefinition().name());
                 String result = callback.call(input);
-                
-                log.debug("ToolCallback 실행 완료: {} -> 결과 길이: {}", 
-                        callback.getToolDefinition().name(), result != null ? result.length() : 0);
-                
+
                 String formattedResult = String.format("[%s] %s", callback.getToolDefinition().name(), result);
                 return Flux.just(formattedResult);
                 
@@ -210,23 +184,20 @@ public class DefaultStreamingHandler implements StreamingHandler {
         })
         .onErrorReturn("Tool execution failed");
     }
-    
-    
+
     private Flux<String> optimizeForTier(Flux<String> responseFlux, int tier) {
         Integer timeout = tieredLLMProperties.getTimeoutForTier(tier);
 
         return switch (tier) {
             case 1 -> {
                 
-                log.debug("Layer 1 스트리밍 최적화: 빠른 응답 (타임아웃: {}ms)", timeout);
-                yield responseFlux
+                                yield responseFlux
                     .timeout(Duration.ofMillis(timeout))
                     .onErrorReturn("TIMEOUT");  
             }
             case 2 -> {
                 
-                log.debug("Layer 2 스트리밍 최적화: 균형 (타임아웃: {}ms)", timeout);
-                int bufferMs = Math.max(50, timeout / 6);  
+                                int bufferMs = Math.max(50, timeout / 6);  
                 yield responseFlux
                     .timeout(Duration.ofMillis(timeout))
                     .buffer(Duration.ofMillis(bufferMs))
@@ -234,8 +205,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
             }
             case 3 -> {
                 
-                log.debug("Layer 3 스트리밍 최적화: 완전한 응답 (타임아웃: {}ms)", timeout);
-                int bufferMs = Math.max(100, timeout / 50);  
+                                int bufferMs = Math.max(100, timeout / 50);  
                 yield responseFlux
                     .timeout(Duration.ofMillis(timeout))
                     .buffer(Duration.ofMillis(bufferMs))
@@ -247,56 +217,46 @@ public class DefaultStreamingHandler implements StreamingHandler {
             }
         };
     }
-    
-    
+
     private boolean hasToolsEnabled(ExecutionContext context) {
         return Boolean.TRUE.equals(context.getToolExecutionEnabled()) &&
                (!context.getToolCallbacks().isEmpty() || !context.getToolProviders().isEmpty());
     }
-    
-    
+
     private String extractToolInput(String promptContent, String toolName) {
-        
-        
+
         return promptContent;
     }
 
-    
     private String determineModelName(ExecutionContext context) {
         
         if (context.getPreferredModel() != null) {
             return context.getPreferredModel();
         }
 
-        
         if (context.getAnalysisLevel() != null) {
             int tier = context.getAnalysisLevel().getDefaultTier();
             return tieredLLMProperties.getModelNameForTier(tier);
         }
 
-        
         if (context.getTier() != null) {
             return tieredLLMProperties.getModelNameForTier(context.getTier());
         }
 
-        
         return tieredLLMProperties.getModelNameForTier(2);  
     }
 
-    
     private Double determineTemperature(ExecutionContext context) {
         
         if (context.getTemperature() != null) {
             return context.getTemperature();
         }
 
-        
         Integer tier = context.getEffectiveTier();
         if (tier != null) {
             return tieredLLMProperties.getTemperatureForTier(tier);
         }
 
-        
         return 0.5d;
     }
 }

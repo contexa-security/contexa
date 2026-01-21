@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAssessmentContext, RiskAssessmentResponse> {
 
@@ -40,9 +39,7 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
 
     @Override
     protected void validateRequest(AIRequest<RiskAssessmentContext> request) throws DiagnosisException {
-        
 
-        
         if (!(request instanceof RiskAssessmentRequest)) {
             throw new DiagnosisException("INVALID_REQUEST_TYPE", "TYPE_MISMATCH",
                     "Expected RiskAssessmentRequest, got: " + request.getClass().getSimpleName());
@@ -50,7 +47,6 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
 
         RiskAssessmentRequest riskRequest = (RiskAssessmentRequest) request;
 
-        
         RiskAssessmentContext context = riskRequest.getContext();
         if (context == null) {
             throw new DiagnosisException("MISSING_CONTEXT", "CONTEXT_NULL",
@@ -77,8 +73,6 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
                     "Risk assessment returned null result");
         }
 
-        log.info("위험 평가 진단 전략 실행 완료: {}", assessment.getRequestId());
-
         return assessment;
     }
 
@@ -101,8 +95,6 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
                     "Streaming risk assessment failed: " + e.getMessage(), e));
         }
     }
-
-    
 
     @Override
     protected String getExecutionErrorMessage() {

@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-
 @Entity
 @Table(name = "security_incidents")
 @Getter
@@ -126,8 +125,7 @@ public class SecurityIncident {
                      joinColumns = @JoinColumn(name = "incident_id"))
     @Column(name = "event_id")
     private List<String> relatedEventIds;
-    
-    
+
     @Column(name = "affected_system")
     private String affectedSystem;
     
@@ -142,8 +140,7 @@ public class SecurityIncident {
     
     @Column(name = "last_event_time")
     private LocalDateTime lastEventTime;
-    
-    
+
     public enum IncidentType {
         INTRUSION_ATTEMPT("침입 시도"),
         MALWARE_DETECTION("악성코드 탐지"),
@@ -171,8 +168,7 @@ public class SecurityIncident {
             return description;
         }
     }
-    
-    
+
     public enum ThreatLevel {
         CRITICAL(0.9, "치명적"),
         HIGH(0.7, "높음"),
@@ -195,9 +191,7 @@ public class SecurityIncident {
         public String getDescription() {
             return description;
         }
-        
 
-        
         public static ThreatLevel fromString(String level) {
             if (level == null) return INFO;
             return switch (level.toUpperCase()) {
@@ -209,8 +203,7 @@ public class SecurityIncident {
             };
         }
     }
-    
-    
+
     public enum IncidentStatus {
         NEW("신규"),
         INVESTIGATING("조사중"),
@@ -236,8 +229,7 @@ public class SecurityIncident {
             return this != RESOLVED && this != CLOSED && this != FALSE_POSITIVE;
         }
     }
-    
-    
+
     public void addIndicator(ThreatIndicator indicator) {
         if (indicators == null) {
             indicators = new ArrayList<>();
@@ -245,8 +237,7 @@ public class SecurityIncident {
         indicators.add(indicator);
         
     }
-    
-    
+
     public void addAction(SecurityAction action) {
         if (actions == null) {
             actions = new ArrayList<>();
@@ -254,38 +245,33 @@ public class SecurityIncident {
         actions.add(action);
         
     }
-    
-    
+
     public void addAffectedAsset(String assetId) {
         if (affectedAssets == null) {
             affectedAssets = new HashSet<>();
         }
         affectedAssets.add(assetId);
     }
-    
-    
+
     public void addTag(String tag) {
         if (tags == null) {
             tags = new HashSet<>();
         }
         tags.add(tag);
     }
-    
-    
+
     public void addRelatedEventId(String eventId) {
         if (relatedEventIds == null) {
             relatedEventIds = new ArrayList<>();
         }
         relatedEventIds.add(eventId);
     }
-    
-    
+
     public void resolve() {
         this.status = IncidentStatus.RESOLVED;
         this.resolvedAt = LocalDateTime.now();
     }
-    
-    
+
     public void escalate() {
         this.escalatedAt = LocalDateTime.now();
         if (this.threatLevel == ThreatLevel.MEDIUM) {
@@ -294,16 +280,14 @@ public class SecurityIncident {
             this.threatLevel = ThreatLevel.CRITICAL;
         }
     }
-    
-    
+
     public boolean needsApproval() {
         
         return requiresApproval ||
                threatLevel == ThreatLevel.CRITICAL ||
                threatLevel == ThreatLevel.HIGH;
     }
-    
-    
+
     @JsonIgnore
     public boolean canAutoRespond() {
         return autoResponseEnabled && !needsApproval() && status.isActive();

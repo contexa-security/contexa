@@ -12,14 +12,12 @@ import java.util.UUID;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class SecurityEvent {
-    
-    
+
     @Builder.Default
     private String eventId = UUID.randomUUID().toString();
 
@@ -34,43 +32,21 @@ public class SecurityEvent {
     
     @Builder.Default
     private String description = "Security event";
-    
-    
+
     private String sourceIp;
-    
-    
-    
-    
+
     private String protocol;
-    
-    
+
     private String userId;  
     private String userName;
     private String sessionId;
     private String userAgent;
-    
-    
-    
-    
-    
 
-    
     @Builder.Default
     private Map<String, Object> metadata = new HashMap<>();
-    
-    
-    
-    
 
     private boolean blocked;
 
-    
-    
-    
-
-    
-
-    
     public enum EventSource {
         IDS("Intrusion Detection System"),
         IPS("Intrusion Prevention System"),
@@ -96,8 +72,7 @@ public class SecurityEvent {
             return description;
         }
     }
-    
-    
+
     public enum Severity {
         CRITICAL("Critical", 10),
         HIGH("High", 8),
@@ -129,45 +104,38 @@ public class SecurityEvent {
             return INFO;
         }
     }
-    
-    
+
     public void addMetadata(String key, Object value) {
         if (this.metadata == null) {
             this.metadata = new HashMap<>();
         }
         this.metadata.put(key, value);
     }
-    
-    
+
     public void addMetadata(String key, String value) {
         addMetadata(key, (Object) value);
     }
-    
-    
+
     public boolean isHighRiskByAction(SecurityDecision.Action action) {
         return action == SecurityDecision.Action.BLOCK ||
                action == SecurityDecision.Action.ESCALATE;
     }
 
-    
     public boolean isBlockable() {
         return !blocked;
     }
 
-    
     public boolean hasUserId() {
         return userId != null && !userId.trim().isEmpty();
     }
-    
-    
+
     public String getUserContextKey() {
         if (!hasUserId()) {
             throw new IllegalStateException("UserId is required for Zero Trust context");
         }
         return "security:user:context:" + userId;
     }
-    
-    
+
     public String getSessionMappingKey() {
         if (sessionId == null || sessionId.trim().isEmpty()) {
             return null;

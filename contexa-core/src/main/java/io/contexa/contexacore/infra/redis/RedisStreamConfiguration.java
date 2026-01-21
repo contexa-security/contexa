@@ -6,14 +6,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 
-
 @Configuration
 public class RedisStreamConfiguration {
 
     @Autowired
     private RedisConnectionFactory redisConnectionFactory;
 
-    
     @Bean
     public StreamMessageListenerContainer<String, ?> streamMessageListenerContainer() {
         StreamMessageListenerContainer.StreamMessageListenerContainerOptions<String, ?> options = 

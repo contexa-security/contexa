@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -35,8 +34,7 @@ public class SoarIncident implements Serializable {
     private List<String> actionsTaken;
     private String resolution;
     private Map<String, Object> metadata;
-    
-    
+
     public enum IncidentStatus {
         NEW("신규"),
         INVESTIGATING("조사 중"),
@@ -59,8 +57,7 @@ public class SoarIncident implements Serializable {
             return description;
         }
     }
-    
-    
+
     public enum IncidentSeverity {
         CRITICAL("치명적"),
         HIGH("높음"),
@@ -78,8 +75,7 @@ public class SoarIncident implements Serializable {
             return description;
         }
     }
-    
-    
+
     public enum IncidentType {
         MALWARE("악성코드"),
         RANSOMWARE("랜섬웨어"),

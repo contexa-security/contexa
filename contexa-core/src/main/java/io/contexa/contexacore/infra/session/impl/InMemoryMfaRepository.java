@@ -17,7 +17,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @ConditionalOnProperty(name = "security.mfa.session.storage-type", havingValue = "memory")
 public class InMemoryMfaRepository implements MfaSessionRepository {
@@ -50,8 +49,7 @@ public class InMemoryMfaRepository implements MfaSessionRepository {
         }
 
         totalSessionsCreated.incrementAndGet();
-        log.debug("MFA session stored in memory: {}", sessionId);
-    }
+            }
 
     @Override
     @Nullable
@@ -62,16 +60,14 @@ public class InMemoryMfaRepository implements MfaSessionRepository {
     @Override
     public void removeSession(String sessionId, HttpServletRequest request, @Nullable HttpServletResponse response) {
         sessions.remove(sessionId);
-        log.debug("MFA session removed from memory: {}", sessionId);
-    }
+            }
 
     @Override
     public void refreshSession(String sessionId) {
         SessionEntry entry = sessions.get(sessionId);
         if (entry != null) {
             entry.expiryTime = Instant.now().plus(sessionTimeout);
-            log.trace("Memory session refreshed for: {}", sessionId);
-        }
+                    }
     }
 
     @Override
@@ -92,8 +88,7 @@ public class InMemoryMfaRepository implements MfaSessionRepository {
     @Override
     public void setSessionTimeout(Duration timeout) {
         this.sessionTimeout = timeout;
-        log.info("Memory session timeout set to: {}", timeout);
-    }
+            }
 
     @Override
     public String getRepositoryType() {
@@ -176,8 +171,7 @@ public class InMemoryMfaRepository implements MfaSessionRepository {
         }
 
         if (removed > 0) {
-            log.debug("Cleaned up {} expired sessions from memory", removed);
-        }
+                    }
     }
 
     private static class SessionEntry {

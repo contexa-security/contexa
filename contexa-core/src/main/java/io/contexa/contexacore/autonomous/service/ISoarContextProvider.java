@@ -8,21 +8,15 @@ import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import java.util.List;
 import java.util.Map;
 
-
 public interface ISoarContextProvider {
-    
-    
+
     SoarContext createContextFromIncident(SecurityIncident incident);
-    
-    
+
     SoarContext createContextFromEvents(List<SecurityEvent> events);
-    
-    
+
     SoarContext createContextFromThreatIndicators(List<ThreatIndicator> indicators);
-    
-    
+
     SoarContext enrichContext(SoarContext context, Map<String, Object> additionalInfo);
-    
-    
+
     SoarContext createEmergencyContext(String description, String severity);
 }

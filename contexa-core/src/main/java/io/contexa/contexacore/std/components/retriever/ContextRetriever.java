@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 public class ContextRetriever {
 
     protected final VectorStore vectorStore;
@@ -61,11 +60,9 @@ public class ContextRetriever {
         }
     }
 
-    
     public ContextRetrievalResult retrieveContext(AIRequest<? extends DomainContext> request) {
         String query = extractQueryFromRequest(request);
-        
-        
+
         RetrievalAugmentationAdvisor advisor = selectAdvisor(request);
         
         List<Document> contextDocs;
@@ -82,12 +79,10 @@ public class ContextRetriever {
             contextDocs = vectorStore.similaritySearch(searchRequest);
         }
 
-        
         String contextInfo = contextDocs.stream()
                 .map(doc -> "- " + doc.getText())
                 .collect(Collectors.joining("\n"));
 
-        
         Map<String, Object> metadata = Map.of(
                 "documentsFound", contextDocs.size(),
                 "searchQuery", query,
@@ -98,7 +93,6 @@ public class ContextRetriever {
         return new ContextRetrievalResult(contextInfo, contextDocs, metadata);
     }
 
-    
     protected String extractQueryFromRequest(AIRequest<? extends DomainContext> request) {
         String query = request.getParameter("naturalLanguageQuery", String.class);
         if (query == null || query.isEmpty()) {
@@ -110,29 +104,25 @@ public class ContextRetriever {
         }
         return query;
     }
-    
-    
+
     public void registerDomainAdvisor(
             Class<? extends DomainContext> domainClass,
             RetrievalAugmentationAdvisor advisor) {
         domainAdvisors.put(domainClass, advisor);
     }
-    
-    
+
     private RetrievalAugmentationAdvisor selectAdvisor(AIRequest<? extends DomainContext> request) {
         if (request.getContext() == null) {
             return defaultAdvisor;
         }
         
         Class<?> contextClass = request.getContext().getClass();
-        
-        
+
         RetrievalAugmentationAdvisor advisor = domainAdvisors.get(contextClass);
         if (advisor != null) {
             return advisor;
         }
-        
-        
+
         for (Map.Entry<Class<? extends DomainContext>, RetrievalAugmentationAdvisor> entry : domainAdvisors.entrySet()) {
             if (entry.getKey().isAssignableFrom(contextClass)) {
                 return entry.getValue();
@@ -141,18 +131,11 @@ public class ContextRetriever {
         
         return defaultAdvisor;
     }
-    
-    
+
     private List<Document> performRagRetrieval(
             RetrievalAugmentationAdvisor advisor,
             String query) {
-        
-        
-        
-        
-        
-        
-        
+
         SearchRequest searchRequest = SearchRequest.builder()
             .query(query)
             .topK(defaultTopK)
@@ -160,8 +143,7 @@ public class ContextRetriever {
             .build();
         
         List<Document> documents = vectorStore.similaritySearch(searchRequest);
-        
-        
+
         if (temporalClusteringProcessor != null) {
             documents = temporalClusteringProcessor.process(new Query(query), documents);
         }
@@ -171,17 +153,14 @@ public class ContextRetriever {
         
         return documents;
     }
-    
-    
+
     private void initializeDefaultRagAdvisor() {
         if (chatClientBuilder == null) {
             return;
         }
-        
-        
+
         QueryTransformer defaultQueryTransformer = new DefaultQueryTransformer(chatClientBuilder);
-        
-        
+
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(defaultSimilarityThreshold)
@@ -193,8 +172,7 @@ public class ContextRetriever {
             .queryTransformers(defaultQueryTransformer)
             .build();
     }
-    
-    
+
     private static class DefaultQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         
@@ -223,7 +201,6 @@ public class ContextRetriever {
         }
     }
 
-    
     public static class ContextRetrievalResult {
         private final String contextInfo;
         private final List<Document> documents;

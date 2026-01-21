@@ -5,7 +5,6 @@ import jakarta.persistence.*;
 
 import java.util.List;
 
-
 @Entity
 @Table(name = "soar_approval_policies")
 public class ApprovalPolicyEntity {
@@ -14,15 +13,12 @@ public class ApprovalPolicyEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    
     @Column(nullable = false, unique = true)
     private String policyName;
 
-    
     @Column
     private String actionName;
 
-    
     @Column
     private String severity;
 
@@ -40,7 +36,6 @@ public class ApprovalPolicyEntity {
     @Column(nullable = false)
     private boolean autoApproveOnTimeout;
 
-    
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getPolicyName() { return policyName; }

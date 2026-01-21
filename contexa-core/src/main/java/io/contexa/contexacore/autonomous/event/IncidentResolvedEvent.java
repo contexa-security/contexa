@@ -4,7 +4,6 @@ import io.contexa.contexacore.domain.entity.SoarIncident;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import org.springframework.context.ApplicationEvent;
 
-
 public class IncidentResolvedEvent extends ApplicationEvent {
 
     private final String incidentId;
@@ -15,7 +14,6 @@ public class IncidentResolvedEvent extends ApplicationEvent {
     private final long resolutionTimeMs;
     private final boolean wasSuccessful;
 
-    
     public IncidentResolvedEvent(Object source, String incidentId, SoarIncident incident,
                                 SecurityEvent securityEvent, String resolvedBy,
                                 String resolutionMethod, long resolutionTimeMs,
@@ -30,7 +28,6 @@ public class IncidentResolvedEvent extends ApplicationEvent {
         this.wasSuccessful = wasSuccessful;
     }
 
-    
     public String getIncidentId() {
         return incidentId;
     }

@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class RiskAssessmentContextRetriever extends ContextRetriever {
 
@@ -53,15 +52,11 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
     @PostConstruct
     public void registerSelf() {
         contextRetrieverRegistry.registerRetriever(RiskAssessmentContext.class, this);
-        log.info("RiskAssessmentContextRetriever 자동 등록 완료: RiskAssessmentContext → {}", 
-                this.getClass().getSimpleName());
-    }
+            }
 
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<?> request) {
-        log.debug("RiskAssessmentContextRetriever.retrieveContext 호출됨");
-        
-        
+
         if (request.getContext() instanceof RiskAssessmentContext) {
             String contextInfo = retrieveRiskAssessmentContext((AIRequest<RiskAssessmentContext>) request);
             return new ContextRetrievalResult(
@@ -70,63 +65,50 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 Map.of("retrieverType", "RiskAssessmentContextRetriever", "timestamp", System.currentTimeMillis())
             );
         }
-        
-        
+
         return super.retrieveContext(request);
     }
 
-    
     public String retrieveRiskAssessmentContext(AIRequest<RiskAssessmentContext> request) {
-        log.info("위험 평가 컨텍스트 검색 시작: {}", request.getRequestId());
-        
+                
         try {
             RiskAssessmentContext context = request.getContext();
             StringBuilder contextBuilder = new StringBuilder();
-            
-            
+
             try {
                 vectorService.storeRiskAssessment(context);
-                log.debug("💾 VectorService에 위험 평가 요청 저장 완료");
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("VectorService 위험 평가 저장 실패: {}", e.getMessage());
             }
-            
-            
+
             String historicalRiskPatterns = searchHistoricalRiskPatterns(context);
             if (!historicalRiskPatterns.isEmpty()) {
                 contextBuilder.append("## 📚 과거 위험 평가 사례 분석\n");
                 contextBuilder.append(historicalRiskPatterns).append("\n\n");
             }
-            
-            
+
             String userBehaviorAnalysis = analyzeUserBehaviorPatterns(context);
             contextBuilder.append("## 👤 사용자 행동 패턴 분석\n");
             contextBuilder.append(userBehaviorAnalysis).append("\n\n");
-            
-            
+
             String resourceRiskProfile = buildResourceRiskProfile(context);
             contextBuilder.append("## 리소스 위험 프로파일\n");
             contextBuilder.append(resourceRiskProfile).append("\n\n");
-            
-            
+
             String anomalyDetectionResult = performAnomalyDetection(context);
             contextBuilder.append("## 실시간 이상 탐지 결과\n");
             contextBuilder.append(anomalyDetectionResult).append("\n\n");
-            
-            
+
             String riskAssessmentGuidelines = getRiskAssessmentGuidelines();
             contextBuilder.append("## 위험 평가 가이드라인\n");
             contextBuilder.append(riskAssessmentGuidelines);
             
             String result = contextBuilder.toString();
-            log.info("위험 평가 컨텍스트 검색 완료 - 컨텍스트 길이: {}", result.length());
-            
-            
+
             try {
                 double riskScore = context.calculateRiskComplexity() / 20.0; 
                 vectorService.storeRiskResult(request.getRequestId(), riskScore, result);
-                log.debug("💾 VectorService에 위험 평가 결과 저장 완료 - 점수: {}", riskScore);
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("VectorService 결과 저장 실패: {}", e.getMessage());
             }
             
@@ -138,7 +120,6 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String searchHistoricalRiskPatterns(RiskAssessmentContext context) {
         try {
             
@@ -147,8 +128,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 context.getResourceIdentifier(), 
                 5
             );
-            
-            
+
             String searchQuery = String.format(
                 "위험 평가 사례 user:%s resource:%s action:%s ip:%s", 
                 context.getUserId(), 
@@ -164,8 +144,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 .build();
             
             List<Document> vectorDocs = vectorStore.similaritySearch(searchRequest);
-            
-            
+
             List<Document> riskDocs = new ArrayList<>();
             riskDocs.addAll(similarRisks);
             for (Document doc : vectorDocs) {
@@ -190,26 +169,22 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String analyzeUserBehaviorPatterns(RiskAssessmentContext context) {
         try {
             StringBuilder analysis = new StringBuilder();
-            
-            
+
             userRepository.findByUsernameWithGroupsRolesAndPermissions(context.getUserId()).ifPresent(user -> {
                 analysis.append(String.format("- 사용자: %s (ID: %d)\n", user.getName(), user.getId()));
                 analysis.append(String.format("- 계정 상태: %s\n", "활성")); 
                 analysis.append(String.format("- 생성일: %s\n", user.getCreatedAt()));
                 analysis.append(String.format("- MFA 활성화: %s\n", user.isMfaEnabled() ? "예" : "아니오"));
             });
-            
-            
+
             List<AuditLog> recentLogs = auditLogRepository.findTop5ByPrincipalNameOrderByIdDesc(context.getUserId());
             
             if (!recentLogs.isEmpty()) {
                 analysis.append(String.format("- 최근 활동 횟수: %d건\n", recentLogs.size()));
-                
-                
+
                 Map<String, Long> actionStats = recentLogs.stream()
                     .collect(Collectors.groupingBy(
                         log -> log.getAction(),
@@ -220,8 +195,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 actionStats.forEach((action, count) -> 
                     analysis.append(String.format("  * %s: %d건\n", action, count))
                 );
-                
-                
+
                 long distinctIpCount = recentLogs.stream()
                     .map(log -> log.getClientIp())
                     .distinct()
@@ -230,8 +204,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 if (distinctIpCount > 3) {
                     analysis.append(String.format("주의: 최근 %d개의 서로 다른 IP에서 접근\n", distinctIpCount));
                 }
-                
-                
+
                 LocalDateTime oneWeekAgo = LocalDateTime.now().minusWeeks(1);
                 long totalWeeklyActivities = auditLogRepository.countByPrincipalNameAndTimeRange(
                     context.getUserId(), oneWeekAgo, LocalDateTime.now());
@@ -249,32 +222,27 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String buildResourceRiskProfile(RiskAssessmentContext context) {
         try {
             StringBuilder profile = new StringBuilder();
             
             profile.append(String.format("- 대상 리소스: %s\n", context.getResourceIdentifier()));
             profile.append(String.format("- 요청 액션: %s\n", context.getActionType()));
-            
-            
+
             if (context.getResourceIdentifier() != null) {
                 long actionCount = resourceActionRepository.countActionsByResourceIdentifier(context.getResourceIdentifier());
                 profile.append(String.format("- 리소스 허용 액션 수: %d개\n", actionCount));
-                
-                
+
                 resourceActionRepository.getResourceSensitivityLevel(context.getResourceIdentifier())
                     .ifPresent(level -> profile.append(String.format("- 리소스 민감도: %s\n", level)));
-                
-                
+
                 resourceActionRepository.findByResourceIdentifier(context.getResourceIdentifier())
                     .ifPresentOrElse(
                         resource -> profile.append(String.format("- 리소스 타입: %s\n", resource.getResourceType())),
                         () -> profile.append("- 해당 리소스가 시스템에 등록되지 않았습니다.\n")
                     );
             }
-            
-            
+
             if (context.getResourceIdentifier() != null) {
                 long totalAccess = auditLogRepository.countByResourceIdentifier(context.getResourceIdentifier());
                 long uniqueUsers = auditLogRepository.countDistinctUsersByResourceIdentifier(context.getResourceIdentifier());
@@ -285,8 +253,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 profile.append(String.format("- 접근한 고유 사용자 수: %d명\n", uniqueUsers));
                 profile.append(String.format("- 최근 24시간 실패 시도: %d건\n", recentFailures));
             }
-            
-            
+
             if (context.getResourceIdentifier() != null) {
                 if (context.getResourceIdentifier().toLowerCase().contains("admin")) {
                     profile.append("높은 위험도: 관리자 리소스 접근\n");
@@ -305,11 +272,9 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String performAnomalyDetection(RiskAssessmentContext context) {
         StringBuilder detection = new StringBuilder();
-        
-        
+
         if (context.getRemoteIp() != null) {
             if (context.getRemoteIp().startsWith("10.") || 
                 context.getRemoteIp().startsWith("192.168.") || 
@@ -319,16 +284,14 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
                 detection.append("외부 네트워크에서의 접근: ").append(context.getRemoteIp()).append("\n");
             }
         }
-        
-        
+
         int currentHour = LocalDateTime.now().getHour();
         if (currentHour >= 18 || currentHour <= 8) {
             detection.append("업무시간 외 접근 시도\n");
         } else {
             detection.append("정상 업무시간 내 접근\n");
         }
-        
-        
+
         int complexityScore = context.calculateRiskComplexity();
         if (complexityScore > 10) {
             detection.append(String.format("높은 권한 복잡도: %d점\n", complexityScore));
@@ -339,7 +302,6 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         return detection.toString();
     }
 
-    
     private String getRiskAssessmentGuidelines() {
         return """
         ### 위험 점수 산정 기준
@@ -363,7 +325,6 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         """;
     }
 
-    
     private String getDefaultRiskAssessmentContext() {
         return """
         ## 기본 위험 평가 컨텍스트
@@ -376,8 +337,7 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
         - 상세한 감사로그 기록
         """;
     }
-    
-    
+
     private static class RiskQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

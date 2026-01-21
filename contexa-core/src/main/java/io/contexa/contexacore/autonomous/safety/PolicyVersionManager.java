@@ -12,24 +12,19 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 public class PolicyVersionManager {
     
     private static final Logger logger = LoggerFactory.getLogger(PolicyVersionManager.class);
     
     @Autowired
     private PolicyProposalRepository proposalRepository;
-    
-    
+
     private final Map<Long, PolicyVersionChain> versionChains = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, Long> activePolicies = new ConcurrentHashMap<>();
-    
-    
+
     private final List<RollbackHistory> rollbackHistories = Collections.synchronizedList(new ArrayList<>());
-    
-    
+
     @Transactional
     public Long createVersion(PolicyEvolutionProposal proposal) {
         logger.info("Creating new policy version for proposal: {}", proposal.getId());
@@ -37,8 +32,7 @@ public class PolicyVersionManager {
         try {
             
             PolicyVersionChain chain = getOrCreateChain(proposal);
-            
-            
+
             PolicyVersion version = PolicyVersion.builder()
                 .versionId(generateVersionId())
                 .proposalId(proposal.getId())
@@ -48,8 +42,7 @@ public class PolicyVersionManager {
                 .build();
             
             chain.addVersion(version);
-            
-            
+
             versionChains.put(proposal.getId(), chain);
             
             logger.info("Created version {} for proposal {}", version.getVersionId(), proposal.getId());
@@ -60,8 +53,7 @@ public class PolicyVersionManager {
             throw new PolicyVersionException("Version creation failed", e);
         }
     }
-    
-    
+
     @Transactional
     public void activateVersion(Long proposalId, Long versionId) {
         logger.info("Activating version {} for proposal {}", versionId, proposalId);
@@ -70,18 +62,15 @@ public class PolicyVersionManager {
         if (chain == null) {
             throw new PolicyVersionException("Version chain not found for proposal: " + proposalId);
         }
-        
-        
+
         deactivateCurrentVersion(proposalId);
-        
-        
+
         chain.setCurrentVersion(versionId);
         activePolicies.put(getPolicyKey(proposalId), versionId);
         
         logger.info("Activated version {} for proposal {}", versionId, proposalId);
     }
-    
-    
+
     @Transactional
     public Long rollback(Long proposalId, Long targetVersionId) {
         logger.warn("Rolling back proposal {} to version {}", proposalId, targetVersionId);
@@ -97,11 +86,9 @@ public class PolicyVersionManager {
         if (rollbackTarget == null) {
             throw new PolicyVersionException("No previous version available for rollback");
         }
-        
-        
+
         activateVersion(proposalId, rollbackTarget);
-        
-        
+
         recordRollback(proposalId, currentVersion, rollbackTarget);
         
         logger.info("Rolled back proposal {} from version {} to {}", 
@@ -109,8 +96,7 @@ public class PolicyVersionManager {
         
         return rollbackTarget;
     }
-    
-    
+
     public List<PolicyVersion> getVersionHistory(Long proposalId) {
         PolicyVersionChain chain = versionChains.get(proposalId);
         if (chain == null) {
@@ -119,8 +105,7 @@ public class PolicyVersionManager {
         
         return chain.getVersionHistory();
     }
-    
-    
+
     public VersionDiff compareVersions(Long proposalId, Long versionId1, Long versionId2) {
         PolicyVersionChain chain = versionChains.get(proposalId);
         if (chain == null) {
@@ -142,8 +127,7 @@ public class PolicyVersionManager {
             .timestamp(LocalDateTime.now())
             .build();
     }
-    
-    
+
     @Transactional
     public void pruneOldVersions(int retainCount) {
         logger.info("Pruning old versions, retaining {} versions per chain", retainCount);
@@ -156,14 +140,12 @@ public class PolicyVersionManager {
         
         logger.info("Pruned {} old versions across all chains", totalPruned);
     }
-    
-    
+
     public boolean isActive(Long proposalId) {
         String key = getPolicyKey(proposalId);
         return activePolicies.containsKey(key);
     }
-    
-    
+
     public boolean hasConflict(Long proposalId, Long versionId) {
         
         for (Map.Entry<String, Long> entry : activePolicies.entrySet()) {
@@ -176,9 +158,7 @@ public class PolicyVersionManager {
         }
         return false;
     }
-    
-    
-    
+
     private PolicyVersionChain getOrCreateChain(PolicyEvolutionProposal proposal) {
         return versionChains.computeIfAbsent(proposal.getId(), 
             id -> new PolicyVersionChain(id));
@@ -225,8 +205,7 @@ public class PolicyVersionManager {
     
     private Map<String, Object> calculateChanges(PolicyVersion v1, PolicyVersion v2) {
         Map<String, Object> changes = new HashMap<>();
-        
-        
+
         Map<String, Object> meta1 = v1.getMetadata();
         Map<String, Object> meta2 = v2.getMetadata();
         
@@ -246,10 +225,7 @@ public class PolicyVersionManager {
         
         return false;
     }
-    
-    
-    
-    
+
     private static class PolicyVersionChain {
         private final Long proposalId;
         private final List<PolicyVersion> versions;
@@ -303,8 +279,7 @@ public class PolicyVersionManager {
             return toRemove;
         }
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     private static class PolicyVersion {
@@ -314,8 +289,7 @@ public class PolicyVersionManager {
         private LocalDateTime createdAt;
         private Map<String, Object> metadata;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class VersionDiff {
@@ -325,8 +299,7 @@ public class PolicyVersionManager {
         private Map<String, Object> changes;
         private LocalDateTime timestamp;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     private static class RollbackHistory {
@@ -336,8 +309,7 @@ public class PolicyVersionManager {
         private LocalDateTime timestamp;
         private String reason;
     }
-    
-    
+
     public static class PolicyVersionException extends RuntimeException {
         public PolicyVersionException(String message) {
             super(message);

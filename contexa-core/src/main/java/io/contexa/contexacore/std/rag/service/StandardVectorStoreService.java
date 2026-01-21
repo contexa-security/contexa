@@ -27,24 +27,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-
 @RequiredArgsConstructor
 public class StandardVectorStoreService implements VectorOperations {
 
-    
     private final PgVectorStoreProperties properties;
 
     private final VectorStore vectorStore;
     private final EmbeddingModel embeddingModel;
     private final JdbcTemplate jdbcTemplate;
     private ExecutorService executorService;
-    
-    
+
     private TokenTextSplitter textSplitter;
     private DocumentTransformer keywordEnricher;
     private DocumentTransformer summaryEnricher;
-    
-    
+
     private final Map<String, Long> metrics = new ConcurrentHashMap<>();
     
     @PostConstruct
@@ -60,41 +56,34 @@ public class StandardVectorStoreService implements VectorOperations {
             true
         );
 
-        
         this.keywordEnricher = new KeywordDocumentTransformer();
         this.summaryEnricher = new SummaryDocumentTransformer(embeddingModel);
 
-        
         optimizePgVectorIndex();
     }
-    
-    
+
     @Override
     @Transactional
     public void storeDocument(Document document) {
         addDocuments(List.of(document));
     }
 
-    
     @Override
     @Transactional
     public void storeDocuments(List<Document> documents) {
         addDocuments(documents);
     }
 
-    
     @Override
     public CompletableFuture<Void> storeDocumentAsync(Document document) {
         return CompletableFuture.runAsync(() -> storeDocument(document), executorService);
     }
 
-    
     @Override
     public CompletableFuture<Void> storeDocumentsAsync(List<Document> documents) {
         return CompletableFuture.runAsync(() -> storeDocuments(documents), executorService);
     }
 
-    
     @Transactional
     public void addDocuments(List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
@@ -102,58 +91,45 @@ public class StandardVectorStoreService implements VectorOperations {
         }
         
         long startTime = System.currentTimeMillis();
-        
-        
+
         List<Document> processedDocuments = preprocessDocuments(documents);
-        
-        
+
         processedDocuments = enrichDocumentMetadata(processedDocuments);
-        
-        
+
         processBatchDocuments(processedDocuments);
-        
-        
+
         long duration = System.currentTimeMillis() - startTime;
         metrics.put("lastAddDuration", duration);
         metrics.put("totalDocumentsAdded", 
             metrics.getOrDefault("totalDocumentsAdded", 0L) + documents.size());
     }
-    
-    
+
     @Override
     public List<Document> searchSimilar(String query) {
         return similaritySearch(query);
     }
 
-    
     @Override
     public List<Document> searchSimilar(String query, Map<String, Object> filters) {
         return searchWithFilter(query, filters);
     }
 
-    
     @Override
     public List<Document> searchSimilar(SearchRequest searchRequest) {
         return similaritySearch(searchRequest);
     }
 
-    
     public List<Document> similaritySearch(String query) {
         return similaritySearch(SearchRequest.builder()
             .query(query)
             .build());
     }
-    
-    
+
     public List<Document> similaritySearch(SearchRequest searchRequest) {
         long startTime = System.currentTimeMillis();
 
-        
         List<Document> results = vectorStore.similaritySearch(searchRequest);
 
-        
-        
-        
         for (Document doc : results) {
             Double score = doc.getScore();
             if (score != null) {
@@ -162,7 +138,6 @@ public class StandardVectorStoreService implements VectorOperations {
             }
         }
 
-        
         long duration = System.currentTimeMillis() - startTime;
         metrics.put("lastSearchDuration", duration);
         metrics.put("totalSearches",
@@ -170,13 +145,11 @@ public class StandardVectorStoreService implements VectorOperations {
 
         return results;
     }
-    
-    
+
     public List<Document> searchWithFilter(String query, Map<String, Object> filterCriteria) {
         FilterExpressionBuilder builder = new FilterExpressionBuilder();
         Filter.Expression filter = buildFilterExpression(builder, filterCriteria);
 
-        
         int topK = filterCriteria.containsKey("topK")
             ? ((Number) filterCriteria.get("topK")).intValue()
             : properties.getTopK();
@@ -190,8 +163,7 @@ public class StandardVectorStoreService implements VectorOperations {
 
         return similaritySearch(searchRequest);
     }
-    
-    
+
     public List<Document> searchByTimeRange(
             String query, 
             LocalDateTime startTime, 
@@ -200,21 +172,18 @@ public class StandardVectorStoreService implements VectorOperations {
         
         FilterExpressionBuilder builder = new FilterExpressionBuilder();
 
-        
         FilterExpressionBuilder.Op timeFilterOp = builder.and(
             builder.gte("timestamp", startTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)),
             builder.lte("timestamp", endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
         );
 
-        
         Filter.Expression timeFilter;
         if (documentType != null && !documentType.isEmpty()) {
             timeFilter = builder.and(timeFilterOp, builder.eq("documentType", documentType)).build();
         } else {
             timeFilter = timeFilterOp.build();
         }
-        
-        
+
         SearchRequest searchRequest = SearchRequest.builder()
             .query(query)
             .topK(properties.getTopK())
@@ -224,58 +193,48 @@ public class StandardVectorStoreService implements VectorOperations {
         
         return similaritySearch(searchRequest);
     }
-    
-    
+
     @Transactional
     public void deleteDocuments(List<String> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
             return;
         }
-        
-        
+
         vectorStore.delete(documentIds);
         
         metrics.put("totalDocumentsDeleted", 
             metrics.getOrDefault("totalDocumentsDeleted", 0L) + documentIds.size());
     }
-    
-    
+
     @Transactional
     public void updateDocuments(List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
             return;
         }
-        
-        
+
         List<String> documentIds = documents.stream()
             .map(doc -> (String) doc.getMetadata().get("id"))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
-        
-        
+
         if (!documentIds.isEmpty()) {
             deleteDocuments(documentIds);
         }
-        
-        
+
         addDocuments(documents);
     }
-    
-    
+
     private List<Document> preprocessDocuments(List<Document> documents) {
         List<Document> allChunks = new ArrayList<>();
         
         for (Document doc : documents) {
             
             ensureDocumentId(doc);
-            
-            
+
             ensureTimestamp(doc);
-            
-            
+
             List<Document> chunks = textSplitter.apply(List.of(doc));
-            
-            
+
             for (Document chunk : chunks) {
                 chunk.getMetadata().putAll(doc.getMetadata());
                 chunk.getMetadata().put("chunkId", UUID.randomUUID().toString());
@@ -287,13 +246,11 @@ public class StandardVectorStoreService implements VectorOperations {
         
         return allChunks;
     }
-    
-    
+
     private List<Document> enrichDocumentMetadata(List<Document> documents) {
         
         documents = keywordEnricher.apply(documents);
 
-        
         List<CompletableFuture<Document>> futures = documents.stream()
             .map(doc -> CompletableFuture.supplyAsync(() -> {
                 List<Document> enriched = summaryEnricher.apply(List.of(doc));
@@ -307,8 +264,7 @@ public class StandardVectorStoreService implements VectorOperations {
             .map(CompletableFuture::join)
             .collect(Collectors.toList());
     }
-    
-    
+
     private void processBatchDocuments(List<Document> documents) {
         
         int batchSize = properties.getBatchSize();
@@ -316,25 +272,21 @@ public class StandardVectorStoreService implements VectorOperations {
             int end = Math.min(i + batchSize, documents.size());
             List<Document> batch = documents.subList(i, end);
 
-            
             vectorStore.add(batch);
         }
     }
-    
-    
+
     @SuppressWarnings("unchecked")
     private Filter.Expression buildFilterExpression(
             FilterExpressionBuilder builder,
             Map<String, Object> criteria) {
 
-        
         List<FilterExpressionBuilder.Op> ops = new ArrayList<>();
 
         for (Map.Entry<String, Object> entry : criteria.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
 
-            
             if ("topK".equals(key)) {
                 continue;
             }
@@ -361,20 +313,17 @@ public class StandardVectorStoreService implements VectorOperations {
             return null;
         }
 
-        
         if (ops.size() == 1) {
             return ops.get(0).build();
         }
 
-        
         FilterExpressionBuilder.Op combined = ops.get(0);
         for (int i = 1; i < ops.size(); i++) {
             combined = builder.and(combined, ops.get(i));
         }
         return combined.build();
     }
-    
-    
+
     private void optimizePgVectorIndex() {
         try {
             
@@ -389,65 +338,53 @@ public class StandardVectorStoreService implements VectorOperations {
                 );
                 jdbcTemplate.execute(sql);
 
-                
                 jdbcTemplate.execute(String.format("SET hnsw.ef_search = %d;",
                     properties.getHnsw().getEfSearch()));
             }
-            
-            
+
             jdbcTemplate.execute("ANALYZE vector_store;");
             
         } catch (Exception e) {
-            
-            
+
         }
     }
-    
-    
+
     private void ensureDocumentId(Document document) {
         if (!document.getMetadata().containsKey("id")) {
             document.getMetadata().put("id", UUID.randomUUID().toString());
         }
     }
-    
-    
+
     private void ensureTimestamp(Document document) {
         if (!document.getMetadata().containsKey("timestamp")) {
             document.getMetadata().put("timestamp", 
                 LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         }
     }
-    
-    
+
     public List<Document> readPdfDocument(Resource pdfResource) {
-        
-        
+
         TextReader reader = new TextReader(pdfResource);
         return reader.get();
     }
-    
-    
+
     public List<Document> readTextDocument(Resource textResource) {
         TextReader reader = new TextReader(textResource);
         return reader.get();
     }
-    
-    
+
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
-        
-        
+
         stats.putAll(metrics);
-        
-        
+
         try {
             Long documentCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM vector_store",
                 Long.class
             );
             stats.put("totalDocuments", documentCount);
-            
-            
+
             String indexSizeStr = jdbcTemplate.queryForObject(
                 "SELECT pg_size_pretty(pg_relation_size('embedding_hnsw_idx'))::text",
                 String.class
@@ -460,13 +397,11 @@ public class StandardVectorStoreService implements VectorOperations {
         
         return stats;
     }
-    
-    
+
     public void shutdown() {
         executorService.shutdown();
     }
-    
-    
+
     private static class KeywordDocumentTransformer implements DocumentTransformer {
         private static final int MAX_KEYWORDS = 5;
         
@@ -506,8 +441,7 @@ public class StandardVectorStoreService implements VectorOperations {
             return stopWords.contains(word);
         }
     }
-    
-    
+
     private static class SummaryDocumentTransformer implements DocumentTransformer {
         private final EmbeddingModel embeddingModel;
         

@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 public class SoarContextProviderImpl implements ISoarContextProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(SoarContextProviderImpl.class);
@@ -42,33 +41,25 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             return createDefaultContext();
         }
 
-        
         SecurityEvent primaryEvent = events.get(0);
 
-        
         String incidentId = "INC-EVT-" + primaryEvent.getEventId();
 
-        
         String severity = determineSeverity(events);
 
-        
         String description = String.format("Security events detected: %d events starting with %s severity",
                 events.size(), primaryEvent.getSeverity());
 
-        
         List<String> affectedSystems = extractAffectedSystems(events);
 
-        
         Map<String, Object> additionalInfo = new HashMap<>();
         additionalInfo.put("event_count", events.size());
         additionalInfo.put("first_event_time", primaryEvent.getTimestamp());
         additionalInfo.put("event_types", extractEventTypes(events));
         additionalInfo.put("source_ips", extractSourceIps(events));
 
-        
         String threatType = primaryEvent.getSeverity() != null ? primaryEvent.getSeverity().toString() : "UNKNOWN";
 
-        
         SoarContext context = new SoarContext(
                 incidentId,                    
                 threatType,                    
@@ -81,10 +72,8 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 defaultOrganizationId         
         );
 
-        
         context.setExecutionMode(SoarExecutionMode.valueOf(defaultExecutionMode));
 
-        
         if (autoApproveLowRisk && "LOW".equals(severity)) {
             
         }
@@ -103,31 +92,25 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             return createDefaultContext();
         }
 
-        
         SecurityIncident fullIncident = securityIncidentRepository
                 .findWithTagsByIncidentId(incident.getIncidentId())
                 .orElse(incident); 
 
-        
         incident = fullIncident;
 
-        
         String severity = mapIncidentSeverity(incident.getThreatLevel());
 
-        
         List<String> affectedSystems = new ArrayList<>();
         if (incident.getAffectedSystem() != null) {
             affectedSystems.add(incident.getAffectedSystem());
         }
 
-        
         Map<String, Object> additionalInfo = new HashMap<>();
         additionalInfo.put("incident_type", incident.getType().toString());
         additionalInfo.put("source", incident.getSource());
         additionalInfo.put("detection_time", incident.getDetectedAt());
         additionalInfo.put("status", incident.getStatus());
 
-        
         try {
             if (incident.getTags() != null && !incident.getTags().isEmpty()) {
                 
@@ -139,12 +122,10 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             additionalInfo.put("tags", new HashSet<>());
         }
 
-        
         if (incident.getRelatedEventIds() != null && !incident.getRelatedEventIds().isEmpty()) {
             additionalInfo.put("related_events", incident.getRelatedEventIds());
         }
 
-        
         SoarContext context = new SoarContext(
                 incident.getIncidentId(),
                 "ACTIVE",
@@ -157,10 +138,8 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 defaultOrganizationId
         );
 
-        
         context.setExecutionMode(SoarExecutionMode.ASYNC);
 
-        
         if ("CRITICAL".equals(severity)) {
             context.setHumanApprovalNeeded(true);
             context.setHumanApprovalMessage("Critical incident requires human approval before tool execution");
@@ -183,14 +162,12 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             return context;
         }
 
-        
         Map<String, Object> currentInfo = context.getAdditionalInfo();
         if (currentInfo == null) {
             currentInfo = new HashMap<>();
         }
         currentInfo.putAll(additionalInfo);
 
-        
         if (additionalInfo.containsKey("severity")) {
             String newSeverity = additionalInfo.get("severity").toString();
             context.setSeverity(newSeverity);
@@ -214,7 +191,6 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             context.setAffectedAssets(currentSystems);
         }
 
-        
         if (additionalInfo.containsKey("recommendedAction")) {
             String action = additionalInfo.get("recommendedAction").toString();
             if (isHighRiskAction(action)) {
@@ -244,16 +220,12 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 defaultOrganizationId                          
         );
 
-        
         context.setExecutionMode(SoarExecutionMode.ASYNC);
-        
 
         logger.debug("Created default SOAR context: {}", incidentId);
 
         return context;
     }
-
-    
 
     private String determineSeverity(List<SecurityEvent> events) {
         
@@ -278,7 +250,6 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 .collect(Collectors.toList());
     }
 
-    
     private List<String> extractEventTypes(List<SecurityEvent> events) {
         return events.stream()
                 .map(e -> e.getSeverity() != null ? e.getSeverity().toString() : null)
@@ -349,7 +320,6 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 defaultOrganizationId
         );
 
-        
         context.setExecutionMode(SoarExecutionMode.SYNC);
         context.setHumanApprovalNeeded(true);
         context.setHumanApprovalMessage("Emergency situation requires immediate human approval");

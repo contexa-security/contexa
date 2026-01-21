@@ -11,7 +11,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 public class TemporalClusteringProcessor implements DocumentPostProcessor {
     
     @Value("${spring.ai.rag.clustering.max-docs-per-cluster:5}")
@@ -27,32 +26,27 @@ public class TemporalClusteringProcessor implements DocumentPostProcessor {
         if (documents.isEmpty()) {
             return documents;
         }
-        
-        
+
         Map<String, List<Document>> clusters = clusterDocumentsByTime(documents);
-        
-        
+
         List<Document> processedDocuments = new ArrayList<>();
         
         for (Map.Entry<String, List<Document>> entry : clusters.entrySet()) {
             List<Document> clusterDocs = entry.getValue();
             List<Document> representatives = selectRepresentativeDocuments(clusterDocs);
-            
-            
+
             for (Document doc : representatives) {
                 enrichWithClusterMetadata(doc, entry.getKey(), clusterDocs.size());
             }
             
             processedDocuments.addAll(representatives);
         }
-        
-        
+
         processedDocuments.sort(Comparator.comparing(this::getDocumentTimestamp).reversed());
         
         return processedDocuments;
     }
-    
-    
+
     private Map<String, List<Document>> clusterDocumentsByTime(List<Document> documents) {
         Map<String, List<Document>> clusters = new LinkedHashMap<>();
         
@@ -63,16 +57,14 @@ public class TemporalClusteringProcessor implements DocumentPostProcessor {
         
         return clusters;
     }
-    
-    
+
     private String getTimeClusterKey(Document document) {
         LocalDateTime timestamp = getDocumentTimestamp(document);
         
         int hour = timestamp.getHour();
         int dayOfWeek = timestamp.getDayOfWeek().getValue();
         boolean isWeekend = dayOfWeek >= 6;
-        
-        
+
         String timeSlot;
         if (hour >= 6 && hour < 9) {
             timeSlot = "MORNING";
@@ -89,61 +81,51 @@ public class TemporalClusteringProcessor implements DocumentPostProcessor {
         }
         
         String dayType = isWeekend ? "WEEKEND" : "WEEKDAY";
-        
-        
+
         String dateKey = timestamp.toLocalDate().toString();
         return String.format("%s_%s_%s", dateKey, dayType, timeSlot);
     }
-    
-    
+
     private List<Document> selectRepresentativeDocuments(List<Document> clusterDocs) {
         if (clusterDocs.size() <= maxDocsPerCluster) {
             return clusterDocs;
         }
-        
-        
+
         List<ScoredDocument> scoredDocs = clusterDocs.stream()
             .map(doc -> new ScoredDocument(doc, calculateDocumentScore(doc)))
             .sorted(Comparator.comparing(ScoredDocument::score).reversed())
             .collect(Collectors.toList());
-        
-        
+
         return scoredDocs.stream()
             .limit(maxDocsPerCluster)
             .map(ScoredDocument::document)
             .collect(Collectors.toList());
     }
-    
-    
+
     private double calculateDocumentScore(Document document) {
         double score = 0.0;
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         if (metadata.containsKey("score")) {
             score += ((Number) metadata.get("score")).doubleValue() * 0.4;
         }
-        
-        
+
         double completeness = calculateMetadataCompleteness(metadata);
         score += completeness * 0.3;
-        
-        
+
         String content = document.getText();
         if (content != null) {
             double lengthScore = Math.min(content.length() / 1000.0, 1.0);
             score += lengthScore * 0.2;
         }
-        
-        
+
         if (metadata.containsKey("riskScore") || metadata.containsKey("anomalyScore")) {
             score += 0.1;
         }
         
         return score;
     }
-    
-    
+
     private double calculateMetadataCompleteness(Map<String, Object> metadata) {
         String[] requiredFields = {
             "userId", "timestamp", "activityType", "documentType"
@@ -173,16 +155,14 @@ public class TemporalClusteringProcessor implements DocumentPostProcessor {
         
         return requiredScore * 0.7 + optionalScore * 0.3;
     }
-    
-    
+
     private void enrichWithClusterMetadata(Document document, String clusterKey, int clusterSize) {
         Map<String, Object> metadata = document.getMetadata();
         
         metadata.put("timeCluster", clusterKey);
         metadata.put("clusterSize", clusterSize);
         metadata.put("isRepresentative", true);
-        
-        
+
         String[] parts = clusterKey.split("_");
         if (parts.length >= 3) {
             metadata.put("clusterDate", parts[0]);
@@ -190,8 +170,7 @@ public class TemporalClusteringProcessor implements DocumentPostProcessor {
             metadata.put("clusterTimeSlot", parts[2]);
         }
     }
-    
-    
+
     private LocalDateTime getDocumentTimestamp(Document document) {
         Object timestamp = document.getMetadata().get("timestamp");
         
@@ -208,7 +187,6 @@ public class TemporalClusteringProcessor implements DocumentPostProcessor {
         
         return LocalDateTime.now();
     }
-    
-    
+
     private record ScoredDocument(Document document, double score) {}
 }

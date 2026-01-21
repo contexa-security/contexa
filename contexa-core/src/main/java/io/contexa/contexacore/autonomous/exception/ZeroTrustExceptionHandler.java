@@ -7,12 +7,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.time.Instant;
 
-
 @ControllerAdvice
 @Slf4j
 public class ZeroTrustExceptionHandler {
 
-    
     @ExceptionHandler(ZeroTrustAccessDeniedException.class)
     public ResponseEntity<ZeroTrustErrorResponse> handleZeroTrustDenied(
             ZeroTrustAccessDeniedException ex) {
@@ -36,7 +34,6 @@ public class ZeroTrustExceptionHandler {
             .body(response);
     }
 
-    
     @ExceptionHandler(AnomalyDetectedException.class)
     public ResponseEntity<ZeroTrustErrorResponse> handleAnomalyDetected(
             AnomalyDetectedException ex) {
@@ -59,33 +56,24 @@ public class ZeroTrustExceptionHandler {
             .body(response);
     }
 
-    
     @lombok.Builder
     @lombok.Getter
     public static class ZeroTrustErrorResponse {
 
-        
         private final int status;
 
-        
         private final String code;
 
-        
         private final String message;
 
-        
         private final String action;
 
-        
         private final String resourceId;
 
-        
         private final double riskScore;
 
-        
         private final boolean analysisTimeout;
 
-        
         private final Instant timestamp;
     }
 }

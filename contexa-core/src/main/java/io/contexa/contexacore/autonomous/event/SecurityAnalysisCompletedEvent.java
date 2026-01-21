@@ -6,37 +6,27 @@ import org.springframework.context.ApplicationEvent;
 
 import java.time.Instant;
 
-
 @Getter
 public class SecurityAnalysisCompletedEvent extends ApplicationEvent {
 
     private static final long serialVersionUID = 1L;
 
-    
     private final String requestId;
 
-    
     private final String userId;
 
-    
     private final String action;
 
-    
     private final double riskScore;
 
-    
     private final double confidence;
 
-    
     private final Instant completedAt;
 
-    
     private final long processingTimeMs;
 
-    
     private final String threatType;
 
-    
     private final String threatEvidence;
 
     @Builder
@@ -62,12 +52,10 @@ public class SecurityAnalysisCompletedEvent extends ApplicationEvent {
         this.threatEvidence = threatEvidence;
     }
 
-    
     public boolean requiresBlocking() {
         return "BLOCK".equalsIgnoreCase(action);
     }
 
-    
     public boolean isHighRisk() {
         return "BLOCK".equalsIgnoreCase(action) || "ESCALATE".equalsIgnoreCase(action);
     }

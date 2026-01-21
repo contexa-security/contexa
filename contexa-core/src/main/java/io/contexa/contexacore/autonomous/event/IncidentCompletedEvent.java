@@ -3,7 +3,6 @@ package io.contexa.contexacore.autonomous.event;
 import io.contexa.contexacore.domain.entity.SoarIncident;
 import org.springframework.context.ApplicationEvent;
 
-
 public class IncidentCompletedEvent extends ApplicationEvent {
 
     private final SoarIncident incident;
@@ -11,7 +10,6 @@ public class IncidentCompletedEvent extends ApplicationEvent {
     private final String resolutionMethod;
     private final boolean wasSuccessful;
 
-    
     public IncidentCompletedEvent(Object source, SoarIncident incident,
                                  String resolvedBy, String resolutionMethod,
                                  boolean wasSuccessful) {
@@ -22,7 +20,6 @@ public class IncidentCompletedEvent extends ApplicationEvent {
         this.wasSuccessful = wasSuccessful;
     }
 
-    
     public SoarIncident getIncident() {
         return incident;
     }

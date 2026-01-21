@@ -20,28 +20,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class DynamicStrategySelector {
-    
-    
+
     private final ThreatCorrelator threatCorrelator;
 
-    
     @Autowired(required = false)
     private ThreatEvaluator threatEvaluator;
-    
-    
-    
-    
+
     @Autowired(required = false)
     private CompositeEvaluationStrategy compositeStrategy;
 
-    
-    
-    
-    
     @Value("${security.strategy.cache.ttl-seconds:300}")
     private int cacheTimeToLiveSeconds;
     
@@ -53,77 +43,57 @@ public class DynamicStrategySelector {
     
     @Value("${security.strategy.confidence.threshold:0.75}")
     private double confidenceThreshold;
-    
-    
+
     private final Map<String, ThreatEvaluationStrategy> strategies = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, StrategySelectionResult> selectionCache = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, StrategyPerformanceMetrics> performanceMetrics = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, LearningData> learningData = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalSelections = new AtomicLong(0);
     private final AtomicLong cacheHits = new AtomicLong(0);
     
     @PostConstruct
     public void initialize() {
-        log.info("동적 전략 선택기 초기화 시작");
-        
-        
+
         registerDefaultStrategies();
-        
-        
+
         startCacheCleaner();
         
-        log.info("동적 전략 선택기 초기화 완료 - 등록된 전략: {}", strategies.size());
-    }
-    
-    
+            }
+
     public Mono<String> selectOptimalStrategy(String eventType, Map<String, Object> context) {
         return Mono.fromCallable(() -> {
             totalSelections.incrementAndGet();
-            
-            
+
             String cacheKey = generateCacheKey(eventType, context);
             StrategySelectionResult cached = selectionCache.get(cacheKey);
             
             if (cached != null && !cached.isExpired()) {
                 cacheHits.incrementAndGet();
-                log.debug("캐시된 전략 사용: {}", cached.getStrategy());
-                return cached.getStrategy();
+                                return cached.getStrategy();
             }
-            
-            
+
             StrategySelectionResult result = executeStrategySelection(eventType, context);
-            
-            
+
             selectionCache.put(cacheKey, result);
-            
-            
+
             if (learningEnabled) {
                 updateLearningData(eventType, context, result);
             }
-            
-            log.info("전략 선택 완료 - Event Type: {}, Selected: {}, Confidence: {}", 
-                eventType, result.getStrategy(), result.getConfidence());
-            
+
             return result.getStrategy();
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<Map<String, Double>> selectCombinedStrategies(String eventType, Map<String, Object> context) {
         return Mono.fromCallable(() -> {
             
             Map<String, Double> strategyScores = evaluateAllStrategies(eventType, context);
-            
-            
+
             Map<String, Double> selected = strategyScores.entrySet().stream()
                 .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
                 .limit(maxCombinedStrategies)
@@ -133,8 +103,7 @@ public class DynamicStrategySelector {
                     (e1, e2) -> e1,
                     LinkedHashMap::new
                 ));
-            
-            
+
             double totalWeight = selected.values().stream()
                 .mapToDouble(Double::doubleValue)
                 .sum();
@@ -142,29 +111,23 @@ public class DynamicStrategySelector {
             if (totalWeight > 0) {
                 selected.replaceAll((k, v) -> v / totalWeight);
             }
-            
-            log.info("전략 조합 선택 완료 - Strategies: {}", selected);
-            
+
             return selected;
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private StrategySelectionResult executeStrategySelection(String eventType, Map<String, Object> context) {
         
         EventCategory category = classifyEvent(eventType, context);
-        
-        
+
         double complexity = calculateComplexity(context);
 
-        
         if (complexity > 0.8 && threatEvaluator != null) {
             return new StrategySelectionResult("INTEGRATED", 0.95,
                 LocalDateTime.now().plusSeconds(cacheTimeToLiveSeconds));
         }
 
-        
         if (isSessionRelatedEvent(eventType, context)) {
             
             if (context.containsKey("multipleThreats") || complexity > 0.7) {
@@ -176,29 +139,24 @@ public class DynamicStrategySelector {
                     LocalDateTime.now().plusSeconds(cacheTimeToLiveSeconds));
             }
         }
-        
-        
+
         ThreatIndicators indicators = extractThreatIndicators(context);
-        
-        
+
         Map<String, Double> strategyScores = new HashMap<>();
         
         for (Map.Entry<String, ThreatEvaluationStrategy> entry : strategies.entrySet()) {
             String strategyName = entry.getKey();
             ThreatEvaluationStrategy strategy = entry.getValue();
-            
-            
+
             double score = calculateStrategyFitness(
                 strategy, category, complexity, indicators
             );
-            
-            
+
             if (performanceMetrics.containsKey(strategyName)) {
                 StrategyPerformanceMetrics metrics = performanceMetrics.get(strategyName);
                 score *= metrics.getPerformanceMultiplier();
             }
-            
-            
+
             if (learningEnabled && learningData.containsKey(strategyName)) {
                 LearningData learning = learningData.get(strategyName);
                 score *= learning.getEffectivenessScore();
@@ -206,8 +164,7 @@ public class DynamicStrategySelector {
             
             strategyScores.put(strategyName, score);
         }
-        
-        
+
         Map.Entry<String, Double> best = strategyScores.entrySet().stream()
             .max(Map.Entry.comparingByValue())
             .orElse(new AbstractMap.SimpleEntry<>("DEFAULT", 0.5));
@@ -218,8 +175,7 @@ public class DynamicStrategySelector {
             LocalDateTime.now().plusSeconds(cacheTimeToLiveSeconds)
         );
     }
-    
-    
+
     private boolean isSessionRelatedEvent(String eventType, Map<String, Object> context) {
         
         if (eventType != null) {
@@ -229,18 +185,15 @@ public class DynamicStrategySelector {
                 return true;
             }
         }
-        
-        
+
         if (context.containsKey("sessionId") || context.containsKey("sessionContext")) {
             return true;
         }
-        
-        
+
         if (context.containsKey("ipChanged") || context.containsKey("userAgentChanged")) {
             return true;
         }
-        
-        
+
         if (context.containsKey("sessionThreatIndicators") || 
             context.containsKey("sessionHijackSuspected")) {
             return true;
@@ -248,8 +201,7 @@ public class DynamicStrategySelector {
         
         return false;
     }
-    
-    
+
     private EventCategory classifyEvent(String eventType, Map<String, Object> context) {
         
         if (eventType.contains("AUTH") || eventType.contains("LOGIN")) {
@@ -267,8 +219,7 @@ public class DynamicStrategySelector {
         } else if (eventType.contains("THREAT") || eventType.contains("ATTACK")) {
             return EventCategory.THREAT_DETECTION;
         }
-        
-        
+
         if (context.containsKey("severity")) {
             String severity = String.valueOf(context.get("severity"));
             if ("CRITICAL".equals(severity) || "HIGH".equals(severity)) {
@@ -278,30 +229,25 @@ public class DynamicStrategySelector {
         
         return EventCategory.GENERAL;
     }
-    
-    
+
     private double calculateComplexity(Map<String, Object> context) {
         double complexity = 0.0;
-        
-        
+
         complexity += Math.min(context.size() / 20.0, 0.3);
-        
-        
+
         for (Object value : context.values()) {
             if (value instanceof Map || value instanceof List) {
                 complexity += 0.1;
             }
         }
-        
-        
+
         if (context.containsKey("threatIndicators")) {
             Object indicators = context.get("threatIndicators");
             if (indicators instanceof List) {
                 complexity += Math.min(((List<?>) indicators).size() / 10.0, 0.3);
             }
         }
-        
-        
+
         if (context.containsKey("urgency")) {
             String urgency = String.valueOf(context.get("urgency"));
             if ("CRITICAL".equals(urgency)) {
@@ -311,44 +257,37 @@ public class DynamicStrategySelector {
         
         return Math.min(complexity, 1.0);
     }
-    
-    
+
     private ThreatIndicators extractThreatIndicators(Map<String, Object> context) {
         ThreatIndicators indicators = new ThreatIndicators();
-        
-        
+
         if (context.containsKey("ioc")) {
             indicators.setIocPresent(true);
             indicators.setIocCount(getListSize(context.get("ioc")));
         }
-        
-        
+
         if (context.containsKey("mitre")) {
             indicators.setMitreMapping(true);
             indicators.setMitreTechniques(getListSize(context.get("mitre")));
         }
-        
-        
+
         if (context.containsKey("anomaly")) {
             indicators.setAnomalyDetected(true);
             indicators.setAnomalyScore(getDoubleValue(context.get("anomaly")));
         }
-        
-        
+
         if (context.containsKey("previousThreats")) {
             indicators.setHistoricalThreat(true);
             indicators.setHistoricalCount(getIntValue(context.get("previousThreats")));
         }
-        
-        
+
         if (context.containsKey("riskScore")) {
             indicators.setRiskScore(getDoubleValue(context.get("riskScore")));
         }
         
         return indicators;
     }
-    
-    
+
     private double calculateStrategyFitness(
         io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy strategy,
         EventCategory category,
@@ -356,17 +295,13 @@ public class DynamicStrategySelector {
         ThreatIndicators indicators
     ) {
         double fitness = 0.0;
-        
-        
+
         fitness = 0.5;
-        
-        
-        
+
         if (strategy.isEnabled()) {
             fitness += 0.2;
         }
-        
-        
+
         int priority = strategy.getPriority();
         if (priority < 50) {
             fitness += 0.2;
@@ -376,8 +311,7 @@ public class DynamicStrategySelector {
         
         return fitness;
     }
-    
-    
+
     private Map<String, Double> evaluateAllStrategies(String eventType, Map<String, Object> context) {
         EventCategory category = classifyEvent(eventType, context);
         double complexity = calculateComplexity(context);
@@ -397,8 +331,7 @@ public class DynamicStrategySelector {
         
         return scores;
     }
-    
-    
+
     private void updateLearningData(
         String eventType, 
         Map<String, Object> context, 
@@ -413,66 +346,45 @@ public class DynamicStrategySelector {
         
         data.incrementUsageCount();
         data.updateLastUsed();
-        
-        
+
         data.addContextPattern(eventType, context);
-        
-        
+
         data.updateConfidenceAverage(result.getConfidence());
         
-        log.debug("학습 데이터 업데이트 - Strategy: {}, Usage Count: {}", 
-            strategyName, data.getUsageCount());
-    }
-    
-    
+            }
+
     private void registerDefaultStrategies() {
         
         if (threatEvaluator != null) {
             strategies.put("INTEGRATED", new IntegratedThreatEvaluationStrategyAdapter(threatEvaluator));
             performanceMetrics.put("INTEGRATED", new StrategyPerformanceMetrics());
-            log.info("통합 위협 평가 전략 등록: INTEGRATED");
-        }
+                    }
 
-        
-        
-
-        
-        
-
-        
         if (compositeStrategy != null) {
             strategies.put("COMPOSITE", compositeStrategy);
             performanceMetrics.put("COMPOSITE", new StrategyPerformanceMetrics());
-            log.info("복합 평가 전략 등록: COMPOSITE");
-        }
+                    }
 
-        
         strategies.put("DEFAULT", new DefaultThreatEvaluationStrategy());
         performanceMetrics.put("DEFAULT", new StrategyPerformanceMetrics());
-        log.info("기본 위협 평가 전략 등록: DEFAULT");
-    }
-    
-    
+            }
+
     public void registerStrategy(String name, io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy strategy) {
         strategies.put(name, strategy);
         performanceMetrics.put(name, new StrategyPerformanceMetrics());
-        log.info("전략 등록 완료: {}", name);
-    }
-    
-    
+            }
+
     public io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy getStrategy(String name) {
         return strategies.get(name);
     }
-    
-    
+
     public void updateStrategyPerformance(String strategyName, long executionTime, boolean success) {
         StrategyPerformanceMetrics metrics = performanceMetrics.get(strategyName);
         if (metrics != null) {
             metrics.updateMetrics(executionTime, success);
         }
     }
-    
-    
+
     private void startCacheCleaner() {
         Schedulers.parallel().schedulePeriodically(() -> {
             LocalDateTime now = LocalDateTime.now();
@@ -481,18 +393,14 @@ public class DynamicStrategySelector {
                 StrategySelectionResult result = entry.getValue();
                 return result.getExpiryTime().isBefore(now);
             });
-            
-            log.debug("전략 선택 캐시 정리 완료 - 남은 엔트리: {}", selectionCache.size());
-            
+
         }, cacheTimeToLiveSeconds, cacheTimeToLiveSeconds, java.util.concurrent.TimeUnit.SECONDS);
     }
-    
-    
+
     private String generateCacheKey(String eventType, Map<String, Object> context) {
         
         StringBuilder keyBuilder = new StringBuilder(eventType);
-        
-        
+
         String[] importantFields = {"severity", "userId", "source", "category"};
         
         for (String field : importantFields) {
@@ -503,8 +411,7 @@ public class DynamicStrategySelector {
         
         return keyBuilder.toString();
     }
-    
-    
+
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         
@@ -516,8 +423,7 @@ public class DynamicStrategySelector {
         metrics.put("registeredStrategies", strategies.size());
         metrics.put("cacheSize", selectionCache.size());
         metrics.put("learningDataSize", learningData.size());
-        
-        
+
         Map<String, Map<String, Object>> strategyMetrics = new HashMap<>();
         for (Map.Entry<String, StrategyPerformanceMetrics> entry : performanceMetrics.entrySet()) {
             strategyMetrics.put(entry.getKey(), entry.getValue().toMap());
@@ -526,9 +432,7 @@ public class DynamicStrategySelector {
         
         return metrics;
     }
-    
-    
-    
+
     private int getListSize(Object obj) {
         if (obj instanceof List) {
             return ((List<?>) obj).size();
@@ -549,10 +453,7 @@ public class DynamicStrategySelector {
         }
         return 0;
     }
-    
-    
-    
-    
+
     private static class StrategySelectionResult {
         private final String strategy;
         private final double confidence;
@@ -580,8 +481,7 @@ public class DynamicStrategySelector {
             return LocalDateTime.now().isAfter(expiryTime);
         }
     }
-    
-    
+
     private static class StrategyPerformanceMetrics {
         private long totalExecutions = 0;
         private long successfulExecutions = 0;
@@ -621,8 +521,7 @@ public class DynamicStrategySelector {
             return map;
         }
     }
-    
-    
+
     private static class LearningData {
         private long usageCount = 0;
         private LocalDateTime lastUsed;
@@ -655,8 +554,7 @@ public class DynamicStrategySelector {
             return effectivenessScore;
         }
     }
-    
-    
+
     public enum EventCategory {
         AUTHENTICATION,
         AUTHORIZATION,
@@ -668,8 +566,7 @@ public class DynamicStrategySelector {
         HIGH_RISK,
         GENERAL
     }
-    
-    
+
     @lombok.Builder
     @lombok.Getter
     public static class StrategyProperties {
@@ -684,7 +581,6 @@ public class DynamicStrategySelector {
         private final boolean highPerformance;
     }
 
-    
     private static class DefaultThreatEvaluationStrategy implements ThreatEvaluationStrategy {
 
         @Override
@@ -734,7 +630,6 @@ public class DynamicStrategySelector {
         }
     }
 
-    
     private static class IntegratedThreatEvaluationStrategyAdapter implements ThreatEvaluationStrategy {
         private final ThreatEvaluator threatEvaluator;
 

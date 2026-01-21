@@ -9,14 +9,12 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class DefaultRequestAnalyzer implements RequestAnalyzer {
 
     @Override
     public <T extends DomainContext> RequestCharacteristics analyze(AIRequest<T> request) {
-        log.debug("[RequestAnalyzer] 요청 분석 시작: {}", request.getRequestId());
-
+        
         double complexity = calculateComplexity(request);
         boolean requiresContext = shouldUseContextRetrieval(request);
         boolean fastPath = requiresFastResponse(request);
@@ -33,36 +31,29 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
                 .metadata(extractMetadata(request))
                 .build();
 
-        log.info("[RequestAnalyzer] 분석 완료 - {}", characteristics);
-
         return characteristics;
     }
 
-    
     private <T extends DomainContext> double calculateComplexity(AIRequest<T> request) {
         double complexity = 0.0;
 
-        
         String prompt = request.getPromptTemplate();
         if (prompt != null) {
             int promptLength = prompt.length();
             complexity += Math.min(promptLength / 1000.0, 0.3);
         }
 
-        
         T context = request.getContext();
         if (context != null) {
             
             complexity += 0.2;
         }
 
-        
         complexity += getDiagnosisTypeComplexity(request.getDiagnosisType());
 
         return Math.min(complexity, 1.0);
     }
 
-    
     private double getDiagnosisTypeComplexity(DiagnosisType type) {
         if (type == null) {
             return 0.2;
@@ -86,7 +77,6 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
         }
     }
 
-    
     private <T extends DomainContext> boolean shouldUseContextRetrieval(AIRequest<T> request) {
         
         Boolean skipContext = request.getParameter("skipContextRetrieval", Boolean.class);
@@ -94,7 +84,6 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
             return false;
         }
 
-        
         String prompt = request.getPromptTemplate();
         if (prompt != null) {
             String lowerPrompt = prompt.toLowerCase();
@@ -107,11 +96,9 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
             }
         }
 
-        
         return true;
     }
 
-    
     private <T extends DomainContext> boolean requiresFastResponse(AIRequest<T> request) {
         
         Boolean fastMode = request.getParameter("fastMode", Boolean.class);
@@ -119,7 +106,6 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
             return true;
         }
 
-        
         Boolean streaming = request.getParameter("streaming", Boolean.class);
         if (streaming != null && streaming) {
             return true;
@@ -128,7 +114,6 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
         return false;
     }
 
-    
     private <T extends DomainContext> String classifyRequestType(AIRequest<T> request) {
         String prompt = request.getPromptTemplate();
         if (prompt == null) {
@@ -153,16 +138,13 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
         return "GENERAL";
     }
 
-    
     private <T extends DomainContext> int estimateDataVolume(AIRequest<T> request) {
         int volume = 0;
 
-        
         if (request.getPromptTemplate() != null) {
             volume += request.getPromptTemplate().length();
         }
 
-        
         if (request.getContext() != null) {
             volume += 500; 
         }
@@ -170,7 +152,6 @@ public class DefaultRequestAnalyzer implements RequestAnalyzer {
         return volume;
     }
 
-    
     private <T extends DomainContext> Map<String, Object> extractMetadata(AIRequest<T> request) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("diagnosis_type", request.getDiagnosisType());
