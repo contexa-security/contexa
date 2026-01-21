@@ -53,8 +53,7 @@ public class IdentityTokenStoreAutoConfiguration {
 
         
         if (storeType == TokenStoreType.MEMORY) {
-            log.info("Creating memory-based refresh token store for single server environment (RSA-based)");
-            return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
+                        return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
         }
 
         
@@ -63,14 +62,6 @@ public class IdentityTokenStoreAutoConfiguration {
                 log.warn("REDIS token store is configured but Redis is not available. " +
                         "Falling back to MEMORY store.");
                 return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
-            }
-
-            if (enhancedSecurityEnabled) {
-                log.info("Creating Redis-based refresh token store with enhanced security features (RSA-based)");
-                log.info("Security components - ChainManager: {}, AnomalyDetector: {}, ManagementService: {}",
-                        tokenChainManager != null, anomalyDetector != null, managementService != null);
-            } else {
-                log.info("Creating standard Redis-based refresh token store (RSA-based)");
             }
 
             return new RedisRefreshTokenStore(
@@ -93,7 +84,6 @@ public class IdentityTokenStoreAutoConfiguration {
             @Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
 
         if (redisTemplate != null) {
-            log.info("Creating RedisDistributedLockService");
             return new RedisDistributedLockService(redisTemplate);
         }
         return null;
@@ -108,7 +98,6 @@ public class IdentityTokenStoreAutoConfiguration {
             @Autowired(required = false) RedisDistributedLockService lockService) {
 
         if (redisTemplate != null && lockService != null) {
-            log.info("Creating TokenChainManager for enhanced security");
             return new TokenChainManager(redisTemplate, lockService);
         }
         log.warn("TokenChainManager requires Redis and LockService. Skipping creation.");
@@ -124,7 +113,6 @@ public class IdentityTokenStoreAutoConfiguration {
             @Autowired(required = false) RedisEventPublisher eventPublisher) {
 
         if (redisTemplate != null && eventPublisher != null) {
-            log.info("Creating RefreshTokenAnomalyDetector for enhanced security");
             RefreshTokenAnomalyDetector.GeoLocationService geoService = (loc1, loc2) -> 0.0;
             return new RefreshTokenAnomalyDetector(redisTemplate, eventPublisher);
         }
@@ -144,7 +132,6 @@ public class IdentityTokenStoreAutoConfiguration {
 
         if (tokenStore instanceof EnhancedRefreshTokenStore enhancedStore
                 && redisTemplate != null && eventPublisher != null) {
-            log.info("Creating RefreshTokenManagementService for token management with lazy-loaded tokenStore");
             return new RefreshTokenManagementService(redisTemplate, eventPublisher, enhancedStore, objectMapper);
         }
         log.warn("RefreshTokenManagementService requires EnhancedRefreshTokenStore implementation. Skipping creation.");

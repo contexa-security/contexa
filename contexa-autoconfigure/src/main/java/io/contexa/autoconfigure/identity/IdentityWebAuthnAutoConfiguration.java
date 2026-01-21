@@ -20,8 +20,7 @@ public class IdentityWebAuthnAutoConfiguration {
     @ConditionalOnMissingBean(PublicKeyCredentialUserEntityRepository.class)
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             JdbcOperations jdbcOperations) {
-        log.info("Initializing PublicKeyCredentialUserEntityRepository (JDBC-based)");
-        return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
+                return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
     }
 
     
@@ -29,15 +28,10 @@ public class IdentityWebAuthnAutoConfiguration {
     @ConditionalOnMissingBean(UserCredentialRepository.class)
     public UserCredentialRepository userCredentialRepository(
             JdbcOperations jdbcOperations) {
-        log.info("Initializing UserCredentialRepository (JDBC-based)");
-        return new JdbcUserCredentialRepository(jdbcOperations);
+                return new JdbcUserCredentialRepository(jdbcOperations);
     }
 
     
     public IdentityWebAuthnAutoConfiguration() {
-        log.info("WebAuthn Persistence Configuration initialized");
-        log.info("   - User entities will be stored in: user_entities table");
-        log.info("   - Credentials will be stored in: user_credentials table");
-        log.info("   - Spring Security will automatically use JDBC repositories");
-    }
+                                    }
 }

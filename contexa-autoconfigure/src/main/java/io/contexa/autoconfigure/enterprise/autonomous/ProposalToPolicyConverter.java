@@ -18,13 +18,8 @@ import java.util.Map;
 @Slf4j
 public class ProposalToPolicyConverter {
 
-    
     private static final String POLICY_NAME_PREFIX = "AI_EVOLVED_";
-
-    
     private static final int DEFAULT_PRIORITY = 500;
-
-    
     private static final int MIN_PRIORITY = 100;
     private static final int MAX_PRIORITY = 900;
 
@@ -36,10 +31,8 @@ public class ProposalToPolicyConverter {
 
         validateProposal(proposal);
 
-        log.info("PolicyEvolutionProposal을 PolicyDto로 변환 시작: proposalId={}, title={}",
-                proposal.getId(), proposal.getTitle());
 
-        PolicyDto policyDto = PolicyDto.builder()
+        return PolicyDto.builder()
                 .name(generatePolicyName(proposal))
                 .description(generateDescription(proposal))
                 .effect(determineEffect(proposal))
@@ -47,12 +40,6 @@ public class ProposalToPolicyConverter {
                 .targets(extractTargets(proposal))
                 .rules(extractRules(proposal))
                 .build();
-
-        log.info("PolicyDto 변환 완료: policyName={}, effect={}, priority={}, targetCount={}, ruleCount={}",
-                policyDto.getName(), policyDto.getEffect(), policyDto.getPriority(),
-                policyDto.getTargets().size(), policyDto.getRules().size());
-
-        return policyDto;
     }
 
     
@@ -248,8 +235,6 @@ public class ProposalToPolicyConverter {
                     .build();
             targets.add(target);
 
-            log.debug("Target 추출: type={}, identifier={}, method={}",
-                    target.getTargetType(), target.getTargetIdentifier(), target.getHttpMethod());
         } else {
             
             log.warn("Target 정보 없음, 기본 target 생성: proposalId={}", proposal.getId());
@@ -297,10 +282,6 @@ public class ProposalToPolicyConverter {
                 .build();
         rules.add(rule);
 
-        log.debug("Rule 추출: description={}, conditionCount={}, spelExpression={}",
-                rule.getDescription(), conditions.size(),
-                spelExpression.length() > 50 ? spelExpression.substring(0, 50) + "..." : spelExpression);
-
         return rules;
     }
 
@@ -345,9 +326,6 @@ public class ProposalToPolicyConverter {
     public PolicyDto convertForUpdate(PolicyEvolutionProposal proposal, Long existingPolicyId) {
         PolicyDto policyDto = convert(proposal);
         policyDto.setId(existingPolicyId);
-
-        log.info("기존 정책 업데이트용 PolicyDto 생성: policyId={}, proposalId={}",
-                existingPolicyId, proposal.getId());
 
         return policyDto;
     }

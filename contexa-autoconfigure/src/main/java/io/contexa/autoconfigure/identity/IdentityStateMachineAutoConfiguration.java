@@ -63,9 +63,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 })
 public class IdentityStateMachineAutoConfiguration{
 
-    public IdentityStateMachineAutoConfiguration() {
-        log.info("IdentityStateMachineAutoConfiguration initialized - 22 beans registered");
-    }
+    public IdentityStateMachineAutoConfiguration() {}
 
     
 
@@ -216,8 +214,7 @@ public class IdentityStateMachineAutoConfiguration{
             RedisStateMachineRepository redisStateMachineRepository) {
         MfaKryoStateMachineSerialisationService kryoStateMachineSerialisationService =
                 new MfaKryoStateMachineSerialisationService();
-        log.info("Creating RedisRepositoryStateMachinePersist with Kryo serialization");
-        return new RedisRepositoryStateMachinePersist(redisStateMachineRepository, kryoStateMachineSerialisationService);
+                return new RedisRepositoryStateMachinePersist(redisStateMachineRepository, kryoStateMachineSerialisationService);
     }
 
     
@@ -228,16 +225,14 @@ public class IdentityStateMachineAutoConfiguration{
             RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist) {
         RedisPersistingStateMachineInterceptor<MfaState, MfaEvent, Object> stateMachineInterceptor
                 = new RedisPersistingStateMachineInterceptor<>(stateMachinePersist);
-        log.info("Creating DefaultStateMachinePersister with Redis interceptor");
-        return new DefaultStateMachinePersister(stateMachineInterceptor);
+                return new DefaultStateMachinePersister(stateMachineInterceptor);
     }
 
     
     @Bean
     @ConditionalOnMissingBean
     public MfaEventPublisher mfaEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-        log.info("Creating MFA Event Publisher");
-        return new MfaEventPublisher(applicationEventPublisher);
+                return new MfaEventPublisher(applicationEventPublisher);
     }
 
     
@@ -245,8 +240,7 @@ public class IdentityStateMachineAutoConfiguration{
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "spring.auth.mfa", name = "metrics-enabled", havingValue = "true", matchIfMissing = true)
     public MfaStateChangeListener mfaStateChangeListener() {
-        log.info("Enabling MFA State Change Listener for metrics collection");
-        return new MfaStateChangeListener();
+                return new MfaStateChangeListener();
     }
 
     
@@ -272,11 +266,7 @@ public class IdentityStateMachineAutoConfiguration{
 
         executor.initialize();
 
-        log.info("MFA Event Executor initialized - Core: {}, Max: {}, Queue: {}",
-                executor.getCorePoolSize(),
-                executor.getMaxPoolSize(),
-                executor.getQueueCapacity());
-
+        
         return executor;
     }
 
@@ -293,11 +283,7 @@ public class IdentityStateMachineAutoConfiguration{
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
         executor.initialize();
 
-        log.info("Monitoring Executor initialized - Core: {}, Max: {}, Queue: {}",
-                executor.getCorePoolSize(),
-                executor.getMaxPoolSize(),
-                executor.getQueueCapacity());
-
+        
         return executor;
     }
 }

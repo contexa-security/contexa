@@ -41,10 +41,7 @@ public class CoreAdvisorAutoConfiguration {
     private String defaultChainProfile;
 
     @PostConstruct
-    public void init() {
-        log.info("Advisor Auto Configuration 시작");
-        log.info("  - Default chain profile: {}", defaultChainProfile);
-    }
+    public void init() {}
 
     @Bean
     @ConditionalOnMissingBean
@@ -60,22 +57,13 @@ public class CoreAdvisorAutoConfiguration {
             ChatModel chatModel,
             List<BaseAdvisor> advisors,
             AdvisorRegistry advisorRegistry) {
-        log.info("Advisor-enabled ChatClient.Builder 생성");
-
+        
         advisors.forEach(advisor -> {
             advisorRegistry.register(advisor);
-            log.info("Advisor 등록: {} (order: {})", advisor.getName(), advisor.getOrder());
-        });
+                    });
 
         List<BaseAdvisor> activeAdvisors = advisorRegistry.getEnabled();
-
-        log.info("{} 개의 활성 Advisor를 ChatClient에 적용", activeAdvisors.size());
-        activeAdvisors.forEach(advisor ->
-            log.info("  - {} (order: {})", advisor.getName(), advisor.getOrder())
-        );
-
         ChatClient.Builder builder = ChatClient.builder(chatModel);
-
         if (!activeAdvisors.isEmpty()) {
             builder = builder.defaultAdvisors(activeAdvisors.toArray(new Advisor[0]));
         }
@@ -133,8 +121,7 @@ public class CoreAdvisorAutoConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "contexa.advisor.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public EnhancedSoarApprovalAdvisor soarApprovalAdvisor(Tracer tracer) {
-        log.info("SOAR Approval Advisor Bean 생성");
-        return new EnhancedSoarApprovalAdvisor(tracer);
+                return new EnhancedSoarApprovalAdvisor(tracer);
     }
 
     @EventListener(ContextRefreshedEvent.class)
@@ -146,8 +133,8 @@ public class CoreAdvisorAutoConfiguration {
         log.info("  - Domains: {}", advisorRegistry.getDomains());
 
         advisorRegistry.getEnabled().forEach(advisor ->
-            log.debug("  [OK] {} (domain: {}, order: {})",
-                advisor.getName(), advisor.getDomain(), advisor.getOrder())
+                log.debug("  [OK] {} (domain: {}, order: {})",
+                        advisor.getName(), advisor.getDomain(), advisor.getOrder())
         );
     }
 }

@@ -75,9 +75,7 @@ import java.util.Map;
 )
 public class IdentitySecurityCoreAutoConfiguration {
 
-    public IdentitySecurityCoreAutoConfiguration() {
-        log.info("IdentitySecurityCoreAutoConfiguration initialized - 28 beans registered");
-    }
+    public IdentitySecurityCoreAutoConfiguration() {}
 
     
 
@@ -111,9 +109,7 @@ public class IdentitySecurityCoreAutoConfiguration {
         List<Validator<AuthenticationFlowConfig>> singleFlowValidators = singleFlowValidatorsProvider.getIfAvailable(Collections::emptyList);
         List<Validator<AuthenticationStepConfig>> stepValidators = stepValidatorsProvider.getIfAvailable(Collections::emptyList);
 
-        log.info("Creating DslValidator with platform={}, flowList={}, singleFlow={}, step={} validators",
-                platformValidators.size(), flowListValidators.size(), singleFlowValidators.size(), stepValidators.size());
-
+        
         return new DslValidator(
                 platformValidators,
                 flowListValidators,
@@ -171,16 +167,14 @@ public class IdentitySecurityCoreAutoConfiguration {
     @ConditionalOnMissingBean
     public PlatformContext platformContext(ApplicationContext ctx,
                                            ObjectProvider<HttpSecurity> provider) {
-        log.info("Creating PlatformContext");
-        return new DefaultPlatformContext(ctx, provider);
+                return new DefaultPlatformContext(ctx, provider);
     }
 
     
     @Bean
     @ConditionalOnMissingBean
     public AdapterRegistry adapterRegistry(ApplicationContext applicationContext) {
-        log.info("Creating AdapterRegistry");
-        return new AdapterRegistry(applicationContext);
+                return new AdapterRegistry(applicationContext);
     }
 
     
@@ -189,8 +183,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     public PlatformContextInitializer platformContextInitializer(PlatformContext platformContext,
                                                                  AuthContextProperties authContextProperties,
                                                                  ObjectMapper objectMapper) {
-        log.info("Creating PlatformContextInitializer");
-        return new PlatformContextInitializer(platformContext, authContextProperties, objectMapper);
+                return new PlatformContextInitializer(platformContext, authContextProperties, objectMapper);
     }
 
     
@@ -224,8 +217,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     public SecurityFilterChainRegistrar securityFilterChainRegistrar(
             ConfiguredFactorFilterProvider factorFilterProvider,
             AdapterRegistry adapterRegistry) {
-        log.info("Creating SecurityFilterChainRegistrar with 8 step filter mappings");
-        Map<String, Class<? extends Filter>> stepFilterClasses = Map.ofEntries(
+                Map<String, Class<? extends Filter>> stepFilterClasses = Map.ofEntries(
                 Map.entry("form", UsernamePasswordAuthenticationFilter.class),
                 Map.entry("rest", RestAuthenticationFilter.class),
                 Map.entry("mfa_rest", MfaRestAuthenticationFilter.class),
@@ -244,8 +236,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public FlowContextFactory flowContextFactory(AdapterRegistry adapterRegistry, ApplicationContext applicationContext) {
-        log.info("Creating FlowContextFactory");
-        return new FlowContextFactory(adapterRegistry, applicationContext);
+                return new FlowContextFactory(adapterRegistry, applicationContext);
     }
 
     
@@ -259,8 +250,7 @@ public class IdentitySecurityCoreAutoConfiguration {
                                              FlowContextFactory flowContextFactory,
                                              PlatformConfig platformConfig,
                                              ApplicationContext applicationContext) {
-        log.info("Creating SecurityPlatform with {} configurers", allRegisteredConfigurers.size());
-        platformContextInitializer.initializeSharedObjects();
+                platformContextInitializer.initializeSharedObjects();
 
         DefaultSecurityConfigurerProvider configurerProvider =
                 new DefaultSecurityConfigurerProvider(allRegisteredConfigurers, adapterRegistry, applicationContext);
@@ -281,8 +271,7 @@ public class IdentitySecurityCoreAutoConfiguration {
                                                PlatformConfig platformConfig,
                                                AdapterRegistry registry,
                                                DslValidatorService dslValidatorService) {
-        log.info("Creating PlatformBootstrap");
-        return new PlatformBootstrap(securityPlatform, platformConfig, registry, dslValidatorService);
+                return new PlatformBootstrap(securityPlatform, platformConfig, registry, dslValidatorService);
     }
 
     
@@ -306,8 +295,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthUrlProvider authUrlProvider,
             TokenService tokenService,
             AuthContextProperties authContextProperties) {
-        log.info("Creating PrimaryAuthenticationSuccessHandler");
-        return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
+                return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository, authUrlProvider);
     }
 
@@ -322,8 +310,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaSessionRepository mfaSessionRepository,
             @Autowired(required = false) UserIdentificationService userIdentificationService,
             AuthUrlProvider authUrlProvider) {
-        log.info("Creating UnifiedAuthenticationFailureHandler");
-        return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator, mfaPolicyProvider,
+                return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator, mfaPolicyProvider,
                 mfaSessionRepository, userIdentificationService, authUrlProvider);
     }
 
@@ -337,8 +324,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthUrlProvider authUrlProvider,
             AuthContextProperties authContextProperties,
             TokenService tokenService) {
-        log.info("Creating MfaFactorProcessingSuccessHandler");
-        return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
+                return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider);
     }
 
@@ -346,8 +332,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AuthResponseWriter authResponseWriter(ObjectMapper objectMapper) {
-        log.info("Creating JsonAuthResponseWriter");
-        return new JsonAuthResponseWriter(objectMapper);
+                return new JsonAuthResponseWriter(objectMapper);
     }
 
     
@@ -357,8 +342,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     @ConditionalOnMissingBean
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             JdbcOperations jdbcOperations) {
-        log.info("Creating PublicKeyCredentialUserEntityRepository (JDBC-based)");
-        return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
+                return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
     }
 
     
@@ -366,8 +350,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     @ConditionalOnMissingBean
     public UserCredentialRepository userCredentialRepository(
             JdbcOperations jdbcOperations) {
-        log.info("Creating UserCredentialRepository (JDBC-based)");
-        return new JdbcUserCredentialRepository(jdbcOperations);
+                return new JdbcUserCredentialRepository(jdbcOperations);
     }
 
     
@@ -378,8 +361,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     public RefreshTokenAnomalyDetector refreshTokenAnomalyDetector(
             StringRedisTemplate redisTemplate,
             RedisEventPublisher redisEventPublisher) {
-        log.info("Creating RefreshTokenAnomalyDetector");
-        return new RefreshTokenAnomalyDetector(redisTemplate, redisEventPublisher);
+                return new RefreshTokenAnomalyDetector(redisTemplate, redisEventPublisher);
     }
 
     
@@ -388,7 +370,6 @@ public class IdentitySecurityCoreAutoConfiguration {
     public TokenChainManager tokenChainManager(
             StringRedisTemplate redisTemplate,
             RedisDistributedLockService lockService) {
-        log.info("Creating TokenChainManager");
-        return new TokenChainManager(redisTemplate, lockService);
+                return new TokenChainManager(redisTemplate, lockService);
     }
 }

@@ -1,24 +1,24 @@
 package io.contexa.contexacore.autonomous.service.impl;
 
-import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
-import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
-import io.contexa.contexacore.autonomous.processor.EventNormalizer;
+import io.contexa.contexacore.autonomous.event.SecurityEventListener;
+import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
-import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.repository.SecurityIncidentRepository;
-import io.contexa.contexacore.repository.ThreatIndicatorRepository;
+import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-
+import io.contexa.contexacore.domain.entity.SecurityIncident;
+import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 public class SecurityMonitoringService {
 
-    private static final Logger logger = LoggerFactory.getLogger(SecurityMonitoringService.class);
+    private static final Logger log = LoggerFactory.getLogger(SecurityMonitoringService.class);
 
     
     @FunctionalInterface
@@ -71,23 +71,16 @@ public class SecurityMonitoringService {
     
     public void setBatchProcessor(SecurityEventBatchProcessor processor) {
         this.batchProcessor = processor;
-        logger.info("[SecurityMonitoringService] Batch processor registered");
     }
 
     @PostConstruct
     public void initialize() {
-        logger.info("Initializing Security Monitoring Service (AI Native v5.0.0)");
-
-        
         kafkaCollector.registerListener(new DirectBatchListener());
-        logger.info("DirectBatchListener registered - using Kafka batch mode for event processing");
-
         loadActiveIncidents();
     }
 
     @PreDestroy
     public void shutdown() {
-        logger.info("Shutting down Security Monitoring Service");
         scheduler.shutdown();
 
         try {
@@ -98,42 +91,32 @@ public class SecurityMonitoringService {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
-
-        logger.info("Security Monitoring Service shut down");
     }
 
     
     public void startMonitoring(String sessionId, Map<String, Object> config) {
-        logger.info("Starting monitoring session {}", sessionId);
-
-        
         if (activeSessions.containsKey(sessionId)) {
-            logger.warn("Monitoring session already exists for: {}", sessionId);
+            log.warn("Monitoring session already exists for: {}", sessionId);
             return;
         }
-
         MonitoringSession session = new MonitoringSession(sessionId, config);
         activeSessions.put(sessionId, session);
-
-        logger.info("Monitoring session {} started for agent {}", sessionId, config.get("agentId"));
     }
 
     
     public void stopMonitoring(String sessionId) {
-        logger.info("Stopping monitoring session {}", sessionId);
-
         MonitoringSession session = activeSessions.remove(sessionId);
         if (session != null) {
             session.stop();
 
             
             if (activeSessions.isEmpty()) {
-                logger.info("All monitoring sessions stopped");
+                log.info("All monitoring sessions stopped");
             }
 
-            logger.info("Monitoring session {} stopped", sessionId);
+            log.info("Monitoring session {} stopped", sessionId);
         } else {
-            logger.warn("No active monitoring session found for: {}", sessionId);
+            log.warn("No active monitoring session found for: {}", sessionId);
         }
     }
 
@@ -143,24 +126,17 @@ public class SecurityMonitoringService {
             
             SecurityEvent normalizedEvent = eventNormalizer.process(event);
             if (normalizedEvent == null) {
-                logger.debug("Event filtered during normalization");
                 return null;
             }
-
-            
             SecurityEvent deduplicatedEvent = eventDeduplicator.process(normalizedEvent);
             if (deduplicatedEvent == null) {
-                logger.debug("Duplicate event filtered: {}", normalizedEvent.getEventId());
                 return null;
             }
-
-            
-
             eventCounter.incrementAndGet();
 
             return deduplicatedEvent;
         } catch (Exception e) {
-            logger.error("Error preprocessing event", e);
+            log.error("Error preprocessing event", e);
             return null;
         }
     }
@@ -175,8 +151,6 @@ public class SecurityMonitoringService {
         stats.put("event_listeners", eventListeners.size());
         stats.put("evaluation_strategies", evaluationStrategies.size());
         stats.put("batch_processor_registered", batchProcessor != null);
-
-        
         stats.put("kafka_stats", kafkaCollector.getStatistics());
 
         return stats;
@@ -187,7 +161,6 @@ public class SecurityMonitoringService {
         for (SecurityIncident incident : incidents) {
             activeIncidents.put(incident.getIncidentId(), incident);
         }
-        logger.info("Loaded {} active incidents", activeIncidents.size());
     }
 
     
@@ -198,33 +171,25 @@ public class SecurityMonitoringService {
             if (events == null || events.isEmpty()) {
                 return;
             }
-
-            logger.debug("[DirectBatchListener] Received batch of {} events", events.size());
-
-            
+            SecurityMonitoringService.log.debug("[DirectBatchListener] Received batch of {} events", events.size());
             List<SecurityEvent> processedList = events.stream()
                     .map(DirectBatchListener.this::preprocessEventSafe)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
 
             if (processedList.isEmpty()) {
-                logger.debug("[DirectBatchListener] All events filtered during preprocessing");
+                SecurityMonitoringService.log.debug("[DirectBatchListener] All events filtered during preprocessing");
                 return;
             }
-
-            
             if (batchProcessor != null) {
                 try {
                     batchProcessor.processBatch(processedList);
-                    logger.debug("[DirectBatchListener] Batch of {} events forwarded to processor",
-                            processedList.size());
                 } catch (Exception e) {
-                    logger.error("[DirectBatchListener] Failed to process batch", e);
+                    SecurityMonitoringService.log.error("[DirectBatchListener] Failed to process batch", e);
                     throw new RuntimeException("Batch processing failed", e);
                 }
             } else {
-                logger.warn("[DirectBatchListener] No batch processor registered, {} events dropped",
-                        processedList.size());
+                SecurityMonitoringService.log.warn("[DirectBatchListener] No batch processor registered, {} events dropped", processedList.size());
             }
         }
 
@@ -244,8 +209,7 @@ public class SecurityMonitoringService {
             try {
                 return preprocessEvent(event);
             } catch (Exception e) {
-                logger.error("[DirectBatchListener] Error preprocessing event: {}",
-                        event.getEventId(), e);
+                SecurityMonitoringService.log.error("[DirectBatchListener] Error preprocessing event: {}", event.getEventId(), e);
                 return null;
             }
         }
@@ -269,16 +233,5 @@ public class SecurityMonitoringService {
             active = false;
         }
 
-        public String getId() {
-            return id;
-        }
-
-        public Map<String, Object> getConfig() {
-            return config;
-        }
-
-        public boolean isActive() {
-            return active;
-        }
     }
 }

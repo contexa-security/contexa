@@ -34,23 +34,14 @@ public class CoreSessionAutoConfiguration {
     private final StringRedisTemplate redisTemplate;
 
     @PostConstruct
-    public void initialize() {
-        log.info("=== MFA Repository Auto Configuration Initialized ===");
-        log.info("Storage Type: {}", properties.getMfa().getSessionStorageType());
-        log.info("Auto Select: {}", properties.getMfa().isAutoSelectRepository());
-        log.info("Priority: {}", properties.getMfa().getRepositoryPriority());
-        log.info("Fallback: {}", properties.getMfa().getFallbackRepositoryType());
-        log.info("Environment: {}", detectEnvironmentType());
-        log.info("======================================================");
-    }
+    public void initialize() {}
 
     
     @Bean
     @Primary
     @ConditionalOnMissingBean(MfaSessionRepository.class)
     public MfaSessionRepository mfaSessionRepository() {
-        log.info("Creating PRIMARY MFA Repository for authentication");
-
+        
         try {
             
             redisTemplate.opsForValue().get("__health_check__");
@@ -61,8 +52,7 @@ public class CoreSessionAutoConfiguration {
             );
             repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
 
-            log.info("✅ Primary MFA Repository created successfully: RedisMfaRepository");
-            return repository;
+                        return repository;
 
         } catch (Exception e) {
             log.error("Failed to create primary MFA repository, falling back to HttpSession", e);

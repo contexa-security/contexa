@@ -83,29 +83,25 @@ public class IdentityOAuth2AutoConfiguration {
     
     @Bean
     public OAuth2StateAdapter oauth2StateAdapter() {
-        log.info("Registering OAuth2StateAdapter bean");
-        return new OAuth2StateAdapter();
+                return new OAuth2StateAdapter();
     }
 
     
     @Bean
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-        log.info("Registering JwtDecoder bean for Resource Server");
-        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+                return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
     }
 
     
     @Bean
     public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
-        log.info("Registering JwtEncoder bean for Authorization Server");
-        return new NimbusJwtEncoder(jwkSource);
+                return new NimbusJwtEncoder(jwkSource);
     }
 
     
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
-        log.info("Generating RSA key pair for JWT signing");
-        KeyPair keyPair = generateRsaKey();
+                KeyPair keyPair = generateRsaKey();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
         RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
 
@@ -135,23 +131,20 @@ public class IdentityOAuth2AutoConfiguration {
             JdbcTemplate jdbcTemplate,
             RegisteredClientRepository registeredClientRepository) {
 
-        log.info("Registering JdbcOAuth2AuthorizationService bean");
-        return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+                return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
     }
 
     
     @Bean
     public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
-        log.info("Registering JdbcRegisteredClientRepository bean");
-
+        
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
         
         RegisteredClient existingClient = repository.findByClientId("aidc-client");
 
         if (existingClient == null) {
-            log.info("Creating default OAuth2 client: aidc-client");
-
+            
             RegisteredClient defaultClient = RegisteredClient.withId(UUID.randomUUID().toString())
                     .clientId("aidc-client")
                     .clientSecret("{noop}secret") 
@@ -183,17 +176,11 @@ public class IdentityOAuth2AutoConfiguration {
             transactionTemplate.executeWithoutResult(status -> {
                 repository.save(defaultClient);
                 if (log.isDebugEnabled()) {
-                    log.debug("Saved OAuth2Authorization for user: {} in transaction", defaultClient.getClientId());
-                }
+                                    }
             });
 
-            log.info("Default OAuth2 client saved to database: clientId={}, grantTypes={}",
-                    defaultClient.getClientId(),
-                    defaultClient.getAuthorizationGrantTypes());
-        } else {
-            log.info("Default OAuth2 client already exists in database: clientId={}",
-                    existingClient.getClientId());
-        }
+                    } else {
+                    }
 
         return repository;
     }
@@ -203,8 +190,7 @@ public class IdentityOAuth2AutoConfiguration {
     public AuthorizationServerSettings authorizationServerSettings() {
         String issuerUri = "http://localhost:8080"; 
 
-        log.info("Registering AuthorizationServerSettings bean with issuerUri={}", issuerUri);
-
+        
         return AuthorizationServerSettings.builder()
                 .issuer(issuerUri)
                 .authorizationEndpoint("/oauth2/authorize")
@@ -223,8 +209,7 @@ public class IdentityOAuth2AutoConfiguration {
             JwtEncoder jwtEncoder,
             OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer) {
 
-        log.info("Registering OAuth2TokenGenerator bean with JwtGenerator and RefreshTokenGenerator");
-
+        
         JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder);
         jwtGenerator.setJwtCustomizer(tokenCustomizer);
 
@@ -236,15 +221,13 @@ public class IdentityOAuth2AutoConfiguration {
     
     @Bean
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
-        log.info("Registering OAuth2TokenCustomizer for custom claims (device_id, roles)");
-
+        
         return context -> {
             
             Object deviceId = context.get("device_id");
             if (deviceId != null) {
                 context.getClaims().claim("device_id", deviceId);
-                log.debug("Added device_id claim: {}", deviceId);
-            }
+                            }
 
             
             if (context.getPrincipal() != null) {
@@ -254,8 +237,7 @@ public class IdentityOAuth2AutoConfiguration {
                             .map(grantedAuthority -> grantedAuthority.getAuthority())
                             .toList();
                     context.getClaims().claim("roles", roles);
-                    log.debug("Added roles claim: {}", roles);
-                }
+                                    }
             }
         };
     }
@@ -268,8 +250,7 @@ public class IdentityOAuth2AutoConfiguration {
             OAuth2AuthorizationService authorizationService,
             AuthContextProperties authContextProperties) {
 
-        log.info("Registering OAuth2TokenValidator bean (RSA-based)");
-
+        
         
         
         long rotateThresholdMillis = authContextProperties.getRefreshTokenValidity() / 2;
@@ -295,8 +276,7 @@ public class IdentityOAuth2AutoConfiguration {
             AuthContextProperties authContextProperties,
             ObjectMapper objectMapper) {
 
-        log.info("Registering OAuth2TokenService bean with OAuth2AuthorizedClientManager");
-
+        
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
         return new OAuth2TokenService(
@@ -315,8 +295,7 @@ public class IdentityOAuth2AutoConfiguration {
     
     @Bean("oauth2TokenSuccessHandler")
     public AuthenticationSuccessHandler oauth2TokenSuccessHandler() {
-        log.info("Registering OAuth2TokenSuccessHandler bean for internal/external token request handling");
-        return new OAuth2TokenSuccessHandler();
+                return new OAuth2TokenSuccessHandler();
     }
 
     
@@ -325,15 +304,13 @@ public class IdentityOAuth2AutoConfiguration {
             OAuth2TokenService tokenService,
             AuthResponseWriter responseWriter) {
 
-        log.info("Registering OAuth2LogoutHandler bean");
-        return new OAuth2LogoutHandler(tokenService, responseWriter);
+                return new OAuth2LogoutHandler(tokenService, responseWriter);
     }
 
     
     @Bean("oauth2LogoutSuccessHandler")
     public LogoutSuccessHandler oauth2LogoutSuccessHandler(ObjectMapper objectMapper) {
-        log.info("Registering OAuth2LogoutSuccessHandler bean");
-        return new OAuth2LogoutSuccessHandler(objectMapper);
+                return new OAuth2LogoutSuccessHandler(objectMapper);
     }
 
     
@@ -346,8 +323,7 @@ public class IdentityOAuth2AutoConfiguration {
         String clientSecret = "secret";
         String tokenUri = "http://localhost:8081/oauth2/token";
 
-        log.info("Registering OAuth2 Client: registrationId={}, clientId={}", registrationId, clientId);
-
+        
         ClientRegistration registration = ClientRegistration
                 .withRegistrationId(registrationId)
                 .clientId(clientId)
@@ -367,8 +343,7 @@ public class IdentityOAuth2AutoConfiguration {
     
     @Bean
     public OAuth2AuthorizedClientRepository authorizedClientRepository() {
-        log.info("Registering OAuth2AuthorizedClientRepository (HttpSession-based)");
-        return new HttpSessionOAuth2AuthorizedClientRepository();
+                return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 
     
@@ -380,8 +355,7 @@ public class IdentityOAuth2AutoConfiguration {
             RegisteredClientRepository registeredClientRepository,
             OAuth2AuthorizationService authorizationService) {
 
-        log.info("Registering OAuth2AuthorizedClientManager with custom providers (ObjectProvider-based lazy loading)");
-
+        
         
         
         RestClientAuthenticatedUserTokenResponseClient tokenResponseClient =
@@ -444,8 +418,7 @@ public class IdentityOAuth2AutoConfiguration {
             return contextAttributes;
         });
 
-        log.info("OAuth2AuthorizedClientManager configured successfully with deferred OAuth2TokenEndpointFilter loading");
-
+        
         return authorizedClientManager;
     }
 

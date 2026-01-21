@@ -81,18 +81,13 @@ public class CoreRAGAutoConfiguration {
     @Value("${spring.ai.rag.risk.top-k:50}")
     private int riskTopK;
 
-    public CoreRAGAutoConfiguration() {
-        log.info("=== CoreRAGAutoConfiguration initialized ===");
-        log.info("VectorStore Observability: ENABLED");
-    }
+    public CoreRAGAutoConfiguration() {}
 
     
     @Bean
     @ConditionalOnMissingBean
     public VectorStoreObservationConvention securityVectorStoreObservationConvention() {
-        log.info("=== Registering SecurityVectorStoreObservationConvention ===");
-        log.info("PgVectorStore will automatically use this convention for all operations");
-        return new SecurityVectorStoreObservationConvention();
+                        return new SecurityVectorStoreObservationConvention();
     }
 
     

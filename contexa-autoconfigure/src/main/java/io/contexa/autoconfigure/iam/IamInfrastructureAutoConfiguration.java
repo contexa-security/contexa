@@ -32,8 +32,7 @@ public class IamInfrastructureAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public JPAQueryFactory jpaQueryFactory(EntityManager entityManager) {
-        log.info("JPAQueryFactory 빈 등록");
-        return new JPAQueryFactory(entityManager);
+                return new JPAQueryFactory(entityManager);
     }
 
     
@@ -44,8 +43,7 @@ public class IamInfrastructureAutoConfiguration {
             ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,
             ZeroTrustEventPublisher zeroTrustEventPublisher) {
 
-        log.info("AuthorizationManagerMethodInterceptor 빈 등록 (@Protectable 메서드 인터셉터)");
-
+        
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
         AuthorizationManagerMethodInterceptor interceptor =
             new AuthorizationManagerMethodInterceptor(pointcut, protectableMethodAuthorizationManager);
@@ -71,8 +69,7 @@ public class IamInfrastructureAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public WebClientCustomizer webClientCustomizer() {
-        log.info("WebClientCustomizer 빈 등록 (AI 클라이언트용 최적화 설정)");
-
+        
         
         ConnectionProvider provider = ConnectionProvider.create("custom-ai-pool", 50);
 
