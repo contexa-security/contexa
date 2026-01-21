@@ -31,25 +31,25 @@ public class NetworkScanTool {
     @Tool(
             name = "network_scan",
             description = """
-            네트워크 스캔 도구. 지정된 IP 대역이나 호스트에 대해 네트워크 스캔을 수행합니다.
-            포트 스캔, 서비스 탐지, 취약점 식별 기능을 제공합니다.
-            보안 분석과 침해 대응을 위한 정보 수집에 사용됩니다.
+            Network scan tool. Performs network scanning on specified IP ranges or hosts.
+            Provides port scanning, service detection, and vulnerability identification features.
+            Used for information gathering for security analysis and incident response.
             """
     )
     public Response scanNetwork(
-            @ToolParam(description = "스캔 대상 (IP 주소 또는 CIDR)", required = true)
+            @ToolParam(description = "Scan target (IP address or CIDR)", required = true)
             String target,
 
-            @ToolParam(description = "스캔 유형 (basic, port, service, vulnerability, full)", required = false)
+            @ToolParam(description = "Scan type (basic, port, service, vulnerability, full)", required = false)
             String scanType,
 
-            @ToolParam(description = "스캔할 포트 목록", required = false)
+            @ToolParam(description = "List of ports to scan", required = false)
             List<Integer> ports,
 
-            @ToolParam(description = "타임아웃 (초)", required = false)
+            @ToolParam(description = "Timeout (seconds)", required = false)
             Integer timeout,
 
-            @ToolParam(description = "상세 출력 여부", required = false)
+            @ToolParam(description = "Verbose output", required = false)
             Boolean verbose
     ) {
         long startTime = System.currentTimeMillis();
@@ -94,7 +94,7 @@ public class NetworkScanTool {
                     .build();
 
         } catch (Exception e) {
-            log.error("네트워크 스캔 실패", e);
+            log.error("Network scan failed", e);
 
             SecurityToolUtils.recordMetric("network_scan", "error_count", 1);
 
@@ -113,7 +113,7 @@ public class NetworkScanTool {
 
         if (!isValidTarget(target)) {
 
-            log.warn("유효하지 않은 타겟 형식: '{}'. IP 주소나 CIDR 형식이 필요합니다.", target);
+            log.warn("Invalid target format: '{}'. IP address or CIDR format required.", target);
             throw new IllegalArgumentException(
                     String.format("Invalid target format: '%s'. Expected IP address (e.g., 192.168.1.1) or CIDR notation (e.g., 192.168.1.0/24)",
                             target)

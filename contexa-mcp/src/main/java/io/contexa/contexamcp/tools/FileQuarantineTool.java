@@ -34,45 +34,45 @@ public class FileQuarantineTool {
     @Tool(
             name = "file_quarantine",
             description = """
-            파일 격리 도구. 악성 또는 의심스러운 파일을 안전한 격리 영역으로 이동시킵니다.
-            격리된 파일은 실행 불가능한 상태로 보관되며, 필요시 복원할 수 있습니다.
-            주의: 시스템 파일이나 중요 파일을 격리할 경우 시스템 장애가 발생할 수 있습니다.
-            이 도구는 고위험 작업으로 분류되며 승인이 필요합니다.
+            File quarantine tool. Moves malicious or suspicious files to a secure isolation area.
+            Quarantined files are kept in a non-executable state and can be restored if needed.
+            Warning: Quarantining system or critical files may cause system failure.
+            This tool is classified as high-risk and requires approval.
             """
     )
     public Response quarantineFile(
-            @ToolParam(description = "작업 유형 (quarantine, restore, delete, list)", required = true)
+            @ToolParam(description = "Action type (quarantine, restore, delete, list)", required = true)
             String action,
 
-            @ToolParam(description = "대상 파일의 전체 경로", required = false)
+            @ToolParam(description = "Full path of the target file", required = false)
             String filePath,
 
-            @ToolParam(description = "격리 사유 (보안 위협 유형 등)", required = false)
+            @ToolParam(description = "Reason for quarantine (security threat type, etc.)", required = false)
             String reason,
 
-            @ToolParam(description = "격리 전 백업 생성 여부", required = false)
+            @ToolParam(description = "Whether to create backup before quarantine", required = false)
             Boolean createBackup,
 
-            @ToolParam(description = "영구 격리 여부 (true면 복원 불가)", required = false)
+            @ToolParam(description = "Permanent quarantine (cannot restore if true)", required = false)
             Boolean permanentQuarantine,
 
-            @ToolParam(description = "복원 전 파일 안전성 검증 수행", required = false)
+            @ToolParam(description = "Validate file safety before restore", required = false)
             Boolean validateBeforeRestore,
 
-            @ToolParam(description = "영구 삭제 확인 (true 필수)", required = false)
+            @ToolParam(description = "Confirm permanent deletion (true required)", required = false)
             Boolean confirmDelete,
 
-            @ToolParam(description = "시스템 파일 강제 처리 허용", required = false)
+            @ToolParam(description = "Allow forced action on system files", required = false)
             Boolean forceAction
     ) {
         long startTime = System.currentTimeMillis();
 
         if (!"list".equals(action.toLowerCase()) && (filePath == null || filePath.trim().isEmpty())) {
-            log.warn("파일 경로가 지정되지 않음 - SOAR 시스템 기본 처리");
+            log.warn("File path not specified - SOAR system default processing");
             filePath = "C:\\Windows\\Temp\\cryptominer.exe";
         }
 
-        log.warn("파일 격리 요청 - Action: {}, Path: {}, Reason: {}",
+        log.warn("File quarantine request - Action: {}, Path: {}, Reason: {}",
                 action, filePath, reason);
 
         try {

@@ -35,26 +35,26 @@ public class AuditLogQueryTool {
     @Tool(
             name = "queryAuditLogs",
             description = """
-            감사 로그를 조회하여 보안 위협을 분석합니다.
-            사용자 ID, IP 주소, 날짜 범위로 로그를 검색할 수 있습니다.
-            자동으로 위협 레벨을 분석하여 제공합니다.
+            Query audit logs to analyze security threats.
+            Search logs by user ID, IP address, and date range.
+            Automatically analyzes and provides threat levels.
             """
     )
 
     public Response queryAuditLogs(
-            @ToolParam(description = "조회할 사용자 ID", required = false)
+            @ToolParam(description = "User ID to query", required = false)
             String userId,
 
-            @ToolParam(description = "조회할 IP 주소", required = false)
+            @ToolParam(description = "IP address to query", required = false)
             String ipAddress,
 
-            @ToolParam(description = "조회 시작 날짜 (ISO-8601 형식, 예: 2024-01-01T00:00:00)", required = false)
+            @ToolParam(description = "Start date (ISO-8601 format, e.g., 2024-01-01T00:00:00)", required = false)
             String dateFrom,
 
-            @ToolParam(description = "조회 종료 날짜 (ISO-8601 형식, 예: 2024-01-31T23:59:59)", required = false)
+            @ToolParam(description = "End date (ISO-8601 format, e.g., 2024-01-31T23:59:59)", required = false)
             String dateTo,
 
-            @ToolParam(description = "최대 결과 개수 (기본값: 100, 최대: 1000)", required = false)
+            @ToolParam(description = "Max result count (default: 100, max: 1000)", required = false)
             Integer limit
     ) {
         long startTime = System.currentTimeMillis();

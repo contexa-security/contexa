@@ -38,43 +38,43 @@ public class ProcessKillTool {
     @Tool(
             name = "process_kill",
             description = """
-            프로세스 종료 도구. 악성 또는 의심스러운 프로세스를 종료시킵니다.
-            프로세스 ID(PID) 또는 프로세스 이름으로 종료 가능하며,
-            자식 프로세스를 포함한 프로세스 트리 전체를 종료할 수 있습니다.
-            주의: 시스템 프로세스나 중요 서비스를 종료할 경우 시스템 불안정이나 장애가 발생할 수 있습니다.
-            이 도구는 고위험 작업으로 분류되며 승인이 필요합니다.
+            Process kill tool. Terminates malicious or suspicious processes.
+            Can terminate by Process ID (PID) or process name,
+            and can terminate the entire process tree including child processes.
+            Warning: Terminating system processes or critical services can cause system instability or failure.
+            This tool is classified as high-risk and requires approval.
             """
     )
     public Response killProcess(
-            @ToolParam(description = "작업 유형 (kill, terminate, suspend, isolate)", required = true)
+            @ToolParam(description = "Action type (kill, terminate, suspend, isolate)", required = true)
             String action,
 
-            @ToolParam(description = "프로세스 ID (PID)", required = false)
+            @ToolParam(description = "Process ID (PID)", required = false)
             Integer processId,
 
-            @ToolParam(description = "프로세스 이름", required = false)
+            @ToolParam(description = "Process Name", required = false)
             String processName,
 
-            @ToolParam(description = "자식 프로세스 포함 여부", required = false)
+            @ToolParam(description = "Include child processes", required = false)
             Boolean includeChildren,
 
-            @ToolParam(description = "강제 종료 여부 (보호된 프로세스에 필요)", required = false)
+            @ToolParam(description = "Force kill (required for protected processes)", required = false)
             Boolean forceKill,
 
-            @ToolParam(description = "격리 후 종료 여부", required = false)
+            @ToolParam(description = "Kill after isolation", required = false)
             Boolean isolateFirst,
 
-            @ToolParam(description = "종료 사유", required = false)
+            @ToolParam(description = "Reason for killing", required = false)
             String reason
     ) {
         long startTime = System.currentTimeMillis();
 
         if (processId == null && (processName == null || processName.trim().isEmpty())) {
-            log.warn("프로세스 정보가 지정되지 않음 - SOAR 시스템 기본 처리");
+            log.warn("Process info not specified - SOAR system default processing");
             processName = "cryptominer.exe";
         }
 
-        log.warn("프로세스 종료 요청: pid={}, name={}, action={}",
+        log.warn("Process kill request: pid={}, name={}, action={}",
                 processId, processName, action);
 
         try {
@@ -93,7 +93,7 @@ public class ProcessKillTool {
                             "Cannot kill protected process without force flag: " + processInfo.name
                     );
                 }
-                log.warn("보호된 프로세스 강제 종료 시도: {}", processInfo.name);
+                log.warn("Attempted forced kill of protected process: {}", processInfo.name);
             }
 
             KillResult result = switch (action.toLowerCase()) {
@@ -126,7 +126,7 @@ public class ProcessKillTool {
                     .build();
 
         } catch (Exception e) {
-            log.error("프로세스 종료 실패", e);
+            log.error("Process kill failed", e);
 
             SecurityToolUtils.recordMetric("process_kill", "error_count", 1);
 

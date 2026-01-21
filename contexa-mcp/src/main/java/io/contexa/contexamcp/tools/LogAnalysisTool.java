@@ -45,25 +45,25 @@ public class LogAnalysisTool {
     @Tool(
             name = "log_analysis",
             description = """
-            로그 분석 도구. 시스템 로그, 보안 로그, 애플리케이션 로그를 분석하여
-            보안 위협, 이상 패턴, 침해 지표를 탐지합니다.
-            타임라인 재구성과 포렌식 분석 기능을 제공합니다.
+            Log analysis tool. Analyzes system logs, security logs, and application logs
+            to detect security threats, anomalous patterns, and indicators of compromise.
+            Provides timeline reconstruction and forensic analysis capabilities.
             """
     )
     public Response analyzeLog(
-            @ToolParam(description = "로그 소스 (파일 경로, 서비스명 등)", required = true)
+            @ToolParam(description = "Log source (file path, service name, etc.)", required = true)
             String logSource,
 
-            @ToolParam(description = "분석할 시간 범위 (예: last_hour, last_24h, custom)", required = false)
+            @ToolParam(description = "Time range to analyze (e.g., last_hour, last_24h, custom)", required = false)
             String timeRange,
 
-            @ToolParam(description = "검색할 특정 패턴이나 키워드 목록", required = false)
+            @ToolParam(description = "List of specific patterns or keywords to search", required = false)
             List<String> searchPatterns,
 
-            @ToolParam(description = "최대 분석 라인 수 (기본값: 100)", required = false)
+            @ToolParam(description = "Max lines to analyze (default: 100)", required = false)
             Integer maxLines,
 
-            @ToolParam(description = "상세 분석 여부 (기본값: false)", required = false)
+            @ToolParam(description = "Whether to perform detailed analysis (default: false)", required = false)
             Boolean detailed
     ) {
         long startTime = System.currentTimeMillis();
@@ -105,7 +105,7 @@ public class LogAnalysisTool {
                     .build();
 
         } catch (Exception e) {
-            log.error("로그 분석 실패", e);
+            log.error("Log analysis failed", e);
 
             SecurityToolUtils.recordMetric("log_analysis", "error_count", 1);
 
@@ -355,15 +355,15 @@ public class LogAnalysisTool {
         List<String> recommendations = new ArrayList<>();
 
         if ("CRITICAL".equals(assessment.threatLevel) || "HIGH".equals(assessment.threatLevel)) {
-            recommendations.add("즉시 보안 대응팀 활성화");
-            recommendations.add("영향받은 시스템 격리");
-            recommendations.add("포렌식 증거 수집");
-            recommendations.add("침해 지표(IoC) 차단");
+            recommendations.add("Activate security response team immediately");
+            recommendations.add("Isolate affected systems");
+            recommendations.add("Collect forensic evidence");
+            recommendations.add("Block Indicators of Compromise (IoC)");
         }
 
-        recommendations.add("보안 모니터링 강화");
-        recommendations.add("로그 보존 기간 연장");
-        recommendations.add("취약점 패치 적용");
+        recommendations.add("Enhance security monitoring");
+        recommendations.add("Extend log retention period");
+        recommendations.add("Apply vulnerability patches");
 
         return recommendations;
     }

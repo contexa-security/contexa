@@ -36,45 +36,45 @@ public class NetworkIsolationTool {
     @Tool(
             name = "network_isolation",
             description = """
-            네트워크 격리 도구. 감염되거나 의심스러운 호스트를 네트워크에서 격리시킵니다.
-            특정 IP, 포트, 프로토콜을 차단하거나 전체 네트워크 세그먼트를 격리할 수 있습니다.
-            경고: 네트워크 격리는 서비스 중단을 야기할 수 있으며, 복구가 어려울 수 있습니다.
-            이 도구는 최고위험 작업으로 분류되며 반드시 승인이 필요합니다.
-            잘못된 격리는 전체 네트워크 장애를 일으킬 수 있습니다.
+            Network isolation tool. Isolates infected or suspicious hosts from the network.
+            Can block specific IPs, ports, protocols, or isolate entire network segments.
+            Warning: Network isolation can cause service interruption and may be difficult to recover.
+            This tool is classified as critical risk and requires mandatory approval.
+            Incorrect isolation can cause entire network failure.
             """
     )
     public Response isolateNetwork(
-            @ToolParam(description = "작업 유형 (isolate, block, quarantine, restore, emergency_shutdown)", required = true)
+            @ToolParam(description = "Action type (isolate, block, quarantine, restore, emergency_shutdown)", required = true)
             String action,
 
-            @ToolParam(description = "대상 (IP 주소, 호스트명, 서브넷)", required = true)
+            @ToolParam(description = "Target (IP address, hostname, subnet)", required = true)
             String target,
 
-            @ToolParam(description = "격리 유형 (full, inbound, outbound, selective)", required = false)
+            @ToolParam(description = "Isolation type (full, inbound, outbound, selective)", required = false)
             String isolationType,
 
-            @ToolParam(description = "차단할 포트 목록", required = false)
+            @ToolParam(description = "List of ports to block", required = false)
             List<Integer> ports,
 
-            @ToolParam(description = "차단할 프로토콜 목록", required = false)
+            @ToolParam(description = "List of protocols to block", required = false)
             List<String> protocols,
 
-            @ToolParam(description = "격리 지속 시간 (분)", required = false)
+            @ToolParam(description = "Duration of isolation (minutes)", required = false)
             Integer duration,
 
-            @ToolParam(description = "격리 사유", required = false)
+            @ToolParam(description = "Reason for isolation", required = false)
             String reason,
 
-            @ToolParam(description = "백업 생성 여부", required = false)
+            @ToolParam(description = "Whether to create backup", required = false)
             Boolean createBackup,
 
-            @ToolParam(description = "보호된 호스트 무시", required = false)
+            @ToolParam(description = "Override protected host check", required = false)
             Boolean overrideProtection,
 
-            @ToolParam(description = "복원 확인", required = false)
+            @ToolParam(description = "Confirm restoration", required = false)
             Boolean confirmRestore,
 
-            @ToolParam(description = "크리티컬 작업 확인", required = false)
+            @ToolParam(description = "Confirm critical operation", required = false)
             Boolean confirmCritical
     ) {
         long startTime = System.currentTimeMillis();
@@ -92,7 +92,7 @@ public class NetworkIsolationTool {
             if (impact.severity.equals("CRITICAL")) {
 
                 if (confirmCritical == null) {
-                    log.warn("CRITICAL 작업 - 자동 승인 모드로 진행 (SOAR 시스템)");
+                    log.warn("CRITICAL operation - Proceeding in auto-approval mode (SOAR System)");
                     confirmCritical = true;
                 }
 
@@ -102,7 +102,7 @@ public class NetworkIsolationTool {
                                     "Impact: " + impact.description
                     );
                 }
-                log.error("크리티컬 네트워크 격리 확인됨");
+                log.error("Critical network isolation confirmed");
             }
 
             IsolationResult result = switch (action.toLowerCase()) {
@@ -140,7 +140,7 @@ public class NetworkIsolationTool {
                     .build();
 
         } catch (Exception e) {
-            log.error("네트워크 격리 실패", e);
+            log.error("Network isolation failed", e);
 
             SecurityToolUtils.recordMetric("network_isolation", "error_count", 1);
 
@@ -341,7 +341,7 @@ public class NetworkIsolationTool {
             );
         }
 
-        log.error("🚨🚨긴급 네트워크 차단 실행 🚨🚨🚨");
+        log.error("🚨🚨EMERGENCY NETWORK SHUTDOWN EXECUTED 🚨🚨🚨");
 
         List<String> shutdownActions = Arrays.asList(
                 "Block all external traffic",

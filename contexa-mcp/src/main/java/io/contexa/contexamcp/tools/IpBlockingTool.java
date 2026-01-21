@@ -39,22 +39,22 @@ public class IpBlockingTool {
     @Tool(
             name = "ip_blocking",
             description = """
-            네트워크 방화벽에서 특정 IP 주소를 차단합니다.
-            보안 위협이 탐지된 IP 주소의 접근을 즉시 차단할 수 있습니다.
-            차단 기간을 지정하거나 영구 차단이 가능합니다.
+            Blocks specific IP addresses in the network firewall.
+            Can immediately block access from IP addresses where security threats are detected.
+            Duration can be specified, or permanent blocking is possible.
             """
     )
     public Response blockIp(
-            @ToolParam(description = "차단할 IP 주소 (IPv4 형식)", required = true)
+            @ToolParam(description = "IP address to block (IPv4 format)", required = true)
             String ipAddress,
 
-            @ToolParam(description = "차단 사유 (최소 10자 이상)", required = true)
+            @ToolParam(description = "Reason for blocking (min 10 chars)", required = true)
             String reason,
 
-            @ToolParam(description = "차단 기간(분), null 또는 0이면 영구 차단", required = false)
+            @ToolParam(description = "Duration in minutes (null or 0 for permanent)", required = false)
             Integer durationMinutes,
 
-            @ToolParam(description = "관련 보안 티켓 ID", required = false)
+            @ToolParam(description = "Related security ticket ID", required = false)
             String ticketId
     ) {
         long startTime = System.currentTimeMillis();

@@ -36,23 +36,23 @@ public class SessionTerminationTool {
     @Tool(
             name = "session_termination",
             description = """
-            특정 사용자의 모든 활성 세션을 즉시 종료합니다.
-            계정 탈취가 의심되거나 보안 위협이 감지된 경우 사용됩니다.
-            종료된 사용자는 다시 로그인해야 시스템에 접근할 수 있습니다.
-            주의: 이 작업은 사용자의 모든 활성 작업을 중단시킵니다.
+            Terminate all active sessions for a specific user immediately.
+            Used when account takeover is suspected or security threats are detected.
+            Terminated users must log in again to access the system.
+            Warning: This action disrupts all active user operations.
             """
     )
     public Response terminateSession(
-            @ToolParam(description = "대상 사용자 ID", required = true)
+            @ToolParam(description = "Target User ID", required = true)
             String userId,
 
-            @ToolParam(description = "종료 사유", required = true)
+            @ToolParam(description = "Reason for termination", required = true)
             String reason,
 
-            @ToolParam(description = "사용자에게 알림 전송 여부", required = false)
+            @ToolParam(description = "Notify user", required = false)
             Boolean notifyUser,
 
-            @ToolParam(description = "현재 세션 유지 여부 (관리자 세션 보호용)", required = false)
+            @ToolParam(description = "Preserve current session (for admin session protection)", required = false)
             Boolean preserveCurrentSession
     ) {
         long startTime = System.currentTimeMillis();
@@ -61,7 +61,7 @@ public class SessionTerminationTool {
 
             if (userId == null || userId.trim().isEmpty()) {
 
-                log.warn("사용자 ID가 지정되지 않음 - SOAR 시스템 기본 처리");
+                log.warn("User ID not specified - SOAR system default processing");
                 userId = "admin@company.com";
             }
 

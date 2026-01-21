@@ -40,25 +40,25 @@ public class ThreatIntelligenceTool {
     @Tool(
             name = "threat_intelligence",
             description = """
-            위협 인텔리전스 도구. IP 주소, 도메인, 파일 해시 등의 침해 지표(IoC)를 조회하고
-            위협 정보를 수집합니다. 알려진 위협 행위자, 공격 캠페인, 멀웨어 정보를 제공하며
-            실시간 위협 평가와 대응 권고사항을 생성합니다.
+            Threat intelligence tool. Queries Indicators of Compromise (IoC) such as IP, domain, file hash, etc.
+            Collects threat information. Provides known threat actors, attack campaigns, malware info,
+            and generates real-time threat assessments and response recommendations.
             """
     )
     public Response queryThreatIntelligence(
-            @ToolParam(description = "조회할 지표 (IP 주소, 도메인명, 파일 해시, 이메일 주소, URL 등)", required = true)
+            @ToolParam(description = "Indicator to query (IP address, domain, file hash, email, URL, etc.)", required = true)
             String indicator,
 
-            @ToolParam(description = "지표 유형. 다음 중 하나를 선택: 'ip' (IP 주소), 'domain' (도메인명), 'hash' (파일 해시), 'email' (이메일 주소), 'url' (URL). 지정하지 않으면 자동 탐지됨", required = false)
+            @ToolParam(description = "Indicator type (ip, domain, hash, email, url). Auto-detected if not specified", required = false)
             String indicatorType,
 
-            @ToolParam(description = "상세 컨텍스트 포함 여부", required = false)
+            @ToolParam(description = "Include detailed context", required = false)
             Boolean includeContext,
 
-            @ToolParam(description = "연관 IoC 조회 여부", required = false)
+            @ToolParam(description = "Check related IoCs", required = false)
             Boolean checkRelated,
 
-            @ToolParam(description = "정보 최대 유효 기간 (일)", required = false)
+            @ToolParam(description = "Max age of info (days)", required = false)
             Integer maxAge
     ) {
         long startTime = System.currentTimeMillis();
@@ -73,7 +73,7 @@ public class ThreatIntelligenceTool {
                 if (validTypes.contains(indicatorType.toLowerCase())) {
                     detectedType = indicatorType.toLowerCase();
                 } else {
-                    log.warn("잘못된 indicatorType '{}' - 자동 탐지 사용", indicatorType);
+                    log.warn("Invalid indicatorType '{}' - using auto-detection", indicatorType);
                     detectedType = detectIndicatorType(indicator);
                 }
             } else {
@@ -151,7 +151,7 @@ public class ThreatIntelligenceTool {
             Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
 
             if (!validTypes.contains(indicatorType.toLowerCase())) {
-                log.warn("잘못된 indicator type '{}' - 자동 탐지로 대체", indicatorType);
+                log.warn("Invalid indicator type '{}' - falling back to auto-detection", indicatorType);
 
             }
         }
