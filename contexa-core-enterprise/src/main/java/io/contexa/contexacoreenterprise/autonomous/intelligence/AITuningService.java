@@ -20,16 +20,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class AITuningService {
-    
-    
+
     private final StandardVectorStoreService vectorStore;
     private final RedisTemplate<String, Object> redisTemplate;
-    
-    
+
     @Value("${ai.tuning.enabled:true}")
     private boolean tuningEnabled;
     
@@ -53,20 +50,15 @@ public class AITuningService {
     
     @Value("${ai.tuning.false.negative.penalty:0.7}")
     private double falseNegativePenalty;
-    
-    
+
     private final Map<String, LearningData> learningDataStore = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, ModelParameters> modelParameters = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, PerformanceMetrics> performanceMetrics = new ConcurrentHashMap<>();
-    
-    
+
     private final List<TuningHistory> tuningHistory = Collections.synchronizedList(new ArrayList<>());
-    
-    
+
     private final AtomicLong totalTuningCycles = new AtomicLong(0);
     private final AtomicLong successfulTunings = new AtomicLong(0);
     private final AtomicLong falsePositivesLearned = new AtomicLong(0);
@@ -75,25 +67,17 @@ public class AITuningService {
     @PostConstruct
     public void initialize() {
         if (!tuningEnabled) {
-            log.info("AI 자율 튜닝 비활성화됨");
-            return;
+                        return;
         }
-        
-        log.info("AI 자율 튜닝 서비스 초기화 시작");
-        
-        
+
         initializeModelParameters();
-        
-        
+
         loadExistingLearningData();
-        
-        
+
         establishPerformanceBaseline();
         
-        log.info("AI 자율 튜닝 서비스 초기화 완료");
-    }
-    
-    
+            }
+
     public Mono<LearningResult> learnFalsePositive(SecurityEvent event, UserFeedback feedback) {
         if (!tuningEnabled) {
             return Mono.just(LearningResult.disabled());
@@ -101,16 +85,13 @@ public class AITuningService {
         
         return Mono.defer(() -> {
             String modelId = determineModelId(event);
-            
-            
+
             LearningData data = learningDataStore.computeIfAbsent(modelId, k -> new LearningData());
             data.addFalsePositive(event, feedback);
             falsePositivesLearned.incrementAndGet();
-            
-            
+
             saveFalsePositivePattern(event, feedback);
-            
-            
+
             if (shouldTuneImmediately(data)) {
                 return performTuning(modelId, data);
             }
@@ -119,8 +100,7 @@ public class AITuningService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<LearningResult> learnFalseNegative(SecurityEvent missedEvent, ThreatIndicators indicators) {
         if (!tuningEnabled) {
             return Mono.just(LearningResult.disabled());
@@ -128,16 +108,13 @@ public class AITuningService {
         
         return Mono.defer(() -> {
             String modelId = determineModelId(missedEvent);
-            
-            
+
             LearningData data = learningDataStore.computeIfAbsent(modelId, k -> new LearningData());
             data.addFalseNegative(missedEvent, indicators);
             falseNegativesLearned.incrementAndGet();
-            
-            
+
             saveFalseNegativePattern(missedEvent, indicators);
-            
-            
+
             if (shouldTuneImmediately(data)) {
                 return performTuning(modelId, data);
             }
@@ -146,8 +123,7 @@ public class AITuningService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<TuningRecommendation> recommendTuning(String modelId) {
         return Mono.fromCallable(() -> {
             ModelParameters current = modelParameters.get(modelId);
@@ -159,8 +135,7 @@ public class AITuningService {
             if (metrics == null) {
                 return TuningRecommendation.noRecommendation();
             }
-            
-            
+
             double falsePositiveRate = metrics.getFalsePositiveRate();
             double falseNegativeRate = metrics.getFalseNegativeRate();
             double precision = metrics.getPrecision();
@@ -169,22 +144,19 @@ public class AITuningService {
             
             Map<String, Double> adjustments = new HashMap<>();
             String rationale = "";
-            
-            
+
             if (falsePositiveRate > 0.1) {
                 adjustments.put("threshold", current.getThreshold() * 1.1);
                 adjustments.put("sensitivity", current.getSensitivity() * 0.9);
                 rationale += "오탐율이 높아 임계값 상향 조정 필요. ";
             }
-            
-            
+
             if (falseNegativeRate > 0.05) {
                 adjustments.put("threshold", current.getThreshold() * 0.9);
                 adjustments.put("sensitivity", current.getSensitivity() * 1.1);
                 rationale += "미탐율이 높아 민감도 상향 조정 필요. ";
             }
-            
-            
+
             if (precision < 0.8 && recall > 0.9) {
                 adjustments.put("specificity", current.getSpecificity() * 1.1);
                 rationale += "정밀도 향상을 위한 특이도 조정. ";
@@ -192,8 +164,7 @@ public class AITuningService {
                 adjustments.put("specificity", current.getSpecificity() * 0.9);
                 rationale += "재현율 향상을 위한 특이도 조정. ";
             }
-            
-            
+
             double expectedImprovement = calculateExpectedImprovement(
                 current, adjustments, metrics
             );
@@ -208,16 +179,13 @@ public class AITuningService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
 
     public void performBatchTuning() {
         if (!tuningEnabled) {
             return;
         }
         
-        log.info("배치 AI 튜닝 시작");
-        totalTuningCycles.incrementAndGet();
+                totalTuningCycles.incrementAndGet();
         
         learningDataStore.forEach((modelId, data) -> {
             if (data.getSampleCount() >= minSamplesForTuning) {
@@ -226,42 +194,34 @@ public class AITuningService {
                         result -> {
                             if (result.isSuccess()) {
                                 successfulTunings.incrementAndGet();
-                                log.info("모델 {} 튜닝 성공: {}", modelId, result.getImprovement());
-                            }
+                                                            }
                         },
                         error -> log.error("모델 {} 튜닝 실패", modelId, error)
                     );
             }
         });
     }
-    
-    
+
     private Mono<LearningResult> performTuning(String modelId, LearningData data) {
         return Mono.fromCallable(() -> {
             ModelParameters current = modelParameters.computeIfAbsent(
                 modelId, k -> createDefaultParameters()
             );
-            
-            
+
             Map<String, Double> gradients = calculateGradients(data, current);
-            
-            
+
             ModelParameters updated = updateParameters(current, gradients);
-            
-            
+
             ValidationResult validation = validateParameters(updated, data);
             
             if (validation.isValid()) {
                 
                 modelParameters.put(modelId, updated);
-                
-                
+
                 saveParametersToRedis(modelId, updated);
-                
-                
+
                 recordTuningHistory(modelId, current, updated, validation);
-                
-                
+
                 updatePerformanceMetrics(modelId, validation);
                 
                 return LearningResult.success(
@@ -275,17 +235,14 @@ public class AITuningService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private Map<String, Double> calculateGradients(LearningData data, ModelParameters params) {
         Map<String, Double> gradients = new HashMap<>();
-        
-        
+
         double fpLoss = data.getFalsePositiveCount() * falsePositivePenalty;
         double fnLoss = data.getFalseNegativeCount() * falseNegativePenalty;
         double totalLoss = fpLoss + fnLoss;
-        
-        
+
         double thresholdGradient = 0.0;
         if (fpLoss > fnLoss) {
             thresholdGradient = learningRate * 0.1;  
@@ -293,26 +250,21 @@ public class AITuningService {
             thresholdGradient = -learningRate * 0.1;  
         }
         gradients.put("threshold", thresholdGradient);
-        
-        
+
         double sensitivityGradient = -learningRate * (fpLoss - fnLoss) / totalLoss;
         gradients.put("sensitivity", sensitivityGradient);
-        
-        
+
         double specificityGradient = learningRate * fpLoss / totalLoss;
         gradients.put("specificity", specificityGradient);
-        
-        
+
         gradients.replaceAll((k, v) -> v * Math.exp(-data.getSampleCount() / 1000.0));
         
         return gradients;
     }
-    
-    
+
     private ModelParameters updateParameters(ModelParameters current, Map<String, Double> gradients) {
         ModelParameters updated = current.copy();
-        
-        
+
         updated.setThreshold(
             Math.max(0.1, Math.min(0.99, 
                 current.getThreshold() + gradients.getOrDefault("threshold", 0.0)))
@@ -327,8 +279,7 @@ public class AITuningService {
             Math.max(0.1, Math.min(2.0, 
                 current.getSpecificity() + gradients.getOrDefault("specificity", 0.0)))
         );
-        
-        
+
         updated.setWindowSize(current.getWindowSize());  
         updated.setMinSamples(current.getMinSamples());  
         updated.setLastUpdated(LocalDateTime.now());
@@ -336,16 +287,14 @@ public class AITuningService {
         
         return updated;
     }
-    
-    
+
     private ValidationResult validateParameters(ModelParameters params, LearningData data) {
         
         double estimatedPrecision = simulatePrecision(params, data);
         double estimatedRecall = simulateRecall(params, data);
         double estimatedF1 = 2 * (estimatedPrecision * estimatedRecall) / 
                              (estimatedPrecision + estimatedRecall);
-        
-        
+
         double currentF1 = data.getCurrentF1Score();
         double improvement = estimatedF1 - currentF1;
         
@@ -355,24 +304,21 @@ public class AITuningService {
         
         return new ValidationResult(valid, improvement, estimatedPrecision, estimatedRecall, estimatedF1);
     }
-    
-    
+
     private double simulatePrecision(ModelParameters params, LearningData data) {
         
         double basePrecision = 0.85;
         double adjustment = params.getSpecificity() * 0.1 - params.getSensitivity() * 0.05;
         return Math.max(0.5, Math.min(1.0, basePrecision + adjustment));
     }
-    
-    
+
     private double simulateRecall(ModelParameters params, LearningData data) {
         
         double baseRecall = 0.80;
         double adjustment = params.getSensitivity() * 0.1 - params.getThreshold() * 0.05;
         return Math.max(0.5, Math.min(1.0, baseRecall + adjustment));
     }
-    
-    
+
     private double calculateExpectedImprovement(
         ModelParameters current,
         Map<String, Double> adjustments,
@@ -386,8 +332,7 @@ public class AITuningService {
             double newValue = adj.getValue();
             double oldValue = getParameterValue(current, param);
             double change = (newValue - oldValue) / oldValue;
-            
-            
+
             double weight = switch (param) {
                 case "threshold" -> 0.4;
                 case "sensitivity" -> 0.3;
@@ -400,8 +345,7 @@ public class AITuningService {
         
         return Math.min(improvement, 0.3);  
     }
-    
-    
+
     private double calculateConfidence(PerformanceMetrics metrics) {
         
         double sampleConfidence = Math.min(1.0, metrics.getSampleCount() / 1000.0);
@@ -409,8 +353,7 @@ public class AITuningService {
         
         return (sampleConfidence + consistencyConfidence) / 2;
     }
-    
-    
+
     private String determineModelId(SecurityEvent event) {
         
         String source = event.getSource() != null ? event.getSource().name() : "UNKNOWN";
@@ -422,16 +365,14 @@ public class AITuningService {
             default -> "default_model";
         };
     }
-    
-    
+
     private boolean shouldTuneImmediately(LearningData data) {
         
         return data.getFalsePositiveCount() > 10 || 
                data.getFalseNegativeCount() > 5 ||
                data.getSampleCount() > minSamplesForTuning * 2;
     }
-    
-    
+
     private void initializeModelParameters() {
         
         String[] modelIds = {"auth_model", "network_model", "file_model", "process_model", "default_model"};
@@ -440,8 +381,7 @@ public class AITuningService {
             modelParameters.put(modelId, createDefaultParameters());
         }
     }
-    
-    
+
     private ModelParameters createDefaultParameters() {
         return ModelParameters.builder()
             .threshold(0.7)
@@ -453,8 +393,7 @@ public class AITuningService {
             .version(1)
             .build();
     }
-    
-    
+
     private void loadExistingLearningData() {
         
         Set<String> keys = redisTemplate.keys("ai:learning:*");
@@ -466,11 +405,9 @@ public class AITuningService {
                     learningDataStore.put(modelId, data);
                 }
             });
-            log.info("기존 학습 데이터 {} 개 로드", keys.size());
-        }
+                    }
     }
-    
-    
+
     private void establishPerformanceBaseline() {
         
         modelParameters.keySet().forEach(modelId -> {
@@ -488,8 +425,7 @@ public class AITuningService {
             performanceMetrics.put(modelId, baseline);
         });
     }
-    
-    
+
     private void saveFalsePositivePattern(SecurityEvent event, UserFeedback feedback) {
         Map<String, Object> pattern = new HashMap<>();
         pattern.put("type", "FALSE_POSITIVE");
@@ -497,8 +433,7 @@ public class AITuningService {
         pattern.put("features", extractFeatures(event));
         pattern.put("feedback", feedback);
         pattern.put("timestamp", LocalDateTime.now());
-        
-        
+
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("type", "false_positive");
         metadata.put("eventId", event.getEventId());
@@ -507,8 +442,7 @@ public class AITuningService {
         Document doc = new Document(pattern.toString(), metadata);
         vectorStore.addDocuments(List.of(doc));
     }
-    
-    
+
     private void saveFalseNegativePattern(SecurityEvent event, ThreatIndicators indicators) {
         Map<String, Object> pattern = new HashMap<>();
         pattern.put("type", "FALSE_NEGATIVE");
@@ -516,8 +450,7 @@ public class AITuningService {
         pattern.put("features", extractFeatures(event));
         pattern.put("indicators", indicators.toSummary());
         pattern.put("timestamp", LocalDateTime.now());
-        
-        
+
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("type", "false_negative");
         metadata.put("eventId", event.getEventId());
@@ -526,8 +459,7 @@ public class AITuningService {
         Document doc = new Document(pattern.toString(), metadata);
         vectorStore.addDocuments(List.of(doc));
     }
-    
-    
+
     private Map<String, Object> extractFeatures(SecurityEvent event) {
         Map<String, Object> features = new HashMap<>();
         features.put("severity", event.getSeverity());
@@ -535,22 +467,19 @@ public class AITuningService {
         features.put("userId", event.getUserId());
         features.put("ipAddress", event.getSourceIp());
         features.put("timestamp", event.getTimestamp());
-        
-        
+
         if (event.getMetadata() != null) {
             features.put("dataSize", event.getMetadata().size());
         }
         
         return features;
     }
-    
-    
+
     private void saveParametersToRedis(String modelId, ModelParameters params) {
         String key = "ai:params:" + modelId;
         redisTemplate.opsForValue().set(key, params, Duration.ofDays(7));
     }
-    
-    
+
     private void recordTuningHistory(
         String modelId,
         ModelParameters oldParams,
@@ -569,18 +498,15 @@ public class AITuningService {
             .build();
         
         tuningHistory.add(history);
-        
-        
+
         if (tuningHistory.size() > 1000) {
             tuningHistory.remove(0);
         }
-        
-        
+
         String key = "ai:history:" + modelId + ":" + System.currentTimeMillis();
         redisTemplate.opsForValue().set(key, history, Duration.ofDays(30));
     }
-    
-    
+
     private void updatePerformanceMetrics(String modelId, ValidationResult validation) {
         PerformanceMetrics metrics = performanceMetrics.computeIfAbsent(
             modelId, k -> new PerformanceMetrics()
@@ -590,13 +516,11 @@ public class AITuningService {
         metrics.setRecall(validation.getRecall());
         metrics.setF1Score(validation.getF1Score());
         metrics.setLastUpdated(LocalDateTime.now());
-        
-        
+
         String key = "ai:metrics:" + modelId;
         redisTemplate.opsForValue().set(key, metrics, Duration.ofDays(7));
     }
-    
-    
+
     private double getParameterValue(ModelParameters params, String paramName) {
         return switch (paramName) {
             case "threshold" -> params.getThreshold();
@@ -607,8 +531,7 @@ public class AITuningService {
             default -> 0.0;
         };
     }
-    
-    
+
     public Mono<LearningResult> tuneFromIncident(Object incident, Map<String, Object> metadata) {
         if (!tuningEnabled) {
             return Mono.just(LearningResult.disabled());
@@ -618,26 +541,21 @@ public class AITuningService {
             
             String modelId = "incident_model";
 
-            
             boolean wasSuccessful = metadata.getOrDefault("successful", false) == Boolean.TRUE;
             String resolution = (String) metadata.getOrDefault("resolution", "UNKNOWN");
 
-            
             LearningData data = learningDataStore.computeIfAbsent(modelId, k -> new LearningData());
 
             if (!wasSuccessful) {
                 
-                log.info("인시던트 처리 실패로부터 학습: resolution={}", resolution);
-                data.sampleCount++;
+                                data.sampleCount++;
 
-                
                 if (shouldTuneImmediately(data)) {
                     return performTuning(modelId, data);
                 }
             } else {
                 
-                log.debug("인시던트 처리 성공 강화 학습");
-                data.currentF1Score = Math.min(1.0, data.currentF1Score * 1.01); 
+                                data.currentF1Score = Math.min(1.0, data.currentF1Score * 1.01); 
             }
 
             return Mono.just(LearningResult.queued(modelId));
@@ -645,7 +563,6 @@ public class AITuningService {
         .subscribeOn(Schedulers.boundedElastic());
     }
 
-    
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("enabled", tuningEnabled);
@@ -668,10 +585,7 @@ public class AITuningService {
         
         return metrics;
     }
-    
-    
-    
-    
+
     @lombok.Data
     public static class LearningData {
         private final List<SecurityEvent> falsePositives = new ArrayList<>();
@@ -699,8 +613,7 @@ public class AITuningService {
             return falseNegatives.size();
         }
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor
@@ -730,8 +643,7 @@ public class AITuningService {
             version++;
         }
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor
@@ -747,8 +659,7 @@ public class AITuningService {
         private double variance;
         private LocalDateTime lastUpdated;
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     public static class LearningResult {
@@ -791,8 +702,7 @@ public class AITuningService {
                 .build();
         }
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     public static class TuningRecommendation {
@@ -810,8 +720,7 @@ public class AITuningService {
                 .build();
         }
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     public static class UserFeedback {
@@ -820,8 +729,7 @@ public class AITuningService {
         private String comment;
         private LocalDateTime timestamp;
     }
-    
-    
+
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class ValidationResult {
@@ -831,8 +739,7 @@ public class AITuningService {
         private double recall;
         private double f1Score;
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     private static class TuningHistory {

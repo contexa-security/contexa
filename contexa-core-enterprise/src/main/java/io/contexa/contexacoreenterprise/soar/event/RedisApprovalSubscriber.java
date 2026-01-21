@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 @ConditionalOnProperty(name = "spring.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisApprovalSubscriber implements MessageListener {
@@ -25,15 +24,12 @@ public class RedisApprovalSubscriber implements MessageListener {
     
     @Autowired
     private ObjectMapper objectMapper;
-    
-    
+
     @Autowired
     private UnifiedApprovalService unifiedApprovalService;
-    
-    
+
     private final Set<String> subscribedChannels = ConcurrentHashMap.newKeySet();
-    
-    
+
     private static final String CHANNEL_PREFIX = "approval:";
     private static final String BROADCAST_CHANNEL = "approval:broadcast";
     
@@ -41,19 +37,14 @@ public class RedisApprovalSubscriber implements MessageListener {
     public void init() {
         
         subscribeToChannel(BROADCAST_CHANNEL);
-        log.info("Redis 승인 구독자 초기화 완료");
-    }
-    
-    
+            }
+
     @Override
     public void onMessage(Message message, byte[] pattern) {
         try {
             String channel = new String(message.getChannel());
             String body = new String(message.getBody());
-            
-            log.debug("Redis 메시지 수신: {} -> {}", channel, body);
-            
-            
+
             if (channel.startsWith(CHANNEL_PREFIX)) {
                 handleApprovalMessage(channel, body);
             }
@@ -62,8 +53,7 @@ public class RedisApprovalSubscriber implements MessageListener {
             log.error("Redis 메시지 처리 실패", e);
         }
     }
-    
-    
+
     private void handleApprovalMessage(String channel, String messageBody) {
         
         String approvalId = extractApprovalId(channel);
@@ -71,8 +61,7 @@ public class RedisApprovalSubscriber implements MessageListener {
             log.warn("승인 ID를 추출할 수 없음: {}", channel);
             return;
         }
-        
-        
+
         switch (messageBody) {
             case "APPROVED" -> handleApprovalGranted(approvalId);
             case "REJECTED" -> handleApprovalDenied(approvalId);
@@ -81,34 +70,26 @@ public class RedisApprovalSubscriber implements MessageListener {
             default -> handleJsonMessage(approvalId, messageBody);
         }
     }
-    
-    
+
     private void handleApprovalGranted(String approvalId) {
-        log.info("Redis: 승인 허가 수신 - {}", approvalId);
-        
+                
         unifiedApprovalService.processApprovalResponse(approvalId, true, "REDIS_USER", "Approved via Redis");
     }
-    
-    
+
     private void handleApprovalDenied(String approvalId) {
-        log.info("Redis: 승인 거부 수신 - {}", approvalId);
-        
+                
         unifiedApprovalService.processApprovalResponse(approvalId, false, "REDIS_USER", "Denied via Redis");
     }
-    
-    
+
     private void handleApprovalCancelled(String approvalId) {
-        log.info("🚫 Redis: 승인 취소 수신 - {}", approvalId);
-        unifiedApprovalService.cancelApproval(approvalId, "Cancelled via Redis");
+                unifiedApprovalService.cancelApproval(approvalId, "Cancelled via Redis");
     }
-    
-    
+
     private void handleApprovalTimeout(String approvalId) {
         log.warn("Redis: 승인 타임아웃 수신 - {}", approvalId);
         unifiedApprovalService.processApprovalResponse(approvalId, false, "SYSTEM", "Timeout via Redis");
     }
-    
-    
+
     private void handleJsonMessage(String approvalId, String json) {
         try {
             Map<String, Object> data = objectMapper.readValue(json, Map.class);
@@ -138,64 +119,51 @@ public class RedisApprovalSubscriber implements MessageListener {
             log.error("JSON 메시지 파싱 실패: {}", json, e);
         }
     }
-    
-    
+
     public void subscribeToApproval(String approvalId) {
         String channel = CHANNEL_PREFIX + approvalId;
         subscribeToChannel(channel);
     }
-    
-    
+
     public void unsubscribeFromApproval(String approvalId) {
         String channel = CHANNEL_PREFIX + approvalId;
         unsubscribeFromChannel(channel);
     }
-    
-    
+
     private void subscribeToChannel(String channel) {
         if (subscribedChannels.contains(channel)) {
-            log.debug("이미 구독 중: {}", channel);
-            return;
+                        return;
         }
         
         messageListenerContainer.addMessageListener(this, new ChannelTopic(channel));
         subscribedChannels.add(channel);
         
-        log.info("Redis 채널 구독: {}", channel);
-    }
-    
-    
+            }
+
     private void unsubscribeFromChannel(String channel) {
         if (!subscribedChannels.contains(channel)) {
             return;
         }
-        
-        
+
         subscribedChannels.remove(channel);
         
-        log.info("📴 Redis 채널 구독 해제: {}", channel);
-    }
-    
-    
+            }
+
     private String extractApprovalId(String channel) {
         if (channel.startsWith(CHANNEL_PREFIX)) {
             return channel.substring(CHANNEL_PREFIX.length());
         }
         return null;
     }
-    
-    
+
     public void unsubscribeAll() {
         subscribedChannels.clear();
-        log.info("📴 모든 Redis 채널 구독 해제");
-    }
-    
-    
+            }
+
     public int getSubscribedChannelCount() {
         return subscribedChannels.size();
     }
-    
-    
+
     public boolean isSubscribed(String channel) {
         return subscribedChannels.contains(channel);
     }

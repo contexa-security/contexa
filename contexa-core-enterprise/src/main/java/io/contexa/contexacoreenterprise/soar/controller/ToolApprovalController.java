@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @ResponseBody
 @RequestMapping("/api/soar/approval")
@@ -17,31 +16,25 @@ import java.util.Map;
 public class ToolApprovalController {
     
     private final ToolApprovalService approvalService;
-    
-    
+
     @GetMapping("/pending")
     public ResponseEntity<List<ToolApprovalService.ApprovalRequest>> getPendingApprovals() {
         List<ToolApprovalService.ApprovalRequest> pending = approvalService.getPendingApprovals();
-        log.info("대기 중인 승인 요청 조회: {} 건", pending.size());
-        return ResponseEntity.ok(pending);
+                return ResponseEntity.ok(pending);
     }
-    
-    
+
     @GetMapping("/history")
     public ResponseEntity<List<ToolApprovalService.ApprovalResult>> getApprovalHistory(
             @RequestParam(defaultValue = "50") int limit) {
         List<ToolApprovalService.ApprovalResult> history = approvalService.getApprovalHistory(limit);
         return ResponseEntity.ok(history);
     }
-    
-    
+
     @PostMapping("/{approvalId}/approve")
     public ResponseEntity<Map<String, Object>> approve(
             @PathVariable String approvalId,
             @RequestBody ApprovalDecision decision) {
-        
-        log.info("승인 요청 처리: ID={}, By={}", approvalId, decision.decidedBy());
-        
+
         boolean success = approvalService.approve(
             approvalId, 
             decision.decidedBy(), 
@@ -62,8 +55,7 @@ public class ToolApprovalController {
             ));
         }
     }
-    
-    
+
     @PostMapping("/{approvalId}/reject")
     public ResponseEntity<Map<String, Object>> reject(
             @PathVariable String approvalId,
@@ -92,8 +84,7 @@ public class ToolApprovalController {
             ));
         }
     }
-    
-    
+
     public record ApprovalDecision(
         String decidedBy,
         String reason

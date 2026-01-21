@@ -16,35 +16,26 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
     
     @Autowired
     private ApplicationContext applicationContext;
-    
-    
+
     private final Map<String, ToolCallback> toolCache = new ConcurrentHashMap<>();
     private final Map<String, SoarTool.RiskLevel> riskLevelCache = new ConcurrentHashMap<>();
     private final Map<String, ToolMetadata> metadataCache = new ConcurrentHashMap<>();
-    
-    
+
     private volatile boolean initialized = false;
-    
-    
+
     @PostConstruct
     public void initialize() {
-        log.info("SoarToolIntegrationProvider 초기화 시작");
-        
+                
         try {
             discoverAndCacheSoarTools();
             initialized = true;
-            
-            log.info("SoarToolIntegrationProvider 초기화 완료: {} 개의 SOAR 도구 발견", 
-                toolCache.size());
-            
-            
+
             logDiscoveredTools();
             
         } catch (Exception e) {
@@ -52,87 +43,73 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             initialized = false;
         }
     }
-    
-    
+
     @Override
     public ToolCallback[] getToolCallbacks() {
         ensureInitialized();
         return toolCache.values().toArray(new ToolCallback[0]);
     }
-    
-    
+
     @Override
     public Optional<ToolCallback> getToolCallback(String name) {
         ensureInitialized();
         return Optional.ofNullable(toolCache.get(name));
     }
-    
-    
+
     @Override
     public SoarTool.RiskLevel getToolRiskLevel(String name) {
         ensureInitialized();
         return riskLevelCache.getOrDefault(name, SoarTool.RiskLevel.MEDIUM);
     }
-    
-    
+
     @Override
     public boolean requiresApproval(String name) {
         SoarTool.RiskLevel riskLevel = getToolRiskLevel(name);
-        
-        
+
         return riskLevel == SoarTool.RiskLevel.HIGH || 
                riskLevel == SoarTool.RiskLevel.CRITICAL;
     }
-    
-    
+
     @Override
     public Set<String> getRegisteredToolNames() {
         ensureInitialized();
         return new HashSet<>(toolCache.keySet());
     }
-    
-    
+
     @Override
     public String getProviderType() {
         return "SOAR";
     }
-    
-    
+
     @Override
     public boolean isReady() {
         return initialized && !toolCache.isEmpty();
     }
-    
-    
+
     public ToolMetadata getToolMetadata(String name) {
         ensureInitialized();
         return metadataCache.get(name);
     }
-    
-    
+
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
-        
-        
+
         stats.put("totalTools", toolCache.size());
         stats.put("initialized", initialized);
-        
-        
+
         Map<SoarTool.RiskLevel, Long> riskDistribution = riskLevelCache.values().stream()
             .collect(Collectors.groupingBy(
                 level -> level,
                 Collectors.counting()
             ));
         stats.put("riskDistribution", riskDistribution);
-        
-        
+
         long approvalRequiredCount = riskLevelCache.values().stream()
             .filter(level -> level == SoarTool.RiskLevel.HIGH || 
                            level == SoarTool.RiskLevel.CRITICAL)
             .count();
         stats.put("approvalRequiredTools", approvalRequiredCount);
-        
-        
+
         Map<String, Long> categoryDistribution = metadataCache.values().stream()
             .collect(Collectors.groupingBy(
                 metadata -> metadata.category,
@@ -142,30 +119,22 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
         
         return stats;
     }
-    
-    
+
     public void refresh() {
-        log.info("SOAR 도구 캐시 갱신 시작");
-        
+                
         toolCache.clear();
         riskLevelCache.clear();
         metadataCache.clear();
         
         discoverAndCacheSoarTools();
         
-        log.info("SOAR 도구 캐시 갱신 완료: {} 개의 도구", toolCache.size());
-    }
-    
-    
-    
-    
+            }
+
     private void discoverAndCacheSoarTools() {
         
         Map<String, ToolCallback> toolCallbackBeans = 
             applicationContext.getBeansOfType(ToolCallback.class);
-        
-        log.debug("발견된 ToolCallback 빈: {} 개", toolCallbackBeans.size());
-        
+
         for (Map.Entry<String, ToolCallback> entry : toolCallbackBeans.entrySet()) {
             String beanName = entry.getKey();
             ToolCallback toolCallback = entry.getValue();
@@ -176,18 +145,14 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
                 log.warn("도구 처리 실패: {} - {}", beanName, e.getMessage());
             }
         }
-        
-        
+
         Map<String, Object> soarToolBeans = 
             applicationContext.getBeansWithAnnotation(SoarTool.class);
-        
-        log.debug("@SoarTool 어노테이션 빈: {} 개", soarToolBeans.size());
-        
+
         for (Map.Entry<String, Object> entry : soarToolBeans.entrySet()) {
             String beanName = entry.getKey();
             Object bean = entry.getValue();
-            
-            
+
             if (!(bean instanceof ToolCallback)) {
                 try {
                     ToolCallback wrapped = wrapAsToolCallback(beanName, bean);
@@ -200,27 +165,20 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             }
         }
     }
-    
-    
+
     private void processSoarTool(String beanName, ToolCallback toolCallback) {
         String toolName = toolCallback.getToolDefinition().name();
-        
-        
+
         toolCache.put(toolName, toolCallback);
-        
-        
+
         SoarTool.RiskLevel riskLevel = extractRiskLevel(toolCallback);
         riskLevelCache.put(toolName, riskLevel);
-        
-        
+
         ToolMetadata metadata = createToolMetadata(beanName, toolCallback, riskLevel);
         metadataCache.put(toolName, metadata);
         
-        log.debug("SOAR 도구 등록: {} (빈: {}, 위험도: {})", 
-            toolName, beanName, riskLevel);
-    }
-    
-    
+            }
+
     private ToolCallback wrapAsToolCallback(String beanName, Object bean) {
         Class<?> beanClass = bean.getClass();
         SoarTool soarTool = AnnotatedElementUtils.findMergedAnnotation(
@@ -229,8 +187,7 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
         if (soarTool == null) {
             return null;
         }
-        
-        
+
         return new ToolCallback() {
             @Override
             public ToolDefinition getToolDefinition() {
@@ -260,21 +217,18 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             }
         };
     }
-    
-    
+
     private SoarTool.RiskLevel extractRiskLevel(ToolCallback toolCallback) {
         try {
             Class<?> toolClass = toolCallback.getClass();
-            
-            
+
             SoarTool classAnnotation = AnnotatedElementUtils.findMergedAnnotation(
                 toolClass, SoarTool.class);
             
             if (classAnnotation != null) {
                 return classAnnotation.riskLevel();
             }
-            
-            
+
             for (Method method : toolClass.getMethods()) {
                 SoarTool methodAnnotation = AnnotatedElementUtils.findMergedAnnotation(
                     method, SoarTool.class);
@@ -284,20 +238,15 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             }
             
         } catch (Exception e) {
-            log.debug("위험도 레벨 추출 실패: {} - {}", 
-                toolCallback.getToolDefinition().name(), e.getMessage());
-        }
-        
-        
+                    }
+
         return SoarTool.RiskLevel.MEDIUM;
     }
-    
-    
+
     private ToolMetadata createToolMetadata(String beanName, ToolCallback toolCallback, 
                                            SoarTool.RiskLevel riskLevel) {
         ToolDefinition definition = toolCallback.getToolDefinition();
-        
-        
+
         String category = inferCategory(definition.name());
         
         return new ToolMetadata(
@@ -310,8 +259,7 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             System.currentTimeMillis()
         );
     }
-    
-    
+
     private String inferCategory(String toolName) {
         String lowerName = toolName.toLowerCase();
         
@@ -329,54 +277,39 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             return "GENERAL";
         }
     }
-    
-    
+
     private void ensureInitialized() {
         if (!initialized) {
             throw new IllegalStateException("SoarToolIntegrationProvider가 초기화되지 않았습니다");
         }
     }
-    
-    
+
     private void logDiscoveredTools() {
         if (!log.isInfoEnabled()) {
             return;
         }
-        
-        log.info("SOAR 도구 발견 상세:");
-        
-        
+
         Map<String, List<ToolMetadata>> byCategory = metadataCache.values().stream()
             .collect(Collectors.groupingBy(m -> m.category));
         
         for (Map.Entry<String, List<ToolMetadata>> entry : byCategory.entrySet()) {
             String category = entry.getKey();
             List<ToolMetadata> tools = entry.getValue();
-            
-            log.info("  📁 {} 카테고리: {} 개 도구", category, tools.size());
-            
+
             for (ToolMetadata tool : tools) {
-                log.info("    └─ {} (위험도: {}, 승인: {})", 
-                    tool.name, 
-                    tool.riskLevel,
-                    tool.requiresApproval ? "필요" : "불필요");
-            }
+                            }
         }
-        
-        
+
         Map<SoarTool.RiskLevel, Long> riskStats = riskLevelCache.values().stream()
             .collect(Collectors.groupingBy(
                 level -> level,
                 Collectors.counting()
             ));
         
-        log.info("  위험도별 분포:");
-        for (Map.Entry<SoarTool.RiskLevel, Long> entry : riskStats.entrySet()) {
-            log.info("    └─ {}: {} 개", entry.getKey(), entry.getValue());
-        }
+                for (Map.Entry<SoarTool.RiskLevel, Long> entry : riskStats.entrySet()) {
+                    }
     }
-    
-    
+
     public static class ToolMetadata {
         public final String name;
         public final String beanName;

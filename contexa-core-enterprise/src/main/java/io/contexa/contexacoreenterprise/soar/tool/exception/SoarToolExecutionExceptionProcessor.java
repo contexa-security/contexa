@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 
-
 @Slf4j
 public class SoarToolExecutionExceptionProcessor implements ToolExecutionExceptionProcessor {
     
@@ -27,8 +26,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             @Value("${spring.ai.tools.throw-exception-on-error:false}") boolean throwOnError) {
         this.throwOnError = throwOnError;
         this.defaultProcessor = new DefaultToolExecutionExceptionProcessor(throwOnError);
-        log.info("SOAR Tool Execution Exception Processor 초기화 (throwOnError: {})", throwOnError);
-    }
+            }
     
     @Override
     public String process(ToolExecutionException exception) {
@@ -36,8 +34,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         Throwable cause = exception.getCause();
         
         log.error("도구 실행 예외 발생 - 도구: {}, 예외: {}", toolName, cause != null ? cause.getMessage() : "Unknown", cause);
-        
-        
+
         if (throwOnError) {
             
             if (cause instanceof PermissionDeniedException || 
@@ -48,8 +45,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             
             return defaultProcessor.process(exception);
         }
-        
-        
+
         if (cause instanceof TimeoutException) {
             return handleTimeoutException(toolName, exception);
         } else if (cause instanceof ApprovalTimeoutException) {
@@ -66,8 +62,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             return handleGenericException(toolName, exception, cause);
         }
     }
-    
-    
+
     private String handleTimeoutException(String toolName, ToolExecutionException exception) {
         log.warn("⏰ 도구 실행 타임아웃: {}", toolName);
         
@@ -83,12 +78,10 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             )
         );
     }
-    
-    
+
     private String handleApprovalTimeout(String toolName, ToolExecutionException exception) {
         log.warn("⏰ 승인 타임아웃: {} - 에스컬레이션 진행", toolName);
-        
-        
+
         escalateToSupervisor(toolName);
         
         return createErrorResponse(
@@ -103,8 +96,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             )
         );
     }
-    
-    
+
     private String handleRateLimitExceeded(String toolName, ToolExecutionException exception) {
         log.warn("🚫 Rate limit 초과: {}", toolName);
         
@@ -121,8 +113,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             )
         );
     }
-    
-    
+
     private String handlePermissionDenied(String toolName, ToolExecutionException exception) {
         log.error("권한 거부: {}", toolName);
         
@@ -138,8 +129,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             )
         );
     }
-    
-    
+
     private String handleNetworkException(String toolName, ToolExecutionException exception) {
         log.warn("네트워크 예외: {} - 복구 전략 적용", toolName);
         
@@ -159,8 +149,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             )
         );
     }
-    
-    
+
     private String handleValidationException(String toolName, ToolExecutionException exception) {
         log.warn("입력 검증 실패: {}", toolName);
         
@@ -176,8 +165,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             )
         );
     }
-    
-    
+
     private String handleGenericException(String toolName, ToolExecutionException exception, Throwable cause) {
         log.error("💥 일반 예외 발생: {} - {}", toolName, cause.getMessage());
         
@@ -197,8 +185,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             )
         );
     }
-    
-    
+
     private String createErrorResponse(String errorType, String errorMessage, Map<String, Object> details) {
         StringBuilder json = new StringBuilder();
         json.append("{\n");
@@ -226,41 +213,34 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         json.append("\n  }\n}");
         return json.toString();
     }
-    
-    
+
     private void escalateToSupervisor(String toolName) {
-        log.info("에스컬레이션 시작: {} -> 상위 관리자", toolName);
-        
+                
     }
-    
-    
+
     private RecoveryStrategy getRecoveryStrategy(String toolName) {
         return recoveryStrategies.getOrDefault(toolName, 
             new RecoveryStrategy(true, 3, 1000L));
     }
-    
-    
+
     private String getAlternativeAction(String toolName) {
         if ("network_isolation".equals(toolName)) {
             return "방화벽 규칙으로 대체 실행";
         }
         return "재시도 또는 수동 처리";
     }
-    
-    
+
     private int getRetryCount(String toolName) {
         return retryCounters.getOrDefault(toolName, 0);
     }
-    
-    
+
     private boolean isRetryableException(Throwable cause) {
         return !(cause instanceof IllegalArgumentException ||
                 cause instanceof IllegalStateException ||
                 cause instanceof SecurityException ||
                 cause instanceof PermissionDeniedException);
     }
-    
-    
+
     public static class RecoveryStrategy {
         private final boolean retryable;
         private final int maxRetries;
@@ -276,8 +256,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         public int getMaxRetries() { return maxRetries; }
         public long getRetryDelayMs() { return retryDelayMs; }
     }
-    
-    
+
     public static class SecurityToolExecutionException extends RuntimeException {
         private final ToolExecutionException originalException;
         
@@ -290,8 +269,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             return originalException;
         }
     }
-    
-    
+
     public static class ApprovalTimeoutException extends RuntimeException {
         public ApprovalTimeoutException(String message) {
             super(message);

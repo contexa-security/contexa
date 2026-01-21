@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @ConditionalOnBean(PolicyProposalRepository.class)
@@ -26,41 +25,32 @@ public class PolicyUsageMetricsService {
     private final PolicyProposalRepository proposalRepository;
     private final ContexaCacheService cacheService;
 
-    
     private final Map<String, PolicyMetrics> policyMetricsMap = new ConcurrentHashMap<>();
 
-    
     private final Map<String, LocalDateTime> lastUsedMap = new ConcurrentHashMap<>();
 
-    
     public void recordPolicyExecution(String policyId, long executionTimeMs, boolean successful) {
         PolicyMetrics metrics = policyMetricsMap.computeIfAbsent(policyId, k -> new PolicyMetrics(policyId));
 
         metrics.recordExecution(executionTimeMs, successful);
         lastUsedMap.put(policyId, LocalDateTime.now());
 
-        log.debug("정책 실행 기록: policyId={}, time={}ms, success={}", policyId, executionTimeMs, successful);
-    }
+            }
 
-    
     public void recordPolicyImpact(String policyId, double impactScore) {
         PolicyMetrics metrics = policyMetricsMap.computeIfAbsent(policyId, k -> new PolicyMetrics(policyId));
         metrics.recordImpact(impactScore);
 
-        log.debug("정책 효과 기록: policyId={}, impact={}", policyId, impactScore);
-    }
+            }
 
-    
     public PolicyMetrics getPolicyMetrics(String policyId) {
         return policyMetricsMap.getOrDefault(policyId, new PolicyMetrics(policyId));
     }
 
-    
     public Map<String, PolicyMetrics> getAllPolicyMetrics() {
         return new HashMap<>(policyMetricsMap);
     }
 
-    
     public List<PolicyMetrics> findSlowPolicies(long thresholdMs) {
         return policyMetricsMap.values().stream()
             .filter(metrics -> metrics.getAverageExecutionTime() > thresholdMs)
@@ -68,7 +58,6 @@ public class PolicyUsageMetricsService {
             .collect(Collectors.toList());
     }
 
-    
     public List<String> findUnusedPolicies(int unusedDays) {
         LocalDateTime threshold = LocalDateTime.now().minusDays(unusedDays);
 
@@ -78,7 +67,6 @@ public class PolicyUsageMetricsService {
             .collect(Collectors.toList());
     }
 
-    
     public List<PolicyMetrics> findHighFailurePolicies(double failureRateThreshold) {
         return policyMetricsMap.values().stream()
             .filter(metrics -> metrics.getFailureRate() > failureRateThreshold)
@@ -86,15 +74,13 @@ public class PolicyUsageMetricsService {
             .collect(Collectors.toList());
     }
 
-    
     public Map<String, Object> analyzePolicyEffectiveness(String policyId) {
         String cacheKey = EFFECTIVENESS_CACHE_PREFIX + policyId;
 
         return cacheService.get(
             cacheKey,
             () -> {
-                log.debug("정책 효과 분석 (캐시 미스): {}", policyId);
-
+                
                 Map<String, Object> analysis = new HashMap<>();
 
                 PolicyMetrics metrics = getPolicyMetrics(policyId);
@@ -104,11 +90,9 @@ public class PolicyUsageMetricsService {
                 analysis.put("averageExecutionTime", metrics.getAverageExecutionTime());
                 analysis.put("averageImpact", metrics.getAverageImpact());
 
-                
                 double effectivenessScore = calculateEffectivenessScore(metrics);
                 analysis.put("effectivenessScore", effectivenessScore);
 
-                
                 List<String> recommendations = generateRecommendations(metrics, effectivenessScore);
                 analysis.put("recommendations", recommendations);
 
@@ -119,18 +103,14 @@ public class PolicyUsageMetricsService {
         );
     }
 
-    
     public void invalidateEffectivenessCache(String policyId) {
         if (policyId == null) {
-            log.info("정책 효과 캐시 전체 무효화");
-            cacheService.invalidate(EFFECTIVENESS_CACHE_PREFIX + "*");
+                        cacheService.invalidate(EFFECTIVENESS_CACHE_PREFIX + "*");
         } else {
-            log.debug("정책 효과 캐시 무효화: {}", policyId);
-            cacheService.invalidate(EFFECTIVENESS_CACHE_PREFIX + policyId);
+                        cacheService.invalidate(EFFECTIVENESS_CACHE_PREFIX + policyId);
         }
     }
 
-    
     private double calculateEffectivenessScore(PolicyMetrics metrics) {
         double successWeight = 0.3;
         double impactWeight = 0.4;
@@ -143,7 +123,6 @@ public class PolicyUsageMetricsService {
         return (successScore * successWeight) + (impactScore * impactWeight) + (performanceScore * performanceWeight);
     }
 
-    
     private double calculatePerformanceScore(double avgExecutionTime) {
         
         if (avgExecutionTime <= 100) return 1.0;
@@ -153,7 +132,6 @@ public class PolicyUsageMetricsService {
         return 0.2;
     }
 
-    
     private List<String> generateRecommendations(PolicyMetrics metrics, double effectivenessScore) {
         List<String> recommendations = new ArrayList<>();
 
@@ -182,11 +160,8 @@ public class PolicyUsageMetricsService {
         return recommendations;
     }
 
-    
-
     public void cleanupOldMetrics() {
-        log.info("정책 메트릭 정리 시작");
-
+        
         LocalDateTime threshold = LocalDateTime.now().minusDays(90);
         int removedCount = 0;
 
@@ -200,10 +175,8 @@ public class PolicyUsageMetricsService {
             }
         }
 
-        log.info("정책 메트릭 정리 완료: {} 개 제거", removedCount);
-    }
+            }
 
-    
     public static class PolicyMetrics {
         private final String policyId;
         private final AtomicLong executionCount = new AtomicLong(0);

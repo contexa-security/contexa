@@ -15,36 +15,30 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetrics, EventRecorder {
 
     private final MeterRegistry meterRegistry;
 
-    
     private Counter analysisCounter;
     private Timer analysisTimer;
 
-    
     private final AtomicLong layer1ThreatSearchSum = new AtomicLong(0);
     private final AtomicLong layer2BaselineSum = new AtomicLong(0);
     private final AtomicLong layer3AnomalySum = new AtomicLong(0);
     private final AtomicLong layer4CorrelationSum = new AtomicLong(0);
     private final AtomicLong contributionSampleCount = new AtomicLong(0);
 
-    
     private Counter similarityVeryHigh; 
     private Counter similarityHigh;     
     private Counter similarityMedium;   
     private Counter similarityLow;      
     private Counter similarityVeryLow;  
 
-    
     private Counter anomalyDetectedCounter;
     private Counter anomalyFalsePositiveCounter;
 
-    
     private Counter baselineUpdatedCounter;
     private Counter thresholdAdjustedCounter;
     private Timer feedbackProcessingTimer;
@@ -60,7 +54,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .description("HCAD 분석 소요 시간")
             .register(meterRegistry);
 
-        
         meterRegistry.gauge("zerotrust.hcad.layer.threat_search.contribution", layer1ThreatSearchSum,
             sum -> contributionSampleCount.get() > 0 ? sum.get() / (double) contributionSampleCount.get() : 0.0);
 
@@ -73,7 +66,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         meterRegistry.gauge("zerotrust.hcad.layer.correlation.contribution", layer4CorrelationSum,
             sum -> contributionSampleCount.get() > 0 ? sum.get() / (double) contributionSampleCount.get() : 0.0);
 
-        
         similarityVeryHigh = Counter.builder("zerotrust.hcad.similarity.score")
             .tag("range", "very_high")
             .tag("min", "0.9")
@@ -109,7 +101,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .description("유사도 매우 낮음 (0.0-0.3)")
             .register(meterRegistry);
 
-        
         anomalyDetectedCounter = Counter.builder("zerotrust.hcad.anomaly.detected")
             .tag("type", "total")
             .description("이상 탐지 총 횟수")
@@ -120,7 +111,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .description("오탐지 (False Positive) 횟수")
             .register(meterRegistry);
 
-        
         baselineUpdatedCounter = Counter.builder("zerotrust.hcad.feedback.baseline.updated")
             .description("기준선 벡터 업데이트 횟수 (학습)")
             .register(meterRegistry);
@@ -133,15 +123,12 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .description("피드백 처리 소요 시간")
             .register(meterRegistry);
 
-        log.info("[HCADFeedbackLoopMetrics] 초기화 완료 - 4-Layer 기여도 추적 시작");
-    }
+            }
 
-    
     public void recordAnalysis(long durationNanos, double finalSimilarity, boolean isAnomaly) {
         analysisCounter.increment();
         analysisTimer.record(durationNanos, TimeUnit.NANOSECONDS);
 
-        
         if (finalSimilarity >= 0.9) {
             similarityVeryHigh.increment();
         } else if (finalSimilarity >= 0.7) {
@@ -154,13 +141,11 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             similarityVeryLow.increment();
         }
 
-        
         if (isAnomaly) {
             anomalyDetectedCounter.increment();
         }
     }
 
-    
     public void recordLayerContributions(
         double threatSearchContribution,
         double baselineContribution,
@@ -175,27 +160,21 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         contributionSampleCount.incrementAndGet();
     }
 
-    
     public void recordFalsePositive() {
         anomalyFalsePositiveCounter.increment();
     }
 
-    
     public void recordBaselineUpdate() {
         baselineUpdatedCounter.increment();
     }
 
-    
     public void recordThresholdAdjustment() {
         thresholdAdjustedCounter.increment();
     }
 
-    
     public void recordFeedbackProcessing(long durationNanos) {
         feedbackProcessingTimer.record(durationNanos, TimeUnit.NANOSECONDS);
     }
-
-    
 
     @Override
     public String getDomain() {
@@ -235,8 +214,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         contributionSampleCount.set(0);
     }
 
-    
-
     @Override
     public double getHealthScore() {
         
@@ -246,7 +223,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         double falsePositiveRate = totalAnomalies > 0 ?
             (double) falsePositives / totalAnomalies : 0.0;
 
-        
         double[] contributions = {
             contributionSampleCount.get() > 0 ? layer1ThreatSearchSum.get() / (double) contributionSampleCount.get() / 100.0 : 0.25,
             contributionSampleCount.get() > 0 ? layer2BaselineSum.get() / (double) contributionSampleCount.get() / 100.0 : 0.25,
@@ -262,7 +238,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         variance /= 4.0;
         double stdDev = Math.sqrt(variance);
 
-        
         double balanceScore = Math.max(0, 1.0 - (stdDev / 0.3));
 
         return (1.0 - falsePositiveRate) * balanceScore;
@@ -280,8 +255,6 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
         metrics.put("health_score", getHealthScore());
         return metrics;
     }
-
-    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {

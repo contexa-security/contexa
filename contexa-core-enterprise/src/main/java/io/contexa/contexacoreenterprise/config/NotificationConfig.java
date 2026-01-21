@@ -15,7 +15,6 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 import java.util.Properties;
 
-
 @Configuration
 @EnableRetry
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.soar.notification.NotificationTarget")
@@ -26,28 +25,22 @@ import java.util.Properties;
     matchIfMissing = false
 )
 public class NotificationConfig {
-    
-    
+
     @Bean
     @ConditionalOnProperty(name = "soar.notification.email.enabled", havingValue = "true", matchIfMissing = true)
     public JavaMailSender javaMailSender() {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
-        
-        
-        
-        
+
         return mailSender;
     }
-    
-    
+
     @Bean
     public TemplateEngine emailTemplateEngine() {
         SpringTemplateEngine templateEngine = new SpringTemplateEngine();
         templateEngine.addTemplateResolver(emailTemplateResolver());
         return templateEngine;
     }
-    
-    
+
     private ClassLoaderTemplateResolver emailTemplateResolver() {
         ClassLoaderTemplateResolver templateResolver = new ClassLoaderTemplateResolver();
         templateResolver.setPrefix("templates/");
@@ -58,43 +51,36 @@ public class NotificationConfig {
         templateResolver.setOrder(1);
         return templateResolver;
     }
-    
-    
+
     @Bean
     public NotificationTargetManager notificationTargetManager() {
         return new NotificationTargetManager();
     }
-    
-    
+
     public static class NotificationTargetManager {
         private final java.util.Map<String, io.contexa.contexacoreenterprise.soar.notification.NotificationTarget> targets =
             new java.util.concurrent.ConcurrentHashMap<>();
 
-        
         public void registerTarget(io.contexa.contexacoreenterprise.soar.notification.NotificationTarget target) {
             targets.put(target.getTargetId(), target);
         }
 
-        
         public io.contexa.contexacoreenterprise.soar.notification.NotificationTarget getTarget(String targetId) {
             return targets.get(targetId);
         }
 
-        
         public java.util.List<io.contexa.contexacoreenterprise.soar.notification.NotificationTarget> getTargetsByRole(String role) {
             return targets.values().stream()
                     .filter(t -> t.getRoles() != null && t.getRoles().contains(role))
                     .toList();
         }
 
-        
         public java.util.List<io.contexa.contexacoreenterprise.soar.notification.NotificationTarget> getOnlineTargets() {
             return targets.values().stream()
                     .filter(io.contexa.contexacoreenterprise.soar.notification.NotificationTarget::isOnline)
                     .toList();
         }
 
-        
         public void updateWebSocketSession(String targetId, String sessionId, boolean online) {
             io.contexa.contexacoreenterprise.soar.notification.NotificationTarget target = targets.get(targetId);
             if (target != null) {
@@ -102,8 +88,7 @@ public class NotificationConfig {
                 target.setOnline(online);
             }
         }
-        
-        
+
         public void initializeDefaultTargets() {
             
             io.contexa.contexacoreenterprise.soar.notification.NotificationTarget adminTarget =
@@ -115,13 +100,11 @@ public class NotificationConfig {
             adminTarget.setRoles(java.util.Set.of("ROLE_ADMIN", "ROLE_APPROVER"));
             registerTarget(adminTarget);
 
-            
             io.contexa.contexacoreenterprise.soar.notification.NotificationTarget securityTarget =
                 io.contexa.contexacoreenterprise.soar.notification.NotificationTarget.createForRole("ROLE_SECURITY");
             securityTarget.setEmail("security-team@contexa.com");
             registerTarget(securityTarget);
 
-            
             io.contexa.contexacoreenterprise.soar.notification.NotificationTarget socTarget =
                 io.contexa.contexacoreenterprise.soar.notification.NotificationTarget.createForRole("ROLE_SOC");
             socTarget.setEmail("soc-team@contexa.com");

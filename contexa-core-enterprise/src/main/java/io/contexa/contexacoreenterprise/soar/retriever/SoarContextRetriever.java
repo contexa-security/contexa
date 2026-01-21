@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class SoarContextRetriever extends ContextRetriever {
 
@@ -69,11 +68,9 @@ public class SoarContextRetriever extends ContextRetriever {
         if (chatClientBuilder != null) {
             createSoarAdvisor();
         }
-        
-        
+
         registry.registerRetriever(SoarContext.class, this);
-        log.info("SoarContextRetriever 자동 등록 완료 (Spring AI RAG Advisor 사용)");
-    }
+            }
 
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<?> request) {
@@ -83,12 +80,10 @@ public class SoarContextRetriever extends ContextRetriever {
         return super.retrieveContext(request);
     }
 
-    
     private void createSoarAdvisor() {
         
         QueryTransformer soarQueryTransformer = new SoarQueryTransformer(chatClientBuilder);
-        
-        
+
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
             filterBuilder.in("documentType",
@@ -98,43 +93,36 @@ public class SoarContextRetriever extends ContextRetriever {
                 "soar_playbook"),  
             filterBuilder.gte("severity", 0.5)
         ).build();
-        
-        
+
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(soarSimilarityThreshold)
             .topK(soarTopK)
             .filterExpression(filter)
             .build();
-        
-        
+
         soarAdvisor = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
             .queryTransformers(soarQueryTransformer)
             .build();
-        
-        
+
         registerDomainAdvisor(SoarContext.class, soarAdvisor);
     }
-    
-    
-    private ContextRetrievalResult retrieveSoarContextWithRAG(AIRequest<SoarContext> request) {
-        log.info("SOAR 컨텍스트 분석 시작 (Spring AI RAG): {}", request.getContext().getIncidentId());
 
+    private ContextRetrievalResult retrieveSoarContextWithRAG(AIRequest<SoarContext> request) {
+        
         try {
             
             ContextRetrievalResult baseResult = super.retrieveContext(request);
             
             SoarContext context = request.getContext();
-            
-            
+
             String enhancedContext = buildComprehensiveContext(
                 context, 
                 baseResult.getContextInfo(),
                 baseResult.getDocuments()
             );
 
-            
             Map<String, Object> metadata = new HashMap<>(baseResult.getMetadata());
             metadata.put("retrieverType", "SoarContextRetriever");
             metadata.put("incidentId", context.getIncidentId());
@@ -159,14 +147,10 @@ public class SoarContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private List<Document> searchSecurityKnowledge(SoarContext context) {
         
         String searchQuery = buildSearchQuery(context);
 
-        log.debug("🔎 Vector DB 검색 쿼리: {}", searchQuery);
-
-        
         SearchRequest searchRequest = SearchRequest.builder()
                 .query(searchQuery)
                 .topK(5)  
@@ -175,31 +159,24 @@ public class SoarContextRetriever extends ContextRetriever {
 
         List<Document> documents = vectorStore.similaritySearch(searchRequest);
 
-        log.info("📚 검색된 보안 지식 문서: {}개", documents.size());
-
         return documents;
     }
 
-    
     private String buildSearchQuery(SoarContext context) {
         StringBuilder query = new StringBuilder();
 
-        
         if (context.getThreatType() != null) {
             query.append(context.getThreatType()).append(" ");
         }
 
-        
         if (context.getDescription() != null) {
             query.append(context.getDescription()).append(" ");
         }
 
-        
         if (context.getQueryIntent() != null) {
             query.append(context.getQueryIntent()).append(" ");
         }
 
-        
         if (!context.getExtractedEntities().isEmpty()) {
             query.append(context.getExtractedEntities().values()).append(" ");
         }
@@ -207,7 +184,6 @@ public class SoarContextRetriever extends ContextRetriever {
         return query.toString().trim();
     }
 
-    
     private String extractRagContext(List<Document> documents) {
         if (documents.isEmpty()) {
             return "";
@@ -226,14 +202,12 @@ public class SoarContextRetriever extends ContextRetriever {
                 .collect(Collectors.joining("\n\n"));
     }
 
-    
     private String buildComprehensiveContext(SoarContext context, String baseContext, List<Document> documents) {
         String ragContext = extractRagContext(documents);
         StringBuilder contextBuilder = new StringBuilder();
 
         contextBuilder.append("## SOAR 분석 컨텍스트\n\n");
 
-        
         contextBuilder.append("### 인시던트 정보\n");
         contextBuilder.append(String.format("- 인시던트 ID: %s\n", context.getIncidentId()));
         contextBuilder.append(String.format("- 위협 유형: %s\n", context.getThreatType()));
@@ -245,15 +219,12 @@ public class SoarContextRetriever extends ContextRetriever {
         contextBuilder.append(String.format("- 권장 조치: %s\n", context.getRecommendedActions()));
         contextBuilder.append(String.format("- 분석 시각: %s\n\n", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
 
-        
         if (ragContext != null && !ragContext.trim().isEmpty()) {
             contextBuilder.append("### 관련 보안 지식 (RAG)\n");
             contextBuilder.append(ragContext);
             contextBuilder.append("\n\n");
         }
 
-
-        
         contextBuilder.append("### AI 분석 가이드\n");
         contextBuilder.append("위의 정보를 종합하여 다음을 평가하고 자동화된 조치를 제안해주세요:\n");
         contextBuilder.append("1. 인시던트의 심각도 재평가\n");
@@ -263,8 +234,7 @@ public class SoarContextRetriever extends ContextRetriever {
 
         return contextBuilder.toString();
     }
-    
-    
+
     private static class SoarQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalWorkflow {
@@ -31,12 +30,10 @@ public class ApprovalWorkflow {
     
     @Value("${approval.auto-approve.enabled:false}")
     private boolean autoApproveEnabled;
-    
-    
+
     private final Map<String, ApprovalRequest> pendingApprovals = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<ApprovalResult>> approvalFutures = new ConcurrentHashMap<>();
-    
-    
+
     public ApprovalResult requestApproval(
             String toolName,
             ToolExecutor.ToolRequest request,
@@ -54,22 +51,15 @@ public class ApprovalWorkflow {
             .requestTime(Instant.now())
             .status(ApprovalStatus.PENDING)
             .build();
-        
-        log.info("승인 요청 생성: id={}, tool={}, risk={}", 
-            approvalId, toolName, riskLevel);
-        
-        
+
         saveApprovalRequest(approvalRequest);
-        
-        
+
         pendingApprovals.put(approvalId, approvalRequest);
-        
-        
+
         if (shouldAutoApprove(approvalRequest)) {
             return autoApprove(approvalRequest);
         }
-        
-        
+
         try {
             return waitForApproval(approvalRequest);
         } catch (Exception e) {
@@ -77,8 +67,7 @@ public class ApprovalWorkflow {
             return ApprovalResult.denied("승인 처리 중 오류 발생");
         }
     }
-    
-    
+
     @Async
     public CompletableFuture<ApprovalResult> requestApprovalAsync(
             String toolName,
@@ -90,8 +79,7 @@ public class ApprovalWorkflow {
             requestApproval(toolName, request, context, riskLevel)
         );
     }
-    
-    
+
     public void approve(String approvalId, String approver, String reason) {
         ApprovalRequest request = pendingApprovals.get(approvalId);
         if (request == null) {
@@ -103,23 +91,17 @@ public class ApprovalWorkflow {
         request.setApprover(approver);
         request.setApprovalTime(Instant.now());
         request.setReason(reason);
-        
-        
+
         saveApprovalRequest(request);
-        
-        
+
         CompletableFuture<ApprovalResult> future = approvalFutures.get(approvalId);
         if (future != null) {
             future.complete(ApprovalResult.approved(approver, reason));
         }
-        
-        log.info("승인 완료: id={}, approver={}", approvalId, approver);
-        
-        
+
         cleanup(approvalId);
     }
-    
-    
+
     public void deny(String approvalId, String denier, String reason) {
         ApprovalRequest request = pendingApprovals.get(approvalId);
         if (request == null) {
@@ -131,43 +113,32 @@ public class ApprovalWorkflow {
         request.setApprover(denier);
         request.setApprovalTime(Instant.now());
         request.setReason(reason);
-        
-        
+
         saveApprovalRequest(request);
-        
-        
+
         CompletableFuture<ApprovalResult> future = approvalFutures.get(approvalId);
         if (future != null) {
             future.complete(ApprovalResult.denied(reason));
         }
-        
-        log.info("거부 완료: id={}, denier={}, reason={}", approvalId, denier, reason);
-        
-        
+
         cleanup(approvalId);
     }
-    
-    
+
     public List<ApprovalRequest> getPendingApprovals() {
         return new ArrayList<>(pendingApprovals.values());
     }
-    
-    
+
     public List<ApprovalRequest> getPendingApprovalsForUser(String userId) {
         return pendingApprovals.values().stream()
             .filter(req -> req.getContext().getUserId().equals(userId))
             .toList();
     }
-    
-    
+
     public ApprovalStatus getApprovalStatus(String approvalId) {
         ApprovalRequest request = getApprovalRequest(approvalId);
         return request != null ? request.getStatus() : null;
     }
-    
-    
-    
-    
+
     private ApprovalResult waitForApproval(ApprovalRequest request) throws TimeoutException {
         CompletableFuture<ApprovalResult> future = new CompletableFuture<>();
         approvalFutures.put(request.getId(), future);
@@ -186,19 +157,16 @@ public class ApprovalWorkflow {
             return ApprovalResult.denied("승인 처리 중 오류 발생");
         }
     }
-    
-    
+
     private boolean shouldAutoApprove(ApprovalRequest request) {
         if (!autoApproveEnabled) {
             return false;
         }
-        
-        
+
         if (request.getRiskLevel() == RiskLevel.LOW) {
             return true;
         }
-        
-        
+
         if (request.getRiskLevel() == RiskLevel.MEDIUM) {
             Set<String> permissions = authService.getUserPermissions(
                 request.getContext().getUserId()
@@ -208,11 +176,9 @@ public class ApprovalWorkflow {
         
         return false;
     }
-    
-    
+
     private ApprovalResult autoApprove(ApprovalRequest request) {
-        log.info("자동 승인: id={}, tool={}", request.getId(), request.getToolName());
-        
+                
         request.setStatus(ApprovalStatus.AUTO_APPROVED);
         request.setApprover("SYSTEM");
         request.setApprovalTime(Instant.now());
@@ -223,21 +189,18 @@ public class ApprovalWorkflow {
         
         return ApprovalResult.approved("SYSTEM", "자동 승인");
     }
-    
-    
+
     private void saveApprovalRequest(ApprovalRequest request) {
         String key = "approval:" + request.getId();
         redisTemplate.opsForValue().set(key, request, Duration.ofHours(24));
     }
-    
-    
+
     private ApprovalRequest getApprovalRequest(String approvalId) {
         String key = "approval:" + approvalId;
         Object obj = redisTemplate.opsForValue().get(key);
         return obj instanceof ApprovalRequest ? (ApprovalRequest) obj : null;
     }
-    
-    
+
     private String generateApprovalId(String toolName, ToolExecutor.ExecutionContext context) {
         return String.format("%s-%s-%d-%s",
             toolName,
@@ -246,14 +209,12 @@ public class ApprovalWorkflow {
             UUID.randomUUID().toString().substring(0, 8)
         );
     }
-    
-    
+
     private void cleanup(String approvalId) {
         pendingApprovals.remove(approvalId);
         approvalFutures.remove(approvalId);
     }
-    
-    
+
     @Data
     @Builder
     public static class ApprovalRequest {
@@ -268,8 +229,7 @@ public class ApprovalWorkflow {
         private String reason;
         private ApprovalStatus status;
     }
-    
-    
+
     @Data
     @Builder
     public static class ApprovalResult {
@@ -295,8 +255,7 @@ public class ApprovalWorkflow {
                 .build();
         }
     }
-    
-    
+
     public enum ApprovalStatus {
         PENDING,        
         APPROVED,       
@@ -305,8 +264,7 @@ public class ApprovalWorkflow {
         TIMEOUT,        
         CANCELLED       
     }
-    
-    
+
     public enum RiskLevel {
         LOW,      
         MEDIUM,   

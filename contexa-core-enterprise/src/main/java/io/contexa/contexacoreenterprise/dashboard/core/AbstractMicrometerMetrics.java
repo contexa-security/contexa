@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventRecorder {
@@ -21,26 +20,20 @@ public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventR
     protected final MeterRegistry meterRegistry;
     private final String domain;
 
-    
     @PostConstruct
     @Override
     public void initialize() {
-        log.info("[{}] Initializing metrics...", domain);
 
         initializeCounters();
         initializeTimers();
         initializeGauges();
 
-        log.info("[{}] Metrics initialized successfully", domain);
     }
 
-    
     protected abstract void initializeCounters();
 
-    
     protected abstract void initializeTimers();
 
-    
     protected abstract void initializeGauges();
 
     @Override
@@ -59,7 +52,6 @@ public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventR
             counter.increment();
 
             if (metadata != null && !metadata.isEmpty()) {
-                log.debug("[{}] Event recorded: type={}, metadata={}", domain, eventType, metadata);
             }
         } catch (Exception e) {
             log.warn("[{}] Failed to record event: type={}", domain, eventType, e);
@@ -76,8 +68,6 @@ public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventR
 
             timer.record(durationNanos, TimeUnit.NANOSECONDS);
 
-            log.debug("[{}] Duration recorded: operation={}, duration={}ms",
-                    domain, operationName, durationNanos / 1_000_000);
         } catch (Exception e) {
             log.warn("[{}] Failed to record duration: operation={}", domain, operationName, e);
         }
@@ -93,16 +83,13 @@ public abstract class AbstractMicrometerMetrics implements DomainMetrics, EventR
 
     @Override
     public void reset() {
-        log.info("[{}] Reset requested - Micrometer metrics cannot be reset, consider restarting the application", domain);
     }
 
-    
     protected Counter.Builder counterBuilder(String name, String description) {
         return Counter.builder(domain + "." + name)
                 .description(description);
     }
 
-    
     protected Timer.Builder timerBuilder(String name, String description) {
         return Timer.builder(domain + "." + name)
                 .description(description);

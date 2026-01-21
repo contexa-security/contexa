@@ -25,20 +25,17 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class AsyncResultDeliveryService {
-    
-    
+
     private final ToolExecutionContextRepository executionRepository;
     private final RedisEventPublisher eventPublisher;
     private final UnifiedNotificationService notificationService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper objectMapper;
-    
-    
+
     @Value("${result.delivery.retry.max-attempts:3}")
     private int maxRetryAttempts;
     
@@ -62,42 +59,30 @@ public class AsyncResultDeliveryService {
     
     @Value("${result.delivery.event.enabled:true}")
     private boolean eventPublishingEnabled;
-    
-    
+
     private final List<PendingResult> resultQueue = Collections.synchronizedList(new ArrayList<>());
-    
-    
+
     private final Map<String, DeliveryStatus> deliveryStatuses = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalDelivered = new AtomicLong(0);
     private final AtomicLong failedDeliveries = new AtomicLong(0);
     private final Map<DeliveryChannel, AtomicLong> channelMetrics = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, CachedResult> resultCache = new ConcurrentHashMap<>();
     
     @PostConstruct
     public void initialize() {
-        log.info("비동기 결과 전달 서비스 초기화 시작");
-        
-        
+
         startBatchProcessor();
-        
-        
+
         startCacheCleaner();
-        
-        
+
         startRetryScheduler();
         
-        log.info("비동기 결과 전달 서비스 초기화 완료");
-    }
-    
-    
+            }
+
     public Mono<DeliveryResult> deliverSoarResult(String requestId, SoarResponse response) {
-        log.info("SOAR 결과 전달 시작 - Request ID: {}, Recommendations: {}", 
-            requestId, response.getRecommendations().size());
-        
+                
         return Mono.fromCallable(() -> {
             
             DeliveryStatus status = new DeliveryStatus(requestId);
@@ -110,11 +95,9 @@ public class AsyncResultDeliveryService {
                     } else {
                         status.markDatabaseFailed();
                     }
-                    
-                    
+
                     List<Mono<Boolean>> deliveries = new ArrayList<>();
-                    
-                    
+
                     if (eventPublishingEnabled) {
                         deliveries.add(publishToRedis(requestId, response)
                             .doOnSuccess(success -> {
@@ -122,8 +105,7 @@ public class AsyncResultDeliveryService {
                                 else status.markEventFailed();
                             }));
                     }
-                    
-                    
+
                     if (websocketEnabled) {
                         deliveries.add(pushToWebSocket(requestId, response)
                             .doOnSuccess(success -> {
@@ -131,8 +113,7 @@ public class AsyncResultDeliveryService {
                                 else status.markWebSocketFailed();
                             }));
                     }
-                    
-                    
+
                     if (notificationEnabled) {
                         deliveries.add(sendNotification(requestId, response)
                             .doOnSuccess(success -> {
@@ -140,17 +121,14 @@ public class AsyncResultDeliveryService {
                                 else status.markNotificationFailed();
                             }));
                     }
-                    
-                    
+
                     return Flux.merge(deliveries)
                         .collectList()
                         .map(results -> {
                             status.setCompleted(true);
-                            
-                            
+
                             cacheResult(requestId, response);
-                            
-                            
+
                             updateMetrics(status);
                             
                             return createDeliveryResult(requestId, status, response);
@@ -160,8 +138,7 @@ public class AsyncResultDeliveryService {
                     log.error("결과 전달 실패 - Request ID: {}", requestId, error);
                     status.setError(error.getMessage());
                     failedDeliveries.incrementAndGet();
-                    
-                    
+
                     queueForRetry(requestId, response);
                     
                     return Mono.just(createDeliveryResult(requestId, status, response));
@@ -170,18 +147,15 @@ public class AsyncResultDeliveryService {
         .flatMap(mono -> mono)
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<DeliveryResult> deliverToolExecutionResult(String executionId, Object result, boolean success) {
-        log.info("도구 실행 결과 전달 - Execution ID: {}, Success: {}", executionId, success);
-        
+                
         Map<String, Object> resultData = new HashMap<>();
         resultData.put("executionId", executionId);
         resultData.put("result", result);
         resultData.put("success", success);
         resultData.put("timestamp", LocalDateTime.now());
-        
-        
+
         SoarResponse response = new SoarResponse(executionId, 
             success ? AIResponse.ExecutionStatus.SUCCESS : AIResponse.ExecutionStatus.FAILURE);
         response.setSessionId(executionId);
@@ -195,25 +169,21 @@ public class AsyncResultDeliveryService {
         
         return deliverSoarResult(executionId, response);
     }
-    
-    
+
     public Mono<List<DeliveryResult>> deliverBatchResults(Map<String, SoarResponse> results) {
-        log.info("배치 결과 전달 시작 - {} 건", results.size());
-        
+                
         return Flux.fromIterable(results.entrySet())
             .flatMap(entry -> deliverSoarResult(entry.getKey(), entry.getValue()))
             .collectList();
     }
-    
-    
+
     public Mono<SoarResponse> getResult(String requestId) {
         
         CachedResult cached = resultCache.get(requestId);
         if (cached != null && !cached.isExpired()) {
             return Mono.just(cached.getResponse());
         }
-        
-        
+
         return Mono.fromCallable(() -> {
             Optional<ToolExecutionContext> context = executionRepository.findByRequestId(requestId);
             if (context.isPresent()) {
@@ -233,13 +203,11 @@ public class AsyncResultDeliveryService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<DeliveryStatus> getDeliveryStatus(String requestId) {
         return Mono.justOrEmpty(deliveryStatuses.get(requestId));
     }
-    
-    
+
     private Mono<Boolean> saveToDatabase(String requestId, SoarResponse response) {
         return Mono.fromCallable(() -> {
             try {
@@ -254,8 +222,7 @@ public class AsyncResultDeliveryService {
                 
                 executionRepository.save(context);
                 
-                log.debug("DB 저장 성공 - Request ID: {}", requestId);
-                return true;
+                                return true;
             } catch (Exception e) {
                 log.error("DB 저장 실패 - Request ID: {}", requestId, e);
                 return false;
@@ -263,8 +230,7 @@ public class AsyncResultDeliveryService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private Mono<Boolean> publishToRedis(String requestId, SoarResponse response) {
         return Mono.fromCallable(() -> {
             try {
@@ -276,13 +242,11 @@ public class AsyncResultDeliveryService {
                 event.put("timestamp", LocalDateTime.now());
                 
                 eventPublisher.publishEvent("soar-results", event);
-                
-                
+
                 String key = "soar:result:" + requestId;
                 redisTemplate.opsForValue().set(key, response, resultTtlHours, TimeUnit.HOURS);
                 
-                log.debug("Redis 이벤트 발행 성공 - Request ID: {}", requestId);
-                channelMetrics.computeIfAbsent(DeliveryChannel.REDIS, k -> new AtomicLong()).incrementAndGet();
+                                channelMetrics.computeIfAbsent(DeliveryChannel.REDIS, k -> new AtomicLong()).incrementAndGet();
                 return true;
             } catch (Exception e) {
                 log.error("Redis 이벤트 발행 실패 - Request ID: {}", requestId, e);
@@ -291,8 +255,7 @@ public class AsyncResultDeliveryService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private Mono<Boolean> pushToWebSocket(String requestId, SoarResponse response) {
         return Mono.fromCallable(() -> {
             try {
@@ -301,16 +264,13 @@ public class AsyncResultDeliveryService {
                 message.put("requestId", requestId);
                 message.put("response", response);
                 message.put("timestamp", LocalDateTime.now());
-                
-                
+
                 String destination = "/queue/soar-results/" + requestId;
                 messagingTemplate.convertAndSend(destination, (Object)message);
-                
-                
+
                 messagingTemplate.convertAndSend("/topic/soar-results", (Object)message);
                 
-                log.debug("WebSocket 푸시 성공 - Request ID: {}", requestId);
-                channelMetrics.computeIfAbsent(DeliveryChannel.WEBSOCKET, k -> new AtomicLong()).incrementAndGet();
+                                channelMetrics.computeIfAbsent(DeliveryChannel.WEBSOCKET, k -> new AtomicLong()).incrementAndGet();
                 return true;
             } catch (Exception e) {
                 log.error("WebSocket 푸시 실패 - Request ID: {}", requestId, e);
@@ -319,14 +279,12 @@ public class AsyncResultDeliveryService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private Mono<Boolean> sendNotification(String requestId, SoarResponse response) {
         return notificationService.sendCompletionNotification(requestId, response)
             .map(result -> {
                 if (result.isSuccess()) {
-                    log.debug("알림 발송 성공 - Request ID: {}", requestId);
-                    channelMetrics.computeIfAbsent(DeliveryChannel.NOTIFICATION, k -> new AtomicLong()).incrementAndGet();
+                                        channelMetrics.computeIfAbsent(DeliveryChannel.NOTIFICATION, k -> new AtomicLong()).incrementAndGet();
                     return true;
                 } else {
                     log.warn("알림 발송 실패 - Request ID: {}", requestId);
@@ -335,26 +293,22 @@ public class AsyncResultDeliveryService {
             })
             .onErrorReturn(false);
     }
-    
-    
+
     private void cacheResult(String requestId, SoarResponse response) {
         CachedResult cached = new CachedResult(response, LocalDateTime.now().plusHours(1));
         resultCache.put(requestId, cached);
-        
-        
+
         if (resultCache.size() > 1000) {
             
             resultCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
         }
     }
-    
-    
+
     private void queueForRetry(String requestId, SoarResponse response) {
         PendingResult pending = new PendingResult(requestId, response, 0, LocalDateTime.now());
         resultQueue.add(pending);
     }
-    
-    
+
     private void startBatchProcessor() {
         Schedulers.parallel().schedulePeriodically(() -> {
             if (!resultQueue.isEmpty()) {
@@ -370,20 +324,17 @@ public class AsyncResultDeliveryService {
             }
         }, batchIntervalMs, batchIntervalMs, TimeUnit.MILLISECONDS);
     }
-    
-    
+
     private void processBatch(List<PendingResult> batch) {
-        log.debug("배치 결과 전달 처리 - {} 건", batch.size());
-        
+                
         Flux.fromIterable(batch)
             .flatMap(pending -> deliverSoarResult(pending.getRequestId(), pending.getResponse()))
-            .subscribe(
-                result -> log.debug("배치 전달 완료: {}", result.getRequestId()),
-                error -> log.error("배치 전달 실패", error)
-            );
+                .subscribe(
+                        result -> log.debug("배치 전달 완료: {}", result.getRequestId()),
+                        error -> log.error("배치 전달 실패", error)
+                );
     }
-    
-    
+
     private void startRetryScheduler() {
         Schedulers.parallel().schedulePeriodically(() -> {
             
@@ -393,24 +344,22 @@ public class AsyncResultDeliveryService {
                 .forEach(entry -> {
                     String requestId = entry.getKey();
                     DeliveryStatus status = entry.getValue();
-                    
-                    
+
                     String key = "soar:result:" + requestId;
                     SoarResponse response = (SoarResponse) redisTemplate.opsForValue().get(key);
                     
                     if (response != null) {
                         status.incrementRetry();
                         deliverSoarResult(requestId, response)
-                            .subscribe(
-                                result -> log.info("재시도 성공: {}", requestId),
-                                error -> log.error("재시도 실패: {}", requestId, error)
-                            );
+                                .subscribe(
+                                        result -> log.info("재시도 성공: {}", requestId),
+                                        error -> log.error("재시도 실패: {}", requestId, error)
+                                );
                     }
                 });
         }, retryDelaySeconds, retryDelaySeconds * 2, TimeUnit.SECONDS);
     }
-    
-    
+
     private void startCacheCleaner() {
         Schedulers.parallel().schedulePeriodically(() -> {
             
@@ -424,10 +373,8 @@ public class AsyncResultDeliveryService {
             }
             
             if (removed > 0) {
-                log.debug("캐시 정리 완료 - {} 개 엔트리 제거", removed);
-            }
-            
-            
+                            }
+
             LocalDateTime cutoff = LocalDateTime.now().minusHours(resultTtlHours);
             deliveryStatuses.entrySet().removeIf(entry -> 
                 entry.getValue().getCreatedAt().isBefore(cutoff)
@@ -435,8 +382,7 @@ public class AsyncResultDeliveryService {
             
         }, 3600, 3600, TimeUnit.SECONDS);  
     }
-    
-    
+
     private DeliveryResult createDeliveryResult(String requestId, DeliveryStatus status, SoarResponse response) {
         return DeliveryResult.builder()
             .requestId(requestId)
@@ -447,8 +393,7 @@ public class AsyncResultDeliveryService {
             .response(response)
             .build();
     }
-    
-    
+
     private void updateMetrics(DeliveryStatus status) {
         if (status.isAllChannelsDelivered()) {
             totalDelivered.incrementAndGet();
@@ -456,8 +401,7 @@ public class AsyncResultDeliveryService {
             failedDeliveries.incrementAndGet();
         }
     }
-    
-    
+
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("totalDelivered", totalDelivered.get());
@@ -475,15 +419,11 @@ public class AsyncResultDeliveryService {
         
         return metrics;
     }
-    
-    
-    
-    
+
     public enum DeliveryChannel {
         DATABASE, REDIS, WEBSOCKET, NOTIFICATION
     }
-    
-    
+
     @lombok.Data
     public static class DeliveryStatus {
         private final String requestId;
@@ -566,8 +506,7 @@ public class AsyncResultDeliveryService {
             return channels;
         }
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     public static class DeliveryResult {
@@ -578,8 +517,7 @@ public class AsyncResultDeliveryService {
         private LocalDateTime timestamp;
         private SoarResponse response;
     }
-    
-    
+
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class PendingResult {
@@ -588,8 +526,7 @@ public class AsyncResultDeliveryService {
         private int retryCount;
         private LocalDateTime queuedAt;
     }
-    
-    
+
     @lombok.AllArgsConstructor
     private static class CachedResult {
         private final SoarResponse response;

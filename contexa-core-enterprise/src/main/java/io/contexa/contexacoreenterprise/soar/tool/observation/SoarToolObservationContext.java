@@ -12,13 +12,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @Getter
 @Builder
 public class SoarToolObservationContext {
-    
-    
+
     private final String incidentId;
     private final String organizationId;
     private final String securityAnalyst;
@@ -32,19 +30,16 @@ public class SoarToolObservationContext {
     public boolean isApprovalRequired() {
         return approvalRequired;
     }
-    
-    
+
     private static final AtomicLong totalExecutions = new AtomicLong(0);
     private static final AtomicLong successfulExecutions = new AtomicLong(0);
     private static final AtomicLong failedExecutions = new AtomicLong(0);
     private static final AtomicLong approvalRequiredExecutions = new AtomicLong(0);
     private static final AtomicLong approvedExecutions = new AtomicLong(0);
     private static final AtomicLong rejectedExecutions = new AtomicLong(0);
-    
-    
+
     private static final Map<String, ToolExecutionMetrics> toolMetrics = new ConcurrentHashMap<>();
-    
-    
+
     public static SoarToolObservationContext observeExecutionStart(
             String toolName,
             String incidentId,
@@ -53,20 +48,14 @@ public class SoarToolObservationContext {
             String riskLevel,
             boolean approvalRequired,
             List<ToolCallback> toolCallbacks) {
-        
-        log.info("SOAR 도구 실행 관찰 시작: {} (위험도: {}, 승인 필요: {})", 
-            toolName, riskLevel, approvalRequired);
-        
-        
+
         Instant startTime = Instant.now();
-        
-        
+
         totalExecutions.incrementAndGet();
         if (approvalRequired) {
             approvalRequiredExecutions.incrementAndGet();
         }
-        
-        
+
         toolMetrics.computeIfAbsent(toolName, k -> new ToolExecutionMetrics(toolName))
             .incrementExecution();
         
@@ -80,8 +69,7 @@ public class SoarToolObservationContext {
             .executionStartTime(startTime)
             .build();
     }
-    
-    
+
     public SoarToolObservationContext observeExecutionEnd(
             boolean success,
             String result,
@@ -90,18 +78,13 @@ public class SoarToolObservationContext {
         
         Instant endTime = Instant.now();
         long durationMs = endTime.toEpochMilli() - executionStartTime.toEpochMilli();
-        
-        log.info("SOAR 도구 실행 관찰 완료: {} ms (성공: {}, 승인 상태: {})", 
-            durationMs, success, finalApprovalStatus);
-        
-        
+
         if (success) {
             successfulExecutions.incrementAndGet();
         } else {
             failedExecutions.incrementAndGet();
         }
-        
-        
+
         if (approvalRequired) {
             if ("APPROVED".equals(finalApprovalStatus)) {
                 approvedExecutions.incrementAndGet();
@@ -122,8 +105,7 @@ public class SoarToolObservationContext {
             .executionDurationMs(durationMs)
             .build();
     }
-    
-    
+
     public static Map<String, Object> getGlobalExecutionStatistics() {
         return Map.of(
             "totalExecutions", totalExecutions.get(),
@@ -138,27 +120,23 @@ public class SoarToolObservationContext {
             "toolMetrics", getToolMetricsMap()
         );
     }
-    
-    
+
     public static ToolExecutionMetrics getToolExecutionMetrics(String toolName) {
         return toolMetrics.get(toolName);
     }
-    
-    
+
     private static double calculateSuccessRate() {
         long total = totalExecutions.get();
         if (total == 0) return 0.0;
         return (double) successfulExecutions.get() / total * 100.0;
     }
-    
-    
+
     private static double calculateApprovalRate() {
         long approvalRequired = approvalRequiredExecutions.get();
         if (approvalRequired == 0) return 0.0;
         return (double) approvedExecutions.get() / approvalRequired * 100.0;
     }
-    
-    
+
     private static double calculateAverageExecutionTime() {
         
         return toolMetrics.values().stream()
@@ -166,8 +144,7 @@ public class SoarToolObservationContext {
             .average()
             .orElse(0.0);
     }
-    
-    
+
     private static Map<String, Object> getToolMetricsMap() {
         Map<String, Object> metrics = new ConcurrentHashMap<>();
         toolMetrics.forEach((toolName, toolMetric) -> {
@@ -179,8 +156,7 @@ public class SoarToolObservationContext {
         });
         return metrics;
     }
-    
-    
+
     public String toJson() {
         StringBuilder json = new StringBuilder();
         json.append("{\n");
@@ -199,8 +175,7 @@ public class SoarToolObservationContext {
         json.append("}");
         return json.toString();
     }
-    
-    
+
     @Getter
     public static class ToolExecutionMetrics {
         private final String toolName;
@@ -227,8 +202,7 @@ public class SoarToolObservationContext {
             if (executions == 0) return 0;
             return totalExecutionTimeMs.get() / executions;
         }
-        
-        
+
         public long getExecutionCount() {
             return executionCount.get();
         }

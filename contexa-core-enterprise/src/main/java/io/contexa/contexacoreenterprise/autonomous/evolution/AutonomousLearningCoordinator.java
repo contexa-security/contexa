@@ -28,7 +28,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class AutonomousLearningCoordinator {
 
@@ -98,8 +97,7 @@ public class AutonomousLearningCoordinator {
 
     @Value("${security.autonomous.learning.evolution.slow-policy-threshold-ms:1000}")
     private long slowPolicyThresholdMs;
-    
-    
+
     private final AtomicLong totalEventsProcessed = new AtomicLong(0);
     private final AtomicLong totalProposalsGenerated = new AtomicLong(0);
     private final AtomicLong totalLearningCycles = new AtomicLong(0);
@@ -107,20 +105,16 @@ public class AutonomousLearningCoordinator {
     private final AtomicLong successfulLearnings = new AtomicLong(0);
     private final AtomicLong proposalsGenerated = new AtomicLong(0);
 
-    
     private final Map<String, Integer> dailyProposalCount = new ConcurrentHashMap<>();
-    
-    
+
     @EventListener
     @Async
     public void onIncidentResolved(IncidentResolvedEvent event) {
         if (!enabled) {
-            log.debug("학습 코디네이터가 비활성화되어 있습니다");
-            return;
+                        return;
         }
 
-        log.info("인시던트 해결 이벤트 수신 - IncidentId: {}", event.getIncidentId());
-        long startTime = System.currentTimeMillis();
+                long startTime = System.currentTimeMillis();
 
         try {
             
@@ -130,14 +124,10 @@ public class AutonomousLearningCoordinator {
                 return;
             }
 
-            
             LearningMetadata metadata = extractLearningMetadata(event);
 
-            
             if (!canLearn(metadata)) {
-                log.info("학습 조건을 만족하지 않습니다. Confidence: {}", metadata.getConfidenceScore());
 
-                
                 if (evolutionMetricsCollector != null) {
                     evolutionMetricsCollector.recordIncidentProcessed(
                         securityEvent.getSeverity().name(),
@@ -148,11 +138,9 @@ public class AutonomousLearningCoordinator {
                 return;
             }
 
-            
             if (!checkDailyLimit()) {
                 log.warn("일일 제안 생성 한도 초과");
 
-                
                 if (evolutionMetricsCollector != null) {
                     evolutionMetricsCollector.recordIncidentProcessed(
                         securityEvent.getSeverity().name(),
@@ -163,10 +151,8 @@ public class AutonomousLearningCoordinator {
                 return;
             }
 
-            
             triggerPolicyEvolution(securityEvent, metadata);
 
-            
             AITuningService.UserFeedback feedback = AITuningService.UserFeedback.builder()
                 .feedbackType("FALSE_POSITIVE")
                 .comment("자동 학습 피드백")
@@ -174,10 +160,8 @@ public class AutonomousLearningCoordinator {
                 .build();
             tuningService.learnFalsePositive(securityEvent, feedback).subscribe();
 
-            
             totalEventsProcessed.incrementAndGet();
 
-            
             if (evolutionMetricsCollector != null) {
                 evolutionMetricsCollector.recordIncidentProcessed(
                     securityEvent.getSeverity().name(),
@@ -189,7 +173,6 @@ public class AutonomousLearningCoordinator {
         } catch (Exception e) {
             log.error("인시던트 학습 처리 실패", e);
 
-            
             if (evolutionMetricsCollector != null) {
                 String severity = event.getSecurityEvent() != null ?
                     event.getSecurityEvent().getSeverity().name() : "UNKNOWN";
@@ -201,51 +184,38 @@ public class AutonomousLearningCoordinator {
             }
         }
     }
-    
-    
 
     @Transactional
     public void performProactiveOptimization() {
         if (!enabled) {
             return;
         }
-        
-        log.info("주기적 최적화 시작");
-        
+
         try {
             totalLearningCycles.incrementAndGet();
-            
-            
+
             analyzeSystemState();
-            
-            
+
             detectExcessivePermissions();
-            
-            
+
             identifyUnusedPolicies();
-            
-            
+
             suggestPerformanceOptimizations();
-            
-            
+
             cleanupExpiredProposals();
-            
-            log.info("주기적 최적화 완료");
-            
+
         } catch (Exception e) {
             log.error("주기적 최적화 실패", e);
         }
     }
-    
-    
+
     private LearningMetadata extractLearningMetadata(IncidentResolvedEvent event) {
         LearningMetadata.LearningMetadataBuilder builder = LearningMetadata.builder()
             .isLearnable(true)
             .incidentId(event.getIncidentId())
             .createdAt(LocalDateTime.now())
             .status(LearningMetadata.LearningStatus.PENDING);
-        
-        
+
         SoarIncident incident = event.getIncident();
         if (incident != null) {
             
@@ -263,12 +233,10 @@ public class AutonomousLearningCoordinator {
                 builder.priority(3);
                 builder.learningType(LearningMetadata.LearningType.POLICY_FEEDBACK);
             }
-            
-            
+
             double confidence = calculateConfidence(incident);
             builder.confidenceScore(confidence);
-            
-            
+
             Map<String, Object> context = new HashMap<>();
             context.put("incidentId", incident.getId());
             context.put("severity", incident.getSeverity());
@@ -285,21 +253,17 @@ public class AutonomousLearningCoordinator {
         
         return builder.build();
     }
-    
-    
+
     private double calculateConfidence(SoarIncident incident) {
         double confidence = 0.5; 
-        
-        
-        
+
         SoarIncidentStatus status = incident.getStatus();
         if (status != null && status.name().equals("RESOLVED")) {
             confidence += 0.2;
         } else if (status != null && status.name().equals("MITIGATED")) {
             confidence += 0.1;
         }
-        
-        
+
         if (incident.getHistory() != null) {
             int historyCount = incident.getHistory().size();
             if (historyCount >= 3) {
@@ -308,8 +272,7 @@ public class AutonomousLearningCoordinator {
                 confidence += 0.1;
             }
         }
-        
-        
+
         if (incident.getUpdatedAt() != null && incident.getCreatedAt() != null) {
             long updateMinutes = java.time.Duration.between(
                 incident.getCreatedAt(), 
@@ -323,19 +286,15 @@ public class AutonomousLearningCoordinator {
         
         return Math.min(confidence, 1.0);
     }
-    
-    
+
     private boolean canLearn(LearningMetadata metadata) {
         return metadata.isLearnable() &&
                metadata.getConfidenceScore() >= confidenceThreshold &&
                metadata.getStatus() == LearningMetadata.LearningStatus.PENDING;
     }
 
-    
     private void processLearning(LearningMetadata metadata, SoarIncident incident, SecurityEvent securityEvent) {
-        log.info("[자율 학습] 사건 {}에서 학습 시작", metadata.getIncidentId());
 
-        
         if (aiTuningService != null) {
             Map<String, Object> tuningMetadata = new HashMap<>();
             tuningMetadata.put("incidentId", metadata.getIncidentId());
@@ -344,18 +303,16 @@ public class AutonomousLearningCoordinator {
             tuningMetadata.put("timestamp", LocalDateTime.now());
 
             aiTuningService.tuneFromIncident(incident, tuningMetadata)
-                .subscribe(
-                    result -> log.debug("인시던트 학습 완료: {}", result.getMessage()),
-                    error -> log.warn("인시던트 학습 실패", error)
-                );
+                    .subscribe(
+                            result -> log.debug("인시던트 학습 완료: {}", result.getMessage()),
+                            error -> log.warn("인시던트 학습 실패", error)
+                    );
         }
 
-        
         metadata.setStatus(LearningMetadata.LearningStatus.COMPLETED);
         metadata.setCompletedAt(LocalDateTime.now());
     }
 
-    
     private void requestPolicyEvolution(LearningMetadata metadata, SoarIncident incident, SecurityEvent securityEvent) {
         if (policyEvolutionEngine == null) {
             log.warn("[자율 학습] PolicyEvolutionEngine을 사용할 수 없습니다");
@@ -365,7 +322,6 @@ public class AutonomousLearningCoordinator {
         try {
             PolicyEvolutionProposal proposal = null;
 
-            
             if (incident != null) {
                 io.contexa.contexacore.domain.SoarIncidentDto incidentDto = convertEntityToDomain(incident);
                 proposal = policyEvolutionEngine.evolvePolicy(incidentDto, metadata);
@@ -376,27 +332,22 @@ public class AutonomousLearningCoordinator {
             if (proposal != null) {
                 proposalRepository.save(proposal);
                 proposalsGenerated.incrementAndGet();
-                log.info("[자율 학습] 정책 진화 제안 생성: {}", proposal.getId());
-            }
+                            }
         } catch (Exception e) {
             log.error("[자율 학습] 정책 진화 요청 실패", e);
         }
     }
 
-    
     private io.contexa.contexacore.domain.SoarIncidentDto convertEntityToDomain(
             SoarIncident entity) {
 
         io.contexa.contexacore.domain.SoarIncidentDto dto = new io.contexa.contexacore.domain.SoarIncidentDto();
 
-        
         dto.setIncidentId(entity.getIncidentId());
         dto.setTitle(entity.getTitle());
         dto.setDescription(entity.getDescription());
         dto.setCreatedAt(entity.getCreatedAt());
 
-        
-        
         if (entity.getType() != null && !entity.getType().isEmpty()) {
             try {
                 dto.setType(io.contexa.contexacore.domain.SoarIncidentDto.IncidentType.valueOf(
@@ -409,7 +360,6 @@ public class AutonomousLearningCoordinator {
             dto.setType(io.contexa.contexacore.domain.SoarIncidentDto.IncidentType.OTHER);
         }
 
-        
         if (entity.getSeverity() != null && !entity.getSeverity().isEmpty()) {
             try {
                 dto.setSeverity(io.contexa.contexacore.domain.SoarIncidentDto.IncidentSeverity.valueOf(
@@ -422,7 +372,6 @@ public class AutonomousLearningCoordinator {
             dto.setSeverity(io.contexa.contexacore.domain.SoarIncidentDto.IncidentSeverity.MEDIUM);
         }
 
-        
         if (entity.getStatus() != null) {
             try {
                 dto.setStatus(io.contexa.contexacore.domain.SoarIncidentDto.IncidentStatus.valueOf(
@@ -438,7 +387,6 @@ public class AutonomousLearningCoordinator {
         return dto;
     }
 
-    
     private boolean checkDailyLimit() {
         String today = LocalDateTime.now().toLocalDate().toString();
         int count = dailyProposalCount.getOrDefault(today, 0);
@@ -448,50 +396,36 @@ public class AutonomousLearningCoordinator {
         }
         
         dailyProposalCount.put(today, count + 1);
-        
-        
+
         dailyProposalCount.entrySet().removeIf(entry -> !entry.getKey().equals(today));
         
         return true;
     }
-    
-    
+
     private void triggerPolicyEvolution(SecurityEvent securityEvent, LearningMetadata metadata) {
         try {
-            log.info("정책 진화 트리거 - EventId: {}, LearningType: {}", 
-                     securityEvent.getEventId(), metadata.getLearningType());
-            
-            
+
             PolicyEvolutionProposal proposal = evolutionEngine.evolvePolicy(securityEvent, metadata);
-            
-            
+
             proposal = proposalRepository.save(proposal);
-            
-            
+
             totalProposalsGenerated.incrementAndGet();
-            
-            
+
             metadata.markAsCompleted("정책 제안 생성 완료: " + proposal.getId());
-            
-            log.info("정책 제안 생성 완료 - ProposalId: {}, Type: {}, Risk: {}", 
-                     proposal.getId(), proposal.getProposalType(), proposal.getRiskLevel());
-            
+
         } catch (Exception e) {
             log.error("정책 진화 실패", e);
             metadata.markAsFailed(e.getMessage());
         }
     }
-    
-    
+
     private void analyzeSystemState() {
-        log.debug("시스템 상태 분석 시작");
-        
+                
         try {
             
             Map<String, Object> systemState = metricsCollector != null ?
                 metricsCollector.getSystemMetrics() : new HashMap<>();
 
-            
             if (metricsCollector != null && systemState != null && !systemState.isEmpty()) {
                 Map<String, Object> eventMetadata = new HashMap<>();
                 eventMetadata.put("threat_level", systemState.get("threatLevel"));
@@ -500,7 +434,6 @@ public class AutonomousLearningCoordinator {
                 metricsCollector.recordEvent("system_state_analyzed", eventMetadata);
             }
 
-            
             if (systemState != null && !systemState.isEmpty()) {
                 Double threatLevel = (Double) systemState.get("threatLevel");
                 if (threatLevel != null && threatLevel > threatLevelThreshold) {
@@ -514,7 +447,6 @@ public class AutonomousLearningCoordinator {
                     createSystemStateProposal("MANY_INCIDENTS", systemState);
                 }
 
-                
                 Double eventRate = (Double) systemState.get("eventRatePerMinute");
                 if (eventRate != null && eventRate > 100) {
                     log.warn("높은 이벤트 발생률 감지: {} events/min", eventRate);
@@ -526,11 +458,9 @@ public class AutonomousLearningCoordinator {
             log.error("시스템 상태 분석 실패", e);
         }
     }
-    
-    
+
     private void detectExcessivePermissions() {
-        log.debug("과도한 권한 탐지 시작");
-        
+                
         try {
             
             if (accessGovernanceConnector != null && accessGovernanceConnector.shouldRunAnalysis()) {
@@ -545,27 +475,21 @@ public class AutonomousLearningCoordinator {
                         .sourceLabId("AccessGovernanceLab")
                         .build();
 
-                    
                     if (canLearn(metadata) && checkDailyLimit()) {
                         triggerPolicyEvolution(event, metadata);
                     }
                 }
 
-                log.info("AccessGovernanceLab 분석 완료: {} 개의 권한 이벤트 처리", events.size());
-
             } else {
-                log.debug("AccessGovernanceLab 커넥터를 사용할 수 없거나 분석이 필요하지 않음");
-            }
+                            }
             
         } catch (Exception e) {
             log.error("과도한 권한 탐지 실패", e);
         }
     }
-    
-    
+
     private void identifyUnusedPolicies() {
-        log.debug("미사용 정책 식별 시작");
-        
+                
         try {
             
             LocalDateTime threshold = LocalDateTime.now().minusDays(30);
@@ -587,9 +511,7 @@ public class AutonomousLearningCoordinator {
                 }
 
                 if (actualImpact < 0.1) {
-                    log.info("미사용 정책 감지: {} (impact: {})", proposal.getId(), actualImpact);
-                    
-                    
+
                     PolicyEvolutionProposal deactivationProposal = PolicyEvolutionProposal.builder()
                         .title("미사용 정책 비활성화 제안")
                         .description("30일 이상 효과가 없는 정책: " + proposal.getTitle())
@@ -609,11 +531,9 @@ public class AutonomousLearningCoordinator {
             log.error("미사용 정책 식별 실패", e);
         }
     }
-    
-    
+
     private void suggestPerformanceOptimizations() {
-        log.debug("성능 최적화 제안 생성");
-        
+                
         try {
             
             List<PolicyEvolutionProposal> activeProposals = proposalRepository.findActiveProposals();
@@ -635,9 +555,7 @@ public class AutonomousLearningCoordinator {
                 }
 
                 if (avgExecutionTime > slowPolicyThresholdMs) {
-                    log.info("느린 정책 감지: {} ({}ms)", proposal.getId(), avgExecutionTime);
 
-                    
                     PolicyEvolutionProposal optimizationProposal = PolicyEvolutionProposal.builder()
                         .title("정책 성능 최적화 제안")
                         .description("느린 정책 최적화 필요: " + proposal.getTitle())
@@ -657,30 +575,24 @@ public class AutonomousLearningCoordinator {
             log.error("성능 최적화 제안 실패", e);
         }
     }
-    
-    
+
     private void cleanupExpiredProposals() {
-        log.debug("만료된 제안 정리 시작");
-        
+                
         try {
             int expiredCount = proposalRepository.expireOldProposals(LocalDateTime.now());
             if (expiredCount > 0) {
-                log.info("{}개의 만료된 제안을 정리했습니다", expiredCount);
-            }
-            
-            
+                            }
+
             LocalDateTime deleteThreshold = LocalDateTime.now().minusDays(90);
             int deletedCount = proposalRepository.deleteOldRejectedProposals(deleteThreshold);
             if (deletedCount > 0) {
-                log.info("{}개의 오래된 거부 제안을 삭제했습니다", deletedCount);
-            }
+                            }
             
         } catch (Exception e) {
             log.error("만료된 제안 정리 실패", e);
         }
     }
-    
-    
+
     private void createSystemStateProposal(String type, Map<String, Object> systemState) {
         try {
             
@@ -709,8 +621,7 @@ public class AutonomousLearningCoordinator {
             log.error("시스템 상태 제안 생성 실패", e);
         }
     }
-    
-    
+
     @Transactional
     public void approvePolicyProposal(Long proposalId, String approvedBy) {
         try {
@@ -722,13 +633,11 @@ public class AutonomousLearningCoordinator {
 
             PolicyEvolutionProposal proposal = proposalOpt.get();
 
-            
             proposal.setStatus(ProposalStatus.APPROVED);
             proposal.setApprovedAt(LocalDateTime.now());
             proposal.setApprovedBy(approvedBy);
             proposalRepository.save(proposal);
 
-            
             PolicyApprovedEvent approvedEvent = new PolicyApprovedEvent(
                 this,
                 String.valueOf(proposal.getId()),
@@ -742,15 +651,10 @@ public class AutonomousLearningCoordinator {
 
             eventPublisher.publishEvent(approvedEvent);
 
-            log.info("PolicyApprovedEvent published: policy {} approved by {} with confidence {}",
-                proposal.getId(), approvedBy, proposal.getConfidenceScore());
-
         } catch (Exception e) {
             log.error("Failed to approve policy proposal: {}", proposalId, e);
         }
     }
-
-    
 
     public void processAutoApprovalCandidates() {
         if (!enabled) {
@@ -758,9 +662,7 @@ public class AutonomousLearningCoordinator {
         }
 
         try {
-            log.debug("Processing auto-approval candidates");
 
-            
             List<PolicyEvolutionProposal> candidates = proposalRepository
                 .findByStatus(ProposalStatus.PENDING)
                 .stream()
@@ -774,9 +676,7 @@ public class AutonomousLearningCoordinator {
 
                     approvePolicyProposal(proposal.getId(), "system-auto-approval");
 
-                    log.info("Auto-approved policy proposal: {} (confidence: {}, risk: {})",
-                        proposal.getId(), proposal.getConfidenceScore(), proposal.getRiskLevel());
-                }
+                                    }
             }
 
         } catch (Exception e) {
@@ -784,7 +684,6 @@ public class AutonomousLearningCoordinator {
         }
     }
 
-    
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalEventsProcessed", totalEventsProcessed.get());
@@ -798,22 +697,16 @@ public class AutonomousLearningCoordinator {
         return stats;
     }
 
-    
     @EventListener
     @Async
     public void onProcessingCompleted(ProcessingCompletedEvent event) {
         if (!enabled) {
-            log.debug("[자율 학습] 학습 코디네이터가 비활성화되어 있습니다");
-            return;
+                        return;
         }
 
         try {
             SecurityEvent originalEvent = event.getOriginalEvent();
 
-            log.info("[자율 학습] 처리 완료 이벤트 수신 - eventId: {}, mode: {}, layer: {}, highValue: {}",
-                originalEvent.getEventId(), event.getMode(), event.getLayer(), event.isHighValueForLearning());
-
-            
             LearningMetadata metadata = LearningMetadata.builder()
                 .isLearnable(true)
                 .learningType(LearningMetadata.LearningType.THREAT_RESPONSE)
@@ -825,7 +718,6 @@ public class AutonomousLearningCoordinator {
                 .priority(event.isHighValueForLearning() ? 8 : 5)
                 .build();
 
-            
             metadata.addContext("processingMode", event.getMode().toString());
             metadata.addContext("processingLayer", event.getLayer().toString());
             metadata.addContext("processingTimeMs", event.getProcessingTimeMs());
@@ -842,7 +734,6 @@ public class AutonomousLearningCoordinator {
                 }
             }
 
-            
             boolean shouldEvolvePolicy = event.isHighValueForLearning() ||
                 (event.getResult() != null && event.getResult().getCurrentRiskLevel() >= threatLevelThreshold);
 
@@ -853,17 +744,10 @@ public class AutonomousLearningCoordinator {
                     proposalRepository.save(proposal);
                     proposalsGenerated.incrementAndGet();
 
-                    log.info("[자율 학습] 정책 진화 제안 생성 - proposalId: {}, eventId: {}, confidence: {}",
-                        proposal.getId(), originalEvent.getEventId(), proposal.getConfidenceScore());
-                } else {
-                    log.debug("[자율 학습] 정책 진화 제안 생성 실패 - eventId: {}", originalEvent.getEventId());
-                }
+                                    } else {
+                                    }
             } else {
-                log.debug("[자율 학습] 정책 진화 임계값 미달 - eventId: {}, riskLevel: {}, highValue: {}",
-                    originalEvent.getEventId(),
-                    event.getResult() != null ? event.getResult().getCurrentRiskLevel() : "N/A",
-                    event.isHighValueForLearning());
-            }
+                            }
 
             totalEventsProcessed.incrementAndGet();
 

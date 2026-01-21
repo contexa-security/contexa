@@ -13,14 +13,12 @@ import org.springframework.scheduling.annotation.Async;
 import java.time.Instant;
 import java.util.UUID;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ToolEventPublisher {
     
     private final ApplicationEventPublisher eventPublisher;
-    
-    
+
     @Async
     public void publishToolExecutionStarted(
             String toolName,
@@ -36,11 +34,9 @@ public class ToolEventPublisher {
             .timestamp(Instant.now())
             .build();
         
-        log.debug("도구 실행 시작 이벤트 발행: {}", toolName);
-        eventPublisher.publishEvent(event);
+                eventPublisher.publishEvent(event);
     }
-    
-    
+
     @Async
     public void publishToolExecutionCompleted(
             String toolName,
@@ -60,11 +56,9 @@ public class ToolEventPublisher {
             .timestamp(Instant.now())
             .build();
         
-        log.debug("도구 실행 완료 이벤트 발행: {} ({}ms)", toolName, durationMs);
-        eventPublisher.publishEvent(event);
+                eventPublisher.publishEvent(event);
     }
-    
-    
+
     @Async
     public void publishToolExecutionFailed(
             String toolName,
@@ -88,8 +82,7 @@ public class ToolEventPublisher {
         log.warn("도구 실행 실패 이벤트 발행: {} - {}", toolName, error.getMessage());
         eventPublisher.publishEvent(event);
     }
-    
-    
+
     @Async
     public void publishApprovalRequested(
             String toolName,
@@ -107,11 +100,9 @@ public class ToolEventPublisher {
             .timestamp(Instant.now())
             .build();
         
-        log.info("승인 요청 이벤트 발행: {} (위험도: {})", toolName, riskLevel);
-        eventPublisher.publishEvent(event);
+                eventPublisher.publishEvent(event);
     }
-    
-    
+
     @Async
     public void publishApprovalGranted(
             String toolName,
@@ -127,11 +118,9 @@ public class ToolEventPublisher {
             .timestamp(Instant.now())
             .build();
         
-        log.info("승인 완료 이벤트 발행: {} by {}", toolName, approver);
-        eventPublisher.publishEvent(event);
+                eventPublisher.publishEvent(event);
     }
-    
-    
+
     @Async
     public void publishApprovalDenied(
             String toolName,
@@ -147,11 +136,9 @@ public class ToolEventPublisher {
             .timestamp(Instant.now())
             .build();
         
-        log.info("승인 거부 이벤트 발행: {} by {}", toolName, denier);
-        eventPublisher.publishEvent(event);
+                eventPublisher.publishEvent(event);
     }
-    
-    
+
     @Async
     public void publishCacheHit(String toolName, String cacheKey) {
         CacheEvent event = CacheEvent.builder()
@@ -162,11 +149,9 @@ public class ToolEventPublisher {
             .timestamp(Instant.now())
             .build();
         
-        log.trace("캐시 히트 이벤트 발행: {}", cacheKey);
-        eventPublisher.publishEvent(event);
+                eventPublisher.publishEvent(event);
     }
-    
-    
+
     @Async
     public void publishCacheMiss(String toolName, String cacheKey) {
         CacheEvent event = CacheEvent.builder()
@@ -177,11 +162,9 @@ public class ToolEventPublisher {
             .timestamp(Instant.now())
             .build();
         
-        log.trace("캐시 미스 이벤트 발행: {}", cacheKey);
-        eventPublisher.publishEvent(event);
+                eventPublisher.publishEvent(event);
     }
-    
-    
+
     public void publishSecurityViolation(
             String toolName,
             String violationType,
@@ -201,8 +184,7 @@ public class ToolEventPublisher {
         log.error("보안 위반 이벤트 발행: {} - {}", violationType, details);
         eventPublisher.publishEvent(event);
     }
-    
-    
+
     public void publishAuthorizationDenied(
             String toolName,
             String userId,
@@ -222,15 +204,11 @@ public class ToolEventPublisher {
         log.warn("권한 거부 이벤트 발행: user={}, permission={}", userId, requiredPermission);
         eventPublisher.publishEvent(event);
     }
-    
-    
+
     private String generateEventId() {
         return UUID.randomUUID().toString();
     }
-    
-    
-    
-    
+
     @Data
     @Builder
     public static class ToolExecutionEvent {
@@ -245,8 +223,7 @@ public class ToolEventPublisher {
         private long durationMs;
         private Instant timestamp;
     }
-    
-    
+
     @Data
     @Builder
     public static class ApprovalEvent {
@@ -260,8 +237,7 @@ public class ToolEventPublisher {
         private String reason;
         private Instant timestamp;
     }
-    
-    
+
     @Data
     @Builder
     public static class CacheEvent {
@@ -271,8 +247,7 @@ public class ToolEventPublisher {
         private String cacheKey;
         private Instant timestamp;
     }
-    
-    
+
     @Data
     @Builder
     public static class SecurityEvent {
@@ -286,8 +261,7 @@ public class ToolEventPublisher {
         private ToolExecutor.ExecutionContext context;
         private Instant timestamp;
     }
-    
-    
+
     public enum EventType {
         EXECUTION_STARTED,
         EXECUTION_COMPLETED,

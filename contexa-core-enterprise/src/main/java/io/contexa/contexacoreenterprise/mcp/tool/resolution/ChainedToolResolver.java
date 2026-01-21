@@ -13,13 +13,10 @@ import org.springframework.ai.tool.resolution.DelegatingToolCallbackResolver;
 import org.springframework.ai.tool.resolution.ToolCallbackResolver;
 import org.springframework.context.annotation.Primary;
 
-
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
-
 
 @Primary
 @Slf4j
@@ -31,8 +28,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
     private final McpToolResolver mcpToolResolver;
     private final StaticToolCallbackResolver staticToolCallbackResolver;
     private final FallbackToolResolver fallbackToolResolver;
-    
-    
+
     private DelegatingToolCallbackResolver delegatingResolver;
     private CircuitBreaker circuitBreaker;
     private final Map<String, ToolCallback> toolCache = new ConcurrentHashMap<>();
@@ -49,7 +45,6 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
         );
         this.delegatingResolver = new DelegatingToolCallbackResolver(resolvers);
 
-        
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
             .failureRateThreshold(50)
             .waitDurationInOpenState(Duration.ofSeconds(30))
@@ -59,19 +54,13 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
 
         this.circuitBreaker = CircuitBreaker.of("tool-resolver", config);
 
-        log.info("ChainedToolResolver 초기화 완료: {} 개의 Resolver", resolvers.size());
-
-        
         initializeToolCache();
     }
-    
-    
+
     private void initializeToolCache() {
         try {
             Set<String> toolNames = getRegisteredToolNames();
-            log.info("초기 도구 캐시 구성: {} 개 도구", toolNames.size());
 
-            
             for (String toolName : toolNames) {
                 if (shouldPreCache(toolName)) {
                     ToolCallback tool = delegatingResolver.resolve(toolName);
@@ -81,13 +70,11 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
                 }
             }
 
-            log.debug("총 {} 개 도구 사전 캐시됨", toolCache.size());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("초기 캐시 구성 중 오류 (무시됨): {}", e.getMessage());
         }
     }
-    
-    
+
     private boolean shouldPreCache(String toolName) {
         
         return toolName.contains("query") ||
@@ -95,18 +82,15 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
                toolName.contains("scan");
     }
 
-    
     @Override
     public ToolCallback resolve(String toolName) {
         
         ToolCallback cached = toolCache.get(toolName);
         if (cached != null) {
-            log.trace("도구 캐시에서 반환: {}", toolName);
-            metricsCollector.recordCacheHit(toolName);
+                        metricsCollector.recordCacheHit(toolName);
             return cached;
         }
 
-        
         try {
             return circuitBreaker.executeSupplier(() -> resolveInternal(toolName));
         } catch (Exception e) {
@@ -114,8 +98,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             return fallbackToolResolver.resolve(toolName);
         }
     }
-    
-    
+
     private ToolCallback resolveInternal(String toolName) {
         long startTime = System.nanoTime();
 
@@ -126,17 +109,11 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             if (tool != null) {
                 long elapsedTime = System.nanoTime() - startTime;
 
-                
                 String resolverName = identifyResolver(tool);
                 metricsCollector.recordResolution(resolverName, elapsedTime);
 
-                log.debug("도구 발견: {} (resolver: {}, 시간: {}μs)",
-                         toolName, resolverName, elapsedTime / 1000);
-
-                
                 ToolCallback enhancedTool = enhanceToolCallback(tool, toolName, resolverName);
 
-                
                 toolCache.put(toolName, enhancedTool);
                 toolSourceMapping.put(toolName, resolverName);
 
@@ -151,24 +128,19 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             );
         }
     }
-    
-    
+
     private ToolCallback enhanceToolCallback(ToolCallback tool, String toolName, String resolverName) {
         
         if (tool instanceof EnhancedToolCallback) {
             return tool;
         }
 
-        
         Map<String, Object> metadata = new HashMap<>();
-        
 
-        
         metadata.put("resolver", resolverName);
         metadata.put("cached", false);
         metadata.put("enhancedAt", System.currentTimeMillis());
 
-        
         if (resolverName.equals("McpToolResolver") ||
             metadata.containsKey("source") && "mcp".equals(metadata.get("source"))) {
             metadata.put("type", "mcp");
@@ -185,8 +157,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             .metricsCollector(metricsCollector)  
             .build();
     }
-    
-    
+
     private String identifyResolver(ToolCallback tool) {
         
         String className = tool.getClass().getSimpleName();
@@ -201,7 +172,6 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
         return "UnknownResolver";
     }
 
-    
     private EnhancedToolCallback.ToolType determineToolType(ToolCallback tool, Map<String, Object> metadata) {
         
         if (metadata.containsKey("type")) {
@@ -209,11 +179,9 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             try {
                 return EnhancedToolCallback.ToolType.valueOf(type);
             } catch (Exception e) {
-                log.debug("알 수 없는 도구 타입: {}", type);
-            }
+                            }
         }
 
-        
         if (metadata.containsKey("source")) {
             String source = metadata.get("source").toString();
             if ("mcp".equalsIgnoreCase(source)) {
@@ -221,29 +189,23 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             }
         }
 
-        
         String toolName = tool.getToolDefinition().name();
         if (toolName.contains("fallback")) {
             return EnhancedToolCallback.ToolType.FALLBACK;
         }
 
-        
         return EnhancedToolCallback.ToolType.SOAR;
     }
-    
-    
+
     private Map<String, ToolCallback> getStaticTools() {
         
         return Map.of();
     }
 
-    
     public void clearCache() {
         toolCache.clear();
-        log.info("도구 캐시 초기화됨");
-    }
+            }
 
-    
     @Override
     public ToolCallback[] getAllToolCallbacks() {
         List<ToolCallback> allTools = new ArrayList<>();
@@ -271,18 +233,14 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             }
         }
 
-        log.info("총 {} 개의 도구 수집됨", allTools.size());
-        return allTools.toArray(new ToolCallback[0]);
+                return allTools.toArray(new ToolCallback[0]);
     }
-    
-    
+
     public Set<String> getRegisteredToolNames() {
         Set<String> toolNames = new HashSet<>();
 
-        
         toolNames.addAll(toolCache.keySet());
 
-        
         for (ToolCallbackResolver resolver : getResolvers()) {
             try {
                 if (resolver instanceof SpringBeanToolCallbackResolver springResolver) {
@@ -296,29 +254,24 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
                     toolNames.addAll(tools.keySet());
                 }
             } catch (Exception e) {
-                log.debug("Resolver에서 도구 이름 수집 중 오류: {}", e.getMessage());
-            }
+                            }
         }
 
         return toolNames;
     }
-    
-    
+
     public Map<String, Object> getToolStatistics() {
         Map<String, Object> stats = new HashMap<>();
 
-        
         stats.put("totalTools", getRegisteredToolNames().size());
         stats.put("cachedTools", toolCache.size());
         stats.put("resolverCount", getResolvers().size());
         stats.put("circuitBreakerState", circuitBreaker.getState().toString());
 
-        
         Map<String, Long> sourceStats = toolSourceMapping.values().stream()
             .collect(Collectors.groupingBy(source -> source, Collectors.counting()));
         stats.put("toolsBySource", sourceStats);
 
-        
         Map<String, Integer> resolverToolCounts = new HashMap<>();
         for (ToolCallbackResolver resolver : getResolvers()) {
             String resolverName = resolver.getClass().getSimpleName();
@@ -338,21 +291,18 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
         }
         stats.put("resolverToolCounts", resolverToolCounts);
 
-        
         if (metricsCollector != null) {
             
             stats.put("metricsAvailable", true);
         }
 
-        
         if (log.isDebugEnabled()) {
             stats.put("registeredTools", getRegisteredToolNames());
         }
 
         return stats;
     }
-    
-    
+
     private List<ToolCallbackResolver> getResolvers() {
         
         return Arrays.asList(
@@ -363,13 +313,11 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
         );
     }
 
-    
     @Deprecated
     public Map<String, Object> getStatistics() {
         return getToolStatistics();
     }
 
-    
     public static class ToolNotFoundException extends RuntimeException {
         public ToolNotFoundException(String message) {
             super(message);

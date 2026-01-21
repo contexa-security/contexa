@@ -24,23 +24,18 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedNotificationService {
-    
-    
+
     private final SoarEmailService emailService;
     private final McpApprovalNotificationService websocketService;
-    
-    
+
     private final SlackNotificationAdapter slackAdapter;
     private final SmsNotificationAdapter smsAdapter;
-    
-    
+
     private final RedisTemplate<String, Object> redisTemplate;
-    
-    
+
     @Value("${notification.enabled.email:true}")
     private boolean emailEnabled;
     
@@ -67,46 +62,32 @@ public class UnifiedNotificationService {
     
     @Value("${notification.batch.delay-ms:1000}")
     private int batchDelayMs;
-    
-    
+
     private final Map<NotificationChannel, Integer> channelPriorities = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, NotificationTemplate> templates = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalNotificationsSent = new AtomicLong(0);
     private final AtomicLong failedNotifications = new AtomicLong(0);
     private final Map<NotificationChannel, AtomicLong> channelMetrics = new ConcurrentHashMap<>();
-    
-    
+
     private final List<PendingNotification> notificationQueue = Collections.synchronizedList(new ArrayList<>());
     
     @PostConstruct
     public void initialize() {
-        log.info("통합 알림 서비스 초기화 시작");
-        
-        
+
         initializeChannelPriorities();
-        
-        
+
         loadNotificationTemplates();
-        
-        
+
         startBatchProcessor();
         
-        log.info("통합 알림 서비스 초기화 완료 - Email: {}, WebSocket: {}, Slack: {}, SMS: {}", 
-            emailEnabled, websocketEnabled, slackEnabled, smsEnabled);
-    }
-    
-    
+            }
+
     public Mono<NotificationResult> sendApprovalRequest(ApprovalRequest request) {
-        log.info("승인 요청 알림 발송 시작 - Request ID: {}, Tool: {}", 
-            request.getRequestId(), request.getToolName());
-        
+                
         List<Mono<ChannelResult>> notifications = new ArrayList<>();
-        
-        
+
         if (emailEnabled && shouldNotifyByEmail(request)) {
             notifications.add(
                 sendEmailNotification(request)
@@ -117,8 +98,7 @@ public class UnifiedNotificationService {
                     })
             );
         }
-        
-        
+
         if (websocketEnabled) {
             notifications.add(
                 sendWebSocketNotification(request)
@@ -129,8 +109,7 @@ public class UnifiedNotificationService {
                     })
             );
         }
-        
-        
+
         if (slackEnabled && shouldNotifyBySlack(request)) {
             notifications.add(
                 sendSlackNotification(request)
@@ -141,8 +120,7 @@ public class UnifiedNotificationService {
                     })
             );
         }
-        
-        
+
         if (smsEnabled && isUrgentRequest(request)) {
             notifications.add(
                 sendSmsNotification(request)
@@ -153,8 +131,7 @@ public class UnifiedNotificationService {
                     })
             );
         }
-        
-        
+
         return Flux.merge(notifications)
             .collectList()
             .map(results -> {
@@ -163,19 +140,15 @@ public class UnifiedNotificationService {
                 result.setTimestamp(LocalDateTime.now());
                 result.setChannelResults(results);
                 result.setSuccess(results.stream().anyMatch(ChannelResult::isSuccess));
-                
-                
+
                 updateMetrics(results);
                 
                 return result;
             });
     }
-    
-    
+
     public Mono<NotificationResult> sendSecurityEventNotification(SecurityEvent event, ThreatIndicators indicators) {
-        log.info("보안 이벤트 알림 발송 - Event: {}, Risk Level: {}", 
-            event.getEventId(), indicators.getRiskLevel());
-        
+                
         NotificationPriority priority = calculatePriority(indicators);
         Set<NotificationChannel> channels = selectChannels(priority, event.getSeverity().name());
         
@@ -192,11 +165,9 @@ public class UnifiedNotificationService {
             .collectList()
             .map(results -> createNotificationResult(event.getEventId(), results));
     }
-    
-    
+
     public Mono<NotificationResult> sendCompletionNotification(String requestId, SoarResponse response) {
-        log.info("SOAR 분석 완료 알림 발송 - Request ID: {}", requestId);
-        
+                
         Map<String, Object> context = new HashMap<>();
         context.put("requestId", requestId);
         context.put("recommendations", response.getRecommendations());
@@ -210,11 +181,9 @@ public class UnifiedNotificationService {
             NotificationPriority.MEDIUM
         );
     }
-    
-    
+
     public Mono<List<NotificationResult>> sendBatchNotifications(List<NotificationRequest> requests) {
-        log.info("배치 알림 발송 시작 - {} 건", requests.size());
-        
+                
         return Flux.fromIterable(requests)
             .window(batchSize)
             .flatMap(batch -> 
@@ -227,8 +196,7 @@ public class UnifiedNotificationService {
             .flatMapIterable(list -> list)
             .collectList();
     }
-    
-    
+
     private Mono<NotificationResult> sendNotification(NotificationRequest request) {
         return sendMultiChannelNotification(
             request.getType(),
@@ -237,8 +205,7 @@ public class UnifiedNotificationService {
             request.getPriority()
         );
     }
-    
-    
+
     private Mono<NotificationResult> sendMultiChannelNotification(
         String type, 
         String subject, 
@@ -266,8 +233,7 @@ public class UnifiedNotificationService {
             .collectList()
             .map(results -> createNotificationResult(UUID.randomUUID().toString(), results));
     }
-    
-    
+
     private Mono<ChannelResult> sendToChannel(
         NotificationChannel channel,
         SecurityEvent event,
@@ -287,8 +253,7 @@ public class UnifiedNotificationService {
         
         return sendToChannel(channel, subject, content, context, priority);
     }
-    
-    
+
     private Mono<ChannelResult> sendToChannel(
         NotificationChannel channel,
         String subject,
@@ -323,8 +288,7 @@ public class UnifiedNotificationService {
             }
         });
     }
-    
-    
+
     private Mono<Boolean> sendEmailNotification(ApprovalRequest request) {
         return Mono.fromRunnable(() -> {
             String subject = String.format("승인 요청: %s", request.getToolName());
@@ -345,8 +309,7 @@ public class UnifiedNotificationService {
         .thenReturn(true)
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private Mono<Boolean> sendWebSocketNotification(ApprovalRequest request) {
         return Mono.fromRunnable(() -> 
             websocketService.sendApprovalRequest(request)
@@ -354,8 +317,7 @@ public class UnifiedNotificationService {
         .thenReturn(true)
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private Mono<Boolean> sendSlackNotification(ApprovalRequest request) {
         Map<String, Object> slackContext = new HashMap<>();
         slackContext.put("requestId", request.getRequestId());
@@ -370,8 +332,7 @@ public class UnifiedNotificationService {
             NotificationPriority.HIGH
         );
     }
-    
-    
+
     private Mono<Boolean> sendSmsNotification(ApprovalRequest request) {
         String message = String.format(
             "[긴급] %s 도구 실행 승인 필요. 위험도: %s. ID: %s",
@@ -386,8 +347,7 @@ public class UnifiedNotificationService {
             NotificationPriority.URGENT
         );
     }
-    
-    
+
     private Mono<Boolean> sendEmail(String subject, String content, Map<String, Object> context) {
         String recipients = (String) context.getOrDefault("recipients", "security@contexa.com");
         
@@ -397,8 +357,7 @@ public class UnifiedNotificationService {
         .thenReturn(true)
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private Mono<Boolean> sendWebSocket(String subject, String content, Map<String, Object> context) {
         return Mono.fromRunnable(() -> {
             Map<String, Object> message = new HashMap<>();
@@ -413,8 +372,7 @@ public class UnifiedNotificationService {
         .thenReturn(true)
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     private NotificationPriority calculatePriority(ThreatIndicators indicators) {
         int urgency = indicators.getUrgencyLevel();
         
@@ -424,12 +382,10 @@ public class UnifiedNotificationService {
         if (urgency >= 2) return NotificationPriority.LOW;
         return NotificationPriority.INFO;
     }
-    
-    
+
     private Set<NotificationChannel> selectChannels(NotificationPriority priority, String eventType) {
         Set<NotificationChannel> channels = new HashSet<>();
-        
-        
+
         switch (priority) {
             case URGENT:
                 if (smsEnabled) channels.add(NotificationChannel.SMS);
@@ -447,8 +403,7 @@ public class UnifiedNotificationService {
                 if (websocketEnabled) channels.add(NotificationChannel.WEBSOCKET);
                 break;
         }
-        
-        
+
         if (eventType != null) {
             if (eventType.contains("CRITICAL") || eventType.contains("BREACH")) {
                 if (smsEnabled) channels.add(NotificationChannel.SMS);
@@ -460,25 +415,21 @@ public class UnifiedNotificationService {
         
         return channels;
     }
-    
-    
+
     private boolean isUrgentRequest(ApprovalRequest request) {
         return "CRITICAL".equals(request.getRiskLevel()) || 
                "HIGH".equals(request.getRiskLevel());
     }
-    
-    
+
     private boolean shouldNotifyByEmail(ApprovalRequest request) {
         return request.getRequesterEmail() != null && !request.getRequesterEmail().isEmpty();
     }
-    
-    
+
     private boolean shouldNotifyBySlack(ApprovalRequest request) {
         return request.getRiskLevel() != null && 
                (request.getRiskLevel().equals("HIGH") || request.getRiskLevel().equals("CRITICAL"));
     }
-    
-    
+
     private String createDefaultContent(SecurityEvent event, ThreatIndicators indicators) {
         StringBuilder content = new StringBuilder();
         content.append("보안 이벤트 상세:\n");
@@ -497,11 +448,9 @@ public class UnifiedNotificationService {
         
         return content.toString();
     }
-    
-    
+
     public Mono<Boolean> sendApprovalReminder(String approvalId) {
-        log.info("승인 알림 재전송 시작: approvalId={}", approvalId);
-        
+                
         return Mono.fromCallable(() -> {
             
             Map<String, Object> reminderContext = new HashMap<>();
@@ -509,8 +458,7 @@ public class UnifiedNotificationService {
             reminderContext.put("type", "APPROVAL_REMINDER");
             reminderContext.put("timestamp", LocalDateTime.now());
             reminderContext.put("reminderCount", getReminderCount(approvalId));
-            
-            
+
             Set<NotificationChannel> channels = selectChannels(NotificationPriority.HIGH, "APPROVAL_REMINDER");
             
             String subject = String.format("[재알림] 승인 요청 대기 중 - ID: %s", 
@@ -524,23 +472,20 @@ public class UnifiedNotificationService {
                 approvalId,
                 getReminderCount(approvalId)
             );
-            
-            
+
             List<Mono<Boolean>> notifications = new ArrayList<>();
             
             for (NotificationChannel channel : channels) {
                 notifications.add(sendReminderToChannel(channel, subject, content, reminderContext));
             }
-            
-            
+
             incrementReminderCount(approvalId);
             
             return true;
         })
         .flatMap(success -> {
             if (success) {
-                log.info("승인 알림 재전송 완료: approvalId={}", approvalId);
-                return Mono.just(true);
+                                return Mono.just(true);
             } else {
                 log.warn("승인 알림 재전송 실패: approvalId={}", approvalId);
                 return Mono.just(false);
@@ -551,8 +496,7 @@ public class UnifiedNotificationService {
             return Mono.just(false);
         });
     }
-    
-    
+
     private Mono<Boolean> sendReminderToChannel(NotificationChannel channel, String subject, 
                                                 String content, Map<String, Object> context) {
         return (switch (channel) {
@@ -567,31 +511,27 @@ public class UnifiedNotificationService {
             return Mono.just(false);
         });
     }
-    
-    
+
     private int getReminderCount(String approvalId) {
         String key = "approval:reminder:count:" + approvalId;
         Object countObj = redisTemplate.opsForValue().get(key);
         String count = countObj != null ? countObj.toString() : "0";
         return count != null ? Integer.parseInt(count) : 0;
     }
-    
-    
+
     private void incrementReminderCount(String approvalId) {
         String key = "approval:reminder:count:" + approvalId;
         redisTemplate.opsForValue().increment(key);
         redisTemplate.expire(key, Duration.ofHours(24));
     }
-    
-    
+
     private void initializeChannelPriorities() {
         channelPriorities.put(NotificationChannel.SMS, 1);        
         channelPriorities.put(NotificationChannel.SLACK, 2);
         channelPriorities.put(NotificationChannel.EMAIL, 3);
         channelPriorities.put(NotificationChannel.WEBSOCKET, 4);  
     }
-    
-    
+
     private void loadNotificationTemplates() {
         
         templates.put("SECURITY_EVENT", new NotificationTemplate(
@@ -601,8 +541,7 @@ public class UnifiedNotificationService {
             "위험도: ${indicators.riskLevel}\n" +
             "권장사항: ${indicators.recommendations}"
         ));
-        
-        
+
         templates.put("SOAR_COMPLETION", new NotificationTemplate(
             "SOAR 분석 완료",
             "요청 ID: ${requestId}\n" +
@@ -610,8 +549,7 @@ public class UnifiedNotificationService {
             "위험도: ${riskLevel}\n" +
             "완료 시간: ${completedAt}"
         ));
-        
-        
+
         templates.put("APPROVAL_REQUEST", new NotificationTemplate(
             "도구 실행 승인 요청",
             "도구: ${toolName}\n" +
@@ -620,16 +558,14 @@ public class UnifiedNotificationService {
             "승인 링크: ${approvalLink}"
         ));
     }
-    
-    
+
     private NotificationTemplate createDefaultTemplate(String type) {
         return new NotificationTemplate(
             type,
             "Type: " + type + "\nContext: ${context}"
         );
     }
-    
-    
+
     private void startBatchProcessor() {
         Schedulers.parallel().schedulePeriodically(() -> {
             if (!notificationQueue.isEmpty()) {
@@ -643,11 +579,9 @@ public class UnifiedNotificationService {
             }
         }, batchDelayMs, batchDelayMs, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
-    
-    
+
     private void processBatch(List<PendingNotification> batch) {
-        log.debug("배치 알림 처리 시작 - {} 건", batch.size());
-        
+                
         Flux.fromIterable(batch)
             .flatMap(notification -> 
                 sendMultiChannelNotification(
@@ -657,13 +591,12 @@ public class UnifiedNotificationService {
                     notification.getPriority()
                 )
             )
-            .subscribe(
-                result -> log.debug("알림 발송 완료: {}", result),
-                error -> log.error("배치 알림 처리 실패", error)
-            );
+                .subscribe(
+                        result -> log.debug("알림 발송 완료: {}", result),
+                        error -> log.error("배치 알림 처리 실패", error)
+                );
     }
-    
-    
+
     private NotificationResult createNotificationResult(String id, List<ChannelResult> channelResults) {
         NotificationResult result = new NotificationResult();
         result.setRequestId(id);
@@ -673,8 +606,7 @@ public class UnifiedNotificationService {
         
         return result;
     }
-    
-    
+
     private void updateMetrics(List<ChannelResult> results) {
         results.forEach(result -> {
             if (result.isSuccess()) {
@@ -686,8 +618,7 @@ public class UnifiedNotificationService {
             }
         });
     }
-    
-    
+
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("totalSent", totalNotificationsSent.get());
@@ -703,20 +634,15 @@ public class UnifiedNotificationService {
         
         return metrics;
     }
-    
-    
-    
-    
+
     public enum NotificationChannel {
         EMAIL, WEBSOCKET, SLACK, SMS
     }
-    
-    
+
     public enum NotificationPriority {
         URGENT, HIGH, MEDIUM, LOW, INFO
     }
-    
-    
+
     @lombok.Data
     public static class NotificationResult {
         private String requestId;
@@ -725,8 +651,7 @@ public class UnifiedNotificationService {
         private List<ChannelResult> channelResults;
         private Map<String, Object> metadata;
     }
-    
-    
+
     @lombok.Data
     @lombok.AllArgsConstructor
     public static class ChannelResult {
@@ -734,8 +659,7 @@ public class UnifiedNotificationService {
         private boolean success;
         private String errorMessage;
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     public static class NotificationRequest {
@@ -745,8 +669,7 @@ public class UnifiedNotificationService {
         private NotificationPriority priority;
         private Set<NotificationChannel> channels;
     }
-    
-    
+
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class PendingNotification {
@@ -755,8 +678,7 @@ public class UnifiedNotificationService {
         private Map<String, Object> context;
         private NotificationPriority priority;
     }
-    
-    
+
     @lombok.AllArgsConstructor
     private static class NotificationTemplate {
         private final String name;
@@ -764,8 +686,7 @@ public class UnifiedNotificationService {
         
         public String render(Map<String, Object> context) {
             String rendered = template;
-            
-            
+
             for (Map.Entry<String, Object> entry : context.entrySet()) {
                 String placeholder = "${" + entry.getKey() + "}";
                 rendered = rendered.replace(placeholder, String.valueOf(entry.getValue()));

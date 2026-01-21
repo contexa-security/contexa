@@ -6,7 +6,6 @@ import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.strategy.CompositeEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 
-
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,16 +18,9 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class IntegratedThreatEvaluator implements ThreatEvaluator {
-
-    
-    
-
-    
-    
 
     @Autowired(required = false)
     private CompositeEvaluationStrategy compositeStrategy;
@@ -36,11 +28,9 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     @Autowired(required = false)
     private BehavioralAnalysisLabConnector behavioralConnector;
 
-    
     private final RedisAtomicOperations redisAtomicOperations;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    
     @Value("${security.evaluator.consensus.threshold:0.75}")
     private double consensusThreshold;
 
@@ -53,48 +43,32 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
     @Value("${security.evaluator.parallel.enabled:true}")
     private boolean parallelEvaluationEnabled;
 
-    
-    
-    
-
     @Value("${security.evaluator.weight.behavioral:0.3}")
     private double behavioralStrategyWeight;
 
-    
     private final ExecutorService executorService = Executors.newFixedThreadPool(10);
 
-    
     @Override
     public ThreatAssessment evaluateIntegrated(SecurityEvent event) {
         String evaluationId = UUID.randomUUID().toString();
         LocalDateTime startTime = LocalDateTime.now();
 
-        log.info("[IntegratedEvaluator] 통합 평가 시작 - ID: {}, Event: {}",
-            evaluationId, event.getEventId());
-
         try {
             
             Map<String, CompletableFuture<StrategyResult>> futures = executeStrategiesInParallel(event);
 
-            
             Map<String, StrategyResult> results = collectResults(futures, evaluationTimeoutMs);
 
-            
             validateResults(results);
 
-            
             ThreatAssessment finalAssessment = calculateWeightedAssessment(event, results, evaluationId);
 
-            
             recordAuditLog(evaluationId, event, results, finalAssessment);
 
-            
             storeEvaluationResult(evaluationId, finalAssessment);
 
             long elapsedMs = java.time.Duration.between(startTime, LocalDateTime.now()).toMillis();
-            log.info("[IntegratedEvaluator] 평가 완료 - ID: {}, 소요시간: {}ms, 위험점수: {}, 신뢰도: {}",
-                evaluationId, elapsedMs, finalAssessment.getRiskScore(), finalAssessment.getConfidence());
-
+            
             return finalAssessment;
 
         } catch (Exception e) {
@@ -103,31 +77,17 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    
     private Map<String, CompletableFuture<StrategyResult>> executeStrategiesInParallel(SecurityEvent event) {
         Map<String, CompletableFuture<StrategyResult>> futures = new HashMap<>();
 
-        
-        
-
-        
-       
-
-        
-        
-
-        
         if (compositeStrategy != null && compositeStrategy.isEnabled()) {
             futures.put("COMPOSITE", CompletableFuture.supplyAsync(() ->
                 executeStrategy("COMPOSITE", compositeStrategy, event), executorService));
         }
 
-        log.debug("[IntegratedEvaluator] {} 전략 병렬 실행 시작", futures.size());
-
         return futures;
     }
 
-    
     private StrategyResult executeStrategy(String name, ThreatEvaluationStrategy strategy, SecurityEvent event) {
         long startTime = System.currentTimeMillis();
 
@@ -154,7 +114,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    
     private StrategyResult executeBehavioralAnalysis(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
 
@@ -181,7 +140,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    
     private Map<String, StrategyResult> collectResults(
             Map<String, CompletableFuture<StrategyResult>> futures, long timeoutMs) {
 
@@ -206,7 +164,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         return results;
     }
 
-    
     private void validateResults(Map<String, StrategyResult> results) throws IllegalStateException {
         if (results.size() < minStrategiesRequired) {
             throw new IllegalStateException(
@@ -215,7 +172,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             );
         }
 
-        
         double avgConfidence = results.values().stream()
             .mapToDouble(StrategyResult::getConfidence)
             .average()
@@ -226,7 +182,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    
     private ThreatAssessment calculateWeightedAssessment(
             SecurityEvent event, Map<String, StrategyResult> results, String evaluationId) {
 
@@ -236,7 +191,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         List<String> allRecommendedActions = new ArrayList<>();
         Map<String, Object> combinedDetails = new HashMap<>();
 
-        
         for (Map.Entry<String, StrategyResult> entry : results.entrySet()) {
             String strategyName = entry.getKey();
             StrategyResult result = entry.getValue();
@@ -248,12 +202,10 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             weightedRiskSum += assessment.getRiskScore() * weight;
             weightedConfidenceSum += assessment.getConfidence() * weight;
 
-            
             if (assessment.getRecommendedActions() != null) {
                 allRecommendedActions.addAll(assessment.getRecommendedActions());
             }
 
-            
             combinedDetails.put(strategyName, Map.of(
                 "riskScore", assessment.getRiskScore(),
                 "confidence", assessment.getConfidence(),
@@ -261,27 +213,19 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             ));
         }
 
-        
         double finalRiskScore = totalWeight > 0 ? weightedRiskSum / totalWeight : 0.5;
         double finalConfidence = totalWeight > 0 ? weightedConfidenceSum / totalWeight : 0.5;
 
-        
         String action = determineAction(finalRiskScore);
 
-        
         List<String> uniqueActions = allRecommendedActions.stream()
             .distinct()
             .collect(Collectors.toList());
 
-        
         combinedDetails.put("consensusAchieved", results.size() >= minStrategiesRequired);
         combinedDetails.put("strategiesUsed", new ArrayList<>(results.keySet()));
         combinedDetails.put("totalStrategies", results.size());
         combinedDetails.put("minRequiredStrategies", minStrategiesRequired);
-
-        
-        log.debug("[IntegratedEvaluator] Combined details - evaluationId: {}, totalStrategies: {}, minRequired: {}",
-            evaluationId, results.size(), minStrategiesRequired);
 
         return ThreatAssessment.builder()
             .eventId(event.getEventId())
@@ -296,7 +240,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .build();
     }
 
-    
     private double getStrategyWeight(String strategyName) {
         switch (strategyName) {
             case "SESSION":
@@ -304,21 +247,17 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
                 return 0.0;
             case "BEHAVIORAL":
                 return behavioralStrategyWeight;
-            
-            
+
             default:
                 return 0.05; 
         }
     }
 
-    
     private String determineAction(double riskScore) {
-        
-        
+
         return "ESCALATE";
     }
 
-    
     private void recordAuditLog(String evaluationId, SecurityEvent event,
                                 Map<String, StrategyResult> results, ThreatAssessment finalAssessment) {
 
@@ -333,7 +272,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         
         auditEntry.put("consensusAchieved", finalAssessment.getConfidence() >= 0.6);
 
-        
         Map<String, Map<String, Object>> strategyDetails = new HashMap<>();
         for (Map.Entry<String, StrategyResult> entry : results.entrySet()) {
             StrategyResult result = entry.getValue();
@@ -346,20 +284,16 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
         auditEntry.put("strategyDetails", strategyDetails);
 
-        
         String auditKey = "security:audit:evaluation:" + evaluationId;
         redisTemplate.opsForValue().set(auditKey, auditEntry, java.time.Duration.ofDays(30));
 
-        log.info("[IntegratedEvaluator] 감사 로그 저장 - Key: {}", auditKey);
-    }
+            }
 
-    
     private void storeEvaluationResult(String evaluationId, ThreatAssessment assessment) {
         String resultKey = "security:evaluation:result:" + evaluationId;
         redisTemplate.opsForValue().set(resultKey, assessment, java.time.Duration.ofHours(24));
     }
 
-    
     private ThreatAssessment createFallbackAssessment(SecurityEvent event, String evaluationId, String error) {
         log.warn("[IntegratedEvaluator] 폴백 평가 사용 - Error: {}", error);
 
@@ -377,7 +311,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
             .build();
     }
 
-    
     public void shutdown() {
         try {
             executorService.shutdown();
@@ -390,7 +323,6 @@ public class IntegratedThreatEvaluator implements ThreatEvaluator {
         }
     }
 
-    
     @lombok.Builder
     @lombok.Getter
     private static class StrategyResult {

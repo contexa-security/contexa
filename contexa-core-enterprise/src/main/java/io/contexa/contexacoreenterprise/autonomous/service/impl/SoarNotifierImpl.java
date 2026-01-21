@@ -24,7 +24,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 public class SoarNotifierImpl implements ISoarNotifier {
     
     private static final Logger logger = LoggerFactory.getLogger(SoarNotifierImpl.class);
@@ -52,8 +51,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
     
     @Value("${security.plane.notifier.critical-threshold:0.8}")
     private double criticalThreshold;
-    
-    
+
     private final AtomicLong totalNotifications = new AtomicLong(0);
     private final AtomicLong successfulNotifications = new AtomicLong(0);
     private final AtomicLong failedNotifications = new AtomicLong(0);
@@ -72,8 +70,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                 
                 if (soarLab != null) {
                     String prompt = buildIncidentPrompt(incident);
-                    
-                    
+
                     if (asyncEnabled && notificationRepository != null) {
                         ApprovalNotification notification = createNotification(
                             requestId, 
@@ -85,9 +82,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                         notificationRepository.save(notification);
                         logger.info("Saved async notification for incident: {}", incident.getIncidentId());
                     }
-                    
-                    
-                    
+
                     SoarRequest soarRequest = SoarRequest.builder()
                         .context(context)
                         .operation("soarAnalysis")
@@ -106,11 +101,9 @@ public class SoarNotifierImpl implements ISoarNotifier {
                 } else if (aiProcessor != null) {
                     
                     logger.info("Using AI Processor for incident analysis: {}", incident.getIncidentId());
-                    
-                    
+
                     Map<String, Object> analysisRequest = buildAnalysisRequest(incident, context);
-                    
-                    
+
                     if (asyncEnabled && notificationRepository != null) {
                         saveAsyncAnalysisRequest(requestId, incident, analysisRequest);
                     }
@@ -157,8 +150,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     "High-risk security tool '%s' requires approval. Parameters: %s. Context: %s",
                     toolName, toolParameters, context.getIncidentId()
                 );
-                
-                
+
                 if (asyncEnabled && notificationRepository != null) {
                     ApprovalNotification notification = createNotification(
                         requestId,
@@ -177,8 +169,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     notification.setNotificationData(toolData);
                     notificationRepository.save(notification);
                 }
-                
-                
+
                 if (notificationService != null) {
                     
                     logger.info("High-risk tool notification sent for tool: {} with parameters: {}", toolName, toolParameters);
@@ -211,8 +202,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     "Affected systems: %s. Analyze and recommend immediate defensive actions.",
                     context.getIncidentId(), context.getSeverity(), context.getAffectedAssets()
                 );
-                
-                
+
                 context.setExecutionMode(io.contexa.contexacore.domain.SoarExecutionMode.SYNC);
                 
                 SoarRequest soarRequest = SoarRequest.builder()
@@ -227,8 +217,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                 logger.info("Critical situation analysis completed: {}", result);
                 
             } else if (notificationService != null) {
-                
-                
+
             }
             
                 return NotificationResult.success(context.getIncidentId(), "Critical situation handled successfully");
@@ -256,9 +245,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
         stats.put("last_update", LocalDateTime.now());
         return stats;
     }
-    
-    
-    
+
     private String generateRequestId(String identifier) {
         return String.format("SOAR-%s-%s", 
             identifier.replace("-", ""), 
@@ -354,8 +341,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
     
     private void updateNotificationStatus(String requestId, NotificationStatus status) {
         notificationStatuses.put(requestId, status);
-        
-        
+
         if (notificationRepository != null) {
             try {
                 List<ApprovalNotification> notifications = notificationRepository.findByRequestId(requestId);

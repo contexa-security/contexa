@@ -12,7 +12,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
@@ -20,36 +19,30 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
     private final MeterRegistry meterRegistry;
     private final UnifiedSecurityMetricsCollector unifiedMetrics;
 
-    
     private Counter proposalCreatedCounter;
     private Counter proposalApprovedCounter;
     private Counter proposalRejectedCounter;
     private Timer proposalGenerationTimer;
 
-    
     private final AtomicLong totalProposals = new AtomicLong(0);
     private final AtomicLong approvedProposals = new AtomicLong(0);
     private final AtomicLong highConfidenceProposals = new AtomicLong(0);
     private DistributionSummary confidenceScoreDistribution;
 
-    
     private Timer aiCallDurationTimer;
     private Counter aiCallSuccessCounter;
     private Counter aiCallFailureCounter;
     private Counter spelExtractionSuccessCounter;
     private Counter spelExtractionFailureCounter;
 
-    
     private Counter vectorStoreDocumentsStoredCounter;
     private DistributionSummary similarCasesFoundDistribution;
 
-    
     private Counter incidentsProcessedCounter;
     private Counter proposalsGeneratedCounter;
     private Counter dailyLimitReachedCounter;
     private DistributionSummary learningConfidenceDistribution;
 
-    
     private Counter baselineUpdatesCounter;
     private Counter statisticalOutliersCounter;
     private Counter suspiciousContextsFilteredCounter;
@@ -57,8 +50,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
 
     @PostConstruct
     public void initialize() {
-        log.info("=== Initializing EvolutionMetricsCollector ===");
-
+        
         initProposalLifecycleMetrics();
         initLearningQualityMetrics();
         initAIModelMetrics();
@@ -66,13 +58,9 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         initLearningCoordinatorMetrics();
         initHCADMetrics();
 
-        
         unifiedMetrics.updateDomainHealth("evolution", 1.0);
 
-        log.info("EvolutionMetricsCollector initialized successfully");
-    }
-
-    
+            }
 
     private void initProposalLifecycleMetrics() {
         proposalCreatedCounter = Counter.builder("evolution.proposal.created")
@@ -92,7 +80,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .publishPercentiles(0.5, 0.95, 0.99)
                 .register(meterRegistry);
 
-        
         Gauge.builder("evolution.proposal.auto_approval.rate", this,
                         collector -> collector.calculateAutoApprovalRate())
                 .description("Automatic policy approval rate")
@@ -110,7 +97,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .publishPercentiles(0.5, 0.75, 0.95)
                 .register(meterRegistry);
 
-        
         Gauge.builder("evolution.proposal.high_confidence.ratio", this,
                         collector -> collector.calculateHighConfidenceRatio())
                 .description("Ratio of high confidence proposals (>0.8)")
@@ -143,7 +129,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .description("SpEL expression extraction failure count")
                 .register(meterRegistry);
 
-        
         Gauge.builder("evolution.ai.success.rate", this,
                         collector -> collector.calculateAISuccessRate())
                 .description("AI model call success rate")
@@ -194,9 +179,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .register(meterRegistry);
     }
 
-    
-
-    
     public void recordProposalCreation(long durationMillis, String proposalType, String riskLevel, double confidenceScore) {
         proposalCreatedCounter.increment();
         totalProposals.incrementAndGet();
@@ -214,10 +196,8 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .register(meterRegistry)
                 .increment();
 
-        
         unifiedMetrics.recordSecurityEvent("evolution", "proposal_created");
 
-        
         Map<String, Object> eventMetadata = new HashMap<>();
         eventMetadata.put("source", "evolution");
         eventMetadata.put("event_type", "proposal_created");
@@ -229,7 +209,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         updateEvolutionHealth();
     }
 
-    
     public void recordProposalApproval(String approvalMethod) {
         proposalApprovedCounter.increment();
         approvedProposals.incrementAndGet();
@@ -242,7 +221,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         unifiedMetrics.recordSecurityEvent("evolution", "proposal_approved");
     }
 
-    
     public void recordProposalRejection(String rejectionReason) {
         proposalRejectedCounter.increment();
 
@@ -255,7 +233,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         updateEvolutionHealth();
     }
 
-    
     public void recordAICall(long durationMillis, String model, boolean success) {
         aiCallDurationTimer.record(java.time.Duration.ofMillis(durationMillis));
 
@@ -272,7 +249,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .record(java.time.Duration.ofMillis(durationMillis));
     }
 
-    
     public void recordSpelExtraction(String extractionMethod, boolean success) {
         if (success) {
             spelExtractionSuccessCounter.increment();
@@ -287,7 +263,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    
     public void recordVectorStoreDocument(String learningType) {
         vectorStoreDocumentsStoredCounter.increment();
 
@@ -297,12 +272,10 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    
     public void recordSimilarCasesFound(int similarCasesCount) {
         similarCasesFoundDistribution.record(similarCasesCount);
     }
 
-    
     public void recordIncidentProcessed(String severity, boolean successful, String learningType) {
         incidentsProcessedCounter.increment();
 
@@ -314,7 +287,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    
     public void recordCoordinatorProposalGenerated(String triggerType) {
         proposalsGeneratedCounter.increment();
 
@@ -324,17 +296,14 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    
     public void recordDailyLimitReached() {
         dailyLimitReachedCounter.increment();
     }
 
-    
     public void recordLearningConfidence(double confidenceScore) {
         learningConfidenceDistribution.record(confidenceScore);
     }
 
-    
     public void recordHCADBaselineUpdate(String phase, String decision) {
         baselineUpdatesCounter.increment();
 
@@ -345,7 +314,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    
     public void recordHCADStatisticalOutlier(double zScore) {
         statisticalOutliersCounter.increment();
 
@@ -364,7 +332,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    
     public void recordHCADSuspiciousContextFiltered(String reason) {
         suspiciousContextsFilteredCounter.increment();
 
@@ -374,24 +341,19 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .increment();
     }
 
-    
     public void recordHCADBaselineConfidence(double confidenceScore, String userSegment) {
         baselineConfidenceDistribution.record(confidenceScore);
 
-        
         Gauge.builder("evolution.hcad.baseline.confidence.by_segment", () -> confidenceScore)
                 .tag("user_segment", userSegment)
                 .register(meterRegistry);
     }
 
-    
     public void updateHCADLearningRate(double learningRate, String confidenceTier) {
         Gauge.builder("evolution.hcad.learning.rate.by_tier", () -> learningRate)
                 .tag("confidence_tier", confidenceTier)
                 .register(meterRegistry);
     }
-
-    
 
     private String getConfidenceBucket(double confidenceScore) {
         if (confidenceScore >= 0.9) return "0.9-1.0";
@@ -420,7 +382,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         return total > 0 ? success / total : 1.0;
     }
 
-    
     private void updateEvolutionHealth() {
         double autoApprovalRate = calculateAutoApprovalRate();
         double highConfidenceRatio = calculateHighConfidenceRatio();
@@ -430,16 +391,10 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         unifiedMetrics.updateDomainHealth("evolution", healthScore);
     }
 
-    
     public double getHealthScore() {
         return unifiedMetrics.getDomainHealth("evolution");
     }
 
-    
-    
-    
-
-    
     public void recordHCADAnalysis(long processingTimeMs, double anomalyScore, boolean wasBlocked) {
         
         Timer.builder("hcad.analysis.duration")
@@ -447,41 +402,35 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .register(meterRegistry)
                 .record(processingTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
 
-        
         DistributionSummary.builder("hcad.analysis.anomaly_score")
                 .tag("blocked", String.valueOf(wasBlocked))
                 .register(meterRegistry)
                 .record(anomalyScore);
 
-        
         if (wasBlocked) {
             Counter.builder("hcad.analysis.blocked")
                     .register(meterRegistry)
                     .increment();
         }
 
-        
         if (anomalyScore >= 0.7 && !wasBlocked) {
             Counter.builder("hcad.analysis.warned")
                     .register(meterRegistry)
                     .increment();
         }
 
-        
         if (processingTimeMs > 30) {
             Counter.builder("hcad.analysis.slow_requests")
                     .register(meterRegistry)
                     .increment();
         }
 
-        
         Counter.builder("hcad.analysis.total")
                 .tag("blocked", String.valueOf(wasBlocked))
                 .register(meterRegistry)
                 .increment();
     }
 
-    
     public void recordHCADLearningDecision(String userId, String phase, String decision, double confidence) {
         Counter.builder("hcad.learning.decisions")
                 .tag("phase", phase)
@@ -489,11 +438,8 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 .register(meterRegistry)
                 .increment();
 
-        
         baselineConfidenceDistribution.record(confidence);
     }
-
-    
 
     @Override
     public String getDomain() {
@@ -525,9 +471,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         highConfidenceProposals.set(0);
     }
 
-    
-    
-
     @Override
     public Map<String, Double> getKeyMetrics() {
         Map<String, Double> metrics = new HashMap<>();
@@ -541,8 +484,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         metrics.put("health_score", getHealthScore());
         return metrics;
     }
-
-    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {

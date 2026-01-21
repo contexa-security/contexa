@@ -16,7 +16,6 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 
-
 @Slf4j
 public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarResponse> {
 
@@ -25,8 +24,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
     public SoarDiagnosisStrategy(AILabFactory labFactory) {
         super(labFactory);
-        log.info("SOAR 진단 전략 초기화 완료");
-    }
+            }
 
     @Override
     public DiagnosisType getSupportedType() {
@@ -55,9 +53,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
     @Override
     protected void validateRequest(AIRequest<SoarContext> request) throws DiagnosisException {
-        log.debug("SOAR 요청 검증 시작");
 
-        
         if (request.getContext() == null) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -68,7 +64,6 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
         SoarContext context = request.getContext();
 
-        
         if (context.getSessionId() == null || context.getSessionId().isEmpty()) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -77,7 +72,6 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             );
         }
 
-        
         if (context.getOriginalQuery() == null || context.getOriginalQuery().trim().isEmpty()) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -86,7 +80,6 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             );
         }
 
-        
         if (context.getOrganizationId() == null || context.getOrganizationId().isEmpty()) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -95,8 +88,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             );
         }
 
-        log.debug("SOAR 요청 검증 완료");
-    }
+            }
 
     @Override
     protected Class<?> getLabType() {
@@ -112,8 +104,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
     @Override
     protected SoarResponse processLabExecution(Object lab, Object labRequest, AIRequest<SoarContext> request)
             throws Exception {
-        log.info("SOAR Lab 실행 시작");
-
+        
         if (!(lab instanceof SoarLabImpl)) {
             throw new DiagnosisException(
                     DiagnosisType.SOAR.name(),
@@ -133,14 +124,11 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
         SoarLabImpl soarLab = (SoarLabImpl) lab;
         SoarRequest soarRequest = (SoarRequest) labRequest;
 
-        
         SoarResponse response = soarLab.process(soarRequest);
 
-        
         updateContext(request.getContext(), response);
 
-        log.info("SOAR Lab 실행 완료 - 세션: {}", soarRequest.getSessionId());
-        return response;
+                return response;
     }
 
     @Override
@@ -150,8 +138,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
         AILab<SoarRequest, SoarResponse> soarLab = (SoarLabImpl) lab;
         SoarRequest soarRequest = (SoarRequest) labRequest;
 
-        log.info("비동기 정책 생성 요청: {}", soarRequest.getQuery());
-        return soarLab.processAsync(soarRequest);
+                return soarLab.processAsync(soarRequest);
     }
 
     @Override
@@ -160,26 +147,21 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
         AILab<SoarRequest, SoarResponse> soarLab = (SoarLabImpl) lab;
         SoarRequest soarRequest = (SoarRequest) labRequest;
 
-        log.info("비동기 정책 생성 요청: {}", soarRequest.getQuery());
-        return soarLab.processStream(soarRequest);
+                return soarLab.processStream(soarRequest);
     }
 
-    
     private void updateContext(SoarContext context, SoarResponse response) {
         
         if (response.getAnalysisResult() != null) {
             context.addConversationEntry("assistant", response.getAnalysisResult());
         }
 
-        
         if (response.getSessionState() != null) {
             context.setSessionState(response.getSessionState());
         }
 
-        
         context.setLastActivity(LocalDateTime.now());
 
-        
         if (response.getExecutedTools() != null && !response.getExecutedTools().isEmpty()) {
             response.getExecutedTools().forEach(tool ->
                     context.getApprovedTools().add(tool)

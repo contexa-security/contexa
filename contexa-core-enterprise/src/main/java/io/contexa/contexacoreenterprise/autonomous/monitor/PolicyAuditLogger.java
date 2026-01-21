@@ -15,20 +15,16 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyAuditLogger {
     
     private final SynthesisPolicyRepository synthesisPolicyRepository;
-    
-    
+
     private final Map<String, AuditLogEntry> auditLogs = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, ComplianceCheckpoint> complianceCheckpoints = new ConcurrentHashMap<>();
-    
-    
+
     public static class AuditLogEntry {
         private String auditId;
         private LocalDateTime timestamp;
@@ -71,8 +67,7 @@ public class PolicyAuditLogger {
                 eventType, actor, action, targetEntity, outcome);
         }
     }
-    
-    
+
     public static class ComplianceCheckpoint {
         private String checkpointId;
         private LocalDateTime timestamp;
@@ -108,8 +103,7 @@ public class PolicyAuditLogger {
             return compliant;
         }
     }
-    
-    
+
     public void logPolicyCreation(Long proposalId, String createdBy, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_CREATION",
@@ -125,14 +119,10 @@ public class PolicyAuditLogger {
         
         String auditId = entry.auditId;
         auditLogs.put(auditId, entry);
-        
-        log.info("Audit Log - Policy Creation: {}", entry);
-        
-        
+
         checkCreationCompliance(proposalId, createdBy);
     }
-    
-    
+
     public void logPolicyApproval(Long proposalId, String approvedBy, String approvalLevel, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_APPROVAL",
@@ -149,14 +139,10 @@ public class PolicyAuditLogger {
         
         String auditId = entry.auditId;
         auditLogs.put(auditId, entry);
-        
-        log.info("Audit Log - Policy Approval: {}", entry);
-        
-        
+
         checkApprovalCompliance(proposalId, approvedBy, approvalLevel);
     }
-    
-    
+
     public void logPolicyRejection(Long proposalId, String rejectedBy, String reason, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_REJECTION",
@@ -174,10 +160,8 @@ public class PolicyAuditLogger {
         String auditId = entry.auditId;
         auditLogs.put(auditId, entry);
         
-        log.info("Audit Log - Policy Rejection: {}", entry);
-    }
-    
-    
+            }
+
     public void logPolicyActivation(Long policyId, String activatedBy, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_ACTIVATION",
@@ -193,14 +177,10 @@ public class PolicyAuditLogger {
         
         String auditId = entry.auditId;
         auditLogs.put(auditId, entry);
-        
-        log.info("Audit Log - Policy Activation: {}", entry);
-        
-        
+
         checkActivationCompliance(policyId, activatedBy);
     }
-    
-    
+
     public void logPolicyDeactivation(Long policyId, String deactivatedBy, String reason, Map<String, Object> context) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_DEACTIVATION",
@@ -218,10 +198,8 @@ public class PolicyAuditLogger {
         String auditId = entry.auditId;
         auditLogs.put(auditId, entry);
         
-        log.info("Audit Log - Policy Deactivation: {}", entry);
-    }
-    
-    
+            }
+
     public void logPolicyRollback(Long policyId, int fromVersion, int toVersion, String rolledBackBy, String reason) {
         AuditLogEntry entry = new AuditLogEntry(
             "POLICY_ROLLBACK",
@@ -240,24 +218,19 @@ public class PolicyAuditLogger {
         String auditId = entry.auditId;
         auditLogs.put(auditId, entry);
         
-        log.info("Audit Log - Policy Rollback: {}", entry);
-    }
-    
-    
+            }
+
     private void checkCreationCompliance(Long proposalId, String createdBy) {
         ComplianceCheckpoint checkpoint = new ComplianceCheckpoint("CREATION_COMPLIANCE");
-        
-        
+
         if (!hasCreationPermission(createdBy)) {
             checkpoint.addViolation("User lacks policy creation permission");
         }
-        
-        
+
         if (!validatePolicyNamingConvention(proposalId)) {
             checkpoint.addViolation("Policy naming convention violated");
         }
-        
-        
+
         if (!validatePolicyContent(proposalId)) {
             checkpoint.addViolation("Policy content validation failed");
         }
@@ -273,22 +246,18 @@ public class PolicyAuditLogger {
         
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
     }
-    
-    
+
     private void checkApprovalCompliance(Long proposalId, String approvedBy, String approvalLevel) {
         ComplianceCheckpoint checkpoint = new ComplianceCheckpoint("APPROVAL_COMPLIANCE");
-        
-        
+
         if (!hasApprovalPermission(approvedBy, approvalLevel)) {
             checkpoint.addViolation("User lacks appropriate approval permission for level: " + approvalLevel);
         }
-        
-        
+
         if (hasConflictOfInterest(proposalId, approvedBy)) {
             checkpoint.addViolation("Conflict of interest detected - approver created the proposal");
         }
-        
-        
+
         if (!withinApprovalTimeline(proposalId)) {
             checkpoint.addViolation("Approval exceeded timeline requirements");
         }
@@ -305,22 +274,18 @@ public class PolicyAuditLogger {
         
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
     }
-    
-    
+
     private void checkActivationCompliance(Long policyId, String activatedBy) {
         ComplianceCheckpoint checkpoint = new ComplianceCheckpoint("ACTIVATION_COMPLIANCE");
-        
-        
+
         if (!hasActivationPermission(activatedBy)) {
             checkpoint.addViolation("User lacks policy activation permission");
         }
-        
-        
+
         if (!hasPassedRequiredTests(policyId)) {
             checkpoint.addViolation("Policy has not passed required tests");
         }
-        
-        
+
         if (!hasRequiredDocumentation(policyId)) {
             checkpoint.addViolation("Policy lacks required documentation");
         }
@@ -336,15 +301,12 @@ public class PolicyAuditLogger {
         
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
     }
-    
-    
 
     private static final String ROLE_POLICY_CREATOR = "ROLE_POLICY_CREATOR";
     private static final String ROLE_POLICY_APPROVER = "ROLE_POLICY_APPROVER";
     private static final String ROLE_POLICY_ADMIN = "ROLE_POLICY_ADMIN";
     private static final String ROLE_SECURITY_ADMIN = "ROLE_SECURITY_ADMIN";
 
-    
     private boolean hasCreationPermission(String user) {
         if (user == null || user.isEmpty()) {
             log.warn("[Zero Trust] 정책 생성 권한 검증 실패: 사용자 정보 없음");
@@ -357,12 +319,10 @@ public class PolicyAuditLogger {
             return false;
         }
 
-        
         if (!user.equals(authentication.getName())) {
             return false;
         }
 
-        
         boolean hasPermission = hasAnyRole(authentication, ROLE_POLICY_CREATOR, ROLE_POLICY_ADMIN, ROLE_SECURITY_ADMIN);
         if (!hasPermission) {
             log.warn("[Zero Trust] 정책 생성 권한 부족: user={}", user);
@@ -370,7 +330,6 @@ public class PolicyAuditLogger {
         return hasPermission;
     }
 
-    
     private boolean hasApprovalPermission(String user, String level) {
         if (user == null || user.isEmpty() || level == null) {
             log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 필수 정보 누락");
@@ -383,13 +342,11 @@ public class PolicyAuditLogger {
             return false;
         }
 
-        
         if (!user.equals(authentication.getName())) {
             log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 사용자 불일치");
             return false;
         }
 
-        
         String requiredRole = switch (level.toUpperCase()) {
             case "L1", "LEVEL1", "BASIC" -> ROLE_POLICY_APPROVER;
             case "L2", "LEVEL2", "ADVANCED" -> ROLE_POLICY_ADMIN;
@@ -407,7 +364,6 @@ public class PolicyAuditLogger {
         return hasPermission;
     }
 
-    
     private boolean hasActivationPermission(String user) {
         if (user == null || user.isEmpty()) {
             log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 정보 없음");
@@ -420,7 +376,6 @@ public class PolicyAuditLogger {
             return false;
         }
 
-        
         if (!user.equals(authentication.getName())) {
             log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 불일치");
             return false;
@@ -432,14 +387,12 @@ public class PolicyAuditLogger {
         return hasPermission;
     }
 
-    
     private boolean hasRole(Authentication authentication, String role) {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(authority -> authority.equals(role));
     }
 
-    
     private boolean hasAnyRole(Authentication authentication, String... roles) {
         Set<String> requiredRoles = Set.of(roles);
         return authentication.getAuthorities().stream()
@@ -447,20 +400,17 @@ public class PolicyAuditLogger {
                 .anyMatch(requiredRoles::contains);
     }
 
-    
     private boolean hasConflictOfInterest(Long proposalId, String approver) {
         if (proposalId == null || approver == null) {
             return false;
         }
 
-        
         Optional<String> creatorOpt = synthesisPolicyRepository.findById(proposalId)
                 .map(policy -> policy.getCreatedBy())
                 .filter(creator -> creator != null);
 
         if (creatorOpt.isEmpty()) {
-            log.debug("정책 제안 #{} 의 생성자를 찾을 수 없음", proposalId);
-            return false;
+                        return false;
         }
 
         String creator = creatorOpt.get();
@@ -472,60 +422,51 @@ public class PolicyAuditLogger {
         return conflict;
     }
 
-    
     private boolean withinApprovalTimeline(Long proposalId) {
         
         return true;
     }
 
-    
     private boolean validatePolicyNamingConvention(Long proposalId) {
         
         return true;
     }
 
-    
     private boolean validatePolicyContent(Long proposalId) {
         
         return true;
     }
 
-    
     private boolean hasPassedRequiredTests(Long policyId) {
         
         return true;
     }
 
-    
     private boolean hasRequiredDocumentation(Long policyId) {
         
         return true;
     }
-    
-    
+
     public ComplianceReport generateComplianceReport(LocalDateTime startDate, LocalDateTime endDate) {
         ComplianceReport report = new ComplianceReport();
         report.setReportId(UUID.randomUUID().toString());
         report.setGeneratedAt(LocalDateTime.now());
         report.setStartDate(startDate);
         report.setEndDate(endDate);
-        
-        
+
         List<AuditLogEntry> periodLogs = auditLogs.values().stream()
             .filter(log -> log.timestamp.isAfter(startDate) && log.timestamp.isBefore(endDate))
             .collect(Collectors.toList());
         
         report.setTotalEvents(periodLogs.size());
-        
-        
+
         Map<String, Long> eventTypeCounts = periodLogs.stream()
             .collect(Collectors.groupingBy(
                 log -> log.eventType,
                 Collectors.counting()
             ));
         report.setEventTypeCounts(eventTypeCounts);
-        
-        
+
         List<ComplianceCheckpoint> periodCheckpoints = complianceCheckpoints.values().stream()
             .filter(cp -> cp.timestamp.isAfter(startDate) && cp.timestamp.isBefore(endDate))
             .collect(Collectors.toList());
@@ -534,8 +475,7 @@ public class PolicyAuditLogger {
             .filter(cp -> !cp.isCompliant())
             .count();
         report.setTotalViolations(totalViolations);
-        
-        
+
         Map<String, List<String>> violationsByType = periodCheckpoints.stream()
             .filter(cp -> !cp.isCompliant())
             .collect(Collectors.groupingBy(
@@ -543,23 +483,17 @@ public class PolicyAuditLogger {
                 Collectors.flatMapping(cp -> cp.violations.stream(), Collectors.toList())
             ));
         report.setViolationsByType(violationsByType);
-        
-        
+
         double complianceScore = periodCheckpoints.isEmpty() ? 100.0 :
             (double)(periodCheckpoints.size() - totalViolations) / periodCheckpoints.size() * 100;
         report.setComplianceScore(complianceScore);
-        
-        
+
         List<String> recommendations = generateRecommendations(violationsByType);
         report.setRecommendations(recommendations);
-        
-        log.info("Compliance Report Generated: {} events, {} violations, {:.2f}% compliance score",
-            report.getTotalEvents(), report.getTotalViolations(), report.getComplianceScore());
-        
+
         return report;
     }
-    
-    
+
     private List<String> generateRecommendations(Map<String, List<String>> violationsByType) {
         List<String> recommendations = new ArrayList<>();
         
@@ -581,8 +515,7 @@ public class PolicyAuditLogger {
         
         return recommendations;
     }
-    
-    
+
     public static class ComplianceReport {
         private String reportId;
         private LocalDateTime generatedAt;
@@ -594,8 +527,7 @@ public class PolicyAuditLogger {
         private Map<String, List<String>> violationsByType;
         private double complianceScore;
         private List<String> recommendations;
-        
-        
+
         public String getReportId() { return reportId; }
         public void setReportId(String reportId) { this.reportId = reportId; }
         
@@ -626,12 +558,9 @@ public class PolicyAuditLogger {
         public List<String> getRecommendations() { return recommendations; }
         public void setRecommendations(List<String> recommendations) { this.recommendations = recommendations; }
     }
-    
-    
 
     public void performDailyComplianceCheck() {
-        log.info("Starting daily compliance check...");
-        
+                
         LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
         LocalDateTime today = LocalDateTime.now();
         
@@ -641,12 +570,10 @@ public class PolicyAuditLogger {
             log.warn("Daily compliance score below threshold: {:.2f}%", dailyReport.getComplianceScore());
             
         }
-        
-        
+
         cleanupOldLogs();
     }
-    
-    
+
     private void cleanupOldLogs() {
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(30);
         
@@ -658,10 +585,8 @@ public class PolicyAuditLogger {
             entry.getValue().timestamp.isBefore(cutoffDate)
         );
         
-        log.info("Cleaned up logs older than {}", cutoffDate);
-    }
-    
-    
+            }
+
     public List<AuditLogEntry> searchAuditLogs(String eventType, String actor, 
                                                LocalDateTime startDate, LocalDateTime endDate) {
         return auditLogs.values().stream()
@@ -672,8 +597,7 @@ public class PolicyAuditLogger {
             .sorted(Comparator.comparing(log -> log.timestamp))
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<ComplianceCheckpoint> searchComplianceCheckpoints(String complianceType, 
                                                                   boolean violationsOnly) {
         return complianceCheckpoints.values().stream()

@@ -24,23 +24,19 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionHelper implements PolicyEvolutionService {
 
-    
     private final UnifiedVectorService unifiedVectorService;
     private final AITuningService aiTuningService;
 
     @Autowired(required = false)
     private StandardVectorStoreService standardVectorStoreService;
 
-    
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
-    
-    
+
     @Value("${policy.evolution.enabled:true}")
     private boolean evolutionEnabled;
     
@@ -52,17 +48,13 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
     
     @Value("${policy.evolution.retention-days:90}")
     private int policyRetentionDays;
-    
-    
+
     private final Map<String, EvolvingPolicy> evolvingPolicies = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, List<PolicyVersion>> policyVersionHistory = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, PolicyEffectiveness> effectivenessMetrics = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalEvolutions = new AtomicLong(0);
     private final AtomicLong successfulEvolutions = new AtomicLong(0);
     private final AtomicLong policiesGenerated = new AtomicLong(0);
@@ -70,19 +62,13 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
     @PostConstruct
     public void initialize() {
         if (!evolutionEnabled) {
-            log.info("정책 진화 기능 비활성화됨");
-            return;
+                        return;
         }
-        
-        log.info("PolicyEvolutionHelper 초기화 시작");
-        
-        
+
         loadExistingPolicies();
         
-        log.info("PolicyEvolutionHelper 초기화 완료 - {} 개의 정책 로드됨", evolvingPolicies.size());
-    }
-    
-    
+            }
+
     @Override
     public Mono<?> learnFromEvent(
             SecurityEvent event,
@@ -96,13 +82,10 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         return Mono.defer(() -> {
             String policyId = extractPolicyId(event);
 
-            
             boolean result = isPositive(outcome);
 
-            
             updatePolicyEffectiveness(policyId, result);
 
-            
             if (shouldEvolvePolicy(policyId)) {
                 return evolvePolicy(policyId, event, decision, result);
             }
@@ -110,8 +93,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             return Mono.just(PolicyLearningResult.recorded(policyId));
         });
     }
-    
-    
+
     @Override
     public void evolvePolicy(SecurityEvent event, ThreatAssessment assessment) {
         
@@ -121,7 +103,6 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         }
     }
 
-    
     private void recordPolicyApplication(String policyId, SecurityEvent event, String applicationType, boolean success) {
         try {
             Map<String, Object> applicationRecord = new HashMap<>();
@@ -133,20 +114,16 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             applicationRecord.put("success", success);
             applicationRecord.put("timestamp", System.currentTimeMillis());
 
-            
             String key = "policy:applications:" + policyId;
             redisTemplate.opsForList().rightPush(key, applicationRecord);
 
-            
             redisTemplate.expire(key, Duration.ofDays(30));
 
-            log.debug("Policy application recorded: {} for event {}", policyId, event.getEventId());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("Failed to record policy application: {}", policyId, e);
         }
     }
 
-    
     private Mono<PolicyLearningResult> evolvePolicy(
             String policyId,
             SecurityEvent event,
@@ -157,33 +134,24 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             EvolvingPolicy policy = evolvingPolicies.computeIfAbsent(
                 policyId, k -> new EvolvingPolicy(k)
             );
-            
-            
+
             backupCurrentVersion(policy);
-            
-            
+
             adjustPolicyParameters(policy, event, decision, outcome);
-            
-            
+
             synthesizePolicyRules(policy, event);
-            
-            
+
             savePolicyPattern(policy);
-            
-            
+
             totalEvolutions.incrementAndGet();
             if (outcome) {
                 successfulEvolutions.incrementAndGet();
             }
-            
-            log.info("정책 진화 완료: {} (버전 {} -> {})", 
-                policyId, policy.getVersion() - 1, policy.getVersion());
-            
+
             return Mono.just(PolicyLearningResult.evolved(policyId, policy.getVersion()));
         });
     }
-    
-    
+
     public Mono<GeneratedPolicy> generatePolicy(
             Map<String, Object> context,
             List<String> requirements) {
@@ -194,16 +162,13 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         
         return Mono.defer(() -> {
             String policyId = generatePolicyId(context);
-            
-            
+
             List<Document> similarPolicies = searchSimilarPolicies(context);
-            
-            
+
             EvolvingPolicy newPolicy = synthesizeNewPolicy(
                 policyId, context, requirements, similarPolicies
             );
-            
-            
+
             evolvingPolicies.put(policyId, newPolicy);
             savePolicyPattern(newPolicy);
             
@@ -216,12 +181,10 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             ));
         });
     }
-    
-    
+
     public Map<String, Double> getEvolvedThresholds(String eventType) {
         Map<String, Double> thresholds = new HashMap<>();
-        
-        
+
         thresholds.put("minimalThreshold", 0.8);
         thresholds.put("lowThreshold", 0.6);
         thresholds.put("mediumThreshold", 0.4);
@@ -257,10 +220,8 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
                         Double.parseDouble(metadata.get("highThreshold").toString()));
                 }
                 
-                log.debug("Using evolved thresholds for {}: {}", eventType, thresholds);
-            }
-            
-            
+                            }
+
             if (unifiedVectorService != null) {
                 String query = "threshold evolution " + eventType;
                 SearchRequest searchRequest = SearchRequest.builder()
@@ -273,8 +234,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
                 if (!docs.isEmpty()) {
                     Document doc = docs.get(0);
                     Map<String, Object> learnedThresholds = doc.getMetadata();
-                    
-                    
+
                     for (String key : thresholds.keySet()) {
                         if (learnedThresholds.containsKey(key)) {
                             try {
@@ -295,8 +255,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         
         return thresholds;
     }
-    
-    
+
     public double evaluatePolicyEffectiveness(String policyId) {
         PolicyEffectiveness metrics = effectivenessMetrics.get(policyId);
         if (metrics == null) {
@@ -305,8 +264,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         
         return metrics.calculateScore();
     }
-    
-    
+
     public Flux<PolicyRecommendation> recommendPolicies(
             Map<String, Object> context, 
             int topK) {
@@ -314,8 +272,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         return Flux.defer(() -> {
             
             List<Document> candidates = searchSimilarPolicies(context);
-            
-            
+
             return Flux.fromIterable(candidates)
                 .map(doc -> {
                     String policyId = doc.getMetadata().get("policyId").toString();
@@ -326,8 +283,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
                 .take(topK);
         });
     }
-    
-    
+
     private void updatePolicyEffectiveness(String policyId, boolean outcome) {
         PolicyEffectiveness metrics = effectivenessMetrics.computeIfAbsent(
             policyId, k -> new PolicyEffectiveness()
@@ -339,27 +295,23 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             metrics.incrementFailure();
         }
     }
-    
-    
+
     private boolean shouldEvolvePolicy(String policyId) {
         PolicyEffectiveness metrics = effectivenessMetrics.get(policyId);
         if (metrics == null) {
             return false;
         }
-        
-        
+
         return metrics.getTotalSamples() >= minSamplesForEvolution &&
                metrics.calculateScore() < evolutionThreshold;
     }
-    
-    
+
     private void adjustPolicyParameters(
             EvolvingPolicy policy,
             SecurityEvent event,
             String decision,
             boolean outcome) {
-        
-        
+
         Map<String, Double> params = policy.getParameters();
         double learningRate = 0.1;
         
@@ -372,23 +324,19 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         
         policy.incrementVersion();
     }
-    
-    
+
     private void synthesizePolicyRules(EvolvingPolicy policy, SecurityEvent event) {
         
         List<String> newRules = extractRulesFromEvent(event);
-        
-        
+
         Set<String> allRules = new HashSet<>(policy.getRules());
         allRules.addAll(newRules);
-        
-        
+
         allRules = resolveRuleConflicts(allRules);
         
         policy.setRules(new ArrayList<>(allRules));
     }
-    
-    
+
     private List<Document> searchSimilarPolicies(Map<String, Object> context) {
         String query = buildQueryFromContext(context);
         
@@ -400,8 +348,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
 
         return unifiedVectorService.searchSimilar(request);
     }
-    
-    
+
     private void savePolicyPattern(EvolvingPolicy policy) {
         try {
             
@@ -415,7 +362,6 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
 
             Map<String, Object> metadata = new HashMap<>();
 
-            
             metadata.put("documentType", VectorDocumentType.POLICY_EVOLUTION.getValue());
             metadata.put("policyId", policy.getId());
             metadata.put("version", policy.getVersion());
@@ -423,15 +369,12 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             metadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
             metadata.put("confidence", policy.getConfidence());
 
-            
             metadata.put("ruleCount", policy.getRules().size());
 
-            
             if (policy.getParameters() != null && !policy.getParameters().isEmpty()) {
                 metadata.put("parameters", policy.getParameters().toString());
             }
 
-            
             if (policy.getMetadata() != null && !policy.getMetadata().isEmpty()) {
                 for (Map.Entry<String, Object> entry : policy.getMetadata().entrySet()) {
                     metadata.put("policy_" + entry.getKey(), entry.getValue());
@@ -441,15 +384,11 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             Document doc = new Document(content, metadata);
             unifiedVectorService.storeDocument(doc);
 
-            log.debug("[PolicyEvolution] 정책 패턴 저장 완료: policyId={}, version={}, confidence={}",
-                policy.getId(), policy.getVersion(), policy.getConfidence());
-
         } catch (Exception e) {
             log.warn("[PolicyEvolution] 정책 패턴 저장 실패: policyId={}", policy.getId(), e);
         }
     }
-    
-    
+
     private void loadExistingPolicies() {
         
         Map<String, Object> filterCriteria = Map.of("type", "evolving_policy");
@@ -460,11 +399,9 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         for (Document doc : existingPolicies) {
             String policyId = doc.getMetadata().get("policyId").toString();
             
-            log.debug("기존 정책 로드: {}", policyId);
-        }
+                    }
     }
-    
-    
+
     private boolean isPositive(String outcome) {
         if (outcome == null) return false;
         String normalized = outcome.toUpperCase();
@@ -472,7 +409,6 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
                normalized.contains("LOW") || normalized.contains("PASS");
     }
 
-    
     private String extractPolicyId(SecurityEvent event) {
         return "policy_" + event.getSeverity() + "_" + event.getSource();
     }
@@ -513,10 +449,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         
         return policy;
     }
-    
-    
-    
-    
+
     private static class EvolvingPolicy {
         private final String id;
         private int version = 1;
@@ -528,8 +461,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         public EvolvingPolicy(String id) {
             this.id = id;
         }
-        
-        
+
         public String getId() { return id; }
         public int getVersion() { return version; }
         public void incrementVersion() { this.version++; }
@@ -544,8 +476,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             return new PolicyVersion(version, new ArrayList<>(rules), new HashMap<>(parameters));
         }
     }
-    
-    
+
     private static class PolicyVersion {
         private final int version;
         private final List<String> rules;
@@ -557,8 +488,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             this.parameters = parameters;
         }
     }
-    
-    
+
     private static class PolicyEffectiveness {
         private long successCount = 0;
         private long failureCount = 0;
@@ -576,8 +506,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             return (double) successCount / total;
         }
     }
-    
-    
+
     public static class PolicyLearningResult {
         private final String status;
         private final String policyId;
@@ -600,14 +529,12 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         public static PolicyLearningResult evolved(String policyId, int version) {
             return new PolicyLearningResult("evolved", policyId, version);
         }
-        
-        
+
         public String getStatus() { return status; }
         public String getPolicyId() { return policyId; }
         public int getVersion() { return version; }
     }
-    
-    
+
     public static class GeneratedPolicy {
         private final String id;
         private final List<String> rules;
@@ -618,14 +545,12 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             this.rules = rules;
             this.confidence = confidence;
         }
-        
-        
+
         public String getId() { return id; }
         public List<String> getRules() { return rules; }
         public double getConfidence() { return confidence; }
     }
-    
-    
+
     public static class PolicyRecommendation {
         private final String policyId;
         private final double score;
@@ -636,8 +561,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             this.score = score;
             this.document = document;
         }
-        
-        
+
         public String getPolicyId() { return policyId; }
         public double getScore() { return score; }
         public Document getDocument() { return document; }

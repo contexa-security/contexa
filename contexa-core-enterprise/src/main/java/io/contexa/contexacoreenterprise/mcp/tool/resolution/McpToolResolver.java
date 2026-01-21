@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import java.util.Arrays;
 import java.util.List;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class McpToolResolver implements ToolCallbackResolver {
@@ -22,14 +21,10 @@ public class McpToolResolver implements ToolCallbackResolver {
     @Override
     public ToolCallback resolve(String toolName) {
 
-        log.trace("MCP 도구 검색: {}", toolName);
-        
-        
         String actualToolName = toolName;
         if (toolName != null && toolName.startsWith("JavaSDKMCPClient_")) {
             actualToolName = toolName.substring("JavaSDKMCPClient_".length());
-            log.debug("MCP 도구 이름 변환: {} -> {}", toolName, actualToolName);
-        }
+                    }
         
         try {
             ToolCallback tool = mcpFunctionCallbackProvider.getMcpToolCallback(actualToolName).orElse(null);
@@ -40,18 +35,15 @@ public class McpToolResolver implements ToolCallbackResolver {
             return null;
         }
     }
-    
-    
+
     private ToolCallback wrapWithMcpContext(ToolCallback tool) {
         return new McpContextAwareToolCallback(tool, mcpProvider);
     }
-    
-    
+
     public boolean isConnected() {
         return mcpProvider != null && mcpProvider.isConnected();
     }
-    
-    
+
     public List<ToolCallback> getAllTools() {
         if (!isConnected()) {
             return List.of();
@@ -65,8 +57,7 @@ public class McpToolResolver implements ToolCallbackResolver {
             return List.of();
         }
     }
-    
-    
+
     public McpToolStatistics getStatistics() {
         if (!isConnected()) {
             return new McpToolStatistics(false, 0, null);
@@ -81,8 +72,7 @@ public class McpToolResolver implements ToolCallbackResolver {
             serverInfo
         );
     }
-    
-    
+
     private static class McpContextAwareToolCallback implements ToolCallback {
         private final ToolCallback delegate;
         private final McpClientProvider provider;
@@ -103,23 +93,17 @@ public class McpToolResolver implements ToolCallbackResolver {
             if (!provider.isConnected()) {
                 throw new McpConnectionException("MCP 서버 연결이 끊어짐");
             }
-            
-            log.trace("MCP 도구 호출: {} via {}", 
-                delegate.getToolDefinition().name(),
-                provider.getServerInfo());
-            
+
             return delegate.call(arguments);
         }
     }
-    
-    
+
     public static class McpConnectionException extends RuntimeException {
         public McpConnectionException(String message) {
             super(message);
         }
     }
-    
-    
+
     public record McpToolStatistics(
         boolean connected,
         int toolCount,

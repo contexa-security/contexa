@@ -10,11 +10,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 public class ToolCallDetectionHelper {
-    
-    
+
     private static final Pattern FUNCTION_CALL_PATTERN = Pattern.compile(
         "function_call|tool_call|execute_tool|run_tool", 
         Pattern.CASE_INSENSITIVE
@@ -29,35 +27,27 @@ public class ToolCallDetectionHelper {
         "\"(name|tool_name|function_name)\"\\s*:\\s*\"([^\"]+)\"",
         Pattern.CASE_INSENSITIVE
     );
-    
-    
+
     public boolean hasToolCalls(ChatResponse chatResponse) {
         if (chatResponse == null) {
             return false;
         }
-        
-        
+
         if (chatResponse.hasToolCalls()) {
-            log.debug("표준 hasToolCalls() 감지");
-            return true;
+                        return true;
         }
-        
-        
+
         if (hasToolCallsInGenerations(chatResponse)) {
-            log.debug("Generation 레벨에서 도구 호출 감지");
-            return true;
+                        return true;
         }
-        
-        
+
         if (hasToolCallsInText(chatResponse)) {
-            log.debug("텍스트 파싱으로 도구 호출 감지 (폴백)");
-            return true;
+                        return true;
         }
         
         return false;
     }
-    
-    
+
     private boolean hasToolCallsInGenerations(ChatResponse chatResponse) {
         List<Generation> generations = chatResponse.getResults();
         if (generations == null || generations.isEmpty()) {
@@ -68,23 +58,20 @@ public class ToolCallDetectionHelper {
             if (generation.getOutput() != null) {
                 List<AssistantMessage.ToolCall> toolCalls = generation.getOutput().getToolCalls();
                 if (toolCalls != null && !toolCalls.isEmpty()) {
-                    log.debug("Generation에서 {} 개의 도구 호출 발견", toolCalls.size());
-                    return true;
+                                        return true;
                 }
             }
         }
         
         return false;
     }
-    
-    
+
     private boolean hasToolCallsInText(ChatResponse chatResponse) {
         String content = extractTextContent(chatResponse);
         if (content == null || content.isEmpty()) {
             return false;
         }
-        
-        
+
         if (FUNCTION_CALL_PATTERN.matcher(content).find()) {
             return true;
         }
@@ -99,46 +86,37 @@ public class ToolCallDetectionHelper {
         
         return false;
     }
-    
-    
+
     public List<ToolCallInfo> extractToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
         if (chatResponse == null) {
             return toolCallInfos;
         }
-        
-        
+
         toolCallInfos.addAll(extractStandardToolCalls(chatResponse));
-        
-        
+
         if (toolCallInfos.isEmpty()) {
             toolCallInfos.addAll(extractGenerationToolCalls(chatResponse));
         }
-        
-        
+
         if (toolCallInfos.isEmpty()) {
             toolCallInfos.addAll(extractTextToolCalls(chatResponse));
         }
         
-        log.debug("총 {} 개의 도구 호출 추출됨", toolCallInfos.size());
-        return toolCallInfos;
+                return toolCallInfos;
     }
-    
-    
+
     private List<ToolCallInfo> extractStandardToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
         if (chatResponse.hasToolCalls()) {
-            
-            
-            log.debug("표준 방식으로 도구 호출 추출 시도");
-        }
+
+                    }
         
         return toolCallInfos;
     }
-    
-    
+
     private List<ToolCallInfo> extractGenerationToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
@@ -159,16 +137,14 @@ public class ToolCallDetectionHelper {
                             toolCall.arguments()
                         );
                         toolCallInfos.add(info);
-                        log.debug("Generation에서 도구 호출 추출: {}", info.getName());
-                    }
+                                            }
                 }
             }
         }
         
         return toolCallInfos;
     }
-    
-    
+
     private List<ToolCallInfo> extractTextToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCallInfos = new ArrayList<>();
         
@@ -176,8 +152,7 @@ public class ToolCallDetectionHelper {
         if (content == null || content.isEmpty()) {
             return toolCallInfos;
         }
-        
-        
+
         Matcher jsonMatcher = JSON_TOOL_PATTERN.matcher(content);
         while (jsonMatcher.find()) {
             String toolName = jsonMatcher.group(2);
@@ -188,10 +163,8 @@ public class ToolCallDetectionHelper {
                 extractArguments(content, jsonMatcher.end())
             );
             toolCallInfos.add(info);
-            log.debug("텍스트 파싱으로 도구 호출 추출: {}", toolName);
-        }
-        
-        
+                    }
+
         if (toolCallInfos.isEmpty()) {
             Matcher nameMatcher = TOOL_NAME_PATTERN.matcher(content);
             while (nameMatcher.find()) {
@@ -203,21 +176,18 @@ public class ToolCallDetectionHelper {
                     extractArguments(content, nameMatcher.end())
                 );
                 toolCallInfos.add(info);
-                log.debug("텍스트 파싱으로 도구 이름 추출: {}", toolName);
-            }
+                            }
         }
         
         return toolCallInfos;
     }
-    
-    
+
     private String extractTextContent(ChatResponse chatResponse) {
         if (chatResponse.getResult() != null && 
             chatResponse.getResult().getOutput() != null) {
             return chatResponse.getResult().getOutput().getText();
         }
-        
-        
+
         StringBuilder sb = new StringBuilder();
         List<Generation> generations = chatResponse.getResults();
         if (generations != null) {
@@ -231,8 +201,7 @@ public class ToolCallDetectionHelper {
         
         return sb.toString();
     }
-    
-    
+
     private String extractArguments(String content, int startIndex) {
         
         Pattern argsPattern = Pattern.compile(
@@ -247,8 +216,7 @@ public class ToolCallDetectionHelper {
         
         return "{}";
     }
-    
-    
+
     public static class ToolCallInfo {
         private final String id;
         private final String name;
@@ -273,17 +241,13 @@ public class ToolCallDetectionHelper {
                 id, name, type);
         }
     }
-    
-    
+
     public void logDetectionResult(ChatResponse chatResponse, boolean hasToolCalls) {
         if (hasToolCalls) {
             List<ToolCallInfo> toolCalls = extractToolCalls(chatResponse);
-            log.info("도구 호출 감지 성공: {} 개의 도구", toolCalls.size());
-            for (ToolCallInfo toolCall : toolCalls) {
-                log.debug("  - {}", toolCall);
-            }
+                        for (ToolCallInfo toolCall : toolCalls) {
+                            }
         } else {
-            log.debug("도구 호출이 감지되지 않음");
-        }
+                    }
     }
 }

@@ -17,17 +17,14 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SlackNotificationAdapter {
     
     private final ObjectMapper objectMapper;
-    
-    
+
     private WebClient slackWebClient;
-    
-    
+
     @Value("${slack.webhook.url:}")
     private String webhookUrl;
     
@@ -60,43 +57,31 @@ public class SlackNotificationAdapter {
     
     @Value("${slack.enabled:false}")
     private boolean slackEnabled;
-    
-    
+
     private final Map<String, MessageTemplate> messageTemplates = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalMessagesSent = new AtomicLong(0);
     private final AtomicLong failedMessages = new AtomicLong(0);
     private final Map<String, AtomicLong> channelMetrics = new ConcurrentHashMap<>();
-    
-    
+
     private final List<Long> messageTimes = Collections.synchronizedList(new ArrayList<>());
     
     @PostConstruct
     public void initialize() {
         if (!slackEnabled) {
-            log.info("Slack 알림 비활성화됨");
-            return;
+                        return;
         }
-        
-        log.info("Slack 알림 어댑터 초기화 시작");
-        
-        
+
         initializeWebClient();
-        
-        
+
         loadMessageTemplates();
-        
-        
+
         testConnection().subscribe(
-            success -> log.info("Slack 연결 테스트 성공"),
-            error -> log.error("Slack 연결 테스트 실패", error)
+                success -> log.info("Slack 연결 테스트 성공"),
+                error -> log.error("Slack 연결 테스트 실패", error)
         );
-        
-        log.info("Slack 알림 어댑터 초기화 완료");
     }
-    
-    
+
     public Mono<Boolean> sendToChannel(String channel, String title, Map<String, Object> context, UnifiedNotificationService.NotificationPriority priority) {
         if (!slackEnabled) {
             return Mono.just(false);
@@ -115,8 +100,7 @@ public class SlackNotificationAdapter {
                 return sendMessage(message);
             });
     }
-    
-    
+
     public Mono<Boolean> sendMessage(String text, String content, UnifiedNotificationService.NotificationPriority priority) {
         if (!slackEnabled) {
             return Mono.just(false);
@@ -134,25 +118,21 @@ public class SlackNotificationAdapter {
         
         return sendMessage(message);
     }
-    
-    
+
     public Mono<Boolean> sendApprovalRequest(String requestId, String toolName, String riskLevel, Map<String, Object> context) {
         if (!slackEnabled) {
             return Mono.just(false);
         }
         
         List<Block> blocks = new ArrayList<>();
-        
-        
+
         blocks.add(Block.header("🔐 도구 실행 승인 요청"));
-        
-        
+
         blocks.add(Block.section(
             String.format("*도구:* %s\n*위험도:* %s\n*요청 ID:* `%s`", 
                 toolName, riskLevel, requestId)
         ));
-        
-        
+
         if (context != null && !context.isEmpty()) {
             StringBuilder contextText = new StringBuilder();
             context.forEach((key, value) -> 
@@ -160,15 +140,13 @@ public class SlackNotificationAdapter {
             );
             blocks.add(Block.section("*상세 정보:*\n" + contextText.toString()));
         }
-        
-        
+
         blocks.add(Block.actions(Arrays.asList(
             Button.approve(requestId),
             Button.reject(requestId),
             Button.moreInfo(requestId)
         )));
-        
-        
+
         blocks.add(Block.context(
             String.format("요청 시간: %s", LocalDateTime.now())
         ));
@@ -183,27 +161,22 @@ public class SlackNotificationAdapter {
         
         return sendMessage(message);
     }
-    
-    
+
     public Mono<Boolean> sendSecurityAlert(String title, String severity, Map<String, String> details, List<String> recommendations) {
         if (!slackEnabled) {
             return Mono.just(false);
         }
         
         List<Block> blocks = new ArrayList<>();
-        
-        
+
         String color = getColorForSeverity(severity);
-        
-        
+
         blocks.add(Block.header(String.format("%s", title)));
-        
-        
+
         blocks.add(Block.section(
             String.format("*심각도:* %s %s", getEmojiForSeverity(severity), severity)
         ));
-        
-        
+
         if (details != null && !details.isEmpty()) {
             StringBuilder detailText = new StringBuilder("*상세 정보:*\n");
             details.forEach((key, value) -> 
@@ -211,8 +184,7 @@ public class SlackNotificationAdapter {
             );
             blocks.add(Block.section(detailText.toString()));
         }
-        
-        
+
         if (recommendations != null && !recommendations.isEmpty()) {
             StringBuilder recText = new StringBuilder("*권장 조치:*\n");
             recommendations.forEach(rec -> 
@@ -220,11 +192,9 @@ public class SlackNotificationAdapter {
             );
             blocks.add(Block.section(recText.toString()));
         }
-        
-        
+
         blocks.add(Block.divider());
-        
-        
+
         blocks.add(Block.context(
             String.format("감지 시간: %s | ", LocalDateTime.now())
         ));
@@ -245,15 +215,13 @@ public class SlackNotificationAdapter {
         
         return sendMessage(message);
     }
-    
-    
+
     private Mono<Boolean> sendMessage(SlackMessage message) {
         
         if (webhookUrl != null && !webhookUrl.isEmpty()) {
             return sendViaWebhook(message);
         }
-        
-        
+
         if (apiToken != null && !apiToken.isEmpty()) {
             return sendViaApi(message);
         }
@@ -261,8 +229,7 @@ public class SlackNotificationAdapter {
         log.error("Slack Webhook URL 또는 API Token이 설정되지 않음");
         return Mono.just(false);
     }
-    
-    
+
     private Mono<Boolean> sendViaWebhook(SlackMessage message) {
         return slackWebClient.post()
             .uri(webhookUrl)
@@ -275,8 +242,7 @@ public class SlackNotificationAdapter {
                 channelMetrics.computeIfAbsent(message.getChannel(), k -> new AtomicLong())
                     .incrementAndGet();
                 recordMessageTime();
-                log.debug("Slack 메시지 전송 성공: {}", message.getChannel());
-                return true;
+                                return true;
             })
             .retryWhen(Retry.backoff(maxRetryAttempts, Duration.ofSeconds(retryDelaySeconds)))
             .onErrorResume(error -> {
@@ -285,8 +251,7 @@ public class SlackNotificationAdapter {
                 return Mono.just(false);
             });
     }
-    
-    
+
     private Mono<Boolean> sendViaApi(SlackMessage message) {
         return slackWebClient.post()
             .uri("https://slack.com/api/chat.postMessage")
@@ -301,8 +266,7 @@ public class SlackNotificationAdapter {
                     channelMetrics.computeIfAbsent(message.getChannel(), k -> new AtomicLong())
                         .incrementAndGet();
                     recordMessageTime();
-                    log.debug("Slack API 메시지 전송 성공: {}", message.getChannel());
-                    return true;
+                                        return true;
                 } else {
                     log.error("Slack API 오류: {}", response.getError());
                     failedMessages.incrementAndGet();
@@ -316,12 +280,10 @@ public class SlackNotificationAdapter {
                 return Mono.just(false);
             });
     }
-    
-    
+
     private void initializeWebClient() {
         WebClient.Builder builder = WebClient.builder();
-        
-        
+
         if (webhookUrl != null && !webhookUrl.isEmpty()) {
             builder.baseUrl(webhookUrl);
         }
@@ -330,36 +292,30 @@ public class SlackNotificationAdapter {
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .build();
     }
-    
-    
+
     private void loadMessageTemplates() {
         
         messageTemplates.put("SECURITY_EVENT", new MessageTemplate(
             ":warning: 보안 이벤트 감지",
             "이벤트: ${eventType}\n위험도: ${riskLevel}\n시간: ${timestamp}"
         ));
-        
-        
+
         messageTemplates.put("APPROVAL_REQUEST", new MessageTemplate(
             ":lock: 승인 필요",
             "도구: ${toolName}\n위험도: ${riskLevel}\nID: ${requestId}"
         ));
-        
-        
+
         messageTemplates.put("INCIDENT", new MessageTemplate(
             ":rotating_light: 보안 인시던트",
             "유형: ${incidentType}\n심각도: ${severity}\n영향: ${impact}"
         ));
     }
-    
-    
+
     private SlackMessage buildMessage(String title, Map<String, Object> context, UnifiedNotificationService.NotificationPriority priority) {
         List<Block> blocks = new ArrayList<>();
-        
-        
+
         blocks.add(Block.header(title));
-        
-        
+
         if (context != null && !context.isEmpty()) {
             StringBuilder text = new StringBuilder();
             context.forEach((key, value) -> {
@@ -367,8 +323,7 @@ public class SlackNotificationAdapter {
             });
             blocks.add(Block.section(text.toString()));
         }
-        
-        
+
         blocks.add(Block.context(
             String.format("우선순위: %s | 시간: %s", priority, LocalDateTime.now())
         ));
@@ -380,8 +335,7 @@ public class SlackNotificationAdapter {
             .blocks(blocks)
             .build();
     }
-    
-    
+
     private List<Block> createTextBlocks(String title, String content, UnifiedNotificationService.NotificationPriority priority) {
         List<Block> blocks = new ArrayList<>();
         
@@ -393,8 +347,7 @@ public class SlackNotificationAdapter {
         
         return blocks;
     }
-    
-    
+
     private String selectChannel(UnifiedNotificationService.NotificationPriority priority) {
         return switch (priority) {
             case URGENT -> urgentChannel;
@@ -402,8 +355,7 @@ public class SlackNotificationAdapter {
             default -> defaultChannel;
         };
     }
-    
-    
+
     private String getColorForSeverity(String severity) {
         return switch (severity) {
             case "CRITICAL" -> "#FF0000";  
@@ -413,8 +365,7 @@ public class SlackNotificationAdapter {
             default -> "#808080";           
         };
     }
-    
-    
+
     private String getEmojiForSeverity(String severity) {
         return switch (severity) {
             case "CRITICAL" -> "🔴";
@@ -424,17 +375,14 @@ public class SlackNotificationAdapter {
             default -> "⚪";
         };
     }
-    
-    
+
     private Mono<Boolean> checkRateLimit() {
         return Mono.fromCallable(() -> {
             long now = System.currentTimeMillis();
             long oneMinuteAgo = now - 60000;
-            
-            
+
             messageTimes.removeIf(time -> time < oneMinuteAgo);
-            
-            
+
             if (messageTimes.size() >= rateLimitPerMinute) {
                 return false;
             }
@@ -442,13 +390,11 @@ public class SlackNotificationAdapter {
             return true;
         });
     }
-    
-    
+
     private void recordMessageTime() {
         messageTimes.add(System.currentTimeMillis());
     }
-    
-    
+
     private Mono<Boolean> testConnection() {
         if (webhookUrl != null && !webhookUrl.isEmpty()) {
             
@@ -468,8 +414,7 @@ public class SlackNotificationAdapter {
         
         return Mono.just(false);
     }
-    
-    
+
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("enabled", slackEnabled);
@@ -487,10 +432,7 @@ public class SlackNotificationAdapter {
         
         return metrics;
     }
-    
-    
-    
-    
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor
@@ -504,8 +446,7 @@ public class SlackNotificationAdapter {
         private List<Block> blocks;
         private List<Attachment> attachments;
     }
-    
-    
+
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class Block {
@@ -565,8 +506,7 @@ public class SlackNotificationAdapter {
             
         }
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     private static class Button {
@@ -615,8 +555,7 @@ public class SlackNotificationAdapter {
             return map;
         }
     }
-    
-    
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor
@@ -630,8 +569,7 @@ public class SlackNotificationAdapter {
         private String footerIcon;
         private Long ts;
     }
-    
-    
+
     @lombok.Data
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
@@ -641,8 +579,7 @@ public class SlackNotificationAdapter {
         private String warning;
         private Map<String, Object> responseMetadata;
     }
-    
-    
+
     @lombok.AllArgsConstructor
     private static class MessageTemplate {
         private final String title;

@@ -23,18 +23,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class MemorySystemHelper implements MemorySystem {
 
-    
     private final UnifiedVectorService unifiedVectorService;
     private final StandardVectorStoreService standardVectorStoreService;
     private final DistributedStateManager stateManager;
     private final RedisTemplate<String, Object> redisTemplate;
-    
-    
+
     @Value("${memory.system.enabled:true}")
     private boolean memoryEnabled;
     
@@ -58,20 +55,15 @@ public class MemorySystemHelper implements MemorySystem {
     
     @Value("${memory.consolidation.interval-minutes:15}")
     private int consolidationIntervalMinutes;
-    
-    
+
     private final Map<String, MemoryItem> shortTermMemory = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, WorkingMemoryItem> workingMemory = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, Set<String>> memoryIndex = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, AccessPattern> accessPatterns = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalMemoryWrites = new AtomicLong(0);
     private final AtomicLong totalMemoryReads = new AtomicLong(0);
     private final AtomicLong consolidationCycles = new AtomicLong(0);
@@ -80,33 +72,23 @@ public class MemorySystemHelper implements MemorySystem {
     @PostConstruct
     public void initialize() {
         if (!memoryEnabled) {
-            log.info("메모리 시스템 비활성화됨");
-            return;
+                        return;
         }
-        
-        log.info("MemorySystemHelper 초기화 시작");
-        
-        
+
         restoreMemoryState();
-        
-        
+
         startMemoryManagement();
         
-        log.info("MemorySystemHelper 초기화 완료 - STM: {} items, WM: {} items", 
-                shortTermMemory.size(), workingMemory.size());
-    }
-    
-    
+            }
+
     public void storeMemory(String key, Object value) {
         storeInSTM(key, value, new HashMap<>()).subscribe();
     }
 
-    
     public void store(String key, Object value) {
         storeMemory(key, value);
     }
-    
-    
+
     @Override
     public Mono<Void> storeInSTM(String key, Object value, Map<String, Object> metadata) {
         if (!memoryEnabled) {
@@ -119,18 +101,14 @@ public class MemorySystemHelper implements MemorySystem {
                 evictOldestFromSTM();
             }
 
-            
             MemoryItem item = new MemoryItem(
                 key, value, metadata, LocalDateTime.now(), MemoryType.SHORT_TERM
             );
 
-            
             shortTermMemory.put(key, item);
 
-            
             updateMemoryIndex(key, metadata);
 
-            
             recordAccess(key, AccessType.WRITE);
 
             totalMemoryWrites.incrementAndGet();
@@ -138,8 +116,7 @@ public class MemorySystemHelper implements MemorySystem {
             return Mono.empty();
         });
     }
-    
-    
+
     @Override
     public Mono<Void> storeInWM(String key, Object value, String namespace) {
         if (!memoryEnabled) {
@@ -152,15 +129,12 @@ public class MemorySystemHelper implements MemorySystem {
                 evictOldestFromWM();
             }
 
-            
             WorkingMemoryItem item = new WorkingMemoryItem(
                 key, value, namespace, LocalDateTime.now()
             );
 
-            
             workingMemory.put(key, item);
 
-            
             String redisKey = "wm:" + key;
             redisTemplate.opsForValue().set(redisKey, value, wmTtlSeconds, TimeUnit.SECONDS);
 
@@ -169,8 +143,7 @@ public class MemorySystemHelper implements MemorySystem {
             return Mono.empty();
         });
     }
-    
-    
+
     public Mono<MemoryResult> storeInLTM(String key, String content, Map<String, Object> metadata) {
         if (!memoryEnabled) {
             return Mono.just(MemoryResult.disabled());
@@ -181,20 +154,17 @@ public class MemorySystemHelper implements MemorySystem {
                 
                 Map<String, Object> ltmMetadata = new HashMap<>(metadata);
 
-                
                 ltmMetadata.put("documentType", VectorDocumentType.MEMORY_LTM.getValue());
                 ltmMetadata.put("memoryType", "LONG_TERM");
                 ltmMetadata.put("key", key);
                 ltmMetadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
 
-                
                 AccessPattern pattern = accessPatterns.get(key);
                 if (pattern != null) {
                     ltmMetadata.put("accessCount", pattern.getAccessCount());
                     ltmMetadata.put("importanceScore", pattern.calculateImportanceScore());
                 }
 
-                
                 if (metadata.containsKey("userId")) {
                     ltmMetadata.put("userId", metadata.get("userId"));
                 }
@@ -205,16 +175,11 @@ public class MemorySystemHelper implements MemorySystem {
                     ltmMetadata.put("category", metadata.get("category"));
                 }
 
-                
                 Document doc = new Document(content, ltmMetadata);
 
-                
                 unifiedVectorService.storeDocument(doc);
 
                 totalMemoryWrites.incrementAndGet();
-
-                log.debug("[MemorySystem] LTM 저장 완료: key={}, importanceScore={}",
-                    key, pattern != null ? pattern.calculateImportanceScore() : "N/A");
 
                 return Mono.just(MemoryResult.stored(key, MemoryType.LONG_TERM));
 
@@ -224,8 +189,7 @@ public class MemorySystemHelper implements MemorySystem {
             }
         });
     }
-    
-    
+
     public Mono<MemoryItem> retrieve(String key) {
         if (!memoryEnabled) {
             return Mono.empty();
@@ -239,25 +203,21 @@ public class MemorySystemHelper implements MemorySystem {
                 totalMemoryReads.incrementAndGet();
                 return Mono.just(wmItem.toMemoryItem());
             }
-            
-            
+
             MemoryItem stmItem = shortTermMemory.get(key);
             if (stmItem != null) {
                 recordAccess(key, AccessType.READ);
                 totalMemoryReads.incrementAndGet();
-                
-                
+
                 promoteToWorkingMemory(stmItem);
                 
                 return Mono.just(stmItem);
             }
-            
-            
+
             return searchInLTM(key);
         });
     }
-    
-    
+
     public Flux<MemoryItem> searchSimilar(String query, int topK) {
         if (!memoryEnabled) {
             return Flux.empty();
@@ -267,15 +227,13 @@ public class MemorySystemHelper implements MemorySystem {
             
             List<MemoryItem> stmResults = searchInSTM(query, topK);
 
-            
             org.springframework.ai.vectorstore.SearchRequest searchRequest = org.springframework.ai.vectorstore.SearchRequest.builder()
                 .query(query)
                 .topK(topK)
                 .similarityThreshold(0.7)
                 .build();
             List<Document> ltmResults = unifiedVectorService.searchSimilar(searchRequest);
-            
-            
+
             return Flux.concat(
                 Flux.fromIterable(stmResults),
                 Flux.fromIterable(ltmResults)
@@ -284,16 +242,12 @@ public class MemorySystemHelper implements MemorySystem {
             .take(topK);
         });
     }
-    
-    
 
     public void consolidateMemory() {
         if (!memoryEnabled) {
             return;
         }
-        
-        log.debug("메모리 통합 시작");
-        
+
         List<MemoryItem> itemsToConsolidate = shortTermMemory.values().stream()
             .filter(this::shouldConsolidate)
             .collect(Collectors.toList());
@@ -308,32 +262,26 @@ public class MemorySystemHelper implements MemorySystem {
                 result -> {
                     
                     shortTermMemory.remove(item.getKey());
-                    log.debug("메모리 통합 완료: {}", item.getKey());
-                },
+                                    },
                 error -> log.error("메모리 통합 실패: {}", item.getKey(), error)
             );
         }
         
         consolidationCycles.incrementAndGet();
-        log.debug("메모리 통합 완료 - {} 항목 처리됨", itemsToConsolidate.size());
-    }
-    
-    
+            }
 
     public void cleanupMemory() {
         if (!memoryEnabled) {
             return;
         }
-        
-        
+
         LocalDateTime stmExpiry = LocalDateTime.now().minusMinutes(stmTtlMinutes);
         shortTermMemory.entrySet().removeIf(entry -> {
             boolean expired = entry.getValue().getTimestamp().isBefore(stmExpiry);
             if (expired) evictionCount.incrementAndGet();
             return expired;
         });
-        
-        
+
         LocalDateTime wmExpiry = LocalDateTime.now().minusSeconds(wmTtlSeconds);
         workingMemory.entrySet().removeIf(entry -> {
             boolean expired = entry.getValue().getTimestamp().isBefore(wmExpiry);
@@ -341,8 +289,6 @@ public class MemorySystemHelper implements MemorySystem {
             return expired;
         });
     }
-    
-    
 
     public void saveMemoryState() {
         if (!memoryEnabled) {
@@ -361,8 +307,7 @@ public class MemorySystemHelper implements MemorySystem {
                 "consolidations", consolidationCycles.get(),
                 "evictions", evictionCount.get()
             ));
-            
-            
+
             DistributedStateManager.SecurityState securityState = DistributedStateManager.SecurityState.builder()
                 .id("memory_system")
                 .type("memory")
@@ -372,13 +317,11 @@ public class MemorySystemHelper implements MemorySystem {
                 .version(1)
                 .build();
             stateManager.saveState("memory_system", securityState).subscribe();
-            log.debug("메모리 상태 저장 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("메모리 상태 저장 실패", e);
         }
     }
-    
-    
+
     public MemoryStatistics getStatistics() {
         return new MemoryStatistics(
             shortTermMemory.size(),
@@ -390,9 +333,7 @@ public class MemorySystemHelper implements MemorySystem {
             calculateMemoryEfficiency()
         );
     }
-    
-    
-    
+
     private void evictOldestFromSTM() {
         shortTermMemory.entrySet().stream()
             .min(Comparator.comparing(e -> e.getValue().getTimestamp()))
@@ -435,8 +376,7 @@ public class MemorySystemHelper implements MemorySystem {
         if (pattern == null) {
             return false;
         }
-        
-        
+
         double score = pattern.calculateImportanceScore();
         return score >= ltmConsolidationThreshold;
     }
@@ -483,8 +423,7 @@ public class MemorySystemHelper implements MemorySystem {
                 savedState -> {
                     if (savedState != null) {
                         
-                        log.info("메모리 상태 복원 완료");
-                    }
+                                            }
                 },
                 error -> log.warn("메모리 상태 복원 실패, 새로 시작", error)
             );
@@ -495,8 +434,7 @@ public class MemorySystemHelper implements MemorySystem {
     
     private void startMemoryManagement() {
         
-        log.debug("메모리 관리 워커 시작됨");
-    }
+            }
     
     private double calculateMemoryEfficiency() {
         long reads = totalMemoryReads.get();
@@ -504,17 +442,13 @@ public class MemorySystemHelper implements MemorySystem {
         long evictions = evictionCount.get();
         
         if (writes == 0) return 0.0;
-        
-        
+
         double readWriteRatio = (double) reads / writes;
         double evictionRate = (double) evictions / writes;
         
         return Math.max(0.0, Math.min(1.0, readWriteRatio * (1.0 - evictionRate)));
     }
-    
-    
-    
-    
+
     public static class MemoryItem {
         private final String key;
         private final Object value;
@@ -530,16 +464,14 @@ public class MemorySystemHelper implements MemorySystem {
             this.timestamp = timestamp;
             this.type = type;
         }
-        
-        
+
         public String getKey() { return key; }
         public Object getValue() { return value; }
         public Map<String, Object> getMetadata() { return metadata; }
         public LocalDateTime getTimestamp() { return timestamp; }
         public MemoryType getType() { return type; }
     }
-    
-    
+
     private static class WorkingMemoryItem {
         private final String key;
         private final Object value;
@@ -561,12 +493,10 @@ public class MemorySystemHelper implements MemorySystem {
                 MemoryType.WORKING
             );
         }
-        
-        
+
         public LocalDateTime getTimestamp() { return timestamp; }
     }
-    
-    
+
     private static class AccessPattern {
         private long readCount = 0;
         private long writeCount = 0;
@@ -588,26 +518,22 @@ public class MemorySystemHelper implements MemorySystem {
         public double calculateImportanceScore() {
             long totalAccess = getAccessCount();
             long hoursSinceAccess = Duration.between(lastAccess, LocalDateTime.now()).toHours();
-            
-            
+
             return totalAccess / (1.0 + hoursSinceAccess);
         }
     }
-    
-    
+
     public enum MemoryType {
         SHORT_TERM,
         LONG_TERM,
         WORKING
     }
-    
-    
+
     private enum AccessType {
         READ,
         WRITE
     }
-    
-    
+
     public static class MemoryResult {
         private final String status;
         private final String key;
@@ -626,14 +552,12 @@ public class MemorySystemHelper implements MemorySystem {
         public static MemoryResult stored(String key, MemoryType type) {
             return new MemoryResult("stored", key, type);
         }
-        
-        
+
         public String getStatus() { return status; }
         public String getKey() { return key; }
         public MemoryType getType() { return type; }
     }
-    
-    
+
     public static class MemoryStatistics {
         private final int stmSize;
         private final int wmSize;
@@ -653,8 +577,7 @@ public class MemorySystemHelper implements MemorySystem {
             this.evictions = evictions;
             this.efficiency = efficiency;
         }
-        
-        
+
         public int getStmSize() { return stmSize; }
         public int getWmSize() { return wmSize; }
         public long getTotalWrites() { return totalWrites; }

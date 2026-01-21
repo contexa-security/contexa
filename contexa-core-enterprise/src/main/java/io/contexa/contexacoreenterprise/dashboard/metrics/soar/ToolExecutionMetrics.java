@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
 
@@ -23,7 +22,6 @@ public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
     private final AtomicLong totalApprovals = new AtomicLong(0);
     private final AtomicLong totalRejections = new AtomicLong(0);
 
-    
     private Counter executionCounter;
     private Counter approvalCounter;
     private Counter rejectionCounter;
@@ -59,9 +57,6 @@ public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
         });
     }
 
-    
-
-    
     public void recordExecution(String toolName, long executionTime, boolean success) {
         totalExecutions.incrementAndGet();
 
@@ -73,10 +68,8 @@ public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
         executionCounter.increment();
         executionTimer.record(Duration.ofMillis(executionTime));
 
-        log.debug("도구 실행 기록: {} - {}ms, 성공={}", toolName, executionTime, success);
-    }
+            }
 
-    
     public void recordApproval(String toolName, boolean approved, long responseTime) {
         if (approved) {
             totalApprovals.incrementAndGet();
@@ -91,10 +84,8 @@ public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
 
         metrics.recordApproval(approved, responseTime);
 
-        log.debug("승인 기록: {} - 승인={}, 응답시간={}ms", toolName, approved, responseTime);
-    }
+            }
 
-    
     public void recordFiltered(String toolName, String reason) {
         ToolMetrics metrics = toolMetricsMap.computeIfAbsent(toolName,
                 k -> new ToolMetrics(toolName));
@@ -106,15 +97,12 @@ public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
                 .register(meterRegistry);
         filteredCounter.increment();
 
-        log.debug("도구 필터링 기록: {} - 이유={}", toolName, reason);
-    }
+            }
 
-    
     public ToolMetrics getToolMetrics(String toolName) {
         return toolMetricsMap.get(toolName);
     }
 
-    
     public Map<String, Object> getAllMetrics() {
         Map<String, Object> metrics = new ConcurrentHashMap<>();
         metrics.put("totalExecutions", totalExecutions.get());
@@ -159,7 +147,6 @@ public class ToolExecutionMetrics extends AbstractMicrometerMetrics {
         totalRejections.set(0);
     }
 
-    
     @Data
     public static class ToolMetrics {
         private final String toolName;

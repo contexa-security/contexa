@@ -23,20 +23,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class LearningEngineHelper implements LearningEngine {
-    
-    
+
     private final AITuningService aiTuningService;
     private final DistributedStateManager stateManager;
-    
-    
+
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
-    
-    
+
     @Value("${learning.engine.enabled:true}")
     private boolean learningEnabled;
     
@@ -54,23 +50,17 @@ public class LearningEngineHelper implements LearningEngine {
     
     @Value("${learning.engine.pattern-min-occurrences:3}")
     private int patternMinOccurrences;
-    
-    
+
     private final Map<String, LearningContext> learningContexts = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, LearnedPattern> learnedPatterns = new ConcurrentHashMap<>();
-    
-    
+
     private final Queue<LearningEvent> learningQueue = new LinkedList<>();
-    
-    
+
     private final Map<String, FeedbackData> feedbackStore = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, LearningEvent> learningEvents = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalLearningCycles = new AtomicLong(0);
     private final AtomicLong patternsIdentified = new AtomicLong(0);
     private final AtomicLong feedbackProcessed = new AtomicLong(0);
@@ -78,22 +68,15 @@ public class LearningEngineHelper implements LearningEngine {
     @PostConstruct
     public void initialize() {
         if (!learningEnabled) {
-            log.info("학습 엔진 비활성화됨");
-            return;
+                        return;
         }
-        
-        log.info("LearningEngineHelper 초기화 시작");
-        
-        
+
         restoreLearningState();
-        
-        
+
         startLearningWorker();
         
-        log.info("LearningEngineHelper 초기화 완료 - {} 개의 패턴 로드됨", learnedPatterns.size());
-    }
-    
-    
+            }
+
     @Override
     public Mono<?> learnFromEvent(
             SecurityEvent event,
@@ -109,12 +92,10 @@ public class LearningEngineHelper implements LearningEngine {
             LearningEvent learningEvent = new LearningEvent(
                 event, response, effectiveness, LocalDateTime.now()
             );
-            
-            
+
             synchronized (learningQueue) {
                 learningQueue.offer(learningEvent);
-                
-                
+
                 if (learningQueue.size() >= batchSize) {
                     return processBatchLearning();
                 }
@@ -124,8 +105,7 @@ public class LearningEngineHelper implements LearningEngine {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<FeedbackResult> processFeedback(
             String eventId,
             FeedbackType feedback,
@@ -139,17 +119,14 @@ public class LearningEngineHelper implements LearningEngine {
             
             FeedbackData data = new FeedbackData(eventId, feedback, details, LocalDateTime.now());
             feedbackStore.put(eventId, data);
-            
-            
+
             updateLearningContextWithFeedback(eventId, feedback);
-            
-            
+
             if (feedback == FeedbackType.FALSE_POSITIVE) {
                 
                 SecurityEvent originalEvent = findOriginalEvent(eventId);
                 if (originalEvent != null) {
-                    
-                    
+
                     return Mono.just(FeedbackResult.processed(eventId));
                 }
             }
@@ -159,8 +136,7 @@ public class LearningEngineHelper implements LearningEngine {
             return Mono.just(FeedbackResult.processed(eventId));
         });
     }
-    
-    
+
     public Flux<LearnedPattern> identifyPatterns(List<SecurityEvent> events) {
         if (!learningEnabled || events.isEmpty()) {
             return Flux.empty();
@@ -174,11 +150,9 @@ public class LearningEngineHelper implements LearningEngine {
                 .map(entry -> {
                     String patternId = entry.getKey();
                     List<SecurityEvent> patternEvents = entry.getValue();
-                    
-                    
+
                     LearnedPattern pattern = learnPattern(patternId, patternEvents);
-                    
-                    
+
                     learnedPatterns.put(patternId, pattern);
                     patternsIdentified.incrementAndGet();
                     
@@ -186,8 +160,7 @@ public class LearningEngineHelper implements LearningEngine {
                 });
         });
     }
-    
-    
+
     @Override
     public Mono<?> applyLearning(SecurityEvent event) {
         if (!learningEnabled) {
@@ -201,8 +174,7 @@ public class LearningEngineHelper implements LearningEngine {
             if (matchingPattern == null) {
                 return Mono.just(PredictionResult.noMatch());
             }
-            
-            
+
             double confidence = matchingPattern.getConfidence();
             String predictedResponse = matchingPattern.getRecommendedResponse();
             List<String> alternatives = matchingPattern.getAlternativeResponses();
@@ -215,8 +187,7 @@ public class LearningEngineHelper implements LearningEngine {
             ));
         });
     }
-    
-    
+
     private Mono<LearningResult> processBatchLearning() {
         return Mono.defer(() -> {
             List<LearningEvent> batch = new ArrayList<>();
@@ -230,13 +201,11 @@ public class LearningEngineHelper implements LearningEngine {
             if (batch.isEmpty()) {
                 return Mono.just(LearningResult.nothingToLearn());
             }
-            
-            
+
             for (LearningEvent event : batch) {
                 updateLearningContext(event);
             }
-            
-            
+
             reevaluatePatterns();
             
             totalLearningCycles.incrementAndGet();
@@ -245,8 +214,7 @@ public class LearningEngineHelper implements LearningEngine {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Double predictTrustScore(Map<String, Object> contextMap) {
         if (!learningEnabled || contextMap == null) {
             return 0.5; 
@@ -257,8 +225,7 @@ public class LearningEngineHelper implements LearningEngine {
             String userId = (String) contextMap.get("userId");
             String sourceIp = (String) contextMap.get("sourceIp");
             String userAgent = (String) contextMap.get("userAgent");
-            
-            
+
             double totalScore = 0.0;
             double totalWeight = 0.0;
             int matchCount = 0;
@@ -276,25 +243,17 @@ public class LearningEngineHelper implements LearningEngine {
                     matchCount++;
                 }
             }
-            
-            
+
             if (totalWeight > 0) {
                 double predictedScore = totalScore / totalWeight;
-                
-                
+
                 double confidence = Math.min(1.0, matchCount / 10.0); 
-                
-                
-                
+
                 double finalScore = predictedScore * confidence + 0.5 * (1 - confidence);
-                
-                log.debug("Predicted trust score: {} (based on {} patterns, confidence: {})", 
-                    finalScore, matchCount, confidence);
-                
+
                 return finalScore;
             }
-            
-            
+
             return 0.5;
             
         } catch (Exception e) {
@@ -302,8 +261,7 @@ public class LearningEngineHelper implements LearningEngine {
             return 0.5; 
         }
     }
-    
-    
+
     private double calculateSimilarity(Map<String, Object> context, LearnedPattern pattern) {
         
         Set<String> contextKeys = context.keySet();
@@ -318,11 +276,9 @@ public class LearningEngineHelper implements LearningEngine {
         if (union.isEmpty()) {
             return 0.0;
         }
-        
-        
+
         double similarity = (double) intersection.size() / union.size();
-        
-        
+
         double valueMatch = 0.0;
         for (String key : intersection) {
             Object contextValue = context.get(key);
@@ -336,101 +292,83 @@ public class LearningEngineHelper implements LearningEngine {
         if (!intersection.isEmpty()) {
             valueMatch = valueMatch / intersection.size();
         }
-        
-        
+
         return (similarity + valueMatch) / 2.0;
     }
-    
-    
+
     private void updateLearningContext(LearningEvent event) {
         String contextId = generateContextId(event.getEvent());
         
         LearningContext context = learningContexts.computeIfAbsent(
             contextId, k -> new LearningContext(k)
         );
-        
-        
+
         context.addEvent(event);
-        
-        
+
         context.updateEffectiveness(event.getEffectiveness());
-        
-        
+
         context.recordResponse(event.getResponse(), event.getEffectiveness());
     }
-    
-    
+
     private void updateLearningContextWithFeedback(String eventId, FeedbackType feedback) {
         
         learningContexts.values().forEach(context -> {
             context.applyFeedback(eventId, feedback);
         });
     }
-    
-    
+
     private void reevaluatePatterns() {
         learnedPatterns.values().forEach(pattern -> {
             
             pattern.recalculateConfidence();
-            
-            
+
             if (pattern.isExpired(retentionHours)) {
                 learnedPatterns.remove(pattern.getPatternId());
             }
         });
     }
-    
-    
+
     private Map<String, List<SecurityEvent>> groupEventsByPattern(List<SecurityEvent> events) {
         return events.stream()
             .collect(Collectors.groupingBy(this::extractPatternSignature));
     }
-    
-    
+
     private LearnedPattern learnPattern(String patternId, List<SecurityEvent> events) {
         LearnedPattern pattern = new LearnedPattern(patternId);
-        
-        
+
         pattern.extractFeatures(events);
-        
-        
+
         pattern.determineOptimalResponse(events);
-        
-        
+
         pattern.calculateConfidence();
         
         return pattern;
     }
-    
-    
+
     private LearnedPattern findMatchingPattern(SecurityEvent event) {
         String signature = extractPatternSignature(event);
-        
-        
+
         LearnedPattern exactMatch = learnedPatterns.get(signature);
         if (exactMatch != null && exactMatch.getConfidence() >= confidenceThreshold) {
             return exactMatch;
         }
-        
-        
+
         return learnedPatterns.values().stream()
             .filter(p -> p.matches(event) && p.getConfidence() >= confidenceThreshold)
             .max(Comparator.comparingDouble(LearnedPattern::getConfidence))
             .orElse(null);
     }
-    
-    
+
     private void startLearningWorker() {
         
         Flux.interval(Duration.ofMinutes(5))
             .flatMap(tick -> processBatchLearning())
-            .subscribe(
-                result -> log.debug("배치 학습 완료: {}", result),
-                error -> log.error("배치 학습 실패", error)
-            );
+                .subscribe(
+                        result -> log.debug("배치 학습 완료: {}", result),
+                        error -> log.error("배치 학습 실패", error)
+                );
     }
-    
-    
+
     private void restoreLearningState() {
         
         try {
@@ -439,8 +377,7 @@ public class LearningEngineHelper implements LearningEngine {
                 savedState -> {
                     if (savedState != null) {
                         
-                        log.info("학습 상태 복원 완료");
-                    }
+                                            }
                 },
                 error -> log.warn("학습 상태 복원 실패, 새로 시작", error)
             );
@@ -448,8 +385,6 @@ public class LearningEngineHelper implements LearningEngine {
             log.warn("학습 상태 복원 중 예외 발생", e);
         }
     }
-    
-    
 
     public void saveLearningState() {
         if (!learningEnabled) {
@@ -465,8 +400,7 @@ public class LearningEngineHelper implements LearningEngine {
                 "patternsIdentified", patternsIdentified.get(),
                 "feedbackProcessed", feedbackProcessed.get()
             ));
-            
-            
+
             DistributedStateManager.SecurityState securityState = DistributedStateManager.SecurityState.builder()
                 .id("learning_engine")
                 .type("learning")
@@ -476,27 +410,22 @@ public class LearningEngineHelper implements LearningEngine {
                 .version(1)
                 .build();
             stateManager.saveState("learning_engine", securityState).subscribe();
-            log.debug("학습 상태 저장 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("학습 상태 저장 실패", e);
         }
     }
-    
-    
-    
+
     private String generateContextId(SecurityEvent event) {
         return event.getSeverity() + "_" + event.getSource();
     }
 
-    
     private String extractPatternSignature(SecurityEvent event) {
         
         return event.getSeverity() + "_" +
                event.getSource() + "_" +
                event.getEventId();
     }
-    
-    
+
     private SecurityEvent findOriginalEvent(String eventId) {
         if (eventId == null || eventId.isEmpty()) {
             return null;
@@ -509,21 +438,17 @@ public class LearningEngineHelper implements LearningEngine {
                 Object cachedEvent = redisTemplate.opsForValue().get(cacheKey);
                 
                 if (cachedEvent instanceof SecurityEvent) {
-                    log.debug("Found event in Redis cache: {}", eventId);
-                    return (SecurityEvent) cachedEvent;
+                                        return (SecurityEvent) cachedEvent;
                 }
             }
-            
-            
+
             String learningEventKey = "learning:event:" + eventId;
             LearningEvent learningEvent = learningEvents.get(learningEventKey);
             
             if (learningEvent != null && learningEvent.getEvent() != null) {
-                log.debug("Found event in learning store: {}", eventId);
-                return learningEvent.getEvent();
+                                return learningEvent.getEvent();
             }
-            
-            
+
             DistributedStateManager.SecurityState securityState = stateManager.getState("event:" + eventId)
                 .block(Duration.ofSeconds(5));
             Map<String, Object> eventState = securityState != null ? securityState.getData() : null;
@@ -531,8 +456,7 @@ public class LearningEngineHelper implements LearningEngine {
                 
                 SecurityEvent reconstructedEvent = reconstructEventFromState(eventId, eventState);
                 if (reconstructedEvent != null) {
-                    log.debug("Reconstructed event from distributed state: {}", eventId);
-                    
+                                        
                     cacheEvent(eventId, reconstructedEvent);
                     return reconstructedEvent;
                 }
@@ -546,9 +470,7 @@ public class LearningEngineHelper implements LearningEngine {
         
         return null;
     }
-    
-    
-    
+
     private SecurityEvent reconstructEventFromState(String eventId, Map<String, Object> state) {
         try {
             Map<String, Object> metadata = (Map<String, Object>) state.get("metadata");
@@ -576,23 +498,18 @@ public class LearningEngineHelper implements LearningEngine {
             return null;
         }
     }
-    
-    
+
     private void cacheEvent(String eventId, SecurityEvent event) {
         if (redisTemplate != null && event != null) {
             try {
                 String cacheKey = "security:event:" + eventId;
                 redisTemplate.opsForValue().set(cacheKey, event, Duration.ofMinutes(5));
-                log.debug("Cached event in Redis: {}", eventId);
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("Failed to cache event in Redis: {}", eventId, e);
             }
         }
     }
-    
-    
-    
-    
+
     private static class LearningEvent {
         private final SecurityEvent event;
         private final String response;
@@ -606,15 +523,13 @@ public class LearningEngineHelper implements LearningEngine {
             this.effectiveness = effectiveness;
             this.timestamp = timestamp;
         }
-        
-        
+
         public SecurityEvent getEvent() { return event; }
         public String getResponse() { return response; }
         public double getEffectiveness() { return effectiveness; }
         public LocalDateTime getTimestamp() { return timestamp; }
     }
-    
-    
+
     private static class LearningContext {
         private final String contextId;
         private final List<LearningEvent> events = new ArrayList<>();
@@ -644,8 +559,7 @@ public class LearningEngineHelper implements LearningEngine {
             
         }
     }
-    
-    
+
     private static class ResponseStats {
         private int count = 0;
         private double totalEffectiveness = 0.0;
@@ -659,8 +573,7 @@ public class LearningEngineHelper implements LearningEngine {
             return count > 0 ? totalEffectiveness / count : 0.0;
         }
     }
-    
-    
+
     public static class LearnedPattern {
         private final String patternId;
         private final Map<String, Object> features = new HashMap<>();
@@ -697,8 +610,7 @@ public class LearningEngineHelper implements LearningEngine {
         public boolean isExpired(int retentionHours) {
             return lastUpdated.plusHours(retentionHours).isBefore(LocalDateTime.now());
         }
-        
-        
+
         public String getPatternId() { return patternId; }
         public Map<String, Object> getFeatures() { return features; }
         public String getRecommendedResponse() { return recommendedResponse; }
@@ -709,8 +621,7 @@ public class LearningEngineHelper implements LearningEngine {
             return confidence; 
         }
     }
-    
-    
+
     private static class FeedbackData {
         private final String eventId;
         private final FeedbackType type;
@@ -725,8 +636,7 @@ public class LearningEngineHelper implements LearningEngine {
             this.timestamp = timestamp;
         }
     }
-    
-    
+
     public enum FeedbackType {
         FALSE_POSITIVE,
         FALSE_NEGATIVE,
@@ -734,8 +644,7 @@ public class LearningEngineHelper implements LearningEngine {
         INCORRECT,
         PARTIAL
     }
-    
-    
+
     public static class LearningResult {
         private final String status;
         private final int processedCount;
@@ -760,13 +669,11 @@ public class LearningEngineHelper implements LearningEngine {
         public static LearningResult nothingToLearn() {
             return new LearningResult("empty", 0);
         }
-        
-        
+
         public String getStatus() { return status; }
         public int getProcessedCount() { return processedCount; }
     }
-    
-    
+
     public static class FeedbackResult {
         private final String status;
         private final String eventId;
@@ -783,13 +690,11 @@ public class LearningEngineHelper implements LearningEngine {
         public static FeedbackResult processed(String eventId) {
             return new FeedbackResult("processed", eventId);
         }
-        
-        
+
         public String getStatus() { return status; }
         public String getEventId() { return eventId; }
     }
-    
-    
+
     public static class PredictionResult {
         private final String predictedResponse;
         private final double confidence;
@@ -807,8 +712,7 @@ public class LearningEngineHelper implements LearningEngine {
         public static PredictionResult noMatch() {
             return new PredictionResult(null, 0.0, Collections.emptyList(), null);
         }
-        
-        
+
         public String getPredictedResponse() { return predictedResponse; }
         public double getConfidence() { return confidence; }
         public List<String> getAlternatives() { return alternatives; }

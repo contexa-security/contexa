@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalRequestValidator {
@@ -17,31 +16,23 @@ public class ApprovalRequestValidator {
     private static final String DEFAULT_ORGANIZATION_ID = "default-org";
     private static final String DEFAULT_REQUESTED_BY = "system";
     private static final Integer DEFAULT_APPROVAL_TIMEOUT = 300; 
-    
-    
+
     public ValidationResult validateAndSanitize(ApprovalRequest request) {
         if (request == null) {
             return ValidationResult.failure("ApprovalRequest is null");
         }
-        
-        log.debug("Validating ApprovalRequest: {}", request.getRequestId());
-        
+
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
-        
-        
+
         validateRequiredFields(request, errors);
-        
-        
+
         sanitizeFields(request, warnings);
-        
-        
+
         validateBusinessRules(request, errors, warnings);
-        
-        
+
         validateDataConsistency(request, errors, warnings);
-        
-        
+
         if (!errors.isEmpty()) {
             log.error("Validation failed for request {}: {}", 
                 request.getRequestId(), errors);
@@ -53,39 +44,32 @@ public class ApprovalRequestValidator {
                 request.getRequestId(), warnings);
         }
         
-        log.info("Validation successful for request: {}", request.getRequestId());
-        return ValidationResult.success(warnings);
+                return ValidationResult.success(warnings);
     }
-    
-    
+
     private void validateRequiredFields(ApprovalRequest request, List<String> errors) {
         
         if (request.getRequestId() == null || request.getRequestId().trim().isEmpty()) {
             errors.add("requestId is required");
         }
-        
-        
+
         if (request.getToolName() == null || request.getToolName().trim().isEmpty()) {
             errors.add("toolName is required");
         }
-        
-        
+
         if (request.getStatus() == null) {
             errors.add("status is required");
         }
-        
-        
+
         if (request.getRiskLevel() == null) {
             errors.add("riskLevel is required");
         }
-        
-        
+
         if (request.getRequestedAt() == null) {
             errors.add("requestedAt is required");
         }
     }
-    
-    
+
     private void sanitizeFields(ApprovalRequest request, List<String> warnings) {
         
         if (request.getRequestId() == null || request.getRequestId().trim().isEmpty()) {
@@ -93,50 +77,42 @@ public class ApprovalRequestValidator {
             request.setRequestId(newId);
             warnings.add("Generated new requestId: " + newId);
         }
-        
-        
+
         if (request.getStatus() == null) {
             request.setStatus(ApprovalStatus.PENDING);
             warnings.add("Set default status: PENDING");
         }
-        
-        
+
         if (request.getRiskLevel() == null) {
             request.setRiskLevel(RiskLevel.MEDIUM);
             warnings.add("Set default riskLevel: MEDIUM");
         }
-        
-        
+
         if (request.getRequestedAt() == null) {
             request.setRequestedAt(LocalDateTime.now());
             warnings.add("Set requestedAt to current time");
         }
-        
-        
+
         if (request.getRequestedBy() == null || request.getRequestedBy().trim().isEmpty()) {
             request.setRequestedBy(DEFAULT_REQUESTED_BY);
             warnings.add("Set default requestedBy: " + DEFAULT_REQUESTED_BY);
         }
-        
-        
+
         if (request.getOrganizationId() == null || request.getOrganizationId().trim().isEmpty()) {
             request.setOrganizationId(DEFAULT_ORGANIZATION_ID);
             warnings.add("Set default organizationId: " + DEFAULT_ORGANIZATION_ID);
         }
-        
-        
+
         if (request.getApprovalTimeout() == null || request.getApprovalTimeout() <= 0) {
             request.setApprovalTimeout(DEFAULT_APPROVAL_TIMEOUT);
             warnings.add("Set default approvalTimeout: " + DEFAULT_APPROVAL_TIMEOUT + " seconds");
         }
-        
-        
+
         if (request.getRequiredApprovers() == null || request.getRequiredApprovers() < 1) {
             request.setRequiredApprovers(1);
             warnings.add("Set default requiredApprovers: 1");
         }
-        
-        
+
         if (request.getRequiredRoles() == null) {
             request.setRequiredRoles(new HashSet<>());
             warnings.add("Initialized empty requiredRoles");
@@ -157,35 +133,28 @@ public class ApprovalRequestValidator {
             warnings.add("Initialized empty context");
         }
     }
-    
-    
+
     private void validateBusinessRules(
             ApprovalRequest request, 
             List<String> errors, 
             List<String> warnings) {
-        
-        
+
         validateApproverCount(request, warnings);
-        
-        
+
         validateTimeout(request, warnings);
-        
-        
+
         validateStatusSpecificFields(request, errors);
-        
-        
+
         validateRoles(request, warnings);
     }
-    
-    
+
     private void validateDataConsistency(
             ApprovalRequest request,
             List<String> errors,
             List<String> warnings) {
         
         ApprovalStatus status = request.getStatus();
-        
-        
+
         if (status == ApprovalStatus.APPROVED) {
             if (request.getApprovedBy() == null || request.getApprovedBy().trim().isEmpty()) {
                 errors.add("APPROVED status requires approvedBy field");
@@ -198,8 +167,7 @@ public class ApprovalRequestValidator {
                 warnings.add("Fixed inconsistency: set approved=true for APPROVED status");
             }
         }
-        
-        
+
         if (status == ApprovalStatus.REJECTED) {
             if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
                 warnings.add("REJECTED status should have rejectionReason");
@@ -209,24 +177,21 @@ public class ApprovalRequestValidator {
                 warnings.add("Fixed inconsistency: set approved=false for REJECTED status");
             }
         }
-        
-        
+
         if (status == ApprovalStatus.EXPIRED || status == ApprovalStatus.CANCELLED) {
             if (request.isApproved()) {
                 request.setApproved(false);
                 warnings.add("Fixed inconsistency: set approved=false for " + status + " status");
             }
         }
-        
-        
+
         if (request.getApprovedAt() != null && request.getRequestedAt() != null) {
             if (request.getApprovedAt().isBefore(request.getRequestedAt())) {
                 errors.add("approvedAt cannot be before requestedAt");
             }
         }
     }
-    
-    
+
     private void validateApproverCount(ApprovalRequest request, List<String> warnings) {
         RiskLevel riskLevel = request.getRiskLevel();
         Integer requiredApprovers = request.getRequiredApprovers();
@@ -239,8 +204,7 @@ public class ApprovalRequestValidator {
             warnings.add("HIGH risk level requires at least 1 approver");
         }
     }
-    
-    
+
     private void validateTimeout(ApprovalRequest request, List<String> warnings) {
         Integer timeout = request.getApprovalTimeout();
         RiskLevel riskLevel = request.getRiskLevel();
@@ -248,8 +212,7 @@ public class ApprovalRequestValidator {
         if (timeout == null || timeout <= 0) {
             return; 
         }
-        
-        
+
         if (riskLevel == RiskLevel.CRITICAL && timeout > 120) {
             warnings.add("CRITICAL requests should have shorter timeout (recommended: 120 seconds)");
         }
@@ -258,8 +221,7 @@ public class ApprovalRequestValidator {
             warnings.add("INFO level requests can have longer timeout (recommended: 600 seconds)");
         }
     }
-    
-    
+
     private void validateStatusSpecificFields(ApprovalRequest request, List<String> errors) {
         ApprovalStatus status = request.getStatus();
         
@@ -273,8 +235,7 @@ public class ApprovalRequestValidator {
             case REJECTED:
                 if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
                     
-                    log.debug("REJECTED status without rejectionReason");
-                }
+                                    }
                 break;
                 
             case EXPIRED:
@@ -290,8 +251,7 @@ public class ApprovalRequestValidator {
                 log.warn("Unknown status: {}", status);
         }
     }
-    
-    
+
     private void validateRoles(ApprovalRequest request, List<String> warnings) {
         Set<String> requiredRoles = request.getRequiredRoles();
         
@@ -302,8 +262,7 @@ public class ApprovalRequestValidator {
             }
         }
     }
-    
-    
+
     public static class ValidationResult {
         private final boolean valid;
         private final List<String> errors;

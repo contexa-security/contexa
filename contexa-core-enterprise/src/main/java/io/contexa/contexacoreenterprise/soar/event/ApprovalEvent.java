@@ -7,11 +7,9 @@ import org.springframework.context.ApplicationEvent;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Getter
 public class ApprovalEvent extends ApplicationEvent {
-    
-    
+
     public enum EventType {
         APPROVAL_REQUESTED,    
         APPROVAL_GRANTED,      
@@ -28,8 +26,7 @@ public class ApprovalEvent extends ApplicationEvent {
     private final String message;
     private final String userId;
     private final Map<String, Object> metadata;
-    
-    
+
     public ApprovalEvent(Object source, EventType eventType, ApprovalRequest approvalRequest) {
         super(source);
         this.eventType = eventType;
@@ -39,8 +36,7 @@ public class ApprovalEvent extends ApplicationEvent {
         this.userId = null;
         this.metadata = new HashMap<>();
     }
-    
-    
+
     public ApprovalEvent(Object source, EventType eventType, String requestId, 
                         String message, String userId, Map<String, Object> metadata) {
         super(source);
@@ -51,37 +47,31 @@ public class ApprovalEvent extends ApplicationEvent {
         this.userId = userId;
         this.metadata = metadata != null ? metadata : new HashMap<>();
     }
-    
-    
+
     public static ApprovalEvent requested(Object source, ApprovalRequest request) {
         return new ApprovalEvent(source, EventType.APPROVAL_REQUESTED, request);
     }
-    
-    
+
     public static ApprovalEvent granted(Object source, String requestId, String userId) {
         return new ApprovalEvent(source, EventType.APPROVAL_GRANTED, requestId, 
             "Approval granted", userId, null);
     }
-    
-    
+
     public static ApprovalEvent denied(Object source, String requestId, String userId, String reason) {
         return new ApprovalEvent(source, EventType.APPROVAL_DENIED, requestId, 
             reason, userId, null);
     }
-    
-    
+
     public static ApprovalEvent timeout(Object source, String requestId) {
         return new ApprovalEvent(source, EventType.APPROVAL_TIMEOUT, requestId, 
             "Approval request timeout", null, null);
     }
-    
-    
+
     public static ApprovalEvent toolExecuted(Object source, String requestId, Map<String, Object> result) {
         return new ApprovalEvent(source, EventType.TOOL_EXECUTED, requestId, 
             "Tool executed successfully", null, result);
     }
-    
-    
+
     public static ApprovalEvent toolFailed(Object source, String requestId, String error) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("error", error);

@@ -4,29 +4,22 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-
 @Data
 @ConfigurationProperties(prefix = "soar")
 public class SoarProperties {
 
-    
     private double similarityThreshold = 0.75;
 
-    
     private int topK = 20;
 
-    
     private int lookbackHours = 24;
 
-    
     @NestedConfigurationProperty
     private ApprovalSettings approval = new ApprovalSettings();
 
-    
     @NestedConfigurationProperty
     private NotificationSettings notification = new NotificationSettings();
 
-    
     @Data
     public static class ApprovalSettings {
         private boolean enabled = true;
@@ -34,7 +27,6 @@ public class SoarProperties {
         private int timeout = 300;
     }
 
-    
     @Data
     public static class NotificationSettings {
         @NestedConfigurationProperty

@@ -9,15 +9,11 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 public class SpelValidationService {
 
     private final ExpressionParser parser = new SpelExpressionParser();
 
-    
-
-    
     private static final Set<String> TRUST_METHODS = Set.of(
         
         "hasResourceAccess",      
@@ -35,7 +31,6 @@ public class SpelValidationService {
         "requiresAnalysis"        
     );
 
-    
     private static final Set<String> AI_METHODS = Set.of(
         "analyzeFraud",               
         "detectAnomaly",              
@@ -46,7 +41,6 @@ public class SpelValidationService {
         "hasSafeBehavior"             
     );
 
-    
     private static final Set<String> SECURITY_METHODS = Set.of(
         
         "hasRole",                
@@ -64,7 +58,6 @@ public class SpelValidationService {
         "denyAll"                 
     );
 
-    
     private static final Set<String> ALLOWED_VARIABLES = Set.of(
         "trust",          
         "ai",             
@@ -81,7 +74,6 @@ public class SpelValidationService {
         "filterObject"    
     );
 
-    
     private static final List<Pattern> DANGEROUS_PATTERNS = List.of(
         
         Pattern.compile("T\\s*\\(\\s*java\\.lang\\.Runtime\\s*\\)", Pattern.CASE_INSENSITIVE),
@@ -105,25 +97,19 @@ public class SpelValidationService {
         Pattern.compile("T\\s*\\(", Pattern.CASE_INSENSITIVE)       
     );
 
-    
     private static final Pattern METHOD_CALL_PATTERN = Pattern.compile(
         "#?(\\w+)\\s*\\.\\s*(\\w+)\\s*\\("
     );
 
-    
     private static final Pattern VARIABLE_PATTERN = Pattern.compile(
         "#(\\w+)"
     );
 
-    
     private static final Pattern STANDALONE_METHOD_PATTERN = Pattern.compile(
         "\\b(hasRole|hasAnyRole|hasAuthority|hasAnyAuthority|isAuthenticated|" +
         "isFullyAuthenticated|isAnonymous|isRememberMe|permitAll|denyAll)\\s*\\("
     );
 
-    
-
-    
     public record ValidationResult(
         boolean valid,
         String expression,
@@ -147,9 +133,6 @@ public class SpelValidationService {
         }
     }
 
-    
-
-    
     public ValidationResult validate(String spelExpression) {
         if (spelExpression == null || spelExpression.isBlank()) {
             return ValidationResult.invalid(spelExpression, "SpEL 표현식이 비어있습니다");
@@ -159,39 +142,32 @@ public class SpelValidationService {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
 
-        
         ValidationResult securityCheck = checkSecurityPatterns(trimmed);
         if (!securityCheck.valid()) {
             return securityCheck;
         }
 
-        
         ValidationResult syntaxCheck = validateSyntax(trimmed);
         if (!syntaxCheck.valid()) {
             return syntaxCheck;
         }
 
-        
         List<String> variableErrors = validateVariables(trimmed);
         errors.addAll(variableErrors);
 
-        
         List<String> methodErrors = validateMethods(trimmed);
         errors.addAll(methodErrors);
 
-        
         warnings.addAll(collectWarnings(trimmed));
 
         if (errors.isEmpty()) {
-            log.debug("SpEL 검증 성공: {}", trimmed);
-            return ValidationResult.valid(trimmed, warnings);
+                        return ValidationResult.valid(trimmed, warnings);
         } else {
             log.warn("SpEL 검증 실패: {} - 오류: {}", trimmed, errors);
             return ValidationResult.invalid(trimmed, errors);
         }
     }
 
-    
     private ValidationResult checkSecurityPatterns(String expression) {
         for (Pattern pattern : DANGEROUS_PATTERNS) {
             Matcher matcher = pattern.matcher(expression);
@@ -207,7 +183,6 @@ public class SpelValidationService {
         return ValidationResult.valid(expression);
     }
 
-    
     private ValidationResult validateSyntax(String expression) {
         try {
             parser.parseExpression(expression);
@@ -220,7 +195,6 @@ public class SpelValidationService {
         }
     }
 
-    
     private List<String> validateVariables(String expression) {
         List<String> errors = new ArrayList<>();
         Matcher matcher = VARIABLE_PATTERN.matcher(expression);
@@ -235,11 +209,9 @@ public class SpelValidationService {
         return errors;
     }
 
-    
     private List<String> validateMethods(String expression) {
         List<String> errors = new ArrayList<>();
 
-        
         Matcher methodMatcher = METHOD_CALL_PATTERN.matcher(expression);
         while (methodMatcher.find()) {
             String object = methodMatcher.group(1);
@@ -250,13 +222,9 @@ public class SpelValidationService {
             }
         }
 
-        
-        
-
         return errors;
     }
 
-    
     private boolean isAllowedMethodCall(String object, String method) {
         
         if ("trust".equals(object)) {
@@ -282,21 +250,17 @@ public class SpelValidationService {
         return false;
     }
 
-    
     private List<String> collectWarnings(String expression) {
         List<String> warnings = new ArrayList<>();
 
-        
         if (expression.contains("#ai.")) {
             warnings.add("주의: #ai 메서드는 실시간 AI 호출로 응답 시간이 길어질 수 있습니다 (Cold Path)");
         }
 
-        
         if (expression.length() > 200) {
             warnings.add("주의: 복잡한 SpEL 표현식은 성능에 영향을 줄 수 있습니다");
         }
 
-        
         long andCount = expression.chars().filter(ch -> ch == '&').count();
         long orCount = expression.chars().filter(ch -> ch == '|').count();
         if (andCount + orCount > 5) {
@@ -306,29 +270,22 @@ public class SpelValidationService {
         return warnings;
     }
 
-    
-
-    
     public Set<String> getAllowedTrustMethods() {
         return Collections.unmodifiableSet(TRUST_METHODS);
     }
 
-    
     public Set<String> getAllowedAIMethods() {
         return Collections.unmodifiableSet(AI_METHODS);
     }
 
-    
     public Set<String> getAllowedSecurityMethods() {
         return Collections.unmodifiableSet(SECURITY_METHODS);
     }
 
-    
     public Set<String> getAllowedVariables() {
         return Collections.unmodifiableSet(ALLOWED_VARIABLES);
     }
 
-    
     public String generateApiDocumentation() {
         StringBuilder sb = new StringBuilder();
         sb.append("=== Contexa SpEL API 문서 ===\n\n");

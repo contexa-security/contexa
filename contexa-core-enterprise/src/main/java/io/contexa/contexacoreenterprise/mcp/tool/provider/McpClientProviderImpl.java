@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-
 @Primary
 @Slf4j
 public class McpClientProviderImpl implements McpClientProvider {
@@ -21,32 +20,26 @@ public class McpClientProviderImpl implements McpClientProvider {
     public McpClientProviderImpl(List<McpSyncClient> mcpClients,
                                 @Autowired(required = false) McpSyncClient braveSearchMcpClient,
                                 @Autowired(required = false) McpSyncClient securityMcpClient) {
-        
-        
+
         if (braveSearchMcpClient != null) {
             clients.put("brave-search", braveSearchMcpClient);
-            log.info("MCP 클라이언트 등록: brave-search");
-        }
+                    }
         
         if (securityMcpClient != null) {
             clients.put("security", securityMcpClient);
-            log.info("MCP 클라이언트 등록: security");
-        }
-        
-        
+                    }
+
         if (mcpClients != null) {
             for (int i = 0; i < mcpClients.size(); i++) {
                 McpSyncClient client = mcpClients.get(i);
                 if (!clients.containsValue(client)) {
                     String name = "mcp-client-" + i;
                     clients.put(name, client);
-                    log.info("MCP 클라이언트 등록: {}", name);
-                }
+                                    }
             }
         }
         
-        log.info("McpClientProviderImpl 초기화 완료: {} 개의 클라이언트", clients.size());
-    }
+            }
     
     @Override
     public Optional<McpSyncClient> getClient(String serverName) {
@@ -62,8 +55,7 @@ public class McpClientProviderImpl implements McpClientProvider {
     public boolean hasClient(String serverName) {
         return clients.containsKey(serverName);
     }
-    
-    
+
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalClients", clients.size());

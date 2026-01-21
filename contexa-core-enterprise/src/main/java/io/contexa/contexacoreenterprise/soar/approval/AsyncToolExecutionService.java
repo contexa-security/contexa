@@ -30,7 +30,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class AsyncToolExecutionService {
@@ -42,16 +41,12 @@ public class AsyncToolExecutionService {
     @Autowired(required = false)
     private ApprovalAwareToolCallingManagerDecorator toolCallingManager;
 
-    
     private final Map<String, CompletableFuture<ToolExecutionResult>> executingTasks = new ConcurrentHashMap<>();
 
-    
     @Async
     @Transactional
     public CompletableFuture<ToolExecutionResult> executeApprovedTool(String requestId) {
-        log.info("비동기 도구 실행 시작: {}", requestId);
 
-        
         if (executingTasks.containsKey(requestId)) {
             log.warn("이미 실행 중인 도구: {}", requestId);
             return executingTasks.get(requestId);
@@ -65,33 +60,25 @@ public class AsyncToolExecutionService {
             ToolExecutionContext context = contextRepository.findByRequestId(requestId)
                     .orElseThrow(() -> new IllegalArgumentException("도구 실행 컨텍스트를 찾을 수 없음: " + requestId));
 
-            
             if (!context.isExecutable()) {
                 throw new IllegalStateException("실행할 수 없는 상태: " + context.getStatus());
             }
 
-            
             context.markExecutionStart();
             contextRepository.save(context);
 
-            
             Prompt prompt = reconstructPrompt(context);
             ChatResponse chatResponse = reconstructChatResponse(context);
 
-            
             ToolExecutionResult result = executeToolWithContext(prompt, chatResponse, context);
 
-            
             saveExecutionResult(context, result);
 
-            
             future.complete(result);
-            log.info("비동기 도구 실행 완료: {}", requestId);
-
+            
         } catch (Exception e) {
             log.error("비동기 도구 실행 실패: {}", requestId, e);
 
-            
             try {
                 markExecutionFailed(requestId, e.getMessage());
             } catch (Exception ex) {
@@ -106,11 +93,8 @@ public class AsyncToolExecutionService {
         return future;
     }
 
-    
     private Prompt reconstructPrompt(ToolExecutionContext context) throws JsonProcessingException {
-        log.debug("Prompt 재구성: {}", context.getRequestId());
 
-        
         List<Map<String, String>> messageData = objectMapper.readValue(
                 context.getPromptContent(),
                 new TypeReference<List<Map<String, String>>>() {}
@@ -131,7 +115,6 @@ public class AsyncToolExecutionService {
             messages.add(message);
         }
 
-        
         ChatOptions chatOptions = null;
         if (context.getChatOptions() != null) {
             Map<String, Object> optionsData = objectMapper.readValue(
@@ -139,7 +122,6 @@ public class AsyncToolExecutionService {
                     new TypeReference<Map<String, Object>>() {}
             );
 
-            
             ToolCallback[] toolCallbacks = getToolCallbacks(context);
 
             @SuppressWarnings("unchecked")
@@ -155,23 +137,19 @@ public class AsyncToolExecutionService {
         return new Prompt(messages, chatOptions != null ? chatOptions : ChatOptions.builder().build());
     }
 
-    
     private ChatResponse reconstructChatResponse(ToolExecutionContext context) throws JsonProcessingException {
         if (context.getChatResponse() == null || context.getChatResponse().isEmpty()) {
             
             return createChatResponseFromToolCall(context);
         }
 
-        
         Map<String, Object> responseData = objectMapper.readValue(
                 context.getChatResponse(),
                 new TypeReference<Map<String, Object>>() {}
         );
 
-        
         AssistantMessage assistantMessage = new AssistantMessage("");
 
-        
         if (context.getToolCallId() != null) {
             
             AssistantMessage.ToolCall toolCall = new AssistantMessage.ToolCall(
@@ -188,11 +166,9 @@ public class AsyncToolExecutionService {
         return new ChatResponse(List.of(generation));
     }
 
-    
     private ChatResponse createChatResponseFromToolCall(ToolExecutionContext context) {
         AssistantMessage message = new AssistantMessage("");
 
-        
         AssistantMessage.ToolCall toolCall = new AssistantMessage.ToolCall(
                 context.getToolCallId() != null ? context.getToolCallId() : UUID.randomUUID().toString(),
                 "function",
@@ -206,12 +182,10 @@ public class AsyncToolExecutionService {
         return new ChatResponse(List.of(generation));
     }
 
-    
     private ToolCallback[] getToolCallbacks(ToolExecutionContext context) {
         
         ToolCallback[] allTools = chainedToolResolver.getAllToolCallbacks();
 
-        
         if (context.getAvailableTools() != null && !context.getAvailableTools().isEmpty()) {
             Set<String> requiredTools = new HashSet<>(context.getAvailableTools());
 
@@ -223,17 +197,13 @@ public class AsyncToolExecutionService {
         return allTools;
     }
 
-    
     private ToolExecutionResult executeToolWithContext(
             Prompt prompt,
             ChatResponse chatResponse,
             ToolExecutionContext context) {
 
-        log.info("도구 실행: {} - {}", context.getRequestId(), context.getToolName());
-
         if (toolCallingManager != null) {
-            
-            
+
             return toolCallingManager.executeToolCalls(prompt, chatResponse);
         } else {
             log.warn("ToolCallingManager를 사용할 수 없음. 기본 실행 결과 반환");
@@ -241,7 +211,6 @@ public class AsyncToolExecutionService {
         }
     }
 
-    
     private ToolExecutionResult createDefaultResult(ToolExecutionContext context) {
         List<Message> history = new ArrayList<>();
         history.add(new AssistantMessage(
@@ -255,7 +224,6 @@ public class AsyncToolExecutionService {
                 .build();
     }
 
-    
     @Transactional
     public void saveExecutionResult(ToolExecutionContext context, ToolExecutionResult result) {
         try {
@@ -280,11 +248,8 @@ public class AsyncToolExecutionService {
 
             String resultJson = objectMapper.writeValueAsString(resultData);
 
-            
             context.markExecutionComplete(resultJson);
             contextRepository.save(context);
-
-            log.info("도구 실행 결과 저장 완료: {}", context.getRequestId());
 
         } catch (Exception e) {
             log.error("실행 결과 저장 실패: {}", context.getRequestId(), e);
@@ -293,7 +258,6 @@ public class AsyncToolExecutionService {
         }
     }
 
-    
     @Transactional
     public void markExecutionFailed(String requestId, String error) {
         contextRepository.findByRequestId(requestId).ifPresent(context -> {
@@ -301,8 +265,6 @@ public class AsyncToolExecutionService {
             contextRepository.save(context);
         });
     }
-
-    
 
     @Transactional
     public void processApprovedTools() {
@@ -312,13 +274,11 @@ public class AsyncToolExecutionService {
                     contextRepository.findExecutableContexts(LocalDateTime.now());
 
             if (!executableContexts.isEmpty()) {
-                log.debug("실행 대기 중인 도구 발견: {} 개", executableContexts.size());
-
+                
                 for (ToolExecutionContext context : executableContexts) {
                     
                     if (!executingTasks.containsKey(context.getRequestId())) {
-                        log.info("도구 자동 실행 시작: {}", context.getRequestId());
-                        executeApprovedTool(context.getRequestId());
+                                                executeApprovedTool(context.getRequestId());
                     }
                 }
             }
@@ -327,21 +287,16 @@ public class AsyncToolExecutionService {
         }
     }
 
-    
-
     @Transactional
     public void cleanupExpiredContexts() {
         try {
             int cancelled = contextRepository.cancelExpiredContexts(LocalDateTime.now());
             if (cancelled > 0) {
-                log.info("만료된 도구 실행 컨텍스트 취소: {} 개", cancelled);
-            }
+                            }
         } catch (Exception e) {
             log.error("만료 컨텍스트 정리 중 오류", e);
         }
     }
-
-    
 
     @Transactional
     public void retryFailedTools() {
@@ -351,12 +306,7 @@ public class AsyncToolExecutionService {
 
             for (ToolExecutionContext context : retryableContexts) {
                 if (context.canRetry()) {
-                    log.info("도구 재실행 시도: {} (시도 {}/{})",
-                            context.getRequestId(),
-                            context.getRetryCount() + 1,
-                            context.getMaxRetries());
 
-                    
                     context.setStatus("APPROVED");
                     contextRepository.save(context);
                 }
@@ -366,12 +316,10 @@ public class AsyncToolExecutionService {
         }
     }
 
-    
     public int getExecutingTaskCount() {
         return executingTasks.size();
     }
 
-    
     public boolean isExecuting(String requestId) {
         return executingTasks.containsKey(requestId);
     }

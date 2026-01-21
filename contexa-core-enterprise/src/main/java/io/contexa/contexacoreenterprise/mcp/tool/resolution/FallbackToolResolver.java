@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public class FallbackToolResolver implements ToolCallbackResolver {
     
@@ -22,28 +21,19 @@ public class FallbackToolResolver implements ToolCallbackResolver {
     @Override
     public ToolCallback resolve(String toolName) {
 
-        log.trace("Fallback 도구 검색: {}", toolName);
-        
-        
         ToolCallback specificFallback = fallbackTools.get(toolName);
         if (specificFallback != null) {
-            log.debug("특정 Fallback 도구 발견: {}", toolName);
-            return specificFallback;
+                        return specificFallback;
         }
-        
-        
+
         ToolCallback patternFallback = findPatternMatchedFallback(toolName);
         if (patternFallback != null) {
-            log.debug("패턴 매칭 Fallback 도구 발견: {}", toolName);
-            return patternFallback;
+                        return patternFallback;
         }
-        
-        
-        log.debug("기본 Fallback 도구 반환: {}", toolName);
-        return createDefaultFallback(toolName);
+
+                return createDefaultFallback(toolName);
     }
-    
-    
+
     private void initializeFallbackTools() {
         
         fallbackTools.put("network_scan_fallback", new FallbackToolCallback(
@@ -51,18 +41,15 @@ public class FallbackToolResolver implements ToolCallbackResolver {
             "네트워크 스캔 도구를 사용할 수 없습니다",
             "네트워크 스캔 기능이 현재 비활성화되어 있습니다. 관리자에게 문의하세요."
         ));
-        
-        
+
         fallbackTools.put("log_analysis_fallback", new FallbackToolCallback(
             "log_analysis_fallback",
             "로그 분석 도구를 사용할 수 없습니다",
             "로그 분석 서비스가 일시적으로 중단되었습니다. 잠시 후 다시 시도하세요."
         ));
         
-        log.info("Fallback 도구 초기화 완료: {} 개", fallbackTools.size());
-    }
-    
-    
+            }
+
     private ToolCallback findPatternMatchedFallback(String toolName) {
         
         if (toolName.contains("scan") || toolName.contains("security")) {
@@ -72,8 +59,7 @@ public class FallbackToolResolver implements ToolCallbackResolver {
                 String.format("보안 도구 '%s'를 현재 사용할 수 없습니다. 보안 정책을 확인하세요.", toolName)
             );
         }
-        
-        
+
         if (toolName.contains("ai") || toolName.contains("llm")) {
             return new FallbackToolCallback(
                 toolName + "_fallback",
@@ -84,8 +70,7 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         
         return null;
     }
-    
-    
+
     private ToolCallback createDefaultFallback(String toolName) {
         return new FallbackToolCallback(
             toolName + "_default_fallback",
@@ -93,28 +78,22 @@ public class FallbackToolResolver implements ToolCallbackResolver {
             String.format("요청한 도구 '%s'를 찾을 수 없습니다. 도구 이름을 확인하거나 관리자에게 문의하세요.", toolName)
         );
     }
-    
-    
+
     public void registerFallback(String toolName, ToolCallback fallback) {
         fallbackTools.put(toolName, fallback);
-        log.info("Fallback 도구 등록: {}", toolName);
-    }
-    
-    
+            }
+
     public void removeFallback(String toolName) {
         fallbackTools.remove(toolName);
-        log.info("Fallback 도구 제거: {}", toolName);
-    }
-    
-    
+            }
+
     public Map<String, Object> getStatistics() {
         return Map.of(
             "totalFallbacks", fallbackTools.size(),
             "fallbackNames", fallbackTools.keySet()
         );
     }
-    
-    
+
     private static class FallbackToolCallback implements ToolCallback {
         private final String name;
         private final String description;

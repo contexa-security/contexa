@@ -20,7 +20,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyApprovalService {
@@ -28,36 +27,28 @@ public class PolicyApprovalService {
     private final PolicyProposalRepository proposalRepository;
     private final ApplicationEventPublisher eventPublisher;
 
-    
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired(required = false)
     private PolicyActivationService policyActivationService;
 
-    
     private static final Duration WORKFLOW_TTL = Duration.ofDays(7);
 
-    
     private final Map<Long, ApprovalWorkflow> memoryWorkflows = new ConcurrentHashMap<>();
 
-    
     private final Map<ApproverLevel, List<Approver>> approverPool = new ConcurrentHashMap<>();
-    
-    
+
     @Transactional
     public String initiateSingleApproval(Long proposalId, 
                                         PolicyEvolutionGovernance.RiskAssessment riskAssessment) {
-        log.info("Initiating single approval for proposal: {}", proposalId);
-        
+                
         try {
             
             PolicyEvolutionProposal proposal = validateProposal(proposalId);
-            
-            
+
             Approver approver = selectApprover(ApproverLevel.STANDARD, riskAssessment);
-            
-            
+
             ApprovalWorkflow workflow = ApprovalWorkflow.builder()
                 .workflowId(generateWorkflowId())
                 .proposalId(proposalId)
@@ -68,23 +59,16 @@ public class PolicyApprovalService {
                 .status(WorkflowStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .build();
-            
-            
+
             saveWorkflow(proposalId, workflow);
-            
-            
+
             ApprovalRequest request = createApprovalRequest(proposal, approver, workflow);
             workflow.addRequest(request);
-            
-            
+
             sendApprovalNotification(approver, request);
-            
-            
+
             publishApprovalEvent(ApprovalEventType.WORKFLOW_INITIATED, workflow);
-            
-            log.info("Single approval workflow {} initiated for proposal {}", 
-                workflow.getWorkflowId(), proposalId);
-            
+
             return workflow.getWorkflowId();
             
         } catch (Exception e) {
@@ -92,31 +76,25 @@ public class PolicyApprovalService {
             throw new ApprovalException("Single approval initiation failed", e);
         }
     }
-    
-    
+
     @Transactional
     public String initiateMultiApproval(Long proposalId, 
                                        int requiredApprovers,
                                        PolicyEvolutionGovernance.RiskAssessment riskAssessment) {
-        log.info("Initiating multi-level approval for proposal: {} with {} approvers", 
-            proposalId, requiredApprovers);
-        
+                
         try {
             
             PolicyEvolutionProposal proposal = validateProposal(proposalId);
-            
-            
+
             List<ApproverLevel> levels = determineApproverLevels(
                 riskAssessment.getAdjustedRisk(), requiredApprovers);
-            
-            
+
             List<Approver> approvers = new ArrayList<>();
             for (ApproverLevel level : levels) {
                 Approver approver = selectApprover(level, riskAssessment);
                 approvers.add(approver);
             }
-            
-            
+
             ApprovalWorkflow workflow = ApprovalWorkflow.builder()
                 .workflowId(generateWorkflowId())
                 .proposalId(proposalId)
@@ -128,24 +106,17 @@ public class PolicyApprovalService {
                 .status(WorkflowStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .build();
-            
-            
+
             saveWorkflow(proposalId, workflow);
-            
-            
+
             Approver firstApprover = approvers.get(0);
             ApprovalRequest firstRequest = createApprovalRequest(proposal, firstApprover, workflow);
             workflow.addRequest(firstRequest);
-            
-            
+
             sendApprovalNotification(firstApprover, firstRequest);
-            
-            
+
             publishApprovalEvent(ApprovalEventType.WORKFLOW_INITIATED, workflow);
-            
-            log.info("Multi-level approval workflow {} initiated for proposal {}", 
-                workflow.getWorkflowId(), proposalId);
-            
+
             return workflow.getWorkflowId();
             
         } catch (Exception e) {
@@ -153,22 +124,18 @@ public class PolicyApprovalService {
             throw new ApprovalException("Multi-level approval initiation failed", e);
         }
     }
-    
-    
+
     @Transactional
     public ApprovalResult processApproval(String requestId, String approverId, 
                                          ApprovalDecision decision, String comments) {
-        log.info("Processing approval request {} by approver {}: {}", 
-            requestId, approverId, decision);
-        
+                
         try {
             
             ApprovalWorkflow workflow = findWorkflowByRequestId(requestId);
             if (workflow == null) {
                 throw new ApprovalException("Workflow not found for request: " + requestId);
             }
-            
-            
+
             ApprovalRequest request = workflow.getRequest(requestId);
             if (request == null) {
                 throw new ApprovalException("Request not found: " + requestId);
@@ -181,18 +148,15 @@ public class PolicyApprovalService {
             if (request.getStatus() != RequestStatus.PENDING) {
                 throw new ApprovalException("Request is not pending: " + requestId);
             }
-            
-            
+
             request.setDecision(decision);
             request.setDecisionTime(LocalDateTime.now());
             request.setComments(comments);
             request.setStatus(decision == ApprovalDecision.APPROVE ? 
                 RequestStatus.APPROVED : RequestStatus.REJECTED);
-            
-            
+
             boolean workflowComplete = updateWorkflowStatus(workflow, request);
-            
-            
+
             if (workflowComplete) {
                 completeWorkflow(workflow);
             } else if (workflow.getWorkflowType() == WorkflowType.MULTI_LEVEL && 
@@ -200,15 +164,13 @@ public class PolicyApprovalService {
                 
                 initiateNextApproval(workflow);
             }
-            
-            
+
             publishApprovalEvent(
                 decision == ApprovalDecision.APPROVE ? 
                     ApprovalEventType.REQUEST_APPROVED : ApprovalEventType.REQUEST_REJECTED,
                 workflow
             );
-            
-            
+
             ApprovalResult result = ApprovalResult.builder()
                 .requestId(requestId)
                 .workflowId(workflow.getWorkflowId())
@@ -217,10 +179,7 @@ public class PolicyApprovalService {
                 .workflowStatus(workflow.getStatus())
                 .timestamp(LocalDateTime.now())
                 .build();
-            
-            log.info("Approval request {} processed. Workflow complete: {}", 
-                requestId, workflowComplete);
-            
+
             return result;
             
         } catch (Exception e) {
@@ -228,11 +187,9 @@ public class PolicyApprovalService {
             throw new ApprovalException("Approval processing failed", e);
         }
     }
-    
-    
-    public ApprovalHistory getApprovalHistory(Long proposalId) {
-        log.debug("Retrieving approval history for proposal: {}", proposalId);
 
+    public ApprovalHistory getApprovalHistory(Long proposalId) {
+        
         ApprovalWorkflow workflow = getWorkflow(proposalId);
         if (workflow == null) {
             return ApprovalHistory.builder()
@@ -251,26 +208,20 @@ public class PolicyApprovalService {
             .completedAt(workflow.getCompletedAt())
             .build();
     }
-    
-    
+
     public void registerApprover(Approver approver, ApproverLevel level) {
-        log.info("Registering approver {} at level {}", approver.getApproverId(), level);
-        
+                
         approverPool.computeIfAbsent(level, k -> new ArrayList<>()).add(approver);
     }
-    
-    
+
     public void unregisterApprover(String approverId, ApproverLevel level) {
-        log.info("Unregistering approver {} from level {}", approverId, level);
-        
+                
         List<Approver> approvers = approverPool.get(level);
         if (approvers != null) {
             approvers.removeIf(a -> a.getApproverId().equals(approverId));
         }
     }
-    
-    
-    
+
     private PolicyEvolutionProposal validateProposal(Long proposalId) {
         PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
             .orElseThrow(() -> new ApprovalException("Proposal not found: " + proposalId));
@@ -292,8 +243,7 @@ public class PolicyApprovalService {
             
             return createDefaultApprover(level);
         }
-        
-        
+
         return availableApprovers.stream()
             .min(Comparator.comparing(Approver::getCurrentWorkload))
             .orElse(createDefaultApprover(level));
@@ -359,11 +309,7 @@ public class PolicyApprovalService {
     
     @Async
     private void sendApprovalNotification(Approver approver, ApprovalRequest request) {
-        log.info("Sending approval notification to {}", approver.getEmail());
-        
-        
-        
-        
+
         NotificationEvent event = NotificationEvent.builder()
             .recipientId(approver.getApproverId())
             .recipientEmail(approver.getEmail())
@@ -383,8 +329,7 @@ public class PolicyApprovalService {
             workflow.setCompletedAt(LocalDateTime.now());
             return true;
         }
-        
-        
+
         long approvedCount = workflow.getRequests().stream()
             .filter(r -> r.getStatus() == RequestStatus.APPROVED)
             .count();
@@ -399,9 +344,7 @@ public class PolicyApprovalService {
     }
     
     private void completeWorkflow(ApprovalWorkflow workflow) {
-        log.info("Completing workflow {} for proposal {}", 
-            workflow.getWorkflowId(), workflow.getProposalId());
-        
+                
         PolicyEvolutionProposal proposal = proposalRepository.findById(workflow.getProposalId())
             .orElseThrow(() -> new ApprovalException("Proposal not found"));
         
@@ -412,7 +355,6 @@ public class PolicyApprovalService {
             proposal.setReviewedAt(LocalDateTime.now());
             proposalRepository.save(proposal);
 
-            
             if (policyActivationService != null) {
                 policyActivationService.activatePolicy(workflow.getProposalId(), proposal.getApprovedBy());
             } else {
@@ -425,8 +367,7 @@ public class PolicyApprovalService {
             proposal.setReviewedAt(LocalDateTime.now());
             proposalRepository.save(proposal);
         }
-        
-        
+
         removeWorkflow(workflow.getProposalId());
     }
     
@@ -461,7 +402,6 @@ public class PolicyApprovalService {
             }
         }
 
-        
         return getAllWorkflows().stream()
             .filter(w -> w.getRequests().stream()
                 .anyMatch(r -> r.getRequestId().equals(requestId)))
@@ -504,14 +444,10 @@ public class PolicyApprovalService {
         return "REQ_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    
-
-    
     private boolean isRedisAvailable() {
         return redisTemplate != null;
     }
 
-    
     private void saveWorkflow(Long proposalId, ApprovalWorkflow workflow) {
         if (isRedisAvailable()) {
             try {
@@ -519,18 +455,15 @@ public class PolicyApprovalService {
                 String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
                 redisTemplate.opsForValue().set(key, workflow, WORKFLOW_TTL);
 
-                
                 String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
                 redisTemplate.opsForSet().add(indexKey, proposalId);
 
-                
                 for (ApprovalRequest request : workflow.getRequests()) {
                     String requestKey = ZeroTrustRedisKeys.approvalRequest(request.getRequestId());
                     redisTemplate.opsForValue().set(requestKey, proposalId, WORKFLOW_TTL);
                 }
 
-                log.debug("워크플로우 Redis 저장 완료: proposalId={}", proposalId);
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("Redis 저장 실패, 메모리 폴백: {}", e.getMessage());
                 memoryWorkflows.put(proposalId, workflow);
             }
@@ -539,7 +472,6 @@ public class PolicyApprovalService {
         }
     }
 
-    
     private ApprovalWorkflow getWorkflow(Long proposalId) {
         if (isRedisAvailable()) {
             try {
@@ -555,7 +487,6 @@ public class PolicyApprovalService {
         return memoryWorkflows.get(proposalId);
     }
 
-    
     private void removeWorkflow(Long proposalId) {
         if (isRedisAvailable()) {
             try {
@@ -568,23 +499,19 @@ public class PolicyApprovalService {
                     }
                 }
 
-                
                 String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
                 redisTemplate.delete(key);
 
-                
                 String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
                 redisTemplate.opsForSet().remove(indexKey, proposalId);
 
-                log.debug("워크플로우 Redis 삭제 완료: proposalId={}", proposalId);
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("Redis 삭제 실패: {}", e.getMessage());
             }
         }
         memoryWorkflows.remove(proposalId);
     }
 
-    
     private List<ApprovalWorkflow> getAllWorkflows() {
         List<ApprovalWorkflow> workflows = new ArrayList<>();
 
@@ -612,9 +539,6 @@ public class PolicyApprovalService {
         return workflows;
     }
 
-    
-    
-    
     @lombok.Builder
     @lombok.Data
     public static class ApprovalWorkflow implements Serializable {
@@ -643,8 +567,7 @@ public class PolicyApprovalService {
                 .orElse(null);
         }
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ApprovalRequest implements Serializable {
@@ -662,8 +585,7 @@ public class PolicyApprovalService {
         private Map<String, Object> proposalSummary;
         private PolicyEvolutionGovernance.RiskAssessment riskSummary;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class Approver implements Serializable {
@@ -674,8 +596,7 @@ public class PolicyApprovalService {
         private ApproverLevel level;
         private int currentWorkload;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ApprovalResult {
@@ -686,8 +607,7 @@ public class PolicyApprovalService {
         private WorkflowStatus workflowStatus;
         private LocalDateTime timestamp;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ApprovalHistory {
@@ -699,16 +619,14 @@ public class PolicyApprovalService {
         private LocalDateTime createdAt;
         private LocalDateTime completedAt;
     }
-    
-    
+
     public enum WorkflowType {
         SINGLE,
         MULTI_LEVEL,
         PARALLEL,
         SEQUENTIAL
     }
-    
-    
+
     public enum WorkflowStatus {
         PENDING,
         IN_PROGRESS,
@@ -717,8 +635,7 @@ public class PolicyApprovalService {
         EXPIRED,
         CANCELLED
     }
-    
-    
+
     public enum RequestStatus {
         PENDING,
         APPROVED,
@@ -726,22 +643,19 @@ public class PolicyApprovalService {
         EXPIRED,
         CANCELLED
     }
-    
-    
+
     public enum ApprovalDecision {
         APPROVE,
         REJECT,
         DEFER
     }
-    
-    
+
     public enum ApproverLevel {
         STANDARD,
         SENIOR,
         EXECUTIVE
     }
-    
-    
+
     public enum ApprovalEventType {
         WORKFLOW_INITIATED,
         REQUEST_CREATED,
@@ -750,8 +664,7 @@ public class PolicyApprovalService {
         WORKFLOW_COMPLETED,
         WORKFLOW_CANCELLED
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ApprovalEvent {
@@ -761,8 +674,7 @@ public class PolicyApprovalService {
         private WorkflowStatus workflowStatus;
         private LocalDateTime timestamp;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class NotificationEvent {
@@ -774,16 +686,14 @@ public class PolicyApprovalService {
         private String message;
         private LocalDateTime timestamp;
     }
-    
-    
+
     public enum NotificationType {
         APPROVAL_REQUEST,
         APPROVAL_REMINDER,
         APPROVAL_COMPLETE,
         APPROVAL_REJECTED
     }
-    
-    
+
     public static class ApprovalException extends RuntimeException {
         public ApprovalException(String message) {
             super(message);

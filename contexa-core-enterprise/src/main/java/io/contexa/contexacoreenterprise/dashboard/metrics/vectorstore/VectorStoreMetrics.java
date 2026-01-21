@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.VectorStoreMetrics, DomainMetrics, EventRecorder {
     
@@ -23,8 +22,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
     
     private static final int MAX_HISTORY_SIZE = 1000;
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    
-    
+
     @Override
     public void recordOperation(String labName, Object operationType, int documentCount, long durationMs) {
         if (operationType instanceof AbstractVectorLabService.OperationType) {
@@ -34,7 +32,6 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
 
-    
     public void recordOperation(String labName, AbstractVectorLabService.OperationType operationType,
                                int documentCount, long durationMs) {
         try {
@@ -67,23 +64,17 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
                 
                 metrics.getTotalOperations().incrementAndGet();
                 metrics.setLastOperationTime(LocalDateTime.now());
-                
-                
+
                 updateAveragePerformance(metrics, operationType, durationMs);
             }
-            
-            
+
             recordPerformanceHistory(labName, operationType, documentCount, durationMs);
-            
-            log.debug("[{}] 작업 기록: {} - 문서 {}개, {}ms", 
-                     labName, operationType, documentCount, durationMs);
-            
+
         } catch (Exception e) {
             log.error("메트릭 기록 실패: Lab={}, 작업={}", labName, operationType, e);
         }
     }
-    
-    
+
     @Override
     public void recordError(String labName, Object operationType, Exception error) {
         if (operationType instanceof AbstractVectorLabService.OperationType) {
@@ -93,7 +84,6 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         }
     }
 
-    
     public void recordError(String labName, AbstractVectorLabService.OperationType operationType,
                            Throwable error) {
         try {
@@ -103,8 +93,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
                 metrics.getErrorCount().incrementAndGet();
                 metrics.setLastErrorTime(LocalDateTime.now());
             }
-            
-            
+
             ErrorRecord errorRecord = new ErrorRecord(
                 LocalDateTime.now(),
                 operationType,
@@ -115,7 +104,6 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             List<ErrorRecord> labErrors = errorHistory.computeIfAbsent(labName, k -> new CopyOnWriteArrayList<>());
             labErrors.add(errorRecord);
 
-            
             if (labErrors.size() > MAX_HISTORY_SIZE) {
                 labErrors.remove(0);
             }
@@ -126,8 +114,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             log.error("에러 메트릭 기록 실패: Lab={}, 작업={}", labName, operationType, e);
         }
     }
-    
-    
+
     public Map<String, Object> getLabStatistics(String labName) {
         LabMetrics metrics = labMetrics.get(labName);
         if (metrics == null) {
@@ -143,26 +130,22 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             stats.put("errorCount", metrics.getErrorCount().get());
             stats.put("lastOperationTime", metrics.getLastOperationTime());
             stats.put("lastErrorTime", metrics.getLastErrorTime());
-            
-            
+
             stats.put("storeOperations", metrics.getStoreOperations().get());
             stats.put("searchOperations", metrics.getSearchOperations().get());
             stats.put("updateOperations", metrics.getUpdateOperations().get());
             stats.put("deleteOperations", metrics.getDeleteOperations().get());
-            
-            
+
             stats.put("storedDocuments", metrics.getStoredDocuments().get());
             stats.put("searchedDocuments", metrics.getSearchedDocuments().get());
             stats.put("updatedDocuments", metrics.getUpdatedDocuments().get());
             stats.put("deletedDocuments", metrics.getDeletedDocuments().get());
-            
-            
+
             stats.put("averageStoreTime", metrics.getAverageStoreTime());
             stats.put("averageSearchTime", metrics.getAverageSearchTime());
             stats.put("averageUpdateTime", metrics.getAverageUpdateTime());
             stats.put("averageDeleteTime", metrics.getAverageDeleteTime());
-            
-            
+
             long totalOps = metrics.getTotalOperations().get();
             double errorRate = totalOps > 0 ? (metrics.getErrorCount().get() * 100.0 / totalOps) : 0.0;
             stats.put("errorRate", String.format("%.2f%%", errorRate));
@@ -170,8 +153,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         
         return stats;
     }
-    
-    
+
     public Map<String, Object> getSystemStatistics() {
         Map<String, Object> systemStats = new HashMap<>();
         
@@ -208,23 +190,20 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         
         return systemStats;
     }
-    
-    
+
     public List<ErrorRecord> getErrorHistory(String labName, int limit) {
         List<ErrorRecord> labErrors = errorHistory.get(labName);
         if (labErrors == null || labErrors.isEmpty()) {
             return Collections.emptyList();
         }
 
-        
         List<ErrorRecord> result = new ArrayList<>(labErrors);
         result.sort((a, b) -> b.getTimestamp().compareTo(a.getTimestamp())); 
 
         return limit > 0 && result.size() > limit ?
                result.subList(0, limit) : result;
     }
-    
-    
+
     public List<PerformanceRecord> getPerformanceHistory(String labName, 
                                                         AbstractVectorLabService.OperationType operationType, 
                                                         int limit) {
@@ -233,7 +212,6 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             return Collections.emptyList();
         }
 
-        
         List<PerformanceRecord> filtered = labPerformance.stream()
             .filter(record -> operationType == null || record.getOperationType() == operationType)
             .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp())) 
@@ -242,8 +220,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
 
         return new ArrayList<>(filtered);
     }
-    
-    
+
     public VectorStoreDashboard getDashboard() {
         Map<String, Object> systemStats = getSystemStatistics();
         List<LabSummary> labSummaries = new ArrayList<>();
@@ -261,8 +238,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             
             labSummaries.add(summary);
         }
-        
-        
+
         labSummaries.sort((a, b) -> Long.compare(b.getTotalOperations(), a.getTotalOperations()));
         
         VectorStoreDashboard dashboard = new VectorStoreDashboard();
@@ -272,23 +248,19 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         
         return dashboard;
     }
-    
-    
+
     public void resetMetrics(String labName) {
         if (labName == null) {
             labMetrics.clear();
             errorHistory.clear();
             performanceHistory.clear();
-            log.info("전체 메트릭 초기화 완료");
-        } else {
+                    } else {
             labMetrics.remove(labName);
             errorHistory.remove(labName);
             performanceHistory.remove(labName);
-            log.info("[{}] 메트릭 초기화 완료", labName);
-        }
+                    }
     }
-    
-    
+
     private void updateAveragePerformance(LabMetrics metrics, 
                                         AbstractVectorLabService.OperationType operationType, 
                                         long durationMs) {
@@ -315,8 +287,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
                 break;
         }
     }
-    
-    
+
     private void recordPerformanceHistory(String labName, 
                                         AbstractVectorLabService.OperationType operationType,
                                         int documentCount, long durationMs) {
@@ -330,31 +301,26 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         List<PerformanceRecord> labPerformance = performanceHistory.computeIfAbsent(labName, k -> new CopyOnWriteArrayList<>());
         labPerformance.add(record);
 
-        
         if (labPerformance.size() > MAX_HISTORY_SIZE) {
             labPerformance.remove(0);
         }
     }
-    
-    
+
     @Data
     public static class LabMetrics {
         private final String labName;
-        
-        
+
         private final AtomicLong totalOperations = new AtomicLong(0);
         private final AtomicLong storeOperations = new AtomicLong(0);
         private final AtomicLong searchOperations = new AtomicLong(0);
         private final AtomicLong updateOperations = new AtomicLong(0);
         private final AtomicLong deleteOperations = new AtomicLong(0);
-        
-        
+
         private final AtomicLong storedDocuments = new AtomicLong(0);
         private final AtomicLong searchedDocuments = new AtomicLong(0);
         private final AtomicLong updatedDocuments = new AtomicLong(0);
         private final AtomicLong deletedDocuments = new AtomicLong(0);
-        
-        
+
         private final AtomicLong totalStoreDuration = new AtomicLong(0);
         private final AtomicLong totalSearchDuration = new AtomicLong(0);
         private final AtomicLong totalUpdateDuration = new AtomicLong(0);
@@ -364,11 +330,9 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private double averageSearchTime = 0.0;
         private double averageUpdateTime = 0.0;
         private double averageDeleteTime = 0.0;
-        
-        
+
         private final AtomicLong errorCount = new AtomicLong(0);
-        
-        
+
         private LocalDateTime lastOperationTime;
         private LocalDateTime lastErrorTime;
         
@@ -376,8 +340,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
             this.labName = labName;
         }
     }
-    
-    
+
     @Data
     public static class ErrorRecord {
         private final LocalDateTime timestamp;
@@ -385,8 +348,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private final String errorType;
         private final String errorMessage;
     }
-    
-    
+
     @Data
     public static class PerformanceRecord {
         private final LocalDateTime timestamp;
@@ -394,8 +356,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private final int documentCount;
         private final long durationMs;
     }
-    
-    
+
     @Data
     public static class LabSummary {
         private String labName;
@@ -405,16 +366,13 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         private String errorRate;
         private LocalDateTime lastOperationTime;
     }
-    
-    
+
     @Data
     public static class VectorStoreDashboard {
         private Map<String, Object> systemStatistics;
         private List<LabSummary> labSummaries;
         private LocalDateTime generatedAt;
     }
-
-    
 
     @Override
     public String getDomain() {
@@ -423,8 +381,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
 
     @Override
     public void initialize() {
-        log.info("VectorStoreMetrics 초기화 완료");
-    }
+            }
 
     @Override
     public Map<String, Object> getStatistics() {
@@ -443,10 +400,7 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         labMetrics.clear();
         errorHistory.clear();
         performanceHistory.clear();
-        log.info("VectorStoreMetrics 리셋 완료");
-    }
-
-    
+            }
 
     @Override
     public double getHealthScore() {
@@ -473,8 +427,6 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
         metrics.put("success_rate", getHealthScore());
         return metrics;
     }
-
-    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {
@@ -505,6 +457,5 @@ public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.Vect
     @Override
     public void recordDuration(String operationName, long durationNanos) {
         
-        log.debug("Duration recorded: {} ns", durationNanos);
-    }
+            }
 }

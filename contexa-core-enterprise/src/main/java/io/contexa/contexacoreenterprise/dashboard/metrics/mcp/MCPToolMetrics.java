@@ -16,23 +16,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class MCPToolMetrics implements DomainMetrics, EventRecorder {
     
     private final MeterRegistry meterRegistry;
     private final Map<String, AtomicLong> resolverMetrics = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> executionMetrics = new ConcurrentHashMap<>();
-    
-    
+
     private final Counter totalResolutions;
     private final Counter successfulResolutions;
     private final Counter failedResolutions;
     private final Counter totalExecutions;
     private final Counter successfulExecutions;
     private final Counter failedExecutions;
-    
-    
+
     private final Timer resolutionTimer;
     private final Timer executionTimer;
     
@@ -65,7 +62,6 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
                 .description("Failed tool executions")
                 .register(meterRegistry);
 
-            
             this.resolutionTimer = Timer.builder("mcp.tool.resolution.time")
                 .description("Tool resolution time")
                 .register(meterRegistry);
@@ -74,8 +70,7 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
                 .description("Tool execution time")
                 .register(meterRegistry);
                 
-            log.info("MCPToolMetrics 초기화 완료 (Micrometer 활성화)");
-        } else {
+                    } else {
             
             this.totalResolutions = null;
             this.successfulResolutions = null;
@@ -86,26 +81,21 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
             this.resolutionTimer = null;
             this.executionTimer = null;
             
-            log.info("MCPToolMetrics 초기화 완료 (Micrometer 비활성화)");
-        }
+                    }
     }
-    
-    
+
     public void recordResolution(String resolverName, long elapsedTimeNanos) {
         if (meterRegistry != null) {
             totalResolutions.increment();
             successfulResolutions.increment();
             resolutionTimer.record(elapsedTimeNanos, TimeUnit.NANOSECONDS);
         }
-        
-        
+
         String key = "resolver." + resolverName;
         resolverMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
         
-        log.trace("도구 해결 메트릭 기록: {} - {}ns", resolverName, elapsedTimeNanos);
-    }
-    
-    
+            }
+
     public void recordResolutionFailure(String resolverName, Exception error) {
         if (meterRegistry != null) {
             totalResolutions.increment();
@@ -115,10 +105,8 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         String key = "resolver." + resolverName + ".failures";
         resolverMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
         
-        log.debug("도구 해결 실패 기록: {} - {}", resolverName, error.getMessage());
-    }
-    
-    
+            }
+
     public void recordTotalResolutionTime(long elapsedTimeNanos) {
         if (resolutionTimer != null) {
             resolutionTimer.record(elapsedTimeNanos, TimeUnit.NANOSECONDS);
@@ -127,8 +115,7 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         resolverMetrics.computeIfAbsent("total.resolution.time", k -> new AtomicLong(0))
             .addAndGet(elapsedTimeNanos);
     }
-    
-    
+
     public void recordExecution(String toolName, long elapsedTimeMillis, boolean success) {
         if (meterRegistry != null) {
             totalExecutions.increment();
@@ -139,16 +126,12 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
             }
             executionTimer.record(Duration.ofMillis(elapsedTimeMillis));
         }
-        
-        
+
         String key = "execution." + toolName + (success ? ".success" : ".failure");
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
         
-        log.trace("도구 실행 메트릭 기록: {} - {}ms (success: {})", 
-            toolName, elapsedTimeMillis, success);
-    }
-    
-    
+            }
+
     public void recordToolExecutionTime(String toolName, long elapsedTimeMillis) {
         if (meterRegistry != null) {
             Timer.builder("mcp.tool.execution.time.by.name")
@@ -162,7 +145,6 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
             .addAndGet(elapsedTimeMillis);
     }
 
-    
     public void recordCacheHit(String toolName) {
         if (meterRegistry != null) {
             Counter.builder("mcp.tool.cache.hit")
@@ -175,7 +157,6 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
     }
 
-    
     public void recordCacheMiss(String toolName) {
         if (meterRegistry != null) {
             Counter.builder("mcp.tool.cache.miss")
@@ -188,7 +169,6 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
     }
 
-    
     public void recordApprovalRequest(String toolName, boolean approved) {
         if (meterRegistry != null) {
             Counter.builder("mcp.tool.approval")
@@ -201,18 +181,14 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         String key = "approval." + toolName + (approved ? ".approved" : ".rejected");
         executionMetrics.computeIfAbsent(key, k -> new AtomicLong(0)).incrementAndGet();
     }
-    
-    
+
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new ConcurrentHashMap<>();
-        
-        
+
         stats.put("resolverMetrics", new ConcurrentHashMap<>(resolverMetrics));
-        
-        
+
         stats.put("executionMetrics", new ConcurrentHashMap<>(executionMetrics));
-        
-        
+
         long totalResolutionCount = resolverMetrics.entrySet().stream()
             .filter(e -> e.getKey().startsWith("resolver.") && !e.getKey().contains("failures"))
             .mapToLong(e -> e.getValue().get())
@@ -231,15 +207,11 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         
         return stats;
     }
-    
-    
+
     public void reset() {
         resolverMetrics.clear();
         executionMetrics.clear();
-        log.info("메트릭 리셋 완료");
-    }
-
-    
+            }
 
     @Override
     public String getDomain() {
@@ -249,13 +221,7 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
     @Override
     public void initialize() {
         
-        log.info("MCPToolMetrics 초기화 완료");
-    }
-
-    
-    
-
-    
+            }
 
     @Override
     public double getHealthScore() {
@@ -282,8 +248,6 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         }
         return metrics;
     }
-
-    
 
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {

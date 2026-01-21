@@ -11,57 +11,44 @@ import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SoarToolExecutionService {
     
     private final ToolCapableLLMClient toolCapableLLMClient;
     private final ChainedToolResolver toolResolver;
-    
-    
+
     public Mono<String> executeWithHumanApproval(String userPrompt, String incidentId, String organizationId) {
-        log.info("SOAR Tool 실행 시작: Human-in-the-Loop 활성화");
-        log.info("사용자 프롬프트: {}", userPrompt);
-        log.info("🆔 인시던트 ID: {}, 조직 ID: {}", incidentId, organizationId);
-        
-        
+
         ToolCallback[] soarToolCallbacks = getSoarToolCallbacks();
-        
-        
+
         String enhancedPrompt = enhancePromptWithSoarContext(userPrompt, incidentId, organizationId);
         Prompt prompt = new Prompt(enhancedPrompt);
-        
-        
-        
+
         return toolCapableLLMClient.callToolCallbacks(prompt, soarToolCallbacks)
-            .doOnSuccess(result -> 
-                log.info("SOAR Tool 실행 완료 - 인시던트: {}", incidentId))
-            .doOnError(error -> 
-                log.error("SOAR Tool 실행 실패 - 인시던트: {}", incidentId, error));
+                .doOnSuccess(result ->
+                        log.info("SOAR Tool 실행 완료 - 인시던트: {}", incidentId))
+                .doOnError(error ->
+                        log.error("SOAR Tool 실행 실패 - 인시던트: {}", incidentId, error));
     }
-    
-    
+
     public Flux<String> streamWithHumanApproval(String userPrompt, String incidentId, String organizationId) {
-        log.info("SOAR Tool 스트림 실행 시작: Human-in-the-Loop 활성화");
-        
+                
         ToolCallback[] soarToolCallbacks = getSoarToolCallbacks();
         String enhancedPrompt = enhancePromptWithSoarContext(userPrompt, incidentId, organizationId);
         Prompt prompt = new Prompt(enhancedPrompt);
-        
+
         return toolCapableLLMClient.streamToolCallbacks(prompt, soarToolCallbacks)
-            .doOnComplete(() -> 
-                log.info("SOAR Tool 스트림 완료 - 인시던트: {}", incidentId))
-            .doOnError(error -> 
-                log.error("SOAR Tool 스트림 실패 - 인시던트: {}", incidentId, error));
+                .doOnComplete(() ->
+                        log.info("SOAR Tool 스트림 완료 - 인시던트: {}", incidentId))
+                .doOnError(error ->
+                        log.error("SOAR Tool 스트림 실패 - 인시던트: {}", incidentId, error));
     }
-    
-    
+
     private ToolCallback[] getSoarToolCallbacks() {
         return toolResolver.getAllToolCallbacks();
     }
-    
-    
+
     private String enhancePromptWithSoarContext(String originalPrompt, String incidentId, String organizationId) {
         StringBuilder enhanced = new StringBuilder();
         enhanced.append("SOAR (Security Orchestration, Automation and Response) Context:\n");
@@ -75,21 +62,17 @@ public class SoarToolExecutionService {
         
         return enhanced.toString();
     }
-    
-    
+
     public java.util.Set<String> getRegisteredTools() {
         return toolResolver.getRegisteredToolNames();
     }
-    
-    
+
     public Map<String, Object> getExecutionStatistics() {
         return toolResolver.getToolStatistics();
     }
-    
-    
+
     public String executeToolDirectly(String toolName, String toolInput) {
-        log.info("직접 도구 실행: {} with input: {}", toolName, toolInput);
-        
+                
         ToolCallback toolCallback = toolResolver.resolve(toolName);
         if (toolCallback == null) {
             throw new IllegalArgumentException("도구를 찾을 수 없습니다: " + toolName);
@@ -97,8 +80,7 @@ public class SoarToolExecutionService {
         
         try {
             String result = toolCallback.call(toolInput);
-            log.info("도구 실행 성공: {}", toolName);
-            return result;
+                        return result;
         } catch (Exception e) {
             log.error("도구 실행 실패: {}", toolName, e);
             throw new RuntimeException("도구 실행 실패: " + e.getMessage(), e);

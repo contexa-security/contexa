@@ -5,17 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 
-
 @Slf4j
 public class DefaultNotificationService implements NotificationService {
 
     @Override
     public void sendNotification(String type, String message, Map<String, Object> data, Priority priority) {
-        
-        log.info("[NOTIFICATION] Type: {}, Priority: {}, Message: {}, Data: {}",
-                 type, priority, message, data);
 
-        
         switch (priority) {
             case CRITICAL:
                 handleCriticalNotification(type, message, data);
@@ -43,12 +38,10 @@ public class DefaultNotificationService implements NotificationService {
     }
 
     private void handleMediumPriorityNotification(String type, String message, Map<String, Object> data) {
-        log.info("[MEDIUM PRIORITY] {}: {}", type, message);
-        
+                
     }
 
     private void handleLowPriorityNotification(String type, String message, Map<String, Object> data) {
-        log.debug("[LOW PRIORITY] {}: {}", type, message);
-        
+                
     }
 }

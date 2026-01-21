@@ -4,16 +4,13 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-
 @Data
 @ConfigurationProperties(prefix = "security.autonomous")
 public class SecurityAutonomousProperties {
 
-    
     @NestedConfigurationProperty
     private LearningSettings learning = new LearningSettings();
 
-    
     @Data
     public static class LearningSettings {
         private boolean enabled = true;

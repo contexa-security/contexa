@@ -12,25 +12,20 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics implements RoutingDecisionMetrics {
 
-    
     private Counter hotPathCounter;
     private Counter coldPathCounter;
 
-    
     private Counter passThroughCounter;
     private Counter aiAnalysisCounter;
     private Counter realtimeBlockCounter;
     private Counter soarOrchestrationCounter;
     private Counter awaitApprovalCounter;
 
-    
     private Timer routingDecisionTimer;
 
-    
     private final AtomicLong hotPathCount = new AtomicLong(0);
     private final AtomicLong totalRoutingCount = new AtomicLong(0);
 
@@ -49,7 +44,6 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
                 .tag("path", "cold")
                 .register(meterRegistry);
 
-        
         passThroughCounter = counterBuilder("routing.mode", "PASS_THROUGH 모드")
                 .tag("mode", "pass_through")
                 .register(meterRegistry);
@@ -83,9 +77,6 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
                 count -> totalRoutingCount.get() > 0 ? (count.get() / (double) totalRoutingCount.get()) * 100.0 : 0.0);
     }
 
-    
-
-    
     @Override
     public void recordHotPath(long durationNanos, String processingMode) {
         hotPathCounter.increment();
@@ -96,7 +87,6 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
         recordProcessingMode(processingMode);
     }
 
-    
     @Override
     public void recordColdPath(long durationNanos, String processingMode) {
         coldPathCounter.increment();
@@ -128,8 +118,7 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
                 awaitApprovalCounter.increment();
                 break;
             default:
-                log.debug("알 수 없는 Processing Mode: {}", processingMode);
-        }
+                        }
     }
 
     public double getHotPathRatio() {

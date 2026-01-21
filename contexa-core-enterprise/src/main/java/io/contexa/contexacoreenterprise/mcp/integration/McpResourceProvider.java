@@ -13,7 +13,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class McpResourceProvider {
@@ -21,8 +20,7 @@ public class McpResourceProvider {
     private final McpSyncClient braveSearchMcpClient;
     private final McpSyncClient securityMcpClient;
     private final Map<String, ResourceWrapper> resources = new ConcurrentHashMap<>();
-    
-    
+
     public List<ResourceInfo> listAvailableResources() {
         initializeResources();
         
@@ -36,8 +34,7 @@ public class McpResourceProvider {
             ))
             .collect(Collectors.toList());
     }
-    
-    
+
     public Optional<String> readResource(String resourceName) {
         initializeResources();
         
@@ -54,8 +51,7 @@ public class McpResourceProvider {
             return Optional.empty();
         }
     }
-    
-    
+
     public List<ResourceInfo> findResourcesByCategory(String category) {
         initializeResources();
         
@@ -70,33 +66,25 @@ public class McpResourceProvider {
             ))
             .collect(Collectors.toList());
     }
-    
-    
+
     private void initializeResources() {
         if (!resources.isEmpty()) {
             return; 
         }
-        
-        log.info("📚 MCP Resources Provider 초기화 시작");
-        
-        
+
         if (braveSearchMcpClient != null) {
             registerClientResources("brave-search", braveSearchMcpClient);
         }
-        
-        
+
         if (securityMcpClient != null) {
             registerClientResources("security", securityMcpClient);
         }
         
-        log.info("MCP Resources Provider 초기화 완료: {} 개 리소스", resources.size());
-    }
-    
-    
+            }
+
     private void registerClientResources(String clientName, McpSyncClient mcpClient) {
         try {
-            log.info("📖 {} MCP 클라이언트 리소스 등록 시작", clientName);
-            
+                        
             var listResult = mcpClient.listResources(null);
             if (listResult != null && listResult.resources() != null) {
                 for (var resource : listResult.resources()) {
@@ -109,18 +97,14 @@ public class McpResourceProvider {
                     );
                     resources.put(fullName, wrapper);
                     
-                    log.debug("리소스 등록: {} - {}", fullName, resource.description());
-                }
+                                    }
                 
-                log.info("{} MCP 클라이언트 리소스 등록 완료: {} 개", 
-                        clientName, listResult.resources().size());
-            }
+                            }
         } catch (Exception e) {
             log.warn("{} MCP 클라이언트 리소스 등록 실패: {}", clientName, e.getMessage());
         }
     }
-    
-    
+
     public record ResourceInfo(
         String name,
         String uri,
@@ -128,8 +112,7 @@ public class McpResourceProvider {
         String mimeType,
         String clientName
     ) {}
-    
-    
+
     private static class ResourceWrapper {
         private final String name;
         private final McpSchema.Resource resource;
@@ -168,19 +151,16 @@ public class McpResourceProvider {
         public String getClientName() {
             return clientName;
         }
-        
-        
+
         public String read() {
             
             if (cachedContent != null && 
                 (System.currentTimeMillis() - cacheTime) < CACHE_DURATION) {
-                log.debug("캐시된 리소스 반환: {}", name);
-                return cachedContent;
+                                return cachedContent;
             }
             
             try {
-                log.debug("📖 MCP Resource 읽기: {}", name);
-                
+                                
                 var readResult = client.readResource(
                     new McpSchema.ReadResourceRequest(resource.uri())
                 );
@@ -208,8 +188,7 @@ public class McpResourceProvider {
                 throw new RuntimeException("리소스 읽기 실패: " + e.getMessage(), e);
             }
         }
-        
-        
+
         public boolean matchesCategory(String category) {
             if (category == null || category.isEmpty()) {
                 return true;
@@ -223,8 +202,7 @@ public class McpResourceProvider {
                    lowerDesc.contains(lowerCategory);
         }
     }
-    
-    
+
     public Map<String, Object> getResourceStatistics() {
         initializeResources();
         

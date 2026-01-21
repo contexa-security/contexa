@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
     
@@ -26,52 +25,39 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
     @Autowired(required = false)
     @Qualifier("mcpToolIntegrationAdapter")
     private ToolIntegrationProvider mcpProvider;
-    
-    
+
     private final Map<String, EnhancedToolCallback> unifiedTools = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, ToolExecutionStats> executionStats = new ConcurrentHashMap<>();
     private final AtomicLong totalExecutions = new AtomicLong(0);
-    
-    
+
     private final Map<String, Object> sharedContext = new ConcurrentHashMap<>();
     
     @PostConstruct
     public void initializeUnifiedProvider() {
-        log.info("UnifiedToolCallbackProvider 초기화 시작");
-        
-        
+
         registerSoarTools();
-        
-        
+
         registerMcpTools();
-        
-        log.info("UnifiedToolCallbackProvider 초기화 완료: {} 개의 통합 도구", unifiedTools.size());
-        
-        
+
         logIntegrationStatus();
     }
-    
-    
+
     @Override
     public ToolCallback[] getToolCallbacks() {
         return unifiedTools.values().toArray(new ToolCallback[0]);
     }
-    
-    
+
     public Optional<EnhancedToolCallback> getUnifiedToolCallback(String name) {
         return Optional.ofNullable(unifiedTools.get(name));
     }
-    
-    
+
     public ToolCallback[] getToolCallbacksByType(EnhancedToolCallback.ToolType type) {
         return unifiedTools.values().stream()
             .filter(tool -> tool.getToolType() == type)
             .toArray(ToolCallback[]::new);
     }
-    
-    
+
     public ToolCallback[] getToolCallbacksByRiskLevel(SoarTool.RiskLevel... levels) {
         Set<SoarTool.RiskLevel> levelSet = new HashSet<>(Arrays.asList(levels));
         
@@ -79,18 +65,15 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
             .filter(tool -> levelSet.contains(tool.getRiskLevel()))
             .toArray(ToolCallback[]::new);
     }
-    
-    
+
     public boolean requiresApproval(String toolName) {
         EnhancedToolCallback tool = unifiedTools.get(toolName);
         if (tool == null) return false;
-        
-        
+
         if (tool.isRequiresApproval()) {
             return true;
         }
-        
-        
+
         if (tool.getToolType() == EnhancedToolCallback.ToolType.SOAR && soarProvider != null) {
             return soarProvider.requiresApproval(toolName);
         }
@@ -101,8 +84,7 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
         
         return false;
     }
-    
-    
+
     public CompletableFuture<String> executeToolWithContext(String toolName, String arguments, 
                                                            Map<String, Object> executionContext) {
         return CompletableFuture.supplyAsync(() -> {
@@ -111,28 +93,22 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
                 if (tool == null) {
                     throw new IllegalArgumentException("도구를 찾을 수 없음: " + toolName);
                 }
-                
-                
+
                 prepareExecutionContext(toolName, executionContext);
-                
-                
+
                 long startTime = System.currentTimeMillis();
                 ToolExecutionStats stats = executionStats.computeIfAbsent(toolName, 
                     k -> new ToolExecutionStats(toolName));
-                
-                
+
                 String result = tool.call(arguments);
-                
-                
+
                 long executionTime = System.currentTimeMillis() - startTime;
                 stats.recordExecution(executionTime, true);
                 totalExecutions.incrementAndGet();
-                
-                
+
                 updateSharedContext(toolName, result, executionContext);
                 
-                log.debug("도구 실행 완료: {} ({}ms)", toolName, executionTime);
-                return result;
+                                return result;
                 
             } catch (Exception e) {
                 
@@ -142,14 +118,12 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
                 }
                 
                 log.error("도구 실행 실패: {} - {}", toolName, e.getMessage(), e);
-                
-                
+
                 return handleToolExecutionFailure(toolName, arguments, e);
             }
         });
     }
-    
-    
+
     public UnifiedIntegrationStats getUnifiedIntegrationStats() {
         int soarToolCount = (int) unifiedTools.values().stream()
             .filter(tool -> tool.getToolType() == EnhancedToolCallback.ToolType.SOAR).count();
@@ -166,14 +140,10 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
             System.currentTimeMillis()
         );
     }
-    
-    
-    
-    
+
     private void registerSoarTools() {
         if (soarProvider == null) {
-            log.info("SOAR Provider가 없어 SOAR 도구 건너뜀");
-            return;
+                        return;
         }
         
         try {
@@ -195,21 +165,16 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
                     .build();
                 
                 unifiedTools.put(toolName, unifiedTool);
-                log.debug("SOAR 도구 등록: {} (위험도: {})", toolName, riskLevel);
-            }
-            
-            log.info("SOAR 도구 등록 완료: {} 개", soarTools.length);
-            
+                            }
+
         } catch (Exception e) {
             log.warn("SOAR 도구 등록 실패: {}", e.getMessage());
         }
     }
-    
-    
+
     private void registerMcpTools() {
         if (mcpProvider == null) {
-            log.info("MCP Provider가 없어 MCP 도구 건너뜀");
-            return;
+                        return;
         }
         
         try {
@@ -217,8 +182,7 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
             
             for (ToolCallback mcpTool : mcpTools) {
                 String toolName = mcpTool.getToolDefinition().name();
-                
-                
+
                 EnhancedToolCallback unifiedTool = EnhancedToolCallback.builder()
                     .delegate(mcpTool)
                     .toolType(EnhancedToolCallback.ToolType.MCP)
@@ -229,23 +193,18 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
                     .build();
                 
                 unifiedTools.put(toolName, unifiedTool);
-                log.debug("MCP 도구 등록: {} (프록시)", toolName);
-            }
-            
-            log.info("MCP 도구 등록 완료: {} 개", mcpTools.length);
-            
+                            }
+
         } catch (Exception e) {
             log.warn("MCP 도구 등록 실패: {}", e.getMessage());
         }
     }
-    
-    
+
     private boolean assessMcpToolRisk(String toolName) {
         
         return false;
     }
-    
-    
+
     private void prepareExecutionContext(String toolName, Map<String, Object> context) {
         
         context.putAll(sharedContext);
@@ -253,14 +212,12 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
         context.put("timestamp", System.currentTimeMillis());
         context.put("toolName", toolName);
     }
-    
-    
+
     private void updateSharedContext(String toolName, String result, Map<String, Object> context) {
         sharedContext.put("lastExecutedTool", toolName);
         sharedContext.put("lastExecutionResult", result);
         sharedContext.put("lastExecutionTime", System.currentTimeMillis());
-        
-        
+
         String historyKey = "history_" + toolName;
         @SuppressWarnings("unchecked")
         List<String> history = (List<String>) sharedContext.computeIfAbsent(historyKey, 
@@ -271,13 +228,11 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
             history.remove(0);
         }
     }
-    
-    
+
     private String handleToolExecutionFailure(String toolName, String arguments, Exception error) {
         
         log.error("도구 실행 실패 - 도구: {}, 인수: {}, 오류: {}", toolName, arguments, error.getMessage());
-        
-        
+
         if (toolName.contains("search")) {
             return "검색 서비스 일시 불가, 나중에 다시 시도해주세요: " + error.getMessage();
         }
@@ -285,8 +240,7 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
         if (toolName.contains("security") || toolName.contains("scan")) {
             return "보안 도구 일시 불가, 시스템 관리자에게 문의하세요: " + error.getMessage();
         }
-        
-        
+
         if (unifiedTools.containsKey(toolName) && 
             unifiedTools.get(toolName).getToolType() == EnhancedToolCallback.ToolType.SOAR) {
             return "SOAR 보안 도구 실행 실패, 수동 확인이 필요합니다: " + error.getMessage();
@@ -294,34 +248,20 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
         
         return "도구 실행 실패: " + error.getMessage();
     }
-    
-    
+
     private void logIntegrationStatus() {
         UnifiedIntegrationStats stats = getUnifiedIntegrationStats();
-        
-        log.info("🔗 UnifiedToolCallbackProvider 통합 상태:");
-        log.info("  ├─ SOAR 도구: {} 개 (직접 호출)", stats.soarToolCount());
-        log.info("  ├─ MCP 도구: {} 개 (프록시 호출)", stats.mcpToolCount());
-        log.info("  ├─ 총 통합 도구: {} 개", stats.totalToolCount());
-        log.info("  └─ MCP 활성화: {}", stats.mcpEnabled() ? "✅" : "");
-        
-        
+
         Map<SoarTool.RiskLevel, Long> riskDistribution = unifiedTools.values().stream()
             .collect(java.util.stream.Collectors.groupingBy(
                 EnhancedToolCallback::getRiskLevel,
                 java.util.stream.Collectors.counting()
             ));
         
-        log.info("위험도별 도구 분포:");
-        riskDistribution.forEach((level, count) -> {
-            log.info("  └─ {}: {} 개 도구", level, count);
-        });
+                riskDistribution.forEach((level, count) -> {
+                    });
     }
-    
-    
-    
-    
-    
+
     public static class ToolExecutionStats {
         private final String toolName;
         private long totalExecutions = 0;
@@ -354,8 +294,7 @@ public class UnifiedToolCallbackProvider implements ToolCallbackProvider {
         }
         public long getLastExecutionTime() { return lastExecutionTime; }
     }
-    
-    
+
     public record UnifiedIntegrationStats(
         int soarToolCount,
         int mcpToolCount,

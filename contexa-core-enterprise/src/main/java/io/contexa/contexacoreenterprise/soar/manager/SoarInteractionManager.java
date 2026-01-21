@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public class SoarInteractionManager {
     
@@ -35,16 +34,14 @@ public class SoarInteractionManager {
         this.brokerTemplate = brokerTemplate;
         this.approvalService = approvalService;
     }
-    
-    
+
     private final Map<String, InteractionSession> sessionCache = new ConcurrentHashMap<>();
     
     private static final String SESSION_KEY_PREFIX = "soar:session:";
     private static final String APPROVAL_KEY_PREFIX = "soar:approval:";
     private static final Duration SESSION_TTL = Duration.ofHours(2);
     private static final Duration APPROVAL_TTL = Duration.ofMinutes(30);
-    
-    
+
     public String createSession(SoarContext context) {
         String sessionId = UUID.randomUUID().toString();
         
@@ -63,20 +60,14 @@ public class SoarInteractionManager {
             .conversationHistory(new ArrayList<>())
             .metadata(new HashMap<>())
             .build();
-        
-        
+
         saveSession(session);
-        
-        
+
         notifySessionCreated(session);
-        
-        log.info("SOAR 상호작용 세션 생성: sessionId={}, incidentId={}", 
-            sessionId, context.getIncidentId());
-        
+
         return sessionId;
     }
-    
-    
+
     public Optional<InteractionSession> getSession(String sessionId) {
         
         String key = SESSION_KEY_PREFIX + sessionId;
@@ -89,30 +80,25 @@ public class SoarInteractionManager {
         
         return Optional.ofNullable(session);
     }
-    
-    
+
     public SessionStatus getSessionStatus(String sessionId) {
         return getSession(sessionId)
             .map(InteractionSession::getStatus)
             .orElse(SessionStatus.NOT_FOUND);
     }
-    
-    
+
     public void updateSession(InteractionSession session) {
         session.setLastActivityAt(LocalDateTime.now());
         saveSession(session);
-        
-        
+
         notifySessionUpdated(session);
     }
-    
-    
+
     public Mono<Boolean> waitForApproval(String toolName, String sessionId) {
         return createApprovalRequest(toolName, sessionId)
             .flatMap(this::pollApprovalStatus);
     }
-    
-    
+
     private Mono<String> createApprovalRequest(String toolName, String sessionId) {
         return Mono.fromCallable(() -> {
             Optional<InteractionSession> sessionOpt = getSession(sessionId);
@@ -121,8 +107,7 @@ public class SoarInteractionManager {
             }
             
             InteractionSession session = sessionOpt.get();
-            
-            
+
             ApprovalRequestDetails details = new ApprovalRequestDetails(
                 toolName,
                 String.format("Tool execution approval required: %s", toolName),null,null,null,
@@ -133,16 +118,14 @@ public class SoarInteractionManager {
                     "timestamp", LocalDateTime.now().toString()
                 )
             );
-            
-            
+
             SoarContext context = new SoarContext();
             context.setSessionId(sessionId);
             context.setIncidentId(session.getIncidentId());
             context.setOrganizationId(session.getOrganizationId());
             
             String requestId = approvalService.requestApproval(context, details);
-            
-            
+
             ApprovalRequestInfo requestInfo = ApprovalRequestInfo.builder()
                 .requestId(requestId)
                 .toolName(toolName)
@@ -153,28 +136,21 @@ public class SoarInteractionManager {
             session.getApprovalRequests().add(requestInfo);
             session.setInteractionCount(session.getInteractionCount() + 1);
             updateSession(session);
-            
-            
+
             sendApprovalRequest(requestId, toolName, sessionId);
-            
-            log.info("승인 요청 생성: requestId={}, tool={}, session={}", 
-                requestId, toolName, sessionId);
-            
+
             return requestId;
         });
     }
-    
-    
+
     private Mono<Boolean> pollApprovalStatus(String requestId) {
         return Mono.defer(() -> {
             io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus status = approvalService.getApprovalStatus(requestId);
             
             if (status == io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus.APPROVED) {
-                log.info("도구 실행 승인됨: requestId={}", requestId);
-                return Mono.just(true);
+                                return Mono.just(true);
             } else if (status == io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus.REJECTED) {
-                log.info("도구 실행 거부됨: requestId={}", requestId);
-                return Mono.just(false);
+                                return Mono.just(false);
             } else {
                 
                 return Mono.delay(Duration.ofSeconds(1))
@@ -184,8 +160,7 @@ public class SoarInteractionManager {
         .timeout(Duration.ofMinutes(5)) 
         .onErrorReturn(false); 
     }
-    
-    
+
     public void recordToolExecution(String sessionId, String toolName, boolean success, String result) {
         getSession(sessionId).ifPresent(session -> {
             ExecutedToolInfo toolInfo = ExecutedToolInfo.builder()
@@ -197,16 +172,12 @@ public class SoarInteractionManager {
             
             session.getExecutedTools().add(toolInfo);
             updateSession(session);
-            
-            
+
             notifyToolExecuted(sessionId, toolName, success);
             
-            log.info("🔨 도구 실행 기록: tool={}, success={}, sessionId={}", 
-                toolName, success, sessionId);
-        });
+                    });
     }
-    
-    
+
     public void addConversationEntry(String sessionId, String role, String message) {
         getSession(sessionId).ifPresent(session -> {
             ConversationEntry entry = ConversationEntry.builder()
@@ -216,8 +187,7 @@ public class SoarInteractionManager {
                 .build();
             
             session.getConversationHistory().add(entry);
-            
-            
+
             if (session.getConversationHistory().size() > 100) {
                 session.setConversationHistory(
                     new ArrayList<>(session.getConversationHistory().subList(
@@ -230,8 +200,7 @@ public class SoarInteractionManager {
             updateSession(session);
         });
     }
-    
-    
+
     public void closeSession(String sessionId, String reason) {
         getSession(sessionId).ifPresent(session -> {
             session.setStatus(SessionStatus.CLOSED);
@@ -239,15 +208,12 @@ public class SoarInteractionManager {
             session.getMetadata().put("closeReason", reason);
             
             updateSession(session);
-            
-            
+
             notifySessionClosed(sessionId, reason);
             
-            log.info("SOAR 세션 종료: sessionId={}, reason={}", sessionId, reason);
-        });
+                    });
     }
-    
-    
+
     public List<InteractionSession> getActiveSessions() {
         Set<String> sessionKeys = redisTemplate.keys(SESSION_KEY_PREFIX + "*");
         if (sessionKeys == null) return new ArrayList<>();
@@ -263,17 +229,13 @@ public class SoarInteractionManager {
         
         return sessions;
     }
-    
-    
-    
+
     private void saveSession(InteractionSession session) {
         String key = SESSION_KEY_PREFIX + session.getSessionId();
         redisTemplate.opsForValue().set(key, session, SESSION_TTL);
         sessionCache.put(session.getSessionId(), session); 
     }
-    
-    
-    
+
     private void sendApprovalRequest(String requestId, String toolName, String sessionId) {
         Map<String, Object> request = Map.of(
             "type", "APPROVAL_REQUEST",
@@ -325,9 +287,7 @@ public class SoarInteractionManager {
         );
         brokerTemplate.convertAndSend("/topic/soar/tools",(Object)  notification);
     }
-    
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor

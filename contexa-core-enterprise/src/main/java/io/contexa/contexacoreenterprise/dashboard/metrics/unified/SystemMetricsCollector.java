@@ -16,7 +16,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
 
@@ -37,27 +36,23 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             meterRegistry.gauge("system.health.score", this,
                 SystemMetricsCollector::getHealthScore);
 
-            
             meterRegistry.gauge("system.active.incidents", this,
                 metrics -> {
                     Map<String, Object> m = metrics.getSystemMetrics();
                     return ((Number) m.getOrDefault("activeIncidents", 0L)).doubleValue();
                 });
 
-            
             meterRegistry.gauge("system.threat.level", this,
                 metrics -> {
                     Map<String, Object> m = metrics.getSystemMetrics();
                     return (double) m.getOrDefault("threatLevel", 0.0);
                 });
 
-            log.info("SystemMetricsCollector Prometheus 메트릭 등록 완료");
-        } else {
+                    } else {
             log.warn("MeterRegistry가 없어 Prometheus 메트릭 등록을 건너뜁니다");
         }
     }
 
-    
     public Map<String, Object> getSystemMetrics() {
         Map<String, Object> metrics = new HashMap<>();
 
@@ -66,35 +61,26 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             long activeIncidents = countActiveIncidents();
             metrics.put("activeIncidents", activeIncidents);
 
-            
             double threatLevel = calculateThreatLevel(activeIncidents);
             metrics.put("threatLevel", threatLevel);
 
-            
             long recentIncidents = countRecentIncidents(24);
             metrics.put("recentIncidents24h", recentIncidents);
 
-            
             double avgResolutionTime = calculateAverageResolutionTime();
             metrics.put("avgResolutionTimeMinutes", avgResolutionTime);
 
-            
             Map<String, Double> resourceUsage = getResourceUsage();
             metrics.put("resourceUsage", resourceUsage);
 
-            
             double eventRate = calculateEventRate();
             metrics.put("eventRatePerMinute", eventRate);
 
-            
             long failedAuthAttempts = countFailedAuthAttempts();
             metrics.put("failedAuthAttempts", failedAuthAttempts);
 
-            
             long policyViolations = countPolicyViolations();
             metrics.put("policyViolations", policyViolations);
-
-            log.debug("시스템 메트릭 수집 완료: {}", metrics);
 
         } catch (Exception e) {
             log.error("시스템 메트릭 수집 실패", e);
@@ -107,7 +93,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return metrics;
     }
 
-    
     private long countActiveIncidents() {
         
         return incidentRepository.findAll().stream()
@@ -121,7 +106,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             .count();
     }
 
-    
     private long countRecentIncidents(int hours) {
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         return incidentRepository.findAll().stream()
@@ -130,13 +114,10 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             .count();
     }
 
-    
     private double calculateThreatLevel(long activeIncidents) {
         
         double baseThreat = Math.min(1.0, activeIncidents / 20.0);
 
-        
-        
         long criticalIncidents = incidentRepository.findAll().stream()
             .filter(incident -> (incident.getStatus() == SoarIncidentStatus.NEW ||
                     incident.getStatus() == SoarIncidentStatus.TRIAGE ||
@@ -149,7 +130,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return Math.min(1.0, baseThreat + criticalWeight);
     }
 
-    
     private double calculateAverageResolutionTime() {
         try {
             
@@ -183,7 +163,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    
     private Map<String, Double> getResourceUsage() {
         Map<String, Double> usage = new HashMap<>();
 
@@ -193,24 +172,20 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         long freeMemory = runtime.freeMemory();
         long usedMemory = totalMemory - freeMemory;
 
-        
         double memoryUsage = (double) usedMemory / maxMemory * 100;
         usage.put("memoryUsagePercent", memoryUsage);
 
-        
         com.sun.management.OperatingSystemMXBean osBean =
             (com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory.getOperatingSystemMXBean();
         double cpuUsage = osBean.getProcessCpuLoad() * 100;
         usage.put("cpuUsagePercent", cpuUsage);
 
-        
         int threadCount = java.lang.management.ManagementFactory.getThreadMXBean().getThreadCount();
         usage.put("activeThreads", (double) threadCount);
 
         return usage;
     }
 
-    
     private double calculateEventRate() {
         try {
             
@@ -228,7 +203,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    
     private long countFailedAuthAttempts() {
         try {
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
@@ -243,7 +217,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    
     private long countPolicyViolations() {
         try {
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
@@ -258,19 +231,15 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         }
     }
 
-    
     public Map<String, Object> getMetricsTrend(int hours) {
         Map<String, Object> trend = new HashMap<>();
 
         try {
             LocalDateTime startTime = LocalDateTime.now().minusHours(hours);
 
-            
-            
             List<Map<String, Object>> incidentTrend = new ArrayList<>();
             trend.put("incidentTrend", incidentTrend);
 
-            
             List<Map<String, Object>> threatTrend = calculateThreatTrend(startTime);
             trend.put("threatTrend", threatTrend);
 
@@ -282,14 +251,10 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return trend;
     }
 
-    
     private List<Map<String, Object>> calculateThreatTrend(LocalDateTime startTime) {
-        
-        
+
         return List.of();
     }
-
-    
 
     @Override
     public String getDomain() {
@@ -298,10 +263,8 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
 
     @Override
     public void initialize() {
-        log.info("SystemMetricsCollector 초기화 완료");
-    }
+            }
 
-    
     @Override
     public Map<String, Object> getStatistics() {
         return getSystemMetrics();
@@ -309,10 +272,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
 
     @Override
     public void reset() {
-        log.info("SystemMetricsCollector 리셋 - 인시던트 레포지토리는 유지됨");
-    }
-
-    
+            }
 
     @Override
     public double getHealthScore() {
@@ -323,14 +283,12 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             double threatLevel = (double) metrics.getOrDefault("threatLevel", 0.0);
             double healthFromThreat = 1.0 - threatLevel;
 
-            
             @SuppressWarnings("unchecked")
             Map<String, Double> resourceUsage = (Map<String, Double>)
                 metrics.getOrDefault("resourceUsage", new HashMap<String, Double>());
             double memoryUsage = resourceUsage.getOrDefault("memoryUsagePercent", 0.0);
             double resourceAvailability = Math.max(0, 1.0 - (memoryUsage / 100.0));
 
-            
             long failedAuth = (long) metrics.getOrDefault("failedAuthAttempts", 0L);
             long policyViolations = (long) metrics.getOrDefault("policyViolations", 0L);
             long activeIncidents = (long) metrics.getOrDefault("activeIncidents", 0L);
@@ -354,7 +312,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         try {
             Map<String, Object> metrics = getSystemMetrics();
 
-            
             keyMetrics.put("active_incidents",
                 ((Number) metrics.getOrDefault("activeIncidents", 0L)).doubleValue());
             keyMetrics.put("threat_level",
@@ -364,7 +321,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             keyMetrics.put("avg_resolution_time_minutes",
                 (double) metrics.getOrDefault("avgResolutionTimeMinutes", 0.0));
 
-            
             @SuppressWarnings("unchecked")
             Map<String, Double> resourceUsage = (Map<String, Double>)
                 metrics.getOrDefault("resourceUsage", new HashMap<String, Double>());
@@ -373,7 +329,6 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             keyMetrics.put("cpu_usage_percent",
                 resourceUsage.getOrDefault("cpuUsagePercent", 0.0));
 
-            
             keyMetrics.put("failed_auth_attempts",
                 ((Number) metrics.getOrDefault("failedAuthAttempts", 0L)).doubleValue());
             keyMetrics.put("policy_violations",
@@ -386,23 +341,17 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
         return keyMetrics;
     }
 
-    
-
     @Override
     public void recordEvent(String eventType, Map<String, Object> metadata) {
         switch (eventType) {
             case "incident_created":
-                log.debug("인시던트 생성 이벤트 기록: {}", metadata);
-                break;
+                                break;
             case "incident_resolved":
-                log.debug("인시던트 해결 이벤트 기록: {}", metadata);
-                break;
+                                break;
             case "auth_failure":
-                log.debug("인증 실패 이벤트 기록: {}", metadata);
-                break;
+                                break;
             case "policy_violation":
-                log.debug("정책 위반 이벤트 기록: {}", metadata);
-                break;
+                                break;
             case "resource_alert":
                 String resourceType = metadata.containsKey("resourceType") ?
                     (String) metadata.get("resourceType") : "unknown";
@@ -411,18 +360,15 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
                 log.warn("리소스 경고 - {}: {}%", resourceType, usage);
                 break;
             default:
-                log.debug("시스템 이벤트 기록: {} - {}", eventType, metadata);
-        }
+                        }
     }
 
     @Override
     public void recordDuration(String operationName, long durationNanos) {
         if ("metric_collection".equals(operationName)) {
             long durationMs = durationNanos / 1_000_000;
-            log.trace("메트릭 수집 시간: {}ms", durationMs);
-        } else if ("threat_calculation".equals(operationName)) {
+                    } else if ("threat_calculation".equals(operationName)) {
             long durationMs = durationNanos / 1_000_000;
-            log.trace("위협 레벨 계산 시간: {}ms", durationMs);
-        }
+                    }
     }
 }

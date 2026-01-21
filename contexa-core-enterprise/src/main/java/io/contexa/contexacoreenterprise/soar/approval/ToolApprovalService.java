@@ -11,17 +11,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ToolApprovalService {
-    
-    
+
     private final Map<String, ApprovalRequest> pendingApprovals = new ConcurrentHashMap<>();
     private final Map<String, ApprovalResult> approvalHistory = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<ApprovalResult>> approvalFutures = new ConcurrentHashMap<>();
-    
-    
+
     public CompletableFuture<ApprovalResult> requestApproval(String toolName, String requestData, 
                                                             String riskLevel, String requestedBy) {
         String approvalId = UUID.randomUUID().toString();
@@ -40,11 +37,7 @@ public class ToolApprovalService {
         
         CompletableFuture<ApprovalResult> future = new CompletableFuture<>();
         approvalFutures.put(approvalId, future);
-        
-        log.info("Approval request created: {} for tool {} (Risk: {})", 
-            approvalId, toolName, riskLevel);
-        
-        
+
         CompletableFuture.delayedExecutor(30, java.util.concurrent.TimeUnit.MINUTES)
             .execute(() -> {
                 if (!future.isDone()) {
@@ -54,8 +47,7 @@ public class ToolApprovalService {
         
         return future;
     }
-    
-    
+
     public boolean approve(String approvalId, String decidedBy, String reason) {
         ApprovalRequest request = pendingApprovals.remove(approvalId);
         if (request == null) {
@@ -79,11 +71,9 @@ public class ToolApprovalService {
             future.complete(result);
         }
         
-        log.info("Tool execution approved: {} by {}", request.getToolName(), decidedBy);
-        return true;
+                return true;
     }
-    
-    
+
     public boolean reject(String approvalId, String decidedBy, String reason) {
         ApprovalRequest request = pendingApprovals.remove(approvalId);
         if (request == null) {
@@ -110,8 +100,7 @@ public class ToolApprovalService {
         log.warn("Tool execution rejected: {} by {}", request.getToolName(), decidedBy);
         return true;
     }
-    
-    
+
     private void expire(String approvalId) {
         ApprovalRequest request = pendingApprovals.remove(approvalId);
         if (request != null) {
@@ -134,21 +123,18 @@ public class ToolApprovalService {
             log.warn("⏰ Approval request expired: {}", approvalId);
         }
     }
-    
-    
+
     public List<ApprovalRequest> getPendingApprovals() {
         return new ArrayList<>(pendingApprovals.values());
     }
-    
-    
+
     public List<ApprovalResult> getApprovalHistory(int limit) {
         return approvalHistory.values().stream()
             .sorted((a, b) -> b.getDecidedAt().compareTo(a.getDecidedAt()))
             .limit(limit)
             .collect(Collectors.toList());
     }
-    
-    
+
     @Data
     @Builder
     public static class ApprovalRequest {
@@ -160,8 +146,7 @@ public class ToolApprovalService {
         private Instant requestedAt;
         private String status;
     }
-    
-    
+
     @Data
     @Builder
     public static class ApprovalResult {

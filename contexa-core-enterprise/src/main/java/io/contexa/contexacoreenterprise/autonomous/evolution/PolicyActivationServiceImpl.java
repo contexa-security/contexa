@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-
 public class PolicyActivationServiceImpl implements PolicyActivationService {
 
     private static final Logger logger = LoggerFactory.getLogger(PolicyActivationServiceImpl.class);
@@ -38,19 +37,14 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     
     @Autowired
     private EmergencyKillSwitch killSwitch;
-    
-    
-    
+
     @Autowired
     private ApplicationEventPublisher eventPublisher;
-    
-    
+
     private final Map<Long, ActivationTask> activationTasks = new ConcurrentHashMap<>();
-    
-    
+
     private final ActivationMetrics metrics = new ActivationMetrics();
-    
-    
+
     @Override
     @Transactional
     public ActivationResult activatePolicy(Long proposalId, String activatedBy) {
@@ -64,8 +58,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             if (!canActivate(proposal)) {
                 return ActivationResult.failure(proposalId, "Policy cannot be activated in current state");
             }
-            
-            
+
             PolicyConflictDetector.ConflictCheckResult conflictResult = 
                 conflictDetector.checkConflicts(proposal);
             
@@ -73,21 +66,16 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 return ActivationResult.failure(proposalId, 
                     "Conflicts detected: " + conflictResult.getConflicts());
             }
-            
-            
+
             Long versionId = versionManager.createVersion(proposal);
-            
-            
+
             ActivationTask task = createActivationTask(proposal, versionId, activatedBy);
             activationTasks.put(proposalId, task);
-            
-            
+
             CompletableFuture<ActivationResult> future = executeActivation(task);
-            
-            
+
             ActivationResult result = future.get(30, TimeUnit.SECONDS);
-            
-            
+
             updateMetrics(result);
             
             return result;
@@ -97,8 +85,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             return ActivationResult.failure(proposalId, "Activation failed: " + e.getMessage());
         }
     }
-    
-    
+
     @Override
     @Transactional
     public boolean deactivatePolicy(Long proposalId, String deactivatedBy, String reason) {
@@ -112,19 +99,16 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 logger.warn("Policy {} is not active", proposalId);
                 return false;
             }
-            
-            
+
             proposal.setStatus(ProposalStatus.DEACTIVATED);
             proposal.setDeactivatedAt(LocalDateTime.now());
             proposal.addMetadata("deactivated_by", deactivatedBy);
             proposal.addMetadata("deactivation_reason", reason);
             
             proposalRepository.save(proposal);
-            
-            
+
             publishPolicyChangeEvent(proposal, PolicyChangeType.DEACTIVATED);
-            
-            
+
             publishDeactivationEvent(proposal, deactivatedBy, reason);
             
             logger.info("Policy {} successfully deactivated", proposalId);
@@ -135,8 +119,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             return false;
         }
     }
-    
-    
+
     @Async
     public CompletableFuture<List<ActivationResult>> batchActivate(
             List<Long> proposalIds, String activatedBy) {
@@ -152,21 +135,18 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 .map(CompletableFuture::join)
                 .collect(Collectors.toList()));
     }
-    
-    
+
     public ActivationResult conditionalActivate(Long proposalId, ActivationConditions conditions) {
         logger.info("Conditional activation for policy {} with conditions: {}", proposalId, conditions);
         
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
-            
-            
+
             if (!validateConditions(proposal, conditions)) {
                 return ActivationResult.failure(proposalId, "Activation conditions not met");
             }
-            
-            
+
             return activatePolicy(proposalId, conditions.getRequestedBy());
             
         } catch (Exception e) {
@@ -174,8 +154,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             return ActivationResult.failure(proposalId, e.getMessage());
         }
     }
-    
-    
+
     public ActivationStatus getActivationStatus(Long proposalId) {
         ActivationTask task = activationTasks.get(proposalId);
         
@@ -190,8 +169,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         
         return task.getStatus();
     }
-    
-    
+
     @Transactional
     public boolean rollbackActivation(Long proposalId, String reason) {
         logger.warn("Rolling back activation for policy {}: {}", proposalId, reason);
@@ -210,8 +188,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 proposal.addMetadata("rollback_time", LocalDateTime.now().toString());
                 
                 proposalRepository.save(proposal);
-                
-                
+
                 publishPolicyChangeEvent(proposal, PolicyChangeType.ROLLED_BACK);
                 
                 logger.info("Successfully rolled back policy {}", proposalId);
@@ -224,14 +201,11 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             return false;
         }
     }
-    
-    
+
     public ActivationMetrics getMetrics() {
         return metrics.snapshot();
     }
-    
-    
-    
+
     private boolean canActivate(PolicyEvolutionProposal proposal) {
         ProposalStatus status = proposal.getStatus();
         return status == ProposalStatus.APPROVED || status == ProposalStatus.PENDING;
@@ -255,20 +229,16 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 
                 task.setStatus(ActivationStatus.PREPARING);
                 prepareActivation(task);
-                
-                
+
                 task.setStatus(ActivationStatus.VALIDATING);
                 validateActivation(task);
-                
-                
+
                 task.setStatus(ActivationStatus.APPLYING);
                 applyActivation(task);
-                
-                
+
                 task.setStatus(ActivationStatus.VERIFYING);
                 verifyActivation(task);
-                
-                
+
                 task.setStatus(ActivationStatus.ACTIVE);
                 task.setEndTime(LocalDateTime.now());
                 
@@ -277,8 +247,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             } catch (Exception e) {
                 task.setStatus(ActivationStatus.FAILED);
                 task.setError(e.getMessage());
-                
-                
+
                 if (shouldActivateKillSwitch(e)) {
                     killSwitch.activate("Activation failure: " + e.getMessage(), task.getProposalId());
                 }
@@ -294,19 +263,15 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new ActivationException("Proposal not found during preparation"));
 
-        
         validateResourceAvailability(proposal);
 
-        
         checkDependencies(proposal);
 
-        
         createBackup(task);
 
         logger.info("Activation preparation completed for proposal {}", task.getProposalId());
     }
 
-    
     private void validateResourceAvailability(PolicyEvolutionProposal proposal) throws ActivationException {
         
         switch (proposal.getProposalType()) {
@@ -336,7 +301,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         }
     }
 
-    
     private void checkDependencies(PolicyEvolutionProposal proposal) throws ActivationException {
         
         PolicyConflictDetector.ConflictCheckResult conflictResult = conflictDetector.checkConflicts(proposal);
@@ -348,7 +312,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         logger.debug("Dependency check passed for proposal {}", proposal.getId());
     }
 
-    
     private void createBackup(ActivationTask task) throws ActivationException {
         try {
             
@@ -357,7 +320,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                     .orElseThrow(() -> new ActivationException("Proposal not found for backup"))
             );
 
-            
             logger.debug("Backup created with version ID: {} for proposal {}",
                 backupVersionId, task.getProposalId());
 
@@ -371,13 +333,11 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new IllegalStateException("Proposal not found"));
-        
-        
+
         if (versionManager.hasConflict(task.getProposalId(), task.getVersionId())) {
             throw new ActivationException("Version conflict detected");
         }
-        
-        
+
         EmergencyKillSwitch.KillSwitchStatus killSwitchStatus = killSwitch.getStatus();
         if (killSwitchStatus.isActivated() || killSwitchStatus.isSafeMode()) {
             throw new ActivationException("System is in safe mode");
@@ -389,21 +349,17 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new IllegalStateException("Proposal not found"));
-        
-        
+
         publishPolicyChangeEvent(proposal, PolicyChangeType.ACTIVATED);
-        
-        
+
         versionManager.activateVersion(task.getProposalId(), task.getVersionId());
-        
-        
+
         proposal.setStatus(ProposalStatus.ACTIVATED);
         proposal.setActivatedAt(LocalDateTime.now());
         proposal.setActivatedBy(task.getActivatedBy());
         
         proposalRepository.save(proposal);
-        
-        
+
         publishActivationEvent(proposal, task);
     }
     
@@ -413,34 +369,27 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new ActivationException("Proposal not found during verification"));
 
-        
         verifyPolicyApplication(proposal);
 
-        
         performHealthCheck(proposal, task);
 
-        
         performInitialMonitoring(proposal, task);
 
-        
         killSwitch.monitorExecution(task.getProposalId(), true);
 
         logger.info("Activation verification completed for proposal {}", task.getProposalId());
     }
 
-    
     private void verifyPolicyApplication(PolicyEvolutionProposal proposal) throws ActivationException {
         
         if (proposal.getStatus() != ProposalStatus.ACTIVATED) {
             throw new ActivationException("Proposal status is not ACTIVATED: " + proposal.getStatus());
         }
 
-        
         if (proposal.getActivatedAt() == null) {
             throw new ActivationException("Activation timestamp is missing");
         }
 
-        
         if (proposal.getActivatedBy() == null || proposal.getActivatedBy().isEmpty()) {
             throw new ActivationException("Activator information is missing");
         }
@@ -448,7 +397,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         logger.debug("Policy application verified for proposal {}", proposal.getId());
     }
 
-    
     private void performHealthCheck(PolicyEvolutionProposal proposal, ActivationTask task) throws ActivationException {
         
         EmergencyKillSwitch.KillSwitchStatus killSwitchStatus = killSwitch.getStatus();
@@ -456,12 +404,10 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             throw new ActivationException("Kill switch activated during verification");
         }
 
-        
         if (versionManager.hasConflict(task.getProposalId(), task.getVersionId())) {
             throw new ActivationException("Version conflict detected after activation");
         }
 
-        
         PolicyConflictDetector.ConflictCheckResult conflictResult = conflictDetector.checkConflicts(proposal);
         if (!conflictResult.isCanProceed()) {
             logger.warn("Post-activation conflict detected: {}", conflictResult.getConflicts());
@@ -471,7 +417,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         logger.debug("Health check passed for proposal {}", proposal.getId());
     }
 
-    
     private void performInitialMonitoring(PolicyEvolutionProposal proposal, ActivationTask task) throws ActivationException {
         
         Map<String, Object> monitoringMetrics = new HashMap<>();
@@ -481,11 +426,9 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         monitoringMetrics.put("confidenceScore", proposal.getConfidenceScore());
         monitoringMetrics.put("initialStatus", "HEALTHY");
 
-        
         proposal.addMetadata("monitoring_started_at", LocalDateTime.now().toString());
         proposal.addMetadata("initial_metrics", monitoringMetrics);
 
-        
         proposalRepository.save(proposal);
 
         logger.debug("Initial monitoring configured for proposal {}", proposal.getId());
@@ -506,8 +449,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     
     private Map<String, Object> extractPolicyRules(PolicyEvolutionProposal proposal) {
         Map<String, Object> rules = new HashMap<>();
-        
-        
+
         rules.put("id", proposal.getId());
         rules.put("type", proposal.getProposalType());
         rules.put("content", proposal.getPolicyContent());
@@ -523,14 +465,12 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             LocalDateTime.now().isBefore(conditions.getActivateAfter())) {
             return false;
         }
-        
-        
+
         if (conditions.getMaxRiskLevel() != null && 
             proposal.getRiskLevel().ordinal() > conditions.getMaxRiskLevel().ordinal()) {
             return false;
         }
-        
-        
+
         if (conditions.getMinConfidenceScore() != null && 
             proposal.getConfidenceScore() < conditions.getMinConfidenceScore()) {
             return false;
@@ -591,10 +531,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         
         eventPublisher.publishEvent(event);
     }
-    
-    
-    
-    
+
     @lombok.Builder
     @lombok.Data
     private static class ActivationTask {
@@ -606,8 +543,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         private ActivationStatus status;
         private String error;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ActivationConditions {
@@ -617,8 +553,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         private Double minConfidenceScore;
         private Map<String, Object> customConditions;
     }
-    
-    
+
     @lombok.Data
     public static class ActivationMetrics {
         private long totalActivations = 0;
@@ -654,8 +589,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             return snapshot;
         }
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class ActivationEvent {
@@ -664,8 +598,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         private String activatedBy;
         private LocalDateTime timestamp;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class DeactivationEvent {
@@ -674,8 +607,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         private String reason;
         private LocalDateTime timestamp;
     }
-    
-    
+
     public enum ActivationStatus {
         PREPARING,
         VALIDATING,
@@ -688,8 +620,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         ROLLED_BACK,
         NOT_FOUND
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class PolicyChangeEvent {
@@ -698,15 +629,13 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         private Map<String, Object> policyRules;
         private LocalDateTime timestamp;
     }
-    
-    
+
     public enum PolicyChangeType {
         ACTIVATED,
         DEACTIVATED,
         ROLLED_BACK
     }
-    
-    
+
     public static class ActivationException extends Exception {
         public ActivationException(String message) {
             super(message);

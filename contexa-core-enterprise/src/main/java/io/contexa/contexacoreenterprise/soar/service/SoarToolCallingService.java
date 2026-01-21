@@ -25,7 +25,6 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SoarToolCallingService {
@@ -35,16 +34,12 @@ public class SoarToolCallingService {
     private final ChainedToolResolver toolResolver;
     private final UnifiedApprovalService unifiedApprovalService;
 
-    
     public Mono<SoarExecutionResult> executeWithApproval(
             String userPrompt,
             String incidentId,
             String organizationId,
             SoarContext soarContext) {
-        
-        log.info("SOAR Tool 실행 시작 - AI 진단 프로세스 통합");
-        log.info("인시던트: {}, 조직: {}", incidentId, organizationId);
-        
+
         String conversationId = UUID.randomUUID().toString();
         Instant startTime = Instant.now();
         
@@ -54,8 +49,7 @@ public class SoarToolCallingService {
                 String sessionId = interactionManager.createSession(soarContext);
                 soarContext.setSessionId(sessionId);
             }
-            
-            
+
             soarContext.setRequiresToolExecution(true);
             soarContext.setOriginalQuery(userPrompt);
             soarContext.setIncidentId(incidentId);
@@ -80,41 +74,35 @@ public class SoarToolCallingService {
             soarRequest.withParameter("incidentId", incidentId);
             soarRequest.withDiagnosisType(DiagnosisType.SOAR);
 
-            
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("sessionState", soarContext.getSessionState());
             metadata.put("approvalRequests", soarContext.getApprovalRequests());
             metadata.put("lastActivity", soarContext.getLastActivity());
             soarRequest.setMetadata(metadata);
 
-
             return soarRequest;
         })
         .flatMap(aiRequest -> {
             
-            log.info("PipelineOrchestrator 실행 시작");
-            return aiNativeProcessor.process(aiRequest, SoarResponse.class
+                        return aiNativeProcessor.process(aiRequest, SoarResponse.class
             );
         })
         .map(response -> {
             
             long duration = Instant.now().toEpochMilli() - startTime.toEpochMilli();
-            
-            
+
             List<String> executedTools = new ArrayList<>();
             if (response.getExecutedTools() != null) {
                 executedTools.addAll(response.getExecutedTools());
             }
-            
-            
+
             String finalResponse = "";
             try {
                 
                 ObjectMapper mapper = new ObjectMapper();
                 mapper.registerModule(new JavaTimeModule());
                 finalResponse = mapper.writeValueAsString(response);
-                log.info("SoarResponse를 JSON으로 변환 성공: {} bytes", finalResponse.length());
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("SoarResponse JSON 변환 실패, analysisResult만 사용", e);
                 finalResponse = response.getAnalysisResult() != null ? response.getAnalysisResult() : "";
             }
@@ -144,27 +132,21 @@ public class SoarToolCallingService {
                 .build());
         });
     }
-    
-    
+
     private boolean hasToolCalls(ChatResponse chatResponse) {
-        
-        
+
         String content = chatResponse.getResult().getOutput().getText();
         return content != null && 
                (content.contains("function_call") || 
                 content.contains("tool_use") ||
                 content.contains("<tool>"));
     }
-    
-    
+
     private List<SoarToolCall> extractToolCalls(ChatResponse chatResponse) {
         List<SoarToolCall> toolCalls = new ArrayList<>();
-        
-        
-        
+
         String content = chatResponse.getResult().getOutput().getText();
-        
-        
+
         if (content.contains("scan_network")) {
             toolCalls.add(SoarToolCall.builder()
                 .name("scan_network")
@@ -175,8 +157,7 @@ public class SoarToolCallingService {
         
         return toolCalls;
     }
-    
-    
+
     private String assessRiskLevel(String toolName) {
         
         if (toolName.contains("isolation") || 
@@ -200,13 +181,11 @@ public class SoarToolCallingService {
         
         return "MEDIUM";
     }
-    
-    
+
     private boolean isApprovalRequired(String riskLevel) {
         return "HIGH".equals(riskLevel) || "CRITICAL".equals(riskLevel);
     }
-    
-    
+
     private CompletableFuture<Boolean> requestApprovalAsync(
             SoarToolCall toolCall,
             SoarContext soarContext,
@@ -216,8 +195,7 @@ public class SoarToolCallingService {
         try {
             
             Map<String, Object> parameters = parseToolArguments(toolCall.getArguments());
-            
-            
+
             io.contexa.contexacore.domain.ApprovalRequest request = 
                 io.contexa.contexacore.domain.ApprovalRequest.builder()
                     .requestId(approvalId)
@@ -229,8 +207,7 @@ public class SoarToolCallingService {
                     .riskLevel(determineRiskLevelEnum(toolCall.getRiskLevel()))
                     .requestedBy("system")
                     .build();
-            
-            
+
             return unifiedApprovalService.requestApproval(request)
                 .exceptionally(throwable -> {
                     log.error("승인 요청 실패: {}", toolCall.getName(), throwable);
@@ -242,8 +219,7 @@ public class SoarToolCallingService {
             return CompletableFuture.completedFuture(false);
         }
     }
-    
-    
+
     private io.contexa.contexacore.domain.ApprovalRequest.RiskLevel determineRiskLevelEnum(String riskLevel) {
         return switch (riskLevel) {
             case "CRITICAL" -> io.contexa.contexacore.domain.ApprovalRequest.RiskLevel.CRITICAL;
@@ -253,8 +229,7 @@ public class SoarToolCallingService {
             default -> io.contexa.contexacore.domain.ApprovalRequest.RiskLevel.INFO;
         };
     }
-    
-    
+
     private String buildSystemPrompt(SoarContext soarContext) {
         return String.format("""
             You are a Security Orchestration, Automation and Response (SOAR) assistant.
@@ -278,13 +253,11 @@ public class SoarToolCallingService {
             soarContext.getOrganizationId()
         );
     }
-    
-    
+
     private String enhanceUserPrompt(String userPrompt, String incidentId) {
         return String.format("[Incident: %s] %s", incidentId, userPrompt);
     }
-    
-    
+
     private List<ToolCallback> getSoarToolCallbacks() {
         return toolResolver.getRegisteredToolNames()
             .stream()
@@ -292,8 +265,7 @@ public class SoarToolCallingService {
             .filter(Objects::nonNull)
             .toList();
     }
-    
-    
+
     @Builder
     @Getter
     public static class SoarExecutionResult {
@@ -327,8 +299,7 @@ public class SoarToolCallingService {
             );
         }
     }
-    
-    
+
     private Map<String, Object> parseToolArguments(String arguments) {
         if (arguments == null || arguments.isEmpty()) {
             return new HashMap<>();
@@ -338,14 +309,11 @@ public class SoarToolCallingService {
             
             ObjectMapper mapper = new ObjectMapper();
             Map<String, Object> parsed = mapper.readValue(arguments, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
-            
-            
-            log.debug("도구 인수 파싱 성공: {}", parsed);
-            return parsed;
+
+                        return parsed;
             
         } catch (Exception e) {
-            
-            
+
             log.error("도구 인수 파싱 실패 - 빈 Map 반환: arguments={}", arguments, e);
             return new HashMap<>();
         }

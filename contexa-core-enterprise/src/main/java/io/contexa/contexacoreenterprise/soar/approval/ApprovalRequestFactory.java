@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalRequestFactory {
@@ -20,18 +19,14 @@ public class ApprovalRequestFactory {
     private static final Integer DEFAULT_APPROVAL_TIMEOUT = 300; 
     private static final Integer DEFAULT_REQUIRED_APPROVERS = 1;
     private static final String DEFAULT_INCIDENT_PREFIX = "INC-";
-    
-    
+
     public ApprovalRequest createForToolExecution(
             String toolName,
             Map<String, Object> parameters,
             RiskLevel riskLevel,
             String incidentId,
             String sessionId) {
-        
-        log.debug("Creating ApprovalRequest for tool execution: {}", toolName);
-        
-        
+
         if (incidentId == null || incidentId.isEmpty()) {
             incidentId = generateIncidentId();
             log.warn("incidentId parameter was null for tool {}, generated: {}", toolName, incidentId);
@@ -55,32 +50,23 @@ public class ApprovalRequestFactory {
                 .organizationId(DEFAULT_ORGANIZATION_ID)
                 .metadata(new HashMap<>())
                 .build();
-        
-        
+
         request.setActionDescription(buildActionDescription(toolName, parameters));
         request.setToolDescription(buildToolDescription(toolName));
         request.setPotentialImpact(assessPotentialImpact(toolName, riskLevel));
-        
-        
+
         ensureRequiredFields(request);
-        
-        log.info("Created ApprovalRequest: {} for tool: {} with status: {}", 
-            request.getRequestId(), toolName, request.getStatus());
-        
+
         return request;
     }
-    
-    
+
     public ApprovalRequest createFromNotification(
             String toolName,
             String description,
             String incidentId,
             String riskLevel,
             Map<String, Object> parameters) {
-        
-        log.debug("Creating ApprovalRequest from notification for: {}", toolName);
-        
-        
+
         if (incidentId == null || incidentId.isEmpty()) {
             incidentId = generateIncidentId();
             log.warn("incidentId parameter was null in notification for tool {}, generated: {}", toolName, incidentId);
@@ -106,29 +92,21 @@ public class ApprovalRequestFactory {
                 .organizationId(DEFAULT_ORGANIZATION_ID)
                 .metadata(new HashMap<>())
                 .build();
-        
-        
+
         ensureRequiredFields(request);
-        
-        log.info("Created ApprovalRequest from notification: {} with status: {}", 
-            request.getRequestId(), request.getStatus());
-        
+
         return request;
     }
-    
-    
+
     public ApprovalRequest completeFromEvent(ApprovalRequest request) {
-        log.debug("Completing ApprovalRequest from event: {}", request.getRequestId());
-        
-        
+
         if (request.getRequestId() == null || request.getRequestId().isEmpty()) {
             request.setRequestId(generateRequestId());
         }
         
         if (request.getStatus() == null) {
             request.setStatus(ApprovalStatus.PENDING);
-            log.debug("Set default status: PENDING");
-        }
+                    }
         
         if (request.getRequestedAt() == null) {
             request.setRequestedAt(LocalDateTime.now());
@@ -140,8 +118,7 @@ public class ApprovalRequestFactory {
         
         if (request.getRiskLevel() == null) {
             request.setRiskLevel(RiskLevel.MEDIUM);
-            log.debug("Set default risk level: MEDIUM");
-        }
+                    }
         
         if (request.getApprovalType() == null) {
             request.setApprovalType(determineApprovalType(request.getRiskLevel()));
@@ -149,8 +126,7 @@ public class ApprovalRequestFactory {
         
         if (request.getRequiredRoles() == null) {
             request.setRequiredRoles(determineRequiredRoles(request.getRiskLevel()));
-            log.debug("Set default required roles");
-        }
+                    }
         
         if (request.getRequiredApprovers() == null) {
             request.setRequiredApprovers(determineRequiredApprovers(request.getRiskLevel()));
@@ -159,8 +135,7 @@ public class ApprovalRequestFactory {
         if (request.getApprovalTimeout() == null) {
             request.setApprovalTimeout(DEFAULT_APPROVAL_TIMEOUT);
         }
-        
-        
+
         if (request.getIncidentId() == null || request.getIncidentId().isEmpty()) {
             request.setIncidentId(generateIncidentId());
             log.warn("incidentId was null, generated default: {}", request.getIncidentId());
@@ -169,8 +144,7 @@ public class ApprovalRequestFactory {
         if (request.getOrganizationId() == null || request.getOrganizationId().isEmpty()) {
             request.setOrganizationId(DEFAULT_ORGANIZATION_ID);
         }
-        
-        
+
         if (request.getToolDescription() == null || request.getToolDescription().isEmpty()) {
             request.setToolDescription(buildToolDescription(request.getToolName()));
         }
@@ -182,17 +156,12 @@ public class ApprovalRequestFactory {
         if (request.getMetadata() == null) {
             request.setMetadata(new HashMap<>());
         }
-        
-        
+
         ensureRequiredFields(request);
-        
-        log.info("Completed ApprovalRequest: {} with status: {}", 
-            request.getRequestId(), request.getStatus());
-        
+
         return request;
     }
-    
-    
+
     private void ensureRequiredFields(ApprovalRequest request) {
         List<String> missingFields = new ArrayList<>();
         
@@ -207,9 +176,7 @@ public class ApprovalRequestFactory {
         if (request.getToolName() == null || request.getToolName().isEmpty()) {
             missingFields.add("toolName");
         }
-        
-        
-        
+
         if (request.getIncidentId() == null || request.getIncidentId().isEmpty()) {
             request.setIncidentId(generateIncidentId());
             log.warn("incidentId was null in ensureRequiredFields, generated default: {}", request.getIncidentId());
@@ -228,38 +195,29 @@ public class ApprovalRequestFactory {
             log.error(errorMsg);
             throw new IllegalArgumentException(errorMsg);
         }
-        
-        
+
         if (request.getRequiredRoles() == null) {
             request.setRequiredRoles(new HashSet<>());
-            log.debug("Initialized empty requiredRoles");
-        }
-        
-        
+                    }
+
         if (request.getParameters() == null) {
             request.setParameters(new HashMap<>());
-            log.debug("Initialized empty parameters");
-        }
+                    }
         
         if (request.getMetadata() == null) {
             request.setMetadata(new HashMap<>());
-            log.debug("Initialized empty metadata");
-        }
+                    }
         
-        log.debug("All required fields validated for request: {}", request.getRequestId());
-    }
-    
-    
+            }
+
     private String generateRequestId() {
         return UUID.randomUUID().toString();
     }
-    
-    
+
     private String generateIncidentId() {
         return DEFAULT_INCIDENT_PREFIX + UUID.randomUUID().toString();
     }
-    
-    
+
     private ApprovalType determineApprovalType(RiskLevel riskLevel) {
         if (riskLevel == null) {
             return ApprovalType.MANUAL;
@@ -279,8 +237,7 @@ public class ApprovalRequestFactory {
                 return ApprovalType.MANUAL;
         }
     }
-    
-    
+
     private Set<String> determineRequiredRoles(RiskLevel riskLevel) {
         Set<String> roles = new HashSet<>();
         
@@ -311,8 +268,7 @@ public class ApprovalRequestFactory {
         
         return roles;
     }
-    
-    
+
     private Integer determineRequiredApprovers(RiskLevel riskLevel) {
         if (riskLevel == null) {
             return DEFAULT_REQUIRED_APPROVERS;
@@ -330,8 +286,7 @@ public class ApprovalRequestFactory {
                 return 1; 
         }
     }
-    
-    
+
     private String buildActionDescription(String toolName, Map<String, Object> parameters) {
         StringBuilder description = new StringBuilder();
         description.append("Execute tool: ").append(toolName);
@@ -342,8 +297,7 @@ public class ApprovalRequestFactory {
         
         return description.toString();
     }
-    
-    
+
     private String assessPotentialImpact(String toolName, RiskLevel riskLevel) {
         if (riskLevel == null) {
             return "Unknown impact";
@@ -364,18 +318,15 @@ public class ApprovalRequestFactory {
                 return "Impact assessment pending";
         }
     }
-    
-    
+
     private String buildToolDescription(String toolName) {
         if (toolName == null || toolName.isEmpty()) {
             return "Unknown tool execution";
         }
-        
-        
+
         StringBuilder description = new StringBuilder();
         description.append("Tool '").append(toolName).append("' ");
-        
-        
+
         if (toolName.contains("ProcessKill") || toolName.contains("Kill")) {
             description.append("for terminating system processes");
         } else if (toolName.contains("SystemInfo") || toolName.contains("Info")) {
@@ -396,8 +347,7 @@ public class ApprovalRequestFactory {
         
         return description.toString();
     }
-    
-    
+
     private RiskLevel parseRiskLevel(String riskLevel) {
         if (riskLevel == null || riskLevel.isEmpty()) {
             return RiskLevel.MEDIUM;

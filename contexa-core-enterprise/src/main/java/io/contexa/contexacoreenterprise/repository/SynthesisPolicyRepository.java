@@ -12,52 +12,41 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Repository
 public class SynthesisPolicyRepository {
-    
-    
+
     private final Map<Long, Policy> policies = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, Set<Long>> policyByType = new ConcurrentHashMap<>();
     private final Map<PolicyStatus, Set<Long>> policyByStatus = new ConcurrentHashMap<>();
-    
-    
+
     private long nextPolicyId = 1000L;
-    
-    
+
     public Policy save(Policy policy) {
         if (policy.getPolicyId() == null) {
             policy.setPolicyId(generatePolicyId());
             policy.setCreatedAt(LocalDateTime.now());
         }
         policy.setUpdatedAt(LocalDateTime.now());
-        
-        
+
         policies.put(policy.getPolicyId(), policy);
-        
-        
+
         updateIndexes(policy);
         
-        log.info("Policy {} saved with status {}", policy.getPolicyId(), policy.getStatus());
-        return policy;
+                return policy;
     }
-    
-    
+
     public Optional<Policy> findById(Long policyId) {
         return Optional.ofNullable(policies.get(policyId));
     }
-    
-    
+
     public List<Policy> findByProposalId(Long proposalId) {
         return policies.values().stream()
             .filter(p -> proposalId.equals(p.getProposalId()))
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<Policy> findActivePolices() {
         Set<Long> activePolicyIds = policyByStatus.getOrDefault(PolicyStatus.ACTIVE, Collections.emptySet());
         return activePolicyIds.stream()
@@ -65,8 +54,7 @@ public class SynthesisPolicyRepository {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<Policy> findByType(String policyType) {
         Set<Long> policyIds = policyByType.getOrDefault(policyType, Collections.emptySet());
         return policyIds.stream()
@@ -74,8 +62,7 @@ public class SynthesisPolicyRepository {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<Policy> findByStatus(PolicyStatus status) {
         Set<Long> policyIds = policyByStatus.getOrDefault(status, Collections.emptySet());
         return policyIds.stream()
@@ -83,88 +70,70 @@ public class SynthesisPolicyRepository {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<Policy> findBySpelExpression(String spelExpression) {
         return policies.values().stream()
             .filter(p -> spelExpression.equals(p.getSpelExpression()))
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<Policy> findAllActive() {
         return findByStatus(PolicyStatus.ACTIVE);
     }
-    
-    
+
     public List<Policy> findAll() {
         return new ArrayList<>(policies.values());
     }
-    
-    
+
     public Policy activate(Long policyId) {
         Policy policy = policies.get(policyId);
         if (policy == null) {
             throw new IllegalArgumentException("Policy not found: " + policyId);
         }
-        
-        
+
         PolicyStatus previousStatus = policy.getStatus();
-        
-        
+
         policy.setStatus(PolicyStatus.ACTIVE);
         policy.setActivatedAt(LocalDateTime.now());
         policy.setUpdatedAt(LocalDateTime.now());
-        
-        
+
         policy.incrementVersion();
-        
-        
+
         updateStatusIndex(policy, previousStatus);
         
-        log.info("Policy {} activated. Version: {}", policyId, policy.getVersion());
-        return policy;
+                return policy;
     }
-    
-    
+
     public Policy deactivate(Long policyId, String reason) {
         Policy policy = policies.get(policyId);
         if (policy == null) {
             throw new IllegalArgumentException("Policy not found: " + policyId);
         }
-        
-        
+
         PolicyStatus previousStatus = policy.getStatus();
-        
-        
+
         policy.setStatus(PolicyStatus.INACTIVE);
         policy.setDeactivatedAt(LocalDateTime.now());
         policy.setUpdatedAt(LocalDateTime.now());
         policy.addMetadata("deactivation_reason", reason);
-        
-        
+
         policy.incrementVersion();
-        
-        
+
         updateStatusIndex(policy, previousStatus);
         
-        log.info("Policy {} deactivated. Reason: {}", policyId, reason);
-        return policy;
+                return policy;
     }
-    
-    
+
     public boolean delete(Long policyId) {
         Policy policy = policies.remove(policyId);
         if (policy != null) {
             
             removeFromIndexes(policy);
-            log.info("Policy {} deleted", policyId);
-            return true;
+                        return true;
         }
         return false;
     }
-    
-    
+
     public Optional<PolicyVersion> findVersion(Long policyId, int version) {
         Policy policy = policies.get(policyId);
         if (policy == null) {
@@ -175,8 +144,7 @@ public class SynthesisPolicyRepository {
             .filter(v -> v.getVersion() == version)
             .findFirst();
     }
-    
-    
+
     public List<PolicyVersion> getVersionHistory(Long policyId) {
         Policy policy = policies.get(policyId);
         if (policy == null) {
@@ -185,8 +153,7 @@ public class SynthesisPolicyRepository {
         
         return new ArrayList<>(policy.getVersionHistory());
     }
-    
-    
+
     public Policy rollback(Long policyId, int targetVersion) {
         Policy policy = policies.get(policyId);
         if (policy == null) {
@@ -197,11 +164,9 @@ public class SynthesisPolicyRepository {
             .filter(v -> v.getVersion() == targetVersion)
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Version not found: " + targetVersion));
-        
-        
+
         policy.saveCurrentVersion();
-        
-        
+
         policy.setSpelExpression(version.getSpelExpression());
         policy.setPolicyContent(version.getPolicyContent());
         policy.setMetadata(new HashMap<>(version.getMetadata()));
@@ -210,26 +175,22 @@ public class SynthesisPolicyRepository {
         policy.addMetadata("rolled_back_from", policy.getVersion() - 1);
         policy.addMetadata("rolled_back_to", targetVersion);
         
-        log.info("Policy {} rolled back to version {}", policyId, targetVersion);
-        return policy;
+                return policy;
     }
-    
-    
+
     public PolicyStatistics getStatistics() {
         PolicyStatistics stats = new PolicyStatistics();
         
         stats.setTotalPolicies(policies.size());
         stats.setActivePolicies(policyByStatus.getOrDefault(PolicyStatus.ACTIVE, Collections.emptySet()).size());
         stats.setInactivePolicies(policyByStatus.getOrDefault(PolicyStatus.INACTIVE, Collections.emptySet()).size());
-        
-        
+
         Map<String, Integer> typeStats = new HashMap<>();
         for (Map.Entry<String, Set<Long>> entry : policyByType.entrySet()) {
             typeStats.put(entry.getKey(), entry.getValue().size());
         }
         stats.setPoliciesByType(typeStats);
-        
-        
+
         double avgVersion = policies.values().stream()
             .mapToInt(Policy::getVersion)
             .average()
@@ -238,9 +199,7 @@ public class SynthesisPolicyRepository {
         
         return stats;
     }
-    
-    
-    
+
     private synchronized Long generatePolicyId() {
         return nextPolicyId++;
     }
@@ -249,8 +208,7 @@ public class SynthesisPolicyRepository {
         
         policyByType.computeIfAbsent(policy.getPolicyType(), k -> ConcurrentHashMap.newKeySet())
             .add(policy.getPolicyId());
-        
-        
+
         policyByStatus.computeIfAbsent(policy.getStatus(), k -> ConcurrentHashMap.newKeySet())
             .add(policy.getPolicyId());
     }
@@ -263,8 +221,7 @@ public class SynthesisPolicyRepository {
                 previousSet.remove(policy.getPolicyId());
             }
         }
-        
-        
+
         policyByStatus.computeIfAbsent(policy.getStatus(), k -> ConcurrentHashMap.newKeySet())
             .add(policy.getPolicyId());
     }
@@ -275,17 +232,13 @@ public class SynthesisPolicyRepository {
         if (typeSet != null) {
             typeSet.remove(policy.getPolicyId());
         }
-        
-        
+
         Set<Long> statusSet = policyByStatus.get(policy.getStatus());
         if (statusSet != null) {
             statusSet.remove(policy.getPolicyId());
         }
     }
-    
-    
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -333,8 +286,7 @@ public class SynthesisPolicyRepository {
             return updatedAt != null ? updatedAt : createdAt;
         }
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -346,8 +298,7 @@ public class SynthesisPolicyRepository {
         private Map<String, Object> metadata;
         private LocalDateTime createdAt;
     }
-    
-    
+
     public enum PolicyStatus {
         DRAFT,
         PENDING,
@@ -355,8 +306,7 @@ public class SynthesisPolicyRepository {
         INACTIVE,
         DEPRECATED
     }
-    
-    
+
     @Data
     public static class PolicyStatistics {
         private int totalPolicies;

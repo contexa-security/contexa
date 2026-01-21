@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionGovernance {
@@ -23,11 +22,9 @@ public class PolicyEvolutionGovernance {
     private final PolicyActivationService activationService;
     private final PolicyApprovalService approvalService;
     private final ApplicationEventPublisher eventPublisher;
-    
-    
+
     private final Map<String, GovernanceRule> governanceRules = new ConcurrentHashMap<>();
-    
-    
+
     @Value("${governance.auto-approve.enabled:false}")
     private boolean autoApproveEnabled;
     
@@ -42,18 +39,15 @@ public class PolicyEvolutionGovernance {
     
     @Value("${governance.critical.min-approvers:3}")
     private int criticalMinApprovers;
-    
-    
+
     @Transactional
     public GovernanceDecision evaluateProposal(Long proposalId) {
-        log.info("Evaluating proposal {} for governance decision", proposalId);
-        
+                
         try {
             
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found: " + proposalId));
-            
-            
+
             if (!canEvaluate(proposal)) {
                 return GovernanceDecision.builder()
                     .proposalId(proposalId)
@@ -61,21 +55,16 @@ public class PolicyEvolutionGovernance {
                     .reason("Proposal cannot be evaluated in current state: " + proposal.getStatus())
                     .build();
             }
-            
-            
+
             RiskAssessment riskAssessment = reassessRisk(proposal);
-            
-            
+
             GovernanceDecision decision = applyGovernanceRules(proposal, riskAssessment);
-            
-            
+
             executeDecision(proposal, decision);
-            
-            
+
             publishGovernanceEvent(proposal, decision);
             
-            log.info("Governance decision for proposal {}: {}", proposalId, decision.getDecision());
-            return decision;
+                        return decision;
             
         } catch (Exception e) {
             log.error("Failed to evaluate proposal: {}", proposalId, e);
@@ -86,21 +75,16 @@ public class PolicyEvolutionGovernance {
                 .build();
         }
     }
-    
-    
+
     private RiskAssessment reassessRisk(PolicyEvolutionProposal proposal) {
-        log.debug("Reassessing risk for proposal: {}", proposal.getId());
-        
+                
         RiskAssessment assessment = new RiskAssessment();
-        
-        
+
         PolicyEvolutionProposal.RiskLevel baseRisk = proposal.getRiskLevel();
         assessment.setBaseRisk(baseRisk);
-        
-        
+
         double riskScore = 0.0;
-        
-        
+
         switch (proposal.getProposalType()) {
             case DELETE_POLICY:
             case REVOKE_ACCESS:
@@ -117,8 +101,7 @@ public class PolicyEvolutionGovernance {
             default:
                 riskScore += 0.05;
         }
-        
-        
+
         Double confidence = proposal.getConfidenceScore();
         if (confidence != null) {
             if (confidence < 0.5) {
@@ -129,14 +112,12 @@ public class PolicyEvolutionGovernance {
                 riskScore -= 0.1; 
             }
         }
-        
-        
+
         Double expectedImpact = proposal.getExpectedImpact();
         if (expectedImpact != null && expectedImpact > 0.8) {
             riskScore += 0.2; 
         }
-        
-        
+
         if (proposal.getLearningType() != null) {
             switch (proposal.getLearningType()) {
                 case THREAT_RESPONSE:
@@ -150,14 +131,12 @@ public class PolicyEvolutionGovernance {
                     break;
             }
         }
-        
-        
+
         riskScore = Math.max(0.0, Math.min(riskScore, 1.0));
         assessment.setRiskScore(riskScore);
         assessment.setAdjustedRisk(calculateAdjustedRisk(baseRisk, riskScore));
         assessment.setAssessmentTime(LocalDateTime.now());
-        
-        
+
         Map<String, Object> factors = new HashMap<>();
         factors.put("proposalType", proposal.getProposalType());
         factors.put("confidence", confidence);
@@ -165,23 +144,17 @@ public class PolicyEvolutionGovernance {
         factors.put("learningType", proposal.getLearningType());
         assessment.setRiskFactors(factors);
         
-        log.debug("Risk assessment complete. Adjusted risk: {}", assessment.getAdjustedRisk());
-        return assessment;
+                return assessment;
     }
-    
-    
+
     private GovernanceDecision applyGovernanceRules(
             PolicyEvolutionProposal proposal, 
             RiskAssessment riskAssessment) {
-        
-        log.debug("Applying governance rules to proposal: {}", proposal.getId());
-        
+
         PolicyEvolutionProposal.RiskLevel adjustedRisk = riskAssessment.getAdjustedRisk();
-        
-        
+
         if (canAutoApprove(proposal, riskAssessment)) {
-            log.info("Proposal {} qualifies for auto-approval", proposal.getId());
-            return GovernanceDecision.builder()
+                        return GovernanceDecision.builder()
                 .proposalId(proposal.getId())
                 .decision(DecisionType.AUTO_APPROVE)
                 .riskAssessment(riskAssessment)
@@ -189,13 +162,10 @@ public class PolicyEvolutionGovernance {
                 .autoApproved(true)
                 .build();
         }
-        
-        
+
         if (needsMultiApproval(adjustedRisk)) {
             int requiredApprovers = calculateRequiredApprovers(adjustedRisk);
-            log.info("Proposal {} requires multi-level approval ({} approvers)", 
-                proposal.getId(), requiredApprovers);
-            
+                        
             return GovernanceDecision.builder()
                 .proposalId(proposal.getId())
                 .decision(DecisionType.MULTI_APPROVAL_REQUIRED)
@@ -204,10 +174,8 @@ public class PolicyEvolutionGovernance {
                 .reason(String.format("%s risk requires %d approvers", adjustedRisk, requiredApprovers))
                 .build();
         }
-        
-        
-        log.info("Proposal {} requires single approval", proposal.getId());
-        return GovernanceDecision.builder()
+
+                return GovernanceDecision.builder()
             .proposalId(proposal.getId())
             .decision(DecisionType.SINGLE_APPROVAL_REQUIRED)
             .riskAssessment(riskAssessment)
@@ -215,26 +183,22 @@ public class PolicyEvolutionGovernance {
             .reason("Standard approval process")
             .build();
     }
-    
-    
+
     private boolean canAutoApprove(PolicyEvolutionProposal proposal, RiskAssessment riskAssessment) {
         if (!autoApproveEnabled) {
             return false;
         }
-        
-        
+
         PolicyEvolutionProposal.RiskLevel maxRisk = PolicyEvolutionProposal.RiskLevel.valueOf(autoApproveMaxRisk);
         if (riskAssessment.getAdjustedRisk().ordinal() > maxRisk.ordinal()) {
             return false;
         }
-        
-        
+
         Double confidence = proposal.getConfidenceScore();
         if (confidence == null || confidence < autoApproveMinConfidence) {
             return false;
         }
-        
-        
+
         for (GovernanceRule rule : governanceRules.values()) {
             if (!rule.allows(proposal, riskAssessment)) {
                 return false;
@@ -243,15 +207,13 @@ public class PolicyEvolutionGovernance {
         
         return true;
     }
-    
-    
+
     private boolean needsMultiApproval(PolicyEvolutionProposal.RiskLevel riskLevel) {
         PolicyEvolutionProposal.RiskLevel threshold = 
             PolicyEvolutionProposal.RiskLevel.valueOf(multiApprovalThreshold);
         return riskLevel.ordinal() >= threshold.ordinal();
     }
-    
-    
+
     private int calculateRequiredApprovers(PolicyEvolutionProposal.RiskLevel riskLevel) {
         switch (riskLevel) {
             case CRITICAL:
@@ -264,8 +226,7 @@ public class PolicyEvolutionGovernance {
                 return 1;
         }
     }
-    
-    
+
     private PolicyEvolutionProposal.RiskLevel calculateAdjustedRisk(
             PolicyEvolutionProposal.RiskLevel baseRisk, double riskScore) {
         
@@ -281,12 +242,9 @@ public class PolicyEvolutionGovernance {
         
         return PolicyEvolutionProposal.RiskLevel.values()[adjustedOrdinal];
     }
-    
-    
+
     private void executeDecision(PolicyEvolutionProposal proposal, GovernanceDecision decision) {
-        log.info("Executing governance decision: {} for proposal {}", 
-            decision.getDecision(), proposal.getId());
-        
+                
         try {
             switch (decision.getDecision()) {
                 case AUTO_APPROVE:
@@ -295,8 +253,7 @@ public class PolicyEvolutionGovernance {
                     proposal.setApprovedBy("SYSTEM_AUTO");
                     proposal.setReviewedAt(LocalDateTime.now());
                     proposalRepository.save(proposal);
-                    
-                    
+
                     activationService.activatePolicy(proposal.getId(), "SYSTEM_AUTO");
                     break;
                     
@@ -333,14 +290,12 @@ public class PolicyEvolutionGovernance {
             throw new GovernanceException("Decision execution failed", e);
         }
     }
-    
-    
+
     private boolean canEvaluate(PolicyEvolutionProposal proposal) {
         ProposalStatus status = proposal.getStatus();
         return status == ProposalStatus.PENDING || status == ProposalStatus.APPROVED;
     }
-    
-    
+
     private void publishGovernanceEvent(PolicyEvolutionProposal proposal, GovernanceDecision decision) {
         GovernanceEvent event = GovernanceEvent.builder()
             .proposalId(proposal.getId())
@@ -350,22 +305,15 @@ public class PolicyEvolutionGovernance {
         
         eventPublisher.publishEvent(event);
     }
-    
-    
+
     public void addGovernanceRule(String ruleId, GovernanceRule rule) {
-        log.info("Adding governance rule: {}", ruleId);
-        governanceRules.put(ruleId, rule);
+                governanceRules.put(ruleId, rule);
     }
-    
-    
+
     public void removeGovernanceRule(String ruleId) {
-        log.info("Removing governance rule: {}", ruleId);
-        governanceRules.remove(ruleId);
+                governanceRules.remove(ruleId);
     }
-    
-    
-    
-    
+
     @lombok.Data
     public static class RiskAssessment {
         private PolicyEvolutionProposal.RiskLevel baseRisk;
@@ -374,8 +322,7 @@ public class PolicyEvolutionGovernance {
         private Map<String, Object> riskFactors;
         private LocalDateTime assessmentTime;
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class GovernanceDecision {
@@ -386,8 +333,7 @@ public class PolicyEvolutionGovernance {
         private int requiredApprovers;
         private boolean autoApproved;
     }
-    
-    
+
     public enum DecisionType {
         AUTO_APPROVE,
         SINGLE_APPROVAL_REQUIRED,
@@ -396,14 +342,12 @@ public class PolicyEvolutionGovernance {
         SKIP,
         ERROR
     }
-    
-    
+
     public interface GovernanceRule {
         boolean allows(PolicyEvolutionProposal proposal, RiskAssessment assessment);
         String getRuleDescription();
     }
-    
-    
+
     @lombok.Builder
     @lombok.Data
     public static class GovernanceEvent {
@@ -411,8 +355,7 @@ public class PolicyEvolutionGovernance {
         private GovernanceDecision decision;
         private LocalDateTime timestamp;
     }
-    
-    
+
     public static class GovernanceException extends RuntimeException {
         public GovernanceException(String message) {
             super(message);

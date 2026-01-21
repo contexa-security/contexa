@@ -11,17 +11,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 @Slf4j
 public class UserTrustMetrics extends AbstractMicrometerMetrics {
 
-    
     private final Map<String, Double> userTrustScores = new ConcurrentHashMap<>();
     private final AtomicInteger monitoredUsersCount = new AtomicInteger(0);
     private final AtomicInteger highRiskUsersCount = new AtomicInteger(0);
     private final AtomicInteger lowRiskUsersCount = new AtomicInteger(0);
 
-    
     private Counter trustScoreUpdatesCounter;
     private Counter trustScoreDowngradesCounter;
     private Counter trustScoreUpgradesCounter;
@@ -36,11 +33,9 @@ public class UserTrustMetrics extends AbstractMicrometerMetrics {
         trustScoreUpdatesCounter = counterBuilder("score.updates", "Total number of trust score updates")
                 .register(meterRegistry);
 
-        
         trustScoreDowngradesCounter = counterBuilder("score.downgrades", "Number of trust score downgrade events")
                 .register(meterRegistry);
 
-        
         trustScoreUpgradesCounter = counterBuilder("score.upgrades", "Number of trust score upgrade events")
                 .register(meterRegistry);
     }
@@ -57,72 +52,53 @@ public class UserTrustMetrics extends AbstractMicrometerMetrics {
                 .description("Total number of users being monitored for trust score")
                 .register(meterRegistry);
 
-        
         Gauge.builder("zerotrust_trust_users_high_risk", highRiskUsersCount, AtomicInteger::get)
                 .description("Number of high-risk users (trust score < 0.5)")
                 .register(meterRegistry);
 
-        
         Gauge.builder("zerotrust_trust_users_low_risk", lowRiskUsersCount, AtomicInteger::get)
                 .description("Number of low-risk users (trust score >= 0.7)")
                 .register(meterRegistry);
 
-        
         Gauge.builder("zerotrust_trust_score_average", this, UserTrustMetrics::calculateAverageTrustScore)
                 .description("Average trust score across all monitored users")
                 .register(meterRegistry);
     }
 
-    
-
-    
     public void updateUserTrustScore(String userId, double newTrustScore) {
         
         double normalizedScore = Math.min(Math.max(newTrustScore, 0.0), 1.0);
 
-        
         Double previousScore = userTrustScores.get(userId);
         boolean isNewUser = (previousScore == null);
 
-        
         userTrustScores.put(userId, normalizedScore);
         trustScoreUpdatesCounter.increment();
 
-        
         if (isNewUser) {
             monitoredUsersCount.incrementAndGet();
         }
 
-        
         if (!isNewUser) {
             if (normalizedScore < previousScore) {
                 trustScoreDowngradesCounter.increment();
-                log.debug("[TrustDowngrade] User: {}, {} -> {}", userId,
-                    String.format("%.3f", previousScore), String.format("%.3f", normalizedScore));
-            } else if (normalizedScore > previousScore) {
+                            } else if (normalizedScore > previousScore) {
                 trustScoreUpgradesCounter.increment();
-                log.debug("[TrustUpgrade] User: {}, {} -> {}", userId,
-                    String.format("%.3f", previousScore), String.format("%.3f", normalizedScore));
-            }
+                            }
         }
 
-        
         recalculateRiskCategories();
 
-        log.debug("[TrustUpdate] User: {}, Score: {}", userId, String.format("%.3f", normalizedScore));
-    }
+            }
 
-    
     public Double getUserTrustScore(String userId) {
         return userTrustScores.get(userId);
     }
 
-    
     public Map<String, Double> getAllUserTrustScores() {
         return Map.copyOf(userTrustScores);
     }
 
-    
     public double calculateAverageTrustScore() {
         if (userTrustScores.isEmpty()) {
             return 1.0; 
@@ -135,7 +111,6 @@ public class UserTrustMetrics extends AbstractMicrometerMetrics {
         return sum / userTrustScores.size();
     }
 
-    
     private void recalculateRiskCategories() {
         int highRisk = 0;
         int lowRisk = 0;
@@ -152,16 +127,12 @@ public class UserTrustMetrics extends AbstractMicrometerMetrics {
         lowRiskUsersCount.set(lowRisk);
     }
 
-    
     public void removeUser(String userId) {
         if (userTrustScores.remove(userId) != null) {
             monitoredUsersCount.decrementAndGet();
             recalculateRiskCategories();
-            log.debug("[UserRemoved] User: {}", userId);
-        }
+                    }
     }
-
-    
 
     @Override
     public void reset() {
@@ -169,8 +140,7 @@ public class UserTrustMetrics extends AbstractMicrometerMetrics {
         monitoredUsersCount.set(0);
         highRiskUsersCount.set(0);
         lowRiskUsersCount.set(0);
-        log.info("UserTrustMetrics 리셋 완료");
-    }
+            }
 
     @Override
     public Map<String, Object> getStatistics() {

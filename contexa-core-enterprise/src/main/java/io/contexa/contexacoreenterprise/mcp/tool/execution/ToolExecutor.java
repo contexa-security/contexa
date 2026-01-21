@@ -7,17 +7,14 @@ import org.springframework.ai.tool.ToolCallback;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-
 public interface ToolExecutor {
-    
-    
+
     CompletableFuture<ToolResult> execute(
         ToolCallback tool,
         ToolRequest request,
         ExecutionContext context
     );
-    
-    
+
     @Data
     @Builder
     class ToolRequest {
@@ -50,8 +47,7 @@ public interface ToolExecutor {
             return productionEnvironment;
         }
     }
-    
-    
+
     @Data
     @Builder
     class ToolResult {
@@ -62,8 +58,7 @@ public interface ToolExecutor {
         private String error;
         private Map<String, Object> metadata;
     }
-    
-    
+
     @Data
     @Builder
     class ApprovalRequest {

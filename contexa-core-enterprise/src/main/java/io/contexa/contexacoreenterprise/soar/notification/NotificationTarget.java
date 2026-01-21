@@ -8,58 +8,43 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 import java.util.Set;
 
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class NotificationTarget {
-    
-    
+
     private String targetId;
-    
-    
+
     private TargetType targetType;
-    
-    
+
     private String name;
-    
-    
+
     private String email;
-    
-    
+
     private String phoneNumber;
-    
-    
+
     private String webSocketSessionId;
-    
-    
+
     private Set<String> roles;
-    
-    
+
     private List<NotificationChannel> preferredChannels;
-    
-    
+
     private boolean active;
-    
-    
+
     private boolean online;
-    
-    
+
     private String timezone;
-    
-    
+
     private String language;
-    
-    
+
     public enum TargetType {
         USER,           
         GROUP,          
         ROLE,           
         ESCALATION      
     }
-    
-    
+
     public enum NotificationChannel {
         EMAIL,          
         WEBSOCKET,      
@@ -68,8 +53,7 @@ public class NotificationTarget {
         SLACK,          
         TEAMS           
     }
-    
-    
+
     public static NotificationTarget createDefault(String userId, String name, String email) {
         return NotificationTarget.builder()
                 .targetId(userId)
@@ -83,8 +67,7 @@ public class NotificationTarget {
                 .timezone("Asia/Seoul")
                 .build();
     }
-    
-    
+
     public static NotificationTarget createForRole(String roleName) {
         return NotificationTarget.builder()
                 .targetId("ROLE_" + roleName)
@@ -95,25 +78,21 @@ public class NotificationTarget {
                 .active(true)
                 .build();
     }
-    
-    
+
     public boolean supportsChannel(NotificationChannel channel) {
         return preferredChannels != null && preferredChannels.contains(channel);
     }
-    
-    
+
     public boolean canReceiveEmail() {
         return active && email != null && !email.isBlank() 
                 && supportsChannel(NotificationChannel.EMAIL);
     }
-    
-    
+
     public boolean canReceiveWebSocket() {
         return active && online && webSocketSessionId != null 
                 && supportsChannel(NotificationChannel.WEBSOCKET);
     }
-    
-    
+
     public boolean canReceiveSSE() {
         return active && supportsChannel(NotificationChannel.SSE);
     }

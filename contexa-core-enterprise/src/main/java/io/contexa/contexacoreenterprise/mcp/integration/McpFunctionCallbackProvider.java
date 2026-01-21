@@ -12,7 +12,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class McpFunctionCallbackProvider {
@@ -21,14 +20,12 @@ public class McpFunctionCallbackProvider {
     private final McpSyncClient securityMcpClient;
     private final Map<String, ToolCallback> toolCallbacks = new ConcurrentHashMap<>();
     private final Map<String, String> toolClientMapping = new ConcurrentHashMap<>();  
-    
-    
+
     public ToolCallback[] getMcpToolCallbacks() {
         initializeMcpCallbacks();
         return toolCallbacks.values().toArray(new ToolCallback[0]);
     }
-    
-    
+
     public List<Map<String, Object>> getAllToolsWithMetadata() {
         initializeMcpCallbacks();
         
@@ -42,14 +39,12 @@ public class McpFunctionCallbackProvider {
             })
             .collect(Collectors.toList());
     }
-    
-    
+
     public Optional<ToolCallback> getMcpToolCallback(String name) {
         initializeMcpCallbacks();
         return Optional.ofNullable(toolCallbacks.get(name));
     }
-    
-    
+
     public List<ToolCallback> getToolsByClient(String clientName) {
         initializeMcpCallbacks();
         
@@ -59,45 +54,35 @@ public class McpFunctionCallbackProvider {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
     }
-    
-    
+
     private synchronized void initializeMcpCallbacks() {
         if (!toolCallbacks.isEmpty()) {
             return; 
         }
-        
-        log.info("Spring AI 표준 MCP Function Callback 초기화 시작");
-        
-        
+
         if (braveSearchMcpClient != null) {
             registerMcpClientTools("brave-search", braveSearchMcpClient);
         }
-        
-        
+
         if (securityMcpClient != null) {
             registerMcpClientTools("security", securityMcpClient);
         }
         
-        log.info("Spring AI 표준 MCP Function Callback 초기화 완료: {} 개 도구", toolCallbacks.size());
-        logInitializationSummary();
+                logInitializationSummary();
     }
-    
-    
+
     private void logInitializationSummary() {
         Map<String, Long> clientCounts = toolClientMapping.values().stream()
             .collect(Collectors.groupingBy(client -> client, Collectors.counting()));
-        
-        log.info("MCP 도구 초기화 요약:");
-        clientCounts.forEach((client, count) -> 
-            log.info("  - {} 클라이언트: {} 개 도구", client, count)
+
+        clientCounts.forEach((client, count) ->
+                log.info("  - {} 클라이언트: {} 개 도구", client, count)
         );
     }
-    
-    
+
     private void registerMcpClientTools(String clientName, McpSyncClient mcpClient) {
         try {
-            log.info("{} MCP 클라이언트 도구 등록 시작", clientName);
-
+            
             var toolsResult = mcpClient.listTools(null);
             if (toolsResult != null && toolsResult.tools() != null) {
                 int registeredCount = 0;
@@ -106,32 +91,24 @@ public class McpFunctionCallbackProvider {
                     try {
                         
                         String toolName = tool.name();
-                        
-                        
+
                         if (toolCallbacks.containsKey(toolName)) {
-                            log.debug("⏭️ 도구 이름 충돌 감지: {}. 기존 도구 유지, 새 도구 건너뜀", toolName);
-                            continue; 
+                                                        continue; 
                         }
-                        
-                        
+
                         ToolCallback callback = new SyncMcpToolCallback(mcpClient, tool);
-                        
-                        
+
                         toolCallbacks.put(toolName, callback);
                         toolClientMapping.put(toolName, clientName);
                         
-                        log.debug("✓ 도구 등록: {} - {} (클라이언트: {})", 
-                                 toolName, tool.description(), clientName);
-                        registeredCount++;
+                                                registeredCount++;
                         
                     } catch (Exception e) {
                         log.error("도구 등록 실패: {} - {}", tool.name(), e.getMessage(), e);
                     }
                 }
 
-                log.info("{} MCP 클라이언트 도구 등록 완료: {} 개",
-                        clientName, registeredCount);
-            } else {
+                            } else {
                 log.warn("{} MCP 클라이언트에서 도구를 찾을 수 없음", clientName);
             }
 
@@ -139,9 +116,7 @@ public class McpFunctionCallbackProvider {
             log.error("{} MCP 클라이언트 도구 등록 실패: {}", clientName, e.getMessage(), e);
         }
     }
-    
-    
-    
+
     public Map<String, Object> getMcpToolStatistics() {
         initializeMcpCallbacks();
         
@@ -157,38 +132,28 @@ public class McpFunctionCallbackProvider {
         
         return statistics;
     }
-    
-    
-    
+
     private final Map<String, McpResource> mcpResources = new ConcurrentHashMap<>();
-    
-    
+
     public Map<String, McpResource> getMcpResources() {
         initializeMcpResources();
         return new HashMap<>(mcpResources);
     }
-    
-    
+
     private void initializeMcpResources() {
         if (!mcpResources.isEmpty()) {
             return; 
         }
-        
-        log.info("📚 MCP Resources 초기화 시작");
-        
-        
+
         if (securityMcpClient != null) {
             registerMcpClientResources("security", securityMcpClient);
         }
         
-        log.info("MCP Resources 초기화 완료: {} 개", mcpResources.size());
-    }
-    
-    
+            }
+
     private void registerMcpClientResources(String clientName, McpSyncClient mcpClient) {
         try {
-            log.info("📖 {} MCP 클라이언트 리소스 등록 시작", clientName);
-            
+                        
             var resourcesResult = mcpClient.listResources(null);
             if (resourcesResult != null && resourcesResult.resources() != null) {
                 resourcesResult.resources().forEach(resource -> {
@@ -196,19 +161,15 @@ public class McpFunctionCallbackProvider {
                     McpResource mcpResource = new McpResource(resourceName, resource, mcpClient);
                     mcpResources.put(resourceName, mcpResource);
                     
-                    log.debug("리소스 등록: {} - {}", resourceName, resource.description());
-                });
+                                    });
                 
-                log.info("{} MCP 클라이언트 리소스 등록 완료: {} 개", 
-                        clientName, resourcesResult.resources().size());
-            }
+                            }
             
         } catch (Exception e) {
             log.warn("{} MCP 클라이언트 리소스 등록 실패: {}", clientName, e.getMessage());
         }
     }
-    
-    
+
     public static class McpResource {
         private final String name;
         private final McpSchema.Resource mcpResource;
@@ -227,12 +188,10 @@ public class McpFunctionCallbackProvider {
         public String getDescription() {
             return mcpResource.description() != null ? mcpResource.description() : "MCP Resource: " + name;
         }
-        
-        
+
         public String readResource() {
             try {
-                log.debug("📖 MCP Resource 읽기: {}", name);
-                
+                                
                 var readResult = mcpClient.readResource(
                     new McpSchema.ReadResourceRequest(mcpResource.uri())
                 );
@@ -255,37 +214,27 @@ public class McpFunctionCallbackProvider {
         }
     }
 
-    
-
     private final Map<String, McpPrompt> mcpPrompts = new ConcurrentHashMap<>();
 
-    
     public Map<String, McpPrompt> getMcpPrompts() {
         initializeMcpPrompts();
         return new HashMap<>(mcpPrompts);
     }
 
-    
     private void initializeMcpPrompts() {
         if (!mcpPrompts.isEmpty()) {
             return; 
         }
 
-        log.info("MCP Prompts 초기화 시작");
-
-        
         if (securityMcpClient != null) {
             registerMcpClientPrompts("security", securityMcpClient);
         }
 
-        log.info("MCP Prompts 초기화 완료: {} 개", mcpPrompts.size());
-    }
+            }
 
-    
     private void registerMcpClientPrompts(String clientName, McpSyncClient mcpClient) {
         try {
-            log.info("💭 {} MCP 클라이언트 프롬프트 등록 시작", clientName);
-
+            
             var promptsResult = mcpClient.listPrompts(null);
             if (promptsResult != null && promptsResult.prompts() != null) {
                 promptsResult.prompts().forEach(prompt -> {
@@ -293,19 +242,15 @@ public class McpFunctionCallbackProvider {
                     McpPrompt mcpPrompt = new McpPrompt(promptName, prompt, mcpClient);
                     mcpPrompts.put(promptName, mcpPrompt);
 
-                    log.debug("프롬프트 등록: {} - {}", promptName, prompt.description());
-                });
+                                    });
 
-                log.info("{} MCP 클라이언트 프롬프트 등록 완료: {} 개",
-                        clientName, promptsResult.prompts().size());
-            }
+                            }
 
         } catch (Exception e) {
             log.warn("{} MCP 클라이언트 프롬프트 등록 실패: {}", clientName, e.getMessage());
         }
     }
 
-    
     public static class McpPrompt {
         private final String name;
         private final McpSchema.Prompt mcpPrompt;
@@ -325,11 +270,9 @@ public class McpFunctionCallbackProvider {
             return mcpPrompt.description() != null ? mcpPrompt.description() : "MCP Prompt: " + name;
         }
 
-        
         public String getPromptMessage(Map<String, Object> arguments) {
             try {
-                log.debug("MCP Prompt 가져오기: {} - 인수: {}", name, arguments);
-
+                
                 var getResult = mcpClient.getPrompt(
                     new McpSchema.GetPromptRequest(mcpPrompt.name(), arguments != null ? arguments : Map.of())
                 );

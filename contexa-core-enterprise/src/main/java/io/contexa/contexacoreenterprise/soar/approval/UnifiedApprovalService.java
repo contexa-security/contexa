@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class UnifiedApprovalService implements ApprovalService {
@@ -41,23 +40,18 @@ public class UnifiedApprovalService implements ApprovalService {
     private final ApplicationEventPublisher eventPublisher;
     private final StringRedisTemplate redisTemplate;
 
-    
     private final Map<String, CompletableFuture<Boolean>> pendingApprovals = new ConcurrentHashMap<>();
 
-    
     private final Map<String, Sinks.One<Boolean>> pendingSinks = new ConcurrentHashMap<>();
 
-    
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
-    
     private static final Duration TIMEOUT_CRITICAL = Duration.ofSeconds(30);
     private static final Duration TIMEOUT_HIGH = Duration.ofMinutes(1);
     private static final Duration TIMEOUT_MEDIUM = Duration.ofMinutes(2);
     private static final Duration TIMEOUT_LOW = Duration.ofMinutes(3);
     private static final Duration TIMEOUT_DEFAULT = Duration.ofMinutes(2);
 
-    
     @Override
     @Transactional
     public CompletableFuture<Boolean> requestApproval(ApprovalRequest request) {
@@ -67,38 +61,27 @@ public class UnifiedApprovalService implements ApprovalService {
         }
 
         String requestId = request.getRequestId();
-        log.info("승인 요청 제출: {} - {} (위험도: {})",
-                requestId, request.getToolName(), request.getRiskLevel());
 
-        
         if (pendingApprovals.containsKey(requestId)) {
             log.warn("중복 승인 요청: {}", requestId);
             return pendingApprovals.get(requestId);
         }
 
-        
         saveApprovalRequest(request);  
-        log.debug("승인 요청 저장 완료: RequestId={}", requestId);
 
-        
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         pendingApprovals.put(requestId, future);
 
-        
         try {
             
             eventPublisher.publishEvent(ApprovalEvent.requested(this, request));
-            log.debug("알림 이벤트 발행 완료: {}", requestId);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("알림 이벤트 발행 실패 (승인 프로세스는 계속됨): {}", requestId, e);
         }
 
-        
         Duration timeout = getTimeout(request.getRiskLevel());
         scheduleTimeout(requestId, future, timeout);
-        log.debug("타임아웃 설정: {} - {}초", requestId, timeout.getSeconds());
 
-        
         future.whenComplete((result, error) -> {
             pendingApprovals.remove(requestId);
 
@@ -106,14 +89,12 @@ public class UnifiedApprovalService implements ApprovalService {
                 log.error("승인 처리 오류: {}", requestId, error);
                 updateApprovalStatus(requestId, ApprovalRequest.ApprovalStatus.EXPIRED, null, "타임아웃 또는 오류");
             } else {
-                log.info("승인 처리 완료: {} -> {}", requestId, result ? "승인" : "거부");
-            }
+                            }
         });
 
         return future;
     }
 
-    
     @Override
     @Transactional
     public void handleApprovalResponse(String approvalId, boolean isApproved, String comment, String reviewer) {
@@ -121,25 +102,14 @@ public class UnifiedApprovalService implements ApprovalService {
         processApprovalResponse(approvalId, isApproved, reviewer, comment);
     }
 
-    
     @Override
     @Transactional
     public void processApprovalResponse(String requestId, boolean approved, String reviewer, String comment) {
-        log.info("승인 응답 처리: {} - {} by {}",
-                requestId, approved ? "APPROVED" : "REJECTED", reviewer);
 
-        log.info("========================================");
-        log.info("pendingApprovals 크기: {}", pendingApprovals.size());
-        log.info("pendingApprovals 키 목록: {}", pendingApprovals.keySet());
-        log.info("요청된 requestId: {}", requestId);
-        log.info("========================================");
-
-        
         CompletableFuture<Boolean> future = pendingApprovals.remove(requestId);
         if (future != null && !future.isDone()) {
             future.complete(approved);
-            log.info("CompletableFuture 완료: {} -> {}", requestId, approved);
-        } else if (future != null && future.isDone()) {
+                    } else if (future != null && future.isDone()) {
             log.warn("이미 완료된 승인 요청: {}", requestId);
             return;
         } else {
@@ -147,13 +117,11 @@ public class UnifiedApprovalService implements ApprovalService {
             
         }
 
-        
         ApprovalRequest.ApprovalStatus status = approved ?
                 ApprovalRequest.ApprovalStatus.APPROVED :
                 ApprovalRequest.ApprovalStatus.REJECTED;
         updateApprovalStatus(requestId, status, reviewer, comment);
 
-        
         try {
             
             if (approved) {
@@ -165,30 +133,24 @@ public class UnifiedApprovalService implements ApprovalService {
             log.error("완료 알림 전송 실패: {}", requestId, e);
         }
 
-        
         publishApprovalResult(requestId, approved);
 
-        
         publishResumeEvent(requestId, approved, comment, reviewer);
 
-        
         Sinks.One<Boolean> sink = pendingSinks.remove(requestId);
         if (sink != null) {
             Sinks.EmitResult result = sink.tryEmitValue(approved);
             if (result.isSuccess()) {
-                log.debug("Sink 완료: {} -> {}", requestId, approved);
-            }
+                            }
         }
     }
 
-    
     @Override
     public boolean waitForApprovalSync(ApprovalRequest request) {
         try {
             CompletableFuture<Boolean> future = requestApproval(request);
             Duration timeout = getTimeout(request.getRiskLevel());
 
-            
             return future.get(timeout.toSeconds(), TimeUnit.SECONDS);
 
         } catch (TimeoutException e) {
@@ -204,7 +166,6 @@ public class UnifiedApprovalService implements ApprovalService {
         }
     }
 
-    
     @Override
     public ApprovalRequest saveApprovalRequest(ApprovalRequest request) {
         SoarApprovalRequest entity = saveApprovalRequestEntity(request);
@@ -214,15 +175,12 @@ public class UnifiedApprovalService implements ApprovalService {
         return request;
     }
 
-    
     private SoarApprovalRequest saveApprovalRequestEntity(ApprovalRequest request) {
         
         ApprovalRequest completeRequest = approvalRequestFactory.completeFromEvent(request);
 
-        
         SoarApprovalRequest entity = new SoarApprovalRequest();
 
-        
         entity.setRequestId(completeRequest.getRequestId());
         entity.setPlaybookInstanceId(completeRequest.getIncidentId());
         entity.setIncidentId(completeRequest.getIncidentId());
@@ -240,7 +198,6 @@ public class UnifiedApprovalService implements ApprovalService {
         entity.setOrganizationId(completeRequest.getOrganizationId() != null ?
                 completeRequest.getOrganizationId() : "default-org");
 
-        
         if (completeRequest.getRequiredApprovers() != null) {
             entity.setRequiredApprovers(completeRequest.getRequiredApprovers());
         }
@@ -251,7 +208,6 @@ public class UnifiedApprovalService implements ApprovalService {
         return repository.save(entity);
     }
 
-    
     @Transactional
     public void updateApprovalStatus(String requestId, ApprovalRequest.ApprovalStatus status,
                                      String reviewer, String comment) {
@@ -271,7 +227,6 @@ public class UnifiedApprovalService implements ApprovalService {
                 return;
             }
 
-            
             entity.setStatus(status.name());
             entity.setReviewerId(reviewer);
             entity.setReviewerComment(comment);
@@ -279,23 +234,19 @@ public class UnifiedApprovalService implements ApprovalService {
             entity.setApprovedAt(LocalDateTime.now());
 
             repository.save(entity);
-            log.info("승인 상태 업데이트 완료: {} -> {}", requestId, status);
-
+            
         } catch (Exception e) {
             log.error("승인 상태 업데이트 실패: {}", requestId, e);
         }
     }
 
-    
     private void scheduleTimeout(String requestId, CompletableFuture<Boolean> future, Duration timeout) {
         scheduler.schedule(() -> {
             if (!future.isDone()) {
                 log.warn("승인 타임아웃 발생: {} ({}초)", requestId, timeout.getSeconds());
 
-                
                 future.complete(false);
 
-                
                 try {
                     eventPublisher.publishEvent(ApprovalEvent.timeout(this, requestId));
                 } catch (Exception e) {
@@ -305,7 +256,6 @@ public class UnifiedApprovalService implements ApprovalService {
         }, timeout.getSeconds(), TimeUnit.SECONDS);
     }
 
-    
     private Duration getTimeout(ApprovalRequest.RiskLevel riskLevel) {
         if (riskLevel == null) {
             return TIMEOUT_DEFAULT;
@@ -320,12 +270,10 @@ public class UnifiedApprovalService implements ApprovalService {
         };
     }
 
-    
     public int getPendingApprovalCount() {
         return pendingApprovals.size();
     }
 
-    
     @Override
     public ApprovalRequest.ApprovalStatus getApprovalStatus(String approvalId) {
         try {
@@ -344,7 +292,6 @@ public class UnifiedApprovalService implements ApprovalService {
                 return ApprovalRequest.ApprovalStatus.PENDING; 
             }
 
-            
             return ApprovalRequest.ApprovalStatus.valueOf(entity.getStatus());
 
         } catch (Exception e) {
@@ -353,24 +300,18 @@ public class UnifiedApprovalService implements ApprovalService {
         }
     }
 
-    
     @Override
     @Transactional
     public String requestApproval(SoarContext soarContext, ApprovalRequestDetails requestDetails) {
-        log.info("레거시 승인 요청: {} - {}", requestDetails.actionName(), requestDetails.description());
 
-        
         ApprovalRequest approvalRequest = convertToApprovalRequest(soarContext, requestDetails);
 
-        
         CompletableFuture<Boolean> future = requestApproval(approvalRequest);
 
-        
         if (soarContext != null) {
             Sinks.One<Boolean> sink = Sinks.one();
             pendingSinks.put(approvalRequest.getRequestId(), sink);
 
-            
             future.whenComplete((result, error) -> {
                 Sinks.One<Boolean> pendingSink = pendingSinks.remove(approvalRequest.getRequestId());
                 if (pendingSink != null) {
@@ -386,18 +327,15 @@ public class UnifiedApprovalService implements ApprovalService {
         return approvalRequest.getRequestId();
     }
 
-    
     private ApprovalRequest convertToApprovalRequest(SoarContext soarContext, ApprovalRequestDetails requestDetails) {
         ApprovalRequest request = new ApprovalRequest();
 
-        
         request.setRequestId(UUID.randomUUID().toString());
         request.setToolName(requestDetails.actionName());
         request.setToolDescription(requestDetails.description());
         request.setParameters(requestDetails.parameters());
         request.setActionDescription(requestDetails.description());
 
-        
         if (soarContext != null) {
             request.setIncidentId(soarContext.getIncidentId() != null ?
                     soarContext.getIncidentId() : "INC-" + UUID.randomUUID());
@@ -405,12 +343,10 @@ public class UnifiedApprovalService implements ApprovalService {
                     soarContext.getOrganizationId() : "default-org");
             request.setSessionId(soarContext.getIncidentId()); 
 
-            
             String severity = soarContext.getSeverity() != null ? soarContext.getSeverity() : "MEDIUM";
             request.setRiskLevel(mapSeverityToRiskLevel(severity));
         }
 
-        
         if (policyRepository != null) {
             String severity = soarContext != null && soarContext.getSeverity() != null ?
                     soarContext.getSeverity() : "LOW";
@@ -429,7 +365,6 @@ public class UnifiedApprovalService implements ApprovalService {
         return request;
     }
 
-    
     private ApprovalRequest.RiskLevel mapSeverityToRiskLevel(String severity) {
         if (severity == null) {
             return ApprovalRequest.RiskLevel.MEDIUM;
@@ -444,38 +379,32 @@ public class UnifiedApprovalService implements ApprovalService {
         };
     }
 
-    
     public Mono<Boolean> waitForApproval(String approvalId) {
         Sinks.One<Boolean> sink = pendingSinks.get(approvalId);
         if (sink != null) {
             return sink.asMono();
         }
 
-        
         CompletableFuture<Boolean> future = pendingApprovals.get(approvalId);
         if (future != null) {
             return Mono.fromFuture(future);
         }
 
-        
         return Mono.error(new IllegalArgumentException("No pending approval found: " + approvalId));
     }
 
-    
     private void publishApprovalResult(String approvalId, boolean approved) {
         if (redisTemplate != null) {
             try {
                 String channel = "approval:" + approvalId;
                 String message = approved ? "APPROVED" : "REJECTED";
                 redisTemplate.convertAndSend(channel, message);
-                log.debug("Redis Pub/Sub 발행: {} -> {}", channel, message);
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.error("Redis Pub/Sub 발행 실패: {}", approvalId, e);
             }
         }
     }
 
-    
     private void publishResumeEvent(String approvalId, boolean approved, String comment, String reviewer) {
         try {
             
@@ -485,7 +414,6 @@ public class UnifiedApprovalService implements ApprovalService {
                 return;
             }
 
-            
             SoarContext soarContext = new SoarContext(
                     entity.getPlaybookInstanceId(),  
                     "SOAR_APPROVAL",                 
@@ -500,7 +428,6 @@ public class UnifiedApprovalService implements ApprovalService {
             soarContext.setHumanApprovalNeeded(false);
             soarContext.setHumanApprovalMessage(comment);
 
-            
             SoarRequest soarRequest = new SoarRequest(
                     soarContext,
                     "resumeSoar",
@@ -508,33 +435,27 @@ public class UnifiedApprovalService implements ApprovalService {
             );
             soarRequest.setApprovalId(entity.getId().toString());
 
-            
             ApprovalResumeEvent resumeEvent = new ApprovalResumeEvent(
                     soarRequest, approvalId, approved, comment, reviewer
             );
             eventPublisher.publishEvent(resumeEvent);
-
-            log.info("ApprovalResumeEvent 발행: {} - {}", approvalId, approved ? "APPROVED" : "REJECTED");
 
         } catch (Exception e) {
             log.error("파이프라인 재개 이벤트 발행 실패: {}", approvalId, e);
         }
     }
 
-    
     public boolean isPending(String approvalId) {
         CompletableFuture<Boolean> future = pendingApprovals.get(approvalId);
         return future != null && !future.isDone();
     }
 
-    
     public boolean isCompleted(String approvalId) {
         CompletableFuture<Boolean> future = pendingApprovals.get(approvalId);
         if (future != null && future.isDone() && !future.isCancelled()) {
             return true;
         }
 
-        
         SoarApprovalRequest entity = repository.findByRequestId(approvalId);
         if (entity != null) {
             String status = entity.getStatus();
@@ -544,14 +465,12 @@ public class UnifiedApprovalService implements ApprovalService {
         return false;
     }
 
-    
     public boolean isCancelled(String approvalId) {
         CompletableFuture<Boolean> future = pendingApprovals.get(approvalId);
         if (future != null && future.isCancelled()) {
             return true;
         }
 
-        
         SoarApprovalRequest entity = repository.findByRequestId(approvalId);
         if (entity != null) {
             String status = entity.getStatus();
@@ -561,11 +480,9 @@ public class UnifiedApprovalService implements ApprovalService {
         return false;
     }
 
-    
     public java.util.Set<String> getPendingApprovalIds() {
         java.util.Set<String> pendingIds = new HashSet<>();
 
-        
         pendingApprovals.forEach((id, future) -> {
             if (!future.isDone()) {
                 pendingIds.add(id);
@@ -575,27 +492,21 @@ public class UnifiedApprovalService implements ApprovalService {
         return pendingIds;
     }
 
-    
     public int getPendingCount() {
         return (int) pendingApprovals.entrySet().stream()
                 .filter(entry -> !entry.getValue().isDone())
                 .count();
     }
 
-    
     public void cancelApproval(String approvalId, String reason) {
-        log.info("🚫 승인 요청 취소: {} - {}", approvalId, reason);
 
-        
         CompletableFuture<Boolean> future = pendingApprovals.remove(approvalId);
         if (future != null && !future.isDone()) {
             future.cancel(true);
         }
 
-        
         updateApprovalStatus(approvalId, ApprovalRequest.ApprovalStatus.CANCELLED, "system", reason);
 
-        
         try {
             eventPublisher.publishEvent(ApprovalEvent.timeout(this, approvalId));
         } catch (Exception e) {
@@ -603,12 +514,10 @@ public class UnifiedApprovalService implements ApprovalService {
         }
     }
 
-    
     public Map<String, Object> getStatistics() {
         int pendingCount = getPendingCount();
         int totalCount = pendingApprovals.size() + pendingSinks.size();
 
-        
         long approvedCount = 0;
         long rejectedCount = 0;
         long expiredCount = 0;
@@ -616,9 +525,7 @@ public class UnifiedApprovalService implements ApprovalService {
         try {
             
             LocalDateTime since = LocalDateTime.now().minusDays(1);
-            
-            
-            
+
         } catch (Exception e) {
             log.error("통계 조회 실패", e);
         }
@@ -633,41 +540,29 @@ public class UnifiedApprovalService implements ApprovalService {
         );
     }
 
-    
     @Transactional
     public void registerAsyncApproval(ApprovalRequest request, ToolExecutionContext executionContext) {
-        log.info("비동기 승인 등록: {} - {}", request.getRequestId(), request.getToolName());
-
+        
         try {
             
             if (request.getId() == null) {
                 saveApprovalRequest(request);
             }
 
-            
             if (executionContext != null && executionContextRepository != null) {
                 executionContext.setStatus("PENDING_APPROVAL");
                 executionContextRepository.save(executionContext);
-                log.debug("도구 실행 컨텍스트 상태 업데이트: {} -> PENDING_APPROVAL",
-                        executionContext.getRequestId());
-            }
+                            }
 
-            
-            
             CompletableFuture<Boolean> future = new CompletableFuture<>();
             pendingApprovals.put(request.getRequestId(), future);
 
-            
             Duration timeout = getTimeout(request.getRiskLevel());
             scheduleAsyncTimeout(request.getRequestId(), future, timeout, executionContext);
-
-            log.info("비동기 승인 등록 완료: {} (타임아웃: {}분)",
-                    request.getRequestId(), timeout.toMinutes());
 
         } catch (Exception e) {
             log.error("비동기 승인 등록 실패: {}", request.getRequestId(), e);
 
-            
             if (executionContext != null && executionContextRepository != null) {
                 executionContext.setStatus("FAILED");
                 executionContext.setExecutionError("승인 등록 실패: " + e.getMessage());
@@ -676,28 +571,23 @@ public class UnifiedApprovalService implements ApprovalService {
         }
     }
 
-    
     private void scheduleAsyncTimeout(String requestId, CompletableFuture<Boolean> future,
                                       Duration timeout, ToolExecutionContext executionContext) {
         scheduler.schedule(() -> {
             if (!future.isDone()) {
                 log.warn("비동기 승인 타임아웃 발생: {} ({}분)", requestId, timeout.toMinutes());
 
-                
                 future.complete(false);
 
-                
                 if (executionContext != null && executionContextRepository != null) {
                     executionContext.setStatus("TIMEOUT");
                     executionContext.setExecutionError("승인 타임아웃");
                     executionContextRepository.save(executionContext);
                 }
 
-                
                 updateApprovalStatus(requestId, ApprovalRequest.ApprovalStatus.EXPIRED,
                         "system", "타임아웃");
 
-                
                 try {
                     
                     eventPublisher.publishEvent(ApprovalEvent.timeout(this, requestId));
@@ -708,12 +598,9 @@ public class UnifiedApprovalService implements ApprovalService {
         }, timeout.getSeconds(), TimeUnit.SECONDS);
     }
 
-    
     @Transactional
     public void processAsyncApproval(String requestId, boolean approved, String reviewer) {
-        log.info("비동기 승인 처리: {} - {} by {}",
-                requestId, approved ? "APPROVED" : "REJECTED", reviewer);
-
+        
         try {
             
             if (executionContextRepository != null) {
@@ -724,21 +611,17 @@ public class UnifiedApprovalService implements ApprovalService {
                 if (context != null) {
                     if (approved) {
                         context.setStatus("APPROVED");
-                        log.info("도구 실행 컨텍스트 승인됨: {}", requestId);
-                    } else {
+                                            } else {
                         context.setStatus("REJECTED");
                         context.setExecutionError("승인 거부됨");
-                        log.info("도구 실행 컨텍스트 거부됨: {}", requestId);
-                    }
+                                            }
                     executionContextRepository.save(context);
                 }
             }
 
-            
             processApprovalResponse(requestId, approved, reviewer,
                     approved ? "비동기 승인" : "비동기 거부");
 
-            
             if (approved) {
                 eventPublisher.publishEvent(ApprovalEvent.granted(this, requestId, reviewer));
             } else {
@@ -750,12 +633,9 @@ public class UnifiedApprovalService implements ApprovalService {
         }
     }
 
-    
     @PreDestroy
     public void shutdown() {
-        log.info("UnifiedApprovalService 종료 중...");
 
-        
         pendingApprovals.forEach((id, future) -> {
             if (!future.isDone()) {
                 future.cancel(true);
@@ -763,13 +643,11 @@ public class UnifiedApprovalService implements ApprovalService {
         });
         pendingApprovals.clear();
 
-        
         pendingSinks.forEach((id, sink) -> {
             sink.tryEmitError(new InterruptedException("Service shutting down"));
         });
         pendingSinks.clear();
 
-        
         scheduler.shutdown();
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {

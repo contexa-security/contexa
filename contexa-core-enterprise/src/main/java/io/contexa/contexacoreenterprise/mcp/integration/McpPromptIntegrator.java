@@ -14,7 +14,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class McpPromptIntegrator {
@@ -22,8 +21,7 @@ public class McpPromptIntegrator {
     private final McpSyncClient braveSearchMcpClient;
     private final McpSyncClient securityMcpClient;
     private final Map<String, PromptTemplate> promptTemplates = new ConcurrentHashMap<>();
-    
-    
+
     public Optional<Prompt> getPrompt(String promptName, Map<String, Object> arguments) {
         initializePrompts();
         
@@ -41,8 +39,7 @@ public class McpPromptIntegrator {
             return Optional.empty();
         }
     }
-    
-    
+
     public Optional<String> getSystemPrompt(String promptName, Map<String, Object> arguments) {
         initializePrompts();
         
@@ -58,8 +55,7 @@ public class McpPromptIntegrator {
             return Optional.empty();
         }
     }
-    
-    
+
     public Optional<String> getUserPrompt(String promptName, Map<String, Object> arguments) {
         initializePrompts();
         
@@ -75,8 +71,7 @@ public class McpPromptIntegrator {
             return Optional.empty();
         }
     }
-    
-    
+
     public List<PromptInfo> listAvailablePrompts() {
         initializePrompts();
         
@@ -89,8 +84,7 @@ public class McpPromptIntegrator {
             ))
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<PromptInfo> findPromptsByDomain(String domain) {
         initializePrompts();
         
@@ -104,33 +98,25 @@ public class McpPromptIntegrator {
             ))
             .collect(Collectors.toList());
     }
-    
-    
+
     private void initializePrompts() {
         if (!promptTemplates.isEmpty()) {
             return; 
         }
-        
-        log.info("MCP Prompt Integrator 초기화 시작");
-        
-        
+
         if (braveSearchMcpClient != null) {
             registerClientPrompts("brave-search", braveSearchMcpClient);
         }
-        
-        
+
         if (securityMcpClient != null) {
             registerClientPrompts("security", securityMcpClient);
         }
         
-        log.info("MCP Prompt Integrator 초기화 완료: {} 개 프롬프트", promptTemplates.size());
-    }
-    
-    
+            }
+
     private void registerClientPrompts(String clientName, McpSyncClient mcpClient) {
         try {
-            log.info("💭 {} MCP 클라이언트 프롬프트 등록 시작", clientName);
-            
+                        
             var listResult = mcpClient.listPrompts(null);
             if (listResult != null && listResult.prompts() != null) {
                 for (var prompt : listResult.prompts()) {
@@ -143,26 +129,21 @@ public class McpPromptIntegrator {
                     );
                     promptTemplates.put(fullName, template);
                     
-                    log.debug("프롬프트 템플릿 등록: {} - {}", fullName, prompt.description());
-                }
+                                    }
                 
-                log.info("{} MCP 클라이언트 프롬프트 등록 완료: {} 개",
-                        clientName, listResult.prompts().size());
-            }
+                            }
         } catch (Exception e) {
             log.warn("{} MCP 클라이언트 프롬프트 등록 실패: {}", clientName, e.getMessage());
         }
     }
-    
-    
+
     public record PromptInfo(
         String name,
         String description,
         List<String> arguments,
         String clientName
     ) {}
-    
-    
+
     private static class PromptTemplate {
         private final String name;
         private final McpSchema.Prompt prompt;
@@ -210,12 +191,10 @@ public class McpPromptIntegrator {
         public String getClientName() {
             return clientName;
         }
-        
-        
+
         public List<Message> generateMessages(Map<String, Object> arguments) {
             try {
-                log.debug("MCP Prompt 메시지 생성: {} - 인수: {}", name, arguments);
-                
+                                
                 var getResult = client.getPrompt(
                     new McpSchema.GetPromptRequest(prompt.name(), arguments != null ? arguments : Map.of())
                 );
@@ -248,8 +227,7 @@ public class McpPromptIntegrator {
                 throw new RuntimeException("프롬프트 메시지 생성 실패: " + e.getMessage(), e);
             }
         }
-        
-        
+
         public String generateSystemPrompt(Map<String, Object> arguments) {
             List<Message> messages = generateMessages(arguments);
             
@@ -263,8 +241,7 @@ public class McpPromptIntegrator {
             }
             return sb.toString();
         }
-        
-        
+
         public String generateUserPrompt(Map<String, Object> arguments) {
             List<Message> messages = generateMessages(arguments);
             
@@ -278,8 +255,7 @@ public class McpPromptIntegrator {
             }
             return sb.toString();
         }
-        
-        
+
         private String extractContent(Object content) {
             if (content == null) {
                 return null;
@@ -296,8 +272,7 @@ public class McpPromptIntegrator {
             
             return content.toString();
         }
-        
-        
+
         public boolean matchesDomain(String domain) {
             if (domain == null || domain.isEmpty()) {
                 return true;
@@ -311,8 +286,7 @@ public class McpPromptIntegrator {
                    lowerDesc.contains(lowerDomain);
         }
     }
-    
-    
+
     public Map<String, Object> getPromptStatistics() {
         initializePrompts();
         
@@ -332,15 +306,13 @@ public class McpPromptIntegrator {
             "prompts", promptsByClient
         );
     }
-    
-    
+
     public Optional<Prompt> enhancePromptWithMcp(
             String baseSystemPrompt,
             String baseUserPrompt,
             String mcpPromptName,
             Map<String, Object> arguments) {
-        
-        
+
         Optional<Prompt> mcpPromptOpt = getPrompt(mcpPromptName, arguments);
         
         if (mcpPromptOpt.isEmpty()) {
@@ -350,12 +322,10 @@ public class McpPromptIntegrator {
                 new UserMessage(baseUserPrompt)
             )));
         }
-        
-        
+
         Prompt mcpPrompt = mcpPromptOpt.get();
         List<Message> combinedMessages = new ArrayList<>();
-        
-        
+
         String systemContent = baseSystemPrompt;
         for (Message msg : mcpPrompt.getInstructions()) {
             if (msg instanceof SystemMessage) {
@@ -363,11 +333,9 @@ public class McpPromptIntegrator {
             }
         }
         combinedMessages.add(new SystemMessage(systemContent));
-        
-        
+
         combinedMessages.add(new UserMessage(baseUserPrompt));
-        
-        
+
         for (Message msg : mcpPrompt.getInstructions()) {
             if (!(msg instanceof SystemMessage)) {
                 combinedMessages.add(msg);

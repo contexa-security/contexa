@@ -23,16 +23,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class XAIReportingService {
-    
-    
+
     private final StandardVectorStoreService vectorStore;
     private final RedisTemplate<String, Object> redisTemplate;
-    
-    
+
     @Value("${xai.enabled:true}")
     private boolean xaiEnabled;
     
@@ -53,14 +50,11 @@ public class XAIReportingService {
     
     @Value("${xai.visualization.enabled:true}")
     private boolean visualizationEnabled;
-    
-    
+
     private final Map<String, CachedReport> reportCache = new ConcurrentHashMap<>();
-    
-    
+
     private final Map<String, FeatureImportanceModel> featureModels = new ConcurrentHashMap<>();
-    
-    
+
     private final AtomicLong totalReportsGenerated = new AtomicLong(0);
     private final AtomicLong cachedReportsServed = new AtomicLong(0);
     private final Map<DetailLevel, AtomicLong> detailLevelStats = new ConcurrentHashMap<>();
@@ -68,22 +62,15 @@ public class XAIReportingService {
     @PostConstruct
     public void initialize() {
         if (!xaiEnabled) {
-            log.info("XAI 리포팅 서비스 비활성화됨");
-            return;
+                        return;
         }
-        
-        log.info("XAI 리포팅 서비스 초기화 시작");
-        
-        
+
         initializeFeatureModels();
-        
-        
+
         startCacheCleaner();
         
-        log.info("XAI 리포팅 서비스 초기화 완료");
-    }
-    
-    
+            }
+
     public Mono<XAIReport> explainRiskAssessment(
         String assessmentId,
         RiskAssessmentResponse riskAssessment,
@@ -92,8 +79,7 @@ public class XAIReportingService {
         if (!xaiEnabled) {
             return Mono.just(XAIReport.disabled());
         }
-        
-        
+
         CachedReport cached = reportCache.get(assessmentId);
         if (cached != null && !cached.isExpired()) {
             cachedReportsServed.incrementAndGet();
@@ -101,30 +87,23 @@ public class XAIReportingService {
         }
         
         return Mono.fromCallable(() -> {
-            log.info("위험 평가 설명 리포트 생성 - Assessment ID: {}", assessmentId);
-            
-            
+
             Map<String, Double> features = extractFeatures(event);
-            
-            
+
             Map<String, Double> featureImportance = calculateFeatureImportance(
                 "risk_assessment", features, riskAssessment.riskScore()
             );
-            
-            
+
             List<String> decisionPath = traceDecisionPath(riskAssessment, features);
-            
-            
+
             List<AlternativeScenario> alternatives = generateAlternatives(
                 features, riskAssessment.riskScore()
             );
-            
-            
+
             ConfidenceAnalysis confidence = analyzeConfidence(
                 riskAssessment, features, featureImportance
             );
-            
-            
+
             XAIReport report = XAIReport.builder()
                 .assessmentId(assessmentId)
                 .type("RISK_ASSESSMENT")
@@ -141,11 +120,9 @@ public class XAIReportingService {
                 .metadata(createMetadata(event, riskAssessment))
                 .timestamp(LocalDateTime.now())
                 .build();
-            
-            
+
             cacheReport(assessmentId, report);
-            
-            
+
             totalReportsGenerated.incrementAndGet();
             detailLevelStats.computeIfAbsent(defaultDetailLevel, k -> new AtomicLong())
                 .incrementAndGet();
@@ -154,8 +131,7 @@ public class XAIReportingService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<XAIReport> explainBehaviorAnalysis(
         String analysisId,
         BehavioralAnalysisResponse behaviorAnalysis,
@@ -166,25 +142,19 @@ public class XAIReportingService {
         }
         
         return Mono.fromCallable(() -> {
-            log.info("행동 분석 설명 리포트 생성 - Analysis ID: {}", analysisId);
-            
-            
+
             Map<String, Double> features = extractBehaviorFeatures(event);
-            
-            
+
             BehaviorPattern pattern = analyzeBehaviorPattern(behaviorAnalysis);
-            
-            
+
             List<String> anomalyExplanation = explainAnomalies(
                 behaviorAnalysis.getBehavioralRiskScore() / 100.0,
                 pattern,
                 features
             );
-            
-            
+
             TemporalAnalysis temporal = analyzeTemporalPatterns(event, behaviorAnalysis);
-            
-            
+
             XAIReport report = XAIReport.builder()
                 .assessmentId(analysisId)
                 .type("BEHAVIOR_ANALYSIS")
@@ -207,8 +177,7 @@ public class XAIReportingService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<XAIReport> explainSoarDecision(
         String decisionId,
         SoarResponse soarResponse,
@@ -219,29 +188,23 @@ public class XAIReportingService {
         }
         
         return Mono.fromCallable(() -> {
-            log.info("SOAR 결정 설명 리포트 생성 - Decision ID: {}", decisionId);
-            
-            
+
             RecommendationAnalysis recAnalysis = analyzeRecommendations(
                 soarResponse.getRecommendations()
             );
-            
-            
+
             List<String> toolSelectionReasoning = explainToolSelection(soarResponse, context);
-            
-            
+
             RiskJustification riskJustification = justifyRiskLevel(
                 soarResponse.getThreatLevel() != null ? soarResponse.getThreatLevel().toString() : "MEDIUM",
                 context
             );
-            
-            
+
             List<String> alternativeActions = generateAlternativeActions(
                 soarResponse,
                 context
             );
-            
-            
+
             XAIReport report = XAIReport.builder()
                 .assessmentId(decisionId)
                 .type("SOAR_DECISION")
@@ -269,8 +232,7 @@ public class XAIReportingService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<XAIReport> explainThreatCorrelation(
         String correlationId,
         List<SecurityEvent> correlatedEvents,
@@ -281,21 +243,15 @@ public class XAIReportingService {
         }
         
         return Mono.fromCallable(() -> {
-            log.info("위협 상관관계 설명 리포트 생성 - Correlation ID: {}", correlationId);
-            
-            
+
             CorrelationAnalysis correlation = analyzeCorrelations(correlatedEvents);
-            
-            
+
             List<String> mitreExplanation = explainMitreMapping(indicators);
-            
-            
+
             TemporalRelationship temporal = analyzeTemporalRelationship(correlatedEvents);
-            
-            
+
             CausalInference causal = inferCausality(correlatedEvents, indicators);
-            
-            
+
             XAIReport report = XAIReport.builder()
                 .assessmentId(correlationId)
                 .type("THREAT_CORRELATION")
@@ -323,8 +279,7 @@ public class XAIReportingService {
         })
         .subscribeOn(Schedulers.boundedElastic());
     }
-    
-    
+
     public Mono<XAIReport> generateReport(
         String assessmentId,
         Object assessment,
@@ -346,29 +301,24 @@ public class XAIReportingService {
         
         return Mono.just(XAIReport.unsupported());
     }
-    
-    
+
     private Map<String, Double> extractFeatures(SecurityEvent event) {
         Map<String, Double> features = new HashMap<>();
-        
-        
+
         features.put("source_risk", getSourceRisk(event.getSource() != null ? event.getSource().name() : "UNKNOWN"));
         features.put("severity_score", getSeverityScore(event.getSeverity().name()));
         features.put("time_of_day", getTimeScore(event.getTimestamp()));
-        
-        
+
         if (event.getUserId() != null) {
             features.put("user_risk_score", getUserRiskScore(event.getUserId()));
             features.put("user_activity_level", getUserActivityLevel(event.getUserId()));
         }
-        
-        
+
         if (event.getSourceIp() != null) {
             features.put("ip_reputation", getIpReputation(event.getSourceIp()));
             features.put("geo_risk", getGeoRisk(event.getSourceIp()));
         }
-        
-        
+
         if (event.getMetadata() != null) {
             features.put("data_sensitivity", getDataSensitivity(event.getMetadata()));
             features.put("action_risk", getActionRisk(event.getMetadata()));
@@ -376,8 +326,7 @@ public class XAIReportingService {
         
         return features;
     }
-    
-    
+
     private Map<String, Double> extractBehaviorFeatures(SecurityEvent event) {
         Map<String, Double> features = new HashMap<>();
         
@@ -389,8 +338,7 @@ public class XAIReportingService {
         
         return features;
     }
-    
-    
+
     private Map<String, Double> calculateFeatureImportance(
         String modelType,
         Map<String, Double> features,
@@ -409,33 +357,28 @@ public class XAIReportingService {
             importance.put(feature.getKey(), contribution);
             totalContribution += Math.abs(contribution);
         }
-        
-        
+
         if (totalContribution > 0) {
             double finalTotal = totalContribution;
             importance.replaceAll((k, v) -> v / finalTotal);
         }
-        
-        
+
         importance.entrySet().removeIf(e -> 
             Math.abs(e.getValue()) < featureImportanceThreshold
         );
         
         return importance;
     }
-    
-    
+
     private List<String> traceDecisionPath(
         RiskAssessmentResponse assessment,
         Map<String, Double> features
     ) {
         List<String> path = new ArrayList<>();
-        
-        
+
         path.add(String.format("1. 이벤트 수신 및 초기 분류: %s", 
             "MEDIUM"));
-        
-        
+
         features.entrySet().stream()
             .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
             .limit(3)
@@ -443,45 +386,38 @@ public class XAIReportingService {
                 path.add(String.format("2. %s 평가: %.2f (영향도: 높음)", 
                     entry.getKey(), entry.getValue()))
             );
-        
-        
+
         path.add("3. 과거 패턴과 비교 분석 수행");
-        
-        
+
         path.add(String.format("4. 최종 위험 점수 계산: %.2f", 
             assessment.riskScore()));
-        
-        
+
         path.add(String.format("5. 임계값 비교 및 위험 수준 결정: %s", 
             "MEDIUM"));
         
         return path;
     }
-    
-    
+
     private List<AlternativeScenario> generateAlternatives(
         Map<String, Double> features,
         double actualScore
     ) {
         List<AlternativeScenario> alternatives = new ArrayList<>();
-        
-        
+
         features.entrySet().stream()
             .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
             .limit(maxAlternatives)
             .forEach(entry -> {
                 String feature = entry.getKey();
                 double value = entry.getValue();
-                
-                
+
                 double reducedScore = simulateScore(features, feature, value * 0.5);
                 alternatives.add(new AlternativeScenario(
                     String.format("%s가 50%% 낮았다면", feature),
                     reducedScore,
                     actualScore - reducedScore
                 ));
-                
-                
+
                 double increasedScore = simulateScore(features, feature, value * 1.5);
                 alternatives.add(new AlternativeScenario(
                     String.format("%s가 50%% 높았다면", feature),
@@ -495,8 +431,7 @@ public class XAIReportingService {
             .limit(maxAlternatives)
             .collect(Collectors.toList());
     }
-    
-    
+
     private ConfidenceAnalysis analyzeConfidence(
         RiskAssessmentResponse assessment,
         Map<String, Double> features,
@@ -523,8 +458,7 @@ public class XAIReportingService {
         
         return new ConfidenceAnalysis(overallConfidence, factors, dataQuality, modelCertainty, consistencyScore);
     }
-    
-    
+
     private Map<String, Object> generateVisualizations(
         Map<String, Double> importance,
         ConfidenceAnalysis confidence
@@ -534,20 +468,16 @@ public class XAIReportingService {
         }
         
         Map<String, Object> visualizations = new HashMap<>();
-        
-        
+
         visualizations.put("featureImportanceChart", createBarChart(importance));
-        
-        
+
         visualizations.put("confidenceGauge", createGaugeChart(confidence.getOverallConfidence()));
-        
-        
+
         visualizations.put("decisionTree", createDecisionTree(importance));
         
         return visualizations;
     }
-    
-    
+
     private BehaviorPattern analyzeBehaviorPattern(BehavioralAnalysisResponse analysis) {
         
         return new BehaviorPattern(
@@ -556,8 +486,7 @@ public class XAIReportingService {
             analysis.getBehavioralRiskScore() / 100.0
         );
     }
-    
-    
+
     private List<String> explainAnomalies(
         double anomalyScore,
         BehaviorPattern pattern,
@@ -577,8 +506,7 @@ public class XAIReportingService {
         
         return explanation;
     }
-    
-    
+
     private TemporalAnalysis analyzeTemporalPatterns(
         SecurityEvent event,
         BehavioralAnalysisResponse analysis
@@ -590,8 +518,7 @@ public class XAIReportingService {
             0.7
         );
     }
-    
-    
+
     private RecommendationAnalysis analyzeRecommendations(List<String> recommendations) {
         List<String> reasoning = new ArrayList<>();
         reasoning.add("위험 수준과 이벤트 유형 고려");
@@ -602,8 +529,7 @@ public class XAIReportingService {
         
         return new RecommendationAnalysis(recommendations, reasoning, confidence);
     }
-    
-    
+
     private List<String> explainToolSelection(SoarResponse response, Map<String, Object> context) {
         List<String> explanation = new ArrayList<>();
         
@@ -614,8 +540,7 @@ public class XAIReportingService {
         
         return explanation;
     }
-    
-    
+
     private RiskJustification justifyRiskLevel(String riskLevel, Map<String, Object> context) {
         List<String> reasoning = new ArrayList<>();
         
@@ -626,8 +551,7 @@ public class XAIReportingService {
         
         return new RiskJustification(riskLevel, reasoning);
     }
-    
-    
+
     private List<String> generateAlternativeActions(
         SoarResponse response,
         Map<String, Object> context
@@ -640,8 +564,7 @@ public class XAIReportingService {
         
         return alternatives;
     }
-    
-    
+
     private CorrelationAnalysis analyzeCorrelations(List<SecurityEvent> events) {
         Map<String, Double> importanceScores = new HashMap<>();
         List<String> explanation = new ArrayList<>();
@@ -655,8 +578,7 @@ public class XAIReportingService {
         
         return new CorrelationAnalysis(importanceScores, explanation, confidence);
     }
-    
-    
+
     private List<String> explainMitreMapping(ThreatIndicators indicators) {
         List<String> explanation = new ArrayList<>();
         
@@ -672,14 +594,12 @@ public class XAIReportingService {
         
         return explanation;
     }
-    
-    
+
     private TemporalRelationship analyzeTemporalRelationship(List<SecurityEvent> events) {
         
         return new TemporalRelationship("SEQUENTIAL", "순차적 발생", 0.8);
     }
-    
-    
+
     private CausalInference inferCausality(
         List<SecurityEvent> events,
         ThreatIndicators indicators
@@ -696,8 +616,7 @@ public class XAIReportingService {
         
         return new CausalInference(explanation, alternatives);
     }
-    
-    
+
     private List<String> combineReasoningChains(List<String>... chains) {
         List<String> combined = new ArrayList<>();
         for (List<String> chain : chains) {
@@ -707,8 +626,7 @@ public class XAIReportingService {
         }
         return combined;
     }
-    
-    
+
     private XAIReport adjustDetailLevel(XAIReport report, DetailLevel level) {
         report.setDetailLevel(level);
         
@@ -751,9 +669,7 @@ public class XAIReportingService {
         
         return report;
     }
-    
-    
-    
+
     private double getSourceRisk(String source) {
         
         return switch (source) {
@@ -764,8 +680,7 @@ public class XAIReportingService {
             default -> 0.3;
         };
     }
-    
-    
+
     private double getSeverityScore(String severity) {
         
         return switch (severity) {
@@ -816,8 +731,7 @@ public class XAIReportingService {
     private double simulateScore(Map<String, Double> features, String changedFeature, double newValue) {
         Map<String, Double> simulated = new HashMap<>(features);
         simulated.put(changedFeature, newValue);
-        
-        
+
         return simulated.values().stream()
             .mapToDouble(Double::doubleValue)
             .average()
@@ -973,15 +887,13 @@ public class XAIReportingService {
         tree.put("nodes", importance);
         return tree;
     }
-    
-    
+
     private void initializeFeatureModels() {
         featureModels.put("risk_assessment", createDefaultModel());
         featureModels.put("behavior_analysis", createDefaultModel());
         featureModels.put("threat_correlation", createDefaultModel());
     }
-    
-    
+
     private FeatureImportanceModel createDefaultModel() {
         Map<String, Double> weights = new HashMap<>();
         weights.put("event_type_risk", 0.2);
@@ -993,21 +905,18 @@ public class XAIReportingService {
         
         return new FeatureImportanceModel(weights);
     }
-    
-    
+
     private void cacheReport(String id, XAIReport report) {
         CachedReport cached = new CachedReport(
             report,
             LocalDateTime.now().plusHours(cacheTtlHours)
         );
         reportCache.put(id, cached);
-        
-        
+
         String key = "xai:report:" + id;
         redisTemplate.opsForValue().set(key, report, Duration.ofHours(cacheTtlHours));
     }
-    
-    
+
     private void startCacheCleaner() {
         Schedulers.parallel().schedulePeriodically(() -> {
             reportCache.entrySet().removeIf(entry -> 
@@ -1015,8 +924,7 @@ public class XAIReportingService {
             );
         }, 3600, 3600, java.util.concurrent.TimeUnit.SECONDS);
     }
-    
-    
+
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         metrics.put("enabled", xaiEnabled);
@@ -1033,10 +941,7 @@ public class XAIReportingService {
         
         return metrics;
     }
-    
-    
-    
-    
+
     @lombok.Data
     @lombok.Builder
     public static class XAIReport {
@@ -1073,7 +978,6 @@ public class XAIReportingService {
         }
     }
 
-    
     public enum DetailLevel {
         MINIMAL,   
         MEDIUM,    
@@ -1081,7 +985,6 @@ public class XAIReportingService {
         FULL       
     }
 
-    
     @AllArgsConstructor
     private static class CachedReport {
         private final XAIReport report;
@@ -1096,7 +999,6 @@ public class XAIReportingService {
         }
     }
 
-    
     @AllArgsConstructor
     private static class FeatureImportanceModel {
         private final Map<String, Double> weights;
@@ -1105,9 +1007,7 @@ public class XAIReportingService {
             return weights.getOrDefault(feature, 0.1);
         }
     }
-    
-    
-    
+
     @AllArgsConstructor
     private static class AlternativeScenario {
         private final String description;

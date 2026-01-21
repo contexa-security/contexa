@@ -12,7 +12,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
-
 @Slf4j
 @ResponseBody
 @RequestMapping("/api/soar/approval")
@@ -30,8 +29,7 @@ public class SoarApprovalController {
         this.soarToolExecutionService = soarToolExecutionService;
         this.brokerTemplate = brokerTemplate;
     }
-    
-    
+
     @PostMapping("/execute")
     public Mono<ResponseEntity<Map<String, Object>>> executeSoarTool(
             @RequestBody Map<String, Object> request) {
@@ -39,9 +37,7 @@ public class SoarApprovalController {
         String prompt = (String) request.get("prompt");
         String incidentId = (String) request.getOrDefault("incidentId", "incident-" + System.currentTimeMillis());
         String organizationId = (String) request.getOrDefault("organizationId", "default-org");
-        
-        log.info("SOAR Tool 실행 요청 수신: {}", incidentId);
-        
+
         return soarToolExecutionService.executeWithHumanApproval(prompt, incidentId, organizationId)
             .map(result -> {
                 Map<String, Object> response = Map.of(
@@ -63,8 +59,7 @@ public class SoarApprovalController {
                 return Mono.just(ResponseEntity.internalServerError().body(errorResponse));
             });
     }
-    
-    
+
     @PostMapping("/approve/{approvalId}")
     public ResponseEntity<Map<String, Object>> approveRequest(
             @PathVariable String approvalId,
@@ -72,14 +67,11 @@ public class SoarApprovalController {
         
         boolean approved = Boolean.TRUE.equals(approvalData.get("approved"));
         String reason = (String) approvalData.getOrDefault("reason", "");
-        
-        log.info("👨‍💼 승인 처리: {} - 승인: {}, 사유: {}", approvalId, approved, reason);
-        
+
         try {
             
             approvalService.processApproval(approvalId, approved, reason);
-            
-            
+
             Map<String, Object> message = Map.of(
                 "type", "APPROVAL_PROCESSED",
                 "approvalId", approvalId,
@@ -110,8 +102,7 @@ public class SoarApprovalController {
             return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
-    
-    
+
     @GetMapping("/pending-list")
     public ResponseEntity<Map<String, Object>> getPendingApprovals() {
         try {
@@ -137,8 +128,7 @@ public class SoarApprovalController {
             return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
-    
-    
+
     @GetMapping("/tools")
     public ResponseEntity<Map<String, Object>> getRegisteredTools() {
         try {
@@ -166,8 +156,7 @@ public class SoarApprovalController {
             return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
-    
-    
+
     @GetMapping("/status/{incidentId}")
     public ResponseEntity<Map<String, Object>> getExecutionStatus(@PathVariable String incidentId) {
         try {
@@ -199,8 +188,7 @@ public class SoarApprovalController {
             return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
-    
-    
+
     @GetMapping("/statistics")
     public ResponseEntity<Map<String, Object>> getExecutionStatistics() {
         try {
@@ -220,8 +208,7 @@ public class SoarApprovalController {
                 .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
-    
-    
+
     @GetMapping("/tools/{toolName}/metrics")
     public ResponseEntity<Map<String, Object>> getToolMetrics(@PathVariable String toolName) {
         try {
@@ -251,8 +238,7 @@ public class SoarApprovalController {
                 .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
-    
-    
+
     @GetMapping("/health")
     public ResponseEntity<Map<String, Object>> healthCheck() {
         try {
@@ -260,10 +246,8 @@ public class SoarApprovalController {
             boolean approvalServiceHealthy = (approvalService != null);
             boolean toolExecutionServiceHealthy = (soarToolExecutionService != null);
 
-            
             int registeredToolCount = soarToolExecutionService.getRegisteredTools().size();
-            
-            
+
             Map<String, Object> globalStats = SoarToolObservationContext.getGlobalExecutionStatistics();
             
             boolean overallHealthy = approvalServiceHealthy && toolExecutionServiceHealthy && registeredToolCount >= 0;

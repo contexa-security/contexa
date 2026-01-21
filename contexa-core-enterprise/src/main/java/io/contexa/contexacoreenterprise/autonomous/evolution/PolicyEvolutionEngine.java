@@ -24,7 +24,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionEngine {
@@ -33,11 +32,9 @@ public class PolicyEvolutionEngine {
     private final UnifiedVectorService unifiedVectorService;
     private final AITuningService tuningService;
 
-    
     @Autowired(required = false)
     private EvolutionMetricsCollector metricsCollector;
 
-    
     @Autowired(required = false)
     private SpelValidationService spelValidationService;
     
@@ -49,67 +46,50 @@ public class PolicyEvolutionEngine {
     
     @Value("${policy.evolution.enable.caching:true}")
     private boolean enableCaching;
-    
-    
+
     private final RedisTemplate<String, PolicyEvolutionProposal> redisTemplate;
     private final RedisTemplate<String, String> stringRedisTemplate;
-    
-    
+
     private static final String PROPOSAL_CACHE_KEY_PREFIX = "policy:evolution:proposal:";
     private static final String PROPOSAL_SET_KEY = "policy:evolution:proposals:all";
     private static final Duration PROPOSAL_CACHE_TTL = Duration.ofHours(1);
     private static final Duration PROPOSAL_LONG_TTL = Duration.ofHours(24);
-    
-    
+
     public PolicyEvolutionProposal evolvePolicy(SecurityEvent event, LearningMetadata metadata) {
         long startTime = System.currentTimeMillis();
-        log.info("정책 진화 시작 - EventId: {}, LearningType: {}",
-                 event.getEventId(), metadata.getLearningType());
-
+        
         try {
             
             String cacheKey = generateCacheKey(event, metadata);
             if (enableCaching) {
                 PolicyEvolutionProposal cachedProposal = getFromRedisCache(cacheKey);
                 if (cachedProposal != null) {
-                    log.info("Redis 캐시에서 제안 반환: {}", cacheKey);
-                    return cachedProposal;
+                                        return cachedProposal;
                 }
             }
 
-            
             Map<String, Object> context = collectContext(event, metadata);
 
-            
             List<Document> similarCases = searchSimilarCases(event, metadata);
 
-            
             if (metricsCollector != null) {
                 metricsCollector.recordSimilarCasesFound(similarCases.size());
             }
 
-            
             PolicyEvolutionProposal proposal = generateProposal(event, metadata, context, similarCases);
 
-            
             evaluateConfidence(proposal, context, similarCases);
 
-            
             assessRiskLevel(proposal, event, metadata);
 
-            
             if (enableCaching) {
                 saveToRedisCache(cacheKey, proposal);
             }
 
-            
             storeLearningData(event, metadata, proposal);
 
             long duration = System.currentTimeMillis() - startTime;
-            log.info("정책 진화 완료 - ProposalType: {}, Confidence: {}, Risk: {}",
-                     proposal.getProposalType(), proposal.getConfidenceScore(), proposal.getRiskLevel());
 
-            
             if (metricsCollector != null) {
                 metricsCollector.recordProposalCreation(
                     duration,
@@ -118,7 +98,6 @@ public class PolicyEvolutionEngine {
                     proposal.getConfidenceScore()
                 );
 
-                
                 Map<String, Object> eventMetadata = new HashMap<>();
                 eventMetadata.put("proposal_type", proposal.getProposalType().name());
                 eventMetadata.put("risk_level", proposal.getRiskLevel().name());
@@ -133,7 +112,6 @@ public class PolicyEvolutionEngine {
             long duration = System.currentTimeMillis() - startTime;
             log.error(" 정책 진화 실패 - EventId: {}", event.getEventId(), e);
 
-            
             if (metricsCollector != null) {
                 metricsCollector.recordProposalCreation(
                     duration,
@@ -147,19 +125,13 @@ public class PolicyEvolutionEngine {
         }
     }
 
-    
     public PolicyEvolutionProposal evolvePolicy(io.contexa.contexacore.domain.SoarIncidentDto incident, LearningMetadata metadata) {
-        log.info("정책 진화 시작 (SoarIncidentDto) - IncidentId: {}, Type: {}",
-                 incident.getIncidentId(), incident.getType());
 
-        
         SecurityEvent event = convertSoarIncidentToSecurityEvent(incident);
 
-        
         return evolvePolicy(event, metadata);
     }
 
-    
     private SecurityEvent convertSoarIncidentToSecurityEvent(io.contexa.contexacore.domain.SoarIncidentDto incident) {
         SecurityEvent.Severity severity = mapIncidentSeverityToEventSeverity(incident.getSeverity());
 
@@ -200,7 +172,6 @@ public class PolicyEvolutionEngine {
             .build();
     }
 
-    
     private SecurityEvent.Severity mapIncidentSeverityToEventSeverity(io.contexa.contexacore.domain.SoarIncidentDto.IncidentSeverity incidentSeverity) {
         if (incidentSeverity == null) {
             return SecurityEvent.Severity.MEDIUM;
@@ -222,88 +193,70 @@ public class PolicyEvolutionEngine {
         }
     }
 
-    
     public Mono<PolicyEvolutionProposal> evolvePolicyAsync(SecurityEvent event, LearningMetadata metadata) {
         return Mono.fromCallable(() -> evolvePolicy(event, metadata))
-                   .doOnSubscribe(s -> log.info("🔄 비동기 정책 진화 시작"))
-                   .doOnSuccess(p -> log.info("비동기 정책 진화 완료"))
-                   .doOnError(e -> log.error(" 비동기 정책 진화 실패", e));
+                .doOnSubscribe(s -> log.info("🔄 비동기 정책 진화 시작"))
+                .doOnSuccess(p -> log.info("비동기 정책 진화 완료"))
+                .doOnError(e -> log.error(" 비동기 정책 진화 실패", e));
     }
 
-    
     private Map<String, Object> collectContext(SecurityEvent event, LearningMetadata metadata) {
         Map<String, Object> context = new HashMap<>();
-        
-        
+
         context.put("severity", event.getSeverity());
         context.put("source", event.getSource());
         context.put("timestamp", event.getTimestamp());
-        
-        
+
         if (event.getSourceIp() != null) {
             context.put("sourceIp", event.getSourceIp());
             
         }
-        
-        
+
         if (event.getUserId() != null) {
             context.put("userId", event.getUserId());
             context.put("userName", event.getUserName());
         }
-        
-        
-        
-        
-        
+
         context.putAll(metadata.getLearningContext());
         
         return context;
     }
-    
-    
+
     private List<Document> searchSimilarCases(SecurityEvent event, LearningMetadata metadata) {
         try {
             String query = buildSearchQuery(event, metadata);
 
-            
             SearchRequest searchRequest = SearchRequest.builder()
                 .query(query)
                 .topK(maxContextSize)
                 .similarityThreshold(0.7)
                 .build();
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
-            
-            
+
             if (documents.size() > maxContextSize) {
                 documents = documents.subList(0, maxContextSize);
             }
             
-            log.debug("유사 사례 {} 건 검색됨", documents.size());
-            return documents;
+                        return documents;
             
         } catch (Exception e) {
             log.warn("유사 사례 검색 실패: {}", e.getMessage());
             return new ArrayList<>();
         }
     }
-    
-    
+
     private PolicyEvolutionProposal generateProposal(
             SecurityEvent event, 
             LearningMetadata metadata,
             Map<String, Object> context,
             List<Document> similarCases) {
-        
-        
+
         String prompt = buildEvolutionPrompt(event, metadata, context, similarCases);
-        
-        
+
         String aiResponse = callAI(prompt);
-        
-        
+
         PolicyEvolutionProposal proposal = parseAIResponse(aiResponse, event, metadata);
-        
-        
+
         proposal.setSourceEventId(event.getEventId());
         proposal.setAnalysisLabId(metadata.getSourceLabId());
         proposal.setLearningType(metadata.getLearningType());
@@ -312,8 +265,7 @@ public class PolicyEvolutionEngine {
         
         return proposal;
     }
-    
-    
+
     private String buildEvolutionPrompt(
             SecurityEvent event,
             LearningMetadata metadata,
@@ -322,32 +274,27 @@ public class PolicyEvolutionEngine {
         
         StringBuilder prompt = new StringBuilder();
         prompt.append("보안 이벤트를 분석하여 정책 제안을 생성해주세요.\n\n");
-        
-        
+
         prompt.append("## 보안 이벤트\n");
         prompt.append(String.format("- 심각도: %s\n", event.getSeverity()));
         prompt.append(String.format("- 출처: %s\n", event.getSource()));
         prompt.append(String.format("- 설명: %s\n", event.getDescription()));
-        
-        
+
         prompt.append("\n## 학습 유형\n");
         prompt.append(String.format("- %s\n", metadata.getLearningType()));
-        
-        
+
         prompt.append("\n## 컨텍스트\n");
         context.forEach((key, value) -> 
             prompt.append(String.format("- %s: %s\n", key, value))
         );
-        
-        
+
         if (!similarCases.isEmpty()) {
             prompt.append("\n## 유사 사례\n");
             similarCases.stream()
                 .limit(3)
                 .forEach(doc -> prompt.append(String.format("- %s\n", doc.getText())));
         }
-        
-        
+
         prompt.append("\n## 사용 가능한 SpEL API\n");
         prompt.append("### #trust 변수 (Hot Path - Redis LLM Action 조회, 응답시간 5ms 이내)\n");
         prompt.append("- #trust.isAllowed() : LLM이 ALLOW로 판정했는지 확인\n");
@@ -373,7 +320,6 @@ public class PolicyEvolutionEngine {
         prompt.append("- isAuthenticated() : 인증 여부\n");
         prompt.append("- isFullyAuthenticated() : 완전 인증 여부 (Remember-Me 제외)\n");
 
-        
         prompt.append("\n## 요청사항\n");
         prompt.append("1. 이 이벤트를 예방하기 위한 정책을 제안해주세요.\n");
         prompt.append("2. 위 SpEL API 목록에 있는 메서드만 사용하여 정책을 작성해주세요.\n");
@@ -389,7 +335,6 @@ public class PolicyEvolutionEngine {
         return prompt.toString();
     }
 
-    
     private String callAI(String prompt) {
         long startTime = System.currentTimeMillis();
         try {
@@ -397,12 +342,10 @@ public class PolicyEvolutionEngine {
             ChatResponse response = chatModel.call(aiPrompt);
             String result = response.getResult().getOutput().getText();
 
-            
             if (metricsCollector != null) {
                 long duration = System.currentTimeMillis() - startTime;
                 metricsCollector.recordAICall(duration, "chatModel", true);
 
-                
                 Map<String, Object> eventMetadata = new HashMap<>();
                 eventMetadata.put("model", "chatModel");
                 eventMetadata.put("duration", duration);
@@ -417,7 +360,6 @@ public class PolicyEvolutionEngine {
                 long duration = System.currentTimeMillis() - startTime;
                 metricsCollector.recordAICall(duration, "chatModel", false);
 
-                
                 Map<String, Object> eventMetadata = new HashMap<>();
                 eventMetadata.put("model", "chatModel");
                 eventMetadata.put("duration", duration);
@@ -430,8 +372,7 @@ public class PolicyEvolutionEngine {
             return "AI 분석 실패: " + e.getMessage();
         }
     }
-    
-    
+
     private PolicyEvolutionProposal parseAIResponse(
             String aiResponse, 
             SecurityEvent event,
@@ -445,8 +386,7 @@ public class PolicyEvolutionEngine {
             .spelExpression(extractSpelExpression(aiResponse))
             .expectedImpact(extractExpectedImpact(aiResponse))
             .build();
-        
-        
+
         Map<String, Object> actionPayload = new HashMap<>();
         actionPayload.put("severity", event.getSeverity());
         actionPayload.put("learningType", metadata.getLearningType());
@@ -454,16 +394,13 @@ public class PolicyEvolutionEngine {
         
         return proposal;
     }
-    
-    
-    
+
     private String generateTitle(SecurityEvent event, LearningMetadata metadata) {
         return String.format("[%s] %s 대응 정책",
                             metadata.getLearningType(),
                             event.getSeverity());
     }
-    
-    
+
     private String extractDescription(String aiResponse) {
         
         String[] lines = aiResponse.split("\n");
@@ -472,8 +409,7 @@ public class PolicyEvolutionEngine {
         }
         return "AI 생성 정책 제안";
     }
-    
-    
+
     private String extractSpelExpression(String aiResponse) {
         if (aiResponse == null || aiResponse.isEmpty()) {
             
@@ -494,7 +430,6 @@ public class PolicyEvolutionEngine {
                 return spelExpression;
             }
 
-            
             spelExpression = extractSpelFunctionPattern(aiResponse);
             if (spelExpression != null) {
                 
@@ -504,7 +439,6 @@ public class PolicyEvolutionEngine {
                 return spelExpression;
             }
 
-            
             spelExpression = requestSpelFromAI(aiResponse);
             if (spelExpression != null) {
                 
@@ -518,16 +452,13 @@ public class PolicyEvolutionEngine {
             log.warn("SpEL 표현식 추출 실패, 기본값 사용: {}", e.getMessage());
         }
 
-        
         if (metricsCollector != null) {
             metricsCollector.recordSpelExtraction("fallback_default", false);
         }
 
-        
         return "hasRole('USER') and #request.isSecure()";
     }
 
-    
     private String extractFromCodeBlock(String aiResponse) {
         
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
@@ -543,7 +474,6 @@ public class PolicyEvolutionEngine {
             }
         }
 
-        
         pattern = java.util.regex.Pattern.compile("`([^`]+)`");
         matcher = pattern.matcher(aiResponse);
         while (matcher.find()) {
@@ -556,7 +486,6 @@ public class PolicyEvolutionEngine {
         return null;
     }
 
-    
     private boolean validateSpelWithService(String expression) {
         if (spelValidationService != null) {
             SpelValidationService.ValidationResult result = spelValidationService.validate(expression);
@@ -565,15 +494,13 @@ public class PolicyEvolutionEngine {
                 return false;
             }
             if (!result.warnings().isEmpty()) {
-                log.info("SpEL 검증 경고: {}", result.warnings());
-            }
+                            }
             return true;
         }
         
         return isValidSpelExpression(expression);
     }
 
-    
     private String extractSpelFunctionPattern(String aiResponse) {
         
         String[] spelPatterns = {
@@ -607,7 +534,6 @@ public class PolicyEvolutionEngine {
         return null;
     }
 
-    
     private String requestSpelFromAI(String originalResponse) {
         try {
             String extractionPrompt = String.format(
@@ -621,25 +547,21 @@ public class PolicyEvolutionEngine {
             ChatResponse response = chatModel.call(prompt);
             String extractedSpel = response.getResult().getOutput().getText().trim();
 
-            
             if (validateSpelWithService(extractedSpel)) {
                 return extractedSpel;
             }
 
         } catch (Exception e) {
-            log.debug("AI SpEL 재요청 실패: {}", e.getMessage());
-        }
+                    }
 
         return null;
     }
 
-    
     private boolean isValidSpelExpression(String expression) {
         if (expression == null || expression.isEmpty() || expression.length() > 500) {
             return false;
         }
 
-        
         String lowerExpression = expression.toLowerCase();
         boolean hasSpelKeyword =
             lowerExpression.contains("hasrole") ||
@@ -654,13 +576,11 @@ public class PolicyEvolutionEngine {
             lowerExpression.contains("and") ||
             lowerExpression.contains("or");
 
-        
         boolean hasBalancedParentheses = checkBalancedParentheses(expression);
 
         return hasSpelKeyword && hasBalancedParentheses;
     }
 
-    
     private boolean checkBalancedParentheses(String expression) {
         int count = 0;
         for (char c : expression.toCharArray()) {
@@ -670,8 +590,7 @@ public class PolicyEvolutionEngine {
         }
         return count == 0;
     }
-    
-    
+
     private Double extractExpectedImpact(String aiResponse) {
         if (aiResponse == null || aiResponse.isEmpty()) {
             return 0.7; 
@@ -684,19 +603,16 @@ public class PolicyEvolutionEngine {
                 return impact;
             }
 
-            
             impact = extractPercentageImpact(aiResponse);
             if (impact != null) {
                 return impact;
             }
 
-            
             impact = extractTextualImpact(aiResponse);
             if (impact != null) {
                 return impact;
             }
 
-            
             impact = requestImpactFromAI(aiResponse);
             if (impact != null) {
                 return impact;
@@ -709,7 +625,6 @@ public class PolicyEvolutionEngine {
         return 0.7; 
     }
 
-    
     private Double extractNumericImpact(String aiResponse) {
         
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
@@ -725,11 +640,9 @@ public class PolicyEvolutionEngine {
                     return value;
                 }
             } catch (NumberFormatException e) {
-                log.debug("숫자 파싱 실패: {}", matcher.group(1));
-            }
+                            }
         }
 
-        
         pattern = java.util.regex.Pattern.compile("\\b(0\\.[0-9]{1,2})\\b");
         matcher = pattern.matcher(aiResponse);
 
@@ -748,7 +661,6 @@ public class PolicyEvolutionEngine {
         return null;
     }
 
-    
     private Double extractPercentageImpact(String aiResponse) {
         
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
@@ -764,54 +676,45 @@ public class PolicyEvolutionEngine {
                     return percentage / 100.0;
                 }
             } catch (NumberFormatException e) {
-                log.debug("퍼센트 파싱 실패: {}", matcher.group(1));
-            }
+                            }
         }
 
         return null;
     }
 
-    
     private Double extractTextualImpact(String aiResponse) {
         String lowerResponse = aiResponse.toLowerCase();
 
-        
         if (lowerResponse.contains("매우 높") || lowerResponse.contains("very high") ||
             lowerResponse.contains("excellent") || lowerResponse.contains("탁월")) {
             return 0.9;
         }
 
-        
         if (lowerResponse.contains("높은") || lowerResponse.contains("high") ||
             lowerResponse.contains("significant") || lowerResponse.contains("상당")) {
             return 0.8;
         }
 
-        
         if (lowerResponse.contains("중상") || lowerResponse.contains("moderate-high") ||
             lowerResponse.contains("good")) {
             return 0.7;
         }
 
-        
         if (lowerResponse.contains("중간") || lowerResponse.contains("medium") ||
             lowerResponse.contains("moderate") || lowerResponse.contains("보통")) {
             return 0.6;
         }
 
-        
         if (lowerResponse.contains("중하") || lowerResponse.contains("moderate-low") ||
             lowerResponse.contains("fair")) {
             return 0.5;
         }
 
-        
         if (lowerResponse.contains("낮은") || lowerResponse.contains("low") ||
             lowerResponse.contains("minor") || lowerResponse.contains("적은")) {
             return 0.4;
         }
 
-        
         if (lowerResponse.contains("매우 낮") || lowerResponse.contains("very low") ||
             lowerResponse.contains("minimal") || lowerResponse.contains("미미")) {
             return 0.3;
@@ -820,7 +723,6 @@ public class PolicyEvolutionEngine {
         return null;
     }
 
-    
     private Double requestImpactFromAI(String originalResponse) {
         try {
             String extractionPrompt = String.format(
@@ -833,7 +735,6 @@ public class PolicyEvolutionEngine {
             ChatResponse response = chatModel.call(prompt);
             String impactText = response.getResult().getOutput().getText().trim();
 
-            
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(0\\.\\d+|1\\.0|0|1)");
             java.util.regex.Matcher matcher = pattern.matcher(impactText);
 
@@ -845,13 +746,11 @@ public class PolicyEvolutionEngine {
             }
 
         } catch (Exception e) {
-            log.debug("AI 영향도 재요청 실패: {}", e.getMessage());
-        }
+                    }
 
         return null;
     }
-    
-    
+
     private PolicyEvolutionProposal.ProposalType determineProposalType(
             SecurityEvent event, 
             LearningMetadata metadata) {
@@ -871,49 +770,42 @@ public class PolicyEvolutionEngine {
                 return PolicyEvolutionProposal.ProposalType.SUGGEST_TRAINING;
         }
     }
-    
-    
+
     private void evaluateConfidence(
             PolicyEvolutionProposal proposal,
             Map<String, Object> context,
             List<Document> similarCases) {
         
         double confidence = 0.5; 
-        
-        
+
         if (similarCases.size() >= 5) {
             confidence += 0.2;
         } else if (similarCases.size() >= 3) {
             confidence += 0.1;
         }
-        
-        
+
         if (context.size() >= 10) {
             confidence += 0.2;
         } else if (context.size() >= 5) {
             confidence += 0.1;
         }
-        
-        
+
         if (proposal.getSpelExpression() != null && !proposal.getSpelExpression().isEmpty()) {
             confidence += 0.1;
         }
-        
-        
+
         confidence = Math.min(confidence, 1.0);
         
         proposal.setConfidenceScore(confidence);
     }
-    
-    
+
     private void assessRiskLevel(
             PolicyEvolutionProposal proposal,
             SecurityEvent event,
             LearningMetadata metadata) {
         
         PolicyEvolutionProposal.RiskLevel riskLevel;
-        
-        
+
         switch (proposal.getProposalType()) {
             case DELETE_POLICY:
             case REVOKE_ACCESS:
@@ -940,16 +832,14 @@ public class PolicyEvolutionEngine {
                 riskLevel = PolicyEvolutionProposal.RiskLevel.LOW;
                 break;
         }
-        
-        
+
         if (proposal.getConfidenceScore() < 0.5 && riskLevel == PolicyEvolutionProposal.RiskLevel.LOW) {
             riskLevel = PolicyEvolutionProposal.RiskLevel.MEDIUM;
         }
         
         proposal.setRiskLevel(riskLevel);
     }
-    
-    
+
     private void storeLearningData(
             SecurityEvent event,
             LearningMetadata metadata,
@@ -968,36 +858,28 @@ public class PolicyEvolutionEngine {
                 proposal.getAiReasoning(),
                 documentMetadata
             );
-            
-            
+
             unifiedVectorService.storeDocument(document);
-            
-            
+
             AITuningService.UserFeedback feedback = AITuningService.UserFeedback.builder()
                 .feedbackType("FALSE_POSITIVE")
                 .comment("정책 진화 학습")
                 .timestamp(LocalDateTime.now())
                 .build();
             tuningService.learnFalsePositive(event, feedback).subscribe();
-            
-            log.debug("학습 데이터 저장 완료");
-            
+
         } catch (Exception e) {
             log.warn("학습 데이터 저장 실패: {}", e.getMessage());
         }
     }
-    
-    
-    
+
     private String generateCacheKey(SecurityEvent event, LearningMetadata metadata) {
         return String.format("%s_%s_%s",
                             event.getSeverity(),
                             metadata.getLearningType(),
                             event.getSource());
     }
-    
-    
-    
+
     private String buildSearchQuery(SecurityEvent event, LearningMetadata metadata) {
         return String.format("%s %s %s %s",
                             event.getSeverity(),
@@ -1005,8 +887,7 @@ public class PolicyEvolutionEngine {
                             metadata.getLearningType(),
                             event.getDescription() != null ? event.getDescription() : "");
     }
-    
-    
+
     private PolicyEvolutionProposal createFailureProposal(
             SecurityEvent event,
             LearningMetadata metadata,
@@ -1024,8 +905,7 @@ public class PolicyEvolutionEngine {
             .createdAt(LocalDateTime.now())
             .build();
     }
-    
-    
+
     private PolicyEvolutionProposal getFromRedisCache(String cacheKey) {
         try {
             String redisKey = PROPOSAL_CACHE_KEY_PREFIX + cacheKey;
@@ -1035,8 +915,7 @@ public class PolicyEvolutionEngine {
             return null;
         }
     }
-    
-    
+
     private void saveToRedisCache(String cacheKey, PolicyEvolutionProposal proposal) {
         try {
             String redisKey = PROPOSAL_CACHE_KEY_PREFIX + cacheKey;
@@ -1044,17 +923,14 @@ public class PolicyEvolutionEngine {
             Duration ttl = PROPOSAL_CACHE_TTL;
             
             redisTemplate.opsForValue().set(redisKey, proposal, ttl);
-            
-            
+
             stringRedisTemplate.opsForSet().add(PROPOSAL_SET_KEY, cacheKey);
             
-            log.debug("제안이 Redis 캐시에 저장됨: key={}, TTL={}", cacheKey, ttl);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("Redis 캐시 저장 실패: key={}", cacheKey, e);
         }
     }
-    
-    
+
     public void clearCache() {
         try {
             
@@ -1066,13 +942,11 @@ public class PolicyEvolutionEngine {
                 }
                 stringRedisTemplate.delete(PROPOSAL_SET_KEY);
             }
-            log.info("Redis 정책 제안 캐시 정리 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("Redis 캐시 정리 실패", e);
         }
     }
-    
-    
+
     public int getCacheSize() {
         try {
             Long size = stringRedisTemplate.opsForSet().size(PROPOSAL_SET_KEY);
@@ -1082,22 +956,19 @@ public class PolicyEvolutionEngine {
             return 0;
         }
     }
-    
-    
+
     public void invalidateProposal(String proposalId) {
         try {
             String pattern = PROPOSAL_CACHE_KEY_PREFIX + "*" + proposalId + "*";
             var keys = redisTemplate.keys(pattern);
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);
-                log.info("제안 무효화됨: proposalId={}", proposalId);
-            }
+                            }
         } catch (Exception e) {
             log.error("제안 무효화 실패: proposalId={}", proposalId, e);
         }
     }
-    
-    
+
     public List<PolicyEvolutionProposal> getAllCachedProposals() {
         List<PolicyEvolutionProposal> proposals = new ArrayList<>();
         try {
@@ -1111,17 +982,14 @@ public class PolicyEvolutionEngine {
                     }
                 }
             }
-            log.info("Redis에서 {} 개의 캐시된 제안 로드됨", proposals.size());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("캐시된 제안 조회 실패", e);
         }
         return proposals;
     }
 
-    
     public void learnFromRejection(PolicyDTO policy, String rejectionReason) {
-        log.info("거부된 정책으로부터 학습 시작: {}, 이유: {}", policy.getName(), rejectionReason);
-
+        
         try {
             
             Map<String, Object> rejectionContext = new HashMap<>();
@@ -1133,7 +1001,6 @@ public class PolicyEvolutionEngine {
             rejectionContext.put("rejectionReason", rejectionReason);
             rejectionContext.put("rejectedAt", LocalDateTime.now());
 
-            
             Document rejectionDoc = new Document(
                 "REJECTION: Policy=" + policy.getName() + ", Reason=" + rejectionReason,
                 rejectionContext
@@ -1146,7 +1013,6 @@ public class PolicyEvolutionEngine {
                 unifiedVectorService.storeDocument(doc);
             }
 
-            
             LearningMetadata metadata = LearningMetadata.builder()
                 .learningType(LearningMetadata.LearningType.POLICY_FEEDBACK)
                 .isLearnable(true)
@@ -1160,23 +1026,17 @@ public class PolicyEvolutionEngine {
             metadata.addPattern("rejection_reason", rejectionReason);
             metadata.addOutcome("learned", true);
 
-            
             updateSimilarPolicyConfidence(policy, -0.1);
-
-            log.info("거부 패턴 학습 완료: {}", policy.getName());
 
         } catch (Exception e) {
             log.error("거부 학습 실패: {}", policy.getName(), e);
         }
     }
 
-    
     public void requestEvolution(PolicyDTO policy, Map<String, Object> context) {
-        log.info("정책 진화 요청: {}", policy.getName());
-
+        
         try {
-            
-            
+
             SecurityEvent event = SecurityEvent.builder()
                 .source(SecurityEvent.EventSource.IAM)
                 .severity(SecurityEvent.Severity.MEDIUM)
@@ -1184,7 +1044,6 @@ public class PolicyEvolutionEngine {
                 .metadata(context)
                 .build();
 
-            
             LearningMetadata metadata = LearningMetadata.builder()
                 .learningType(LearningMetadata.LearningType.POLICY_FEEDBACK)
                 .isLearnable(true)
@@ -1198,22 +1057,17 @@ public class PolicyEvolutionEngine {
             metadata.addContext("originalPolicyName", policy.getName());
             metadata.addContext("evolutionReason", context.get("changeReason"));
 
-            
             PolicyEvolutionProposal proposal = evolvePolicy(event, metadata);
 
-            
             if (proposal != null && proposal.getConfidenceScore() > 0.7) {
                 createEvolvedPolicy(policy, proposal);
             }
-
-            log.info("정책 진화 완료: {} -> {}", policy.getName(), proposal.getProposalType());
 
         } catch (Exception e) {
             log.error("정책 진화 실패: {}", policy.getName(), e);
         }
     }
 
-    
     private void updateSimilarPolicyConfidence(PolicyDTO policy, double adjustment) {
         try {
             
@@ -1228,27 +1082,20 @@ public class PolicyEvolutionEngine {
                 Object policyId = doc.getMetadata().get("policyId");
                 if (policyId != null && !policyId.equals(policy.getId())) {
                     
-                    log.debug("유사 정책 신뢰도 조정: policyId={}, adjustment={}", policyId, adjustment);
-                }
+                                    }
             }
         } catch (Exception e) {
             log.error("유사 정책 신뢰도 업데이트 실패", e);
         }
     }
 
-    
     private void createEvolvedPolicy(PolicyDTO originalPolicy,
                                     PolicyEvolutionProposal proposal) {
-        log.info("진화된 정책 생성: {} -> {}", originalPolicy.getName(), proposal.getProposalType());
 
-        
-        
         Map<String, Object> evolutionData = new HashMap<>();
         evolutionData.put("originalPolicy", originalPolicy);
         evolutionData.put("proposal", proposal);
         evolutionData.put("evolvedAt", LocalDateTime.now());
 
-        
-        log.info("정책 진화 데이터 준비 완료: {}", evolutionData);
-    }
+            }
 }

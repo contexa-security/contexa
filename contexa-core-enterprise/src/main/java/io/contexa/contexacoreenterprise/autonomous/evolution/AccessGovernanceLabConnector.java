@@ -10,8 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
-
 
 @Slf4j
 @RequiredArgsConstructor
@@ -29,7 +27,6 @@ public class AccessGovernanceLabConnector {
     @Value("${access.governance.risk.threshold:0.7}")
     private double riskThreshold;
 
-    
     public List<SecurityEvent> analyzeExcessivePermissions() {
         List<SecurityEvent> events = new ArrayList<>();
 
@@ -37,7 +34,6 @@ public class AccessGovernanceLabConnector {
             
             Map<String, Object> analysisResult = runAccessGovernanceAnalysis();
 
-            
             if (analysisResult != null && !analysisResult.isEmpty()) {
                 
                 List<Map<String, Object>> excessiveUsers = extractExcessiveUsers(analysisResult);
@@ -48,7 +44,6 @@ public class AccessGovernanceLabConnector {
                     }
                 }
 
-                
                 List<Map<String, Object>> unusedPermissions = extractUnusedPermissions(analysisResult);
                 for (Map<String, Object> permission : unusedPermissions) {
                     SecurityEvent event = createSecurityEventFromPermission(permission);
@@ -57,7 +52,6 @@ public class AccessGovernanceLabConnector {
                     }
                 }
 
-                
                 List<Map<String, Object>> anomalies = extractPermissionAnomalies(analysisResult);
                 for (Map<String, Object> anomaly : anomalies) {
                     SecurityEvent event = createSecurityEventFromAnomaly(anomaly);
@@ -67,8 +61,6 @@ public class AccessGovernanceLabConnector {
                 }
             }
 
-            log.info("AccessGovernanceLab 분석 완료: {} 개의 이벤트 생성", events.size());
-
         } catch (Exception e) {
             log.error("AccessGovernanceLab 분석 실패", e);
         }
@@ -76,7 +68,6 @@ public class AccessGovernanceLabConnector {
         return events;
     }
 
-    
     private Map<String, Object> runAccessGovernanceAnalysis() {
         if (!enabled || unifiedVectorService == null) {
             log.warn("[AccessGovernanceConnector] Vector Store가 비활성화되거나 사용 불가");
@@ -84,24 +75,14 @@ public class AccessGovernanceLabConnector {
         }
 
         try {
-            log.info("[AccessGovernanceConnector] Vector Store에서 권한 분석 결과 조회");
 
-            
             List<Document> analysisResults = searchAccessGovernanceResults();
 
-            
             if (analysisResults.isEmpty()) {
-                log.info("[AccessGovernanceConnector] Vector Store에 권한 분석 결과가 없습니다");
-                return createEmptyResult();
+                                return createEmptyResult();
             }
 
-            
             Map<String, Object> result = convertDocumentsToMap(analysisResults);
-
-            log.info("[AccessGovernanceConnector] 분석 결과 조회 완료: {}명 과도권한, {}개 미사용권한, {}개 이상패턴",
-                ((List<?>) result.getOrDefault("excessivePermissionUsers", List.of())).size(),
-                ((List<?>) result.getOrDefault("unusedPermissions", List.of())).size(),
-                ((List<?>) result.getOrDefault("permissionAnomalies", List.of())).size());
 
             return result;
 
@@ -111,14 +92,11 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     private List<Document> searchAccessGovernanceResults() {
         try {
             
             String query = "권한 거버넌스 분석 과도한 권한 미사용 권한 이상 패턴";
 
-            
-            
             org.springframework.ai.vectorstore.SearchRequest searchRequest =
                 org.springframework.ai.vectorstore.SearchRequest.builder()
                     .query(query)
@@ -126,10 +104,7 @@ public class AccessGovernanceLabConnector {
                     .filterExpression("documentType == 'access_governance_analysis'")
                     .build();
 
-            
             List<Document> results = unifiedVectorService.searchSimilar(searchRequest);
-
-            log.debug("[AccessGovernanceConnector] Vector Store 검색 결과: {}개 문서", results.size());
 
             return results;
 
@@ -139,7 +114,6 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     private Map<String, Object> convertDocumentsToMap(List<Document> documents) {
         Map<String, Object> result = new HashMap<>();
         result.put("analysisTime", LocalDateTime.now());
@@ -151,13 +125,11 @@ public class AccessGovernanceLabConnector {
         for (Document doc : documents) {
             Map<String, Object> metadata = doc.getMetadata();
 
-            
             String findingType = (String) metadata.get("findingType");
             if (findingType == null) continue;
 
             double riskScore = extractRiskScore(metadata);
 
-            
             if (riskScore < riskThreshold) {
                 continue; 
             }
@@ -202,14 +174,12 @@ public class AccessGovernanceLabConnector {
         return result;
     }
 
-    
     private double extractRiskScore(Map<String, Object> metadata) {
         Object riskScore = metadata.get("riskScore");
         if (riskScore instanceof Number) {
             return ((Number) riskScore).doubleValue();
         }
 
-        
         String severity = (String) metadata.get("severity");
         if (severity != null) {
             return calculateRiskScoreFromSeverity(severity);
@@ -218,7 +188,6 @@ public class AccessGovernanceLabConnector {
         return 0.5; 
     }
 
-    
     private double calculateRiskScoreFromSeverity(String severity) {
         switch (severity.toUpperCase()) {
             case "CRITICAL":
@@ -234,14 +203,12 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     private int extractPermissionCount(Map<String, Object> metadata) {
         Object count = metadata.get("excessivePermissionCount");
         if (count instanceof Number) {
             return ((Number) count).intValue();
         }
 
-        
         String desc = (String) metadata.get("description");
         if (desc != null && desc.matches(".*\\d+.*")) {
             try {
@@ -255,14 +222,12 @@ public class AccessGovernanceLabConnector {
         return 1; 
     }
 
-    
     private int extractUnusedDays(Map<String, Object> metadata) {
         Object days = metadata.get("unusedDays");
         if (days instanceof Number) {
             return ((Number) days).intValue();
         }
 
-        
         String desc = (String) metadata.get("description");
         if (desc != null && desc.contains("일")) {
             try {
@@ -276,14 +241,12 @@ public class AccessGovernanceLabConnector {
         return 30; 
     }
 
-    
     private double extractConfidence(Map<String, Object> metadata) {
         Object confidence = metadata.get("confidence");
         if (confidence instanceof Number) {
             return ((Number) confidence).doubleValue();
         }
 
-        
         String severity = (String) metadata.get("severity");
         if (severity != null) {
             return calculateConfidenceFromSeverity(severity);
@@ -292,7 +255,6 @@ public class AccessGovernanceLabConnector {
         return 0.5; 
     }
 
-    
     private double calculateConfidenceFromSeverity(String severity) {
         switch (severity.toUpperCase()) {
             case "CRITICAL":
@@ -308,7 +270,6 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     private Map<String, Object> createEmptyResult() {
         Map<String, Object> result = new HashMap<>();
         result.put("analysisTime", LocalDateTime.now());
@@ -320,11 +281,9 @@ public class AccessGovernanceLabConnector {
         return result;
     }
 
-    
     private List<Map<String, Object>> extractExcessiveUsers(Map<String, Object> analysisResult) {
         List<Map<String, Object>> users = new ArrayList<>();
 
-        
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> excessiveUsers =
             (List<Map<String, Object>>) analysisResult.get("excessivePermissionUsers");
@@ -336,11 +295,9 @@ public class AccessGovernanceLabConnector {
         return users;
     }
 
-    
     private List<Map<String, Object>> extractUnusedPermissions(Map<String, Object> analysisResult) {
         List<Map<String, Object>> permissions = new ArrayList<>();
 
-        
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> unusedPerms =
             (List<Map<String, Object>>) analysisResult.get("unusedPermissions");
@@ -352,11 +309,9 @@ public class AccessGovernanceLabConnector {
         return permissions;
     }
 
-    
     private List<Map<String, Object>> extractPermissionAnomalies(Map<String, Object> analysisResult) {
         List<Map<String, Object>> anomalies = new ArrayList<>();
 
-        
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> detectedAnomalies =
             (List<Map<String, Object>>) analysisResult.get("permissionAnomalies");
@@ -368,7 +323,6 @@ public class AccessGovernanceLabConnector {
         return anomalies;
     }
 
-    
     private SecurityEvent createSecurityEventFromUser(Map<String, Object> user) {
         try {
             String userId = (String) user.get("userId");
@@ -376,7 +330,6 @@ public class AccessGovernanceLabConnector {
             Integer excessiveCount = (Integer) user.get("excessivePermissionCount");
             Double riskScore = (Double) user.get("riskScore");
 
-            
             Map<String, Object> enrichedMetadata = new HashMap<>(user);
             enrichedMetadata.put("incidentType", "ACCESS_VIOLATION");
             return SecurityEvent.builder()
@@ -395,14 +348,12 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     private SecurityEvent createSecurityEventFromPermission(Map<String, Object> permission) {
         try {
             String permissionId = (String) permission.get("permissionId");
             String permissionName = (String) permission.get("permissionName");
             Integer unusedDays = (Integer) permission.get("unusedDays");
 
-            
             Map<String, Object> enrichedMetadata = new HashMap<>(permission);
             enrichedMetadata.put("incidentType", "ANOMALY_DETECTED");
             enrichedMetadata.put("targetResource", permissionId);
@@ -421,14 +372,12 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     private SecurityEvent createSecurityEventFromAnomaly(Map<String, Object> anomaly) {
         try {
             String anomalyType = (String) anomaly.get("type");
             String description = (String) anomaly.get("description");
             Double confidence = (Double) anomaly.get("confidence");
 
-            
             Map<String, Object> enrichedMetadata = new HashMap<>(anomaly);
             enrichedMetadata.put("incidentType", "ANOMALY_DETECTED");
             return SecurityEvent.builder()
@@ -446,7 +395,6 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     private SecurityEvent.Severity calculateSeverity(Double score) {
         if (score == null) {
             return SecurityEvent.Severity.LOW;
@@ -463,7 +411,6 @@ public class AccessGovernanceLabConnector {
         }
     }
 
-    
     public boolean shouldRunAnalysis() {
         
         return true;

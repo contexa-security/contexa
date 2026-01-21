@@ -6,7 +6,6 @@ import lombok.Builder;
 import java.time.Instant;
 import java.util.Map;
 
-
 @Data
 @Builder
 public class ApprovalNotification {

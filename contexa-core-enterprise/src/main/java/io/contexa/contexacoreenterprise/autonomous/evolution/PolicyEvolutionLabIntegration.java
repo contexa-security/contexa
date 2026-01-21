@@ -13,56 +13,44 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionLabIntegration {
 
     private final IPolicyProposalManagementService proposalManagementService;
     private final ApplicationEventPublisher eventPublisher;
-    
-    
+
     public PolicyEvolutionProposal convertLabAnalysisToProposal(
             String labName, 
             Map<String, Object> analysisResult) {
-        
-        log.info("Converting lab analysis from {} to policy proposal", labName);
-        
+
         PolicyEvolutionProposal proposal = new PolicyEvolutionProposal();
-        
-        
+
         proposal.setTitle(generateTitle(labName, analysisResult));
         proposal.setDescription(generateDescription(labName, analysisResult));
         proposal.setCreatedBy(labName);
         proposal.setCreatedAt(LocalDateTime.now());
-        
-        
+
         configureProposalByLab(proposal, labName, analysisResult);
-        
-        
+
         RiskLevel riskLevel = assessRiskLevel(labName, analysisResult);
         proposal.setRiskLevel(riskLevel);
-        
-        
+
         ProposalType proposalType = determineProposalType(labName, analysisResult);
         proposal.setProposalType(proposalType);
-        
-        
+
         String policyContent = generatePolicyContent(labName, analysisResult);
         proposal.setPolicyContent(policyContent);
-        
-        
+
         double expectedImpact = calculateExpectedImpact(labName, analysisResult);
         proposal.setExpectedImpact(expectedImpact);
-        
-        
+
         String rationale = generateRationale(labName, analysisResult);
         proposal.setRationale(rationale);
         
         return proposal;
     }
-    
-    
+
     public CompletableFuture<Long> submitLabAnalysisAsync(
             String labName, 
             Map<String, Object> analysisResult) {
@@ -72,9 +60,6 @@ public class PolicyEvolutionLabIntegration {
                 PolicyEvolutionProposal proposal = convertLabAnalysisToProposal(labName, analysisResult);
                 Long proposalId = proposalManagementService.submitProposal(proposal);
 
-                log.info("Lab analysis from {} submitted as proposal {}", labName, proposalId);
-
-                
                 publishLabProposalEvent(labName, proposalId, proposal);
 
                 return proposalId;
@@ -85,8 +70,7 @@ public class PolicyEvolutionLabIntegration {
             }
         });
     }
-    
-    
+
     public CompletableFuture<List<Long>> submitMultipleLabAnalyses(
             Map<String, Map<String, Object>> labAnalyses) {
         
@@ -105,8 +89,7 @@ public class PolicyEvolutionLabIntegration {
                 .map(CompletableFuture::join)
                 .collect(java.util.stream.Collectors.toList()));
     }
-    
-    
+
     public Flux<PolicyEvolutionProposal> processStreamingAnalysis(
             String labName,
             Flux<Map<String, Object>> analysisStream) {
@@ -130,14 +113,12 @@ public class PolicyEvolutionLabIntegration {
             .doOnNext(proposal -> {
                 try {
                     proposalManagementService.submitProposal(proposal);
-                    log.debug("Streaming proposal submitted: {}", proposal.getTitle());
-                } catch (Exception e) {
+                                    } catch (Exception e) {
                     log.error("Failed to submit streaming proposal", e);
                 }
             });
     }
-    
-    
+
     public static class LabHandlerRegistry {
         private final Map<String, LabHandler> handlers = new HashMap<>();
         
@@ -149,16 +130,14 @@ public class PolicyEvolutionLabIntegration {
             return handlers.getOrDefault(labName, new DefaultLabHandler());
         }
     }
-    
-    
+
     public interface LabHandler {
         ProposalType determineProposalType(Map<String, Object> analysisResult);
         RiskLevel assessRiskLevel(Map<String, Object> analysisResult);
         String generatePolicyContent(Map<String, Object> analysisResult);
         double calculateExpectedImpact(Map<String, Object> analysisResult);
     }
-    
-    
+
     public static class DefaultLabHandler implements LabHandler {
         @Override
         public ProposalType determineProposalType(Map<String, Object> analysisResult) {
@@ -180,8 +159,7 @@ public class PolicyEvolutionLabIntegration {
             return 50.0;
         }
     }
-    
-    
+
     public static class ThreatDetectionLabHandler implements LabHandler {
         @Override
         public ProposalType determineProposalType(Map<String, Object> analysisResult) {
@@ -292,8 +270,7 @@ public class PolicyEvolutionLabIntegration {
             return anomalyScore * 100;
         }
     }
-    
-    
+
     private String generateTitle(String labName, Map<String, Object> analysisResult) {
         String baseTitle = labName.replace("Lab", "") + " Policy Proposal";
         String context = (String) analysisResult.getOrDefault("context", "");
@@ -347,8 +324,7 @@ public class PolicyEvolutionLabIntegration {
             if (severity >= 5) return RiskLevel.MEDIUM;
             return RiskLevel.LOW;
         }
-        
-        
+
         return RiskLevel.MEDIUM;
     }
     
@@ -367,8 +343,7 @@ public class PolicyEvolutionLabIntegration {
     private String generatePolicyContent(String labName, Map<String, Object> analysisResult) {
         StringBuilder content = new StringBuilder();
         content.append("Policy generated by ").append(labName).append("\n\n");
-        
-        
+
         content.append("Key Findings:\n");
         for (Map.Entry<String, Object> entry : analysisResult.entrySet()) {
             if (isKeyFinding(entry.getKey())) {
@@ -376,8 +351,7 @@ public class PolicyEvolutionLabIntegration {
                       .append(entry.getValue()).append("\n");
             }
         }
-        
-        
+
         content.append("\nPolicy Rules:\n");
         content.append("- hasRole('ADMIN') or hasAuthority('POLICY_OVERRIDE')\n");
         content.append("- @securityService.validateAccess(#request)\n");
@@ -397,14 +371,12 @@ public class PolicyEvolutionLabIntegration {
     private double calculateExpectedImpact(String labName, Map<String, Object> analysisResult) {
         
         double baseImpact = 50.0;
-        
-        
+
         Object severityObj = analysisResult.get("severity");
         if (severityObj instanceof Number) {
             baseImpact += ((Number) severityObj).doubleValue() * 5;
         }
-        
-        
+
         Object scopeObj = analysisResult.get("affectedScope");
         if (scopeObj instanceof Number) {
             baseImpact += ((Number) scopeObj).doubleValue() * 3;
@@ -417,14 +389,12 @@ public class PolicyEvolutionLabIntegration {
         StringBuilder rationale = new StringBuilder();
         rationale.append("This policy proposal is based on automated analysis by ")
                 .append(labName).append(". ");
-        
-        
+
         Object mainReason = analysisResult.get("primaryReason");
         if (mainReason != null) {
             rationale.append("Primary reason: ").append(mainReason).append(". ");
         }
-        
-        
+
         Object evidence = analysisResult.get("evidence");
         if (evidence instanceof List) {
             List<?> evidenceList = (List<?>) evidence;
@@ -441,8 +411,7 @@ public class PolicyEvolutionLabIntegration {
         LabProposalEvent event = new LabProposalEvent(this, labName, proposalId, proposal);
         eventPublisher.publishEvent(event);
     }
-    
-    
+
     public static class LabProposalEvent {
         private final Object source;
         private final String labName;
@@ -457,8 +426,7 @@ public class PolicyEvolutionLabIntegration {
             this.proposal = proposal;
             this.timestamp = LocalDateTime.now();
         }
-        
-        
+
         public Object getSource() { return source; }
         public String getLabName() { return labName; }
         public Long getProposalId() { return proposalId; }

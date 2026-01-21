@@ -12,7 +12,6 @@ import org.springframework.ai.converter.BeanOutputConverter;
 
 import java.util.*;
 
-
 @Slf4j
 @PromptTemplateConfig(
     key = "soarAnalysis",
@@ -21,12 +20,10 @@ import java.util.*;
 )
 @RequiredArgsConstructor
 public class SoarPromptTemplate implements PromptTemplate {
-    
-    
+
      private final BeanOutputConverter<SoarResponse> responseConverter =
          new BeanOutputConverter<>(SoarResponse.class);
 
-    
     private static final String TOOL_EXECUTION_ROLE = """
         당신은 SOAR 보안 도구 실행 시스템입니다.
         
@@ -49,8 +46,7 @@ public class SoarPromptTemplate implements PromptTemplate {
         도구 설명이나 JSON 텍스트를 생성하는 것이 아니라,
         실제 함수 호출을 수행해야 합니다.
         """;
-    
-    
+
     private static final String RESPONSE_GENERATION_ROLE = """
         당신은 SOAR 보안 분석 시스템입니다.
 
@@ -66,62 +62,44 @@ public class SoarPromptTemplate implements PromptTemplate {
 
         중요: 이 단계에서는 추가 도구 호출을 하지 마세요.
         """;
-    
-    
+
     @Override
     public Class<?> getAIGenerationType() {
         return SoarResponse.class;
     }
-    
-    
+
     @Override
     public String generateSystemPrompt(AIRequest<?> request, String systemMetadata) {
-        log.debug("SOAR 시스템 프롬프트 생성 시작");
-        
+                
         StringBuilder prompt = new StringBuilder();
-        
-        
+
         boolean isToolExecutionMode = false;
         boolean isResponseGenerationMode = false;
-        
-       
-        
-       
 
-        
         if (systemMetadata != null && !systemMetadata.trim().isEmpty()) {
             prompt.append("\n\n시스템 컨텍스트: ");
             prompt.append(systemMetadata);
         }
-        
-        log.debug("SOAR 시스템 프롬프트 생성 완료: {} 문자, 모드: {}",
-                 prompt.length(), 
-                 isToolExecutionMode ? "도구실행" : 
-                 (isResponseGenerationMode ? "응답생성" : "기본"));
-        
+
         return prompt.toString();
     }
-    
-    
+
     @Override
     public String generateUserPrompt(AIRequest<?> request, String contextInfo) {
         StringBuilder prompt = new StringBuilder();
-        
-        
+
         String userInput = request.getPromptTemplate();
         if (userInput != null && !userInput.trim().isEmpty()) {
             prompt.append(userInput);
             prompt.append("\n");
         }
-        
-        
+
         if (contextInfo != null && !contextInfo.trim().isEmpty()) {
             prompt.append("\n컨텍스트: ");
             prompt.append(contextInfo);
             prompt.append("\n");
         }
-        
-        
+
         if (request.getContext() instanceof SoarContext soarContext) {
             if (soarContext.getIncidentId() != null || soarContext.getThreatLevel() != null) {
                 prompt.append("\n");
@@ -132,8 +110,6 @@ public class SoarPromptTemplate implements PromptTemplate {
         return prompt.toString();
     }
 
-
-    
     private void appendSoarContext(StringBuilder prompt, SoarContext context) {
         if (context.getIncidentId() != null) {
             prompt.append("사건 ID: ").append(context.getIncidentId()).append("\n");

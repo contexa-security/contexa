@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -25,7 +24,6 @@ public class PolicyDTO {
     private LocalDateTime createdAt;
     private LocalDateTime activatedAt;
 
-    
     private Long id;
     private String name;
     private String description;
@@ -38,7 +36,6 @@ public class PolicyDTO {
     private Boolean isActive;
     private PolicyEffect effect;
 
-    
     public enum PolicySource {
         AI_GENERATED,
         MANUAL,
@@ -47,7 +44,6 @@ public class PolicyDTO {
         AI_EVOLVED  
     }
 
-    
     public enum ApprovalStatus {
         PENDING,
         APPROVED,
@@ -55,7 +51,6 @@ public class PolicyDTO {
         AUTO_APPROVED
     }
 
-    
     public enum PolicyEffect {
         PERMIT,
         DENY

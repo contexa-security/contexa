@@ -11,33 +11,27 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class EventPublishingMetrics extends AbstractMicrometerMetrics {
 
-    
     private Counter loginCounter;
     private Counter protectableCounter;
     private Counter urlAuthCounter;
     private Counter httpFilterCounter;
 
-    
     private Timer loginTimer;
     private Timer protectableTimer;
     private Timer urlAuthTimer;
     private Timer httpFilterTimer;
 
-    
     private Counter authSuccessCounter;
     private Counter authFailureCounter;
     private Counter authzDecisionCounter;
     private Counter httpRequestCounter;
 
-    
     private Counter samplingPublishedCounter;
     private Counter samplingFilteredCounter;
 
-    
     private final AtomicLong totalSamplingDecisions = new AtomicLong(0);
     private final AtomicLong publishedDecisions = new AtomicLong(0);
 
@@ -64,7 +58,6 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
                 .tag("source", "http_filter")
                 .register(meterRegistry);
 
-        
         authSuccessCounter = counterBuilder("event.type", "Authentication success events")
                 .tag("type", "auth_success")
                 .register(meterRegistry);
@@ -81,7 +74,6 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
                 .tag("type", "http_request")
                 .register(meterRegistry);
 
-        
         samplingPublishedCounter = counterBuilder("event.sampling.decision", "Events published")
                 .tag("decision", "published")
                 .register(meterRegistry);
@@ -119,8 +111,6 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
         });
     }
 
-    
-
     public void recordLogin(long durationNanos) {
         loginCounter.increment();
         loginTimer.record(durationNanos, TimeUnit.NANOSECONDS);
@@ -141,8 +131,6 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
         httpFilterTimer.record(durationNanos, TimeUnit.NANOSECONDS);
     }
 
-    
-
     public void recordAuthSuccess() {
         authSuccessCounter.increment();
     }
@@ -158,8 +146,6 @@ public class EventPublishingMetrics extends AbstractMicrometerMetrics {
     public void recordHttpRequest() {
         httpRequestCounter.increment();
     }
-
-    
 
     public void recordSamplingDecision(boolean shouldPublish) {
         totalSamplingDecisions.incrementAndGet();

@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @ResponseBody
 @RequestMapping("/api/policies")
@@ -46,15 +45,12 @@ public class PolicyWorkbenchController {
     private final PolicyEvolutionGovernance governanceService;
     private final SynthesisPolicyRepository synthesisPolicyRepository;
     private final PolicyProposalAnalytics analyticsService;
-    
-    
+
     @GetMapping("/proposals")
     public ResponseEntity<Page<ProposalListDTO>> getProposals(
             @RequestParam(required = false) String status,
             Pageable pageable) {
-        
-        log.info("Fetching proposals with status: {}", status);
-        
+
         try {
             Page<PolicyEvolutionProposal> proposals;
             
@@ -76,12 +72,10 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
-    
+
     @GetMapping("/proposals/{id}")
     public ResponseEntity<ProposalDetailDTO> getProposalDetail(@PathVariable Long id) {
-        log.info("Fetching proposal detail for ID: {}", id);
-        
+                
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(id)
                 .orElse(null);
@@ -91,8 +85,7 @@ public class PolicyWorkbenchController {
             }
             
             ProposalDetailDTO dto = toDetailDTO(proposal);
-            
-            
+
             PolicyApprovalService.ApprovalHistory history = approvalService.getApprovalHistory(id);
             dto.setApprovalHistory(history);
             
@@ -103,15 +96,12 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
-    
+
     @PostMapping("/proposals/{id}/approve")
     public ResponseEntity<ApprovalResponseDTO> approveProposal(
             @PathVariable Long id,
             @Valid @RequestBody ApprovalRequestDTO request) {
-        
-        log.info("Approving proposal {} by {}", id, request.getApproverId());
-        
+
         try {
             
             if (request.getRequestId() == null) {
@@ -125,7 +115,6 @@ public class PolicyWorkbenchController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            
             PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
                 request.getRequestId(),
                 request.getApproverId(),
@@ -156,15 +145,12 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
-    
-    
+
     @PostMapping("/proposals/{id}/reject")
     public ResponseEntity<ApprovalResponseDTO> rejectProposal(
             @PathVariable Long id,
             @Valid @RequestBody ApprovalRequestDTO request) {
-        
-        log.info("Rejecting proposal {} by {}", id, request.getApproverId());
-        
+
         try {
             
             if (request.getRequestId() == null) {
@@ -178,7 +164,6 @@ public class PolicyWorkbenchController {
                 return ResponseEntity.badRequest().body(response);
             }
 
-            
             PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
                 request.getRequestId(),
                 request.getApproverId(),
@@ -209,12 +194,10 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
-    
-    
+
     @GetMapping("/proposals/{id}/impact")
     public ResponseEntity<ImpactAnalysisDTO> analyzeImpact(@PathVariable Long id) {
-        log.info("Analyzing impact for proposal: {}", id);
-        
+                
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(id)
                 .orElse(null);
@@ -222,8 +205,7 @@ public class PolicyWorkbenchController {
             if (proposal == null) {
                 return ResponseEntity.notFound().build();
             }
-            
-            
+
             PolicyEvolutionGovernance.GovernanceDecision decision = 
                 governanceService.evaluateProposal(id);
             
@@ -250,14 +232,11 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
-    
+
     @GetMapping("/analytics")
     public ResponseEntity<AnalyticsDTO> getAnalytics(
             @RequestParam(defaultValue = "WEEKLY") String period) {
-        
-        log.info("Fetching analytics for period: {}", period);
-        
+
         try {
             
             int days = 7; 
@@ -268,12 +247,10 @@ public class PolicyWorkbenchController {
             } else if ("MONTHLY".equalsIgnoreCase(period)) {
                 days = 30;
             }
-            
-            
+
             PolicyProposalAnalytics.DashboardStatistics stats = analyticsService.generateDashboardStatistics();
             PolicyProposalAnalytics.TrendAnalysis trends = analyticsService.analyzeTrends(days);
-            
-            
+
             Map<String, Integer> proposalsByTypeConverted = new HashMap<>();
             if (stats.getProposalsByType() != null) {
                 stats.getProposalsByType().forEach((type, count) -> 
@@ -300,12 +277,10 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
-    
+
     @GetMapping("/active")
     public ResponseEntity<List<PolicyDTO>> getActivePolicies() {
-        log.info("Fetching active policies");
-        
+                
         try {
             List<SynthesisPolicyRepository.Policy> policies = synthesisPolicyRepository.findActivePolices();
             
@@ -320,24 +295,19 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
-    
+
     @PostMapping("/policies/{policyId}/deactivate")
     public ResponseEntity<PolicyOperationResultDTO> deactivatePolicy(
             @PathVariable Long policyId,
             @RequestBody DeactivationRequestDTO request) {
-        
-        log.info("Deactivating policy {} by {}", policyId, request.getDeactivatedBy());
-        
+
         try {
             
             SynthesisPolicyRepository.Policy policy = synthesisPolicyRepository.findById(policyId)
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found"));
-            
-            
+
             synthesisPolicyRepository.deactivate(policyId, request.getReason());
 
-            
             if (policy.getProposalId() != null) {
                 activationService.deactivatePolicy(
                     policy.getProposalId(),
@@ -370,14 +340,11 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
         }
     }
-    
-    
+
     @GetMapping("/approvals/pending")
     public ResponseEntity<List<PendingApprovalDTO>> getPendingApprovals(
             @RequestParam String approverId) {
-        
-        log.info("Fetching pending approvals for: {}", approverId);
-        
+
         try {
             
             List<PolicyEvolutionProposal> pendingProposals = 
@@ -387,8 +354,7 @@ public class PolicyWorkbenchController {
                 .map(proposal -> {
                     PolicyApprovalService.ApprovalHistory history = 
                         approvalService.getApprovalHistory(proposal.getId());
-                    
-                    
+
                     return history.getRequests().stream()
                         .filter(req -> req.getApprover().getApproverId().equals(approverId))
                         .filter(req -> req.getStatus() == PolicyApprovalService.RequestStatus.PENDING)
@@ -414,9 +380,7 @@ public class PolicyWorkbenchController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
-    
-    
+
     private ProposalListDTO toListDTO(PolicyEvolutionProposal proposal) {
         return ProposalListDTO.builder()
             .proposalId(proposal.getId())

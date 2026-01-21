@@ -19,7 +19,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class StaticAnalysisScheduler {
@@ -30,14 +29,11 @@ public class StaticAnalysisScheduler {
     private final PolicyEffectivenessMonitor effectivenessMonitor;
     private final PolicyProposalAnalytics proposalAnalytics;
     private final PolicyAuditLogger auditLogger;
-    
-    
+
     private final Map<String, AnalysisResult> analysisCache = new ConcurrentHashMap<>();
     private LocalDateTime lastFullAnalysis = LocalDateTime.now();
     private LocalDateTime lastIncrementalAnalysis = LocalDateTime.now();
     private boolean analysisInProgress = false;
-    
-    
 
     public void performFullStaticAnalysis() {
         if (analysisInProgress) {
@@ -45,51 +41,38 @@ public class StaticAnalysisScheduler {
             return;
         }
         
-        log.info("Starting full static analysis...");
-        analysisInProgress = true;
+                analysisInProgress = true;
         lastFullAnalysis = LocalDateTime.now();
         
         try {
             
             CodebaseAnalysisResult codebaseResult = analyzeCodebase();
-            
-            
+
             PolicyConflictAnalysis conflictAnalysis = analyzePolicyConflicts();
-            
-            
+
             CoverageAnalysisResult coverageResult = analyzePolicyCoverage();
-            
-            
+
             PerformanceAnalysisResult performanceResult = analyzePerformanceBottlenecks();
-            
-            
+
             SecurityAnalysisResult securityResult = analyzeSecurityVulnerabilities();
-            
-            
+
             ComplianceAnalysisResult complianceResult = analyzeComplianceGaps();
-            
-            
+
             ComprehensiveAnalysisReport report = generateComprehensiveReport(
                 codebaseResult, conflictAnalysis, coverageResult,
                 performanceResult, securityResult, complianceResult
             );
-            
-            
+
             generateImprovementProposals(report);
-            
-            
+
             cacheAnalysisResults(report);
-            
-            log.info("Full static analysis completed successfully");
-            
+
         } catch (Exception e) {
             log.error("Error during full static analysis", e);
         } finally {
             analysisInProgress = false;
         }
     }
-    
-    
 
     public void performIncrementalAnalysis() {
         if (analysisInProgress) {
@@ -97,192 +80,145 @@ public class StaticAnalysisScheduler {
             return;
         }
         
-        log.info("Starting incremental static analysis...");
-        analysisInProgress = true;
+                analysisInProgress = true;
         lastIncrementalAnalysis = LocalDateTime.now();
         
         try {
             
             List<PolicyChange> recentChanges = identifyRecentChanges();
-            
-            
+
             ImpactAnalysisResult impactResult = analyzeChangeImpact(recentChanges);
-            
-            
+
             QuickValidationResult validationResult = performQuickValidation(recentChanges);
-            
-            
+
             List<UrgentIssue> urgentIssues = identifyUrgentIssues(impactResult, validationResult);
-            
-            
+
             if (!urgentIssues.isEmpty()) {
                 generateUrgentProposals(urgentIssues);
             }
-            
-            log.info("Incremental analysis completed: {} changes analyzed, {} urgent issues found",
-                recentChanges.size(), urgentIssues.size());
-            
+
         } catch (Exception e) {
             log.error("Error during incremental analysis", e);
         } finally {
             analysisInProgress = false;
         }
     }
-    
-    
+
     private CodebaseAnalysisResult analyzeCodebase() {
-        log.debug("Analyzing codebase structure and patterns...");
-        
+                
         CodebaseAnalysisResult result = new CodebaseAnalysisResult();
-        
-        
+
         result.setSecurityPatterns(analyzeSecurityPatterns());
-        
-        
+
         result.setAccessControlPatterns(analyzeAccessControlPatterns());
-        
-        
+
         result.setDataFlowPatterns(analyzeDataFlowPatterns());
-        
-        
+
         result.setDependencyAnalysis(analyzeDependencies());
-        
-        
+
         result.setComplexityMetrics(analyzeComplexity());
         
         return result;
     }
-    
-    
+
     private PolicyConflictAnalysis analyzePolicyConflicts() {
-        log.debug("Analyzing policy conflicts and overlaps...");
-        
+                
         PolicyConflictAnalysis analysis = new PolicyConflictAnalysis();
         List<Policy> activePolicies = synthesisPolicyRepository.findAllActive();
-        
-        
+
         List<ConflictPair> directConflicts = findDirectConflicts(activePolicies);
         analysis.setDirectConflicts(directConflicts);
-        
-        
+
         List<DuplicatePair> duplicates = findDuplicatePolicies(activePolicies);
         analysis.setDuplicates(duplicates);
-        
-        
+
         List<PriorityConflict> priorityConflicts = findPriorityConflicts(activePolicies);
         analysis.setPriorityConflicts(priorityConflicts);
-        
-        
+
         List<ScopeOverlap> scopeOverlaps = findScopeOverlaps(activePolicies);
         analysis.setScopeOverlaps(scopeOverlaps);
         
         return analysis;
     }
-    
-    
+
     private CoverageAnalysisResult analyzePolicyCoverage() {
-        log.debug("Analyzing policy coverage...");
-        
+                
         CoverageAnalysisResult result = new CoverageAnalysisResult();
-        
-        
+
         Map<String, Double> domainCoverage = calculateDomainCoverage();
         result.setDomainCoverage(domainCoverage);
-        
-        
+
         Map<String, Double> threatCoverage = calculateThreatCoverage();
         result.setThreatCoverage(threatCoverage);
-        
-        
+
         Map<String, Double> complianceCoverage = calculateComplianceCoverage();
         result.setComplianceCoverage(complianceCoverage);
-        
-        
+
         List<CoverageGap> gaps = identifyCoverageGaps(domainCoverage, threatCoverage, complianceCoverage);
         result.setCoverageGaps(gaps);
-        
-        
+
         double overallCoverage = calculateOverallCoverage(domainCoverage, threatCoverage, complianceCoverage);
         result.setOverallCoverage(overallCoverage);
         
         return result;
     }
-    
-    
+
     private PerformanceAnalysisResult analyzePerformanceBottlenecks() {
-        log.debug("Analyzing performance bottlenecks...");
-        
+                
         PerformanceAnalysisResult result = new PerformanceAnalysisResult();
-        
-        
+
         List<SlowPolicy> slowPolicies = identifySlowPolicies();
         result.setSlowPolicies(slowPolicies);
-        
-        
+
         List<ResourceIntensivePolicy> resourceIntensive = identifyResourceIntensivePolicies();
         result.setResourceIntensivePolicies(resourceIntensive);
-        
-        
+
         List<OptimizationOpportunity> opportunities = identifyOptimizationOpportunities();
         result.setOptimizationOpportunities(opportunities);
-        
-        
+
         PerformanceTrend trend = analyzePerformanceTrend();
         result.setPerformanceTrend(trend);
         
         return result;
     }
-    
-    
+
     private SecurityAnalysisResult analyzeSecurityVulnerabilities() {
-        log.debug("Analyzing security vulnerabilities...");
-        
+                
         SecurityAnalysisResult result = new SecurityAnalysisResult();
-        
-        
+
         List<PolicyBypassRisk> bypassRisks = identifyPolicyBypassRisks();
         result.setBypassRisks(bypassRisks);
-        
-        
+
         List<PrivilegeEscalationRisk> escalationRisks = identifyPrivilegeEscalationRisks();
         result.setEscalationRisks(escalationRisks);
-        
-        
+
         List<DataExposureRisk> exposureRisks = identifyDataExposureRisks();
         result.setExposureRisks(exposureRisks);
-        
-        
+
         double securityScore = calculateSecurityScore(bypassRisks, escalationRisks, exposureRisks);
         result.setSecurityScore(securityScore);
         
         return result;
     }
-    
-    
+
     private ComplianceAnalysisResult analyzeComplianceGaps() {
-        log.debug("Analyzing compliance gaps...");
-        
+                
         ComplianceAnalysisResult result = new ComplianceAnalysisResult();
-        
-        
+
         Map<String, ComplianceStatus> regulatoryCompliance = mapRegulatoryCompliance();
         result.setRegulatoryCompliance(regulatoryCompliance);
-        
-        
+
         Map<String, ComplianceStatus> industryStandards = mapIndustryStandards();
         result.setIndustryStandards(industryStandards);
-        
-        
+
         Map<String, ComplianceStatus> internalPolicies = mapInternalPolicies();
         result.setInternalPolicies(internalPolicies);
-        
-        
+
         List<ComplianceGap> gaps = identifyComplianceGaps(
             regulatoryCompliance, industryStandards, internalPolicies
         );
         result.setComplianceGaps(gaps);
-        
-        
+
         double complianceScore = calculateComplianceScore(
             regulatoryCompliance, industryStandards, internalPolicies
         );
@@ -290,8 +226,7 @@ public class StaticAnalysisScheduler {
         
         return result;
     }
-    
-    
+
     private ComprehensiveAnalysisReport generateComprehensiveReport(
             CodebaseAnalysisResult codebase,
             PolicyConflictAnalysis conflicts,
@@ -303,16 +238,14 @@ public class StaticAnalysisScheduler {
         ComprehensiveAnalysisReport report = new ComprehensiveAnalysisReport();
         report.setTimestamp(LocalDateTime.now());
         report.setAnalysisType("FULL_STATIC_ANALYSIS");
-        
-        
+
         report.setCodebaseAnalysis(codebase);
         report.setConflictAnalysis(conflicts);
         report.setCoverageAnalysis(coverage);
         report.setPerformanceAnalysis(performance);
         report.setSecurityAnalysis(security);
         report.setComplianceAnalysis(compliance);
-        
-        
+
         double overallScore = calculateOverallScore(
             coverage.getOverallCoverage(),
             performance.getPerformanceTrend().getScore(),
@@ -320,69 +253,57 @@ public class StaticAnalysisScheduler {
             compliance.getComplianceScore()
         );
         report.setOverallScore(overallScore);
-        
-        
+
         List<String> keyFindings = extractKeyFindings(report);
         report.setKeyFindings(keyFindings);
-        
-        
+
         List<String> recommendations = generateRecommendations(report);
         report.setRecommendations(recommendations);
-        
-        
+
         RiskSummary riskSummary = summarizeRisks(report);
         report.setRiskSummary(riskSummary);
         
         return report;
     }
-    
-    
+
     private void generateImprovementProposals(ComprehensiveAnalysisReport report) {
         List<PolicyEvolutionProposal> proposals = new ArrayList<>();
-        
-        
+
         for (ConflictPair conflict : report.getConflictAnalysis().getDirectConflicts()) {
             proposals.add(createConflictResolutionProposal(conflict));
         }
-        
-        
+
         for (CoverageGap gap : report.getCoverageAnalysis().getCoverageGaps()) {
             if (gap.getSeverity() >= 7) { 
                 proposals.add(createCoverageGapProposal(gap));
             }
         }
-        
-        
+
         for (OptimizationOpportunity opportunity : report.getPerformanceAnalysis().getOptimizationOpportunities()) {
             if (opportunity.getExpectedImprovement() > 20) { 
                 proposals.add(createOptimizationProposal(opportunity));
             }
         }
-        
-        
+
         for (PolicyBypassRisk risk : report.getSecurityAnalysis().getBypassRisks()) {
             if (risk.getRiskLevel() >= 8) { 
                 proposals.add(createSecurityEnhancementProposal(risk));
             }
         }
-        
-        
+
         for (ComplianceGap gap : report.getComplianceAnalysis().getComplianceGaps()) {
             if (gap.isMandatory()) {
                 proposals.add(createComplianceProposal(gap));
             }
         }
-        
-        
+
         submitProposals(proposals);
     }
-    
-    
+
     private List<PolicyChange> identifyRecentChanges() {
         List<PolicyChange> changes = new ArrayList<>();
         LocalDateTime since = LocalDateTime.now().minusDays(1);
-        
-        
+
         List<PolicyEvolutionProposal> newProposals = proposalRepository.findAll().stream()
             .filter(p -> p.getCreatedAt().isAfter(since))
             .collect(Collectors.toList());
@@ -395,8 +316,7 @@ public class StaticAnalysisScheduler {
             change.setDescription("New policy proposal: " + proposal.getTitle());
             changes.add(change);
         }
-        
-        
+
         List<Policy> modifiedPolicies = synthesisPolicyRepository.findAll().stream()
             .filter(p -> p.getLastModified() != null && p.getLastModified().isAfter(since))
             .collect(Collectors.toList());
@@ -412,26 +332,21 @@ public class StaticAnalysisScheduler {
         
         return changes;
     }
-    
-    
+
     private ImpactAnalysisResult analyzeChangeImpact(List<PolicyChange> changes) {
         ImpactAnalysisResult result = new ImpactAnalysisResult();
         
         for (PolicyChange change : changes) {
             ImpactAssessment assessment = new ImpactAssessment();
             assessment.setChangeId(change.getChangeId());
-            
-            
+
             Set<String> affectedSystems = identifyAffectedSystems(change);
             assessment.setAffectedSystems(affectedSystems);
-            
-            
+
             assessment.setImpactScope(calculateImpactScope(affectedSystems));
-            
-            
+
             assessment.setRiskLevel(assessChangeRisk(change));
-            
-            
+
             assessment.setRollbackable(isRollbackable(change));
             
             result.addAssessment(assessment);
@@ -439,25 +354,20 @@ public class StaticAnalysisScheduler {
         
         return result;
     }
-    
-    
+
     private QuickValidationResult performQuickValidation(List<PolicyChange> changes) {
         QuickValidationResult result = new QuickValidationResult();
         
         for (PolicyChange change : changes) {
             ValidationResult validation = new ValidationResult();
             validation.setChangeId(change.getChangeId());
-            
-            
+
             validation.setSyntaxValid(validateSyntax(change));
-            
-            
+
             validation.setSemanticValid(validateSemantics(change));
-            
-            
+
             validation.setNoConflicts(checkForConflicts(change));
-            
-            
+
             validation.setPerformanceImpact(estimatePerformanceImpact(change));
             
             result.addValidation(validation);
@@ -465,13 +375,11 @@ public class StaticAnalysisScheduler {
         
         return result;
     }
-    
-    
+
     private List<UrgentIssue> identifyUrgentIssues(ImpactAnalysisResult impact, 
                                                     QuickValidationResult validation) {
         List<UrgentIssue> urgentIssues = new ArrayList<>();
-        
-        
+
         for (ImpactAssessment assessment : impact.getAssessments()) {
             if (assessment.getRiskLevel() >= 8) {
                 UrgentIssue issue = new UrgentIssue();
@@ -482,8 +390,7 @@ public class StaticAnalysisScheduler {
                 urgentIssues.add(issue);
             }
         }
-        
-        
+
         for (ValidationResult val : validation.getValidations()) {
             if (!val.isSyntaxValid() || !val.isSemanticValid() || !val.isNoConflicts()) {
                 UrgentIssue issue = new UrgentIssue();
@@ -494,8 +401,7 @@ public class StaticAnalysisScheduler {
                 urgentIssues.add(issue);
             }
         }
-        
-        
+
         for (ValidationResult val : validation.getValidations()) {
             if (val.getPerformanceImpact() > 50) { 
                 UrgentIssue issue = new UrgentIssue();
@@ -509,8 +415,7 @@ public class StaticAnalysisScheduler {
         
         return urgentIssues;
     }
-    
-    
+
     private void generateUrgentProposals(List<UrgentIssue> issues) {
         for (UrgentIssue issue : issues) {
             PolicyEvolutionProposal proposal = new PolicyEvolutionProposal();
@@ -532,8 +437,7 @@ public class StaticAnalysisScheduler {
             }
         }
     }
-    
-    
+
     private static class AnalysisResult {
         private String analysisId;
         private LocalDateTime timestamp;
@@ -552,8 +456,7 @@ public class StaticAnalysisScheduler {
         private Map<String, DataFlow> dataFlowPatterns;
         private DependencyGraph dependencyAnalysis;
         private Map<String, Double> complexityMetrics;
-        
-        
+
         public void setSecurityPatterns(Map<String, Integer> patterns) { this.securityPatterns = patterns; }
         public void setAccessControlPatterns(Map<String, Integer> patterns) { this.accessControlPatterns = patterns; }
         public void setDataFlowPatterns(Map<String, DataFlow> patterns) { this.dataFlowPatterns = patterns; }
@@ -566,8 +469,7 @@ public class StaticAnalysisScheduler {
         private List<DuplicatePair> duplicates;
         private List<PriorityConflict> priorityConflicts;
         private List<ScopeOverlap> scopeOverlaps;
-        
-        
+
         public List<ConflictPair> getDirectConflicts() { return directConflicts; }
         public void setDirectConflicts(List<ConflictPair> conflicts) { this.directConflicts = conflicts; }
         public void setDuplicates(List<DuplicatePair> duplicates) { this.duplicates = duplicates; }
@@ -581,8 +483,7 @@ public class StaticAnalysisScheduler {
         private Map<String, Double> complianceCoverage;
         private List<CoverageGap> coverageGaps;
         private double overallCoverage;
-        
-        
+
         public void setDomainCoverage(Map<String, Double> coverage) { this.domainCoverage = coverage; }
         public void setThreatCoverage(Map<String, Double> coverage) { this.threatCoverage = coverage; }
         public void setComplianceCoverage(Map<String, Double> coverage) { this.complianceCoverage = coverage; }
@@ -597,8 +498,7 @@ public class StaticAnalysisScheduler {
         private List<ResourceIntensivePolicy> resourceIntensivePolicies;
         private List<OptimizationOpportunity> optimizationOpportunities;
         private PerformanceTrend performanceTrend;
-        
-        
+
         public void setSlowPolicies(List<SlowPolicy> policies) { this.slowPolicies = policies; }
         public void setResourceIntensivePolicies(List<ResourceIntensivePolicy> policies) { 
             this.resourceIntensivePolicies = policies; 
@@ -616,8 +516,7 @@ public class StaticAnalysisScheduler {
         private List<PrivilegeEscalationRisk> escalationRisks;
         private List<DataExposureRisk> exposureRisks;
         private double securityScore;
-        
-        
+
         public void setBypassRisks(List<PolicyBypassRisk> risks) { this.bypassRisks = risks; }
         public List<PolicyBypassRisk> getBypassRisks() { return bypassRisks; }
         public void setEscalationRisks(List<PrivilegeEscalationRisk> risks) { this.escalationRisks = risks; }
@@ -632,8 +531,7 @@ public class StaticAnalysisScheduler {
         private Map<String, ComplianceStatus> internalPolicies;
         private List<ComplianceGap> complianceGaps;
         private double complianceScore;
-        
-        
+
         public void setRegulatoryCompliance(Map<String, ComplianceStatus> compliance) { 
             this.regulatoryCompliance = compliance; 
         }
@@ -662,8 +560,7 @@ public class StaticAnalysisScheduler {
         private List<String> keyFindings;
         private List<String> recommendations;
         private RiskSummary riskSummary;
-        
-        
+
         public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
         public void setAnalysisType(String type) { this.analysisType = type; }
         public void setCodebaseAnalysis(CodebaseAnalysisResult analysis) { this.codebaseAnalysis = analysis; }
@@ -682,8 +579,7 @@ public class StaticAnalysisScheduler {
         public void setRecommendations(List<String> recommendations) { this.recommendations = recommendations; }
         public void setRiskSummary(RiskSummary summary) { this.riskSummary = summary; }
     }
-    
-    
+
     private static class ConflictPair {
         private Policy policy1;
         private Policy policy2;
@@ -736,8 +632,7 @@ public class StaticAnalysisScheduler {
         private Long policyId;
         private LocalDateTime timestamp;
         private String description;
-        
-        
+
         public String getChangeId() { return changeId; }
         public void setChangeType(ChangeType type) { this.changeType = type; }
         public void setProposalId(Long id) { this.proposalId = id; }
@@ -751,8 +646,7 @@ public class StaticAnalysisScheduler {
         private int severity;
         private String description;
         private String requiredAction;
-        
-        
+
         public void setIssueType(IssueType type) { this.issueType = type; }
         public void setSeverity(int severity) { this.severity = severity; }
         public int getSeverity() { return severity; }
@@ -769,8 +663,7 @@ public class StaticAnalysisScheduler {
     private enum IssueType {
         HIGH_RISK_CHANGE, VALIDATION_FAILURE, PERFORMANCE_DEGRADATION, SECURITY_VULNERABILITY
     }
-    
-    
+
     private static class DataFlow {}
     private static class DependencyGraph {}
     private static class PriorityConflict {}
@@ -796,8 +689,7 @@ public class StaticAnalysisScheduler {
         private String impactScope;
         private int riskLevel;
         private boolean rollbackable;
-        
-        
+
         public void setChangeId(String id) { this.changeId = id; }
         public void setAffectedSystems(Set<String> systems) { this.affectedSystems = systems; }
         public void setImpactScope(String scope) { this.impactScope = scope; }
@@ -816,8 +708,7 @@ public class StaticAnalysisScheduler {
         private boolean semanticValid;
         private boolean noConflicts;
         private double performanceImpact;
-        
-        
+
         public void setChangeId(String id) { this.changeId = id; }
         public void setSyntaxValid(boolean valid) { this.syntaxValid = valid; }
         public boolean isSyntaxValid() { return syntaxValid; }
@@ -828,8 +719,7 @@ public class StaticAnalysisScheduler {
         public void setPerformanceImpact(double impact) { this.performanceImpact = impact; }
         public double getPerformanceImpact() { return performanceImpact; }
     }
-    
-    
+
     private Map<String, Integer> analyzeSecurityPatterns() {
         Map<String, Integer> patterns = new HashMap<>();
         patterns.put("authentication", 15);
@@ -1126,8 +1016,7 @@ public class StaticAnalysisScheduler {
         for (PolicyEvolutionProposal proposal : proposals) {
             try {
                 proposalManagementService.submitProposal(proposal);
-                log.info("Static analysis proposal submitted: {}", proposal.getTitle());
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.error("Failed to submit proposal: {}", proposal.getTitle(), e);
             }
         }

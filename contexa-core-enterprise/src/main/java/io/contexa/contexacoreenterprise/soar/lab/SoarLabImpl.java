@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
@@ -22,27 +21,23 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
         super("SoarLab", tracer);
         this.orchestrator = orchestrator;
 
-        log.info("AdvancedPolicyGenerationLab 초기화 완료 - PipelineOrchestrator 기반 (스트리밍→StreamingUniversalPipelineExecutor 자동선택)");
-    }
+            }
 
     @Override
     protected SoarResponse doProcess(SoarRequest request) throws Exception {
-        log.info("[DefaultSoarLab] PipelineOrchestrator를 통한 SOAR 처리 시작: {}", request.getSessionId());
-
+        
         PipelineConfiguration<SoarContext> config = createPipelineConfiguration(request);
 
         AIRequest<SoarContext> aiRequest = new AIRequest<>(request.getContext(), "SOAR_ANALYSIS", request.getOrganizationId())
                 .withParameter("query", request.getQuery())
                 .withParameter("sessionId", request.getSessionId());
 
-        log.info("[DefaultSoarLab] PipelineOrchestrator 처리 완료: {}", request.getSessionId());
-        return orchestrator.execute(aiRequest, config, SoarResponse.class).block();
+                return orchestrator.execute(aiRequest, config, SoarResponse.class).block();
     }
 
     @Override
     protected Mono<SoarResponse> doProcessAsync(SoarRequest request) {
-        log.info("[DefaultSoarLab] PipelineOrchestrator를 통한 비동기 SOAR 처리 시작: {}", request.getSessionId());
-
+        
         PipelineConfiguration<SoarContext> config = createPipelineConfiguration(request);
 
         return orchestrator.execute(request, config, SoarResponse.class)
@@ -52,8 +47,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
     @Override
     protected Flux<String> doProcessStream(SoarRequest request) {
-        log.info("[DefaultSoarLab] PipelineOrchestrator를 통한 스트리밍 SOAR 처리 시작: {}", request.getSessionId());
-
+        
         return Flux.defer(() -> {
             try {
                 
