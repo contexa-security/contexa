@@ -306,15 +306,21 @@ public class OllamaModelProvider extends BaseModelProvider {
 
         ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties.getTierDefaults(tier);
 
+        // TierDefaults가 없으면 최소 필수 정보만으로 ModelDescriptor 생성
+        // 상세 정보(capabilities, performance, cost, options)는 알 수 없으므로 설정하지 않음
         if (tierDefaults == null) {
-            tierDefaults = new ModelProviderProperties.DefaultSpecs.TierDefaults();
-            tierDefaults.setTimeoutMs(5000);
-            tierDefaults.setTemperature(0.5);
-            tierDefaults.setMaxTokens(4096);
-            tierDefaults.setContextWindow(4096);
-            tierDefaults.setPerformanceScore(75.0);
-            tierDefaults.setLatencyMs(1000);
-            tierDefaults.setConcurrency(50);
+            return ModelDescriptor.builder()
+                    .modelId(modelId)
+                    .displayName(modelId)
+                    .provider(getProviderName())
+                    .version(modelId.contains(":") ? modelId.split(":")[1] : "latest")
+                    .modelSize(details.getParameter_size() != null ? details.getParameter_size() : "unknown")
+                    .tier(tier)
+                    .status(ModelDescriptor.ModelStatus.AVAILABLE)
+                    .metadata(Map.of(
+                            "local", true,
+                            "dynamicallyDiscovered", true))
+                    .build();
         }
 
         return ModelDescriptor.builder()
@@ -343,15 +349,8 @@ public class OllamaModelProvider extends BaseModelProvider {
                         .recommendedTimeout(tierDefaults.getTimeoutMs())
                         .performanceScore(tierDefaults.getPerformanceScore())
                         .build())
-                .cost(ModelDescriptor.CostProfile.builder()
-                        .costPerInputToken(0.0)
-                        .costPerOutputToken(0.0)
-                        .costEfficiency(100.0)
-                        .build())
                 .options(ModelDescriptor.ModelOptions.builder()
                         .temperature(tierDefaults.getTemperature())
-                        .topP(0.9)
-                        .repetitionPenalty(1.0)
                         .build())
                 .status(ModelDescriptor.ModelStatus.AVAILABLE)
                 .metadata(Map.of(

@@ -378,26 +378,40 @@ public class OpenAIModelProvider extends BaseModelProvider {
 
         ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties.getTierDefaults(tier);
 
-        if (tierDefaults == null) {
-            tierDefaults = new ModelProviderProperties.DefaultSpecs.TierDefaults();
-            tierDefaults.setTimeoutMs(5000);
-            tierDefaults.setTemperature(0.5);
-            tierDefaults.setMaxTokens(4096);
-            tierDefaults.setContextWindow(4096);
-            tierDefaults.setPerformanceScore(75.0);
-            tierDefaults.setLatencyMs(1000);
-            tierDefaults.setConcurrency(50);
-        }
-
+        // OpenAI 모델의 경우 모델명에서 기능을 추론할 수 있음
         boolean supportsFunctions = modelId.contains("gpt-4") || modelId.contains("gpt-3.5-turbo") || modelId.contains("o1");
         boolean supportsVision = modelId.contains("vision") || modelId.contains("gpt-4o");
+
+        // TierDefaults가 없으면 최소 필수 정보만으로 ModelDescriptor 생성
+        // 상세 정보(performance, cost, options)는 알 수 없으므로 설정하지 않음
+        if (tierDefaults == null) {
+            return ModelDescriptor.builder()
+                    .modelId(modelId)
+                    .displayName(modelId)
+                    .provider(getProviderName())
+                    .version(modelId)
+                    .tier(tier)
+                    .capabilities(ModelDescriptor.ModelCapabilities.builder()
+                            .streaming(true)
+                            .toolCalling(supportsFunctions)
+                            .functionCalling(supportsFunctions)
+                            .vision(supportsVision)
+                            .multiModal(supportsVision)
+                            .supportsSystemMessage(true)
+                            .build())
+                    .status(ModelDescriptor.ModelStatus.AVAILABLE)
+                    .metadata(Map.of(
+                            "cloud", true,
+                            "dynamicallyDiscovered", true,
+                            "requiresApiKey", true))
+                    .build();
+        }
 
         return ModelDescriptor.builder()
                 .modelId(modelId)
                 .displayName(modelId)
                 .provider(getProviderName())
                 .version(modelId)
-                .modelSize("N/A")
                 .tier(tier)
                 .capabilities(ModelDescriptor.ModelCapabilities.builder()
                         .streaming(true)
@@ -419,14 +433,8 @@ public class OpenAIModelProvider extends BaseModelProvider {
                         .recommendedTimeout(tierDefaults.getTimeoutMs())
                         .performanceScore(tierDefaults.getPerformanceScore())
                         .build())
-                .cost(ModelDescriptor.CostProfile.builder()
-                        .costPerInputToken(0.0)
-                        .costPerOutputToken(0.0)
-                        .costEfficiency(100.0)
-                        .build())
                 .options(ModelDescriptor.ModelOptions.builder()
                         .temperature(tierDefaults.getTemperature())
-                        .topP(0.9)
                         .build())
                 .status(ModelDescriptor.ModelStatus.AVAILABLE)
                 .metadata(Map.of(
