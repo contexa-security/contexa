@@ -80,8 +80,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -93,6 +95,7 @@ import java.util.Optional;
 
 
 @AutoConfiguration
+@AutoConfigureAfter(CoreRAGAutoConfiguration.class)
 @ConditionalOnProperty(
     prefix = "contexa.std",
     name = "enabled",
@@ -377,15 +380,11 @@ public class CoreStdComponentsAutoConfiguration {
         return new StreamingLLMExecutionStep(toolCapableLLMClient);
     }
 
-    
-
     @Bean
     @ConditionalOnMissingBean
     public JsonStreamingProcessor jsonStreamingProcessor() {
         return new JsonStreamingProcessor();
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -393,16 +392,12 @@ public class CoreStdComponentsAutoConfiguration {
         return new FilterDebugInterceptor();
     }
 
-    
-
     @Bean
     @ConditionalOnMissingBean
     public BehaviorMetadataEnricher behaviorMetadataEnricher() {
         return new BehaviorMetadataEnricher();
     }
 
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -434,7 +429,6 @@ public class CoreStdComponentsAutoConfiguration {
         return new ThreatCorrelator();
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -454,7 +448,6 @@ public class CoreStdComponentsAutoConfiguration {
         return new AIStrategyRegistry(allStrategies);
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean

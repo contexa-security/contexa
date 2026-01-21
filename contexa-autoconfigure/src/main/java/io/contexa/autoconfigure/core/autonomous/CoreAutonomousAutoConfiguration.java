@@ -82,13 +82,6 @@ public class CoreAutonomousAutoConfiguration {
         
     }
 
-    
-
-    
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityEventEnricher securityEventEnricher() {
@@ -240,7 +233,7 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public Layer2ExpertStrategy expertStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
-            ApprovalService approvalService,
+            @Autowired(required = false) ApprovalService approvalService,
             RedisTemplate<String, Object> redisTemplate,
             SecurityEventEnricher securityEventEnricher,
             SecurityPromptTemplate securityPromptTemplate,

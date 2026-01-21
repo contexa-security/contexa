@@ -107,23 +107,7 @@ public class CoreLLMTieredAutoConfiguration {
         return null;
     }
 
-    
-    @Bean(name = "claudeOpusChatModel")
-    @ConditionalOnMissingBean(name = "claudeOpusChatModel")
-    public ChatModel claudeOpusChatModel(
-            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
-            @Value("${spring.ai.security.layer2.backup.model:claude-3-5-sonnet-20241022}") String modelName) {
 
-        
-        if (anthropicChatModel != null) {
-                        return anthropicChatModel;
-        }
-
-        log.warn("  - Anthropic ChatModel not found. Please check API key");
-        return null;
-    }
-
-    
     @Bean(name = "gpt4ChatModel")
     @ConditionalOnMissingBean(name = "gpt4ChatModel")
     public ChatModel gpt4ChatModel(

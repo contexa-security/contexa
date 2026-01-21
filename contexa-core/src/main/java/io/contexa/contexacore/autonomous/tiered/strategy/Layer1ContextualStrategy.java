@@ -557,7 +557,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             int maxRecentActions = tieredStrategyProperties.getLayer1().getSession().getMaxRecentActions();
             if (recentActions.size() > maxRecentActions) {
-                recentActions.remove(0);
+                recentActions.removeFirst();
             }
 
             recentActions.add(event.getDescription() != null ? event.getDescription() : "action");
@@ -575,7 +575,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         if (response.getAction() == null || response.getAction().isBlank()) {
             response.setAction("ESCALATE");
-            log.warn("[Layer1][Fallback] action 누락, ESCALATE로 설정");
         }
 
         return response;
