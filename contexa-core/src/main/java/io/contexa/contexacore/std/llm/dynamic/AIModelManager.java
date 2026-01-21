@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
-@RequiredArgsConstructor
 public class AIModelManager {
 
     private final AnthropicChatModel anthropicChatModel;
@@ -27,6 +26,21 @@ public class AIModelManager {
     private final OllamaEmbeddingModel ollamaEmbeddingModel;
     private final OpenAiEmbeddingModel openAiEmbeddingModel;
     private final Map<String, ChatClient> chatClientCache = new ConcurrentHashMap<>();
+
+    public AIModelManager(
+            AnthropicChatModel anthropicChatModel,
+            OllamaChatModel ollamaChatModel,
+            OpenAiChatModel openAiChatModel,
+            OllamaEmbeddingModel ollamaEmbeddingModel,
+            OpenAiEmbeddingModel openAiEmbeddingModel) {
+        this.anthropicChatModel = anthropicChatModel;
+        this.ollamaChatModel = ollamaChatModel;
+        this.openAiChatModel = openAiChatModel;
+        this.ollamaEmbeddingModel = ollamaEmbeddingModel;
+        this.openAiEmbeddingModel = openAiEmbeddingModel;
+        log.info("AIModelManager initialized - Anthropic: {}, Ollama: {}, OpenAI: {}",
+                anthropicChatModel != null, ollamaChatModel != null, openAiChatModel != null);
+    }
 
     public ChatResponse chat(AIModelType modelType, String prompt) {
         ChatModel model = getChatModel(modelType);

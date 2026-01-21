@@ -46,6 +46,7 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -119,12 +120,17 @@ public class CoreRAGAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AIModelManager aiModelManager(
-            AnthropicChatModel anthropicChatModel,
-            OllamaChatModel ollamaChatModel,
-            OpenAiChatModel openAiChatModel,
-            OllamaEmbeddingModel ollamaEmbeddingModel,
-            OpenAiEmbeddingModel openAiEmbeddingModel) {
-        return new AIModelManager(anthropicChatModel,ollamaChatModel,openAiChatModel,ollamaEmbeddingModel,openAiEmbeddingModel);
+            ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
+            ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
+            ObjectProvider<OpenAiChatModel> openAiChatModelProvider,
+            ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,
+            ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {
+        return new AIModelManager(
+                anthropicChatModelProvider.getIfAvailable(),
+                ollamaChatModelProvider.getIfAvailable(),
+                openAiChatModelProvider.getIfAvailable(),
+                ollamaEmbeddingModelProvider.getIfAvailable(),
+                openAiEmbeddingModelProvider.getIfAvailable());
     }
 
     
