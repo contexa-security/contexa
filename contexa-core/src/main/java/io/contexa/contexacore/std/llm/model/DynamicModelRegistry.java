@@ -30,12 +30,38 @@ public class DynamicModelRegistry {
 
     @PostConstruct
     public void initialize() {
+        try {
+            discoverSpringAiModels();
+        } catch (Exception e) {
+            log.warn("Spring AI 모델 검색 실패. LLM 기능이 제한될 수 있습니다: {}", e.getMessage());
+        }
 
-        discoverSpringAiModels();
-        discoverAndRegisterProviders();
-        loadModelsFromConfiguration();
-        buildTierMapping();
-        performHealthCheck();
+        try {
+            discoverAndRegisterProviders();
+        } catch (Exception e) {
+            log.warn("ModelProvider 검색 실패. LLM 기능이 제한될 수 있습니다: {}", e.getMessage());
+        }
+
+        try {
+            loadModelsFromConfiguration();
+        } catch (Exception e) {
+            log.warn("설정 파일에서 모델 로드 실패: {}", e.getMessage());
+        }
+
+        try {
+            buildTierMapping();
+        } catch (Exception e) {
+            log.warn("Tier 매핑 빌드 실패: {}", e.getMessage());
+        }
+
+        try {
+            performHealthCheck();
+        } catch (Exception e) {
+            log.warn("모델 헬스체크 실패: {}", e.getMessage());
+        }
+
+        log.info("DynamicModelRegistry 초기화 완료. 등록된 모델 수: {}, 프로바이더 수: {}",
+                modelDescriptors.size(), providers.size());
     }
 
     private void discoverSpringAiModels() {

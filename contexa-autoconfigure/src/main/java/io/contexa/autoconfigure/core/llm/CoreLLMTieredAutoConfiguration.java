@@ -53,53 +53,58 @@ public class CoreLLMTieredAutoConfiguration {
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
 
-    
+
     @Bean(name = "tinyLlamaChatModel")
     @ConditionalOnMissingBean(name = "tinyLlamaChatModel")
     public ChatModel tinyLlamaChatModel(
-            OllamaChatModel ollamaChatModel,
-            AnthropicChatModel anthropicChatModel,
-            OpenAiChatModel openAiChatModel) {
+            ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
+            ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
+            ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
 
+        OllamaChatModel ollamaChatModel = ollamaChatModelProvider.getIfAvailable();
         if (ollamaChatModel != null) {
-                        return ollamaChatModel;
+            return ollamaChatModel;
         }
 
         log.warn("Ollama ChatModel is not configured. Attempting fallback model");
 
+        AnthropicChatModel anthropicChatModel = anthropicChatModelProvider.getIfAvailable();
         if (anthropicChatModel != null) {
-                        return anthropicChatModel;
+            return anthropicChatModel;
         }
 
+        OpenAiChatModel openAiChatModel = openAiChatModelProvider.getIfAvailable();
         if (openAiChatModel != null) {
-                        return openAiChatModel;
+            return openAiChatModel;
         }
 
         log.warn("All model providers are unavailable. Layer 1 model will be set to null");
         return null;
     }
 
-    
+
     @Bean(name = "llama31ChatModel")
     @ConditionalOnMissingBean(name = "llama31ChatModel")
     public ChatModel llama31ChatModel(
-            OllamaChatModel ollamaChatModel,
-            AnthropicChatModel anthropicChatModel,
-            OpenAiChatModel openAiChatModel) {
+            ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
+            ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
+            ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
 
-        
+        OllamaChatModel ollamaChatModel = ollamaChatModelProvider.getIfAvailable();
         if (ollamaChatModel != null) {
-                        return ollamaChatModel;
+            return ollamaChatModel;
         }
 
         log.warn("Ollama ChatModel is not configured. Attempting fallback model");
 
+        AnthropicChatModel anthropicChatModel = anthropicChatModelProvider.getIfAvailable();
         if (anthropicChatModel != null) {
-                        return anthropicChatModel;
+            return anthropicChatModel;
         }
 
+        OpenAiChatModel openAiChatModel = openAiChatModelProvider.getIfAvailable();
         if (openAiChatModel != null) {
-                        return openAiChatModel;
+            return openAiChatModel;
         }
 
         log.warn("All model providers are unavailable. Layer 2 model will be set to null");
@@ -110,19 +115,18 @@ public class CoreLLMTieredAutoConfiguration {
     @Bean(name = "gpt4ChatModel")
     @ConditionalOnMissingBean(name = "gpt4ChatModel")
     public ChatModel gpt4ChatModel(
-            OpenAiChatModel openAiChatModel,
-            @Value("${spring.ai.security.layer2.backup.model:gpt-4o}") String modelName) {
+            ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
 
-        
+        OpenAiChatModel openAiChatModel = openAiChatModelProvider.getIfAvailable();
         if (openAiChatModel != null) {
-                        return openAiChatModel;
+            return openAiChatModel;
         }
 
         log.warn("OpenAI ChatModel not found. Please check API key");
         return null;
     }
 
-    
+
     @Bean
     @Primary
     public ChatModel primaryChatModel(
@@ -130,7 +134,7 @@ public class CoreLLMTieredAutoConfiguration {
             ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
             ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
 
-        
+
         Map<String, ChatModel> availableModels = new HashMap<>();
 
         OllamaChatModel ollamaModel = ollamaChatModelProvider.getIfAvailable();
@@ -153,7 +157,7 @@ public class CoreLLMTieredAutoConfiguration {
             String trimmedName = modelName.trim().toLowerCase();
             ChatModel model = availableModels.get(trimmedName);
             if (model != null) {
-                                return model;
+                return model;
             }
         }
 
@@ -164,44 +168,44 @@ public class CoreLLMTieredAutoConfiguration {
         }
 
         log.warn("No ChatModel available. LLM features will be disabled. " +
-            "Configure spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
+                "Configure spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
         return null;
     }
 
-    
+
     @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
     public StreamingHandler streamingHandler() {
-                return new DefaultStreamingHandler(tieredLLMProperties);
+        return new DefaultStreamingHandler(tieredLLMProperties);
     }
 
-    
+
     @Bean
     @Primary
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ModelSelectionStrategy modelSelectionStrategy,
             StreamingHandler streamingHandler) {
 
-                                
+
         return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties);
     }
 
     @Bean
     public LLMOperations llmOperations(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-                return unifiedLLMOrchestrator;
+        return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "llmClient")
     public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-                return unifiedLLMOrchestrator;
+        return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "toolCapableLLMClient")
     public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-                return unifiedLLMOrchestrator;
+        return unifiedLLMOrchestrator;
     }
 
-    
+
     @Bean(name = "primaryEmbeddingModel")
     @Primary
     @ConditionalOnMissingBean(name = "primaryEmbeddingModel")
@@ -209,7 +213,7 @@ public class CoreLLMTieredAutoConfiguration {
             ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,
             ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {
 
-        
+
         Map<String, EmbeddingModel> availableModels = new HashMap<>();
 
         OllamaEmbeddingModel ollamaEmbedding = ollamaEmbeddingModelProvider.getIfAvailable();
@@ -227,7 +231,7 @@ public class CoreLLMTieredAutoConfiguration {
             String trimmedName = modelName.trim().toLowerCase();
             EmbeddingModel model = availableModels.get(trimmedName);
             if (model != null) {
-                                return model;
+                return model;
             }
         }
 
@@ -238,7 +242,7 @@ public class CoreLLMTieredAutoConfiguration {
         }
 
         log.warn("No EmbeddingModel available. Embedding features will be disabled. " +
-            "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
+                "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
         return null;
     }
 
@@ -247,7 +251,7 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnMissingBean(ChatClient.Builder.class)
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = true)
     public ChatClient.Builder chatClientBuilder(ChatModel primaryChatModel) {
-                return ChatClient.builder(primaryChatModel);
+        return ChatClient.builder(primaryChatModel);
     }
 
     @Bean
@@ -255,10 +259,10 @@ public class CoreLLMTieredAutoConfiguration {
     @ConditionalOnMissingBean(name = "defaultChatClient")
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false")
     public ChatClient defaultChatClient(ChatClient.Builder builder) {
-                return builder.build();
+        return builder.build();
     }
 
     @PostConstruct
     public void init() {
-                                                            }
+    }
 }
