@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contexa AI Native Zero Trust Security Platform - TIPS Demo</title>
+    <link rel="stylesheet" th:href="@{/css/security-test.css}">
+</head>
+<body>
+<div class="container">
+    <!-- Compact Hero Header -->
+    <header class="hero-header">
+        <div class="hero-content">
+            <h1 class="hero-title">Contexa</h1>
+            <p class="hero-subtitle">AI Native Zero Trust Security Platform</p>
+        </div>
+        <div class="hero-right">
+            <div class="sse-status" id="sse-status">
+                <span class="sse-indicator disconnected" id="sse-indicator"></span>
+                <span class="sse-text" id="sse-text">SSE 대기</span>
+            </div>
+            <div class="hero-badge">
+                <span class="badge-text">TIPS Demo</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid: 3 Columns -->
+    <div class="main-grid-3col">
+        <!-- Column 1: Scenario Selection (Compact) -->
+        <section class="section scenario-section">
+            <h2 class="section-title">시나리오</h2>
+            <div class="scenario-cards">
+                <!-- 정상 사용자 시나리오 -->
+                <div class="scenario-card" id="scenario-normal" data-scenario="NORMAL_USER">
+                    <div class="scenario-header normal">
+                        <span class="scenario-icon">&#128100;</span>
+                        <h3>정상 사용자</h3>
+                        <span class="expected-badge expected-allow">승인</span>
+                    </div>
+                    <div class="scenario-body">
+                        <span class="scenario-info">192.168.1.100 | Chrome/120 (Win)</span>
+                    </div>
+                </div>
+
+                <!-- 계정 탈취 시나리오 -->
+                <div class="scenario-card" id="scenario-takeover" data-scenario="ACCOUNT_TAKEOVER">
+                    <div class="scenario-header warning">
+                        <span class="scenario-icon">&#9888;</span>
+                        <h3>계정 탈취 의심</h3>
+                        <span class="expected-badge expected-challenge">2차 승인 필요</span>
+                    </div>
+                    <div class="scenario-body">
+                        <span class="scenario-info">203.0.113.50 | Android 10</span>
+                    </div>
+                </div>
+
+                <!-- 권한 상승 시나리오 -->
+                <div class="scenario-card" id="scenario-escalation" data-scenario="PRIVILEGE_ESCALATION">
+                    <div class="scenario-header danger">
+                        <span class="scenario-icon">&#128274;</span>
+                        <h3>권한 상승 시도</h3>
+                        <span class="expected-badge expected-block">차단</span>
+                    </div>
+                    <div class="scenario-body">
+                        <span class="scenario-info">10.0.0.99 | python-requests</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Column 2: Real-time LLM Analysis Panel -->
+        <section class="section analysis-section">
+            <h2 class="section-title">실시간 LLM 분석</h2>
+
+            <!-- Analysis Progress (Compact) -->
+            <div class="analysis-panel">
+                <div class="analysis-steps-compact">
+                    <div class="analysis-step-compact" id="step-context">
+                        <div class="step-indicator waiting"></div>
+                        <span class="step-label-compact">Context</span>
+                    </div>
+                    <div class="step-arrow">&#10132;</div>
+                    <div class="analysis-step-compact" id="step-layer1">
+                        <div class="step-indicator waiting"></div>
+                        <span class="step-label-compact">Layer1</span>
+                    </div>
+                    <div class="step-arrow layer2-arrow" style="display: none;">&#10132;</div>
+                    <div class="analysis-step-compact layer2-step" id="step-layer2" style="display: none;">
+                        <div class="step-indicator waiting"></div>
+                        <span class="step-label-compact">Layer2</span>
+                    </div>
+                    <div class="step-arrow">&#10132;</div>
+                    <div class="analysis-step-compact" id="step-decision">
+                        <div class="step-indicator waiting"></div>
+                        <span class="step-label-compact">Decision</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Action Badge -->
+            <div class="action-display">
+                <div class="action-header">
+                    <span class="action-label">Action</span>
+                    <button class="reload-btn" id="reload-action-btn" title="Redis에서 현재 Action 조회">&#x27F3;</button>
+                </div>
+                <div class="action-badge-large" id="current-action-badge">
+                    <span class="action-text">대기</span>
+                </div>
+                <div class="metrics-row">
+                    <div class="metric">
+                        <span class="metric-label">Risk</span>
+                        <div class="metric-bar">
+                            <div class="metric-fill risk-fill" id="risk-fill" style="width: 0%"></div>
+                        </div>
+                        <span class="metric-value" id="risk-value">0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Conf</span>
+                        <div class="metric-bar">
+                            <div class="metric-fill confidence-fill" id="confidence-fill" style="width: 0%"></div>
+                        </div>
+                        <span class="metric-value" id="confidence-value">0.00</span>
+                    </div>
+                </div>
+                <div class="mitre-display" id="mitre-display" style="display: none;">
+                    <span class="mitre-label">MITRE:</span>
+                    <span class="mitre-value" id="mitre-value">-</span>
+                </div>
+            </div>
+
+            <!-- Reasoning Display (Compact) -->
+            <div class="reasoning-display" id="reasoning-display" style="display: none;">
+                <h4>분석 근거</h4>
+                <p class="reasoning-text" id="reasoning-text">-</p>
+            </div>
+        </section>
+
+        <!-- Column 3: Decision Flow Timeline -->
+        <section class="section timeline-section">
+            <h2 class="section-title">Timeline</h2>
+            <div class="timeline-container" id="timeline-container">
+                <div class="timeline-entry info">
+                    <span class="timeline-time">--:--:--</span>
+                    <span class="timeline-message">시나리오 선택 후 테스트 실행</span>
+                </div>
+            </div>
+            <div class="timeline-controls">
+                <button class="btn-small" id="btn-clear-timeline">초기화</button>
+                <button class="btn-small" id="btn-reset-analysis">분석 리셋</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Security Test Execution - Compact Button Bar at Bottom -->
+    <section class="test-bar">
+        <div class="test-bar-label">보안 테스트:</div>
+        <div class="test-buttons">
+            <button class="btn-test-compact preferred" id="btn-test-normal" data-requirement="PREFERRED" data-endpoint="normal" disabled>
+                <span class="test-btn-label">일반 데이터</span>
+                <span class="test-btn-badge">PREFERRED</span>
+            </button>
+            <button class="btn-test-compact required" id="btn-test-sensitive" data-requirement="REQUIRED" data-endpoint="sensitive" disabled>
+                <span class="test-btn-label">민감 데이터</span>
+                <span class="test-btn-badge">REQUIRED</span>
+            </button>
+            <button class="btn-test-compact strict" id="btn-test-critical" data-requirement="STRICT" data-endpoint="critical" disabled>
+                <span class="test-btn-label">중요 데이터</span>
+                <span class="test-btn-badge">STRICT</span>
+            </button>
+        </div>
+    </section>
+
+    <!-- Compact Footer -->
+    <footer class="footer">
+        <span class="footer-brand">Contexa Zero Trust</span>
+        <span class="footer-sep">|</span>
+        <span class="footer-version">TIPS Demo v1.0 | 2-Tier LLM (Llama 8B + Claude)</span>
+    </footer>
+</div>
+
+<script th:src="@{/js/security-test.js}"></script>
+</body>
+</html>

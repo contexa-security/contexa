@@ -1,0 +1,130 @@
+contexa:
+  hcad:
+    enable-simulated-user-agent: true
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/identity
+    username: admin
+    password: 1111
+    driver-class-name: org.postgresql.Driver
+
+  ai:
+    chat:
+      model:
+        # vLLM 사용 시: vllm,ollama,openai (vLLM 서버 실행 필요)
+        priority: ollama,openai  # Anthropic 제거 (enabled: false)
+
+      embedding:
+        model:
+          priority: ollama,openai
+
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:sk-ant-dummy-key-for-disabled}
+      chat:
+        enabled: false
+        options:
+          model: claude-sonnet-4-20250514
+          temperature: 0.3
+#
+#    ollama:
+#      base-url: http://127.0.0.1:11434
+#      embedding:
+#        enabled: true
+#        model: mxbai-embed-large
+#      chat:
+#        options:
+#          model: exaone3.5
+#          temperature: 0.3
+#          timeout: 10s
+#
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-dummy-key}
+      base-url: https://api.openai.com
+      chat:
+        enabled: false
+      embedding:
+        enabled: false
+        options:
+          model: text-embedding-3-small
+#
+#    # TieredLLMProperties 매핑 (contexa-core/config/TieredLLMProperties.java)
+#    # AI Native v6.7 2-Tier LLM 시스템 (2026-01 리팩토링)
+#    # - Layer 1: 경량 로컬 모델 (llama3.1:8b, 95% 트래픽)
+#    # - Layer 2: 고성능 모델 (exaone3.5:latest, 5% 트래픽, ESCALATE)
+#    security:
+#      layer1:
+#        model: qwen2.5:14b  # Layer 1: 경량 로컬 모델
+#      layer2:
+#        model: exaone3.5:latest  # Layer 2: 고성능 모델
+#      tiered:
+#        enabled: true
+#        traffic-distribution:
+#          layer1-percentage: 95.0  # Layer 1이 처리하는 트래픽 비율
+#          layer2-percentage: 5.0   # Layer 2가 처리하는 트래픽 비율
+#        layer1:
+#          enabled: true
+#          timeout-ms: 10000        # Layer 1: 컨텍스트 분석 (300ms~10s)
+#          context-window-minutes: 30
+#          vector-search-limit: 10
+#        layer2:
+#          enabled: true
+#          timeout-ms: 30000        # Layer 2: 전문가 분석 (1~5s)
+#          enable-soar: false
+#        adaptive:
+#          enabled: true
+#          learning-rate: 0.01
+#          peak-hours-start: 9
+#          peak-hours-end: 18
+#
+#
+#
+#    # vLLM 설정 (OpenAI 호환 API - spring.ai.vllm)
+#    # vLLM 사용 시 아래 설정을 활성화하고 vLLM 서버 실행 필요
+#    # vllm:
+#    #   base-url: http://localhost:8000
+#    #   enabled: true
+#
+#    vectorstore:
+#      pgvector:
+#        table-name: vector_store
+#        index-type: HNSW
+#        distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
+#        dimensions: 1536
+#        initialize-schema: true
+#        max-document-batch-size: 10000
+
+  jpa:
+    database: POSTGRESQL
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: update
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        query:
+          in_clause_parameter_padding: true
+    show-sql: false
+
+  cache:
+    type: redis
+    redis:
+      cache-null-values: false
+      time-to-live: 3600000  # 1시간 (밀리초)
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 200000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 5s
+      ssl:
+        enabled: false
