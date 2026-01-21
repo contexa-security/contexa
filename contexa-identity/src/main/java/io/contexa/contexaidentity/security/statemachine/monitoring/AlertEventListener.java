@@ -7,7 +7,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -22,7 +21,6 @@ public class AlertEventListener {
                 event.getThreshold(),
                 event.getActualValue());
 
-        
         switch (event.getSeverity()) {
             case CRITICAL:
                 sendImmediateAlert(event);
@@ -47,6 +45,5 @@ public class AlertEventListener {
 
     private void logAlert(MfaStateMachineEvents.PerformanceAlertEvent event) {
         
-        log.info("Alert logged: {}", event.getDescription());
-    }
+            }
 }

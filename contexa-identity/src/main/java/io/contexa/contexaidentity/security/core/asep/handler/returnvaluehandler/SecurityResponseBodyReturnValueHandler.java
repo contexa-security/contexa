@@ -48,11 +48,8 @@ public final class SecurityResponseBodyReturnValueHandler implements SecurityHan
                                   @Nullable Authentication authentication, HandlerMethod handlerMethod,
                                   @Nullable MediaType resolvedMediaType) throws IOException, HttpMessageNotWritableException {
         if (returnValue == null) {
-            
-            
-            log.debug("ASEP: Method [{}] with @SecurityResponseBody returned null. No body will be written.",
-                    handlerMethod.getMethod().getName());
-            return;
+
+                        return;
         }
 
         ServletServerHttpResponse outputMessage = new ServletServerHttpResponse(response);
@@ -81,16 +78,13 @@ public final class SecurityResponseBodyReturnValueHandler implements SecurityHan
                     response.getContentType(), selectedMediaType);
         }
 
-
         Class<?> returnValueClass = returnValue.getClass();
         for (HttpMessageConverter converter : this.messageConverters) {
             if (converter.canWrite(returnValueClass, selectedMediaType)) {
                 try {
                     ((HttpMessageConverter<Object>) converter).write(returnValue, selectedMediaType, outputMessage);
                     if (log.isDebugEnabled()) {
-                        log.debug("ASEP: Written @SecurityResponseBody of type [{}] as '{}' using HttpMessageConverter [{}]",
-                                returnValueClass.getSimpleName(), selectedMediaType, converter.getClass().getName());
-                    }
+                                            }
                     if (!response.isCommitted()) {
                         outputMessage.getBody(); 
                     }

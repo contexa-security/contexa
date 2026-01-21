@@ -10,7 +10,6 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import java.io.IOException;
 import java.util.Map;
 
-
 public class OAuth2LogoutSuccessHandler implements LogoutSuccessHandler {
 
     private final ObjectMapper objectMapper;

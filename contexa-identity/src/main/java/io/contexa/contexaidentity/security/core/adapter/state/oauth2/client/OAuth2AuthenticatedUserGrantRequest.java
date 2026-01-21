@@ -6,7 +6,6 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.util.Assert;
 
-
 public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2AuthorizationGrantRequest {
 
     private static final AuthorizationGrantType AUTHENTICATED_USER =
@@ -15,7 +14,6 @@ public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2Authoriza
     private final String username;
     private final String deviceId;
 
-    
     public OAuth2AuthenticatedUserGrantRequest(
             ClientRegistration clientRegistration,
             String username,
@@ -27,12 +25,10 @@ public class OAuth2AuthenticatedUserGrantRequest extends AbstractOAuth2Authoriza
         this.deviceId = deviceId;
     }
 
-    
     public String getUsername() {
         return this.username;
     }
 
-    
     @Nullable
     public String getDeviceId() {
         return this.deviceId;

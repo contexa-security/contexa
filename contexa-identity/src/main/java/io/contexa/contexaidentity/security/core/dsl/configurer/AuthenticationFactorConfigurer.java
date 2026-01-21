@@ -5,7 +5,6 @@ import io.contexa.contexaidentity.security.core.dsl.common.SecurityConfigurerDsl
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import org.springframework.security.config.Customizer;
 
-
 public interface AuthenticationFactorConfigurer<
         O extends AuthenticationProcessingOptions,
         A extends BaseAsepAttributes,

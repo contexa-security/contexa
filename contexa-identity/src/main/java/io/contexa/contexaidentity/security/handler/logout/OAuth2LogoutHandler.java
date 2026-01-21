@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-
 public class OAuth2LogoutHandler implements LogoutHandler {
 
     private static final Logger log = LoggerFactory.getLogger(OAuth2LogoutHandler.class);
@@ -40,13 +39,10 @@ public class OAuth2LogoutHandler implements LogoutHandler {
 
         try {
             if (refreshToken != null) {
-                log.debug("Attempting to invalidate and blacklist refresh token for user: {}", username);
-                tokenService.invalidateRefreshToken(refreshToken); 
+                                tokenService.invalidateRefreshToken(refreshToken); 
                 tokenService.blacklistRefreshToken(refreshToken, username, TokenInfo.REASON_LOGOUT); 
-                log.info("Successfully invalidated and blacklisted refresh token for user: {}", username);
-            } else {
-                log.debug("No refresh token found in request for user: {}. Assuming already logged out or token not used.", username);
-            }
+                            } else {
+                            }
         } catch (AuthenticationException ex) {
             log.warn("AuthenticationException during logout for user {}: {}", username, ex.getMessage());
             errorOccurred = true;
@@ -58,8 +54,7 @@ public class OAuth2LogoutHandler implements LogoutHandler {
             errorMessage = "로그아웃 처리 중 예상치 못한 오류 발생: " + ex.getMessage();
         } finally {
             SecurityContextHolder.clearContext();
-            log.debug("SecurityContext cleared for user: {}", username);
-
+            
             if (!response.isCommitted()) {
                 try {
                     TokenTransportResult clearResult = tokenService.prepareClearTokens();
@@ -87,5 +82,4 @@ public class OAuth2LogoutHandler implements LogoutHandler {
         }
     }
 }
-
 

@@ -7,7 +7,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-
 @Slf4j
 public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
 
@@ -29,39 +28,23 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
         String sessionId = factorContext.getMfaSessionId();
 
         try {
-            log.debug("[AllFactorsCompletedGuard] Guard 평가 시작 - Session: {}, CurrentState: {}",
-                     sessionId, factorContext.getCurrentState());
 
-            
             int completedCount = factorContext.getCompletedFactors() != null ?
                     factorContext.getCompletedFactors().size() : 0;
 
-            
             int requiredCount = getRequiredFactorCount(factorContext);
 
-            
             if (requiredCount <= 0) {
                 log.error("[AllFactorsCompletedGuard] Invalid required factor count ({}) for session: {}. Defaulting to 1.",
                         requiredCount, sessionId);
                 requiredCount = 1;
             }
 
-            log.debug("[AllFactorsCompletedGuard] Session {}: completed factors={}, required factors={} ({})",
-                    sessionId, completedCount, requiredCount,
-                    completedCount >= requiredCount ? "SATISFIED" : "NOT_SATISFIED");
-
             boolean allCompleted = completedCount >= requiredCount;
 
             if (allCompleted) {
-                log.info("[AllFactorsCompletedGuard] ✅ All required factors completed for session: {} ({}/{})",
-                        sessionId, completedCount, requiredCount);
-            } else {
-                log.debug("[AllFactorsCompletedGuard] More factors required for session: {} ({}/{})",
-                        sessionId, completedCount, requiredCount);
-            }
-
-            log.debug("[AllFactorsCompletedGuard] Guard 평가 완료 - Session: {}, Result: {}",
-                     sessionId, allCompleted);
+                            } else {
+                            }
 
             return allCompleted;
 
@@ -72,7 +55,6 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
         }
     }
 
-    
     private int getRequiredFactorCount(FactorContext factorContext) {
         String userId = factorContext.getUsername();
         String flowType = factorContext.getFlowTypeName();
@@ -80,12 +62,9 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
         Integer requiredFactors = mfaPolicyProvider.getRequiredFactorCount(userId, flowType);
 
         if (requiredFactors != null && requiredFactors > 0) {
-            log.debug("Policy requires {} factors for user: {} in flow: {}",
-                    requiredFactors, userId, flowType);
-            return requiredFactors;
+                        return requiredFactors;
         }
 
-        
         log.warn("PolicyProvider returned null/invalid for user: {}, flow: {}. Using default: 1",
                 userId, flowType);
         return 1;
@@ -96,7 +75,6 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
         return "Not all required MFA factors have been completed. Check factor requirements and completion status.";
     }
 
-    
     public boolean isFactorTypeCompleted(FactorContext factorContext, String factorType) {
         if (factorContext.getCompletedFactors() == null || factorType == null) {
             return false;
@@ -106,7 +84,6 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
                 .anyMatch(factor -> factorType.equalsIgnoreCase(factor.getType()));
     }
 
-    
     public boolean needsMoreFactors(FactorContext factorContext) {
         return !doEvaluate(null, factorContext);
     }

@@ -20,14 +20,12 @@ public class SecurityPlatformInitializer implements SecurityPlatform {
 
     @Override
     public void prepareGlobal(PlatformConfig config, List<?> features) {
-        log.info("SecurityPlatformInitializer: Global preparation with {} features.", features != null ? features.size() : 0);
-    }
+            }
 
     @Override
     public void initialize() throws Exception {
 
-        log.info("SecurityPlatformInitializer: Initializing security platform...");
-        List<FlowContext> flows = flowContextFactory.createAndSortFlows(config, context);
+                List<FlowContext> flows = flowContextFactory.createAndSortFlows(config, context);
         context.flowContexts(flows);
         config.setPlatformContext(context);
 
@@ -37,7 +35,6 @@ public class SecurityPlatformInitializer implements SecurityPlatform {
 
         securityConfigurerOrchestrator.applyConfigurations(flows, context, config);
         registrar.registerSecurityFilterChains(flows, context.applicationContext());
-        log.info("SecurityPlatformInitializer: Security platform initialization complete.");
-    }
+            }
 }
 

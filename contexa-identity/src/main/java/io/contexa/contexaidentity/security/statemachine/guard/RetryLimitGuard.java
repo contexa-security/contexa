@@ -6,7 +6,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-
 @Slf4j
 public class RetryLimitGuard extends AbstractMfaStateGuard {
 
@@ -17,15 +16,11 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         int currentRetryCount = factorContext.getRetryCount();
         int maxRetries = getMaxRetries();
 
-        
         String currentFactor = factorContext.getCurrentProcessingFactor() != null ?
                 factorContext.getCurrentProcessingFactor().name() : null;
         if (currentFactor != null) {
             Integer factorRetryCount = getFactorRetryCount(factorContext, currentFactor);
             int factorMaxRetries = getFactorMaxRetries(currentFactor);
-
-            log.debug("Session {}: Factor {} retry count={}/{}",
-                    sessionId, currentFactor, factorRetryCount, factorMaxRetries);
 
             if (factorRetryCount >= factorMaxRetries) {
                 log.warn("Factor {} retry limit exceeded for session: {}",
@@ -34,11 +29,7 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
             }
         }
 
-        
         boolean withinLimit = currentRetryCount < maxRetries;
-
-        log.debug("Session {}: Total retry count={}/{}, within limit={}",
-                sessionId, currentRetryCount, maxRetries, withinLimit);
 
         if (!withinLimit) {
             log.warn("Total retry limit exceeded for session: {}", sessionId);
@@ -47,13 +38,11 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         return withinLimit;
     }
 
-    
     private int getMaxRetries() {
         
         return 3;
     }
 
-    
     private int getFactorMaxRetries(String factorType) {
         
         return switch (factorType.toUpperCase()) {
@@ -63,7 +52,6 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         };
     }
 
-    
     private Integer getFactorRetryCount(FactorContext factorContext, String factorType) {
         String key = "retryCount_" + factorType;
         Object retryCount = factorContext.getAttribute(key);
@@ -75,12 +63,10 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         return 0;
     }
 
-    
     public void incrementRetryCount(FactorContext factorContext) {
         
         factorContext.setRetryCount(factorContext.getRetryCount() + 1);
 
-        
         String currentFactor = factorContext.getCurrentProcessingFactor() != null ?
                 factorContext.getCurrentProcessingFactor().name() : null;
         if (currentFactor != null) {
@@ -89,18 +75,13 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
             factorContext.setAttribute(key, currentCount + 1);
         }
 
-        log.info("Retry count incremented for session: {}, total: {}",
-                factorContext.getMfaSessionId(), factorContext.getRetryCount());
-    }
+            }
 
-    
     public void resetRetryCount(FactorContext factorContext, String factorType) {
         if (factorType != null) {
             String key = "retryCount_" + factorType;
             factorContext.removeAttribute(key);
-            log.debug("Reset retry count for factor {} in session: {}",
-                    factorType, factorContext.getMfaSessionId());
-        }
+                    }
     }
 
     @Override
@@ -108,14 +89,12 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         return "Maximum retry attempts exceeded";
     }
 
-    
     public int getRemainingRetries(FactorContext factorContext) {
         int maxRetries = getMaxRetries();
         int currentRetries = factorContext.getRetryCount();
         return Math.max(0, maxRetries - currentRetries);
     }
 
-    
     public int getFactorRemainingRetries(FactorContext factorContext, String factorType) {
         int maxRetries = getFactorMaxRetries(factorType);
         int currentRetries = getFactorRetryCount(factorContext, factorType);

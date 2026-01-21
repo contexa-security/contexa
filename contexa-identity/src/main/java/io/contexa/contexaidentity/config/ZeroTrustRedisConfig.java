@@ -18,7 +18,6 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 
-
 @Configuration
 public class ZeroTrustRedisConfig {
     
@@ -33,8 +32,7 @@ public class ZeroTrustRedisConfig {
     
     @Value("${security.zerotrust.redis.timeout:5}")
     private long redisTimeoutMs;
-    
-    
+
     @Bean
     public ClientResources clientResources() {
         return DefaultClientResources.builder()
@@ -42,8 +40,7 @@ public class ZeroTrustRedisConfig {
                 .computationThreadPoolSize(8)  
                 .build();
     }
-    
-    
+
     @Bean
     public LettuceClientConfiguration lettuceClientConfiguration(ClientResources clientResources) {
         
@@ -52,16 +49,14 @@ public class ZeroTrustRedisConfig {
                 .keepAlive(true)  
                 .tcpNoDelay(true)  
                 .build();
-        
-        
+
         ClientOptions clientOptions = ClientOptions.builder()
                 .socketOptions(socketOptions)
                 .autoReconnect(true)  
                 .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS)  
                 .timeoutOptions(TimeoutOptions.enabled(Duration.ofMillis(redisTimeoutMs)))  
                 .build();
-        
-        
+
         org.apache.commons.pool2.impl.GenericObjectPoolConfig poolConfig = 
                 new org.apache.commons.pool2.impl.GenericObjectPoolConfig();
         poolConfig.setMaxTotal(100);  
@@ -72,8 +67,7 @@ public class ZeroTrustRedisConfig {
         poolConfig.setTestOnReturn(false);  
         poolConfig.setTestWhileIdle(true);  
         poolConfig.setTimeBetweenEvictionRunsMillis(30000);  
-        
-        
+
         return LettucePoolingClientConfiguration.builder()
                         .poolConfig(poolConfig)
                         .clientOptions(clientOptions)
@@ -81,8 +75,7 @@ public class ZeroTrustRedisConfig {
                         .commandTimeout(Duration.ofMillis(redisTimeoutMs))
                         .build();
     }
-    
-    
+
     @Bean
     public RedisConnectionFactory redisConnectionFactory(LettuceClientConfiguration lettuceClientConfiguration) {
         RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration();
@@ -94,8 +87,7 @@ public class ZeroTrustRedisConfig {
         
         return new LettuceConnectionFactory(redisConfig, lettuceClientConfiguration);
     }
-    
-    
+
     @Bean(name = "stateMachineRedisTemplate")
     public RedisTemplate<String, Object> stateMachineRedisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, Object> template = new RedisTemplate<>();

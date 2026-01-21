@@ -50,7 +50,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private MfaAsepAttributes mfaAsepAttributes;
     private MfaPageConfig mfaPageConfig;
 
-    
     private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
 
     private final String mfaFlowTypeName = AuthType.MFA.name().toLowerCase(); 
@@ -85,8 +84,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         throw new UnsupportedOperationException("Use .primaryAuthentication(primary -> primary.restLogin(...)) for MFA flow's primary auth.");
     }
 
-    
-
     private <O_FACTOR extends AuthenticationProcessingOptions,
             A_FACTOR extends BaseAsepAttributes,
             C_FACTOR extends AuthenticationFactorConfigurer<O_FACTOR, A_FACTOR, C_FACTOR>> MfaDslConfigurerImpl<H> configureMfaFactor(
@@ -107,8 +104,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         AuthenticationStepConfig factorStep = new AuthenticationStepConfig(this.mfaFlowTypeName, authType.name(), stepOrder, false);
         factorStep.getOptions().put("_options", factorOptions);
         this.configuredSteps.add(factorStep);
-        log.debug("MFA Flow: Added factor step: {} with order {}", factorStep.getType(), factorStep.getOrder());
-        return this;
+                return this;
     }
 
     @Override
@@ -151,8 +147,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         if (mfaAsepAttributesCustomizer != null) {
             mfaAsepAttributesCustomizer.customize(this.mfaAsepAttributes);
         }
-        log.debug("ASEP: MfaAsepAttributes (global for MFA flow) configured.");
-        return this;
+                return this;
     }
 
     @Override
@@ -161,15 +156,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         MfaPageConfigurer configurer = new MfaPageConfigurer();
         mfaPageConfigurerCustomizer.customize(configurer);
         this.mfaPageConfig = configurer.getConfig();
-        log.debug("MFA custom page configuration applied: {}", this.mfaPageConfig);
-        return this;
+                return this;
     }
 
-    
     public MfaPageConfig getMfaPageConfig() {
         return this.mfaPageConfig;
     }
-
 
     @Override
     public AuthenticationFlowConfig build() {
@@ -181,19 +173,13 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                     primaryAuthOptionsForFlow.getFormOptions() : primaryAuthOptionsForFlow.getRestOptions();
             AuthType primaryAuthType = primaryAuthOptionsForFlow.isFormLogin() ? AuthType.MFA_FORM : AuthType.MFA_REST;
 
-            
             configuredSteps.removeIf(s -> s.getOrder() == 0);
 
-            
             AuthenticationStepConfig primaryAuthStep = new AuthenticationStepConfig(this.mfaFlowTypeName, primaryAuthType.name(), 0, true);
             primaryAuthStep.getOptions().put("_options", primaryConcreteOptions);
             configuredSteps.addFirst(primaryAuthStep);
-            log.debug("MFA Flow [{}]: Added primary authentication step (id='{}', type: {}) from primaryAuthentication() DSL.",
-                    this.mfaFlowTypeName, primaryAuthStep.getStepId(), primaryAuthType);
-        } else {
-            
-            
-            
+                    } else {
+
             if (configuredSteps.isEmpty() || configuredSteps.getFirst().getOrder() != 0) {
                 throw new DslConfigurationException("MFA flow [" + this.mfaFlowTypeName + "] must have a primary authentication step (order 0) or use .primaryAuthentication() DSL.");
             }
@@ -237,7 +223,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             }
         }
 
-        
         Assert.notNull(primaryAuthOptionsForFlow,
             "PrimaryAuthenticationOptions must not be null for MFA flow [" + this.mfaFlowTypeName + "]. " +
             "Either configure .primaryAuthentication() DSL or ensure the first step (order=0) has valid FormOptions or RestOptions.");
@@ -276,11 +261,9 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .build();
     }
 
-    
     private MfaAuthenticationEntryPoint createMfaAuthenticationEntryPoint(PrimaryAuthenticationOptions primaryAuthOptions) {
         Assert.notNull(primaryAuthOptions, "PrimaryAuthenticationOptions cannot be null for creating MfaAuthenticationEntryPoint");
 
-        
         String loginPageUrl = primaryAuthOptions.getLoginPage();
 
         if (!StringUtils.hasText(loginPageUrl)) {
@@ -288,7 +271,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             log.warn("loginPage not configured in PrimaryAuthenticationOptions. Using default: /loginForm");
         }
 
-        
         ObjectMapper objectMapper;
         try {
             objectMapper = this.applicationContext.getBean(ObjectMapper.class);
@@ -300,5 +282,4 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         return entryPoint;
     }
 }
-
 

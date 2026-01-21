@@ -6,7 +6,6 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
-
 public abstract class BasePasskeyAuthenticationAdapter extends AbstractAuthenticationAdapter<PasskeyOptions> {
 
     @Override

@@ -7,13 +7,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 import java.util.List;
 
-
 public interface SecurityConfigurerProvider {
 
-    
     List<SecurityConfigurer> getGlobalConfigurers(PlatformContext platformContext, PlatformConfig platformConfig);
 
-    
     List<SecurityConfigurer>getFlowSpecificConfigurers(
             PlatformContext platformContext,
             PlatformConfig platformConfig,

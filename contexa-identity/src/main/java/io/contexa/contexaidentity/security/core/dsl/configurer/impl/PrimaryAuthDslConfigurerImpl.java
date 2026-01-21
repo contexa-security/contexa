@@ -64,8 +64,7 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
 
             optionsBuilder.formOptions(builtFormOptions);
             determinedLoginProcessingUrl = builtFormOptions.getLoginProcessingUrl();
-            log.debug("PrimaryAuth: FormLogin options built. Processing URL: {}", determinedLoginProcessingUrl);
-
+            
         } else if (restLoginCustomizer != null) {
             
             RestConfigurerConfigurerImpl restDslBuilder = (RestConfigurerConfigurerImpl) factory.createFactorConfigurer(
@@ -76,10 +75,8 @@ public final class PrimaryAuthDslConfigurerImpl<H extends HttpSecurityBuilder<H>
 
             optionsBuilder.restOptions(builtRestOptions);
             determinedLoginProcessingUrl = builtRestOptions.getLoginProcessingUrl();
-            log.debug("PrimaryAuth: RestLogin options built. Processing URL: {}", determinedLoginProcessingUrl);
-        } else {
-            
-            
+                    } else {
+
             throw new DslConfigurationException("Neither formLogin nor restLogin was configured for primary authentication, but buildOptions was called.");
         }
 

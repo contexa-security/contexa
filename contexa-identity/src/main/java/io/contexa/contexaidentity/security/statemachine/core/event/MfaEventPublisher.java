@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -18,13 +17,11 @@ public class MfaEventPublisher {
 
     private final ApplicationEventPublisher eventPublisher;
 
-    
     public void publishStateChange(String sessionId, MfaState fromState,
                                    MfaState toState, MfaEvent event) {
         publishStateChange(sessionId, fromState, toState, event, null);
     }
 
-    
     public void publishStateChange(String sessionId, MfaState fromState,
                                    MfaState toState, MfaEvent event,
                                    Duration duration) {
@@ -35,15 +32,11 @@ public class MfaEventPublisher {
 
             eventPublisher.publishEvent(stateChangeEvent);
 
-            log.debug("Published state change event: {} -> {} for session: {}",
-                    fromState, toState, sessionId);
-
         } catch (Exception e) {
             log.error("Failed to publish state change event", e);
         }
     }
 
-    
     public void publishError(String sessionId, MfaState currentState,
                              MfaEvent event, Exception error) {
         try {
@@ -53,14 +46,11 @@ public class MfaEventPublisher {
 
             eventPublisher.publishEvent(errorEvent);
 
-            log.debug("Published error event for session: {}", sessionId);
-
         } catch (Exception e) {
             log.error("Failed to publish error event", e);
         }
     }
 
-    
     public void publishCustomEvent(String eventType, Object payload) {
         try {
             CustomEvent customEvent = new CustomEvent(
@@ -68,8 +58,6 @@ public class MfaEventPublisher {
             );
 
             eventPublisher.publishEvent(customEvent);
-
-            log.debug("Published custom event: {}", eventType);
 
         } catch (Exception e) {
             log.error("Failed to publish custom event", e);

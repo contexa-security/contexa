@@ -4,7 +4,6 @@ import io.contexa.contexacommon.enums.AuthType;
 import lombok.Builder;
 import lombok.Getter;
 
-
 @Getter
 @Builder
 public class NextFactorDecision {
@@ -14,7 +13,6 @@ public class NextFactorDecision {
     private final boolean allFactorsCompleted;
     private final String errorMessage;
 
-    
     public static NextFactorDecision noMoreFactors() {
         return NextFactorDecision.builder()
             .hasNextFactor(false)
@@ -22,7 +20,6 @@ public class NextFactorDecision {
             .build();
     }
 
-    
     public static NextFactorDecision nextFactor(AuthType type, String stepId) {
         return NextFactorDecision.builder()
             .hasNextFactor(true)
@@ -32,7 +29,6 @@ public class NextFactorDecision {
             .build();
     }
 
-    
     public static NextFactorDecision error(String message) {
         return NextFactorDecision.builder()
             .hasNextFactor(false)

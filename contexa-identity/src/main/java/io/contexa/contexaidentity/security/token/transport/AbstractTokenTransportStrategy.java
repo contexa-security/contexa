@@ -14,26 +14,15 @@ public abstract class AbstractTokenTransportStrategy {
 
     protected static final String SAME_SITE = "Strict"; 
     protected static final boolean HTTP_ONLY = true;
-    
 
     private final boolean cookieSecureFlag; 
 
-    
     protected final ObjectMapper objectMapper = new ObjectMapper();
 
-
-    
-    
     protected AbstractTokenTransportStrategy(AuthContextProperties props) {
-        
-        
+
         this.cookieSecureFlag = props != null && props.isCookieSecure(); 
     }
-    
-    
-    
-    
-
 
     protected String extractCookie(HttpServletRequest request, String name) {
         if (request.getCookies() == null) return null;

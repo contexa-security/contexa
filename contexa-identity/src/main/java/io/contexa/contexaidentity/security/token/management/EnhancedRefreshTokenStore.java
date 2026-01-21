@@ -6,39 +6,26 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-
 public interface EnhancedRefreshTokenStore extends RefreshTokenStore {
 
-    
     void rotate(String oldToken, String newToken, String username, String deviceId, ClientInfo clientInfo);
 
-    
     void recordUsage(String token, TokenAction action, ClientInfo clientInfo);
 
-    
     boolean isTokenReused(String token);
 
-    
     AnomalyDetectionResult detectAnomaly(String username, String deviceId, ClientInfo clientInfo);
 
-    
     void revokeAllUserTokens(String username, String reason);
 
-    
     void revokeDeviceTokens(String username, String deviceId, String reason);
 
-    
     List<TokenUsageHistory> getTokenHistory(String username, int limit);
 
-    
     List<ActiveSession> getActiveSessions(String username);
 
-    
     Optional<TokenMetadata> getTokenMetadata(String token);
 
-    
-
-    
     record ClientInfo(
             String ipAddress,
             String userAgent,
@@ -47,7 +34,6 @@ public interface EnhancedRefreshTokenStore extends RefreshTokenStore {
             Instant timestamp
     ) {}
 
-    
     enum TokenAction {
         CREATED,      
         USED,         
@@ -58,7 +44,6 @@ public interface EnhancedRefreshTokenStore extends RefreshTokenStore {
         REVOKED       
     }
 
-    
     record AnomalyDetectionResult(
             boolean isAnomalous,
             AnomalyType type,
@@ -66,7 +51,6 @@ public interface EnhancedRefreshTokenStore extends RefreshTokenStore {
             double riskScore
     ) {}
 
-    
     enum AnomalyType {
         NONE,                    
         RAPID_REFRESH,          
@@ -76,7 +60,6 @@ public interface EnhancedRefreshTokenStore extends RefreshTokenStore {
         SUSPICIOUS_PATTERN      
     }
 
-    
     record TokenUsageHistory(
             String token,
             TokenAction action,
@@ -85,7 +68,6 @@ public interface EnhancedRefreshTokenStore extends RefreshTokenStore {
             boolean successful
     ) {}
 
-    
     record ActiveSession(
             String deviceId,
             String deviceName,
@@ -96,7 +78,6 @@ public interface EnhancedRefreshTokenStore extends RefreshTokenStore {
             boolean current
     ) {}
 
-    
     record TokenMetadata(
             String username,
             String deviceId,

@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Deprecated
 @RestController
@@ -34,19 +33,16 @@ public class MfaApiController {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
 
-    
     @PostMapping("/select-factor")
     public ResponseEntity<Map<String, Object>> selectFactor(@RequestBody Map<String, String> request,
                                                             HttpServletRequest httpRequest) {
         String factorType = request.get("factor");
 
-        
         if (!StringUtils.hasText(factorType)) {
             return createErrorResponse(HttpStatus.BAD_REQUEST, "MISSING_FACTOR",
                     "Factor type is required", null);
         }
 
-        
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
 
         if (!isValidMfaContext(ctx)) {
@@ -54,7 +50,6 @@ public class MfaApiController {
                     "Invalid or expired MFA session", ctx);
         }
 
-        
         if (ctx.getCurrentState() != MfaState.AWAITING_FACTOR_SELECTION) {
             log.warn("Factor selection attempted in invalid state: {} for session: {}",
                     ctx.getCurrentState(), ctx.getMfaSessionId());
@@ -62,7 +57,6 @@ public class MfaApiController {
                     "Cannot select factor in current state: " + ctx.getCurrentState(), ctx);
         }
 
-        
         AuthType requestedFactorType;
         try {
             requestedFactorType = AuthType.valueOf(factorType.toUpperCase());
@@ -71,7 +65,6 @@ public class MfaApiController {
                     "Invalid factor type: " + factorType, ctx);
         }
 
-        
         if (!ctx.isFactorAvailable(requestedFactorType)) {
             log.warn("User {} attempted to select unavailable factor: {}. DSL available factors: {}",
                     ctx.getUsername(), requestedFactorType, ctx.getAvailableFactors());
@@ -83,7 +76,6 @@ public class MfaApiController {
             
             ctx.setAttribute("selectedFactorType", requestedFactorType.name());
 
-            
             boolean accepted = stateMachineIntegrator.sendEvent(
                     MfaEvent.FACTOR_SELECTED, ctx, httpRequest
             );
@@ -97,9 +89,6 @@ public class MfaApiController {
                 successResponse.put("nextStepUrl", nextStepUrl);
                 successResponse.put("currentState", ctx.getCurrentState().name());
 
-                log.info("Factor {} selected successfully for user {} (session: {})",
-                        requestedFactorType, ctx.getUsername(), ctx.getMfaSessionId());
-
                 return ResponseEntity.ok(successResponse);
             } else {
                 log.error("State Machine rejected FACTOR_SELECTED event for session: {} in state: {}",
@@ -111,7 +100,6 @@ public class MfaApiController {
         } catch (Exception e) {
             log.error("Error selecting factor {} for session: {}", factorType, ctx.getMfaSessionId(), e);
 
-            
             try {
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, ctx, httpRequest);
             } catch (Exception eventError) {
@@ -123,7 +111,6 @@ public class MfaApiController {
         }
     }
 
-    
     @PostMapping("/cancel")
     public ResponseEntity<Map<String, Object>> cancelMfa(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -133,7 +120,6 @@ public class MfaApiController {
                     "Invalid or expired MFA session", null);
         }
 
-        
         if (ctx.getCurrentState().isTerminal()) {
             return createErrorResponse(HttpStatus.BAD_REQUEST, "ALREADY_TERMINAL",
                     "MFA process is already completed or terminated", ctx);
@@ -150,10 +136,6 @@ public class MfaApiController {
                         "MFA_CANCELLED", "MFA cancelled successfully", ctx);
                 successResponse.put("redirectUrl", getContextPath(httpRequest) + authUrlProvider.getPrimaryLoginPage());
 
-                log.info("MFA cancelled by user {} (session: {})",
-                        ctx.getUsername(), ctx.getMfaSessionId());
-
-                
                 stateMachineIntegrator.cleanupSession(httpRequest);
 
                 return ResponseEntity.ok(successResponse);
@@ -171,7 +153,6 @@ public class MfaApiController {
         }
     }
 
-    
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getMfaStatus(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -207,7 +188,6 @@ public class MfaApiController {
         }
     }
 
-    
     @PostMapping("/request-ott-code")
     public ResponseEntity<Map<String, Object>> requestOttCode(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -217,7 +197,6 @@ public class MfaApiController {
                     "Invalid or expired MFA session", null);
         }
 
-        
         if (ctx.getCurrentProcessingFactor() != AuthType.OTT) {
             return createErrorResponse(HttpStatus.BAD_REQUEST, "INVALID_FACTOR",
                     "OTT code request is only available during OTT factor processing", ctx);
@@ -246,7 +225,6 @@ public class MfaApiController {
         }
     }
 
-    
     @GetMapping("/context")
     public ResponseEntity<Map<String, Object>> getFactorContext(HttpServletRequest httpRequest) {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(httpRequest);
@@ -264,13 +242,11 @@ public class MfaApiController {
             contextResponse.put("flowType", ctx.getFlowTypeName());
             contextResponse.put("isTerminal", ctx.getCurrentState().isTerminal());
 
-            
             List<String> availableFactorNames = ctx.getAvailableFactors().stream()
                     .map(AuthType::name)
                     .collect(Collectors.toList());
             contextResponse.put("availableFactors", availableFactorNames);
 
-            
             List<String> completedFactorNames = ctx.getCompletedFactors().stream()
                     .filter(step -> step.getAuthType() != null)
                     .map(step -> step.getAuthType().name())
@@ -278,18 +254,13 @@ public class MfaApiController {
             contextResponse.put("completedFactors", completedFactorNames);
             contextResponse.put("completedFactorsCount", completedFactorNames.size());
 
-            
             if (ctx.getCurrentProcessingFactor() != null) {
                 contextResponse.put("currentProcessingFactor", ctx.getCurrentProcessingFactor().name());
                 contextResponse.put("currentStepId", ctx.getCurrentStepId());
             }
 
-            
             contextResponse.put("storageType", "UNIFIED_STATE_MACHINE");
             contextResponse.put("timestamp", System.currentTimeMillis());
-
-            log.debug("MFA context retrieved for session: {}, state: {}",
-                    ctx.getMfaSessionId(), ctx.getCurrentState());
 
             return ResponseEntity.ok(contextResponse);
 
@@ -300,14 +271,11 @@ public class MfaApiController {
         }
     }
 
-    
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> getEndpointConfig() {
         try {
             
             Map<String, Object> config = authUrlProvider.getAllUiPageUrls();
-
-            log.debug("Endpoint configuration retrieved successfully from AuthUrlProvider");
 
             return ResponseEntity.ok(config);
 
@@ -318,9 +286,6 @@ public class MfaApiController {
         }
     }
 
-    
-
-    
     private boolean isValidMfaContext(FactorContext ctx) {
         return ctx != null &&
                 StringUtils.hasText(ctx.getUsername()) &&
@@ -328,7 +293,6 @@ public class MfaApiController {
                 !ctx.getCurrentState().isTerminal();
     }
 
-    
     private String determineNextStepUrl(FactorContext ctx, HttpServletRequest request) {
         String contextPath = getContextPath(request);
         AuthType currentFactor = ctx.getCurrentProcessingFactor();
@@ -347,7 +311,6 @@ public class MfaApiController {
         };
     }
 
-    
     private Map<String, Object> createSuccessResponse(String status, String message, FactorContext ctx) {
         Map<String, Object> response = new HashMap<>();
         response.put("status", status);
@@ -363,7 +326,6 @@ public class MfaApiController {
         return response;
     }
 
-    
     private ResponseEntity<Map<String, Object>> createErrorResponse(HttpStatus status, String errorCode,
                                                                     String message, FactorContext ctx) {
         Map<String, Object> errorResponse = new HashMap<>();
@@ -380,7 +342,6 @@ public class MfaApiController {
         return ResponseEntity.status(status).body(errorResponse);
     }
 
-    
     private String getContextPath(HttpServletRequest request) {
         return request.getContextPath();
     }

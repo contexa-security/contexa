@@ -56,8 +56,7 @@ public final class SecurityRequestBodyArgumentResolver implements SecurityHandle
         MediaType contentType = inputMessage.getHeaders().getContentType();
 
         if (contentType == null) {
-            log.debug("ASEP: Request Content-Type is not specified. HttpMessageConverter will attempt to read or use a default.");
-        }
+                    }
 
         Type targetType = parameter.getGenericParameterType(); 
         Class<?> targetClass = parameter.getParameterType(); 
@@ -70,7 +69,6 @@ public final class SecurityRequestBodyArgumentResolver implements SecurityHandle
                     "ASEP: No HttpMessageConverters configured to read request body for @SecurityRequestBody, and request body is required.", inputMessage);
         }
 
-
         for (HttpMessageConverter<?> converter : this.messageConverters) {
             
             if (converter.canRead(targetClass, contentType)) {
@@ -79,17 +77,13 @@ public final class SecurityRequestBodyArgumentResolver implements SecurityHandle
                     body = ((HttpMessageConverter<Object>) converter).read((Class<Object>) targetClass, inputMessage);
                     bodyReadSuccessfully = true;
                     if (log.isDebugEnabled()) {
-                        log.debug("ASEP: Read HTTP request body with HttpMessageConverter [{}] for parameter type [{}] and content type [{}]",
-                                converter.getClass().getSimpleName(), targetClass.getName(), contentType);
-                    }
+                                            }
                     break; 
                 } catch (IOException | HttpMessageNotReadableException ex) {
                     
                     log.warn("ASEP: Could not read HTTP request body with HttpMessageConverter [{}]: {}",
                             converter.getClass().getSimpleName(), ex.getMessage());
-                    
-                    
-                    
+
                     if (ex instanceof IOException && !(ex instanceof HttpMessageNotReadableException)) {
                         throw new HttpMessageNotReadableException("IO error while reading request body: " + ex.getMessage(), ex, inputMessage);
                     }
@@ -114,8 +108,7 @@ public final class SecurityRequestBodyArgumentResolver implements SecurityHandle
         }
 
         if (body == null && requestBodyAnnotation.required()) {
-            
-            
+
             throw new RequestBodyRequiredException(
                     "Request body is required for parameter type " + targetClass.getName() +
                             " but was effectively null or no suitable converter found.", parameter);
@@ -124,7 +117,6 @@ public final class SecurityRequestBodyArgumentResolver implements SecurityHandle
         return body;
     }
 
-    
     public static final class RequestBodyRequiredException extends RuntimeException {
         private final transient MethodParameter parameter; 
 

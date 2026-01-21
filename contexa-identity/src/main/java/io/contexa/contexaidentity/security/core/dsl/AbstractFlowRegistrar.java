@@ -64,8 +64,6 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
             actualOrder = options.getOrder();
         }
 
-        
-        
         String flowTypeName = authType.name().toLowerCase() + "_flow"; 
         String finalFlowTypeName = flowTypeName;
         if (platformBuilder.getModifiableFlows().stream().anyMatch(f -> f.getTypeName().equalsIgnoreCase(finalFlowTypeName))) {
@@ -74,31 +72,20 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
             flowTypeName = flowTypeName + "_" + (count + 1);
         }
 
-
-        
         AuthenticationStepConfig stepConfig = new AuthenticationStepConfig(flowTypeName, authType.name(), actualOrder, false);
         stepConfig.getOptions().put("_options", options);
-        
 
         AuthenticationFlowConfig.Builder flowBuilder = AuthenticationFlowConfig.builder(flowTypeName)
                 .stepConfigs(List.of(stepConfig))
                 .stateConfig(null) 
                 .order(actualOrder);
 
-        
         if (options.getSuccessHandler() != null) {
             flowBuilder.finalSuccessHandler(options.getSuccessHandler()); 
         }
-        
-        
-        
-        
-
 
         platformBuilder.addFlow(flowBuilder.build());
-        log.info("AbstractFlowRegistrar: Registered single-step authentication flow: '{}' (stepId: '{}'), Order: {}",
-                flowTypeName, stepConfig.getStepId(), actualOrder);
-        return this.stateSetter;
+                return this.stateSetter;
     }
 
     protected IdentityStateDsl registerMultiStepFlow(
@@ -109,9 +96,7 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
         AuthenticationFlowConfig mfaFlow = mfaDslConfigurer.build(); 
 
         platformBuilder.addFlow(mfaFlow);
-        log.info("AbstractFlowRegistrar: Registered MFA flow options. Flow TypeName: '{}', Order: {}. Steps: {}",
-                mfaFlow.getTypeName(), mfaFlow.getOrder(), mfaFlow.getStepConfigs().size());
-        return this.stateSetter;
+                return this.stateSetter;
     }
 
     private final class StateSetter implements IdentityStateDsl {
@@ -125,9 +110,7 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
             AuthenticationFlowConfig lastFlow = currentFlows.get(lastIndex);
             AuthenticationFlowConfig updatedFlow = lastFlow.withStateConfig(new StateConfig(stateType.name().toLowerCase(), stateType));
             currentFlows.set(lastIndex, updatedFlow);
-            log.debug("AbstractFlowRegistrar.StateSetter: Set state for last flow (type: {}) to: {}",
-                    lastFlow.getTypeName(), stateType);
-        }
+                    }
 
         @Override
         public IdentityAuthDsl session(Customizer<SessionStateConfigurer> customizer) {

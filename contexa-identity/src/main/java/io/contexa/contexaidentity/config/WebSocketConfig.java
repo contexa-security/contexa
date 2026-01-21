@@ -20,14 +20,12 @@ import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Slf4j
 @Configuration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    
     static class SessionPrincipal implements Principal {
         private final String name;
 
@@ -41,7 +39,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         }
     }
 
-    
     private final DefaultHandshakeHandler handshakeHandler = new DefaultHandshakeHandler() {
         @Override
         protected Principal determineUser(@NonNull ServerHttpRequest request,
@@ -54,8 +51,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
             SessionPrincipal principal = new SessionPrincipal("session-" + UUID.randomUUID());
             attributes.put("ws.principal", principal);
-            log.debug("WebSocket 세션 Principal 생성: {}", principal.getName());
-            return principal;
+                        return principal;
         }
     };
 
@@ -64,14 +60,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         
         config.setApplicationDestinationPrefixes("/app");
 
-        
         config.enableSimpleBroker("/topic", "/queue");
 
-        
         config.setUserDestinationPrefix("/user");
 
-        log.info("WebSocket Message Broker 설정 완료 - app=/app, broker=/topic|/queue, user=/user");
-    }
+            }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -81,10 +74,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setHandshakeHandler(handshakeHandler)
                 .withSockJS();
 
-        log.info("STOMP 엔드포인트 등록 완료: /ws-soar");
-    }
+            }
 
-    
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         int processors = Runtime.getRuntime().availableProcessors();
@@ -98,16 +89,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.interceptors(new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
-                log.trace("인바운드 메시지: {}", message);
-                return message;
+                                return message;
             }
         });
 
-        log.debug("WebSocket 인바운드 채널 설정 완료 - corePool={}, maxPool={}",
-                  processors, Math.max(8, processors * 2));
-    }
+            }
 
-    
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {
         int processors = Runtime.getRuntime().availableProcessors();
@@ -121,12 +108,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.interceptors(new ChannelInterceptor() {
             @Override
             public Message<?> preSend(Message<?> message, MessageChannel channel) {
-                log.trace("아웃바운드 메시지: {}", message);
-                return message;
+                                return message;
             }
         });
 
-        log.debug("WebSocket 아웃바운드 채널 설정 완료 - corePool={}, maxPool={}",
-                  processors, Math.max(8, processors * 2));
-    }
+            }
 }

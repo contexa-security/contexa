@@ -1,14 +1,11 @@
 package io.contexa.contexaidentity.security.core.mfa.context;
 
-
 public final class FactorContextAttributes {
 
-    
     private FactorContextAttributes() {
         throw new AssertionError("Utility class cannot be instantiated");
     }
 
-    
     public static final class Timestamps {
         public static final String PRIMARY_AUTH_COMPLETED_AT = "primaryAuthCompletedAt";
         public static final String CHALLENGE_INITIATED_AT = "challengeInitiatedAt";
@@ -25,7 +22,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class UserInfo {
         public static final String USERNAME = "username";
         public static final String USER_ID = "userId";
@@ -37,7 +33,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class FactorInfo {
         public static final String CURRENT_PROCESSING_FACTOR = "currentProcessingFactor";
         public static final String FACTOR_TYPE = "factorType";
@@ -51,7 +46,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class Policy {
         public static final String AVAILABLE_FACTORS = "availableFactors";
         public static final String COMPLETED_FACTORS = "completedFactors";
@@ -64,7 +58,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class CompletionState {
         public static final String IS_COMPLETED = "isCompleted";
         public static final String NEEDS_FACTOR_SELECTION = "needsFactorSelection";
@@ -75,7 +68,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class Retry {
         public static final String RETRY_COUNT = "retryCount";
         public static final String RETRY_LIMIT = "retryLimit";
@@ -85,7 +77,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class FlowMetadata {
         public static final String MFA_SESSION_ID = "mfaSessionId";
         public static final String FLOW_TYPE_NAME = "flowTypeName";
@@ -96,7 +87,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class DeviceAndSession {
         public static final String DEVICE_TRUSTED = "deviceTrusted";
         public static final String REMEMBER_ME = "rememberMe";
@@ -109,7 +99,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class MessageAndReason {
         public static final String MESSAGE = "message";
         public static final String REASON = "reason";
@@ -120,7 +109,6 @@ public final class FactorContextAttributes {
         }
     }
 
-    
     public static final class StateControl {
         public static final String BLOCKED = "blocked";
         public static final String MFA_DECISION_TYPE = "mfaDecisionType";

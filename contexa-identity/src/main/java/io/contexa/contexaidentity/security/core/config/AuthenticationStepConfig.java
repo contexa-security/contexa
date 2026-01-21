@@ -30,7 +30,6 @@ public class AuthenticationStepConfig {
         
     }
 
-    
     public AuthenticationStepConfig(String flowName, String type, int order, boolean isPrimary) {
         this.type = type;
         this.order = order;

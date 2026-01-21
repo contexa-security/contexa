@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHandler {
 
@@ -41,22 +40,16 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
             return;
         }
 
-        log.debug("Processing OAuth2 single auth success for user: {}", authentication.getName());
-
-        
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);
         TokenTransportResult transportResult = prepareTokenTransport(
                 tokenPair.getAccessToken(), tokenPair.getRefreshToken());
 
-        
         Map<String, Object> responseData = buildResponseData(transportResult, authentication, request);
 
-        
         setCookies(response, transportResult);
         writeJsonResponse(response, responseData);
 
-        log.debug("OAuth2 single auth success completed for user: {}", authentication.getName());
-    }
+            }
 
     @Override
     protected Map<String, Object> buildResponseData(TokenTransportResult transportResult,
@@ -65,18 +58,14 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
         Map<String, Object> responseData = new HashMap<>();
 
-        
         if (transportResult != null && transportResult.getBody() != null) {
             responseData.putAll(transportResult.getBody());
         }
 
-        
         responseData.put("authenticated", true);
         responseData.put("redirectUrl", determineTargetUrl(request));
         responseData.put("message", "로그인 성공!");
         responseData.put("username", authentication.getName());
-
-        log.debug("Response data built with accessToken: {}", responseData.containsKey("accessToken"));
 
         return responseData;
     }

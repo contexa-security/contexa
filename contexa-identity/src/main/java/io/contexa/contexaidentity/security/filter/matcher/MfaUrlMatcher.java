@@ -24,7 +24,6 @@ public class MfaUrlMatcher {
     private final Map<MfaRequestType, List<RequestMatcher>> matcherMap;
     private final Set<String> configuredUrls;
 
-    
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     public MfaUrlMatcher(AuthUrlProvider authUrlProvider,
@@ -33,12 +32,9 @@ public class MfaUrlMatcher {
         this.applicationContext = applicationContext;
         this.matcherMap = new HashMap<>();
         this.configuredUrls = new HashSet<>();
-        
-        
-        
+
     }
 
-    
     public void initializeMatchers() {
         
         lock.writeLock().lock();
@@ -47,38 +43,27 @@ public class MfaUrlMatcher {
             matcherMap.clear();
             configuredUrls.clear();
 
-            log.info("🔄 Initializing MfaUrlMatcher with updated AuthUrlProvider URLs...");
-
-            
             addMatcher(MfaRequestType.FACTOR_SELECTION,
                     authUrlProvider.getMfaSelectFactor(), "GET");
             addMatcher(MfaRequestType.FACTOR_SELECTION,
                     authUrlProvider.getMfaSelectFactor(), "POST");
 
-            
             addMatcher(MfaRequestType.OTT_CODE_REQUEST,
                     authUrlProvider.getOttCodeGeneration(), "POST");
 
-            
             addMatcher(MfaRequestType.OTT_CODE_VERIFY,
                     authUrlProvider.getOttLoginProcessing(), "POST");
 
-            
             addMatcher(MfaRequestType.CHALLENGE_INITIATION,
                     authUrlProvider.getPasskeyChallengeUi(), "POST");
 
-            
             addMatcher(MfaRequestType.LOGIN_PROCESSING,
                     authUrlProvider.getPasskeyLoginProcessing(), "POST");
 
-            
             addMatcher(MfaRequestType.CANCEL_MFA,
                     authUrlProvider.getMfaCancel(), "POST");
 
-            log.info("✅ MfaUrlMatcher initialized: {} request types, {} URLs configured",
-                matcherMap.size(), configuredUrls.size());
-            log.debug("Configured URLs: {}", configuredUrls);
-        } finally {
+                                } finally {
             lock.writeLock().unlock();
         }
     }
@@ -90,8 +75,7 @@ public class MfaUrlMatcher {
 
             matcherMap.computeIfAbsent(type, k -> new ArrayList<>()).add(matcher);
             configuredUrls.add(pattern + " [" + method + "]");
-            log.debug("Added matcher for type {}: {} [{}]", type, pattern, method);
-        }
+                    }
     }
 
     public boolean isMfaRequest(HttpServletRequest request) {

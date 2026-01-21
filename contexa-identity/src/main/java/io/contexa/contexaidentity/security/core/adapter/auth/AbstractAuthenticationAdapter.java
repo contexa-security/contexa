@@ -63,14 +63,11 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         }
 
         if (myRelevantStepConfig == null) {
-            log.trace("AuthenticationFeature [{}]: No relevant AuthenticationStepConfig found in the current flow's steps. Skipping specific configuration for this HttpSecurity instance.", getId());
-            return;
+                        return;
         }
 
         AuthenticationFlowConfig currentFlow = http.getSharedObject(AuthenticationFlowConfig.class);
-        log.debug("AuthenticationFeature [{}]: Applying for its relevant step: {} in flow: {}",
-                getId(), myRelevantStepConfig.getType(), (currentFlow != null ? currentFlow.getTypeName() : "Single/Unknown"));
-
+        
         O options = (O) myRelevantStepConfig.getOptions().get("_options");
         if (options == null) {
             throw new IllegalStateException(
@@ -84,14 +81,11 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         ApplicationContext appContext = platformContext.applicationContext();
         Objects.requireNonNull(appContext, "ApplicationContext from PlatformContext cannot be null");
 
-        
         StateConfig resolvedStateConfig = (stateConfig != null) ? stateConfig :
                 (currentFlow != null && currentFlow.getStateConfig() != null) ? currentFlow.getStateConfig() : null;
 
-        
         StateType stateType = determineStateType(resolvedStateConfig, appContext);
 
-        
         SecurityContextRepository securityContextRepository = resolveSecurityContextRepository(
                 stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow
         );
@@ -99,24 +93,15 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
         }
 
-        log.debug("AuthenticationFeature [{}]: SecurityContextRepository set to: {}",
-                getId(), securityContextRepository.getClass().getSimpleName());
-
-        
-        
         if (stateType != StateType.SESSION) {
             http.sessionManagement(session -> session
                     .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             );
-            log.debug("AuthenticationFeature [{}]: SessionCreationPolicy set to STATELESS for StateType: {}",
-                    getId(), stateType);
-        }
+                    }
 
-        
         PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, resolvedStateConfig, appContext);
         PlatformAuthenticationFailureHandler failureHandler = resolveFailureHandler(options, currentFlow, resolvedStateConfig, appContext);
 
-        
         if (successHandler instanceof AbstractTokenBasedSuccessHandler tokenBasedSuccessHandler) {
             if (options.getSuccessHandler() != null) {
                 tokenBasedSuccessHandler.setDelegateHandler(options.getSuccessHandler());
@@ -133,9 +118,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
         if (this instanceof BaseOttAuthenticationAdapter ottAdapter) {
                 generationSuccessHandler = determineDefaultOttGenerationSuccessHandler(appContext);
-                log.debug("AuthenticationFeature [{}]: Using provided successHandler as OneTimeTokenGenerationSuccessHandler: {}",
-                        getId(), successHandler != null ? successHandler.getClass().getName() : "null");
-
+                
                 if (generationSuccessHandler == null) {
                     log.error("AuthenticationFeature [{}]: CRITICAL - determineDefaultOttSuccessHandler returned null. This should not happen. Review BaseOttAuthenticationAdapter.determineDefaultOttSuccessHandler.", getId());
                     throw new IllegalStateException("Unable to determine a valid OneTimeTokenGenerationSuccessHandler for OTT feature " + getId() +
@@ -149,9 +132,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
         options.applyCommonSecurityConfigs(http);
 
-        log.info("AuthenticationFeature [{}]: Applied its specific configuration for step type '{}' in flow '{}'.",
-                getId(), myRelevantStepConfig.getType(), (currentFlow != null ? currentFlow.getTypeName() : "Single/Unknown"));
-    }
+            }
 
     protected PlatformAuthenticationSuccessHandler resolveSuccessHandler(
             O options, @Nullable AuthenticationFlowConfig currentFlow,
@@ -159,31 +140,23 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             @Nullable StateConfig stateConfig,
             ApplicationContext appContext) {
 
-        
         StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
-
-        log.debug("AuthenticationFeature [{}]: Resolving success handler - MFA: {}, StateType: {}",
-                getId(), isMfaFlow, stateType);
 
         if (isMfaFlow) {
             
             if (stateType == StateType.SESSION) {
-                log.debug("AuthenticationFeature [{}]: MFA + SESSION mode - using SessionMfaSuccessHandler", getId());
-                return appContext.getBean(SessionMfaSuccessHandler.class);
+                                return appContext.getBean(SessionMfaSuccessHandler.class);
             } else {
-                
-                
+
                 if (allSteps != null) {
                     int currentStepIndex = allSteps.indexOf(myStepConfig);
                     boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
 
                     if (isFirstStepInMfaFlow) {
-                        log.debug("AuthenticationFeature [{}]: MFA primary step with OAuth2/JWT - using PrimaryAuthenticationSuccessHandler", getId());
-                        return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
+                                                return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
                     } else {
-                        log.debug("AuthenticationFeature [{}]: MFA factor step with OAuth2/JWT - using MfaFactorProcessingSuccessHandler", getId());
-                        return appContext.getBean(MfaFactorProcessingSuccessHandler.class);
+                                                return appContext.getBean(MfaFactorProcessingSuccessHandler.class);
                     }
                 }
                 log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
@@ -193,12 +166,10 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             
             if (stateType == StateType.SESSION) {
                 
-                log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using Spring Security default handler (null)", getId());
-                return null;
+                                return null;
             } else {
                 
-                log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthSuccessHandler", getId());
-                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
+                                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
             }
         }
     }
@@ -208,45 +179,35 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             @Nullable StateConfig stateConfig,
             ApplicationContext appContext) {
 
-        
         StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
-
-        log.debug("AuthenticationFeature [{}]: Resolving failure handler - MFA: {}, StateType: {}",
-                getId(), isMfaFlow, stateType);
 
         if (isMfaFlow) {
             
             if (stateType == StateType.SESSION) {
-                log.debug("AuthenticationFeature [{}]: MFA + SESSION mode - using SessionMfaFailureHandler", getId());
-                return appContext.getBean(SessionMfaFailureHandler.class);
+                                return appContext.getBean(SessionMfaFailureHandler.class);
             } else {
                 
-                log.debug("AuthenticationFeature [{}]: MFA + OAuth2/JWT mode - using UnifiedAuthenticationFailureHandler", getId());
-                return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
+                                return appContext.getBean(UnifiedAuthenticationFailureHandler.class);
             }
         } else {
             
             if (stateType == StateType.SESSION) {
                 
-                log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using Spring Security default handler (null)", getId());
-                return null;
+                                return null;
             } else {
                 
-                log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthFailureHandler", getId());
-                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
+                                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
             }
         }
     }
 
-    
     protected StateType determineStateType(@Nullable StateConfig stateConfig, ApplicationContext appContext) {
         
         if (stateConfig != null && stateConfig.stateType() != null) {
             return stateConfig.stateType();
         }
 
-        
         try {
             AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
             return properties.getStateType();
@@ -256,7 +217,6 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         }
     }
 
-    
     protected SecurityContextRepository resolveSecurityContextRepository(
             StateType stateType,
             @Nullable AuthenticationFlowConfig currentFlow,
@@ -274,21 +234,17 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
 
                 if (isFirstStepInMfaFlow && !isFinalStepInMfaFlow) {
                     
-                    log.debug("AuthenticationFeature [{}]: MFA primary step (not final) - using NullSecurityContextRepository", getId());
-                    return new NullSecurityContextRepository();
+                                        return new NullSecurityContextRepository();
                 } else if (isFinalStepInMfaFlow) {
                     
                     if (stateType == StateType.SESSION) {
-                        log.debug("AuthenticationFeature [{}]: MFA final step + SESSION mode - using HttpSessionSecurityContextRepository", getId());
-                        return new HttpSessionSecurityContextRepository();
+                                                return new HttpSessionSecurityContextRepository();
                     } else {
-                        log.debug("AuthenticationFeature [{}]: MFA final step + OAuth2/JWT mode - using NullSecurityContextRepository", getId());
-                        return new NullSecurityContextRepository();
+                                                return new NullSecurityContextRepository();
                     }
                 } else {
                     
-                    log.debug("AuthenticationFeature [{}]: MFA intermediate step - using NullSecurityContextRepository", getId());
-                    return new NullSecurityContextRepository();
+                                        return new NullSecurityContextRepository();
                 }
             }
             
@@ -297,19 +253,15 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         } else {
             
             if (stateType == StateType.SESSION) {
-                log.debug("AuthenticationFeature [{}]: Single auth + SESSION mode - using HttpSessionSecurityContextRepository", getId());
-                return new HttpSessionSecurityContextRepository();
+                                return new HttpSessionSecurityContextRepository();
             } else {
-                log.debug("AuthenticationFeature [{}]: Single auth + OAuth2/JWT mode - using NullSecurityContextRepository", getId());
-                return new NullSecurityContextRepository();
+                                return new NullSecurityContextRepository();
             }
         }
     }
 
-    
     protected OneTimeTokenGenerationSuccessHandler determineDefaultOttGenerationSuccessHandler(ApplicationContext appContext) {
-        log.debug("AuthenticationFeature [{}]: Determining default OTT success handler. This should be overridden in OttAuthenticationAdapter.", getId());
-        try {
+                try {
             return appContext.getBean("oneTimeTokenCreationSuccessHandler", OneTimeTokenGenerationSuccessHandler.class);
         } catch (Exception e) {
             String errorMessage = String.format("Default OneTimeTokenGenerationSuccessHandler bean ('oneTimeTokenCreationSuccessHandler' or specific OTT handler) not found for OTT feature: %s. This is a critical configuration error.", getId());

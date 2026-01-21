@@ -45,7 +45,6 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions {
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
 
-            
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             if (isMfaMode) {
@@ -113,5 +112,4 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions {
         }
     }
 }
-
 

@@ -23,7 +23,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-
 @Slf4j
 public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
 
@@ -32,35 +31,26 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
     public AIAdaptivePolicyEvaluator(AICoreOperations aiCoreOperations) {
         this.aiCoreOperations = aiCoreOperations;
     }
-    
-    
+
     private static final long AI_ASSESSMENT_TIMEOUT_SECONDS = 3;
     private static final double BLOCK_THRESHOLD = 0.9;
     private static final double STRONG_MFA_THRESHOLD = 0.7;
     private static final double STANDARD_MFA_THRESHOLD = 0.3;
     private static final double NO_MFA_THRESHOLD = 0.1;
-    
-    
+
     @Override
     public MfaDecision evaluatePolicy(FactorContext context) {
         Assert.notNull(context, "FactorContext cannot be null");
         
         String username = context.getUsername();
-        log.info("Starting AI adaptive policy evaluation for user: {}", username);
-        
-        
+
         AIAssessmentResult assessment = performAIAssessment(context);
-        
-        
+
         MfaDecision decision = convertToMfaDecision(assessment, context);
-        
-        log.info("AI policy evaluation completed for user {}: decision={}, riskScore={}", 
-                username, decision.getType(), assessment.getRiskScore());
-        
+
         return decision;
     }
-    
-    
+
     private AIAssessmentResult performAIAssessment(FactorContext context) {
         HttpServletRequest request = getCurrentRequest();
         
@@ -82,13 +72,11 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
             CompletableFuture<BehavioralAnalysisResponse> behaviorFuture = 
                 CompletableFuture.supplyAsync(() -> 
                     analyzeBehavior(context, ipAddress));
-            
-            
+
             CompletableFuture<AIAssessmentResult> combinedFuture = 
                 riskFuture.thenCombine(behaviorFuture, 
                     (risk, behavior) -> combineAssessments(risk, behavior, username));
-            
-            
+
             return combinedFuture.get(AI_ASSESSMENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             
         } catch (TimeoutException e) {
@@ -99,8 +87,7 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
             return AIAssessmentResult.conservative();
         }
     }
-    
-    
+
     private RiskAssessmentResponse assessRisk(
             FactorContext context, 
             String ipAddress, 
@@ -117,31 +104,24 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
             riskContext.setSessionId(context.getMfaSessionId());
             riskContext.setRemoteIp(ipAddress);
             riskContext.setUserAgent(userAgent);
-            
-            
+
             Map<String, Object> envAttributes = riskContext.getEnvironmentAttributes();
             envAttributes.put("flowType", context.getFlowTypeName());
             envAttributes.put("authenticationTime", System.currentTimeMillis());
             envAttributes.put("loginAttempts", context.getRetryCount());
-            
-            
+
             RiskAssessmentRequest request = RiskAssessmentRequest.create(
                 riskContext, 
                 "riskAssessment"
             );
-            
-            
+
             Mono<RiskAssessmentResponse> responseMono = 
                 aiCoreOperations.process(request, RiskAssessmentResponse.class);
             
             RiskAssessmentResponse response = responseMono
                 .timeout(Duration.ofSeconds(AI_ASSESSMENT_TIMEOUT_SECONDS))
                 .block();
-            
-            log.debug("Risk assessment completed for user {}: score={}", 
-                    context.getUsername(), 
-                    response != null ? response.riskScore() : "N/A");
-            
+
             return response;
             
         } catch (Exception e) {
@@ -149,8 +129,7 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
             return createDefaultRiskResponse();
         }
     }
-    
-    
+
     private BehavioralAnalysisResponse analyzeBehavior(
             FactorContext context, 
             String ipAddress) {
@@ -162,32 +141,25 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
             behaviorContext.setSessionId(context.getMfaSessionId());
             behaviorContext.setRemoteIp(ipAddress);
             behaviorContext.setCurrentActivity("LOGIN_ATTEMPT");
-            
-            
+
             String historicalSummary = String.format(
                 "User %s login attempt from IP %s, failed attempts: %d",
                 context.getUsername(), ipAddress, context.getFailedAttempts("LOGIN")
             );
             behaviorContext.setHistoricalBehaviorSummary(historicalSummary);
-            
-            
+
             BehavioralAnalysisRequest request = BehavioralAnalysisRequest.create(
                 behaviorContext,
                 "behavioralAnalysis"
             );
-            
-            
+
             Mono<BehavioralAnalysisResponse> responseMono = 
                 aiCoreOperations.process(request, BehavioralAnalysisResponse.class);
             
             BehavioralAnalysisResponse response = responseMono
                 .timeout(Duration.ofSeconds(AI_ASSESSMENT_TIMEOUT_SECONDS))
                 .block();
-            
-            log.debug("Behavioral analysis completed for user {}: behavioralRiskScore={}", 
-                    context.getUsername(), 
-                    response != null ? response.getBehavioralRiskScore() : "N/A");
-            
+
             return response;
             
         } catch (Exception e) {
@@ -195,20 +167,17 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
             return createDefaultBehaviorResponse();
         }
     }
-    
-    
+
     private AIAssessmentResult combineAssessments(
             RiskAssessmentResponse riskResponse,
             BehavioralAnalysisResponse behaviorResponse,
             String username) {
-        
-        
+
         if (riskResponse == null && behaviorResponse == null) {
             log.warn("Both AI assessments failed for user: {}", username);
             return AIAssessmentResult.conservative();
         }
-        
-        
+
         double riskScore = 0.0;
         double weightSum = 0.0;
         
@@ -225,8 +194,7 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
         if (weightSum > 0) {
             riskScore = riskScore / weightSum;
         }
-        
-        
+
         Map<String, Object> attributes = new HashMap<>();
         
         if (riskResponse != null) {
@@ -243,15 +211,13 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
         
         return new AIAssessmentResult(riskScore, attributes);
     }
-    
-    
+
     private MfaDecision convertToMfaDecision(
             AIAssessmentResult assessment, 
             FactorContext context) {
         
         double riskScore = assessment.getRiskScore();
-        
-        
+
         if (riskScore >= BLOCK_THRESHOLD) {
             
             return MfaDecision.builder()
@@ -323,15 +289,13 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
                 .build();
         }
     }
-    
-    
+
     private HttpServletRequest getCurrentRequest() {
         ServletRequestAttributes attributes = 
             (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         return attributes != null ? attributes.getRequest() : null;
     }
-    
-    
+
     private String extractIpAddress(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
@@ -345,14 +309,12 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
         
         return request.getRemoteAddr();
     }
-    
-    
+
     private RiskAssessmentResponse createDefaultRiskResponse() {
         
         return RiskAssessmentResponse.defaultSafe("default-request-id");
     }
-    
-    
+
     private BehavioralAnalysisResponse createDefaultBehaviorResponse() {
         BehavioralAnalysisResponse response = new BehavioralAnalysisResponse(
             "default-request-id", 
@@ -373,13 +335,11 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
         if (context == null) {
             return false;
         }
-        
-        
+
         if (context.getAttribute("forceAI") != null) {
             return true;
         }
-        
-        
+
         if (context.getFailedAttempts("LOGIN") > 3) {
             return true;
         }
@@ -401,8 +361,7 @@ public class AIAdaptivePolicyEvaluator implements MfaPolicyEvaluator {
     public int getPriority() {
         return 10; 
     }
-    
-    
+
     private static class AIAssessmentResult {
         private final double riskScore;
         private final Map<String, Object> attributes;

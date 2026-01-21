@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler {
 
@@ -38,14 +37,8 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
             return;
         }
 
-        log.debug("Processing session single auth success for user: {}", authentication.getName());
-
-        
         String targetUrl = determineTargetUrl(request, response);
 
-        
-
-        
         if (isApiRequest(request)) {
             
             Map<String, Object> responseData = new HashMap<>();
@@ -56,13 +49,10 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
             responseData.put("stateType", "SESSION");
 
             responseWriter.writeSuccessResponse(response, responseData, HttpServletResponse.SC_OK);
-            log.debug("Session single auth success (JSON) for user: {}", authentication.getName());
-        } else {
+                    } else {
             
             response.sendRedirect(targetUrl);
-            log.debug("Session single auth success (redirect) for user: {} to {}",
-                     authentication.getName(), targetUrl);
-        }
+                    }
     }
 
     @Override

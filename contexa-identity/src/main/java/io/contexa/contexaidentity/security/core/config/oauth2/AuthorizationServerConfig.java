@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.config.oauth2;
 
-
 public record AuthorizationServerConfig(
         String issuerUri,
         String authorizationEndpoint,
@@ -29,7 +28,6 @@ public record AuthorizationServerConfig(
         );
     }
 
-    
     public static AuthorizationServerConfig defaults(String issuerUri) {
         return new AuthorizationServerConfig(
                 issuerUri,
@@ -45,7 +43,6 @@ public record AuthorizationServerConfig(
         );
     }
 
-    
     public static AuthorizationServerConfig withOidc(String issuerUri) {
         return new AuthorizationServerConfig(
                 issuerUri,

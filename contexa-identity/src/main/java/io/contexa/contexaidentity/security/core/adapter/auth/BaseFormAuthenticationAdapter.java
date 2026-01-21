@@ -8,7 +8,6 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccess
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 
-
 public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfigurer<T, HttpSecurity>>
         extends AbstractAuthenticationAdapter<FormOptions> {
 
@@ -34,14 +33,11 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
         });
     }
 
-    
     protected abstract T createConfigurer();
 
-    
     protected abstract void configureFormAuthentication(T configurer, FormOptions opts,
                                                         PlatformAuthenticationSuccessHandler successHandler,
                                                         PlatformAuthenticationFailureHandler failureHandler);
 
-    
     protected abstract void configureSecurityContext(T configurer, FormOptions opts);
 }

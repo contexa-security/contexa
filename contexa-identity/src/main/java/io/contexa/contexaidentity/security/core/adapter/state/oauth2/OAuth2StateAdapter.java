@@ -25,7 +25,6 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 
 import java.util.Objects;
 
-
 @Slf4j
 public final class OAuth2StateAdapter implements StateAdapter {
 
@@ -43,9 +42,6 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
         ApplicationContext appContext = Objects.requireNonNull(platformCtx.applicationContext(), "ApplicationContext from PlatformContext cannot be null");
 
-        log.debug("OAuth2StateAdapter [{}]: Applying to HttpSecurity (hash: {}) with mode: {}", getId(), http.hashCode());
-
-        
         ObjectMapper objectMapper;
         JsonAuthResponseWriter jsonAuthResponseWriter;
         try {
@@ -75,23 +71,19 @@ public final class OAuth2StateAdapter implements StateAdapter {
         OAuth2StateConfigurer oauth2StateConfigurer = new OAuth2StateConfigurer();
         http.with(oauth2StateConfigurer, Customizer.withDefaults());
 
-        log.info("OAuth2StateAdapter [{}]: Applied OAuth2 state configurations (mode: {}) to HttpSecurity.", getId());
-    }
+            }
 
-    
     private void configureResourceServer(HttpSecurity http, ApplicationContext appContext) {
         try {
             JwtDecoder jwtDecoder = appContext.getBean(JwtDecoder.class);
             http.setSharedObject(JwtDecoder.class, jwtDecoder);
-            log.debug("OAuth2StateAdapter: JwtDecoder registered for Resource Server mode.");
-        } catch (NoSuchBeanDefinitionException e) {
+                    } catch (NoSuchBeanDefinitionException e) {
             log.error("OAuth2StateAdapter: JwtDecoder bean not found for Resource Server mode. " +
                     "Ensure JwtDecoder is configured in OAuth2AutoConfiguration.", e);
             throw new IllegalStateException("JwtDecoder is required for Resource Server mode", e);
         }
     }
 
-    
     private void configureAuthorizationServer(HttpSecurity http, ApplicationContext appContext) {
         try {
             JwtEncoder jwtEncoder = appContext.getBean(JwtEncoder.class);
@@ -108,15 +100,13 @@ public final class OAuth2StateAdapter implements StateAdapter {
             http.setSharedObject(OAuth2TokenGenerator.class, tokenGenerator);
             http.setSharedObject(UserRepository.class, userRepository);
 
-            log.debug("OAuth2StateAdapter: Authorization Server beans registered.");
-        } catch (NoSuchBeanDefinitionException e) {
+                    } catch (NoSuchBeanDefinitionException e) {
             log.error("OAuth2StateAdapter: Required bean for Authorization Server mode not found: {}. " +
                     "Ensure all beans are configured in OAuth2AutoConfiguration.", e.getMessage(), e);
             throw new IllegalStateException("Authorization Server beans are required for AUTHORIZATION_SERVER mode", e);
         }
     }
 
-    
     private void configureLogout(HttpSecurity http, ApplicationContext appContext) throws Exception {
         try {
             LogoutHandler logoutHandler = appContext.getBean("oauth2LogoutHandler", LogoutHandler.class);
@@ -133,8 +123,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
                     .clearAuthentication(true)
             );
 
-            log.debug("OAuth2StateAdapter: Logout configuration applied.");
-        } catch (NoSuchBeanDefinitionException e) {
+                    } catch (NoSuchBeanDefinitionException e) {
             log.warn("OAuth2StateAdapter: Logout handlers not found. Using default logout configuration.");
         }
     }

@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHandler {
 
@@ -38,13 +37,9 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
             return;
         }
 
-        log.debug("Processing OAuth2 single auth failure: {}", exception.getMessage());
-
-        
         String errorCode = "AUTHENTICATION_FAILED";
         String errorMessage = "인증에 실패했습니다. 사용자명 또는 비밀번호를 확인하세요.";
 
-        
         if (failureType == FailureType.PRIMARY_AUTH_FAILED) {
             errorCode = "PRIMARY_AUTH_FAILED";
             errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
@@ -53,20 +48,16 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
             errorMessage = exception.getMessage();
         }
 
-        
         Map<String, Object> responseData = new HashMap<>();
         responseData.put("authenticated", false);
         responseData.put("message", errorMessage);
         responseData.put("errorCode", errorCode);
 
-        
         if (errorDetails != null && !errorDetails.isEmpty()) {
             responseData.put("errorDetails", errorDetails);
         }
 
-        
         writeErrorResponse(request, response, errorCode, errorMessage, responseData);
 
-        log.debug("OAuth2 single auth failure response sent: errorCode={}", errorCode);
-    }
+            }
 }

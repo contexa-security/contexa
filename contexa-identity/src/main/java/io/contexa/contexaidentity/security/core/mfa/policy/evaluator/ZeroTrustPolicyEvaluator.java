@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
 
@@ -39,20 +38,17 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
         this.notificationService = notificationService;
         this.auditLogRepository = auditLogRepository;
     }
-    
-    
+
     private static final Cache<String, Double> localCache = Caffeine.newBuilder()
             .maximumSize(10000)
             .expireAfterWrite(1, TimeUnit.SECONDS)
             .recordStats()
             .build();
-    
-    
+
     private static final String THREAT_SCORE_PREFIX = "threat_score:";
     private static final String THREAT_DETAIL_PREFIX = "threat_detail:";
     private static final String THREAT_PATTERN_PREFIX = "threat_pattern:";
-    
-    
+
     @Value("${security.zerotrust.thresholds.skip:0.3}")
     private double skipThreshold;
     
@@ -64,31 +60,24 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
     
     @Value("${security.zerotrust.thresholds.strict:0.9}")
     private double strictThreshold;
-    
-    
+
     @Value("${security.zerotrust.redis.timeout:5}")
     private long redisTimeoutMs;
-    
-    
+
     private static final double DEFAULT_THREAT_SCORE = 0.5;
-    
-    
+
     @Override
     public MfaDecision evaluatePolicy(FactorContext context) {
         Assert.notNull(context, "FactorContext cannot be null");
         
         String username = context.getUsername();
-        log.debug("Starting Zero Trust policy evaluation for user: {}", username);
-
+        
         long startTime = System.currentTimeMillis();
 
-        
         double threatScore = getThreatScore(username);
-        
-        
+
         Map<String, Object> contextInfo = gatherContextInfo(context);
-        
-        
+
         long evaluationTime = System.currentTimeMillis() - startTime;
         
         if (threatScore < skipThreshold) {
@@ -182,30 +171,24 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
                 .build();
         }
     }
-    
-    
+
     private double getThreatScore(String username) {
         String cacheKey = THREAT_SCORE_PREFIX + username;
-        
-        
+
         Double cachedScore = localCache.getIfPresent(cacheKey);
         if (cachedScore != null) {
-            log.trace("Local cache hit for user: {}, score: {}", username, cachedScore);
-            return cachedScore;
+                        return cachedScore;
         }
-        
-        
+
         try {
             Double redisScore = redisTemplate.opsForValue().get(cacheKey);
             
             if (redisScore != null) {
-                log.debug("Redis lookup successful for user: {}, score: {}", username, redisScore);
-                localCache.put(cacheKey, redisScore);
+                                localCache.put(cacheKey, redisScore);
                 return redisScore;
             } else {
                 
-                log.debug("No threat score found for user: {}, using default: 0.0", username);
-                double defaultScore = 0.0;
+                                double defaultScore = 0.0;
                 localCache.put(cacheKey, defaultScore);
                 return defaultScore;
             }
@@ -216,32 +199,27 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
             return DEFAULT_THREAT_SCORE;
         }
     }
-    
-    
+
     private Map<String, Object> gatherContextInfo(FactorContext context) {
         Map<String, Object> info = new HashMap<>();
-        
-        
+
         String cacheKey = THREAT_SCORE_PREFIX + context.getUsername();
         boolean cacheHit = localCache.getIfPresent(cacheKey) != null;
         info.put("cacheHit", cacheHit);
-        
-        
+
         HttpServletRequest request = getCurrentRequest();
         if (request != null) {
             info.put("ipAddress", extractIpAddress(request));
             info.put("userAgent", request.getHeader("User-Agent"));
         }
-        
-        
+
         info.put("sessionId", context.getMfaSessionId());
         info.put("flowType", context.getFlowTypeName());
         info.put("retryCount", context.getRetryCount());
         
         return info;
     }
-    
-    
+
     public double getResourceThreatScore(String username, String resourceId) {
         String resourceKey = THREAT_SCORE_PREFIX + username + ":" + resourceId;
         
@@ -254,19 +232,16 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
             log.error("Failed to get resource threat score for user: {}, resource: {}", 
                      username, resourceId, e);
         }
-        
-        
+
         return getThreatScore(username);
     }
-    
-    
+
     private HttpServletRequest getCurrentRequest() {
         ServletRequestAttributes attributes = 
             (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         return attributes != null ? attributes.getRequest() : null;
     }
-    
-    
+
     private String extractIpAddress(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
@@ -280,8 +255,7 @@ public class ZeroTrustPolicyEvaluator implements MfaPolicyEvaluator {
         
         return request.getRemoteAddr();
     }
-    
-    
+
     public Map<String, Object> getCacheStats() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("hitCount", localCache.stats().hitCount());

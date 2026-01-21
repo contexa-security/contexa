@@ -11,20 +11,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-
 @Slf4j
 public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
     private String loginPageUrl = "/login";
 
     public DefaultRestLoginPageGeneratingFilter() {
-        log.debug("DefaultRestLoginPageGeneratingFilter 초기화 완료");
-    }
+            }
 
     public DefaultRestLoginPageGeneratingFilter(String loginPageUrl) {
         this.loginPageUrl = loginPageUrl;
-        log.debug("DefaultRestLoginPageGeneratingFilter 초기화 완료. Login Page URL: {}", loginPageUrl);
-    }
+            }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -34,9 +31,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         boolean isErrorRequest = isErrorRequest(request);
 
         if (isLoginRequest || isErrorRequest) {
-            log.debug("REST 로그인 페이지 생성 요청 감지. URI: {}, error: {}",
-                    request.getRequestURI(), isErrorRequest);
-            generateLoginPage(request, response);
+                        generateLoginPage(request, response);
             return;
         }
 
@@ -60,7 +55,6 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         return uri.equals(request.getContextPath() + url);
     }
 
-    
     private void generateLoginPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter writer = response.getWriter();
@@ -68,7 +62,6 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
@@ -220,8 +213,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         writer.write(html);
         writer.flush();
 
-        log.debug("REST 로그인 페이지 생성 완료");
-    }
+            }
 
     private String getCsrfToken(HttpServletRequest request) {
         CsrfToken token = (CsrfToken) request.getAttribute(CsrfToken.class.getName());

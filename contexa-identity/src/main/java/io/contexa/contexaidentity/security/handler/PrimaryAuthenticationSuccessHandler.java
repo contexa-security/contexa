@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-
 @Slf4j
 
 public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthenticationSuccessHandler  {
@@ -61,8 +60,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException {
-        log.info("Processing authentication success for user: {}", authentication.getName());
-
+        
         String username = authentication.getName();
         String mfaSessionId = sessionRepository.getSessionId(request); 
         if (mfaSessionId == null) {
@@ -77,10 +75,8 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             return;
         }
 
-        
         MfaDecision decision = mfaPolicyProvider.evaluateInitialMfaRequirement(factorContext);
 
-        
         Map<String, Object> headers = new HashMap<>();
         headers.put("mfaDecision", decision);
         headers.put("request", request);
@@ -99,31 +95,26 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             log.error("Exception during PRIMARY_AUTH_SUCCESS for session: {}: {}",
                      mfaSessionId, e.getMessage(), e);
 
-            
             processErrorEventRecommendation(factorContext, request, mfaSessionId);
 
             handleConfigError(response, request, factorContext, "MFA 초기화 중 오류 발생.");
             return;
         }
 
-        
         if (decision.isBlocked()) {
             log.warn("Authentication blocked by AI policy for user: {} - Reason: {}",
                     factorContext.getUsername(), decision.getReason());
 
-            
             FactorContext blockedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
             if (blockedContext == null) {
                 handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
                 return;
             }
 
-            
             handleAuthenticationBlocked(request, response, blockedContext);
             return;
         }
 
-        
         boolean nextEventSent = sendNextMfaEvent(decision, mfaSessionId, request);
         if (!nextEventSent) {
             log.error("Failed to send next MFA event for session: {}", mfaSessionId);
@@ -131,30 +122,25 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             return;
         }
 
-        
         FactorContext finalFactorContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
         if (finalFactorContext == null) {
             handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
             return;
         }
 
-        
         MfaState currentState = finalFactorContext.getCurrentState();
 
         switch (currentState) {
             case MFA_NOT_REQUIRED, MFA_SUCCESSFUL:
-                log.info("MFA not required for user: {}. Proceeding with final authentication success.", username);
-                handleFinalAuthenticationSuccess(request, response, authentication, finalFactorContext);
+                                handleFinalAuthenticationSuccess(request, response, authentication, finalFactorContext);
                 break;
 
             case AWAITING_FACTOR_SELECTION:
-                log.info("MFA required for user: {}. State: AWAITING_FACTOR_SELECTION", username);
-                handleFactorSelectionRequired(request, response, finalFactorContext);
+                                handleFactorSelectionRequired(request, response, finalFactorContext);
                 break;
 
             case FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION:
-                log.info("MFA required for user: {}. Proceeding directly to challenge", username);
-                handleDirectChallenge(request, response, finalFactorContext);
+                                handleDirectChallenge(request, response, finalFactorContext);
                 break;
 
             case PRIMARY_AUTHENTICATION_COMPLETED:
@@ -206,7 +192,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
     }
 
-    
     private Map<String, Object> createMfaResponseBody(String status, String message,
                                                       FactorContext factorContext, String nextStepUrl, int currentStep) {
         Map<String, Object> responseBody = new HashMap<>();
@@ -219,7 +204,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         return responseBody;
     }
 
-    
     private void handleInvalidContext(HttpServletResponse response, HttpServletRequest request,
                                       String errorCode, String logMessage,
                                       @Nullable Authentication authentication) throws IOException {
@@ -227,7 +211,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 sessionRepository.getRepositoryType(), logMessage,
                 (authentication != null ? authentication.getName() : "Unknown"));
 
-        
         String oldSessionId = sessionRepository.getSessionId(request);
         if (oldSessionId != null) {
             try {
@@ -264,27 +247,22 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         SavedRequest savedRequest = this.requestCache.getRequest(request, response);
         if (savedRequest != null) {
             this.requestCache.removeRequest(request, response);
-            log.debug("Redirecting to saved request URL: {}", savedRequest.getRedirectUrl());
-            return savedRequest.getRedirectUrl();
+                        return savedRequest.getRedirectUrl();
         }
         String defaultTargetUrl = authUrlProvider.getMfaSuccess();
         String targetUrl = request.getContextPath() + defaultTargetUrl;
-        log.debug("Redirecting to default target URL: {}", targetUrl);
-        return targetUrl;
+                return targetUrl;
     }
 
-    
     private void handleAuthenticationBlocked(HttpServletRequest request, 
                                             HttpServletResponse response,
                                             FactorContext ctx) throws IOException {
         String blockReason = (String) ctx.getAttribute("blockReason");
         Double riskScore = (Double) ctx.getAttribute("aiRiskScore");
-        
-        
+
         log.error("SECURITY_ALERT: Authentication blocked for user '{}' - Risk Score: {}, Reason: {}", 
                 ctx.getUsername(), riskScore, blockReason);
-        
-        
+
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("status", "AUTHENTICATION_BLOCKED");
         errorResponse.put("blocked", true);  
@@ -293,21 +271,18 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         errorResponse.put("username", ctx.getUsername());
         errorResponse.put("timestamp", System.currentTimeMillis());
 
-        
         if (log.isDebugEnabled()) {
             errorResponse.put("riskScore", riskScore);
             errorResponse.put("reason", blockReason);
         }
-        
-        
+
         try {
             stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
             sessionRepository.removeSession(ctx.getMfaSessionId(), request, response);
         } catch (Exception e) {
             log.warn("Failed to cleanup blocked session: {}", ctx.getMfaSessionId(), e);
         }
-        
-        
+
         responseWriter.writeErrorResponse(
             response,
             HttpServletResponse.SC_FORBIDDEN,
@@ -340,7 +315,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         }
     }
 
-    
     private boolean sendNextMfaEvent(MfaDecision decision, String mfaSessionId, HttpServletRequest request) {
         FactorContext context = stateMachineIntegrator.loadFactorContext(mfaSessionId);
         if (context == null) {
@@ -348,73 +322,53 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             return false;
         }
 
-        
         if (decision.isBlocked()) {
-            log.debug("Blocked decision already handled for session: {}", mfaSessionId);
-            return true;
+                        return true;
         }
 
-        
         if (!decision.isRequired()) {
             boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.MFA_NOT_REQUIRED, context, request);
-            log.debug("MFA_NOT_REQUIRED event sent for session: {}, accepted: {}", mfaSessionId, sent);
-            return sent;
+                        return sent;
         }
 
-        
-        
         AuthType autoSelectedFactor = determineAutoFactor(context, decision);
         if (autoSelectedFactor == null) {
             log.error("Failed to determine auto factor for session: {}", mfaSessionId);
             return false;
         }
 
-        
         context.setCurrentProcessingFactor(autoSelectedFactor);
 
-        
         setCurrentStepId(context, autoSelectedFactor);
 
-        
         boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
-        log.info("INITIATE_CHALLENGE_AUTO event sent for session: {}, accepted: {}, factor: {}",
-                  mfaSessionId, sent, autoSelectedFactor);
-        return sent;
+                return sent;
     }
 
-    
     private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {
         String sessionId = context.getMfaSessionId();
 
-        
         if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {
             AuthType firstFactor = decision.getRequiredFactors().getFirst();
 
-            
             if (context.getAvailableFactors() != null &&
                 context.getAvailableFactors().contains(firstFactor)) {
-                log.info("Auto-selected factor from MfaDecision: {} for session: {}",
-                         firstFactor, sessionId);
-                return firstFactor;
+                                return firstFactor;
             }
         }
 
-        
         Set<AuthType> availableFactors = context.getAvailableFactors();
         if (availableFactors != null && !availableFactors.isEmpty()) {
             
             List<AuthType> factorList = new ArrayList<>(availableFactors);
             AuthType firstAvailable = factorList.getFirst();
-            log.info("Auto-selected first available factor: {} for session: {}",
-                     firstAvailable, sessionId);
-            return firstAvailable;
+                        return firstAvailable;
         }
 
         log.error("No available factors for auto-selection in session: {}", sessionId);
         return null;
     }
 
-    
     private void setCurrentStepId(FactorContext context, AuthType factorType) {
         try {
             
@@ -430,7 +384,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 return;
             }
 
-            
             AuthenticationStepConfig nextStep = flowConfig.getStepConfigs().stream()
                 .filter(step -> factorType.name().equalsIgnoreCase(step.getType()))
                 .findFirst()
@@ -438,9 +391,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
             if (nextStep != null) {
                 context.setCurrentStepId(nextStep.getStepId());
-                log.debug("Set currentStepId: {} for factor: {} in session: {}",
-                         nextStep.getStepId(), factorType, context.getMfaSessionId());
-            } else {
+                            } else {
                 log.warn("No step config found for factor: {} in session: {}",
                         factorType, context.getMfaSessionId());
             }

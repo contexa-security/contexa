@@ -11,10 +11,8 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import java.io.IOException;
 import java.util.Map;
 
-
 public interface PlatformAuthenticationFailureHandler extends AuthenticationFailureHandler {
 
-    
     default void onAuthenticationFailure(HttpServletRequest request,
                                  HttpServletResponse response,
                                  AuthenticationException exception,
@@ -24,7 +22,6 @@ public interface PlatformAuthenticationFailureHandler extends AuthenticationFail
 
     }
 
-    
     @Override
     default void onAuthenticationFailure(HttpServletRequest request,
                                          HttpServletResponse response,
@@ -32,7 +29,6 @@ public interface PlatformAuthenticationFailureHandler extends AuthenticationFail
         
     }
 
-    
     enum FailureType {
         PRIMARY_AUTH_FAILED,        
         MFA_FACTOR_FAILED,         

@@ -19,7 +19,6 @@ public class MfaSupportService {
 
     public Set<AuthType> getAvailableMfaFactorsForUser(String username) {
         Assert.hasText(username, "Username cannot be empty for fetching available MFA factors");
-        log.debug("MfaSupportService: DSL 기반으로 전환되어 빈 Set 반환 for user {}", username);
-        return EnumSet.noneOf(AuthType.class);
+                return EnumSet.noneOf(AuthType.class);
     }
 }

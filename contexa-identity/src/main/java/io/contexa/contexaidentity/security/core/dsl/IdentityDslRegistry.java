@@ -20,51 +20,43 @@ public final class IdentityDslRegistry<H extends HttpSecurityBuilder<H>>
         super(PlatformConfig.builder(),
                 Objects.requireNonNull(applicationContext, "applicationContext cannot be null")
         );
-        log.info("IdentityDslRegistry initialized with ApplicationContext.");
-    }
+            }
 
     @Override
     public IdentityAuthDsl global(SafeHttpCustomizer<HttpSecurity> customizer) {
         Objects.requireNonNull(customizer, "global customizer cannot be null");
         platformBuilder.global(customizer); 
-        log.debug("Global HttpSecurity customizer registered in PlatformConfig.Builder.");
-        return this;
+                return this;
     }
 
     @Override
     public IdentityStateDsl form(Customizer<FormConfigurerConfigurer> customizer) throws Exception {
-        log.debug("Registering Form authentication options.");
-        return registerAuthenticationMethod(AuthType.FORM, customizer, 100, FormConfigurerConfigurer.class);
+                return registerAuthenticationMethod(AuthType.FORM, customizer, 100, FormConfigurerConfigurer.class);
     }
 
     @Override
     public IdentityStateDsl rest(Customizer<RestConfigurerConfigurer> customizer) throws Exception {
-        log.debug("Registering Rest authentication options.");
-        return registerAuthenticationMethod(AuthType.REST, customizer, 200, RestConfigurerConfigurer.class);
+                return registerAuthenticationMethod(AuthType.REST, customizer, 200, RestConfigurerConfigurer.class);
     }
 
     @Override
     public IdentityStateDsl ott(Customizer<OttConfigurerConfigurer> customizer) throws Exception {
-        log.debug("Registering OTT authentication options.");
-        return registerAuthenticationMethod(AuthType.OTT, customizer, 300, OttConfigurerConfigurer.class);
+                return registerAuthenticationMethod(AuthType.OTT, customizer, 300, OttConfigurerConfigurer.class);
     }
 
     @Override
     public IdentityStateDsl passkey(Customizer<PasskeyConfigurerConfigurer> customizer) throws Exception {
-        log.debug("Registering Passkey authentication options.");
-        return registerAuthenticationMethod(AuthType.PASSKEY, customizer, 400, PasskeyConfigurerConfigurer.class);
+                return registerAuthenticationMethod(AuthType.PASSKEY, customizer, 400, PasskeyConfigurerConfigurer.class);
     }
 
     @Override
     public IdentityStateDsl mfa(Customizer<MfaDslConfigurer> customizer) throws Exception {
-        log.debug("Registering MFA (Multi-Factor Authentication) flow options.");
-        return registerMultiStepFlow(customizer);
+                return registerMultiStepFlow(customizer);
     }
 
     @Override
     public PlatformConfig build() {
         PlatformConfig config = platformBuilder.build();
-        log.info("PlatformConfig built with {} authentication flows.", config.getFlows().size());
-        return config;
+                return config;
     }
 }

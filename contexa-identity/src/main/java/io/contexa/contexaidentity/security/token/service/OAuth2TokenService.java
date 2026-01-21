@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class OAuth2TokenService implements TokenService {
 
@@ -59,7 +58,6 @@ public class OAuth2TokenService implements TokenService {
 
     private static final String CLIENT_REGISTRATION_ID = "aidc-internal";
 
-    
     public OAuth2TokenService(
             OAuth2AuthorizedClientManager authorizedClientManager,
             ClientRegistrationRepository clientRegistrationRepository,
@@ -72,7 +70,6 @@ public class OAuth2TokenService implements TokenService {
                 refreshTokenStore, tokenValidator, jwtDecoder, properties, new ObjectMapper(), null);
     }
 
-    
     public OAuth2TokenService(
             OAuth2AuthorizedClientManager authorizedClientManager,
             ClientRegistrationRepository clientRegistrationRepository,
@@ -103,28 +100,22 @@ public class OAuth2TokenService implements TokenService {
         this.objectMapper = objectMapper;
         this.transportStrategy = transportStrategy;
 
-        log.info("OAuth2TokenService initialized with OAuth2AuthorizedClientManager");
-    }
+            }
 
-    
     public TokenPair createTokenPair(Authentication authentication, @Nullable String deviceId) {
         Assert.notNull(authentication, "authentication cannot be null");
 
         if (log.isDebugEnabled()) {
-            log.debug("Creating OAuth2 token pair for user: {}, deviceId: {}", authentication.getName(), deviceId);
-        }
+                    }
 
-        
         OAuth2AuthorizeRequest.Builder builder = OAuth2AuthorizeRequest
                 .withClientRegistrationId(CLIENT_REGISTRATION_ID)
                 .principal(authentication);
 
-        
         if (deviceId != null) {
             builder.attribute("device_id", deviceId);
         }
 
-        
         try {
             ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
@@ -132,11 +123,6 @@ public class OAuth2TokenService implements TokenService {
                 HttpServletRequest req = requestAttributes.getRequest();
                 HttpServletResponse res = requestAttributes.getResponse();
 
-                log.debug("Extracted HttpServletRequest/Response from RequestContextHolder: request={}, response={}",
-                        req != null ? req.getClass().getSimpleName() : "null",
-                        res != null ? res.getClass().getSimpleName() : "null");
-
-                
                 builder.attribute("request", req);
                 builder.attribute("response", res);
             } else {
@@ -148,7 +134,6 @@ public class OAuth2TokenService implements TokenService {
 
         OAuth2AuthorizeRequest authorizeRequest = builder.build();
 
-        
         OAuth2AuthorizedClient authorizedClient = authorizedClientManager.authorize(authorizeRequest);
 
         if (authorizedClient == null) {
@@ -157,23 +142,19 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("token_request_failed", "Failed to authorize client", null));
         }
 
-        
         OAuth2AccessToken accessToken = authorizedClient.getAccessToken();
         OAuth2RefreshToken refreshToken = authorizedClient.getRefreshToken();
 
         String accessTokenValue = accessToken.getTokenValue();
         String refreshTokenValue = refreshToken != null ? refreshToken.getTokenValue() : null;
 
-        
         if (refreshToken != null) {
             refreshTokenStore.save(refreshToken.getTokenValue(), authentication.getName());
 
             if (log.isDebugEnabled()) {
-                log.debug("Refresh token saved to RefreshTokenStore for user: {}", authentication.getName());
-            }
+                            }
         }
 
-        
         TokenPair tokenPair = TokenPair.builder()
                 .accessToken(accessTokenValue)
                 .refreshToken(refreshTokenValue)
@@ -183,14 +164,11 @@ public class OAuth2TokenService implements TokenService {
                 .build();
 
         if (log.isInfoEnabled()) {
-            log.info("Successfully obtained OAuth2 token pair for user: {}, hasRefreshToken: {}",
-                    authentication.getName(), tokenPair.hasRefreshToken());
-        }
+                    }
 
         return tokenPair;
     }
 
-    
     @Override
     public TokenPair createTokenPair(Authentication authentication, @Nullable String deviceId,
                                     HttpServletRequest request, HttpServletResponse response) {
@@ -199,31 +177,21 @@ public class OAuth2TokenService implements TokenService {
         Assert.notNull(response, "response cannot be null");
 
         if (log.isDebugEnabled()) {
-            log.debug("Creating OAuth2 token pair for user: {}, deviceId: {} (with request/response)",
-                    authentication.getName(), deviceId);
-        }
+                    }
 
-        
         OAuth2AuthorizeRequest.Builder builder = OAuth2AuthorizeRequest
                 .withClientRegistrationId(CLIENT_REGISTRATION_ID)
                 .principal(authentication);
 
-        
         if (deviceId != null) {
             builder.attribute("device_id", deviceId);
         }
 
-        
-        
         builder.attribute(HttpServletRequest.class.getName(), request);
         builder.attribute(HttpServletResponse.class.getName(), response);
 
-        log.debug("Added request/response to OAuth2AuthorizeRequest attributes with keys: {}, {}",
-                HttpServletRequest.class.getName(), HttpServletResponse.class.getName());
-
         OAuth2AuthorizeRequest authorizeRequest = builder.build();
 
-        
         OAuth2AuthorizedClient authorizedClient = authorizedClientManager.authorize(authorizeRequest);
 
         if (authorizedClient == null) {
@@ -232,23 +200,19 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("token_request_failed", "Failed to authorize client", null));
         }
 
-        
         OAuth2AccessToken accessToken = authorizedClient.getAccessToken();
         OAuth2RefreshToken refreshToken = authorizedClient.getRefreshToken();
 
         String accessTokenValue = accessToken.getTokenValue();
         String refreshTokenValue = refreshToken != null ? refreshToken.getTokenValue() : null;
 
-        
         if (refreshToken != null) {
             refreshTokenStore.save(refreshToken.getTokenValue(), authentication.getName());
 
             if (log.isDebugEnabled()) {
-                log.debug("Refresh token saved to RefreshTokenStore for user: {}", authentication.getName());
-            }
+                            }
         }
 
-        
         TokenPair tokenPair = TokenPair.builder()
                 .accessToken(accessTokenValue)
                 .refreshToken(refreshTokenValue)
@@ -258,21 +222,17 @@ public class OAuth2TokenService implements TokenService {
                 .build();
 
         if (log.isInfoEnabled()) {
-            log.info("Successfully obtained OAuth2 token pair for user: {}, hasRefreshToken: {}",
-                    authentication.getName(), tokenPair.hasRefreshToken());
-        }
+                    }
 
         return tokenPair;
     }
 
-    
     @Override
     @Deprecated(since = "2025.01", forRemoval = false)
     public String createAccessToken(Authentication authentication, String deviceId) {
         return createTokenPair(authentication, deviceId).getAccessToken();
     }
 
-    
     @Override
     @Deprecated(since = "2025.01", forRemoval = false)
     public String createRefreshToken(Authentication authentication, String deviceId) {
@@ -284,16 +244,12 @@ public class OAuth2TokenService implements TokenService {
     public RefreshResult refresh(String refreshToken) {
         Assert.hasText(refreshToken, "refreshToken cannot be empty");
 
-        log.info("Refreshing OAuth2 access token with refresh token");
-
-        
         if (refreshTokenStore.isBlacklisted(refreshToken)) {
             log.error("Attempted to use blacklisted refresh token");
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("invalid_token", "Refresh token is blacklisted", null));
         }
 
-        
         String username = refreshTokenStore.getUsername(refreshToken);
         if (username == null) {
             log.error("Refresh token not found or expired in RefreshTokenStore");
@@ -301,7 +257,6 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("invalid_token", "Refresh token not found or expired", null));
         }
 
-        
         if (refreshTokenStore instanceof EnhancedRefreshTokenStore enhanced) {
             if (enhanced.isTokenReused(refreshToken)) {
                 log.error("Token reuse attack detected! User: {}", username);
@@ -313,7 +268,6 @@ public class OAuth2TokenService implements TokenService {
             }
         }
 
-        
         OAuth2Authorization authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
         if (authorization == null) {
             log.error("OAuth2Authorization not found for refresh token");
@@ -321,7 +275,6 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("invalid_token", "Authorization not found", null));
         }
 
-        
         ClientRegistration clientRegistration = clientRegistrationRepository.findByRegistrationId(CLIENT_REGISTRATION_ID);
         if (clientRegistration == null) {
             log.error("ClientRegistration not found: {}", CLIENT_REGISTRATION_ID);
@@ -329,7 +282,6 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("server_error", "Client registration not configured", null));
         }
 
-        
         String principalName = authorization.getPrincipalName();
         List<GrantedAuthority> authorities = authorization.getAuthorizedScopes().stream()
                 .map(SimpleGrantedAuthority::new)
@@ -341,7 +293,6 @@ public class OAuth2TokenService implements TokenService {
                 authorities
         );
 
-        
         OAuth2AccessToken existingAccessToken = authorization.getAccessToken().getToken();
         OAuth2RefreshToken existingRefreshToken = Objects.requireNonNull(authorization.getRefreshToken()).getToken();
 
@@ -352,14 +303,10 @@ public class OAuth2TokenService implements TokenService {
                 existingRefreshToken
         );
 
-        
-        
         OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
                 .withClientRegistrationId(CLIENT_REGISTRATION_ID)
                 .principal(authentication)
                 .build();
-
-        log.info("Requesting token refresh from OAuth2AuthorizedClientManager for user: {}", username);
 
         OAuth2AuthorizedClient refreshedClient = authorizedClientManager.authorize(authorizeRequest);
 
@@ -369,33 +316,23 @@ public class OAuth2TokenService implements TokenService {
                     new OAuth2Error("refresh_failed", "Failed to refresh token", null));
         }
 
-        
         String newAccessToken = refreshedClient.getAccessToken().getTokenValue();
         OAuth2RefreshToken newRefreshTokenObj = refreshedClient.getRefreshToken();
         String newRefreshToken = (newRefreshTokenObj != null)
                 ? newRefreshTokenObj.getTokenValue()
                 : refreshToken; 
 
-        log.info("Token refresh successful. New Access Token issued. Refresh Token {} for user: {}",
-                newRefreshToken.equals(refreshToken) ? "reused" : "rotated", username);
-
-        
         if (refreshTokenStore instanceof EnhancedRefreshTokenStore enhanced) {
             ClientInfo clientInfo = getCurrentClientInfo();
             String deviceId = extractDeviceId(refreshToken);
 
-            
             if (!newRefreshToken.equals(refreshToken)) {
-                log.debug("Rotating refresh token for user: {}", username);
-                enhanced.rotate(refreshToken, newRefreshToken, username, deviceId, clientInfo);
+                                enhanced.rotate(refreshToken, newRefreshToken, username, deviceId, clientInfo);
             } else {
                 
-                log.debug("Reusing refresh token for user: {}", username);
-                enhanced.recordUsage(refreshToken, TokenAction.REUSED, clientInfo);
+                                enhanced.recordUsage(refreshToken, TokenAction.REUSED, clientInfo);
             }
         }
-
-        log.info("Refresh operation completed successfully for user: {}", username);
 
         return new RefreshResult(newAccessToken, newRefreshToken);
     }
@@ -430,19 +367,13 @@ public class OAuth2TokenService implements TokenService {
         Assert.hasText(refreshToken, "refreshToken cannot be empty");
         Assert.hasText(username, "username cannot be empty");
 
-        log.info("Blacklisting refresh token for user: {}, reason: {}", username, reason);
-
-        
         var authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
         if (authorization != null) {
             authorizationService.remove(authorization);
-            log.debug("Removed OAuth2Authorization for token");
-        }
+                    }
 
-        
         refreshTokenStore.blacklist(refreshToken, username, reason);
-        log.debug("Added token to RefreshTokenStore blacklist");
-    }
+            }
 
     @Override
     public ObjectMapper getObjectMapper() {
@@ -488,7 +419,6 @@ public class OAuth2TokenService implements TokenService {
             return transportStrategy.prepareTokensForWrite(accessToken, refreshToken, propertiesProvider);
         }
 
-        
         return TokenTransportResult.builder()
                 .body(java.util.Map.of(
                         "access_token", accessToken,
@@ -536,7 +466,6 @@ public class OAuth2TokenService implements TokenService {
             return transportStrategy.prepareTokensForClear(propertiesProvider);
         }
 
-        
         return TokenTransportResult.builder().build();
     }
 
@@ -566,7 +495,6 @@ public class OAuth2TokenService implements TokenService {
         return this.properties;
     }
 
-    
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
         
         Object rolesObj = jwt.getClaim("roles");
@@ -577,7 +505,6 @@ public class OAuth2TokenService implements TokenService {
                     .collect(Collectors.toList());
         }
 
-        
         Collection<String> scopes = jwt.getClaimAsStringList("scope");
         if (scopes != null) {
             return scopes.stream()
@@ -588,22 +515,18 @@ public class OAuth2TokenService implements TokenService {
         return java.util.Collections.emptyList();
     }
 
-    
     private String extractDeviceId(String token) {
         try {
             Jwt jwt = jwtDecoder.decode(token);
             String deviceId = jwt.getClaim("deviceId");
             return deviceId != null ? deviceId : "unknown";
         } catch (Exception e) {
-            log.trace("Failed to extract deviceId from token. Error: {}", e.getMessage(), e);
-            return "unknown";
+                        return "unknown";
         }
     }
 
-    
     private ClientInfo getCurrentClientInfo() {
-        log.trace("Using dummy ClientInfo - actual HTTP request extraction not implemented");
-        return new ClientInfo(
+                return new ClientInfo(
                 "127.0.0.1",
                 "Mozilla/5.0",
                 "device-fingerprint",

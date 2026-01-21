@@ -35,12 +35,10 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         this.asepAttributes = builder.asepAttributes;
     }
 
-    
     public static Builder builder(ApplicationContext applicationContext) {
         return new Builder(applicationContext, false);
     }
 
-    
     public static Builder builderForMfa(ApplicationContext applicationContext) {
         return new Builder(applicationContext, true);
     }
@@ -56,12 +54,10 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         private SafeHttpFormLoginCustomizer rawFormLoginCustomizer;
         private FormAsepAttributes asepAttributes;
 
-        
         public Builder(ApplicationContext applicationContext) {
             this(applicationContext, false);
         }
 
-        
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for FormOptions.Builder");
 
@@ -73,8 +69,6 @@ public final class FormOptions extends AuthenticationProcessingOptions {
                 this.failureUrl = urlProvider.getPrimaryLoginFailure();
                 super.loginProcessingUrl(urlProvider.getPrimaryFormLoginProcessing());
             } else {
-
-
 
                 super.loginProcessingUrl(urlProvider.getSingleFormLoginProcessing());
             }

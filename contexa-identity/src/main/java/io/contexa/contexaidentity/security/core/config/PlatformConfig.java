@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.config;
 
-
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import lombok.Getter;
@@ -36,19 +35,16 @@ public final class PlatformConfig {
             return this;
         }
 
-        
         public Builder addFlow(AuthenticationFlowConfig flow) {
             Assert.notNull(flow, "AuthenticationFlowConfig cannot be null");
             this.flows.add(flow);
             return this;
         }
 
-        
         public List<AuthenticationFlowConfig> getModifiableFlows() {
             return this.flows;
         }
 
-        
         public Builder replaceLastFlow(AuthenticationFlowConfig flow) {
             if (!this.flows.isEmpty()) {
                 this.flows.set(this.flows.size() - 1, flow);
@@ -57,8 +53,7 @@ public final class PlatformConfig {
         }
 
         public PlatformConfig build() {
-            
-            
+
             return new PlatformConfig(this); 
         }
     }

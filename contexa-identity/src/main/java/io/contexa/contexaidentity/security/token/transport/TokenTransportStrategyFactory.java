@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.token.transport;
 
-
 import io.contexa.contexacommon.properties.AuthContextProperties;
 
 public class TokenTransportStrategyFactory {
@@ -13,5 +12,4 @@ public class TokenTransportStrategyFactory {
         };
     }
 }
-
 

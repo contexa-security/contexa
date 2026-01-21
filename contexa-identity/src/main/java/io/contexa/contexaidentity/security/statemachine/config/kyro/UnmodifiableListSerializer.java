@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-
 public class UnmodifiableListSerializer extends Serializer<List<?>> {
 
     @Override
@@ -29,10 +28,7 @@ public class UnmodifiableListSerializer extends Serializer<List<?>> {
         for (int i = 0; i < size; i++) {
             list.add(kryo.readClassAndObject(input));
         }
-        
-        
-        
-        
+
         return Collections.unmodifiableList(list);
     }
 }

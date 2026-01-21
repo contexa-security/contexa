@@ -32,7 +32,6 @@ public class RequiredPlatformOptionsValidator implements Validator<Authenticatio
                 }
             }
         }
-        
 
         if (result.hasErrors() || result.hasWarnings()){
             log.warn("DSL VALIDATION for {}: Errors: {}, Warnings: {}", stepIdentifier, result.getErrors(), result.getWarnings());

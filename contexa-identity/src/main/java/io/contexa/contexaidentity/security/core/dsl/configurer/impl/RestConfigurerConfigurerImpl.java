@@ -16,13 +16,11 @@ public final class RestConfigurerConfigurerImpl
         extends AbstractOptionsBuilderConfigurer<RestConfigurerConfigurerImpl, RestOptions, RestOptions.Builder, RestConfigurerConfigurer>
         implements RestConfigurerConfigurer {
 
-    
     public RestConfigurerConfigurerImpl(ApplicationContext applicationContext) {
         super(RestOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 
-    
     public RestConfigurerConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
         super(isMfaMode ? RestOptions.builderForMfa(applicationContext) : RestOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
@@ -67,8 +65,7 @@ public final class RestConfigurerConfigurerImpl
         }
         
         getOptionsBuilder().asepAttributes(attributes); 
-        log.debug("ASEP: RestAsepAttributes configured and will be stored within RestOptions.");
-        return self();
+                return self();
     }
 
     @Override
@@ -76,6 +73,5 @@ public final class RestConfigurerConfigurerImpl
         return this;
     }
 
-    
 }
 

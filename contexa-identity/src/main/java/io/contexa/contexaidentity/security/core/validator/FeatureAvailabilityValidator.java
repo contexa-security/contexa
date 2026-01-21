@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.validator;
 
-
 import io.contexa.contexaidentity.security.core.bootstrap.AdapterRegistry;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import lombok.RequiredArgsConstructor;

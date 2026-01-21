@@ -25,23 +25,6 @@ public class CustomBeanDependencyValidator implements Validator<AuthenticationSt
         if (optionsObject instanceof AuthenticationProcessingOptions) {
             AuthenticationProcessingOptions processingOptions = (AuthenticationProcessingOptions) optionsObject;
 
-            
-            
-            
-            
-            
-
-            
-            
-            
-
-            
-            
-            
-
-            
-            
-            
         }
 
         return result;

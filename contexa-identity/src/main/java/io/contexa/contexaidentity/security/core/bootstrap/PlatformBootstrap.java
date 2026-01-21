@@ -11,7 +11,6 @@ import org.springframework.beans.factory.InitializingBean;
 
 import java.util.List;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PlatformBootstrap implements InitializingBean {
@@ -23,17 +22,13 @@ public class PlatformBootstrap implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        log.info("PlatformBootstrap: Starting DSL configuration validation...");
 
-        
         List<AuthenticationFlowConfig> flows = config.getFlows();
         List<AuthenticationAdapter> adapters = registry.getAuthAdaptersFor(flows);
         platform.prepareGlobal(config, adapters);
 
-        
         platform.initialize();
 
-        
         try {
             dslValidatorService.validate(config, "PlatformSecurityConfig.java (DSL)");
 
@@ -41,8 +36,6 @@ public class PlatformBootstrap implements InitializingBean {
             log.error("DSL 유효성 검사 실패로 서버 기동을 중단합니다.", e);
             throw e;
         }
-        log.info("PlatformBootstrap: DSL configuration validation passed.");
-
-        log.info("PlatformBootstrap: Security platform initialized successfully.");
-    }
+        
+            }
 }

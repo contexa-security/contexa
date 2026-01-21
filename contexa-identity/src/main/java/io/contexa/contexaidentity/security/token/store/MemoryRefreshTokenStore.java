@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class MemoryRefreshTokenStore extends AbstractRefreshTokenStore {
 
@@ -84,12 +83,10 @@ public class MemoryRefreshTokenStore extends AbstractRefreshTokenStore {
             return false;
         }
 
-        
         if (blacklistByToken.containsKey(token)) {
             return true;
         }
 
-        
         try {
             
             Jwt jwt = jwtDecoder.decode(token);
@@ -104,29 +101,23 @@ public class MemoryRefreshTokenStore extends AbstractRefreshTokenStore {
             return blacklistByDevice.containsKey(deviceKey);
 
         } catch (JwtException e) {
-            log.trace("JWT decoding failed during isBlacklisted check. Error: {}", e.getMessage(), e);
-            return false;
+                        return false;
         } catch (Exception e) {
             log.error("Unexpected error during isBlacklisted check. Error: {}", e.getMessage(), e);
             return false;
         }
     }
 
-    
-
     public void cleanupExpiredBlacklistEntries() {
         Instant now = Instant.now();
 
-        
         blacklistByToken.entrySet().removeIf(entry ->
                 entry.getValue().getExpiration() != null && now.isAfter(entry.getValue().getExpiration())
         );
 
-        
         store.entrySet().removeIf(entry ->
                 now.isAfter(entry.getValue().getExpiration())
         );
 
-        log.debug("Cleaned up expired entries from memory store");
-    }
+            }
 }

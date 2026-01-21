@@ -7,30 +7,21 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Map;
 
-
 public interface MfaStateMachineService {
 
-    
     void initializeStateMachine(FactorContext context, HttpServletRequest request);
 
-    
     boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request);
 
-    
     boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders);
 
-    
     FactorContext getFactorContext(String sessionId);
 
-    
     void saveFactorContext(FactorContext context);
 
-    
     MfaState getCurrentState(String sessionId);
 
-    
     boolean updateStateOnly(String sessionId, MfaState newState);
 
-    
     void releaseStateMachine(String sessionId);
 }

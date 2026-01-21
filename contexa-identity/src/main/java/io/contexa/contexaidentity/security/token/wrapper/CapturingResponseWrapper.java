@@ -11,7 +11,6 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 
-
 public class CapturingResponseWrapper extends HttpServletResponseWrapper {
 
     private final ByteArrayOutputStream capturedOutputStream = new ByteArrayOutputStream();
@@ -19,7 +18,6 @@ public class CapturingResponseWrapper extends HttpServletResponseWrapper {
     private final ServletOutputStream outputStream;
     private int statusCode = HttpServletResponse.SC_OK;
 
-    
     public CapturingResponseWrapper(HttpServletResponse response) {
         super(response);
 
@@ -92,8 +90,7 @@ public class CapturingResponseWrapper extends HttpServletResponseWrapper {
 
     @Override
     public void setContentType(String type) {
-        
-        
+
     }
 
     @Override
@@ -111,13 +108,11 @@ public class CapturingResponseWrapper extends HttpServletResponseWrapper {
         
     }
 
-    
     public String getCapturedContent() {
         writer.flush();
         return capturedOutputStream.toString(StandardCharsets.UTF_8);
     }
 
-    
     public byte[] getCapturedBytes() {
         writer.flush();
         return capturedOutputStream.toByteArray();

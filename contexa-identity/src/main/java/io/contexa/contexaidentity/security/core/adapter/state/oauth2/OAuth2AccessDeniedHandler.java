@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class OAuth2AccessDeniedHandler implements AccessDeniedHandler {
 
@@ -22,9 +21,6 @@ public class OAuth2AccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException, ServletException {
-
-        log.debug("OAuth2 Access denied for request [{}]: {}",
-                request.getRequestURI(), accessDeniedException.getMessage());
 
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class RefreshTokenAnomalyDetector {
@@ -21,7 +20,6 @@ public class RefreshTokenAnomalyDetector {
     private static final String LOCATION_HISTORY_PREFIX = "anomaly:location:";
     private static final String DEVICE_HISTORY_PREFIX = "anomaly:device:";
 
-    
     private static final int RAPID_REFRESH_THRESHOLD = 3; 
     private static final Duration RAPID_REFRESH_WINDOW = Duration.ofMinutes(5);
     private static final double MAX_TRAVEL_SPEED_KM_H = 1000; 
@@ -31,31 +29,23 @@ public class RefreshTokenAnomalyDetector {
     private final StringRedisTemplate redisTemplate;
     private final RedisEventPublisher redisEventPublisher;
 
-    
     public AnomalyDetectionResult detectAnomaly(String username, String deviceId, ClientInfo clientInfo) {
         List<AnomalyCheckResult> checks = new ArrayList<>();
 
-        
         checks.add(checkRapidRefresh(username, deviceId));
 
-        
         checks.add(checkDeviceMismatch(username, deviceId, clientInfo));
 
-        
         checks.add(checkConcurrentUsage(username, deviceId));
 
-        
         checks.add(checkTimePatternAnomaly(username, clientInfo));
 
-        
         return evaluateAnomalies(checks);
     }
 
-    
     private AnomalyCheckResult checkRapidRefresh(String username, String deviceId) {
         String key = USER_ACTIVITY_PREFIX + username + ":" + deviceId + ":refresh";
 
-        
         Long refreshCount = redisTemplate.opsForZSet().count(
                 key,
                 System.currentTimeMillis() - RAPID_REFRESH_WINDOW.toMillis(),
@@ -71,19 +61,15 @@ public class RefreshTokenAnomalyDetector {
             );
         }
 
-        
         redisTemplate.opsForZSet().add(key, UUID.randomUUID().toString(), System.currentTimeMillis());
         redisTemplate.expire(key, 1, TimeUnit.HOURS);
 
         return new AnomalyCheckResult(AnomalyType.NONE, 0.0, "Normal refresh rate");
     }
 
-
-    
     private AnomalyCheckResult checkDeviceMismatch(String username, String deviceId, ClientInfo clientInfo) {
         String key = DEVICE_HISTORY_PREFIX + username + ":" + deviceId;
 
-        
         Set<String> fingerprints = redisTemplate.opsForSet().members(key);
 
         if (fingerprints != null && !fingerprints.isEmpty()) {
@@ -99,14 +85,12 @@ public class RefreshTokenAnomalyDetector {
             }
         }
 
-        
         redisTemplate.opsForSet().add(key, clientInfo.deviceFingerprint());
         redisTemplate.expire(key, 30, TimeUnit.DAYS);
 
         return new AnomalyCheckResult(AnomalyType.NONE, 0.0, "Device fingerprint matches");
     }
 
-    
     private AnomalyCheckResult checkConcurrentUsage(String username, String deviceId) {
         String pattern = USER_ACTIVITY_PREFIX + username + ":*:active";
         Set<String> activeDevices = redisTemplate.keys(pattern);
@@ -126,21 +110,18 @@ public class RefreshTokenAnomalyDetector {
             }
         }
 
-        
         String activeKey = USER_ACTIVITY_PREFIX + username + ":" + deviceId + ":active";
         redisTemplate.opsForValue().set(activeKey, "1", Duration.ofMinutes(15));
 
         return new AnomalyCheckResult(AnomalyType.NONE, 0.0, "No concurrent usage detected");
     }
 
-    
     private AnomalyCheckResult checkTimePatternAnomaly(String username, ClientInfo clientInfo) {
         
         String patternKey = USER_ACTIVITY_PREFIX + username + ":time_pattern";
 
         int currentHour = Instant.now().atZone(java.time.ZoneId.systemDefault()).getHour();
 
-        
         String hourCount = (String) redisTemplate.opsForHash().get(patternKey, String.valueOf(currentHour));
 
         if (hourCount == null || Integer.parseInt(hourCount) < 5) {
@@ -152,13 +133,11 @@ public class RefreshTokenAnomalyDetector {
             );
         }
 
-        
         redisTemplate.opsForHash().increment(patternKey, String.valueOf(currentHour), 1);
 
         return new AnomalyCheckResult(AnomalyType.NONE, 0.0, "Normal activity time");
     }
 
-    
     private AnomalyDetectionResult evaluateAnomalies(List<AnomalyCheckResult> checks) {
         double maxRiskScore = checks.stream()
                 .mapToDouble(AnomalyCheckResult::riskScore)
@@ -169,7 +148,6 @@ public class RefreshTokenAnomalyDetector {
                 .max(Comparator.comparing(AnomalyCheckResult::riskScore))
                 .orElse(new AnomalyCheckResult(AnomalyType.NONE, 0.0, "No anomalies detected"));
 
-        
         double combinedRisk = calculateCombinedRisk(checks);
 
         if (combinedRisk >= HIGH_RISK_THRESHOLD) {
@@ -185,7 +163,6 @@ public class RefreshTokenAnomalyDetector {
         );
     }
 
-    
     private double calculateCombinedRisk(List<AnomalyCheckResult> checks) {
         
         double weightedSum = 0.0;
@@ -202,7 +179,6 @@ public class RefreshTokenAnomalyDetector {
         return weightTotal > 0 ? weightedSum / weightTotal : 0.0;
     }
 
-    
     private double getWeight(AnomalyType type) {
         return switch (type) {
             case REUSED_TOKEN -> 1.0;        
@@ -214,7 +190,6 @@ public class RefreshTokenAnomalyDetector {
         };
     }
 
-    
     private void publishHighRiskEvent(AnomalyCheckResult risk) {
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("anomalyType", risk.type().name());
@@ -226,15 +201,12 @@ public class RefreshTokenAnomalyDetector {
                 "system", "0.0.0.0", eventData);
     }
 
-    
-
     private record AnomalyCheckResult(
             AnomalyType type,
             double riskScore,
             String description
     ) {}
 
-    
     public interface GeoLocationService {
         double calculateDistance(String location1, String location2);
     }

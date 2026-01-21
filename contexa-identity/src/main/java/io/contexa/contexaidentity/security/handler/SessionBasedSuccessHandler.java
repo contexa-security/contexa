@@ -9,7 +9,6 @@ import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 
-
 @Slf4j
 public abstract class SessionBasedSuccessHandler implements PlatformAuthenticationSuccessHandler {
 
@@ -23,14 +22,12 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
         this.authContextProperties = authContextProperties;
     }
 
-    
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
         SavedRequest savedRequest = requestCache.getRequest(request, response);
 
         if (savedRequest != null) {
             String redirectUrl = savedRequest.getRedirectUrl();
 
-            
             if (isValidRedirectUrl(redirectUrl)) {
                 requestCache.removeRequest(request, response);
                 return redirectUrl;
@@ -39,20 +36,16 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
             }
         }
 
-        
         return getDefaultTargetUrl(request);
     }
 
-    
     protected abstract String getDefaultTargetUrl(HttpServletRequest request);
 
-    
     protected boolean isValidRedirectUrl(String url) {
         if (url == null || url.isBlank()) {
             return false;
         }
 
-        
         String[] invalidPatterns = {
             "/.well-known/",
             "/favicon.ico",
@@ -72,7 +65,6 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
         return true;
     }
 
-    
     protected boolean isApiRequest(HttpServletRequest request) {
         String acceptHeader = request.getHeader("Accept");
         if (acceptHeader != null && acceptHeader.contains("application/json")) {
@@ -88,7 +80,6 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
         return requestURI != null && (requestURI.startsWith("/api/") || requestURI.contains("/api/"));
     }
 
-    
     protected String extractClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {

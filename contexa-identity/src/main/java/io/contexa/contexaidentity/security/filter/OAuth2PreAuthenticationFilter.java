@@ -12,7 +12,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-
 public class OAuth2PreAuthenticationFilter extends OncePerRequestFilter {
 
     private final TokenService tokenService;
@@ -25,7 +24,6 @@ public class OAuth2PreAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        
         if ("/api/auth/logout".equals(request.getRequestURI())) {
             String token = tokenService.resolveAccessToken(request);
             if (StringUtils.hasText(token) && tokenService.validateAccessToken(token)) {

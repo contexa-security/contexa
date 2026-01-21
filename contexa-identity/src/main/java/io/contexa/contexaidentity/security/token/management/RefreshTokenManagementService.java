@@ -14,7 +14,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class RefreshTokenManagementService {
 
@@ -34,18 +33,14 @@ public class RefreshTokenManagementService {
         this.objectMapper = objectMapper;
     }
 
-    
     public UserTokenDashboard getUserTokenDashboard(String username) {
         
         List<EnhancedRefreshTokenStore.ActiveSession> activeSessions = enhancedTokenStore.getActiveSessions(username);
 
-        
         TokenStatistics statistics = getTokenStatistics(username);
 
-        
         List<SecurityEvent> recentEvents = getRecentSecurityEvents(username, 10);
 
-        
         List<EnhancedRefreshTokenStore.TokenUsageHistory> usageHistory = enhancedTokenStore.getTokenHistory(username, 20);
 
         return new UserTokenDashboard(
@@ -58,43 +53,31 @@ public class RefreshTokenManagementService {
         );
     }
 
-    
     public void terminateSession(String username, String deviceId, String reason) {
-        log.info("Terminating session for user: {}, device: {}, reason: {}",
-                username, deviceId, reason);
 
-        
         enhancedTokenStore.revokeDeviceTokens(username, deviceId, reason);
 
-        
         recordAuditLog(username, "SESSION_TERMINATED", Map.of(
                 "deviceId", deviceId,
                 "reason", reason,
                 "terminatedBy", getCurrentUser()
         ));
 
-        
         publishManagementEvent("SESSION_TERMINATED", username, deviceId, reason);
     }
 
-    
     public void terminateAllSessions(String username, String reason) {
-        log.info("Terminating all sessions for user: {}, reason: {}", username, reason);
 
-        
         enhancedTokenStore.revokeAllUserTokens(username, reason);
 
-        
         recordAuditLog(username, "ALL_SESSIONS_TERMINATED", Map.of(
                 "reason", reason,
                 "terminatedBy", getCurrentUser()
         ));
 
-        
         publishManagementEvent("ALL_SESSIONS_TERMINATED", username, null, reason);
     }
 
-    
     private TokenStatistics getTokenStatistics(String username) {
         String statsKey = STATS_KEY_PREFIX + username;
         Map<Object, Object> stats = redisTemplate.opsForHash().entries(statsKey);
@@ -109,7 +92,6 @@ public class RefreshTokenManagementService {
         );
     }
 
-    
     private Duration getAverageSessionDuration(String username) {
         String pattern = SESSION_KEY_PREFIX + username + ":*:duration";
         Set<String> durationKeys = redisTemplate.keys(pattern);
@@ -136,7 +118,6 @@ public class RefreshTokenManagementService {
         return Duration.ofMillis(averageMillis);
     }
 
-    
     private List<SecurityEvent> getRecentSecurityEvents(String username, int limit) {
         String auditKey = AUDIT_LOG_PREFIX + username;
         List<String> events = redisTemplate.opsForList().range(auditKey, 0, limit - 1);
@@ -151,7 +132,6 @@ public class RefreshTokenManagementService {
                 .collect(Collectors.toList());
     }
 
-    
     private SecurityEvent parseSecurityEvent(String eventJson) {
         try {
             return objectMapper.readValue(eventJson, SecurityEvent.class);
@@ -161,7 +141,6 @@ public class RefreshTokenManagementService {
         }
     }
 
-    
     private void recordAuditLog(String username, String action, Map<String, Object> details) {
         String auditKey = AUDIT_LOG_PREFIX + username;
 
@@ -170,16 +149,13 @@ public class RefreshTokenManagementService {
         auditEntry.put("timestamp", Instant.now().toString());
         auditEntry.put("details", details);
 
-        
         String auditJson = serializeToJson(auditEntry);
         redisTemplate.opsForList().leftPush(auditKey, auditJson);
 
-        
         redisTemplate.opsForList().trim(auditKey, 0, 999);
         redisTemplate.expire(auditKey, 90, TimeUnit.DAYS);
     }
 
-    
     private void publishManagementEvent(String eventType, String username,
                                         String deviceId, String reason) {
         Map<String, Object> eventData = new HashMap<>();
@@ -191,27 +167,18 @@ public class RefreshTokenManagementService {
         eventPublisher.publishSecurityEvent(eventType, username, "management", eventData);
     }
 
-    
-
     public void cleanupExpiredTokens() {
-        log.info("Starting token cleanup job");
-
+        
         long startTime = System.currentTimeMillis();
         int cleanedCount = 0;
 
         try {
-            
-            
-
-            log.info("Token cleanup completed. Cleaned {} tokens in {} ms",
-                    cleanedCount, System.currentTimeMillis() - startTime);
 
         } catch (Exception e) {
             log.error("Token cleanup job failed", e);
         }
     }
 
-    
     public void updateTokenStatistics(String username, String action) {
         String statsKey = STATS_KEY_PREFIX + username;
 
@@ -226,7 +193,6 @@ public class RefreshTokenManagementService {
         redisTemplate.expire(statsKey, 90, TimeUnit.DAYS);
     }
 
-    
     public SystemTokenStatistics getSystemStatistics() {
         
         String systemStatsKey = STATS_KEY_PREFIX + "system";
@@ -242,8 +208,6 @@ public class RefreshTokenManagementService {
                 getTopAnomalyTypes()
         );
     }
-
-    
 
     private String getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -302,8 +266,7 @@ public class RefreshTokenManagementService {
                                     anomalyTypes.merge(action, 1L, Long::sum);
                                 }
                             } catch (Exception e) {
-                                log.debug("Failed to parse audit log entry: {}", logEntry);
-                            }
+                                                            }
                         }
                     }
                 }
@@ -323,8 +286,6 @@ public class RefreshTokenManagementService {
             return new HashMap<>();
         }
     }
-
-    
 
     public record UserTokenDashboard(
             String username,

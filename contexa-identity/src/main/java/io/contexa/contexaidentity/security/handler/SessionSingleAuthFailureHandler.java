@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler {
 
@@ -43,13 +42,9 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             return;
         }
 
-        log.debug("Processing session single auth failure: {}", exception.getMessage());
-
-        
         String errorCode = "PRIMARY_AUTH_FAILED";
         String errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
 
-        
         if (failureType != null && failureType == FailureType.PRIMARY_AUTH_FAILED) {
             errorCode = "PRIMARY_AUTH_FAILED";
             errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
@@ -57,18 +52,15 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             errorMessage = exception.getMessage();
         }
 
-        
         String loginFailureUrl = authContextProperties.getUrls().getSingle().getLoginFailure();
         String failureUrl = request.getContextPath() + loginFailureUrl;
 
-        
         if (!loginFailureUrl.contains("?")) {
             failureUrl += "?error=" + errorCode.toLowerCase();
         } else {
             failureUrl += "&error=" + errorCode.toLowerCase();
         }
 
-        
         if (isApiRequest(request)) {
             
             Map<String, Object> responseData = new HashMap<>();
@@ -84,11 +76,9 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
                     errorCode, errorMessage, request.getRequestURI(), responseData);
 
-            log.debug("Session single auth failure (JSON): errorCode={}", errorCode);
-        } else {
+                    } else {
             
             response.sendRedirect(failureUrl);
-            log.debug("Session single auth failure (redirect) to: {}", failureUrl);
-        }
+                    }
     }
 }

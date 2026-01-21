@@ -20,7 +20,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Objects;
 
-
 @Slf4j
 public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
 
@@ -29,7 +28,6 @@ public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
     private final LogoutHandler logoutHandler;
     private final AuthResponseWriter responseWriter;
 
-    
     public OAuth2RefreshAuthenticationFilter(TokenService tokenService,
                                               LogoutHandler logoutHandler,
                                               AuthResponseWriter responseWriter) {
@@ -37,7 +35,6 @@ public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
         this.logoutHandler = logoutHandler;
         this.responseWriter = Objects.requireNonNull(responseWriter, "AuthResponseWriter cannot be null");
 
-        
         if (tokenService.properties() == null ||
             tokenService.properties().getInternal() == null ||
             !StringUtils.hasText(tokenService.properties().getInternal().getRefreshUri())) {
@@ -45,50 +42,38 @@ public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
         }
 
         this.refreshUri = tokenService.properties().getInternal().getRefreshUri();
-        log.info("OAuth2RefreshAuthenticationFilter initialized with refreshUri: {}", refreshUri);
-    }
+            }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        
         if (!refreshUri.equals(request.getRequestURI()) ||
             !HttpMethod.POST.name().equalsIgnoreCase(request.getMethod())) {
             chain.doFilter(request, response);
             return;
         }
 
-        log.debug("OAuth2RefreshAuthenticationFilter: Processing POST request for refresh URI: {}", request.getRequestURI());
-
-        
         String refreshTokenFromRequest = tokenService.resolveRefreshToken(request);
 
         if (StringUtils.hasText(refreshTokenFromRequest)) {
             try {
-                log.debug("Attempting to refresh token using OAuth2TokenService");
 
-                
-                
                 TokenService.RefreshResult result = tokenService.refresh(refreshTokenFromRequest);
 
-                
                 TokenTransportResult transportResult = tokenService.prepareTokensForTransport(
                         result.accessToken(),
                         result.refreshToken());
 
-                
                 if (transportResult.getCookiesToSet() != null) {
                     for (ResponseCookie cookie : transportResult.getCookiesToSet()) {
                         response.addHeader("Set-Cookie", cookie.toString());
                     }
                 }
 
-                
                 responseWriter.writeSuccessResponse(response, transportResult.getBody(), HttpServletResponse.SC_OK);
 
-                log.info("OAuth2 token refreshed successfully. Response generated and sent.");
-                return;
+                                return;
 
             } catch (TokenInvalidException tie) {
                 log.warn("Invalid refresh token for {}: {}", request.getRequestURI(), tie.getMessage());
@@ -107,20 +92,16 @@ public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
             }
         } else {
             log.warn("No refresh token found in POST request to {}", refreshUri);
-            
-            
+
             return;
         }
     }
 
-    
     private void handleFailure(HttpServletRequest request, HttpServletResponse response,
                                 int status, String errorCode, String errorMessage) throws IOException {
 
-        
         SecurityContextHolder.clearContext();
 
-        
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (logoutHandler != null) {
             try {
@@ -130,7 +111,6 @@ public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
             }
         }
 
-        
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, status, errorCode, errorMessage, request.getRequestURI());
         } else {

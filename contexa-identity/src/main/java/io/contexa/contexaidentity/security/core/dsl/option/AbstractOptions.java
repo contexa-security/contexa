@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-
 @Getter
 public abstract class AbstractOptions {
     private final boolean csrfDisabled;
@@ -33,7 +32,6 @@ public abstract class AbstractOptions {
         this.rawHttpCustomizers = List.copyOf(builder.rawHttpCustomizers); 
     }
 
-    
     public void applyCommonSecurityConfigs(HttpSecurity http) throws Exception {
         Objects.requireNonNull(http, "HttpSecurity cannot be null");
 
@@ -64,7 +62,6 @@ public abstract class AbstractOptions {
         }
     }
 
-    
     public abstract static class Builder<O extends AbstractOptions, B extends Builder<O, B>> {
         private boolean csrfDisabled = false;
         private Customizer<CorsConfigurer<HttpSecurity>> corsCustomizer = Customizer.withDefaults();

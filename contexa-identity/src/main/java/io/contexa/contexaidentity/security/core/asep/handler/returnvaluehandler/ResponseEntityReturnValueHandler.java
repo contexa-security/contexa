@@ -50,13 +50,8 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
                                   @Nullable MediaType resolvedMediaType) throws IOException, HttpMessageNotWritableException {
         if (returnValue == null) {
             if (!response.isCommitted()) {
-                
-                
-                
-                
-                log.debug("ASEP: HttpEntity return value is null for method [{}]. Response might have been handled directly or no content to send.",
-                        handlerMethod.getMethod().getName());
-            }
+
+                            }
             return;
         }
 
@@ -64,7 +59,6 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
         HttpEntity<?> responseEntity = (HttpEntity<?>) returnValue;
         ServletServerHttpResponse outputMessage = new ServletServerHttpResponse(response);
 
-        
         if (responseEntity instanceof ResponseEntity) {
             int statusCodeValue = ((ResponseEntity<?>) responseEntity).getStatusCode().value();
             if (!response.isCommitted()) {
@@ -75,7 +69,6 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
             }
         }
 
-        
         HttpHeaders entityHeaders = responseEntity.getHeaders();
         if (!entityHeaders.isEmpty()) {
             if (!response.isCommitted()) {
@@ -94,11 +87,9 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
             return;
         }
 
-        
         Class<?> bodyType = body.getClass();
         MediaType selectedMediaType = null;
 
-        
         if (entityHeaders.getContentType() != null) {
             selectedMediaType = entityHeaders.getContentType();
         }
@@ -108,8 +99,7 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
         }
         
         else {
-            
-            
+
             List<MediaType> acceptedMediaTypes = Collections.emptyList();
             String acceptHeader = request.getHeader(HttpHeaders.ACCEPT);
             if (StringUtils.hasText(acceptHeader) && !acceptHeader.equals("*/*")) {
@@ -154,15 +144,12 @@ public final class ResponseEntityReturnValueHandler implements SecurityHandlerMe
                     response.getContentType(), selectedMediaType);
         }
 
-
         for (HttpMessageConverter converter : this.messageConverters) {
             if (converter.canWrite(bodyType, selectedMediaType)) {
                 try {
                     ((HttpMessageConverter<Object>) converter).write(body, selectedMediaType, outputMessage);
                     if (log.isDebugEnabled()) {
-                        log.debug("ASEP: Written ResponseEntity body of type [{}] as '{}' using HttpMessageConverter [{}]",
-                                bodyType.getSimpleName(), selectedMediaType, converter.getClass().getName());
-                    }
+                                            }
                     if (!response.isCommitted()) {
                         outputMessage.getBody(); 
                     }

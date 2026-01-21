@@ -9,19 +9,14 @@ import org.springframework.security.web.SecurityFilterChain;
 import java.util.List;
 import java.util.Map;
 
-
 public interface PlatformContext {
 
-    
     void addAuthConfig(AuthenticationStepConfig config);
 
-    
     List<AuthenticationStepConfig> getAuthConfigs();
 
-    
     <T> void share(Class<T> clz, T obj);
 
-    
     <T> T getShared(Class<T> clz);
     
     void registerHttp(AuthenticationFlowConfig flow, HttpSecurity http);
@@ -31,13 +26,10 @@ public interface PlatformContext {
 
     void flowContexts(List<FlowContext> flowContexts);
 
-    
     HttpSecurity newHttp();
 
-    
     void registerChain(String id, SecurityFilterChain chain);
 
-    
     Map<String, SecurityFilterChain> getChains();
 
     ApplicationContext applicationContext();

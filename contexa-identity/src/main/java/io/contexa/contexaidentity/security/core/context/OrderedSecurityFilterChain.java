@@ -9,16 +9,12 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import java.util.List;
 
-
 public class OrderedSecurityFilterChain implements SecurityFilterChain, Ordered {
 
-    
     private final DefaultSecurityFilterChain delegate;
 
-    
     private final int order;
 
-    
     public OrderedSecurityFilterChain(int order, RequestMatcher matcher, List<Filter> filters) {
         this.delegate = new DefaultSecurityFilterChain(matcher, filters);
         this.order = order;
@@ -39,5 +35,4 @@ public class OrderedSecurityFilterChain implements SecurityFilterChain, Ordered 
         return delegate.getFilters();
     }
 }
-
 

@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.statemachine.exception;
 
-
 public class MfaStateMachineExceptions {
 
     public static class InvalidFactorException extends RuntimeException {

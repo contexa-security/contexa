@@ -5,11 +5,9 @@ import io.contexa.contexaidentity.security.core.asep.handler.returnvaluehandler.
 
 import java.util.List;
 
-
 public interface BaseAsepAttributes {
     
     List<SecurityHandlerMethodArgumentResolver> getCustomArgumentResolvers();
 
-    
     List<SecurityHandlerMethodReturnValueHandler> getCustomReturnValueHandlers();
 }

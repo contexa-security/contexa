@@ -8,6 +8,5 @@ public interface CodeStore {
     
     void save(String code, OneTimeToken token, Duration duration);
 
-    
     OneTimeToken consume(String code);
 }

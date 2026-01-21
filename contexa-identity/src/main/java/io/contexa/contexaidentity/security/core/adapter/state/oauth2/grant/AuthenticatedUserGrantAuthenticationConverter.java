@@ -17,7 +17,6 @@ import org.springframework.util.StringUtils;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class AuthenticatedUserGrantAuthenticationConverter implements AuthenticationConverter {
 
@@ -32,15 +31,11 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
             return null;
         }
 
-        
         Authentication clientPrincipal = SecurityContextHolder.getContext().getAuthentication();
 
         if (log.isDebugEnabled()) {
-            log.debug("SecurityContext authentication: {}",
-                    clientPrincipal != null ? clientPrincipal.getClass().getSimpleName() : "null");
-        }
+                    }
 
-        
         if (clientPrincipal == null) {
             log.error("Client authentication is null - OAuth2ClientAuthenticationFilter may not have executed");
             throwError(OAuth2ErrorCodes.INVALID_CLIENT,
@@ -63,24 +58,17 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Client authentication successful: clientId={}",
-                    clientAuth.getRegisteredClient() != null ?
-                    clientAuth.getRegisteredClient().getClientId() : "unknown");
-        }
+                    }
 
-        
         MultiValueMap<String, String> parameters = OAuth2EndpointUtils.getParameters(request);
 
-        
         String username = parameters.getFirst("username");
         if (!StringUtils.hasText(username)) {
             throwError(OAuth2ErrorCodes.INVALID_REQUEST, "OAuth 2.0 Parameter: username");
         }
 
-        
         String deviceId = parameters.getFirst("device_id");
 
-        
         Map<String, Object> additionalParameters = new HashMap<>();
         parameters.forEach((key, value) -> {
             if (!key.equals(OAuth2ParameterNames.GRANT_TYPE) &&
@@ -101,7 +89,6 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
         throw new OAuth2AuthenticationException(error);
     }
 
-    
     private static class OAuth2EndpointUtils {
         static MultiValueMap<String, String> getParameters(HttpServletRequest request) {
             Map<String, String[]> parameterMap = request.getParameterMap();

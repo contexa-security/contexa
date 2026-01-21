@@ -18,8 +18,7 @@ public final class RedirectReturnValueHandler implements SecurityHandlerMethodRe
 
     @Override
     public boolean supportsReturnType(MethodParameter returnType) {
-        
-        
+
         return String.class.isAssignableFrom(returnType.getParameterType());
     }
 
@@ -29,25 +28,12 @@ public final class RedirectReturnValueHandler implements SecurityHandlerMethodRe
                                   @Nullable Authentication authentication, HandlerMethod handlerMethod,
                                   @Nullable MediaType resolvedMediaType) throws IOException {
         if (returnValue == null) {
-            log.debug("ASEP: Redirect target URL is null for method [{}], nothing to do.", handlerMethod.getMethod().getName());
-            return;
+                        return;
         }
 
         String url = returnValue.toString();
         if (!url.startsWith(REDIRECT_URL_PREFIX)) {
-            
-            
-            
-            
-            
-            
-            
-            log.trace("ASEP: Return value for method [{}] does not start with 'redirect:'. RedirectReturnValueHandler will not process it.",
-                    handlerMethod.getMethod().getName());
-            
-            
-            
-            
+
             return;
         }
 
@@ -58,7 +44,6 @@ public final class RedirectReturnValueHandler implements SecurityHandlerMethodRe
             return;
         }
 
-        
         String encodedRedirectUrl;
         try {
             encodedRedirectUrl = response.encodeRedirectURL(
@@ -71,9 +56,7 @@ public final class RedirectReturnValueHandler implements SecurityHandlerMethodRe
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("ASEP: Redirecting from method [{}] to [{}].",
-                    handlerMethod.getMethod().getName(), encodedRedirectUrl);
-        }
+                    }
         response.sendRedirect(encodedRedirectUrl);
     }
 }

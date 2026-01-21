@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class SessionMfaSuccessHandler extends SessionBasedSuccessHandler {
 
@@ -40,12 +39,8 @@ public class SessionMfaSuccessHandler extends SessionBasedSuccessHandler {
             return;
         }
 
-        log.info("Processing session MFA authentication success for user: {}", authentication.getName());
-
-        
         String targetUrl = determineTargetUrl(request, response);
 
-        
         if (isApiRequest(request)) {
             
             Map<String, Object> responseData = new HashMap<>();
@@ -58,14 +53,10 @@ public class SessionMfaSuccessHandler extends SessionBasedSuccessHandler {
 
             responseWriter.writeSuccessResponse(response, responseData, HttpServletResponse.SC_OK);
 
-            log.debug("Session MFA success (JSON): user={}, redirectUrl={}",
-                    authentication.getName(), targetUrl);
-        } else {
+                    } else {
             
             response.sendRedirect(targetUrl);
-            log.debug("Session MFA success (redirect) for user: {} to: {}",
-                    authentication.getName(), targetUrl);
-        }
+                    }
     }
 
     @Override

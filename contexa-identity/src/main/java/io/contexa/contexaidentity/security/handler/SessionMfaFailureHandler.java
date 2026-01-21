@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
 
@@ -43,24 +42,18 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
             return;
         }
 
-        log.debug("Processing session MFA authentication failure: {}", exception.getMessage());
-
-        
         String errorCode = determineErrorCode(failureType, factorContext);
         String errorMessage = determineErrorMessage(failureType, exception);
 
-        
         String mfaFailureUrl = authContextProperties.getUrls().getMfa().getFailure();
         String failureUrl = request.getContextPath() + mfaFailureUrl;
 
-        
         if (!mfaFailureUrl.contains("?")) {
             failureUrl += "?error=" + errorCode.toLowerCase();
         } else {
             failureUrl += "&error=" + errorCode.toLowerCase();
         }
 
-        
         if (isApiRequest(request)) {
             
             Map<String, Object> responseData = new HashMap<>();
@@ -70,7 +63,6 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
             responseData.put("errorCode", errorCode);
             responseData.put("nextStepUrl", failureUrl);
 
-            
             if (factorContext != null) {
                 responseData.put("mfaSessionId", factorContext.getMfaSessionId());
                 responseData.put("currentState", factorContext.getCurrentState());
@@ -84,15 +76,12 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
                     errorCode, errorMessage, request.getRequestURI(), responseData);
 
-            log.debug("Session MFA failure (JSON): errorCode={}", errorCode);
-        } else {
+                    } else {
             
             response.sendRedirect(failureUrl);
-            log.debug("Session MFA failure (redirect) to: {}", failureUrl);
-        }
+                    }
     }
 
-    
     private String determineErrorCode(FailureType failureType, FactorContext factorContext) {
         if (failureType == null) {
             return "MFA_FAILED";
@@ -114,7 +103,6 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
         }
     }
 
-    
     private String determineErrorMessage(FailureType failureType, AuthenticationException exception) {
         if (failureType == null) {
             return exception.getMessage() != null ? exception.getMessage() : "MFA 인증에 실패했습니다.";

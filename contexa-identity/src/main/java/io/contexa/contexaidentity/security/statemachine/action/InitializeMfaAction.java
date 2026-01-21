@@ -20,7 +20,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-
 @Slf4j
 public class InitializeMfaAction extends AbstractMfaStateAction {
 
@@ -34,9 +33,7 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
                              FactorContext factorContext) throws Exception {
         String sessionId = factorContext.getMfaSessionId();
-        log.info("Initializing MFA for session: {}, user: {}",
-                sessionId, factorContext.getUsername());
-
+        
         HttpServletRequest request = (HttpServletRequest) context.getMessageHeader("request");
         if (request != null) {
             factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.USER_AGENT,
@@ -52,20 +49,16 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
             log.warn("MfaDecision not found in message header for session: {}", sessionId);
         }
 
-        log.info("MFA initialization completed for session: {}", sessionId);
-    }
+            }
 
-    
     private void applyMfaDecisionToContext(FactorContext ctx, MfaDecision decision) {
         String sessionId = ctx.getMfaSessionId();
 
-        
         ctx.setMfaRequiredAsPerPolicy(decision.isRequired());
         
         ctx.setAttribute(FactorContextAttributes.StateControl.MFA_DECISION_TYPE,
                         decision.getType().name());
 
-        
         if (decision.getMetadata() != null) {
             decision.getMetadata().forEach((key, value) -> {
                 if (value == null || value instanceof Serializable) {
@@ -77,18 +70,9 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
             });
             
             if (decision.getMetadata().containsKey(FactorContextAttributes.StateControl.USER_INFO)) {
-                log.debug("User info cached in context for user: {}", ctx.getUsername());
-            }
+                            }
         }
 
-        
-        
-        
-        
-        
-        
-
-        
         if (decision.isBlocked()) {
             ctx.setAttribute(FactorContextAttributes.StateControl.BLOCKED, true);
             ctx.setAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON,
@@ -97,7 +81,6 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                     ctx.getUsername(), decision.getReason());
         }
 
-        
         if (decision.isRequired()) {
             
             AuthenticationFlowConfig mfaFlowConfig = platformConfig.getFlows().stream()
@@ -110,37 +93,24 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                 Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
                 ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
 
-                log.info("[InitializeMfaAction] Set availableFactors: {} (count: {}) for session: {}, version: {}",
-                         availableFactors, availableFactors.size(), ctx.getMfaSessionId(), ctx.getVersion());
-
-                
                 Set<AuthType> verifyFactors = ctx.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
                 if (verifyFactors == null || verifyFactors.isEmpty()) {
                     log.error("[InitializeMfaAction] availableFactors verification FAILED for session: {}",
                              ctx.getMfaSessionId());
                 } else {
-                    log.debug("[InitializeMfaAction] availableFactors verified: {} for session: {}",
-                             verifyFactors, ctx.getMfaSessionId());
-                }
+                                    }
 
-                
                 if (mfaFlowConfig.getStateConfig() != null) {
                     ctx.setStateConfig(mfaFlowConfig.getStateConfig());
-                    log.debug("StateConfig set for session {}: {}",
-                            sessionId, mfaFlowConfig.getStateConfig().stateType());
-                }
+                                    }
 
-                log.info("User {} can use {} DSL-defined MFA factors: {}",
-                        ctx.getUsername(), availableFactors.size(), availableFactors);
-            } else {
+                            } else {
                 
                 List<AuthType> requiredFactors = decision.getRequiredFactors();
                 if (requiredFactors != null && !requiredFactors.isEmpty()) {
                     Set<AuthType> availableFactors = new LinkedHashSet<>(requiredFactors);
                     ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
-                    log.debug("Available factors loaded from decision for user: {}, factors: {}",
-                            ctx.getUsername(), availableFactors);
-                } else {
+                                    } else {
                     log.error("No available factors for user: {}. Configuration error.", ctx.getUsername());
                     ctx.changeState(MfaState.MFA_SYSTEM_ERROR);
                     ctx.setLastError("MFA configuration error: no available factors");
@@ -148,8 +118,6 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
             }
         }
 
-        log.debug("MfaDecision applied to context for session: {}", sessionId);
-    }
+            }
 
-    
 }

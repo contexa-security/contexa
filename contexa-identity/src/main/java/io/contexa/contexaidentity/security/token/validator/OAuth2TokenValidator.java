@@ -20,7 +20,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class OAuth2TokenValidator implements TokenValidator {
 
@@ -29,7 +28,6 @@ public class OAuth2TokenValidator implements TokenValidator {
     private final OAuth2AuthorizationService authorizationService;
     private final long rotationThresholdMillis;
 
-    
     public OAuth2TokenValidator(JwtDecoder jwtDecoder,
                                  RefreshTokenStore refreshTokenStore,
                                  OAuth2AuthorizationService authorizationService,
@@ -39,22 +37,18 @@ public class OAuth2TokenValidator implements TokenValidator {
         this.authorizationService = authorizationService;
         this.rotationThresholdMillis = rotateThresholdMillis;
 
-        log.info("OAuth2TokenValidator initialized (RSA-based) with rotation threshold: {} ms", rotateThresholdMillis);
-    }
+            }
 
-    
     @Override
     public boolean validateAccessToken(String token) {
         try {
             jwtDecoder.decode(token);
             return true;
         } catch (JwtException ex) {
-            log.debug("Invalid access token: {}", ex.getMessage());
-            return false;
+                        return false;
         }
     }
 
-    
     @Override
     public boolean validateRefreshToken(String token) {
         try {
@@ -64,14 +58,12 @@ public class OAuth2TokenValidator implements TokenValidator {
                 return false;
             }
 
-            
             String username = refreshTokenStore.getUsername(token);
             if (username == null) {
                 log.warn("Refresh token not found in RefreshTokenStore or expired");
                 return false;
             }
 
-            
             OAuth2Authorization authorization = authorizationService.findByToken(
                     token, OAuth2TokenType.REFRESH_TOKEN);
 
@@ -80,15 +72,13 @@ public class OAuth2TokenValidator implements TokenValidator {
                 return false;
             }
 
-            
             OAuth2Authorization.Token<OAuth2RefreshToken> tokenMetadata = authorization.getRefreshToken();
             if (tokenMetadata != null && tokenMetadata.isExpired()) {
                 log.warn("Refresh token is expired");
                 return false;
             }
 
-            log.debug("Refresh token validation successful for user: {}", username);
-            return true;
+                        return true;
 
         } catch (Exception ex) {
             log.error("Error validating refresh token", ex);
@@ -96,7 +86,6 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    
     @Override
     public void invalidateRefreshToken(String refreshToken) {
         try {
@@ -104,23 +93,16 @@ public class OAuth2TokenValidator implements TokenValidator {
             String username = refreshTokenStore.getUsername(refreshToken);
             if (username != null) {
                 refreshTokenStore.remove(refreshToken);
-                log.debug("Removed refresh token from RefreshTokenStore for user: {}", username);
-            } else {
-                log.debug("Refresh token not found in RefreshTokenStore");
-            }
+                            } else {
+                            }
 
-            
             OAuth2Authorization authorization = authorizationService.findByToken(
                     refreshToken, OAuth2TokenType.REFRESH_TOKEN);
 
             if (authorization != null) {
                 authorizationService.remove(authorization);
-                log.debug("Removed OAuth2Authorization for refresh token");
-            } else {
-                log.debug("OAuth2Authorization not found for refresh token");
-            }
-
-            log.info("Successfully invalidated refresh token");
+                            } else {
+                            }
 
         } catch (Exception ex) {
             log.error("Error invalidating refresh token", ex);
@@ -130,7 +112,6 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    
     @Override
     public boolean shouldRotateRefreshToken(String refreshToken) {
         try {
@@ -152,9 +133,7 @@ public class OAuth2TokenValidator implements TokenValidator {
             long remainingMillis = expirationMillis - System.currentTimeMillis();
 
             boolean shouldRotate = remainingMillis <= rotationThresholdMillis;
-            log.debug("Refresh token rotation check: remaining={} ms, threshold={} ms, rotate={}",
-                    remainingMillis, rotationThresholdMillis, shouldRotate);
-
+            
             return shouldRotate;
 
         } catch (Exception ex) {
@@ -163,22 +142,18 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    
     @Override
     public Authentication getAuthentication(String token) {
         try {
             
             Jwt jwt = jwtDecoder.decode(token);
 
-            
             Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
 
-            
             JwtAuthenticationToken authentication =
                     new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
 
-            log.debug("Successfully extracted authentication from token for user: {}", jwt.getSubject());
-            return authentication;
+                        return authentication;
 
         } catch (JwtException ex) {
             log.error("Failed to extract authentication from token: {}", ex.getMessage());
@@ -187,7 +162,6 @@ public class OAuth2TokenValidator implements TokenValidator {
         }
     }
 
-    
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
         
         List<String> scopes = jwt.getClaimAsStringList("scope");
@@ -197,7 +171,6 @@ public class OAuth2TokenValidator implements TokenValidator {
                         .collect(Collectors.toList()) :
                 List.of();
 
-        
         List<String> roles = jwt.getClaimAsStringList("roles");
         Collection<GrantedAuthority> roleAuthorities = roles != null ?
                 roles.stream()
@@ -205,7 +178,6 @@ public class OAuth2TokenValidator implements TokenValidator {
                         .collect(Collectors.toList()) :
                 List.of();
 
-        
         List<String> authorities = jwt.getClaimAsStringList("authorities");
         Collection<GrantedAuthority> explicitAuthorities = authorities != null ?
                 authorities.stream()
@@ -213,7 +185,6 @@ public class OAuth2TokenValidator implements TokenValidator {
                         .collect(Collectors.toList()) :
                 List.of();
 
-        
         return List.of(scopeAuthorities, roleAuthorities, explicitAuthorities).stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());

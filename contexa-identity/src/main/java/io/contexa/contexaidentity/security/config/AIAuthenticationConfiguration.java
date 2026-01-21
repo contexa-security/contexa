@@ -9,7 +9,6 @@ import org.springframework.boot.autoconfigure.condition.SearchStrategy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
@@ -20,26 +19,17 @@ import org.springframework.context.annotation.Configuration;
     matchIfMissing = true 
 )
 public class AIAuthenticationConfiguration {
-    
-    
+
     @Bean
     @ConditionalOnBean(value = {AICoreOperations.class},
                        search = SearchStrategy.ALL)
     public AIAuthenticationStatusLogger aiAuthenticationStatusLogger() {
         return new AIAuthenticationStatusLogger();
     }
-    
-    
+
     @Slf4j
     public static class AIAuthenticationStatusLogger {
         public AIAuthenticationStatusLogger() {
-            log.info("===================================================");
-            log.info("AI Adaptive Authentication Status:");
-            log.info("  - Configuration: ENABLED");
-            log.info("  - RiskAssessmentLab: AVAILABLE");
-            log.info("  - BehavioralAnalysisLab: AVAILABLE");
-            log.info("  - Status: ACTIVE");
-            log.info("===================================================");
-        }
+                                                                                            }
     }
 }

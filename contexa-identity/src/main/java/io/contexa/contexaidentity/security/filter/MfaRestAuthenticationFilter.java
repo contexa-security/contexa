@@ -29,19 +29,16 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-
 @Slf4j
 public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
 
-    
     private final BytesKeyGenerator sessionIdGenerator;
     private final SecureRandom secureRandom;
     private final long authDelay;
 
-    
     private static final int MAX_SESSION_ID_GENERATION_ATTEMPTS = 5;
     private static final int MAX_COLLISION_RESOLUTION_ATTEMPTS = 3;
 
@@ -57,16 +54,12 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         this.stateMachineIntegrator = applicationContext.getBean(MfaStateMachineIntegrator.class);
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
 
-        
         this.sessionIdGenerator = KeyGenerators.secureRandom(32);
         this.secureRandom = new SecureRandom();
         this.authDelay = properties.getMfa().getMinimumDelayMs();
 
-        log.info("RestAuthenticationFilter initialized with {} repository. Distributed sync: {}",
-                sessionRepository.getRepositoryType(), sessionRepository.supportsDistributedSync());
-    }
+            }
 
-    
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                           Authentication authentication) throws IOException, ServletException {
         
@@ -75,14 +68,11 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         securityContextHolderStrategy.setContext(context);
         securityContextRepository.saveContext(context, request, response);
 
-        
         cleanupExistingSession(request, response);
 
-        
         String mfaSessionId = generateSecureDistributedSessionId(request);
         String flowTypeNameForContext = AuthType.MFA.name().toLowerCase();
 
-        
         FactorContext factorContext = new FactorContext(
                 mfaSessionId,
                 authentication,
@@ -90,17 +80,11 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                 flowTypeNameForContext
         );
 
-        
         enhanceFactorContextWithSecurityInfo(factorContext, request);
 
         try {
             
             stateMachineIntegrator.initializeStateMachine(factorContext, request, response);
-
-            log.info("State Machine initialized. FactorContext state: {} for user: {} (session: {})",
-                    factorContext.getCurrentState(),
-                    factorContext.getUsername(),
-                    factorContext.getMfaSessionId());
 
             MfaState actualState = stateMachineIntegrator.getCurrentState(factorContext.getMfaSessionId());
             if (actualState != factorContext.getCurrentState()) {
@@ -113,7 +97,6 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for session: {}", mfaSessionId, e);
 
-            
             cleanupFailedSession(mfaSessionId, request, response);
 
             unsuccessfulAuthentication(request, response,
@@ -121,7 +104,6 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    
     private String generateSecureDistributedSessionId(HttpServletRequest request) {
         if (sessionRepository.supportsDistributedSync()) {
             return generateDistributedUniqueSessionId(request);
@@ -130,10 +112,8 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    
     private String generateDistributedUniqueSessionId(HttpServletRequest request) {
-        log.debug("Generating distributed unique session ID using repository: {}", sessionRepository.getRepositoryType());
-
+        
         for (int attempt = 0; attempt < MAX_SESSION_ID_GENERATION_ATTEMPTS; attempt++) {
             try {
                 String baseId = generateSecureSessionId();
@@ -146,7 +126,6 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
                     return resolveSessionIdGenerationFailure(request);
                 }
 
-                
                 try {
                     Thread.sleep(50L * (1L << Math.min(attempt, 4)));
                 } catch (InterruptedException ie) {
@@ -156,15 +135,12 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
             }
         }
 
-        
         log.warn("All distributed session ID generation attempts failed, using fallback method");
         return generateSecureSessionId();
     }
 
-    
     private String resolveSessionIdGenerationFailure(HttpServletRequest request) {
-        log.info("Attempting to resolve session ID generation failure using collision resolution");
-
+        
         try {
             String originalId = generateSecureSessionId();
             return sessionRepository.resolveSessionIdCollision(originalId, request, MAX_COLLISION_RESOLUTION_ATTEMPTS);
@@ -174,7 +150,6 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    
     private void enhanceFactorContextWithSecurityInfo(FactorContext factorContext, HttpServletRequest request) {
         String deviceId = getOrCreateDeviceId(request);
         factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID, deviceId);
@@ -185,23 +160,18 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         factorContext.setAttribute(FactorContextAttributes.Timestamps.LOGIN_TIMESTAMP,
                                   System.currentTimeMillis());
 
-        log.debug("Enhanced FactorContext with security info: deviceId={}, repository={}",
-                deviceId, sessionRepository.getRepositoryType());
-    }
+            }
 
-    
     private void cleanupFailedSession(String mfaSessionId, HttpServletRequest request, HttpServletResponse response) {
         try {
             if (sessionRepository.existsSession(mfaSessionId)) {
                 sessionRepository.removeSession(mfaSessionId, request, response);
-                log.debug("Cleaned up failed session: {}", mfaSessionId);
-            }
+                            }
         } catch (Exception e) {
             log.warn("Failed to cleanup failed session: {}", mfaSessionId, e);
         }
     }
 
-    
     public void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                             AuthenticationException failed) throws IOException, ServletException {
         securityContextHolderStrategy.clearContext();
@@ -216,17 +186,13 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         failureHandler.onAuthenticationFailure(request, response, failed);
     }
 
-    
     private void cleanupExistingSession(HttpServletRequest request, HttpServletResponse response) {
         try {
             stateMachineIntegrator.cleanupSession(request, response);
-            log.debug("Existing session cleaned up using repository pattern: {}", sessionRepository.getRepositoryType());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("Failed to cleanup existing session using {}: {}", sessionRepository.getRepositoryType(), e.getMessage());
         }
     }
-
-    
 
     public void ensureMinimumDelay(long startTime) {
         long elapsed = System.currentTimeMillis() - startTime;
@@ -275,7 +241,6 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         return request.getRemoteAddr();
     }
 
-    
     private String getOrCreateDeviceId(HttpServletRequest request) {
         String deviceId = request.getHeader("X-Device-Id");
         if (StringUtils.hasText(deviceId) && isValidDeviceId(deviceId)) {
@@ -288,11 +253,9 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
             deviceId = generateSecureDeviceId();
         }
 
-        log.debug("Generated deviceId: {} using repository: {}", deviceId, sessionRepository.getRepositoryType());
-        return deviceId;
+                return deviceId;
     }
 
-    
     private String generateDistributedDeviceId(HttpServletRequest request) {
         String clientInfo = getClientIpAddress(request) + "|" +
                 (request.getHeader("User-Agent") != null ? request.getHeader("User-Agent") : "") + "|" +

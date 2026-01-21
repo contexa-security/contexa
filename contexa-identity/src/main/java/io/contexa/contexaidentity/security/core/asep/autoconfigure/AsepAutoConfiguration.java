@@ -34,20 +34,16 @@ public class AsepAutoConfiguration {
     private final HttpMessageConverters httpMessageConverters;
     private final ConversionService conversionService;
 
-    
     public AsepAutoConfiguration(ObjectProvider<HttpMessageConverters> httpMessageConvertersProvider,
                                  ObjectProvider<ConversionService> conversionServiceProvider) {
         this.httpMessageConverters = httpMessageConvertersProvider.getIfAvailable(() -> new HttpMessageConverters(Collections.emptyList()));
         this.conversionService = conversionServiceProvider.getIfAvailable(FormattingConversionService::new);
-        log.info("ASEP: AsepAutoConfiguration initialized. HttpMessageConverters count: {}, ConversionService: {}",
-                this.httpMessageConverters.getConverters().size(), this.conversionService.getClass().getSimpleName());
-    }
+            }
 
     @Bean
     @ConditionalOnMissingBean
     public SecurityExceptionHandlerMethodRegistry securityExceptionHandlerMethodRegistry() {
-        log.debug("ASEP: Creating SecurityExceptionHandlerMethodRegistry bean.");
-        return new SecurityExceptionHandlerMethodRegistry();
+                return new SecurityExceptionHandlerMethodRegistry();
     }
 
     @Bean
@@ -71,8 +67,7 @@ public class AsepAutoConfiguration {
             resolvers.add(new SecurityRequestBodyArgumentResolver(Collections.emptyList())); 
         }
         AnnotationAwareOrderComparator.sort(resolvers);
-        log.debug("ASEP: Created 'asepDefaultArgumentResolvers' bean with {} resolvers.", resolvers.size());
-        return Collections.unmodifiableList(resolvers);
+                return Collections.unmodifiableList(resolvers);
     }
 
     @Bean
@@ -89,8 +84,7 @@ public class AsepAutoConfiguration {
         }
         handlers.add(new RedirectReturnValueHandler());
         AnnotationAwareOrderComparator.sort(handlers);
-        log.debug("ASEP: Created 'asepDefaultReturnValueHandlers' bean with {} handlers.", handlers.size());
-        return Collections.unmodifiableList(handlers);
+                return Collections.unmodifiableList(handlers);
     }
 
     @Bean
@@ -103,11 +97,8 @@ public class AsepAutoConfiguration {
         mapping.put("ott", OttAsepAttributes.class);
         mapping.put("passkey", PasskeyAsepAttributes.class);
         mapping.put("mfa", MfaAsepAttributes.class); 
-        
-        
-        
-        log.info("ASEP: Initialized 'asepDslAttributesMapping' ({} entries). Keys: {}", mapping.size(), mapping.keySet());
-        return Collections.unmodifiableMap(mapping);
+
+                return Collections.unmodifiableMap(mapping);
     }
 
     @Bean
@@ -125,7 +116,6 @@ public class AsepAutoConfiguration {
                 httpMessageConverters, 
                 dslAttributesMapping 
         );
-        log.info("ASEP: AsepConfigurer bean (Singleton, implements SecurityConfigurer) created and configured.");
-        return configurer;
+                return configurer;
     }
 }

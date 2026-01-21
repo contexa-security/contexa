@@ -11,14 +11,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.util.Assert;
 
-
 @Slf4j
 public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
     
     private final CompositeMfaPolicyEvaluator compositePolicyEvaluator;
     private final AICoreOperations aiCoreOperations;
 
-    
     public AIAdaptiveMfaPolicyProvider(
             UserRepository userRepository,
             ApplicationContext applicationContext,
@@ -34,36 +32,23 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
         if (aiCoreOperations == null) {
             log.warn("AI Core Operations not available. AI adaptive authentication will be disabled.");
         }
-        
-        
+
         compositePolicyEvaluator.logEvaluatorStatus();
     }
-    
-    
+
     @Override
     protected MfaDecision evaluatePolicy(FactorContext ctx) {
         MfaDecision decision = compositePolicyEvaluator.evaluatePolicy(ctx);
-        
-        log.info("MFA policy evaluated for user {}: type={}, required={}, factorCount={}, evaluator={}",
-                ctx.getUsername(), decision.getType(), decision.isRequired(), 
-                decision.getFactorCount(), compositePolicyEvaluator.getLastUsedEvaluatorName());
-        
+
         return decision;
     }
-    
-    
+
     @Override
     public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null");
 
-        log.info("Starting MFA requirement evaluation for user: {} (AI: {})",
-                ctx.getUsername(), isAIAvailable() ? "enabled" : "disabled");
-
-        
-        
         MfaDecision decision = super.evaluateInitialMfaRequirement(ctx);
 
-        
         if (isAIAvailable()) {
             enrichContextWithAIMetadata(ctx);
         }
@@ -71,23 +56,18 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
         return decision;
     }
 
-    
     private void enrichContextWithAIMetadata(FactorContext ctx) {
-        
-        
 
         Object riskScore = ctx.getAttribute("riskScore");
         if (riskScore != null) {
             ctx.setAttribute("aiRiskScore", riskScore);
-            log.debug("AI risk score for user {}: {}", ctx.getUsername(), riskScore);
-        }
+                    }
 
         Object aiAttributes = ctx.getAttribute("aiAttributes");
         if (aiAttributes != null) {
             ctx.setAttribute("aiAssessmentDetails", aiAttributes);
         }
 
-        
         Boolean blocked = (Boolean) ctx.getAttribute("blocked");
         if (Boolean.TRUE.equals(blocked)) {
             String blockReason = (String) ctx.getAttribute("blockReason");
@@ -95,15 +75,11 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
                     ctx.getUsername(), blockReason != null ? blockReason : "UNKNOWN");
         }
 
-        
         String decisionType = (String) ctx.getAttribute("mfaDecisionType");
         if (decisionType != null) {
-            log.info("AI-enhanced MFA evaluation completed for user {}: Decision type={}",
-                    ctx.getUsername(), decisionType);
-        }
+                    }
     }
-    
-    
+
     private boolean isAIAvailable() {
         return aiCoreOperations != null;
     }

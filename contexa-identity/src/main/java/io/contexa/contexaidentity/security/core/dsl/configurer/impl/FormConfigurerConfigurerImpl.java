@@ -17,13 +17,11 @@ public final class FormConfigurerConfigurerImpl
         extends AbstractOptionsBuilderConfigurer<FormConfigurerConfigurerImpl, FormOptions, FormOptions.Builder, FormConfigurerConfigurer>
         implements FormConfigurerConfigurer {
 
-    
     public FormConfigurerConfigurerImpl(ApplicationContext applicationContext) {
         super(FormOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
     }
 
-    
     public FormConfigurerConfigurerImpl(ApplicationContext applicationContext, boolean isMfaMode) {
         super(isMfaMode ? FormOptions.builderForMfa(applicationContext) : FormOptions.builder(applicationContext));
         setApplicationContext(applicationContext);
@@ -115,8 +113,7 @@ public final class FormConfigurerConfigurerImpl
         }
         
         getOptionsBuilder().asepAttributes(attributes);
-        log.debug("ASEP: FormAsepAttributes configured and will be stored within FormOptions.");
-        return self();
+                return self();
     }
 
     @Override

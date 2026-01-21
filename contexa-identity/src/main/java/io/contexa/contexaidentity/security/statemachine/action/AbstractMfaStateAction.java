@@ -35,8 +35,7 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     @Override
     public final void execute(StateContext<MfaState, MfaEvent> context) {
         String sessionId = extractSessionId(context);
-        log.debug("Executing action {} for session: {}", this.getClass().getSimpleName(), sessionId);
-
+        
         FactorContext factorContext = null;
         try {
             
@@ -45,31 +44,22 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
                 throw new IllegalStateException("FactorContext not found in state machine context");
             }
 
-            
             validatePreconditions(context, factorContext);
 
-            
             doExecute(context, factorContext);
 
-            
             updateStateMachineVariables(context, factorContext);
-
-            log.debug("Action {} completed successfully for session: {}",
-                    this.getClass().getSimpleName(), sessionId);
 
         } catch (InvalidFactorException | ChallengeGenerationException |
                  FactorVerificationException | StateTransitionException e) {
             log.error("Business exception in action {} for session: {}: {}",
                     this.getClass().getSimpleName(), sessionId, e.getMessage());
 
-            
             assert factorContext != null;
             factorContext.setLastError(e.getMessage());
 
-            
             handleBusinessException(context, factorContext, e);
 
-            
             throw new MfaStateMachineExceptions.StateMachineActionException(
                     "MFA action failed: " + e.getMessage(), e);
 
@@ -82,24 +72,19 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
                 handleUnexpectedError(context, factorContext, e);
             }
 
-            
             throw new MfaStateMachineExceptions.StateMachineActionException(
                     "Unexpected error in MFA action", e);
         }
     }
 
-    
     protected void validatePreconditions(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext) throws Exception {
-        
-        
+
     }
 
-    
     protected abstract void doExecute(StateContext<MfaState, MfaEvent> context,
                                       FactorContext factorContext) throws Exception;
 
-    
     protected void handleBusinessException(StateContext<MfaState, MfaEvent> context,
                                            FactorContext factorContext,
                                            RuntimeException e) {
@@ -107,7 +92,6 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
         if (factorContext != null) {
             factorContext.setLastError(e.getMessage());
 
-            
             if (e instanceof InvalidFactorException) {
                 factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                                          MfaEvent.SYSTEM_ERROR);
@@ -123,7 +107,6 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
         }
     }
 
-    
     protected void transitionToExpiredState(StateContext<MfaState, MfaEvent> context,
                                             FactorContext factorContext) {
         if (factorContext != null) {
@@ -134,23 +117,18 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
         }
     }
 
-    
     protected void handleUnexpectedError(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext,
                                          Exception e) {
         if (factorContext != null) {
             factorContext.setLastError("Unexpected error: " + e.getMessage());
-            
-            
+
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                                      MfaEvent.SYSTEM_ERROR);
         }
 
-        
-        
     }
 
-    
     protected String extractSessionId(StateContext<MfaState, MfaEvent> context) {
         String sessionId = StateContextHelper.getFactorContext(context).getMfaSessionId();
         if (sessionId == null) {
@@ -162,18 +140,15 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
         return sessionId;
     }
 
-    
     protected FactorContext extractFactorContext(StateContext<MfaState, MfaEvent> context) {
         return StateContextHelper.getFactorContext(context);
     }
 
-    
     protected void updateStateMachineVariables(StateContext<MfaState, MfaEvent> context,
                                                FactorContext factorContext) {
         StateContextHelper.setFactorContext(context, factorContext);
     }
 
-    
     protected AuthenticationFlowConfig findMfaFlowConfig(FactorContext ctx) {
         try {
             if (applicationContext == null) {

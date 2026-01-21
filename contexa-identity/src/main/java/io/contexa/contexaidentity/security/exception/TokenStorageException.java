@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.exception;
 
-
 public class TokenStorageException extends RuntimeException {
 
     public TokenStorageException(String message) {

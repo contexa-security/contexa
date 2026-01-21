@@ -14,7 +14,6 @@ import java.util.Map;
 import static io.contexa.contexaidentity.security.token.service.TokenService.ACCESS_TOKEN;
 import static io.contexa.contexaidentity.security.token.service.TokenService.REFRESH_TOKEN;
 
-
 public class CookieTokenStrategy extends AbstractTokenTransportStrategy implements TokenTransportStrategy {
 
     private static final String COOKIE_PATH = "/";
@@ -38,7 +37,6 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
                                                       TokenService.TokenServicePropertiesProvider propsProvider) {
         List<ResponseCookie> cookiesToSet = new ArrayList<>();
 
-        
         if (StringUtils.hasText(accessToken)) {
             ResponseCookie accessCookie = ResponseCookie.from(propsProvider.getAccessTokenCookieName(), accessToken)
                     .path(propsProvider.getCookiePath())
@@ -50,7 +48,6 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
             cookiesToSet.add(accessCookie);
         }
 
-        
         if (StringUtils.hasText(refreshToken)) {
             ResponseCookie refreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), refreshToken)
                     .path(propsProvider.getCookiePath())
@@ -62,7 +59,6 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
             cookiesToSet.add(refreshCookie);
         }
 
-        
         Map<String, Object> body = new HashMap<>();
         body.put("status", "SUCCESS");
         body.put("message", "Authentication successful");
@@ -78,7 +74,6 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
     public TokenTransportResult prepareTokensForClear(TokenService.TokenServicePropertiesProvider propsProvider) {
         List<ResponseCookie> cookiesToRemove = new ArrayList<>();
 
-        
         ResponseCookie expiredAccessCookie = ResponseCookie.from(propsProvider.getAccessTokenCookieName(), "")
                 .path(propsProvider.getCookiePath())
                 .httpOnly(HTTP_ONLY)
@@ -88,7 +83,6 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
                 .build();
         cookiesToRemove.add(expiredAccessCookie);
 
-        
         ResponseCookie expiredRefreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), "")
                 .path(propsProvider.getCookiePath())
                 .httpOnly(HTTP_ONLY)
@@ -104,6 +98,4 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
                 .build();
     }
 }
-
-
 

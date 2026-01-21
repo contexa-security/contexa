@@ -22,7 +22,6 @@ import org.springframework.util.Assert;
 
 import java.util.Objects;
 
-
 public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRestAuthenticationConfigurer<T, H>, H extends HttpSecurityBuilder<H>>
         extends AbstractHttpConfigurer<T, H> {
 
@@ -52,7 +51,6 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
             this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
         }
 
-        
         BaseAuthenticationFilter filter = createAuthenticationFilter(http, authenticationManager, applicationContext, properties);
         http.authenticationProvider(new RestAuthenticationProvider(userDetailsService, passwordEncoder));
         
@@ -61,14 +59,12 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
         http.addFilterBefore(postProcess(filter), UsernamePasswordAuthenticationFilter.class);
     }
 
-    
     protected abstract BaseAuthenticationFilter createAuthenticationFilter(
             H http,
             AuthenticationManager authenticationManager,
             ApplicationContext applicationContext,
             AuthContextProperties properties);
 
-    
     protected void configureFilter(BaseAuthenticationFilter filter, HttpSecurity http) {
 
         if (successHandler != null) {
@@ -78,10 +74,6 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
             filter.setFailureHandler(failureHandler);
         }
 
-        
-        
-        
-        
         SecurityContextRepository resolvedRepository = http.getSharedObject(SecurityContextRepository.class);
         if (resolvedRepository == null) {
             resolvedRepository = this.securityContextRepository;
@@ -92,8 +84,6 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
 
         filter.setSecurityContextRepository(resolvedRepository);
     }
-
-
 
     public T loginProcessingUrl(String loginProcessingUrl) {
         Assert.hasText(loginProcessingUrl, "loginProcessingUrl must not be null or empty");

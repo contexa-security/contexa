@@ -7,7 +7,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-
 @Slf4j
 public class BlockedUserGuard extends AbstractMfaStateGuard {
 
@@ -17,7 +16,6 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
         String sessionId = factorContext.getMfaSessionId();
         String username = factorContext.getUsername();
 
-        
         Object blockedObj = factorContext.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
         boolean isBlocked = Boolean.TRUE.equals(blockedObj);
 
@@ -28,9 +26,7 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
             return false;
         }
 
-        log.debug("[BlockedUserGuard] User {} is not blocked for session: {}",
-                username, sessionId);
-        return true;
+                return true;
     }
 
     @Override
@@ -43,7 +39,6 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
         return "BlockedUserGuard";
     }
 
-    
     public void blockUser(FactorContext factorContext, String reason) {
         factorContext.setAttribute(FactorContextAttributes.StateControl.BLOCKED, true);
         factorContext.setAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON, reason);
@@ -52,22 +47,17 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
                 factorContext.getUsername(), factorContext.getMfaSessionId(), reason);
     }
 
-    
     public void unblockUser(FactorContext factorContext) {
         factorContext.removeAttribute(FactorContextAttributes.StateControl.BLOCKED);
         factorContext.removeAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
 
-        log.info("[BlockedUserGuard] User {} unblocked for session: {}",
-                factorContext.getUsername(), factorContext.getMfaSessionId());
-    }
+            }
 
-    
     public boolean isUserBlocked(FactorContext factorContext) {
         Object blockedObj = factorContext.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
         return Boolean.TRUE.equals(blockedObj);
     }
 
-    
     public String getBlockReason(FactorContext factorContext) {
         return (String) factorContext.getAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
     }

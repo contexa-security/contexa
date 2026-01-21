@@ -6,7 +6,6 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
-
 public class FlowConfigurer implements SecurityConfigurer {
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) { }

@@ -15,10 +15,8 @@ public class ConfiguredFactorFilterProvider {
     private final Map<FactorIdentifier, Filter> configuredFiltersByFactorId = new ConcurrentHashMap<>();
 
     public ConfiguredFactorFilterProvider() {
-        log.info("ConfiguredFactorFilterProvider initialized.");
-    }
+            }
 
-    
     public void registerFilter(FactorIdentifier factorIdentifier, Filter filterInstance) {
         Objects.requireNonNull(factorIdentifier, "factorIdentifier cannot be null");
         Objects.requireNonNull(filterInstance, "filterInstance cannot be null");
@@ -30,11 +28,8 @@ public class ConfiguredFactorFilterProvider {
                     filterInstance.getClass().getName());
         }
         configuredFiltersByFactorId.put(factorIdentifier, filterInstance);
-        log.debug("Registered configured filter for FactorIdentifier: {}, Filter: {}",
-                factorIdentifier, filterInstance.getClass().getName());
-    }
+            }
 
-    
     @Nullable
     public Filter getFilter(FactorIdentifier factorIdentifier) {
         Objects.requireNonNull(factorIdentifier, "factorIdentifier cannot be null");
@@ -42,9 +37,7 @@ public class ConfiguredFactorFilterProvider {
         if (filter == null) {
             log.warn("No configured filter found for FactorIdentifier: {}", factorIdentifier);
         } else {
-            log.debug("Retrieved configured filter for FactorIdentifier: {}, Filter: {}",
-                    factorIdentifier, filter.getClass().getName());
-        }
+                    }
         return filter;
     }
 

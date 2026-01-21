@@ -8,10 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 import org.springframework.statemachine.guard.Guard;
 
-
 @Slf4j
 public abstract class AbstractMfaStateGuard implements Guard<MfaState, MfaEvent>, MfaStateGuard {
-
 
     @Override
     public final boolean evaluate(StateContext<MfaState, MfaEvent> context) {
@@ -23,11 +21,7 @@ public abstract class AbstractMfaStateGuard implements Guard<MfaState, MfaEvent>
                 return false;
             }
 
-            
             boolean result = doEvaluate(context, factorContext);
-
-            log.debug("Guard {} evaluated to: {} for session: {}",
-                    getGuardName(), result, factorContext.getMfaSessionId());
 
             return result;
 
@@ -37,16 +31,13 @@ public abstract class AbstractMfaStateGuard implements Guard<MfaState, MfaEvent>
         }
     }
 
-    
     protected abstract boolean doEvaluate(StateContext<MfaState, MfaEvent> context,
                                           FactorContext factorContext);
 
-    
     protected FactorContext extractFactorContext(StateContext<MfaState, MfaEvent> context) {
         return StateContextHelper.getFactorContext(context);
     }
 
-    
     public Guard<MfaState, MfaEvent> negate() {
         return context -> !this.evaluate(context);
     }

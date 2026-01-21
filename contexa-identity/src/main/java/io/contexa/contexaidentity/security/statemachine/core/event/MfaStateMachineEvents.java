@@ -10,10 +10,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
-
 public class MfaStateMachineEvents {
 
-    
     @Getter
     public static class StateChangeEvent extends ApplicationEvent {
         private final String sessionId;
@@ -39,7 +37,6 @@ public class MfaStateMachineEvents {
             return (fromState != null ? fromState.name() : "INITIAL") + "_to_" + toState.name();
         }
 
-        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),
@@ -48,7 +45,6 @@ public class MfaStateMachineEvents {
         }
     }
 
-    
     @Getter
     public static class ErrorEvent extends ApplicationEvent {
         private final String sessionId;
@@ -79,7 +75,6 @@ public class MfaStateMachineEvents {
             return ErrorType.SYSTEM;
         }
 
-        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),
@@ -92,7 +87,6 @@ public class MfaStateMachineEvents {
         }
     }
 
-    
     @Getter
     public static class PerformanceAlertEvent extends ApplicationEvent {
         private final AlertType alertType;
@@ -114,7 +108,6 @@ public class MfaStateMachineEvents {
             this.occurredAt = LocalDateTime.now();
         }
 
-        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),
@@ -132,7 +125,6 @@ public class MfaStateMachineEvents {
         }
     }
 
-    
     @Getter
     public static class CustomEvent extends ApplicationEvent {
         private final String eventType;
@@ -146,7 +138,6 @@ public class MfaStateMachineEvents {
             this.occurredAt = LocalDateTime.now();
         }
 
-        
         public LocalDateTime getEventTimestamp() {
             return LocalDateTime.ofInstant(
                     Instant.ofEpochMilli(getTimestamp()),

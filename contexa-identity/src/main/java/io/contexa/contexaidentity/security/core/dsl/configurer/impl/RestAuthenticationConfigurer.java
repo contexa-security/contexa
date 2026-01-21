@@ -9,7 +9,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 
-
 public final class RestAuthenticationConfigurer<H extends HttpSecurityBuilder<H>>
         extends AbstractRestAuthenticationConfigurer<RestAuthenticationConfigurer<H>, H> {
 
@@ -20,7 +19,6 @@ public final class RestAuthenticationConfigurer<H extends HttpSecurityBuilder<H>
             ApplicationContext applicationContext,
             AuthContextProperties properties) {
 
-        
         TokenService tokenService = applicationContext.getBean(TokenService.class);
         AuthResponseWriter responseWriter = applicationContext.getBean(AuthResponseWriter.class);
 

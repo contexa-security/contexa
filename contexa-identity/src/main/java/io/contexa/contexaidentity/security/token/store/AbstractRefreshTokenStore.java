@@ -10,7 +10,6 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import java.time.Instant;
 import java.util.Objects;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
@@ -18,7 +17,6 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
     protected final JwtDecoder jwtDecoder;
     protected final AuthContextProperties props;
 
-    
     protected String deviceKey(String username, String deviceId) {
         Objects.requireNonNull(username, "username cannot be null for deviceKey");
         Objects.requireNonNull(deviceId, "deviceId cannot be null for deviceKey");
@@ -30,13 +28,11 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
         Objects.requireNonNull(refreshToken, "refreshToken cannot be null");
         Objects.requireNonNull(username, "username cannot be null");
 
-        
         if (refreshToken.trim().isEmpty()) {
             log.warn("Empty refreshToken provided, cannot save. User: {}", username);
             return;
         }
 
-        
         String[] parts = refreshToken.split("\\.");
         if (parts.length != 3) {
             log.warn("Malformed JWT token (expected 3 parts separated by dots, got {}). User: {}",
@@ -65,13 +61,9 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
                 return;
             }
 
-            
             handleConcurrentLoginPolicy(username, deviceId);
 
-            
             doSaveToken(username, deviceId, refreshToken, expiry);
-
-            log.debug("Saved refresh token for user: {}, deviceId: {}", username, deviceId);
 
         } catch (JwtException e) {
             log.warn("JWT decoding failed - refreshToken save failed. User: {}. Error: {}", username, e.getMessage(), e);
@@ -90,7 +82,6 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
                 return null;
             }
 
-            
             Jwt jwt = jwtDecoder.decode(refreshToken);
 
             String subject = jwt.getSubject();
@@ -102,13 +93,11 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
 
             TokenInfo tokenInfo = doGetTokenInfo(subject, deviceId);
             if (tokenInfo == null) {
-                log.debug("No refresh token found in store for user: {}, deviceId: {}", subject, deviceId);
-                return null;
+                                return null;
             }
 
             if (Instant.now().isAfter(tokenInfo.getExpiration())) {
-                log.info("Refresh token expired for user: {}, deviceId: {}, removing from store.", subject, deviceId);
-                handleExpiredToken(subject, deviceId, refreshToken);
+                                handleExpiredToken(subject, deviceId, refreshToken);
                 return null;
             }
 
@@ -139,8 +128,7 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
             }
 
             doRemoveToken(subject, deviceId);
-            log.debug("Removed refresh token from store for user: {}, deviceId: {}", subject, deviceId);
-
+            
         } catch (JwtException e) {
             log.warn("JWT decoding failed - refreshToken removal failed. Error: {}", e.getMessage(), e);
         } catch (Exception e) {
@@ -164,8 +152,7 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
             }
 
             doBlacklistToken(token, jwt.getSubject(), expiration, reason);
-            log.info("Token blacklisted: user={}, reason={}", jwt.getSubject(), reason);
-        } catch (JwtException e) {
+                    } catch (JwtException e) {
             log.warn("JWT decoding failed for token blacklist. User: {}. Reason: {}. Using fallback.", username, reason, e);
             
             Instant fallbackExpiry = Instant.now().plusMillis(props.getRefreshTokenValidity());
@@ -181,10 +168,8 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
         Objects.requireNonNull(deviceId, "deviceId cannot be null for device blacklist");
 
         doBlacklistDevice(username, deviceId, reason);
-        log.info("Device blacklisted: user={}, deviceId={}, reason={}", username, deviceId, reason);
-    }
+            }
 
-    
     private void handleConcurrentLoginPolicy(String username, String currentDeviceId) {
         if (!props.isAllowMultipleLogins()) {
             
@@ -195,20 +180,17 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
         }
     }
 
-    
     private void handleExpiredToken(String username, String deviceId, String token) {
         doRemoveToken(username, deviceId);
         blacklist(token, username, TokenInfo.REASON_EXPIRED);
     }
 
-    
     private void evictAllUserDevices(String username, String reason) {
         for (String deviceId : doGetUserDevices(username)) {
             evictAndBlacklist(username, deviceId, reason);
         }
     }
 
-    
     private void enforceMaxConcurrentLogins(String username, String currentDeviceId) {
         int currentCount = doGetUserDeviceCount(username);
 
@@ -220,36 +202,24 @@ public abstract class AbstractRefreshTokenStore implements RefreshTokenStore {
         }
     }
 
-    
     private void evictAndBlacklist(String username, String deviceId, String reason) {
         doRemoveToken(username, deviceId);
         blacklistDevice(username, deviceId, reason);
-        log.info("Evicted and blacklisted deviceId: {} for user: {} due to: {}", deviceId, username, reason);
-    }
+            }
 
-    
-
-    
     protected abstract void doSaveToken(String username, String deviceId, String token, Instant expiration);
 
-    
     protected abstract TokenInfo doGetTokenInfo(String username, String deviceId);
 
-    
     protected abstract void doRemoveToken(String username, String deviceId);
 
-    
     protected abstract void doBlacklistToken(String token, String username, Instant expiration, String reason);
 
-    
     protected abstract void doBlacklistDevice(String username, String deviceId, String reason);
 
-    
     protected abstract Iterable<String> doGetUserDevices(String username);
 
-    
     protected abstract int doGetUserDeviceCount(String username);
 
-    
     protected abstract String doGetOldestDevice(String username);
 }

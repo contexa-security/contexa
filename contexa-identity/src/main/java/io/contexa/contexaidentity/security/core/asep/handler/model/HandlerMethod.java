@@ -38,9 +38,7 @@ public final class HandlerMethod {
             for (Class<?> paramType : method.getParameterTypes()) {
                 if (Throwable.class.isAssignableFrom(paramType)) {
                     inferredTypes.add((Class<? extends Throwable>) paramType);
-                    
-                    
-                    
+
                     break;
                 }
             }

@@ -27,7 +27,6 @@ public final class AuthMethodConfigurerFactory {
         Objects.requireNonNull(authType, "AuthType cannot be null");
         Objects.requireNonNull(configurerInterfaceType, "ConfigurerInterfaceType cannot be null");
 
-        
         Object concreteConfigurerLogic = switch (authType) {
             case FORM -> {
                 yield new FormConfigurerConfigurerImpl(this.applicationContext);

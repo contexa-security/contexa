@@ -19,7 +19,6 @@ import org.springframework.util.Assert;
 
 import java.util.Objects;
 
-
 public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFormAuthenticationConfigurer<T, H>, H extends HttpSecurityBuilder<H>>
         extends AbstractHttpConfigurer<T, H> {
 
@@ -56,14 +55,12 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
         http.addFilterBefore(postProcess(filter), UsernamePasswordAuthenticationFilter.class);
     }
 
-    
     protected abstract BaseAuthenticationFilter createAuthenticationFilter(
             H http,
             AuthenticationManager authenticationManager,
             ApplicationContext applicationContext,
             AuthContextProperties properties);
 
-    
     protected void configureFilter(BaseAuthenticationFilter filter, HttpSecurity http) {
         if (successHandler != null) {
             filter.setSuccessHandler(successHandler);
@@ -72,10 +69,6 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
             filter.setFailureHandler(failureHandler);
         }
 
-        
-        
-        
-        
         SecurityContextRepository resolvedRepository = http.getSharedObject(SecurityContextRepository.class);
         if (resolvedRepository == null) {
             resolvedRepository = this.securityContextRepository;

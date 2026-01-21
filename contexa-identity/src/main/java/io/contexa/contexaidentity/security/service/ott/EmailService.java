@@ -12,7 +12,6 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
-    
     public void sendHtmlMessage(String to, String subject, String htmlBody) {
         try {
             MimeMessage message = mailSender.createMimeMessage();

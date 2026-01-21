@@ -9,7 +9,6 @@ import java.util.Map;
 
 import static io.contexa.contexaidentity.security.token.service.TokenService.*;
 
-
 public class HeaderTokenStrategy extends AbstractTokenTransportStrategy implements TokenTransportStrategy {
 
     public HeaderTokenStrategy(AuthContextProperties props) {
@@ -35,21 +34,17 @@ public class HeaderTokenStrategy extends AbstractTokenTransportStrategy implemen
                                                       TokenServicePropertiesProvider propsProvider) {
         Map<String, Object> body = new HashMap<>();
 
-        
         body.put("accessToken", accessToken);
         body.put("tokenType", "Bearer");
         body.put("expiresIn", propsProvider.getAccessTokenValidity());
 
-        
         if (StringUtils.hasText(refreshToken)) {
             body.put("refreshToken", refreshToken);
             body.put("refreshExpiresIn", propsProvider.getRefreshTokenValidity());
         }
 
-        
         body.put("tokenTransportMethod", "HEADER");
 
-        
         return TokenTransportResult.builder()
                 .body(body)
                 .build();
@@ -57,8 +52,7 @@ public class HeaderTokenStrategy extends AbstractTokenTransportStrategy implemen
 
     @Override
     public TokenTransportResult prepareTokensForClear(TokenServicePropertiesProvider propsProvider) {
-        
-        
+
         Map<String, Object> body = new HashMap<>();
         body.put("message", "Tokens have been invalidated. Please remove tokens from client storage.");
         body.put("tokenTransportMethod", "HEADER");

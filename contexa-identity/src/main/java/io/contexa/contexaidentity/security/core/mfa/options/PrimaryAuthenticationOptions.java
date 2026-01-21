@@ -13,7 +13,6 @@ public final class PrimaryAuthenticationOptions {
     private final AuthType primaryAuthType;
     private final String primaryAuthStepId; 
 
-    
     private final String loginPage;              
     private final String failureUrl;             
     private final String loginProcessingUrl;     
@@ -34,10 +33,7 @@ public final class PrimaryAuthenticationOptions {
             throw new IllegalArgumentException("Either formLogin or restLogin must be configured for primary authentication.");
         }
 
-        
         Assert.hasText(loginProcessingUrl, "loginProcessingUrl cannot be null or empty for primary authentication options.");
-
-        
 
     }
 
@@ -60,7 +56,6 @@ public final class PrimaryAuthenticationOptions {
         private String primaryAuthStepId;
         private String loginProcessingUrl;
 
-        
         private String loginPage;              
         private String failureUrl;             
 
@@ -91,7 +86,6 @@ public final class PrimaryAuthenticationOptions {
             return this;
         }
 
-        
         public Builder loginProcessingUrl(String loginProcessingUrl) {
             this.loginProcessingUrl = loginProcessingUrl;
             return this;
@@ -102,13 +96,11 @@ public final class PrimaryAuthenticationOptions {
             return this;
         }
 
-        
         public Builder loginPage(String loginPage) {
             this.loginPage = loginPage;
             return this;
         }
 
-        
         public Builder failureUrl(String failureUrl) {
             this.failureUrl = failureUrl;
             return this;
@@ -123,7 +115,6 @@ public final class PrimaryAuthenticationOptions {
             }
             Assert.hasText(loginProcessingUrl, "loginProcessingUrl could not be determined from FormOptions or RestOptions and was not set directly.");
 
-            
             if (this.loginPage == null) {
                 this.loginPage = "/mfa/login";
             }
@@ -132,25 +123,21 @@ public final class PrimaryAuthenticationOptions {
                 this.failureUrl = "/mfa/login?error";
             }
 
-            
             validateLoginPageUrl(this.loginPage);
             validateFailureUrl(this.failureUrl);
 
             return new PrimaryAuthenticationOptions(this);
         }
 
-        
         private void validateLoginPageUrl(String loginPage) {
             if (loginPage == null) {
                 return; 
             }
 
-            
             if (loginPage.trim().isEmpty()) {
                 throw new IllegalArgumentException("loginPage cannot be empty string");
             }
 
-            
             if (!loginPage.startsWith("/")) {
                 throw new IllegalArgumentException(
                     "loginPage must be a relative path starting with '/'. " +
@@ -159,7 +146,6 @@ public final class PrimaryAuthenticationOptions {
                 );
             }
 
-            
             if (loginPage.contains("://") || loginPage.startsWith("//")) {
                 throw new IllegalArgumentException(
                     "loginPage cannot contain protocol (http://, https://, etc.). " +
@@ -168,7 +154,6 @@ public final class PrimaryAuthenticationOptions {
                 );
             }
 
-            
             if (loginPage.toLowerCase().startsWith("javascript:")) {
                 throw new IllegalArgumentException(
                     "loginPage cannot be a JavaScript URL. " +
@@ -176,7 +161,6 @@ public final class PrimaryAuthenticationOptions {
                 );
             }
 
-            
             if (loginPage.toLowerCase().startsWith("data:")) {
                 throw new IllegalArgumentException(
                     "loginPage cannot be a data URL. " +
@@ -185,13 +169,11 @@ public final class PrimaryAuthenticationOptions {
             }
         }
 
-        
         private void validateFailureUrl(String failureUrl) {
             if (failureUrl == null) {
                 return; 
             }
 
-            
             validateLoginPageUrl(failureUrl);
         }
     }

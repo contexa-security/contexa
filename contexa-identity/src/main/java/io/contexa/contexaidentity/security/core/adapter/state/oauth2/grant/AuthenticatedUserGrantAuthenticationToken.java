@@ -7,17 +7,14 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 
 import java.util.Map;
 
-
 public class AuthenticatedUserGrantAuthenticationToken extends OAuth2AuthorizationGrantAuthenticationToken {
 
-    
     public static final AuthorizationGrantType AUTHENTICATED_USER =
             new AuthorizationGrantType("urn:ietf:params:oauth:grant-type:authenticated-user");
 
     private final String username;
     private final String deviceId;
 
-    
     public AuthenticatedUserGrantAuthenticationToken(
             Authentication clientPrincipal,
             String username,
@@ -29,12 +26,10 @@ public class AuthenticatedUserGrantAuthenticationToken extends OAuth2Authorizati
         this.deviceId = deviceId;
     }
 
-    
     public String getUsername() {
         return this.username;
     }
 
-    
     @Nullable
     public String getDeviceId() {
         return this.deviceId;

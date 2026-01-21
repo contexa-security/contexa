@@ -15,7 +15,6 @@ public class ValidationReportReporter {
     private static final String WARNING_PREFIX = "  [경고] ";
     private static final String FIX_PREFIX = "    >> 제안: ";
 
-    
     public static void reportAndPotentiallyExit(ValidationResult result, String dslSourceName) throws DslConfigurationException {
         if (result == null) {
             log.error("ValidationResult is null. Cannot report validation status for DSL source: {}", dslSourceName);
@@ -57,8 +56,7 @@ public class ValidationReportReporter {
         } else if (hasWarnings) {
             log.warn(reportBuilder.toString());
         } else {
-            log.info(reportBuilder.toString());
-        }
+                    }
     }
 }
 

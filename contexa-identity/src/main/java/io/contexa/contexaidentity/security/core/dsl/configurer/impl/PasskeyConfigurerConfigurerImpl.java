@@ -41,7 +41,6 @@ public final class PasskeyConfigurerConfigurerImpl
         return self();
     }
 
-    
     @Override
     public PasskeyConfigurerConfigurer assertionOptionsEndpoint(String url) {
         getOptionsBuilder().assertionOptionsEndpoint(url);
@@ -86,8 +85,7 @@ public final class PasskeyConfigurerConfigurerImpl
             passkeyAsepAttributesCustomizer.customize(attributes);
         }
         getOptionsBuilder().asepAttributes(attributes);
-        log.debug("ASEP: PasskeyAsepAttributes configured and will be stored within PasskeyOptions.");
-        return self();
+                return self();
     }
 
     @Override

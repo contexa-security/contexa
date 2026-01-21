@@ -7,11 +7,9 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-
 @Slf4j
 public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
 
-    
     private static final long DEFAULT_SELECTION_TIMEOUT_MS = 5 * 60 * 1000L;
 
     @Override
@@ -19,13 +17,10 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
                                  FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
 
-        
         Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
 
         if (!(selectedAtObj instanceof Long)) {
-            log.debug("[FactorSelectionTimeoutGuard] factorSelectedAt not set for session: {}, allowing transition",
-                    sessionId);
-            return true; 
+                        return true; 
         }
 
         Long factorSelectedAt = (Long) selectedAtObj;
@@ -40,15 +35,11 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
                             "elapsed: {}ms, timeout: {}ms",
                     sessionId, elapsedTime, timeoutMs);
         } else {
-            log.debug("[FactorSelectionTimeoutGuard] Factor selection within timeout for session: {}, " +
-                            "elapsed: {}ms, remaining: {}ms",
-                    sessionId, elapsedTime, (timeoutMs - elapsedTime));
-        }
+                    }
 
         return withinTimeout;
     }
 
-    
     private long getSelectionTimeoutMs(FactorContext factorContext) {
         
         Object customTimeoutObj = factorContext.getAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS);
@@ -72,7 +63,6 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
         return "FactorSelectionTimeoutGuard";
     }
 
-    
     public long getRemainingSelectionTimeMs(FactorContext factorContext) {
         Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
 
@@ -88,15 +78,11 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
         return Math.max(0, timeoutMs - elapsedTime);
     }
 
-    
     public boolean isSelectionTimedOut(FactorContext factorContext) {
         return !doEvaluate(null, factorContext);
     }
 
-    
     public void setSelectionTimeout(FactorContext factorContext, long timeoutMs) {
         factorContext.setAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS, timeoutMs);
-        log.debug("[FactorSelectionTimeoutGuard] Custom selection timeout set to {}ms for session: {}",
-                timeoutMs, factorContext.getMfaSessionId());
-    }
+            }
 }

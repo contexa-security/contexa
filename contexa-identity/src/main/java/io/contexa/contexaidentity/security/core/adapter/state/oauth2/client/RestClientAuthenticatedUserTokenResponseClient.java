@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
-
 public final class RestClientAuthenticatedUserTokenResponseClient
         implements OAuth2AccessTokenResponseClient<OAuth2AuthenticatedUserGrantRequest> {
 
@@ -64,7 +63,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
 
     private Consumer<MultiValueMap<String, String>> parametersCustomizer = (parameters) -> {};
 
-    
     public RestClientAuthenticatedUserTokenResponseClient() {
         this.restClient = RestClient.builder()
                 .messageConverters((messageConverters) -> {
@@ -85,17 +83,14 @@ public final class RestClientAuthenticatedUserTokenResponseClient
             
             validateClientAuthenticationMethod(grantRequest);
 
-            
             if (oauth2TokenEndpointFilter == null && filterChainProxyProvider != null) {
                 oauth2TokenEndpointFilter = extractOAuth2TokenEndpointFilter(filterChainProxyProvider.getObject());
             }
 
-            
             if (oauth2TokenEndpointFilter != null && request != null && response != null) {
                 return getTokenResponseViaFilter(grantRequest);
             }
 
-            
             return getTokenResponseViaRestClient(grantRequest);
 
         } catch (Exception ex) {
@@ -106,7 +101,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         }
     }
 
-    
     private OAuth2AccessTokenResponse getTokenResponseViaFilter(OAuth2AuthenticatedUserGrantRequest grantRequest) throws Exception {
         
         SecurityContext originalContext = SecurityContextHolder.getContext();
@@ -115,13 +109,11 @@ public final class RestClientAuthenticatedUserTokenResponseClient
             
             SecurityContextHolder.clearContext();
 
-            
             OAuth2TokenRequestWrapper wrappedRequest = new OAuth2TokenRequestWrapper(
                     request,
                     grantRequest.getUsername(),
                     grantRequest.getDeviceId());
 
-            
             assert clientSecretBasicConverter != null;
             Authentication clientAuthRequest = clientSecretBasicConverter.convert(wrappedRequest);
 
@@ -131,7 +123,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                                 "Client authentication failed - no credentials found", null));
             }
 
-            
             assert clientSecretAuthenticationProvider != null;
             Authentication clientAuthResult = clientSecretAuthenticationProvider.authenticate(clientAuthRequest);
 
@@ -141,18 +132,13 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                                 "Client authentication failed", null));
             }
 
-            
             SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
             securityContext.setAuthentication(clientAuthResult);
             SecurityContextHolder.setContext(securityContext);
 
-            
-            
-            
             assert oauth2TokenEndpointFilter != null;
             oauth2TokenEndpointFilter.doFilter(wrappedRequest, response, (req, res) -> {});
 
-            
             Authentication resultAuth = SecurityContextHolder.getContext().getAuthentication();
 
             if (!(resultAuth instanceof OAuth2AccessTokenAuthenticationToken tokenAuth)) {
@@ -162,7 +148,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                                         + (resultAuth != null ? resultAuth.getClass().getName() : "null"), null));
             }
 
-            
             return buildTokenResponse(tokenAuth);
 
         } finally {
@@ -171,7 +156,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         }
     }
 
-    
     private OAuth2AccessTokenResponse buildTokenResponse(OAuth2AccessTokenAuthenticationToken authentication) {
         OAuth2AccessToken accessToken = authentication.getAccessToken();
         OAuth2RefreshToken refreshToken = authentication.getRefreshToken();
@@ -182,7 +166,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                 .tokenType(accessToken.getTokenType())
                 .scopes(accessToken.getScopes());
 
-        
         if (accessToken.getExpiresAt() != null && accessToken.getIssuedAt() != null) {
             long expiresIn = ChronoUnit.SECONDS.between(
                     accessToken.getIssuedAt(),
@@ -190,12 +173,10 @@ public final class RestClientAuthenticatedUserTokenResponseClient
             builder.expiresIn(expiresIn);
         }
 
-        
         if (refreshToken != null) {
             builder.refreshToken(refreshToken.getTokenValue());
         }
 
-        
         if (!CollectionUtils.isEmpty(additionalParameters)) {
             builder.additionalParameters(additionalParameters);
         }
@@ -203,7 +184,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         return builder.build();
     }
 
-    
     private OAuth2AccessTokenResponse getTokenResponseViaRestClient(OAuth2AuthenticatedUserGrantRequest grantRequest) {
         
         MultiValueMap<String, String> parameters = this.parametersConverter.convert(grantRequest);
@@ -212,10 +192,8 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         }
         this.parametersCustomizer.accept(parameters);
 
-        
         String tokenUri = grantRequest.getClientRegistration().getProviderDetails().getTokenUri();
 
-        
         OAuth2AccessTokenResponse accessTokenResponse = this.restClient
                 .post()
                 .uri(tokenUri)
@@ -238,7 +216,6 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         return accessTokenResponse;
     }
 
-    
     private void validateClientAuthenticationMethod(OAuth2AuthenticatedUserGrantRequest grantRequest) {
         ClientRegistration clientRegistration = grantRequest.getClientRegistration();
         ClientAuthenticationMethod clientAuthenticationMethod = clientRegistration.getClientAuthenticationMethod();
@@ -256,19 +233,16 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         }
     }
 
-    
     public void setRestClient(RestClient restClient) {
         Assert.notNull(restClient, "restClient cannot be null");
         this.restClient = restClient;
     }
 
-    
     public void setHeadersConverter(Converter<OAuth2AuthenticatedUserGrantRequest, HttpHeaders> headersConverter) {
         Assert.notNull(headersConverter, "headersConverter cannot be null");
         this.headersConverter = headersConverter;
     }
 
-    
     public void addHeadersConverter(Converter<OAuth2AuthenticatedUserGrantRequest, HttpHeaders> headersConverter) {
         Assert.notNull(headersConverter, "headersConverter cannot be null");
         Converter<OAuth2AuthenticatedUserGrantRequest, HttpHeaders> currentHeadersConverter = this.headersConverter;
@@ -285,14 +259,12 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         };
     }
 
-    
     public void setParametersConverter(
             Converter<OAuth2AuthenticatedUserGrantRequest, MultiValueMap<String, String>> parametersConverter) {
         Assert.notNull(parametersConverter, "parametersConverter cannot be null");
         this.parametersConverter = parametersConverter;
     }
 
-    
     public void addParametersConverter(
             Converter<OAuth2AuthenticatedUserGrantRequest, MultiValueMap<String, String>> parametersConverter) {
         Assert.notNull(parametersConverter, "parametersConverter cannot be null");
@@ -310,39 +282,31 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         };
     }
 
-    
     public void setParametersCustomizer(Consumer<MultiValueMap<String, String>> parametersCustomizer) {
         Assert.notNull(parametersCustomizer, "parametersCustomizer cannot be null");
         this.parametersCustomizer = parametersCustomizer;
     }
 
-    
     public void setFilterChainProxyProvider(ObjectProvider<FilterChainProxy> filterChainProxyProvider) {
         this.filterChainProxyProvider = filterChainProxyProvider;
     }
 
-    
     public void setClientSecretBasicConverter(org.springframework.security.web.authentication.AuthenticationConverter clientSecretBasicConverter) {
         this.clientSecretBasicConverter = clientSecretBasicConverter;
     }
 
-    
     public void setClientSecretAuthenticationProvider(org.springframework.security.authentication.AuthenticationProvider clientSecretAuthenticationProvider) {
         this.clientSecretAuthenticationProvider = clientSecretAuthenticationProvider;
     }
 
-    
     public void setRequest(HttpServletRequest request) {
         this.request = request;
     }
 
-    
     public void setResponse(HttpServletResponse response) {
         this.response = response;
     }
 
-
-    
     private Filter extractOAuth2TokenEndpointFilter(FilterChainProxy filterChainProxy) {
         List<SecurityFilterChain> chains = filterChainProxy.getFilterChains();
 

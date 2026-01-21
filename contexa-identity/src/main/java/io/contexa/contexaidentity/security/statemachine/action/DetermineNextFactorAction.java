@@ -10,7 +10,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-
 @Slf4j
 public class DetermineNextFactorAction extends AbstractMfaStateAction {
 
@@ -24,8 +23,7 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
                             FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
-        log.debug("Determining next factor for session: {}", sessionId);
-
+        
         NextFactorDecision decision = policyProvider.evaluateNextFactor(factorContext);
 
         if (decision.getErrorMessage() != null) {
@@ -40,32 +38,23 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
             factorContext.setCurrentProcessingFactor(decision.getNextFactorType());
             factorContext.setCurrentStepId(decision.getNextStepId());
 
-            
             setFactorSpecificAttributes(factorContext, decision.getNextFactorType());
 
-            
             factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION, MfaEvent.INITIATE_CHALLENGE_AUTO);
 
-            log.info("Next factor auto-selected: {} (StepId: {}) for session: {}",
-                     decision.getNextFactorType(), decision.getNextStepId(), sessionId);
-        } else if (decision.isAllFactorsCompleted()) {
-            
-            
+                    } else if (decision.isAllFactorsCompleted()) {
+
             factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION,
                                        MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
 
-            log.info("All required factors completed for session: {}", sessionId);
-        } else {
-            
-            
+                    } else {
+
             factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION,
                                        MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
 
-            log.info("Manual factor selection required for session: {}", sessionId);
-        }
+                    }
     }
 
-    
     private void setFactorSpecificAttributes(FactorContext factorContext, AuthType factorType) {
         String sessionId = factorContext.getMfaSessionId();
 
@@ -80,8 +69,7 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
                 factorContext.setAttribute(
                     FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD,
                     ottMethod);
-                log.debug("OTT delivery method set to: {} for session: {}", ottMethod, sessionId);
-                break;
+                                break;
 
             case PASSKEY:
                 
@@ -94,14 +82,11 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
                 factorContext.setAttribute(
                     FactorContextAttributes.FactorInfo.PASSKEY_TYPE,
                     passkeyType);
-                log.debug("Passkey type set to: {} for session: {}", passkeyType, sessionId);
-                break;
+                                break;
 
             default:
-                log.debug("No additional settings for factor: {}", factorType);
-        }
+                        }
 
-        
         factorContext.setAttribute(
             FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT,
             System.currentTimeMillis());

@@ -11,7 +11,6 @@ public class DslValidatorService {
         this.dslValidator = dslValidator;
     }
 
-    
     public void validate(PlatformConfig platformConfig, String dslSourceName) throws DslConfigurationException {
         if (platformConfig == null) {
             

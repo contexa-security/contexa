@@ -32,18 +32,12 @@ public class CaughtExceptionArgumentResolver implements SecurityHandlerMethodArg
                                   HandlerMethod handlerMethod) throws Exception {
 
         if (caughtException == null) { 
-            log.trace("ASEP: CaughtException is null, cannot resolve @CaughtException parameter.");
-            return null;
+                        return null;
         }
 
-        
         if (parameter.getParameterType().isInstance(caughtException)) {
-            log.debug("ASEP: Resolving @CaughtException parameter with the primary caught exception: {}", caughtException.getClass().getSimpleName());
-            return caughtException;
+                        return caughtException;
         }
-        
-        
-        
 
         log.warn("ASEP: @CaughtException annotated parameter type [{}] is not directly assignable from the primary caught exception type [{}]. Returning null.",
                 parameter.getParameterType().getName(), caughtException.getClass().getName());

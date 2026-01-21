@@ -2,9 +2,7 @@ package io.contexa.contexaidentity.security.core.mfa.context;
 
 import java.util.Objects;
 
-
 public record FactorIdentifier(String flowName, String stepId) {
-    
 
     public FactorIdentifier(String flowName, String stepId) {
         this.flowName = Objects.requireNonNull(flowName, "flowName cannot be null").toLowerCase();

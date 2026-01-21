@@ -17,7 +17,6 @@ import org.springframework.util.Assert;
 
 import java.io.IOException;
 
-
 @Slf4j
 public class RestAuthenticationFilter extends BaseAuthenticationFilter {
 
@@ -33,10 +32,8 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
         Assert.notNull(tokenService, "tokenService cannot be null");
         Assert.notNull(responseWriter, "responseWriter cannot be null");
 
-        log.info("RestAuthenticationFilter initialized with OAuth2 token-based handlers");
-    }
+            }
 
-    
     @Override
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                           Authentication authentication) throws IOException, ServletException {
@@ -46,11 +43,9 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
         securityContextHolderStrategy.setContext(context);
         securityContextRepository.saveContext(context, request, response);
 
-        log.info("REST authentication successful for user: {}", authentication.getName());
-        successHandler.onAuthenticationSuccess(request, response, authentication);
+                successHandler.onAuthenticationSuccess(request, response, authentication);
     }
 
-    
     @Override
     public void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                             AuthenticationException failed) throws IOException, ServletException {

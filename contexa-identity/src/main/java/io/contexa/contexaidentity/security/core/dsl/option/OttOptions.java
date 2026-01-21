@@ -46,8 +46,6 @@ public final class OttOptions extends AuthenticationProcessingOptions {
         return new Builder(applicationContext, true);
     }
 
-
-
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<OttOptions, Builder> {
         private String tokenGeneratingUrl; 
         private String defaultSubmitPageUrl; 
@@ -61,7 +59,6 @@ public final class OttOptions extends AuthenticationProcessingOptions {
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for OttOptions.Builder");
 
-            
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             if (isMfaMode) {
@@ -76,7 +73,6 @@ public final class OttOptions extends AuthenticationProcessingOptions {
                 super.loginProcessingUrl(urlProvider.getSingleOttLoginProcessing());
             }
 
-            
             this.oneTimeTokenService = applicationContext.getBean(OneTimeTokenService.class);
         }
 

@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
 
-
 @Slf4j
 public class MfaStateMachineIntegrator {
 
@@ -33,50 +32,37 @@ public class MfaStateMachineIntegrator {
     @PostConstruct
     public void initialize() {
         sessionRepository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-        log.info("MfaStateMachineIntegrator initialized with {} repository - Single Source of Truth pattern",
-                sessionRepository.getRepositoryType());
-    }
+            }
 
-    
     public void initializeStateMachine(FactorContext context, HttpServletRequest request, HttpServletResponse response) {
         String sessionId = context.getMfaSessionId();
-
-        log.info("Initializing unified State Machine for session: {} using {} repository",
-                sessionId, sessionRepository.getRepositoryType());
 
         try {
             
             stateMachineService.initializeStateMachine(context, request);
 
-            
             sessionRepository.storeSession(sessionId, request, response);
 
-            log.info("Unified State Machine initialized successfully for session: {}", sessionId);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for session: {}", sessionId, e);
             throw new StateMachineIntegrationException("State Machine initialization failed", e);
         }
     }
 
-    
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request) {
         return sendEvent(event, context, request, null);
     }
 
-    
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders) {
         String sessionId = context.getMfaSessionId();
-        log.debug("Sending event {} to State Machine for session: {}", event, sessionId);
-
+        
         try {
             sessionRepository.refreshSession(sessionId);
 
-            
             boolean accepted = stateMachineService.sendEvent(event, context, request, additionalHeaders);
 
             if (accepted) {
-                log.debug("Event {} accepted by State Machine for session: {}", event, sessionId);
-            } else {
+                            } else {
                 String rejectionReason = analyzeEventRejectionReason(context, event);
                 log.warn("Event {} rejected by State Machine for session: {} - Reason: {}",
                         event, sessionId, rejectionReason);
@@ -89,7 +75,6 @@ public class MfaStateMachineIntegrator {
         }
     }
 
-    
     public MfaState getCurrentState(String sessionId) {
         try {
             return stateMachineService.getCurrentState(sessionId);
@@ -99,7 +84,6 @@ public class MfaStateMachineIntegrator {
         }
     }
 
-    
     public FactorContext loadFactorContext(String sessionId) {
         try {
             FactorContext original = stateMachineService.getFactorContext(sessionId);
@@ -118,22 +102,18 @@ public class MfaStateMachineIntegrator {
         try {
             stateMachineService.saveFactorContext(context);
 
-            log.debug("FactorContext saved to unified State Machine: session={}, state={}, version={}",
-                    context.getMfaSessionId(), context.getCurrentState(), context.getVersion());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("Failed to save FactorContext to unified State Machine for session: {}",
                     context.getMfaSessionId(), e);
         }
     }
 
     public void releaseStateMachine(String sessionId) {
-        log.info("Releasing unified State Machine for session: {}", sessionId);
-
+        
         try {
             stateMachineService.releaseStateMachine(sessionId);
 
-            log.info("Unified State Machine released successfully for session: {}", sessionId);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("Failed to release unified State Machine for session: {}", sessionId, e);
         }
     }
@@ -141,15 +121,11 @@ public class MfaStateMachineIntegrator {
     public FactorContext loadFactorContextFromRequest(HttpServletRequest request) {
         String mfaSessionId = sessionRepository.getSessionId(request);
         if (mfaSessionId == null) {
-            log.trace("No MFA session ID found in {}. Cannot load FactorContext.",
-                    sessionRepository.getRepositoryType());
-            return null;
+                        return null;
         }
 
         if (!sessionRepository.existsSession(mfaSessionId)) {
-            log.trace("MFA session {} not found in {}. Cannot load FactorContext.",
-                    mfaSessionId, sessionRepository.getRepositoryType());
-            return null;
+                        return null;
         }
 
         return loadFactorContext(mfaSessionId);
@@ -188,9 +164,7 @@ public class MfaStateMachineIntegrator {
             releaseStateMachine(mfaSessionId);
             sessionRepository.removeSession(mfaSessionId, request, null);
 
-            log.debug("Session cleanup completed for MFA session: {} using {} repository",
-                    mfaSessionId, sessionRepository.getRepositoryType());
-        }
+                    }
     }
 
     public void cleanupSession(HttpServletRequest request, HttpServletResponse response) {
@@ -199,9 +173,7 @@ public class MfaStateMachineIntegrator {
             releaseStateMachine(mfaSessionId);
             sessionRepository.removeSession(mfaSessionId, request, response);
 
-            log.debug("Session cleanup with response completed for MFA session: {} using {} repository",
-                    mfaSessionId, sessionRepository.getRepositoryType());
-        }
+                    }
     }
 
     public boolean updateStateOnly(String sessionId, MfaState newState) {
@@ -219,16 +191,13 @@ public class MfaStateMachineIntegrator {
                 properties.getMfa().getSessionTimeout());
     }
 
-    
     private String analyzeEventRejectionReason(FactorContext context, MfaEvent event) {
         MfaState currentState = context.getCurrentState();
 
-        
         if (currentState.isTerminal()) {
             return String.format("State [%s] is terminal - no further events allowed", currentState);
         }
 
-        
         if (currentState == MfaState.MFA_SESSION_EXPIRED) {
             return "MFA session has expired";
         }
@@ -239,23 +208,19 @@ public class MfaStateMachineIntegrator {
             return "State Machine not properly initialized";
         }
 
-        
         StringBuilder reason = new StringBuilder();
         reason.append(String.format("Event [%s] not valid for current state [%s]. ", event, currentState));
 
-        
         String validSourceStates = getValidSourceStatesForEvent(event);
         if (validSourceStates != null && !validSourceStates.isEmpty()) {
             reason.append(String.format("Valid source states for %s: [%s]. ", event, validSourceStates));
         }
 
-        
         String validEvents = getValidEventsForState(currentState);
         if (validEvents != null && !validEvents.isEmpty()) {
             reason.append(String.format("Valid events for %s: [%s]. ", currentState, validEvents));
         }
 
-        
         Object recommended = context.getAttribute(io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
         if (recommended != null) {
             reason.append(String.format("Recommended event: [%s]. ", recommended));
@@ -266,7 +231,6 @@ public class MfaStateMachineIntegrator {
         return reason.toString();
     }
 
-    
     private String getValidSourceStatesForEvent(MfaEvent event) {
         return switch (event) {
             case PRIMARY_AUTH_SUCCESS -> "NONE";
@@ -290,7 +254,6 @@ public class MfaStateMachineIntegrator {
         };
     }
 
-    
     private String getValidEventsForState(MfaState state) {
         return switch (state) {
             case NONE ->
@@ -317,7 +280,6 @@ public class MfaStateMachineIntegrator {
         };
     }
 
-    
     public static class StateMachineIntegrationException extends RuntimeException {
         public StateMachineIntegrationException(String message) {
             super(message);

@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class DefaultFactorChainProvider {
@@ -42,58 +41,46 @@ public class DefaultFactorChainProvider {
     private final SecurityFilterChainRegistrar registrar;
     private final AdapterRegistry adapterRegistry;
 
-    
     private static final Set<String> DEFAULT_FACTOR_TYPES = Set.of(
             AuthType.OTT.name().toLowerCase(),
             AuthType.PASSKEY.name().toLowerCase()
     );
 
-    
     public void registerDefaultFactorChains(Set<String> configuredFactorTypes,
                                             BeanDefinitionRegistry registry,
                                             AtomicInteger idx) {
         
         if (!isMfaFlowConfigured()) {
-            log.debug("No MFA flow configured, skipping default factor chain registration");
-            return;
+                        return;
         }
 
-        
         Set<String> missingFactorTypes = findMissingFactorTypes(configuredFactorTypes);
 
         if (missingFactorTypes.isEmpty()) {
-            log.debug("All default factor types are already configured");
-            return;
+                        return;
         }
 
-        log.info("Creating default SecurityFilterChains for unconfigured factors: {}", missingFactorTypes);
-
-        
         for (String factorType : missingFactorTypes) {
             registerDefaultFactorChain(factorType, registry, idx);
         }
     }
 
-    
     private boolean isMfaFlowConfigured() {
         try {
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
             return platformConfig != null && platformConfig.getFlows().stream()
                     .anyMatch(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()));
         } catch (Exception e) {
-            log.debug("Failed to check for MFA flow configuration", e);
-            return false;
+                        return false;
         }
     }
 
-    
     private Set<String> findMissingFactorTypes(Set<String> configuredFactorTypes) {
         return DEFAULT_FACTOR_TYPES.stream()
                 .filter(type -> !configuredFactorTypes.contains(type))
                 .collect(Collectors.toSet());
     }
 
-    
     private void registerDefaultFactorChain(String factorType,
                                             BeanDefinitionRegistry registry,
                                             AtomicInteger idx) {
@@ -113,8 +100,6 @@ public class DefaultFactorChainProvider {
                 ottAdapter.apply(flowContext.http(), flowContext.flow().getStepConfigs(), flowContext.flow().getStateConfig());
             }
 
-
-            
             String beanName = "default" + capitalizeFirst(factorType) + "SecurityFilterChain" + idx.incrementAndGet();
 
             BeanDefinition bd = BeanDefinitionBuilder
@@ -125,43 +110,33 @@ public class DefaultFactorChainProvider {
                     .getBeanDefinition();
 
             registry.registerBeanDefinition(beanName, bd);
-            log.info("Registered default SecurityFilterChain bean: {} for factor type: {}", beanName, factorType);
-
+            
         } catch (Exception e) {
             log.error("Failed to create default SecurityFilterChain for factor type: {}", factorType, e);
         }
     }
 
-    
     private FlowContext createDefaultFlowContext(String factorType) {
-        log.debug("Creating default FlowContext for factor type: {}", factorType);
-
+        
         try {
             PlatformContext platformContext = applicationContext.getBean(PlatformContext.class);
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
 
-            
             AuthenticationFlowConfig defaultFlowConfig = createDefaultFlowConfig(factorType);
 
-            
             HttpSecurity http = platformContext.newHttp();
 
-            
             if (platformConfig.getGlobalCustomizer() != null) {
                 platformConfig.getGlobalCustomizer().customize(http);
             }
 
-            
             applyDefaultFactorConfiguration(http, factorType);
 
-            
             platformContext.registerHttp(defaultFlowConfig, http);
 
-            
             http.setSharedObject(AuthenticationFlowConfig.class, defaultFlowConfig);
             http.setSharedObject(PlatformContext.class, platformContext);
 
-            
             return new FlowContext(defaultFlowConfig, http, platformContext, platformConfig);
 
         } catch (Exception e) {
@@ -170,16 +145,13 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    
     private AuthenticationFlowConfig createDefaultFlowConfig(String factorType) {
         AuthType authType = AuthType.valueOf(factorType.toUpperCase());
         String flowTypeName = factorType + "_flow";
 
-        
         String mfaFlowName = "mfa"; 
         int stepOrder = authType.ordinal() + 1; 
 
-        
         AuthenticationStepConfig stepConfig = new AuthenticationStepConfig(
                 mfaFlowName,  
                 authType.name(),
@@ -187,14 +159,11 @@ public class DefaultFactorChainProvider {
                 false         
         );
 
-        
         AuthenticationProcessingOptions defaultOptions = createDefaultOptions(authType);
         stepConfig.getOptions().put("_options", defaultOptions);
 
-        
         StateConfig stateConfig = new StateConfig(StateType.OAUTH2.name().toLowerCase(), StateType.OAUTH2);
 
-        
         return AuthenticationFlowConfig.builder(flowTypeName)
                 .order(1000 + authType.ordinal())  
                 .stepConfigs(List.of(stepConfig))
@@ -202,7 +171,6 @@ public class DefaultFactorChainProvider {
                 .build();
     }
 
-    
     private AuthenticationProcessingOptions createDefaultOptions(AuthType authType) {
         AuthMethodConfigurerFactory factory = new AuthMethodConfigurerFactory(applicationContext);
 
@@ -216,7 +184,6 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    
     private AuthenticationProcessingOptions createDefaultOttOptions(AuthMethodConfigurerFactory factory) {
         try {
             var ottConfigurer = factory.createFactorConfigurer(AuthType.OTT,
@@ -227,7 +194,6 @@ public class DefaultFactorChainProvider {
                         .setApplicationContext(applicationContext);
             }
 
-            
             ottConfigurer
                     .tokenGeneratingUrl("/api/ott/generate")
                     .loginProcessingUrl("/login/ott")
@@ -246,7 +212,6 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    
     private AuthenticationProcessingOptions createDefaultPasskeyOptions(AuthMethodConfigurerFactory factory) {
         try {
             var passkeyConfigurer = factory.createFactorConfigurer(AuthType.PASSKEY, PasskeyConfigurerConfigurer.class);
@@ -260,7 +225,6 @@ public class DefaultFactorChainProvider {
             String rpName = applicationContext.getEnvironment()
                     .getProperty("spring.security.webauthn.relyingparty.name", "Spring Security Platform");
 
-            
             passkeyConfigurer
                     .rpId(rpId)
                     .rpName(rpName)
@@ -277,7 +241,6 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    
     private void applyDefaultFactorConfiguration(HttpSecurity http, String factorType) {
         try {
             switch (factorType.toLowerCase()) {
@@ -298,7 +261,6 @@ public class DefaultFactorChainProvider {
         }
     }
 
-    
     private String capitalizeFirst(String str) {
         if (str == null || str.isEmpty()) {
             return str;

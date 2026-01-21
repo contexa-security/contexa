@@ -23,13 +23,11 @@ import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.transaction.support.TransactionTemplate;
 
-
 @Slf4j
 public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2StateConfigurer, HttpSecurity> {
 
     public OAuth2StateConfigurer() {
-        log.debug("OAuth2StateConfigurer instance created.");
-    }
+            }
 
     @Override
     public void init(HttpSecurity http) throws Exception {
@@ -38,15 +36,13 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             log.warn("OAuth2StateConfigurer: ApplicationContext not found in HttpSecurity sharedObjects during init. " +
                     "Dependencies will be resolved in configure phase.");
         }
-        log.debug("OAuth2StateConfigurer initializing for HttpSecurity (hash: {}).", http.hashCode());
-        configureResourceServer(http);
+                configureResourceServer(http);
         configureAuthorizationServer(http);
     }
 
     @Override
     public void configure(HttpSecurity http) throws Exception {
-        log.debug("OAuth2StateConfigurer configuring HttpSecurity (hash: {}). Adding OAuth2 filters.", http.hashCode());
-
+        
         TokenService tokenService = http.getSharedObject(TokenService.class);
         ApplicationContext context = http.getSharedObject(ApplicationContext.class);
 
@@ -54,8 +50,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
 
             OAuth2PreAuthenticationFilter preAuthFilter = new OAuth2PreAuthenticationFilter(tokenService);
             http.addFilterBefore(postProcess(preAuthFilter), LogoutFilter.class);
-            log.debug("OAuth2StateConfigurer: Added OAuth2PreAuthenticationFilter before LogoutFilter.");
-
+            
             if (context != null) {
                 try {
                     LogoutHandler logoutHandler = context.getBean("oauth2LogoutHandler", LogoutHandler.class);
@@ -64,8 +59,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                     OAuth2RefreshAuthenticationFilter refreshFilter =
                             new OAuth2RefreshAuthenticationFilter(tokenService, logoutHandler, responseWriter);
                     http.addFilterBefore(postProcess(refreshFilter), LogoutFilter.class);
-                    log.debug("OAuth2StateConfigurer: Added OAuth2RefreshAuthenticationFilter before LogoutFilter.");
-
+                    
                 } catch (Exception e) {
                     log.warn("OAuth2StateConfigurer: Failed to register OAuth2RefreshAuthenticationFilter. " +
                             "LogoutHandler or AuthResponseWriter not found: {}", e.getMessage());
@@ -75,10 +69,8 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             log.warn("OAuth2StateConfigurer: TokenService not found in SharedObjects. OAuth2 filters not registered.");
         }
 
-
     }
 
-    
     private void configureResourceServer(HttpSecurity http) throws Exception {
 
         http.oauth2ResourceServer(oauth2 -> oauth2
@@ -89,11 +81,8 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 .accessDeniedHandler(new OAuth2AccessDeniedHandler())
         );
 
-        log.info("OAuth2StateConfigurer: Resource Server configured with JWT token validation using JwtDecoder Bean.");
-
     }
 
-    
     private void configureAuthorizationServer(HttpSecurity http) throws Exception {
         OAuth2AuthorizationService authorizationService = http.getSharedObject(OAuth2AuthorizationService.class);
         RegisteredClientRepository clientRepository = http.getSharedObject(RegisteredClientRepository.class);
@@ -117,7 +106,6 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 authzServer.authorizationServerSettings(authzServerSettings);
             }
 
-            
             ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
             TransactionTemplate transactionTemplate = null;
             if (appContext != null) {
@@ -148,23 +136,19 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                                 context.getBean("oauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
                         tokenEndpoint.accessTokenResponseHandler(successHandler);
                     } catch (Exception e) {
-                        log.debug("OAuth2StateConfigurer: Custom token success handler not found, using default.");
-                    }
+                                            }
 
                     try {
                         AuthenticationFailureHandler failureHandler =
                                 context.getBean("oauth2TokenFailureHandler", AuthenticationFailureHandler.class);
                         tokenEndpoint.errorResponseHandler(failureHandler);
                     } catch (Exception e) {
-                        log.debug("OAuth2StateConfigurer: Custom token failure handler not found, using default.");
-                    }
+                                            }
                 }
             });
 
-            
             authzServer.oidc(Customizer.withDefaults());
         });
 
-        log.info("OAuth2StateConfigurer: Authorization Server endpoints configured.");
-    }
+            }
 }

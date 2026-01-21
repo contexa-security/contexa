@@ -30,14 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private final AuthenticationFlowConfig mfaFlowConfig;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
-
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -46,33 +44,26 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String requestUri = normalizeUri(request);
 
-        
         if (isPrimaryAuthPage(requestUri)) {
             handlePrimaryAuthPage(request, response);
             return;
         }
 
-        
         if (isSelectFactorPage(requestUri)) {
             handleSelectFactorPage(request, response);
             return;
         }
 
-        
-
-        
         if (isOttRequestPage(requestUri)) {
             handleOttRequestPage(request, response);
             return;
         }
 
-        
         if (isOttChallengePage(requestUri)) {
             handleOttChallengePage(request, response);
             return;
         }
 
-        
         if (isPasskeyChallengePage(requestUri)) {
             
             if ("GET".equalsIgnoreCase(request.getMethod())) {
@@ -81,15 +72,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             }
         }
 
-        
-
-        
         if (isConfigurePage(requestUri)) {
             handleConfigurePage(request, response);
             return;
         }
 
-        
         if (isFailurePage(requestUri)) {
             handleFailurePage(request, response);
             return;
@@ -98,9 +85,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    
-
-    
     private static final String OTT_READONLY_USERNAME_INPUT = """
         <div class="form-group">
             <label for="username">사용자명</label>
@@ -113,7 +97,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </div>
         """;
 
-    
     private static final String OTT_EDITABLE_USERNAME_INPUT = """
         <div class="form-group">
             <label for="username">사용자명</label>
@@ -125,11 +108,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </div>
         """;
 
-    
     private static final String CSRF_HEADERS = """
         {"{{headerName}}" : "{{headerValue}}"}""";
 
-    
     private static final String OTT_REQUEST_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -244,7 +225,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    
     private static final String OTT_VERIFY_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -458,7 +438,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    
     private static final String PASSKEY_CHALLENGE_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -631,7 +610,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    
     private static final String SELECT_FACTOR_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -784,7 +762,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    
     private static final String FACTOR_BUTTON_TEMPLATE = """
         <li class="factor-item">
             <form class="factor-form" method="post" action="{{selectFactorUrl}}" data-factor-type="{{factorType}}">
@@ -795,7 +772,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </li>
         """;
 
-    
     private static final String FAILURE_PAGE_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="ko">
@@ -875,7 +851,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         </html>
         """;
 
-    
     public DefaultMfaPageGeneratingFilter(
             AuthenticationFlowConfig mfaFlowConfig,
             MfaStateMachineIntegrator stateMachineIntegrator,
@@ -890,22 +865,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.authUrlProvider = authUrlProvider;
 
-        log.info("DefaultMfaPageGeneratingFilter initialized for MFA flow. Primary auth page: {}, Select factor page: {}, OTT code URL: {}, OTT processing URL: {}",
-                extractPrimaryLoginPage(),
-                extractSelectFactorUrl(),
-                extractOttCodeGenerationUrl(),
-                extractOttLoginProcessingUrl());
-    }
+            }
 
-    
-
-    
     private boolean isPrimaryAuthPage(String requestUri) {
         String primaryLoginPage = extractPrimaryLoginPage();
         return requestUri.equals(primaryLoginPage);
     }
 
-    
     private void handlePrimaryAuthPage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -918,35 +884,25 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (primaryOpts.isFormLogin()) {
             FormOptions formOpts = primaryOpts.getFormOptions();
 
-            
             if (isCustomLoginPage(formOpts.getLoginPage())) {
-                log.debug("Custom primary login page configured: {}. Skipping default page generation.",
-                         formOpts.getLoginPage());
-                return; 
+                                return; 
             }
 
-            
-            log.debug("Generating default primary form login page");
-            generatePrimaryFormLoginPage(request, response, formOpts);
+                        generatePrimaryFormLoginPage(request, response, formOpts);
 
         } else if (primaryOpts.isRestLogin()) {
             
             RestOptions restOpts = primaryOpts.getRestOptions();
             String loginPage = primaryOpts.getLoginPage(); 
 
-            
             if (isCustomLoginPage(loginPage)) {
-                log.debug("Custom REST login page configured: {}. Skipping default page generation.", loginPage);
-                return; 
+                                return; 
             }
 
-            
-            log.debug("Generating default primary REST login page");
-            generatePrimaryRestLoginPage(request, response, restOpts);
+                        generatePrimaryRestLoginPage(request, response, restOpts);
         }
     }
 
-    
     private String extractPrimaryLoginPage() {
         PrimaryAuthenticationOptions primaryOpts = mfaFlowConfig.getPrimaryAuthenticationOptions();
         if (primaryOpts != null) {
@@ -957,7 +913,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         formOpts.getLoginPage() : authUrlProvider.getPrimaryLoginPage(); 
             }
 
-            
             if (primaryOpts.isRestLogin()) {
                 String loginPage = primaryOpts.getLoginPage();
                 return StringUtils.hasText(loginPage) ? loginPage : authUrlProvider.getPrimaryLoginPage(); 
@@ -966,39 +921,29 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return authUrlProvider.getPrimaryLoginPage(); 
     }
 
-    
     private boolean isCustomLoginPage(String loginPage) {
         
         String defaultLoginPage = authUrlProvider.getPrimaryLoginPage();
         return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
     }
 
-    
-
-    
     private boolean isSelectFactorPage(String requestUri) {
         String selectFactorUrl = extractSelectFactorUrl();
         return requestUri.equals(selectFactorUrl);
     }
 
-    
     private void handleSelectFactorPage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        
         if (pageConfig != null && pageConfig.hasCustomSelectFactorPage()) {
-            log.debug("Custom select factor page configured: {}. Skipping default page generation.",
-                     pageConfig.getSelectFactorPageUrl());
-            return; 
+                        return; 
         }
 
-        log.debug("Generating default select factor page");
-        generateSelectFactorPage(request, response);
+                generateSelectFactorPage(request, response);
     }
 
-    
     private String extractSelectFactorUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getSelectFactorPageUrl())) {
@@ -1007,55 +952,40 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return authUrlProvider.getMfaSelectFactor(); 
     }
 
-    
-
-    
     private boolean isOttRequestPage(String requestUri) {
         String ottRequestUrl = extractOttRequestUrl();
         return requestUri.equals(ottRequestUrl);
     }
 
-    
     private void handleOttRequestPage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        
         if (pageConfig != null && pageConfig.hasCustomOttRequestPage()) {
-            log.debug("Custom OTT request page configured: {}. Skipping default page generation.",
-                     pageConfig.getOttRequestPageUrl());
-            return; 
+                        return; 
         }
 
-        log.debug("Generating default OTT request page");
-        generateOttRequestCodePage(request, response);
+                generateOttRequestCodePage(request, response);
     }
 
-    
     private boolean isOttChallengePage(String requestUri) {
         String ottChallengeUrl = extractOttChallengeUrl();
         return requestUri.equals(ottChallengeUrl);
     }
 
-    
     private void handleOttChallengePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        
         if (pageConfig != null && pageConfig.hasCustomOttVerifyPage()) {
-            log.debug("Custom OTT verify page configured: {}. Skipping default page generation.",
-                     pageConfig.getOttVerifyPageUrl());
-            return; 
+                        return; 
         }
 
-        log.debug("Generating default OTT verify page");
-        generateOttVerifyPage(request, response);
+                generateOttVerifyPage(request, response);
     }
 
-    
     private String extractOttRequestUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getOttRequestPageUrl())) {
@@ -1064,7 +994,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return authUrlProvider.getOttRequestCodeUi(); 
     }
 
-    
     private String extractOttChallengeUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getOttVerifyPageUrl())) {
@@ -1073,42 +1002,31 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return authUrlProvider.getOttChallengeUi(); 
     }
 
-    
     private String extractOttCodeGenerationUrl() {
         return authUrlProvider.getOttCodeGeneration();
     }
 
-    
     private String extractOttLoginProcessingUrl() {
         return authUrlProvider.getOttLoginProcessing();
     }
 
-    
-
-    
     private boolean isPasskeyChallengePage(String requestUri) {
         String passkeyUrl = extractPasskeyChallengeUrl();
         return requestUri.equals(passkeyUrl);
     }
 
-    
     private void handlePasskeyChallengePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        
         if (pageConfig != null && pageConfig.hasCustomPasskeyPage()) {
-            log.debug("Custom Passkey challenge page configured: {}. Skipping default page generation.",
-                     pageConfig.getPasskeyChallengePageUrl());
-            return; 
+                        return; 
         }
 
-        log.debug("Generating default Passkey challenge page");
-        generatePasskeyChallengePage(request, response);
+                generatePasskeyChallengePage(request, response);
     }
 
-    
     private String extractPasskeyChallengeUrl() {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getPasskeyChallengePageUrl())) {
@@ -1117,9 +1035,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return authUrlProvider.getPasskeyChallengeUi(); 
     }
 
-    
-
-    
     private boolean isConfigurePage(String requestUri) {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getConfigurePageUrl())) {
@@ -1128,7 +1043,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return requestUri.equals(authUrlProvider.getMfaConfigure()); 
     }
 
-    
     private void handleConfigurePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
@@ -1136,7 +1050,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         response.sendError(HttpServletResponse.SC_NOT_FOUND, "MFA Configure page is not available");
     }
 
-    
     private boolean isFailurePage(String requestUri) {
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getFailurePageUrl())) {
@@ -1145,26 +1058,18 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return requestUri.equals(authUrlProvider.getMfaFailure()); 
     }
 
-    
     private void handleFailurePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
 
-        
         if (pageConfig != null && pageConfig.hasCustomFailurePage()) {
-            log.debug("Custom failure page configured: {}. Skipping default page generation.",
-                     pageConfig.getFailurePageUrl());
-            return; 
+                        return; 
         }
 
-        log.debug("Generating default failure page");
-        generateFailurePage(request, response);
+                generateFailurePage(request, response);
     }
 
-    
-
-    
     private String normalizeUri(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
         String contextPath = request.getContextPath();
@@ -1176,25 +1081,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return requestUri;
     }
 
-
-    
     private void generateSelectFactorPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
 
-        
         String contextPath = request.getContextPath();
 
-        
         String username = getUsername();
         if (username == null) {
             log.warn("Select Factor Page: 인증되지 않은 사용자 접근 시도");
             username = "(알 수 없음)";
         }
 
-        
         List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null ?
                 new java.util.ArrayList<>(ctx.getAvailableFactors()) : List.of();
 
@@ -1203,11 +1102,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     ctx != null ? ctx.getMfaSessionId() : "unknown");
         }
 
-        
         String selectFactorUrl = extractSelectFactorUrl();
         String fullSelectFactorUrl = contextPath + selectFactorUrl;
 
-        
         StringBuilder factorButtonsHtml = new StringBuilder("<ul class=\"factor-list\">\n");
 
         for (AuthType factorType : availableFactors) {
@@ -1226,7 +1123,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         factorButtonsHtml.append("</ul>");
 
-        
         String html = MfaHtmlTemplates.fromTemplate(SELECT_FACTOR_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
@@ -1236,17 +1132,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withRawHtml("factorButtons", factorButtonsHtml.toString())
             .render();
 
-        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
 
-        log.debug("Select Factor Page 생성 완료. Username: {}, Available Factors: {}, Session: {}",
-                username, availableFactors.stream().map(AuthType::name).collect(Collectors.joining(", ")),
-                ctx != null ? ctx.getMfaSessionId() : "unknown");
-    }
+            }
 
-    
     private void generatePrimaryFormLoginPage(HttpServletRequest request, HttpServletResponse response, FormOptions formOpts)
             throws IOException {
         response.setContentType("text/html;charset=UTF-8");
@@ -1257,7 +1148,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
@@ -1402,10 +1292,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         writer.write(html);
         writer.flush();
 
-        log.debug("SDK 통합 MFA Form 로그인 페이지 생성 완료. Processing URL: {}", loginProcessingUrl);
-    }
+            }
 
-    
     private void generatePrimaryRestLoginPage(HttpServletRequest request, HttpServletResponse response, RestOptions restOpts)
             throws IOException {
         response.setContentType("text/html;charset=UTF-8");
@@ -1416,7 +1304,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String errorMessage = request.getParameter("error");
         String logoutMessage = request.getParameter("logout");
 
-        
         String csrfToken = getCsrfToken(request);
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
@@ -1561,41 +1448,31 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         writer.write(html);
         writer.flush();
 
-        log.debug("Generated default primary REST login page for MFA flow. Processing URL: {}", loginProcessingUrl);
-    }
+            }
 
-    
     private void generateOttRequestCodePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        
         String contextPath = request.getContextPath();
 
-        
         String username = getUsername();
 
-        
         String usernameInput;
         if (username != null) {
             
             usernameInput = MfaHtmlTemplates.fromTemplate(OTT_READONLY_USERNAME_INPUT)
                 .withValue("username", username)
                 .render();
-            log.debug("OTT Request Page: 인증된 사용자 '{}' - readonly username 필드 생성", username);
-        } else {
+                    } else {
             
             usernameInput = OTT_EDITABLE_USERNAME_INPUT;
-            log.debug("OTT Request Page: 미인증 사용자 - editable username 필드 생성");
-        }
+                    }
 
-        
         String hiddenInputs = resolveHiddenInputs(request);
 
-        
         String ottRequestUrl = extractOttCodeGenerationUrl(); 
         String fullOttRequestUrl = contextPath + ottRequestUrl;
 
-        
         String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("ottRequestUrl", fullOttRequestUrl)
@@ -1606,23 +1483,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withRawHtml("hiddenInputs", hiddenInputs)
             .render();
 
-        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
 
-        log.debug("OTT Request Page 생성 완료. Form action URL: {}, Username: {}",
-            fullOttRequestUrl, username != null ? username : "(입력 필요)");
-    }
+            }
 
-    
     private void generateOttVerifyPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        
         String contextPath = request.getContextPath();
 
-        
         String username = getUsername();
         if (username == null) {
             
@@ -1630,21 +1501,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             username = "(알 수 없음)";
         }
 
-        
         String hiddenInputs = resolveHiddenInputs(request);
 
-        
         String ottVerifyUrl = extractOttLoginProcessingUrl(); 
         String fullOttVerifyUrl = contextPath + ottVerifyUrl;
 
-        
         String ottResendUrl = extractOttCodeGenerationUrl(); 
         String fullOttResendUrl = contextPath + ottResendUrl;
 
-        
         String resendHiddenInputs = resolveHiddenInputs(request);
 
-        
         String html = MfaHtmlTemplates.fromTemplate(OTT_VERIFY_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
@@ -1657,23 +1523,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withRawHtml("resendHiddenInputs", resendHiddenInputs)
             .render();
 
-        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
 
-        log.debug("OTT Verify Page 생성 완료. Verify URL: {}, Resend URL: {}, Username: {}",
-            fullOttVerifyUrl, fullOttResendUrl, username);
-    }
+            }
 
-    
     private void generatePasskeyChallengePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        
         String contextPath = request.getContextPath();
 
-        
         String username = getUsername();
         if (username == null) {
             
@@ -1681,17 +1541,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             username = "(알 수 없음)";
         }
 
-        
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfToken = getCsrfToken(request);
         String csrfHeaders = CSRF_HEADERS
             .replace("{{headerName}}", csrfHeaderName)
             .replace("{{headerValue}}", csrfToken);
 
-        
         String failureUrl = authUrlProvider.getMfaFailure();
 
-        
         String html = MfaHtmlTemplates.fromTemplate(PASSKEY_CHALLENGE_TEMPLATE)
             .withValue("contextPath", contextPath)
             .withValue("username", username)
@@ -1702,69 +1559,52 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .withValue("failureUrl", failureUrl)
             .render();
 
-        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
 
-        log.debug("Passkey Challenge Page 생성 완료. Username: {}", username);
-    }
+            }
 
-    
-
-    
     private void generateFailurePage(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("text/html;charset=UTF-8");
 
-        
         String contextPath = request.getContextPath();
 
-        
         String errorMessage = request.getParameter("error");
         String displayMessage = StringUtils.hasText(errorMessage) ? errorMessage : "인증에 실패했습니다.";
 
-        
         String selectFactorUrl = extractSelectFactorUrl();
         String fullRetryUrl = contextPath + selectFactorUrl;
 
-        
         String html = MfaHtmlTemplates.fromTemplate(FAILURE_PAGE_TEMPLATE)
             .withValue("errorMessage", displayMessage)
             .withValue("retryUrl", fullRetryUrl)
             .render();
 
-        
         PrintWriter writer = response.getWriter();
         writer.write(html);
         writer.flush();
 
-        log.debug("Failure Page 생성 완료. Error: {}, Retry URL: {}", displayMessage, fullRetryUrl);
-    }
+            }
 
-    
     private String getCsrfToken(HttpServletRequest request) {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getToken() : "";
     }
 
-    
     private String getCsrfHeaderName(HttpServletRequest request) {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getHeaderName() : "X-CSRF-TOKEN";
     }
 
-    
     private String getCsrfParameterName(HttpServletRequest request) {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getParameterName() : "_csrf";
     }
 
-    
-
-    
     @Nullable
     private String getUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -1778,17 +1618,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         return null;
     }
 
-    
     private String resolveHiddenInputs(HttpServletRequest request) {
         Map<String, String> hiddenInputs = new LinkedHashMap<>();
 
-        
         CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         if (csrfToken != null) {
             hiddenInputs.put(csrfToken.getParameterName(), csrfToken.getToken());
         }
 
-        
         String mfaSessionId = (String) request.getAttribute("mfaSessionId");
         if (StringUtils.hasText(mfaSessionId)) {
             hiddenInputs.put("mfaSessionId", mfaSessionId);
@@ -1800,7 +1637,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             .collect(Collectors.joining("\n"));
     }
 
-    
     private String renderHiddenInput(String name, String value) {
         return String.format(
             "<input type=\"hidden\" name=\"%s\" value=\"%s\" />",
@@ -1809,7 +1645,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         );
     }
 
-    
     private String escapeHtml(String input) {
         if (input == null) {
             return "";
@@ -1822,7 +1657,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                    .replace("/", "&#x2F;");
     }
 
-    
     private String getFactorDisplayName(AuthType factorType) {
         return switch (factorType) {
             case OTT -> "이메일 인증 코드 (OTT)";

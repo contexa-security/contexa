@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-
 @Slf4j
 public final class DefaultSecurityConfigurerProvider implements SecurityConfigurerProvider {
 
@@ -28,19 +27,12 @@ public final class DefaultSecurityConfigurerProvider implements SecurityConfigur
             ApplicationContext applicationContext) {
         this.collectedBaseConfigurers = (baseConfigurers != null) ? new ArrayList<>(baseConfigurers) : new ArrayList<>();
         this.adapterRegistry = Objects.requireNonNull(adapterRegistry, "FeatureRegistry cannot be null");
-        log.info("DefaultSecurityConfigurerProvider initialized with {} base configurers.", this.collectedBaseConfigurers.size());
-        if (log.isDebugEnabled()) {
-            this.collectedBaseConfigurers.forEach(cfg -> log.debug("  - Detected Base Configurer: {}", cfg.getClass().getName()));
-        }
     }
 
     @Override
     public List<SecurityConfigurer> getGlobalConfigurers(PlatformContext platformContext, PlatformConfig platformConfig) {
-        
-        
-        
-        log.debug("DefaultSecurityConfigurerProvider: Providing {} base/global configurers.", collectedBaseConfigurers.size());
-        return List.copyOf(this.collectedBaseConfigurers);
+
+                return List.copyOf(this.collectedBaseConfigurers);
     }
 
     @Override
@@ -60,10 +52,6 @@ public final class DefaultSecurityConfigurerProvider implements SecurityConfigur
             return Collections.emptyList(); 
         }
 
-        log.debug("DefaultSecurityConfigurerProvider: Determining flow-specific configurer adapters for flow '{}' (HttpSecurity hash: {})",
-                currentFlow.getTypeName(), httpForScope.hashCode());
-
-        
         if (adapterRegistry != null) {
             
             List<AuthenticationFlowConfig> singleFlowList = Collections.singletonList(currentFlow);
@@ -71,22 +59,16 @@ public final class DefaultSecurityConfigurerProvider implements SecurityConfigur
             adapterRegistry.getAuthAdaptersFor(singleFlowList)
                     .forEach(authAdapter -> {
                         flowSpecificAdapters.add(new AuthConfigurerAdapter(authAdapter));
-                        log.debug("  Added AuthFeatureConfigurerAdapter for authAdapter '{}' relevant to flow '{}'.",
-                                authAdapter.getId(), currentFlow.getTypeName());
-                    });
+                                            });
 
             adapterRegistry.getStateAdaptersFor(singleFlowList)
                     .forEach(stateAdapter -> {
                         flowSpecificAdapters.add(new StateConfigurerAdapter(stateAdapter, platformContext));
-                        log.debug("  Added StateFeatureConfigurerAdapter for state feature '{}' relevant to flow '{}'.",
-                                stateAdapter.getId(), currentFlow.getTypeName());
-                    });
+                                            });
         } else {
             log.warn("DefaultSecurityConfigurerProvider: FeatureRegistry is null. Cannot add feature-based adapters for flow '{}'.", currentFlow.getTypeName());
         }
 
-        log.debug("DefaultSecurityConfigurerProvider: Providing {} flow-specific configurer adapters for flow '{}'.",
-                flowSpecificAdapters.size(), currentFlow.getTypeName());
-        return List.copyOf(flowSpecificAdapters);
+                return List.copyOf(flowSpecificAdapters);
     }
 }

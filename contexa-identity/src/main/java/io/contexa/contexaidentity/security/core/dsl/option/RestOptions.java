@@ -22,12 +22,10 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         this.asepAttributes = builder.asepAttributes; 
     }
 
-    
     public static Builder builder(org.springframework.context.ApplicationContext applicationContext) {
         return new Builder(applicationContext, false);
     }
 
-    
     public static Builder builderForMfa(org.springframework.context.ApplicationContext applicationContext) {
         return new Builder(applicationContext, true);
     }
@@ -37,16 +35,13 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         private String passwordParameter = "password";
         private RestAsepAttributes asepAttributes; 
 
-        
         public Builder(org.springframework.context.ApplicationContext applicationContext) {
             this(applicationContext, false);
         }
 
-        
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for RestOptions.Builder");
 
-            
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             if (isMfaMode) {

@@ -13,7 +13,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 
-
 @Slf4j
 public abstract class BaseOttAuthenticationAdapter extends AbstractAuthenticationAdapter<OttOptions> {
 

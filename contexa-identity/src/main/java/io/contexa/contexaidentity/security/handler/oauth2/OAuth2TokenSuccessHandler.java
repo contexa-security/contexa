@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
-
 @Slf4j
 public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
 
@@ -38,16 +37,11 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
         OAuth2AccessTokenAuthenticationToken accessTokenAuthentication =
                 (OAuth2AccessTokenAuthenticationToken) authentication;
 
-        
-        
         SecurityContext context = SecurityContextHolder.getContext();
         context.setAuthentication(accessTokenAuthentication);
 
-        
-      
     }
 
-    
     private OAuth2AccessTokenResponse buildTokenResponse(OAuth2AccessTokenAuthenticationToken authentication) {
         OAuth2AccessToken accessToken = authentication.getAccessToken();
         OAuth2RefreshToken refreshToken = authentication.getRefreshToken();
@@ -58,7 +52,6 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
                 .tokenType(accessToken.getTokenType())
                 .scopes(accessToken.getScopes());
 
-        
         if (accessToken.getExpiresAt() != null) {
             assert accessToken.getIssuedAt() != null;
             long expiresIn = ChronoUnit.SECONDS.between(
@@ -67,12 +60,10 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
             builder.expiresIn(expiresIn);
         }
 
-        
         if (refreshToken != null) {
             builder.refreshToken(refreshToken.getTokenValue());
         }
 
-        
         if (!CollectionUtils.isEmpty(additionalParameters)) {
             builder.additionalParameters(additionalParameters);
         }
@@ -80,7 +71,6 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
         return builder.build();
     }
 
-    
     private void sendTokenResponse(
             HttpServletResponse response,
             OAuth2AccessTokenResponse tokenResponse) throws IOException {
@@ -88,6 +78,5 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
         ServletServerHttpResponse httpResponse = new ServletServerHttpResponse(response);
         this.accessTokenResponseConverter.write(tokenResponse, MediaType.APPLICATION_JSON, httpResponse);
 
-        log.debug("OAuth2 token response sent successfully");
-    }
+            }
 }

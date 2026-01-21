@@ -19,7 +19,6 @@ public class WebUtil {
                 || uri.startsWith("/api/");
     }
 
-    
     public static void writeError(HttpServletResponse res, int status, String code, String message) throws IOException {
         res.setStatus(status);
         res.setContentType("application/json");

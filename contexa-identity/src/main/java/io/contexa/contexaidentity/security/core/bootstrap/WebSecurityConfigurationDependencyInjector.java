@@ -7,14 +7,12 @@ import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration;
 
-
 @Slf4j
 public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPostProcessor {
 
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
-        log.info("WebSecurityConfigurationDependencyInjector: Adding 'platformBootstrap' dependency to WebSecurityConfiguration...");
-
+        
         try {
             
             String[] webSecurityConfigNames = beanFactory.getBeanNamesForType(
@@ -28,10 +26,8 @@ public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPo
             for (String beanName : webSecurityConfigNames) {
                 BeanDefinition bd = beanFactory.getBeanDefinition(beanName);
 
-                
                 String[] existingDependsOn = bd.getDependsOn();
 
-                
                 String[] newDependsOn;
                 if (existingDependsOn == null || existingDependsOn.length == 0) {
                     newDependsOn = new String[]{"platformBootstrap"};
@@ -55,8 +51,7 @@ public class WebSecurityConfigurationDependencyInjector implements BeanFactoryPo
                 }
 
                 bd.setDependsOn(newDependsOn);
-                log.info("Successfully added 'platformBootstrap' dependency to WebSecurityConfiguration bean: {}", beanName);
-            }
+                            }
 
         } catch (Exception e) {
             log.error("Failed to add dependency to WebSecurityConfiguration", e);

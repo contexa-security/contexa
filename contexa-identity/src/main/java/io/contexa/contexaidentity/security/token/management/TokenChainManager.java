@@ -10,7 +10,6 @@ import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -24,16 +23,13 @@ public class TokenChainManager {
     private final StringRedisTemplate redisTemplate;
     private final RedisDistributedLockService lockService;
 
-    
     public String startNewChain(String token, String username, String deviceId) {
         String chainId = generateChainId(username, deviceId);
 
-        
         String tokenKey = TOKEN_TO_CHAIN_PREFIX + token;
         redisTemplate.opsForValue().set(tokenKey, chainId,
                 Duration.ofDays(30)); 
 
-        
         String chainKey = CHAIN_KEY_PREFIX + chainId;
         redisTemplate.opsForHash().put(chainKey, "currentToken", token);
         redisTemplate.opsForHash().put(chainKey, "username", username);
@@ -41,11 +37,9 @@ public class TokenChainManager {
         redisTemplate.opsForHash().put(chainKey, "createdAt", String.valueOf(System.currentTimeMillis()));
         redisTemplate.expire(chainKey, 30, TimeUnit.DAYS);
 
-        log.debug("Started new token chain: {} for user: {}, device: {}", chainId, username, deviceId);
-        return chainId;
+                return chainId;
     }
 
-    
     public String rotateToken(String oldToken, String newToken, String username, String deviceId) {
         String lockKey = "chain:lock:" + oldToken;
 
@@ -59,29 +53,23 @@ public class TokenChainManager {
                     throw new TokenReuseException("Token has already been used");
                 }
 
-                
                 String chainId = getChainId(oldToken);
                 if (chainId == null) {
                     log.warn("No chain found for token: {}. Starting new chain.", oldToken);
                     return startNewChain(newToken, username, deviceId);
                 }
 
-                
                 if (!isChainValid(chainId, oldToken)) {
                     log.error("Invalid chain state detected. Chain: {}, Token: {}", chainId, oldToken);
                     invalidateChain(chainId);
                     throw new InvalidChainException("Token chain is invalid");
                 }
 
-                
                 updateChain(chainId, oldToken, newToken);
 
-                
                 markTokenAsUsed(oldToken);
 
-                log.debug("Token rotated successfully. Chain: {}, Old: {}, New: {}",
-                        chainId, oldToken, newToken);
-                return chainId;
+                                return chainId;
             });
 
         } catch (RedisDistributedLockService.LockAcquisitionException e) {
@@ -90,69 +78,56 @@ public class TokenChainManager {
         }
     }
 
-    
     public boolean isTokenUsed(String token) {
         String key = USED_TOKEN_PREFIX + token;
         return Boolean.TRUE.equals(redisTemplate.hasKey(key));
     }
 
-    
     private void markTokenAsUsed(String token) {
         String key = USED_TOKEN_PREFIX + token;
         redisTemplate.opsForValue().set(key, "1", Duration.ofDays(30));
     }
 
-    
     private String getChainId(String token) {
         String key = TOKEN_TO_CHAIN_PREFIX + token;
         return redisTemplate.opsForValue().get(key);
     }
 
-    
     private boolean isChainValid(String chainId, String token) {
         String chainKey = CHAIN_KEY_PREFIX + chainId;
         String currentToken = (String) redisTemplate.opsForHash().get(chainKey, "currentToken");
         return token.equals(currentToken);
     }
 
-    
     private void updateChain(String chainId, String oldToken, String newToken) {
         String chainKey = CHAIN_KEY_PREFIX + chainId;
 
-        
         redisTemplate.opsForHash().put(chainKey, "currentToken", newToken);
         redisTemplate.opsForHash().put(chainKey, "lastRotated", String.valueOf(System.currentTimeMillis()));
 
-        
         String newTokenKey = TOKEN_TO_CHAIN_PREFIX + newToken;
         redisTemplate.opsForValue().set(newTokenKey, chainId, Duration.ofDays(30));
 
-        
         String historyKey = chainKey + ":history";
         redisTemplate.opsForList().leftPush(historyKey, oldToken);
         redisTemplate.opsForList().trim(historyKey, 0, 9);
     }
 
-    
     private void invalidateTokenChain(String token) {
         String chainId = getChainId(token);
         if (chainId != null) {
             invalidateChain(chainId);
 
-            
             publishSecurityEvent(chainId, "TOKEN_REUSE_DETECTED", token);
         }
     }
 
-    
     private void invalidateChain(String chainId) {
         String chainKey = CHAIN_KEY_PREFIX + chainId;
 
-        
         String username = (String) redisTemplate.opsForHash().get(chainKey, "username");
         String deviceId = (String) redisTemplate.opsForHash().get(chainKey, "deviceId");
 
-        
         redisTemplate.opsForHash().put(chainKey, "invalidated", "true");
         redisTemplate.opsForHash().put(chainKey, "invalidatedAt", String.valueOf(System.currentTimeMillis()));
 
@@ -160,19 +135,14 @@ public class TokenChainManager {
                 chainId, username, deviceId);
     }
 
-    
     private String generateChainId(String username, String deviceId) {
         return username + ":" + deviceId + ":" + UUID.randomUUID().toString();
     }
 
-    
     private void publishSecurityEvent(String chainId, String eventType, String token) {
-        
-        
+
         log.error("SECURITY_EVENT: {} - Chain: {}, Token: {}", eventType, chainId, token);
     }
-
-    
 
     public static class TokenReuseException extends RuntimeException {
         public TokenReuseException(String message) {

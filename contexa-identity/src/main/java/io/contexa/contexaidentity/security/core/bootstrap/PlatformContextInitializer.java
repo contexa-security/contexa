@@ -23,9 +23,7 @@ public class PlatformContextInitializer {
     }
 
     public void initializeSharedObjects() {
-        log.debug("Initializing global shared objects in PlatformContext.");
-        platformContext.share(AuthContextProperties.class, authContextProperties);
+                platformContext.share(AuthContextProperties.class, authContextProperties);
         platformContext.share(ObjectMapper.class, objectMapper);
-        log.info("Global shared objects (AuthContextProperties, ObjectMapper) registered in PlatformContext.");
-    }
+            }
 }

@@ -9,19 +9,15 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-
 public interface MfaRequestHandler {
 
-    
     void handleRequest(MfaRequestType requestType, HttpServletRequest request,
                        HttpServletResponse response, FactorContext context,
                        FilterChain filterChain) throws ServletException, IOException;
 
-    
     void handleTerminalContext(HttpServletRequest request, HttpServletResponse response,
                                FactorContext context) throws ServletException, IOException;
 
-    
     void handleGenericError(HttpServletRequest request, HttpServletResponse response,
                             FactorContext context, Exception error) throws ServletException, IOException;
 }

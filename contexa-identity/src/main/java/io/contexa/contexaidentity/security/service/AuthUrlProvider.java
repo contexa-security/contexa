@@ -16,89 +16,49 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 @Slf4j
 public class AuthUrlProvider {
 
     private final AuthContextProperties properties;
     private MfaPageConfig mfaPageConfig = new MfaPageConfig();
 
-    
     private final Map<AuthType, AuthenticationProcessingOptions> factorOptionsMap = new HashMap<>();
 
-    
     private PrimaryAuthenticationOptions primaryAuthOptions;
 
-    
     public AuthUrlProvider(AuthContextProperties properties) {
         this.properties = properties;
     }
 
-    
     public void setPrimaryAuthenticationOptions(@Nullable PrimaryAuthenticationOptions primaryAuthOptions) {
         if (primaryAuthOptions != null) {
-            log.info("📋 Primary Authentication Options 설정:");
-            log.debug("  [변경 전] Form Login Processing: {}", getPrimaryFormLoginProcessing());
-            log.debug("  [변경 전] Login Page: {}", getPrimaryLoginPage());
-            log.debug("  [변경 전] Login Failure: {}", getPrimaryLoginFailure());
-
+                                                
             this.primaryAuthOptions = primaryAuthOptions;
 
-            log.info("✅ Primary authentication options set: loginPage={}, failureUrl={}, loginProcessingUrl={}",
-                primaryAuthOptions.getLoginPage(),
-                primaryAuthOptions.getFailureUrl(),
-                primaryAuthOptions.getLoginProcessingUrl());
-
-            log.debug("  [변경 후] Form Login Processing: {}", getPrimaryFormLoginProcessing());
-            log.debug("  [변경 후] Login Page: {}", getPrimaryLoginPage());
-            log.debug("  [변경 후] Login Failure: {}", getPrimaryLoginFailure());
-        }
+                                            }
     }
 
-    
     public void setMfaPageConfig(@Nullable MfaPageConfig mfaPageConfig) {
         if (mfaPageConfig != null) {
             this.mfaPageConfig = mfaPageConfig;
-            log.info("MFA custom page configuration applied to AuthUrlProvider: {}", mfaPageConfig);
-        }
+                    }
     }
 
-    
     public void updateFactorOptions(@Nullable Map<AuthType, AuthenticationProcessingOptions> options) {
         if (options != null && !options.isEmpty()) {
-            
-            log.info("📋 Factor Options 업데이트 시작:");
-            log.debug("  [변경 전] OTT Code Generation: {}", getOttCodeGeneration());
-            log.debug("  [변경 전] OTT Login Processing: {}", getOttLoginProcessing());
-            log.debug("  [변경 전] Passkey Login Processing: {}", getPasskeyLoginProcessing());
 
             this.factorOptionsMap.putAll(options);
-            log.info("✅ Factor options updated in AuthUrlProvider: {}", options.keySet());
 
-            
             options.forEach((authType, opts) -> {
                 if (opts instanceof OttOptions ottOpts) {
-                    log.info("  - OTT: tokenGeneratingUrl={}, loginProcessing={}",
-                        ottOpts.getTokenGeneratingUrl(), ottOpts.getLoginProcessingUrl());
-                } else if (opts instanceof PasskeyOptions passkeyOpts) {
-                    log.info("  - Passkey: loginProcessing={}",
-                        passkeyOpts.getLoginProcessingUrl());
-                }
+                                    } else if (opts instanceof PasskeyOptions passkeyOpts) {
+                                    }
             });
 
-            log.debug("  [변경 후] OTT Code Generation: {}", getOttCodeGeneration());
-            log.debug("  [변경 후] OTT Login Processing: {}", getOttLoginProcessing());
-            log.debug("  [변경 후] Passkey Login Processing: {}", getPasskeyLoginProcessing());
-        } else {
-            log.debug("No factor options to update (null or empty)");
-        }
+                                            } else {
+                    }
     }
 
-    
-    
-    
-
-    
     public String getPrimaryFormLoginProcessing() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginProcessingUrl())) {
             if (primaryAuthOptions.isFormLogin()) {
@@ -108,7 +68,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getPrimary().getFormLoginProcessing();
     }
 
-    
     public String getPrimaryRestLoginProcessing() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginProcessingUrl())) {
             if (primaryAuthOptions.isRestLogin()) {
@@ -118,7 +77,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getPrimary().getRestLoginProcessing();
     }
 
-    
     public String getPrimaryLoginPage() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginPage())) {
             return primaryAuthOptions.getLoginPage();
@@ -126,7 +84,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getPrimary().getFormLoginPage();
     }
 
-    
     public String getPrimaryLoginFailure() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getFailureUrl())) {
             return primaryAuthOptions.getFailureUrl();
@@ -134,125 +91,94 @@ public class AuthUrlProvider {
         return properties.getUrls().getPrimary().getLoginFailure();
     }
 
-    
     public String getPrimaryLoginSuccess() {
         return properties.getUrls().getPrimary().getLoginSuccess();
     }
 
-    
     public String getLogoutPage() {
         return properties.getUrls().getPrimary().getLogoutPage();
     }
 
-    
-    
-    
-
-    
     public String getSingleFormLoginProcessing() {
         return properties.getUrls().getSingle().getFormLoginProcessing();
     }
 
-    
     public String getSingleFormLoginPage() {
         return properties.getUrls().getSingle().getFormLoginPage();
     }
 
-    
     public String getSingleRestLoginProcessing() {
         return properties.getUrls().getSingle().getRestLoginProcessing();
     }
 
-    
     public String getSingleLoginFailure() {
         return properties.getUrls().getSingle().getLoginFailure();
     }
 
-    
     public String getSingleLoginSuccess() {
         return properties.getUrls().getSingle().getLoginSuccess();
     }
 
-    
     public String getSingleOttRequestEmail() {
         return properties.getUrls().getSingle().getOtt().getRequestEmail();
     }
 
-    
     public String getSingleOttCodeGeneration() {
         return properties.getUrls().getSingle().getOtt().getCodeGeneration();
     }
 
-    
     public String getSingleOttCodeSent() {
         return properties.getUrls().getSingle().getOtt().getCodeSent();
     }
 
-    
     public String getSingleOttChallenge() {
         return properties.getUrls().getSingle().getOtt().getChallenge();
     }
 
-    
     public String getSingleOttLoginProcessing() {
         return properties.getUrls().getSingle().getOtt().getLoginProcessing();
     }
 
-    
     public String getSingleOttSent() {
         return properties.getUrls().getFactors().getOtt().getSingleOttSent();
     }
 
-    
     public String getSingleOttLoginFailure() {
         return properties.getUrls().getSingle().getOtt().getLoginFailure();
     }
 
-    
     public String getSinglePasskeyLoginPage() {
         return properties.getUrls().getSingle().getPasskey().getLoginPage();
     }
 
-    
     public String getSinglePasskeyLoginProcessing() {
         return properties.getUrls().getSingle().getPasskey().getLoginProcessing();
     }
 
-    
     public String getSinglePasskeyLoginFailure() {
         return properties.getUrls().getSingle().getPasskey().getLoginFailure();
     }
 
-    
     public String getSinglePasskeyAssertionOptions() {
         return properties.getUrls().getSingle().getPasskey().getAssertionOptions();
     }
 
-    
     public String getSinglePasskeyRegistrationOptions() {
         return properties.getUrls().getSingle().getPasskey().getRegistrationOptions();
     }
 
-    
     public String getSinglePasskeyRegistrationRequest() {
         return properties.getUrls().getSingle().getPasskey().getRegistrationRequest();
     }
 
-    
     public String getSinglePasskeyRegistrationProcessing() {
         return properties.getUrls().getSingle().getPasskey().getRegistrationProcessing();
     }
 
-    
-    
-    
-
-    
     public String getMfaInitiate() {
         return properties.getUrls().getMfa().getInitiate();
     }
 
-    
     public String getMfaConfigure() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomConfigurePage()) {
             return mfaPageConfig.getConfigurePageUrl();
@@ -260,7 +186,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getMfa().getConfigure();
     }
 
-    
     public String getMfaSelectFactor() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomSelectFactorPage()) {
             return mfaPageConfig.getSelectFactorPageUrl();
@@ -268,12 +193,10 @@ public class AuthUrlProvider {
         return properties.getUrls().getMfa().getSelectFactor();
     }
 
-    
     public String getMfaSuccess() {
         return properties.getUrls().getMfa().getSuccess();
     }
 
-    
     public String getMfaFailure() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomFailurePage()) {
             return mfaPageConfig.getFailurePageUrl();
@@ -281,41 +204,30 @@ public class AuthUrlProvider {
         return properties.getUrls().getMfa().getFailure();
     }
 
-    
     public String getMfaCancel() {
         return properties.getUrls().getMfa().getCancel();
     }
 
-    
     public String getMfaCancelRedirect() {
         return properties.getUrls().getMfa().getCancelRedirect();
     }
 
-    
     public String getMfaStatus() {
         return properties.getUrls().getMfa().getStatus();
     }
 
-    
     public String getMfaContext() {
         return properties.getUrls().getMfa().getContext();
     }
 
-    
     public String getMfaRequestOttCode() {
         return properties.getUrls().getMfa().getRequestOttCode();
     }
 
-    
     public String getMfaConfig() {
         return properties.getUrls().getMfa().getConfig();
     }
 
-    
-    
-    
-
-    
     public String getOttRequestCodeUi() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttRequestPage()) {
             return mfaPageConfig.getOttRequestPageUrl();
@@ -323,7 +235,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getFactors().getOtt().getRequestCodeUi();
     }
 
-    
     public String getOttCodeGeneration() {
         AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
@@ -336,7 +247,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getFactors().getOtt().getCodeGeneration();
     }
 
-    
     public String getOttChallengeUi() {
         AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
@@ -353,7 +263,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getFactors().getOtt().getChallengeUi();
     }
 
-    
     public String getOttLoginProcessing() {
         AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
@@ -366,36 +275,26 @@ public class AuthUrlProvider {
         return properties.getUrls().getFactors().getOtt().getLoginProcessing();
     }
 
-    
     public String getMfaOttCodeGeneration() {
         return getOttCodeGeneration();
     }
 
-    
     public String getMfaOttChallengeUi() {
         return getOttChallengeUi();
     }
 
-    
     public String getMfaOttLoginProcessing() {
         return getOttLoginProcessing();
     }
 
-    
     public String getOttCodeSent() {
         return properties.getUrls().getFactors().getOtt().getCodeSent();
     }
 
-    
     public String getOttDefaultFailure() {
         return properties.getUrls().getFactors().getOtt().getDefaultFailure();
     }
 
-    
-    
-    
-
-    
     public String getPasskeyLoginProcessing() {
         AuthenticationProcessingOptions passkeyOpts = factorOptionsMap.get(AuthType.MFA_PASSKEY);
         if (passkeyOpts instanceof PasskeyOptions passkeyOptions) {
@@ -408,7 +307,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getFactors().getPasskey().getLoginProcessing();
     }
 
-    
     public String getPasskeyAssertionOptions() {
         AuthenticationProcessingOptions passkeyOpts = factorOptionsMap.get(AuthType.MFA_PASSKEY);
         if (passkeyOpts instanceof PasskeyOptions passkeyOptions) {
@@ -421,17 +319,14 @@ public class AuthUrlProvider {
         return properties.getUrls().getFactors().getPasskey().getAssertionOptions();
     }
 
-    
     public String getMfaPasskeyLoginProcessing() {
         return getPasskeyLoginProcessing();
     }
 
-    
     public String getMfaPasskeyAssertionOptions() {
         return getPasskeyAssertionOptions();
     }
 
-    
     public String getPasskeyChallengeUi() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomPasskeyPage()) {
             return mfaPageConfig.getPasskeyChallengePageUrl();
@@ -439,45 +334,30 @@ public class AuthUrlProvider {
         return properties.getUrls().getFactors().getPasskey().getChallengeUi();
     }
 
-    
     public String getPasskeyDefaultFailure() {
         return properties.getUrls().getFactors().getPasskey().getDefaultFailure();
     }
 
-    
     public String getPasskeyRegistrationRequest() {
         return properties.getUrls().getFactors().getPasskey().getRegistrationRequest();
     }
 
-    
     public String getPasskeyRegistrationProcessing() {
         return properties.getUrls().getFactors().getPasskey().getRegistrationProcessing();
     }
 
-    
     public String getPasskeyRegistrationOptions() {
         return properties.getUrls().getFactors().getPasskey().getRegistrationOptions();
     }
 
-    
-    
-    
-
-    
     public String getRecoveryCodeLoginProcessing() {
         return properties.getUrls().getFactors().getRecoveryCodeLoginProcessing();
     }
 
-    
     public String getRecoveryCodeChallengeUi() {
         return properties.getUrls().getFactors().getRecoveryCodeChallengeUi();
     }
 
-    
-    
-    
-
-    
     public List<String> getAllFactorProcessingUrls() {
         return List.of(
             getOttLoginProcessing(),
@@ -486,7 +366,6 @@ public class AuthUrlProvider {
         );
     }
 
-    
     public List<String> getAllMfaRequestUrls() {
         return List.of(
             getMfaInitiate(),
@@ -497,11 +376,9 @@ public class AuthUrlProvider {
         );
     }
 
-    
     public Map<String, Object> getAllUiPageUrls() {
         Map<String, Object> urls = new LinkedHashMap<>();
 
-        
         urls.put("primary", Map.of(
             "formLoginPage", getPrimaryLoginPage(),
             "formLoginProcessing", getPrimaryFormLoginProcessing(),
@@ -510,7 +387,6 @@ public class AuthUrlProvider {
             "loginSuccess", getPrimaryLoginSuccess()
         ));
 
-        
         urls.put("mfa", Map.of(
             "initiate", getMfaInitiate(),
             "configure", getMfaConfigure(),
@@ -520,7 +396,6 @@ public class AuthUrlProvider {
             "cancel", getMfaCancel()
         ));
 
-        
         Map<String, String> ottUrls = new LinkedHashMap<>();
         ottUrls.put("requestCodeUi", getOttRequestCodeUi());
         ottUrls.put("challengeUi", getOttChallengeUi());
@@ -534,7 +409,6 @@ public class AuthUrlProvider {
         ottUrls.put("singleOttSent", getSingleOttSent());
         urls.put("ott", ottUrls);
 
-        
         Map<String, String> passkeyUrls = new LinkedHashMap<>();
         passkeyUrls.put("challengeUi", getPasskeyChallengeUi());
         passkeyUrls.put("loginProcessing", getPasskeyLoginProcessing());
@@ -543,19 +417,16 @@ public class AuthUrlProvider {
         passkeyUrls.put("registrationProcessing", getPasskeyRegistrationProcessing());
         urls.put("passkey", passkeyUrls);
 
-        
         urls.put("recoveryCode", Map.of(
             "challengeUi", getRecoveryCodeChallengeUi(),
             "loginProcessing", getRecoveryCodeLoginProcessing()
         ));
 
-        
         urls.put("webauthn", Map.of(
             "assertionOptions", getPasskeyAssertionOptions(),
             "assertionVerify", getPasskeyLoginProcessing()  
         ));
 
-        
         urls.put("api", Map.of(
             "selectFactor", getMfaSelectFactor(),
             "cancel", getMfaCancel(),
@@ -568,17 +439,11 @@ public class AuthUrlProvider {
         return urls;
     }
 
-    
-    
-    
-
-    
     @PostConstruct
     public void validateConfiguration() {
         List<String> errors = new ArrayList<>();
         Map<String, List<String>> urlToContexts = new LinkedHashMap<>();
 
-        
         addUrlWithContext(urlToContexts, getPrimaryFormLoginProcessing(), "Primary.formLoginProcessing");
         addUrlWithContext(urlToContexts, getPrimaryRestLoginProcessing(), "Primary.restLoginProcessing");
         addUrlWithContext(urlToContexts, getPrimaryLoginPage(), "Primary.formLoginPage");
@@ -620,9 +485,6 @@ public class AuthUrlProvider {
         addUrlWithContext(urlToContexts, getMfaConfig(), "Mfa.config");
         addUrlWithContext(urlToContexts, getPasskeyAssertionOptions(), "Passkey.assertionOptions");
 
-        
-        
-        
         Set<String> allowedDuplicates = Set.of(
             "/login",      
             "/mfa/login",  
@@ -630,7 +492,6 @@ public class AuthUrlProvider {
             "/loginForm"
         );
 
-        
         List<String> problematicDuplicates = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : urlToContexts.entrySet()) {
             String url = entry.getKey();
@@ -641,14 +502,12 @@ public class AuthUrlProvider {
                 continue;
             }
 
-            
             if (contexts.size() > 1) {
                 
                 if (!allowedDuplicates.contains(url)) {
                     problematicDuplicates.add(url + " (사용처: " + String.join(", ", contexts) + ")");
                 } else {
-                    log.debug("의도된 중복 URL 허용: {} (사용처: {})", url, String.join(", ", contexts));
-                }
+                                    }
             }
         }
 
@@ -656,7 +515,6 @@ public class AuthUrlProvider {
             errors.add("의도하지 않은 중복 URL 발견: " + String.join("; ", problematicDuplicates));
         }
 
-        
         for (String url : urlToContexts.keySet()) {
             if (!url.startsWith("/")) {
                 errors.add("URL은 '/'로 시작해야 합니다: " + url);
@@ -667,25 +525,14 @@ public class AuthUrlProvider {
             }
         }
 
-        
         if (!errors.isEmpty()) {
             String errorMessage = " URL 설정 검증 실패:\n" + String.join("\n", errors);
             log.error(errorMessage);
             throw new IllegalStateException(errorMessage);
         }
 
-        log.info("URL 설정 검증 성공: {} 개의 고유 URL 설정됨 (의도된 중복 {} 개 허용)",
-                urlToContexts.size(),
-                urlToContexts.values().stream().filter(list -> list.size() > 1).count());
-        log.debug("설정된 URL 목록:\n{}",
-            urlToContexts.keySet().stream()
-                .sorted()
-                .map(url -> "  - " + url)
-                .collect(Collectors.joining("\n"))
-        );
-    }
+                    }
 
-    
     private void addUrlWithContext(Map<String, List<String>> map, String url, String context) {
         if (url == null) return;
         map.computeIfAbsent(url, k -> new ArrayList<>()).add(context);

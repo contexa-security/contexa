@@ -26,8 +26,6 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
         String sessionId = factorContext.getMfaSessionId();
         String currentStepId = factorContext.getCurrentStepId();
 
-        log.info("Verifying factor for step: {} in session: {}", currentStepId, sessionId);
-
         String factorType = factorContext.getCurrentProcessingFactor() != null ?
                 factorContext.getCurrentProcessingFactor().name() : null;
         if (factorType == null) {
@@ -53,7 +51,6 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
             log.warn("currentProcessingFactor was null for session {}, derived factorType {} from stepId {}", sessionId, factorType, currentStepId);
         }
 
-
         AuthenticationStepConfig completedStep = createCompletedStep(
                 currentStepId,
                 factorType, 
@@ -64,8 +61,7 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
         updateVerificationSuccess(factorContext, completedStep);
         factorContext.setRetryCount(0); 
 
-        log.info("Factor {} (StepId: {}) verified successfully for session: {}", factorType, currentStepId, sessionId);
-    }
+            }
 
     private AuthenticationStepConfig createCompletedStep(String stepId,
                                                          String factorType,

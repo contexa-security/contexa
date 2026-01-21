@@ -60,8 +60,7 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
             log.warn("ASEP: ApplicationContext is null. Cannot initialize SecurityExceptionHandlerAdviceCache.");
             return;
         }
-        log.debug("ASEP: Initializing SecurityExceptionHandlerAdviceCache: Looking for @SecurityControllerAdvice beans...");
-
+        
         List<Object> adviceBeans = new ArrayList<>(this.applicationContext.getBeansWithAnnotation(SecurityControllerAdvice.class).values());
         AnnotationAwareOrderComparator.sort(adviceBeans);
 
@@ -70,13 +69,10 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
             ExceptionHandlerMethodResolver resolver = this.methodResolverCache.computeIfAbsent(beanType, ExceptionHandlerMethodResolver::new);
             if (resolver.hasExceptionMappings()) { 
                 this.adviceToResolverCache.put(adviceBean, resolver);
-                log.debug("ASEP: Detected @SecurityExceptionHandler methods in advice bean: {}", beanType.getName());
-            }
+                            }
         }
-        log.info("ASEP: Initialized SecurityExceptionHandlerAdviceCache with {} advice beans.", this.adviceToResolverCache.size());
-    }
+            }
 
-    
     public boolean hasAnyMappings() { 
         return !this.adviceToResolverCache.isEmpty();
     }
@@ -97,13 +93,11 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
             if (CollectionUtils.isEmpty(acceptedMediaTypes) ||
                     (acceptedMediaTypes.size() == 1 && MediaType.ALL.equals(acceptedMediaTypes.get(0)))) {
                 acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON); 
-                log.trace("ASEP: No specific Accept header, defaulting to application/json for exception handling.");
-            }
+                            }
         } catch (Exception ex) {
             log.warn("ASEP: Could not resolve media types for request due to {}. Using default [application/json].", ex.getMessage());
             acceptedMediaTypes = Collections.singletonList(MediaType.APPLICATION_JSON);
         }
-
 
         for (Map.Entry<Object, ExceptionHandlerMethodResolver> entry : this.adviceToResolverCache.entrySet()) {
             Object adviceBean = entry.getKey();
@@ -119,17 +113,12 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
                             ann.value() :
                             new Class[]{findClosestExceptionTypeFromMethodParams(bestMatchingMethod, exception.getClass())};
 
-                    log.debug("ASEP: Found best matching handler method [{}] in bean [{}] for exception [{}] and accepted media type [{}]. Produces: {}, Priority: {}",
-                            bestMatchingMethod.getName(), adviceBean.getClass().getSimpleName(),
-                            exception.getClass().getSimpleName(), acceptedMediaType, Arrays.toString(produces), priority);
-                    return new HandlerMethod(adviceBean, bestMatchingMethod, handledExceptions, priority, produces);
+                                        return new HandlerMethod(adviceBean, bestMatchingMethod, handledExceptions, priority, produces);
                 }
             }
         }
 
-        log.debug("ASEP: No suitable @SecurityExceptionHandler method found in any @SecurityControllerAdvice beans for exception [{}] and accepted media types {}.",
-                exception.getClass().getName(), acceptedMediaTypes);
-        return null;
+                return null;
     }
 
     private Class<? extends Throwable> findClosestExceptionTypeFromMethodParams(Method method, Class<? extends Throwable> actualExceptionType) {
@@ -230,17 +219,13 @@ public class SecurityExceptionHandlerMethodRegistry implements ApplicationContex
                     return mappingInfo.handlerMethod();
                 }
             }
-            
-            
-            
-            
+
             for (ExceptionHandlerMappingInfo mappingInfo : candidates) {
                 if (mappingInfo.producibleMediaTypes().isEmpty() ||
                         mappingInfo.producibleMediaTypes().stream().anyMatch(mt -> acceptedMediaType.isCompatibleWith(mt) || mt.isCompatibleWith(MediaType.ALL))) {
                     return mappingInfo.handlerMethod();
                 }
             }
-
 
             return null;
         }

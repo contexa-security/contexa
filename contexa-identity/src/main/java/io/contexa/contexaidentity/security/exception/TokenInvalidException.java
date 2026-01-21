@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.exception;
 
-
 public class TokenInvalidException extends RuntimeException {
 
     public TokenInvalidException(String message) {

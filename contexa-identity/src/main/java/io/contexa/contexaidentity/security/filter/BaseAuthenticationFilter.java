@@ -70,7 +70,6 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    
     protected Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
             throws AuthenticationException {
         try {
@@ -86,16 +85,13 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
         }
     }
 
-    
     protected abstract void successfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                                      FilterChain chain, Authentication authentication)
             throws IOException, ServletException;
 
-    
     protected abstract void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                               AuthenticationException failed)
             throws IOException, ServletException;
-
 
     protected void ensureMinimumDelay(long startTime) {
         long elapsed = System.currentTimeMillis() - startTime;

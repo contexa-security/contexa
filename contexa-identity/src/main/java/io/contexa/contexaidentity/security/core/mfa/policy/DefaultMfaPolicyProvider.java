@@ -24,7 +24,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
@@ -48,7 +47,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         this.platformConfig = platformConfig;
     }
 
-    
     @PostConstruct
     public void initializeMfaFlowConfig() {
         try {
@@ -59,8 +57,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                         .orElse(null);
 
                 if (cachedMfaFlowConfig != null) {
-                    log.info("MFA flow configuration initialized successfully at startup");
-                } else {
+                                    } else {
                     log.warn("No MFA flow configuration found during initialization");
                 }
             }
@@ -69,32 +66,21 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         }
     }
 
-
-    
     @Override
     public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null.");
 
         String sessionId = ctx.getMfaSessionId();
-        log.debug("Evaluating initial MFA requirement for session: {}", sessionId);
 
-        
         MfaDecision decision = evaluatePolicy(ctx);
-
-        log.info("Initial MFA evaluation completed for session: {}, required: {}, blocked: {}",
-                sessionId, decision.isRequired(), decision.isBlocked());
 
         return decision;
     }
 
-    
     protected MfaDecision evaluatePolicy(FactorContext ctx) {
         
         MfaDecision decision = policyEvaluator.evaluatePolicy(ctx);
-        
-        log.info("MFA policy evaluated for user {}: type={}, required={}, factorCount={}",
-                ctx.getUsername(), decision.getType(), decision.isRequired(), decision.getFactorCount());
-        
+
         return decision;
     }
 
@@ -103,20 +89,14 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         Assert.hasText(username, "Username cannot be empty.");
         Assert.notNull(factorType, "FactorType cannot be null.");
 
-        
-        
         if (ctx != null) {
             Set<AuthType> availableFactors = ctx.getAvailableFactors();
             if (availableFactors != null && !availableFactors.isEmpty()) {
                 boolean available = availableFactors.contains(factorType);
-                log.debug("Factor {} availability check from context for user {}: {} (validated by policy evaluation)",
-                        factorType, username, available);
-                return available;
+                                return available;
             }
         }
 
-        
-        
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
         if (mfaFlowConfig == null) {
             log.warn("MFA flow config not found. Factor {} not available for user: {}", factorType, username);
@@ -125,14 +105,10 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
         Map<AuthType, ?> factorOptions = mfaFlowConfig.getRegisteredFactorOptions();
         if (factorOptions == null || !factorOptions.containsKey(factorType)) {
-            log.debug("Factor {} not defined in DSL for user {}", factorType, username);
-            return false;
+                        return false;
         }
 
-        
-        log.debug("Factor {} available from DSL for user {} (requires policy evaluation for full validation)",
-                factorType, username);
-        return true;
+                return true;
     }
 
     @Override
@@ -152,7 +128,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         };
     }
 
-    
     protected int adjustRequiredFactorCount(int baseCount, String userId, String flowType) {
         
         return baseCount;
@@ -216,7 +191,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 .map(AuthenticationStepConfig::getStepId)
                 .collect(Collectors.toSet());
 
-        
         for (AuthType factor : availableFactors) {
             
             Optional<AuthenticationStepConfig> nextStep = flowSteps.stream()
@@ -225,14 +199,11 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                     .min(Comparator.comparingInt(AuthenticationStepConfig::getOrder));
 
             if (nextStep.isPresent()) {
-                log.debug("Next MFA factor determined by DSL order: {} (StepId: {})",
-                        factor, nextStep.get().getStepId());
-                return factor;
+                                return factor;
             }
         }
 
-        log.debug("No more MFA factors to process based on policy.");
-        return null;
+                return null;
     }
 
     @Nullable
@@ -250,7 +221,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return Collections.emptyList();
         }
 
-        
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
         if (mfaFlowConfig != null) {
             Map<AuthType, ?> factorOptions = mfaFlowConfig.getRegisteredFactorOptions();
@@ -259,21 +229,17 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             }
         }
 
-        log.debug("No DSL-defined factors found for user: {}", username);
-        return Collections.emptyList();
+                return Collections.emptyList();
     }
 
-    
     @Nullable
     private AuthenticationFlowConfig findMfaFlowConfig() {
         return cachedMfaFlowConfig;
     }
 
-    
     public void invalidateFlowConfigCache() {
         cachedMfaFlowConfig = null;
-        log.info("MFA flow configuration cache invalidated. Re-initializing...");
-        initializeMfaFlowConfig();
+                initializeMfaFlowConfig();
     }
 
     private HttpServletRequest getCurrentRequest() {
@@ -282,11 +248,6 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         return attrs != null ? attrs.getRequest() : null;
     }
 
-    
-    
-    
-
-    
     @Override
     public NextFactorDecision evaluateNextFactor(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null.");
@@ -317,16 +278,13 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
             if (nextStepConfigOpt.isPresent()) {
                 AuthenticationStepConfig nextStep = nextStepConfigOpt.get();
-                log.info("Next factor evaluated: {} (StepId: {})", nextFactorType, nextStep.getStepId());
-                return NextFactorDecision.nextFactor(nextFactorType, nextStep.getStepId());
+                                return NextFactorDecision.nextFactor(nextFactorType, nextStep.getStepId());
             }
         }
 
-        log.info("No more factors to process");
-        return NextFactorDecision.noMoreFactors();
+                return NextFactorDecision.noMoreFactors();
     }
 
-    
     @Override
     public CompletionDecision evaluateCompletion(FactorContext ctx,
                                                  AuthenticationFlowConfig mfaFlowConfig) {
@@ -341,15 +299,13 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         List<AuthenticationStepConfig> requiredSteps = getRequiredSteps(mfaFlowConfig);
 
         if (requiredSteps.isEmpty()) {
-            log.info("No required steps, marking as completed");
-            return CompletionDecision.completed();
+                        return CompletionDecision.completed();
         }
 
         CompletionStatus status = evaluateCompletionStatus(ctx, requiredSteps);
 
         if (status.allRequiredCompleted && !ctx.getCompletedFactors().isEmpty()) {
-            log.info("All required factors completed");
-            return CompletionDecision.completed();
+                        return CompletionDecision.completed();
         }
 
         if (!ctx.getAvailableFactors().isEmpty() && ctx.getCompletedFactors().isEmpty()) {
@@ -361,8 +317,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 return CompletionDecision.error("Maximum factor selection attempts exceeded");
             }
 
-            log.info("Needs factor selection (attempt {})", attemptCount);
-            return CompletionDecision.needsFactorSelection(attemptCount);
+                        return CompletionDecision.needsFactorSelection(attemptCount);
         }
 
         if (ctx.getAvailableFactors().isEmpty()) {
@@ -370,13 +325,8 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return CompletionDecision.error("No available MFA factors defined");
         }
 
-        log.info("Not all required factors completed. Missing: {}", status.missingRequiredStepIds);
-        return CompletionDecision.incomplete(status.missingRequiredStepIds);
+                return CompletionDecision.incomplete(status.missingRequiredStepIds);
     }
-
-    
-    
-    
 
     private static class CompletionStatus {
         final boolean allRequiredCompleted;

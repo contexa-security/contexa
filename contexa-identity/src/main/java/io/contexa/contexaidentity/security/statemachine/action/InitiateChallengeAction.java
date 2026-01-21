@@ -7,7 +7,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-
 @Slf4j
 public class InitiateChallengeAction extends AbstractMfaStateAction {
 
@@ -19,12 +18,8 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
         String factorType = factorContext.getCurrentProcessingFactor() != null ?
                 factorContext.getCurrentProcessingFactor().name() : "UNKNOWN";
 
-        log.info("Initiating challenge for factor: {} in session: {}", factorType, sessionId);
-
-        
         factorContext.setAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT, System.currentTimeMillis());
 
-        
         switch (factorType) {
             case "OTT":
                 
@@ -35,9 +30,7 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
                     factorContext.setAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD, ottDeliveryMethod);
                 }
 
-                log.info("[InitiateChallengeAction] Initiating OTT challenge via {} for session: {}",
-                        ottDeliveryMethod, sessionId);
-                break;
+                                break;
 
             case "PASSKEY":
                 
@@ -48,16 +41,12 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
                     factorContext.setAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE, passkeyType);
                 }
 
-                log.info("[InitiateChallengeAction] Initiating Passkey challenge with type {} for session: {}",
-                        passkeyType, sessionId);
-                break;
+                                break;
 
             default:
                 log.warn("Unknown factor type for challenge: {}", factorType);
                 factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION, MfaEvent.CHALLENGE_INITIATION_FAILED);
                 throw new UnsupportedOperationException("Unsupported factor type: " + factorType);
         }
-        log.info("Challenge initiated successfully for factor: {} in session: {}",
-                factorType, sessionId);
-    }
+            }
 }

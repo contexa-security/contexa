@@ -34,10 +34,8 @@ public class FactorContext implements FactorContextExtensions,Serializable{
     private AtomicReference<MfaState> currentMfaState;
     private final AtomicInteger version = new AtomicInteger(0);
 
-    
     private boolean readOnly = false;
 
-    
     private transient ReadWriteLock stateLock;
     private transient ReadWriteLock factorsLock;
 
@@ -79,15 +77,12 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         this.stateLock = new ReentrantReadWriteLock();
         this.factorsLock = new ReentrantReadWriteLock();
 
-        log.debug("FactorContext (ID: {}) created for user '{}' with initial state: {}. Flow type: {}",
-                mfaSessionId, this.username, initialState, flowTypeName);
-    }
+            }
 
     public MfaState getCurrentState() {
         return this.currentMfaState.get();
     }
 
-    
     public void changeState(MfaState newState) {
         if (readOnly) {
             throw new IllegalStateException(
@@ -100,16 +95,13 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             MfaState previousState = this.currentMfaState.getAndSet(newState);
             if (previousState != newState) {
                 
-                log.info("FactorContext (ID: {}) state changed from {} to {} for user '{}'. Version: {} (버전 증가는 MfaStateMachineService에서 수행)",
-                        mfaSessionId, previousState, newState, this.username, this.version.get());
-                updateLastActivityTimestamp();
+                                updateLastActivityTimestamp();
             }
         } finally {
             stateLock.writeLock().unlock();
         }
     }
 
-    
     public int incrementVersion() {
         
         if (readOnly) {
@@ -118,18 +110,14 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             );
         }
         int newVersion = this.version.incrementAndGet();
-        log.debug("FactorContext (ID: {}) version incremented to {} for user '{}'",
-                mfaSessionId, newVersion, this.username);
-        updateLastActivityTimestamp();
+                updateLastActivityTimestamp();
         return newVersion;
     }
 
-    
     public int getVersion() {
         return this.version.get();
     }
 
-    
     public void setVersion(int newVersion) {
         
         if (readOnly) {
@@ -142,27 +130,19 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         }
         int oldVersion = this.version.getAndSet(newVersion);
         if (oldVersion != newVersion) {
-            log.debug("FactorContext (ID: {}) version set from {} to {} for user '{}'",
-                    mfaSessionId, oldVersion, newVersion, this.username);
-            updateLastActivityTimestamp();
+                        updateLastActivityTimestamp();
         }
     }
 
-    
     public boolean compareAndSetVersion(int expectedVersion, int newVersion) {
         boolean success = this.version.compareAndSet(expectedVersion, newVersion);
         if (success) {
-            log.debug("FactorContext (ID: {}) version CAS succeeded: {} -> {} for user '{}'",
-                    mfaSessionId, expectedVersion, newVersion, this.username);
-            updateLastActivityTimestamp();
+                        updateLastActivityTimestamp();
         } else {
-            log.debug("FactorContext (ID: {}) version CAS failed: expected {} but was {} for user '{}'",
-                    mfaSessionId, expectedVersion, this.version.get(), this.username);
-        }
+                    }
         return success;
     }
 
-    
     public void addCompletedFactor(AuthenticationStepConfig completedFactor) {
         if (readOnly) {
             throw new IllegalStateException(
@@ -180,13 +160,9 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             if (!alreadyExists) {
                 this.completedFactors.add(completedFactor);
                 
-                log.debug("FactorContext (ID: {}): Factor '{}' (StepId: {}) marked as completed for user {}. Total completed: {}",
-                        mfaSessionId, completedFactor.getType(), completedFactor.getStepId(), this.username, this.completedFactors.size());
-                updateLastActivityTimestamp();
+                                updateLastActivityTimestamp();
             } else {
-                log.debug("FactorContext (ID: {}): Factor '{}' (StepId: {}) already completed for user {}. Not adding again.",
-                        mfaSessionId, completedFactor.getType(), completedFactor.getStepId(), this.username);
-            }
+                            }
         } finally {
             factorsLock.writeLock().unlock();
         }
@@ -205,8 +181,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         factorsLock.readLock().lock();
         try {
             if (completedFactors.isEmpty()) {
-                log.debug("FactorContext for user '{}': No completed factors, returning order 0.", username);
-                return 0;
+                                return 0;
             }
 
             int maxOrder = completedFactors.stream()
@@ -214,8 +189,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
                     .max()
                     .orElse(0);
 
-            log.debug("FactorContext for user '{}': Last completed factor order is {}.", username, maxOrder);
-            return maxOrder;
+                        return maxOrder;
         } finally {
             factorsLock.readLock().unlock();
         }
@@ -237,11 +211,8 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
         int newCount = factorAttemptCounts.compute(factorType, (key, val) -> (val == null) ? 1 : val + 1);
         updateLastActivityTimestamp();
-        
 
-        log.debug("FactorContext (ID: {}): Attempt count for {} incremented to {} for user {}.",
-                mfaSessionId, factorType, newCount, this.username);
-        return newCount;
+                return newCount;
     }
 
     public int getAttemptCount(@Nullable AuthType factorType) {
@@ -259,9 +230,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         this.mfaAttemptHistory.add(new MfaAttemptDetail(factorType, success, detail));
         updateLastActivityTimestamp();
         
-        log.info("FactorContext (ID: {}): MFA attempt recorded: Factor={}, Success={}, Detail='{}' for user {}",
-                mfaSessionId, factorType, success, detail, this.username);
-    }
+            }
 
     public int incrementFailedAttempts(String factorTypeOrStepId) {
         
@@ -275,9 +244,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         int attempts = this.failedAttempts.compute(factorTypeOrStepId,
                 (key, currentAttempts) -> (currentAttempts == null) ? 1 : currentAttempts + 1);
 
-        log.debug("FactorContext (ID: {}): Failed attempt for factor/step '{}' incremented to {}. User: {}",
-                mfaSessionId, factorTypeOrStepId, attempts, this.username);
-        updateLastActivityTimestamp();
+                updateLastActivityTimestamp();
         
         return attempts;
     }
@@ -294,9 +261,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             );
         }
         this.failedAttempts.remove(factorTypeOrStepId);
-        log.debug("FactorContext (ID: {}): Failed attempts for factor/step '{}' reset. User: {}",
-                mfaSessionId, factorTypeOrStepId, this.username);
-        updateLastActivityTimestamp();
+                updateLastActivityTimestamp();
         
     }
 
@@ -308,8 +273,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             );
         }
         this.failedAttempts.clear();
-        log.debug("FactorContext (ID: {}): All failed attempts reset. User: {}", mfaSessionId, this.username);
-        updateLastActivityTimestamp();
+                updateLastActivityTimestamp();
         
     }
 
@@ -320,7 +284,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             );
         }
 
-        
         if (value != null && !(value instanceof Serializable)) {
             throw new IllegalArgumentException(
                 "Attribute must be Serializable for Redis persistence: " +
@@ -353,16 +316,13 @@ public class FactorContext implements FactorContextExtensions,Serializable{
 
     public void updateLastActivityTimestamp() {
         this.lastActivityTimestamp = Instant.now();
-        log.trace("FactorContext (ID: {}) lastActivityTimestamp updated to: {} for user {}",
-                mfaSessionId, this.lastActivityTimestamp, this.username);
-    }
+            }
 
     @Override
     public int getRetryCount() {
         return this.retryCount;
     }
 
-    
     @Override
     public Set<AuthType> getAvailableFactors() {
         Object availableFactorsObj = getAttribute("availableFactors");
@@ -376,8 +336,7 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             try {
                 @SuppressWarnings("unchecked")
                 Set<AuthType> factors = (Set<AuthType>) availableFactorsObj;
-                log.debug("[FactorContext] Retrieved availableFactors: {} for session: {}", factors, mfaSessionId);
-                return new LinkedHashSet<>(factors);
+                                return new LinkedHashSet<>(factors);
             } catch (ClassCastException e) {
                 log.error("[FactorContext] availableFactors type cast failed for session: {}, type: {}",
                          mfaSessionId, availableFactorsObj.getClass(), e);
@@ -390,12 +349,10 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    
     public boolean isFactorAvailable(AuthType factorType) {
         return getAvailableFactors().contains(factorType);
     }
 
-    
     @Override
     public List<AuthenticationStepConfig> getCompletedFactors() {
         factorsLock.readLock().lock();
@@ -405,7 +362,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             factorsLock.readLock().unlock();
         }
     }
-
 
     @Override
     public String getLastError() {
@@ -417,7 +373,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return this.createdAt;
     }
 
-    
     public String calculateStateHash() {
         StringBuilder sb = new StringBuilder();
         sb.append(mfaSessionId).append(":");
@@ -430,7 +385,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return Integer.toHexString(sb.toString().hashCode());
     }
 
-    
     public Map<String, Object> getStateSnapshot() {
         Map<String, Object> snapshot = new HashMap<>();
         snapshot.put("mfaSessionId", mfaSessionId);
@@ -486,7 +440,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
                 .orElse(null);
     }
 
-
     public void clearCurrentFactorProcessingState() {
         if (readOnly) {
             throw new IllegalStateException(
@@ -494,13 +447,11 @@ public class FactorContext implements FactorContextExtensions,Serializable{
             );
         }
 
-        log.debug("FactorContext for user '{}', flow '{}': Clearing current factor processing state.", username, flowTypeName);
-        this.currentProcessingFactor = null;
+                this.currentProcessingFactor = null;
         this.currentStepId = null;
         this.version.incrementAndGet();
     }
 
-    
     public boolean isFactorCompleted(String stepId) {
         if (!StringUtils.hasText(stepId)) {
             return false;
@@ -515,9 +466,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         }
     }
 
-    
-
-    
     @Nullable
     public String getStringAttribute(String key) {
         Object value = getAttribute(key);
@@ -530,7 +478,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    
     @Nullable
     public Long getLongAttribute(String key) {
         Object value = getAttribute(key);
@@ -546,7 +493,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    
     @Nullable
     public Boolean getBooleanAttribute(String key) {
         Object value = getAttribute(key);
@@ -559,7 +505,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    
     @Nullable
     public Integer getIntegerAttribute(String key) {
         Object value = getAttribute(key);
@@ -575,7 +520,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return null;
     }
 
-    
     public <T> Set<T> getSetAttribute(String key) {
         Object value = getAttribute(key);
         if (value instanceof Set) {
@@ -592,7 +536,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return new HashSet<>();
     }
 
-    
     public <T> List<T> getListAttribute(String key) {
         Object value = getAttribute(key);
         if (value instanceof List) {
@@ -609,7 +552,6 @@ public class FactorContext implements FactorContextExtensions,Serializable{
         return new ArrayList<>();
     }
 
-    
     public <K, V> Map<K, V> getMapAttribute(String key) {
         Object value = getAttribute(key);
         if (value instanceof Map) {

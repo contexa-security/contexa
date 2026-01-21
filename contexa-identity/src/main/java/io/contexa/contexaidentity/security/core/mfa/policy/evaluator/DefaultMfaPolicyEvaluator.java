@@ -16,7 +16,6 @@ import org.springframework.util.CollectionUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
@@ -32,8 +31,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
     
     @Override
     public boolean supports(FactorContext context) {
-        
-        
+
         return context != null;
     }
 
@@ -54,16 +52,13 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         
         return -100;
     }
-    
-    
+
     @Override
     public MfaDecision evaluatePolicy(FactorContext context) {
         Assert.notNull(context, "FactorContext cannot be null");
         
         String username = context.getUsername();
-        log.debug("Evaluating MFA policy for user: {}", username);
-        
-        
+
         Optional<Users> userOptional = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
         if (userOptional.isEmpty()) {
             log.warn("User not found for MFA evaluation: {}", username);
@@ -71,16 +66,13 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         }
         
         Users user = userOptional.get();
-        
-        
+
         boolean mfaRequired = evaluateMfaRequirement(user, context);
         
         if (!mfaRequired) {
-            log.info("MFA not required for user: {}", username);
-            return MfaDecision.noMfaRequired();
+                        return MfaDecision.noMfaRequired();
         }
-        
-        
+
         Set<AuthType> availableFactors = getAvailableFactorsFromDsl(context);
 
         if (CollectionUtils.isEmpty(availableFactors)) {
@@ -88,13 +80,10 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return MfaDecision.noMfaRequired();
         }
 
-        
         int requiredFactorCount = determineFactorCount(user, context);
 
-        
         List<AuthType> availableFactorsList = new ArrayList<>(availableFactors);
 
-        
         List<AuthType> requiredFactors = determineRequiredFactors(
             user,
             context,
@@ -102,16 +91,12 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             requiredFactorCount
         );
 
-        
         MfaDecision.DecisionType decisionType = determineDecisionType(user, context, requiredFactorCount);
 
-        
         String reason = buildReason(user, context, decisionType);
 
-        
         Map<String, Object> metadata = buildMetadata(user, context, availableFactors, requiredFactors);
 
-        
         MfaDecision decision = MfaDecision.builder()
             .required(true)
             .factorCount(requiredFactorCount)
@@ -121,77 +106,55 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             .metadata(metadata)
             .build();
 
-        log.info("MFA decision for user {}: type={}, factorCount={}, availableFactors={}, requiredFactors={}",
-                username, decisionType, requiredFactorCount, availableFactors, requiredFactors);
-
         return decision;
     }
-    
-    
+
     private boolean evaluateMfaRequirement(Users user, FactorContext context) {
         String username = user.getUsername();
 
-        
         String flowType = context.getFlowTypeName();
         boolean isMfaFlow = isMfaFlowType(flowType);
 
-        
         if (!user.isMfaEnabled()) {
-            log.debug("MFA disabled for user: {}", username);
-            
+                        
             if (!isMfaFlow) {
-                log.info("MFA not required - user MFA disabled and not MFA flow: {}", username);
-                return false;
+                                return false;
             }
             
-            log.debug("MFA required despite disabled flag - MFA flow type: {}", flowType);
-        }
+                    }
 
-        
         if (isMfaFlow) {
-            log.debug("Flow type {} requires MFA for user: {}", flowType, username);
-            return true;
+                        return true;
         }
 
-        
         Boolean mfaRequiredFlag = (Boolean) context.getAttribute("mfaRequired");
         if (Boolean.TRUE.equals(mfaRequiredFlag)) {
-            log.debug("MFA required flag is set in context for user: {}", username);
-            return true;
+                        return true;
         }
 
-        
         if (isAdminUser(user)) {
-            log.debug("MFA required - user has admin role: {}", username);
-            return true;
+                        return true;
         }
 
-        
         Double riskScore = (Double) context.getAttribute("riskScore");
         if (riskScore != null && riskScore > 0.7) {
             log.warn("MFA required - high risk score {} for user: {}", riskScore, username);
             return true;
         }
 
-        
         Boolean stepUpRequired = (Boolean) context.getAttribute("stepUpRequired");
         if (Boolean.TRUE.equals(stepUpRequired)) {
-            log.debug("MFA required - step-up authentication requested for user: {}", username);
-            return true;
+                        return true;
         }
 
-        
         String securityLevel = (String) context.getAttribute("transactionSecurityLevel");
         if ("HIGH".equalsIgnoreCase(securityLevel) || "CRITICAL".equalsIgnoreCase(securityLevel)) {
-            log.debug("MFA required - high/critical transaction security level for user: {}", username);
-            return true;
+                        return true;
         }
 
-        log.debug("MFA not required for user: {} (all checks passed)", username);
-        return false;
+                return false;
     }
 
-    
     private List<AuthType> determineRequiredFactors(
             Users user,
             FactorContext context,
@@ -202,7 +165,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return Collections.emptyList();
         }
 
-        
         String preferredFactorStr = user.getPreferredMfaFactor();
         AuthType preferredFactor = null;
 
@@ -220,28 +182,23 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             }
         }
 
-        
         List<AuthType> prioritizedFactors = prioritizeFactors(availableFactors, user, context, preferredFactor);
 
-        
         if (prioritizedFactors.size() <= requiredCount) {
             return prioritizedFactors;
         }
 
         return prioritizedFactors.subList(0, requiredCount);
     }
-    
-    
+
     private List<AuthType> prioritizeFactors(
             List<AuthType> factors,
             Users user,
             FactorContext context,
             AuthType preferredFactor) {
 
-        
         List<AuthType> result = new ArrayList<>(factors);
 
-        
         if (preferredFactor != null && result.contains(preferredFactor)) {
             result.remove(preferredFactor);
             result.addFirst(preferredFactor);
@@ -249,37 +206,30 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
         return result;
     }
-    
-    
+
     private MfaDecision.DecisionType determineDecisionType(
             Users user,
             FactorContext context,
             int requiredFactorCount) {
-        
-        
+
         if (isAdminUser(user) || requiredFactorCount >= 3) {
             return MfaDecision.DecisionType.STRONG_MFA;
         }
-        
-        
+
         if (requiredFactorCount == 2) {
             return MfaDecision.DecisionType.STANDARD_MFA;
         }
-        
-        
+
         return MfaDecision.DecisionType.STANDARD_MFA;
     }
-    
 
     private Set<AuthType> getAvailableFactorsFromDsl(FactorContext context) {
         
         Set<AuthType> availableFactors = context.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
         if (availableFactors != null && !availableFactors.isEmpty()) {
-            log.debug("DSL에서 사용 가능한 팩터 (Context에서 조회): {}", availableFactors);
-            return availableFactors;
+                        return availableFactors;
         }
 
-        
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext();
         if (mfaFlowConfig != null) {
             Set<AuthType> factors = extractFactorsFromConfig(mfaFlowConfig);
@@ -287,8 +237,7 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 
                 context.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS,
                                    new LinkedHashSet<>(factors));
-                log.debug("DSL에서 사용 가능한 팩터 (ApplicationContext 조회 후 저장): {}", factors);
-                return factors;
+                                return factors;
             }
         }
 
@@ -296,7 +245,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return Collections.emptySet();
     }
 
-    
     private AuthenticationFlowConfig findMfaFlowConfigFromContext() {
         try {
             
@@ -319,7 +267,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return null;
     }
 
-    
     private Set<AuthType> extractFactorsFromConfig(AuthenticationFlowConfig config) {
         if (config == null) {
             return Collections.emptySet();
@@ -327,14 +274,12 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
         Map<AuthType, ?> factorOptions = config.getRegisteredFactorOptions();
         if (factorOptions.isEmpty()) {
-            log.debug("No factors registered in flow config");
-            return Collections.emptySet();
+                        return Collections.emptySet();
         }
 
         return factorOptions.keySet();
     }
 
-    
     private boolean isAdminUser(Users user) {
         if (user == null) {
             return false;
@@ -345,7 +290,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return false;
         }
 
-        
         return roles.stream()
             .anyMatch(role -> {
                 if (role == null) {
@@ -361,7 +305,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
             });
     }
 
-    
     private boolean isMfaFlowType(String flowType) {
         if (flowType == null || flowType.trim().isEmpty()) {
             return false;
@@ -374,23 +317,19 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
                normalizedFlowType.startsWith("mfa-");
     }
 
-    
     private int determineFactorCount(Users user, FactorContext context) {
         
         int baseCount = 1;
 
-        
         if (isAdminUser(user)) {
             return Math.max(baseCount, 2);
         }
 
-        
         Double riskScore = (Double) context.getAttribute("riskScore");
         if (riskScore != null && riskScore > 0.8) {
             return Math.max(baseCount, 2);
         }
 
-        
         String securityLevel = (String) context.getAttribute("transactionSecurityLevel");
         if ("CRITICAL".equalsIgnoreCase(securityLevel)) {
             return Math.max(baseCount, 2);
@@ -399,11 +338,9 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return baseCount;
     }
 
-    
     private String buildReason(Users user, FactorContext context, MfaDecision.DecisionType decisionType) {
         StringBuilder reason = new StringBuilder();
 
-        
         switch (decisionType) {
             case STRONG_MFA:
                 reason.append("강화된 MFA 인증 필요");
@@ -418,7 +355,6 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 reason.append("MFA 인증 필요");
         }
 
-        
         List<String> details = new ArrayList<>();
 
         String flowType = context.getFlowTypeName();
@@ -442,23 +378,19 @@ public class DefaultMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return reason.toString();
     }
 
-    
     private Map<String, Object> buildMetadata(Users user, FactorContext context,
                                               Set<AuthType> availableFactors,
                                               List<AuthType> requiredFactors) {
         Map<String, Object> metadata = new HashMap<>();
 
-        
         metadata.put("availableFactors", availableFactors.stream()
                 .map(AuthType::name)
                 .collect(Collectors.toList()));
 
-        
         metadata.put("requiredFactors", requiredFactors.stream()
                 .map(AuthType::name)
                 .collect(Collectors.toList()));
 
-        
         Double riskScore = (Double) context.getAttribute(FactorContextAttributes.Policy.RISK_SCORE);
         if (riskScore != null) {
             metadata.put(FactorContextAttributes.Policy.RISK_SCORE, riskScore);

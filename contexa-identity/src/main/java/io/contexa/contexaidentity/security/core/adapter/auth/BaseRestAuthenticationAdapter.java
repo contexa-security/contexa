@@ -20,7 +20,6 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 
 import java.util.List;
 
-
 @Slf4j
 public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfigurer<T, HttpSecurity>>
         extends AbstractAuthenticationAdapter<RestOptions> {
@@ -47,7 +46,6 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
         });
     }
 
-    
     @Override
     protected PlatformAuthenticationSuccessHandler resolveSuccessHandler(
             RestOptions options,
@@ -60,26 +58,20 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
         StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
-        log.debug("AuthenticationFeature [REST]: Resolving success handler - MFA: {}, StateType: {}",
-                isMfaFlow, stateType);
-
         if (isMfaFlow) {
             
             return super.resolveSuccessHandler(options, currentFlow, myStepConfig, allSteps, stateConfig, appContext);
         } else {
             
             if (stateType == StateType.SESSION) {
-                log.debug("AuthenticationFeature [REST]: Single auth + SESSION mode - using SessionSingleAuthSuccessHandler");
-                return appContext.getBean(SessionSingleAuthSuccessHandler.class);
+                                return appContext.getBean(SessionSingleAuthSuccessHandler.class);
             } else {
                 
-                log.debug("AuthenticationFeature [REST]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthSuccessHandler");
-                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
+                                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
             }
         }
     }
 
-    
     @Override
     protected PlatformAuthenticationFailureHandler resolveFailureHandler(
             RestOptions options,
@@ -90,33 +82,25 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
         StateType stateType = determineStateType(stateConfig, appContext);
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
-        log.debug("AuthenticationFeature [REST]: Resolving failure handler - MFA: {}, StateType: {}",
-                isMfaFlow, stateType);
-
         if (isMfaFlow) {
             
             return super.resolveFailureHandler(options, currentFlow, stateConfig, appContext);
         } else {
             
             if (stateType == StateType.SESSION) {
-                log.debug("AuthenticationFeature [REST]: Single auth + SESSION mode - using SessionSingleAuthFailureHandler");
-                return appContext.getBean(SessionSingleAuthFailureHandler.class);
+                                return appContext.getBean(SessionSingleAuthFailureHandler.class);
             } else {
                 
-                log.debug("AuthenticationFeature [REST]: Single auth + OAuth2/JWT mode - using OAuth2SingleAuthFailureHandler");
-                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
+                                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
             }
         }
     }
 
-    
     protected abstract T createConfigurer();
 
-    
     protected abstract void configureRestAuthentication(T configurer, RestOptions opts,
                                                         PlatformAuthenticationSuccessHandler  successHandler,
                                                         PlatformAuthenticationFailureHandler failureHandler);
 
-    
     protected abstract void configureSecurityContext(T configurer, RestOptions opts);
 }

@@ -26,15 +26,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-
 @Slf4j
 public class MfaContinuationFilter extends OncePerRequestFilter {
 
-    
     public static final String FACTOR_CONTEXT_ATTR = "io.contexa.mfa.FactorContext";
     public static final String VALIDATION_RESULT_ATTR = "io.contexa.mfa.ValidationResult";
 
-    
     private volatile boolean initialized = false;
 
     private final AuthResponseWriter responseWriter;
@@ -63,15 +60,12 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 authUrlProvider
         );
 
-        log.info("MfaContinuationFilter initialized with {} repository",
-                sessionRepository.getRepositoryType());
-    }
+            }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        
         if (!initialized) {
             log.error("🚨 MfaContinuationFilter not initialized. URL matchers must be initialized before processing requests.");
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
@@ -84,25 +78,16 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
             return;
         }
 
-        log.debug("MfaContinuationFilter processing request: {} {} using {} repository",
-                request.getMethod(), request.getRequestURI(), sessionRepository.getRepositoryType());
-
-        
-        
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
 
-        
         if (ctx != null) {
             request.setAttribute(FACTOR_CONTEXT_ATTR, ctx);
-            log.debug("FactorContext saved to request attribute for session: {}", ctx.getMfaSessionId());
-        }
+                    }
 
         ValidationResult validation = MfaContextValidator.validateFactorSelectionContext(ctx, sessionRepository);
 
-        
         request.setAttribute(VALIDATION_RESULT_ATTR, validation);
-        log.debug("ValidationResult saved to request attribute - hasErrors: {}", validation.hasErrors());
-
+        
         if (validation.hasErrors()) {
             log.warn("Invalid MFA context for request: {} - Errors: {}",
                     request.getRequestURI(), validation.getErrors());
@@ -110,7 +95,6 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
             return;
         }
 
-        
         if (validation.hasWarnings()) {
             log.warn("MFA context warnings for request: {} - Warnings: {}",
                     request.getRequestURI(), validation.getWarnings());
@@ -129,25 +113,21 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         }
     }
 
-    
     private void handleInvalidContext(HttpServletRequest request, HttpServletResponse response,
                                       ValidationResult validation) throws IOException {
         
         FactorContext ctx = (FactorContext) request.getAttribute(FACTOR_CONTEXT_ATTR);
         String oldSessionId = ctx != null ? ctx.getMfaSessionId() : sessionRepository.getSessionId(request);
 
-        
         if (oldSessionId != null && sessionRepository.existsSession(oldSessionId)) {
             try {
                 stateMachineIntegrator.releaseStateMachine(oldSessionId);
                 sessionRepository.removeSession(oldSessionId, request, response);
-                log.debug("Invalid session cleaned up: {}", oldSessionId);
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("Failed to cleanup invalid session: {}", oldSessionId, e);
             }
         } else if (oldSessionId != null) {
-            log.debug("Session {} does not exist, skipping cleanup", oldSessionId);
-        }
+                    }
 
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "MFA_SESSION_INVALID");
@@ -162,10 +142,8 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 request.getRequestURI(), errorResponse);
     }
 
-    
     public void initializeUrlMatchers() {
         urlMatcher.initializeMatchers();
         initialized = true; 
-        log.info("✅ MfaContinuationFilter URL matchers initialized and filter is now ready");
-    }
+            }
 }

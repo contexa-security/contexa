@@ -11,7 +11,6 @@ import org.springframework.security.core.AuthenticationException;
 import java.io.IOException;
 import java.util.Map;
 
-
 @Slf4j
 public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthenticationFailureHandler {
 
@@ -23,15 +22,12 @@ public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthen
         this.responseWriter = responseWriter;
     }
 
-    
     public void setDelegateHandler(@Nullable PlatformAuthenticationFailureHandler delegateHandler) {
         this.delegateHandler = delegateHandler;
         if (delegateHandler != null) {
-            log.info("Delegate failure handler set: {}", delegateHandler.getClass().getName());
-        }
+                    }
     }
 
-    
     protected void writeErrorResponse(HttpServletRequest request, HttpServletResponse response,
                                       String errorCode, String errorMessage,
                                       Map<String, Object> errorDetails) throws IOException {
@@ -39,7 +35,6 @@ public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthen
                 errorCode, errorMessage, request.getRequestURI(), errorDetails);
     }
 
-    
     protected final boolean executeDelegateHandler(HttpServletRequest request,
                                                     HttpServletResponse response,
                                                     AuthenticationException exception,
@@ -58,7 +53,6 @@ public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthen
         return false;
     }
 
-    
     protected String extractClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {

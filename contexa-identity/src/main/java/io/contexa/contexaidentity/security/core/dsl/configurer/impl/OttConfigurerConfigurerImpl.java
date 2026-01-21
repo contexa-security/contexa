@@ -100,8 +100,7 @@ public final class OttConfigurerConfigurerImpl
         }
         
         getOptionsBuilder().asepAttributes(attributes); 
-        log.debug("ASEP: PasskeyAsepAttributes configured and will be stored within PasskeyOptions.");
-        return self();
+                return self();
     }
 
     @Override

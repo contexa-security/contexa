@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-
 @Slf4j
 public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
@@ -46,9 +45,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         this.mfaSettings = authContextProperties.getMfa();
         this.responseWriter = responseWriter;
 
-        log.info("MfaStepFilterWrapper initialized with {} repository",
-                sessionRepository.getRepositoryType());
-    }
+            }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -59,22 +56,17 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             return;
         }
 
-        log.debug("MfaStepFilterWrapper processing factor submission request: {} using {} repository",
-                request.getRequestURI(), sessionRepository.getRepositoryType());
-
         long startTime = System.currentTimeMillis();
 
         FactorContext ctx = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
 
         if (ctx == null) {
-            log.debug("FactorContext not found in request attribute, loading from State Machine");
-            ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+                        ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
             if (ctx != null) {
                 request.setAttribute("io.contexa.mfa.FactorContext", ctx);
             }
         } else {
-            log.debug("FactorContext retrieved from request attribute for session: {}", ctx.getMfaSessionId());
-        }
+                    }
 
         ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx, sessionRepository);
         if (validation.hasErrors()) {
@@ -141,10 +133,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         Filter delegateFactorFilter = configuredFactorFilterProvider.getFilter(factorIdentifier);
 
         if (delegateFactorFilter != null) {
-            log.info("Delegating MFA factor processing for {} to filter: {} using {} repository",
-                    factorIdentifier, delegateFactorFilter.getClass().getName(),
-                    sessionRepository.getRepositoryType());
-
+            
             delegateFactorFilter.doFilter(request, response, chain);
 
         } else {
@@ -158,7 +147,6 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
     }
 
-    
     private boolean isSessionExpired(FactorContext ctx) {
         Object challengeStartTime = ctx.getAttribute("challengeInitiatedAt");
         if (challengeStartTime instanceof Long challengeStartTimeMs) {
@@ -167,13 +155,11 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         return false;
     }
 
-    
     private boolean isRetryLimitExceeded(FactorContext ctx) {
         int attempts = ctx.getAttemptCount(ctx.getCurrentProcessingFactor());
         return !mfaSettings.isRetryAllowed(attempts);
     }
 
-    
     private void ensureMinimumDelay(long startTime) {
         long elapsed = System.currentTimeMillis() - startTime;
         long minDelayMs = mfaSettings.getMinimumDelayMs();

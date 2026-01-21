@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.exception;
 
-
 public class DslValidationException extends RuntimeException {
 
     public DslValidationException(String message) {

@@ -10,7 +10,6 @@ import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
-
 public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder<H>>
         extends AbstractRestAuthenticationConfigurer<MfaRestAuthenticationConfigurer<H>, H> {
 

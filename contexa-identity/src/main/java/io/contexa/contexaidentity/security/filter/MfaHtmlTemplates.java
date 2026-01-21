@@ -3,19 +3,16 @@ package io.contexa.contexaidentity.security.filter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-
 public class MfaHtmlTemplates {
 
     private MfaHtmlTemplates() {
         
     }
 
-    
     public static Builder fromTemplate(String template) {
         return new Builder(template);
     }
 
-    
     public static class Builder {
         private final String template;
         private final Map<String, String> replacements = new LinkedHashMap<>();
@@ -24,19 +21,16 @@ public class MfaHtmlTemplates {
             this.template = template;
         }
 
-        
         public Builder withValue(String key, String value) {
             this.replacements.put("{{" + key + "}}", escapeHtml(value));
             return this;
         }
 
-        
         public Builder withRawHtml(String key, String value) {
             this.replacements.put("{{" + key + "}}", value);
             return this;
         }
 
-        
         public String render() {
             String result = this.template;
             for (Map.Entry<String, String> entry : this.replacements.entrySet()) {
@@ -45,7 +39,6 @@ public class MfaHtmlTemplates {
             return result;
         }
 
-        
         private String escapeHtml(String input) {
             if (input == null) {
                 return "";

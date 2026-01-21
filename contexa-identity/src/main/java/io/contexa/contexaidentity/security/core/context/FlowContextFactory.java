@@ -41,8 +41,6 @@ public class FlowContextFactory {
             
             platformContext.registerHttp(flowCfg, http);
 
-            
-            
             http.setSharedObject(AuthenticationFlowConfig.class, flowCfg);
             
             http.setSharedObject(PlatformContext.class, platformContext);
@@ -51,8 +49,7 @@ public class FlowContextFactory {
             flows.add(fc);
         }
         flows.sort(Comparator.comparingInt(f -> f.flow().getOrder()));
-        log.info("{} FlowContext(s) created and sorted.", flows.size());
-        return flows;
+                return flows;
     }
 
     private void setupSharedObjectsForFlow(io.contexa.contexaidentity.security.core.context.FlowContext fc) {
@@ -60,22 +57,17 @@ public class FlowContextFactory {
         AuthenticationFlowConfig flowConfig = fc.flow();
         ApplicationContext appContext = this.applicationContext; 
 
-        log.debug("Setting up shared objects for flow: {}", flowConfig.getTypeName());
-
         boolean isMfaFlow = "mfa".equalsIgnoreCase(flowConfig.getTypeName());
         if (isMfaFlow) {
-            log.debug("MFA flow detected for '{}', setting up MFA shared objects.", flowConfig.getTypeName());
-            
+                        
             setSharedObjectIfAbsent(http, MfaPolicyProvider.class, () -> {
                 
                 MfaPolicyProvider dslProvider = flowConfig.getMfaPolicyProvider();
                 if (dslProvider != null) {
-                    log.debug("Using MfaPolicyProvider from DSL configuration for flow '{}'", flowConfig.getTypeName());
-                    return dslProvider;
+                                        return dslProvider;
                 }
                 
-                log.debug("Using MfaPolicyProvider from ApplicationContext for flow '{}'", flowConfig.getTypeName());
-                return appContext.getBean(MfaPolicyProvider.class);
+                                return appContext.getBean(MfaPolicyProvider.class);
             });
             setSharedObjectIfAbsent(http, ObjectMapper.class, ObjectMapper::new);
         }

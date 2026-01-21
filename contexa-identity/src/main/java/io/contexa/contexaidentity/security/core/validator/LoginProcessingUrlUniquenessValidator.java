@@ -66,12 +66,8 @@ public class LoginProcessingUrlUniquenessValidator implements Validator<List<Aut
                     String loginProcessingUrl = processingOptions.getLoginProcessingUrl();
 
                     if (loginProcessingUrl != null) {
-                        
-                        
-                        
-                        
+
                         HttpMethod httpMethod = HttpMethod.POST;
-                        
 
                         UrlInfo currentUrlInfoKey = new UrlInfo(loginProcessingUrl, httpMethod, flow, step);
                         String usageContext = currentUrlInfoKey.getContext();
@@ -81,8 +77,6 @@ public class LoginProcessingUrlUniquenessValidator implements Validator<List<Aut
                 }
             }
         }
-
-        
 
         return result;
     }

@@ -12,18 +12,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DslValidator implements Validator<PlatformConfig> {
 
-    
     private final List<Validator<PlatformConfig>> platformConfigValidators;
 
-    
     private final List<Validator<List<AuthenticationFlowConfig>>> flowListValidators;
 
-    
     private final List<Validator<AuthenticationFlowConfig>> singleFlowValidators;
 
-    
     private final List<Validator<AuthenticationStepConfig>> stepValidators;
-
 
     @Override
     public ValidationResult validate(PlatformConfig platformConfig) {
@@ -36,8 +31,6 @@ public class DslValidator implements Validator<PlatformConfig> {
 
         List<FlowContext> flowContexts = platformConfig.getPlatformContext().flowContexts();
 
-
-        
         if (!CollectionUtils.isEmpty(platformConfigValidators)) {
             for (Validator<PlatformConfig> pv : platformConfigValidators) {
                 finalResult.merge(pv.validate(platformConfig));
@@ -46,17 +39,12 @@ public class DslValidator implements Validator<PlatformConfig> {
 
         List<AuthenticationFlowConfig> flows = platformConfig.getFlows();
 
-        
-        
-        
-        
         if (!CollectionUtils.isEmpty(flowListValidators)) {
             for (Validator<List<AuthenticationFlowConfig>> flv : flowListValidators) {
                 finalResult.merge(flv.validate(flows));
             }
         }
 
-        
         if (!CollectionUtils.isEmpty(flows)) {
             for (AuthenticationFlowConfig flow : flows) {
                 

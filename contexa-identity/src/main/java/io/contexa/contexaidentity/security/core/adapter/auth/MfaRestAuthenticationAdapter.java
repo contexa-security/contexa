@@ -7,7 +7,6 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
-
 public final class MfaRestAuthenticationAdapter extends BaseRestAuthenticationAdapter<MfaRestAuthenticationConfigurer<HttpSecurity>> {
 
     @Override

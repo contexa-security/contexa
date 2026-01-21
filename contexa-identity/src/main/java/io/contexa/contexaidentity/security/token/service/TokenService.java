@@ -24,7 +24,6 @@ public interface TokenService extends TokenProvider, TokenValidator  {
     record RefreshResult(String accessToken, String refreshToken) {}
     ObjectMapper getObjectMapper(); 
 
-    
     default TokenPair createTokenPair(Authentication authentication, @Nullable String deviceId) {
         
         String accessToken = createAccessToken(authentication, deviceId);
@@ -38,23 +37,19 @@ public interface TokenService extends TokenProvider, TokenValidator  {
                 .build();
     }
 
-    
     default TokenPair createTokenPair(Authentication authentication, @Nullable String deviceId,
                                      HttpServletRequest request, HttpServletResponse response) {
         
         return createTokenPair(authentication, deviceId);
     }
 
-    
     TokenTransportResult prepareTokensForTransport(String accessToken, String refreshToken);
 
-    
     TokenTransportResult prepareClearTokens();
 
     String resolveAccessToken(HttpServletRequest request);
     String resolveRefreshToken(HttpServletRequest request);
 
-    
     TokenTransportStrategy getUnderlyingTokenTransportStrategy();
 
     interface TokenServicePropertiesProvider {
@@ -66,5 +61,4 @@ public interface TokenService extends TokenProvider, TokenValidator  {
         String getAccessTokenCookieName();
     }
 }
-
 

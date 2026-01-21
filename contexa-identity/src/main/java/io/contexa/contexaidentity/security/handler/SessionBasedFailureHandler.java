@@ -4,7 +4,6 @@ import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 public abstract class SessionBasedFailureHandler implements PlatformAuthenticationFailureHandler {
 
@@ -14,7 +13,6 @@ public abstract class SessionBasedFailureHandler implements PlatformAuthenticati
         this.responseWriter = responseWriter;
     }
 
-    
     protected boolean isApiRequest(HttpServletRequest request) {
         String acceptHeader = request.getHeader("Accept");
         if (acceptHeader != null && acceptHeader.contains("application/json")) {
@@ -30,7 +28,6 @@ public abstract class SessionBasedFailureHandler implements PlatformAuthenticati
         return requestURI != null && (requestURI.startsWith("/api/") || requestURI.contains("/api/"));
     }
 
-    
     protected String extractClientIp(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {

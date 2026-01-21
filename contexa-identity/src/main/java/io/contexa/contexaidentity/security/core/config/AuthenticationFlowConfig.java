@@ -24,7 +24,6 @@ public final class AuthenticationFlowConfig {
     private final StateConfig stateConfig;
     private final Customizer<HttpSecurity> rawHttpCustomizer; 
 
-    
     private final PrimaryAuthenticationOptions primaryAuthenticationOptions;
     private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthenticationFailureHandler mfaFailureHandler;
@@ -157,5 +156,4 @@ public final class AuthenticationFlowConfig {
         }
     }
 }
-
 

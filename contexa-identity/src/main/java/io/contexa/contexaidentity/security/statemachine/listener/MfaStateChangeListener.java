@@ -12,13 +12,11 @@ import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 @Component
 public class MfaStateChangeListener extends StateMachineListenerAdapter<MfaState, MfaEvent>
         implements MfaStateMachineListener {
 
-    
     private final ConcurrentHashMap<String, AtomicLong> stateChangeCounters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicLong> eventCounters = new ConcurrentHashMap<>();
 
@@ -27,9 +25,6 @@ public class MfaStateChangeListener extends StateMachineListenerAdapter<MfaState
         String fromState = from != null ? from.getId().name() : "INITIAL";
         String toState = to.getId().name();
 
-        log.info("MFA State changed from {} to {} at {}", fromState, toState, LocalDateTime.now());
-
-        
         recordStateChange(fromState, toState);
     }
 
@@ -37,9 +32,7 @@ public class MfaStateChangeListener extends StateMachineListenerAdapter<MfaState
     public void transition(Transition<MfaState, MfaEvent> transition) {
         if (transition.getTrigger() != null && transition.getTrigger().getEvent() != null) {
             MfaEvent event = transition.getTrigger().getEvent();
-            log.debug("MFA Transition triggered by event: {}", event);
 
-            
             eventCounters.computeIfAbsent(event.name(), k -> new AtomicLong(0)).incrementAndGet();
         }
     }
@@ -53,13 +46,9 @@ public class MfaStateChangeListener extends StateMachineListenerAdapter<MfaState
 
     @Override
     public void onSuccessfulTransition(String sessionId, MfaState fromState, MfaState toState, MfaEvent event) {
-        log.info("Successful MFA transition for session {}: {} -> {} via event {}",
-                sessionId, fromState, toState, event);
 
-        
         if (toState == MfaState.MFA_SUCCESSFUL) {
-            log.info("MFA completed successfully for session: {}", sessionId);
-            
+                        
         }
     }
 
@@ -68,33 +57,24 @@ public class MfaStateChangeListener extends StateMachineListenerAdapter<MfaState
         log.error("Failed MFA transition for session {}: current state {}, event {}, error: {}",
                 sessionId, currentState, event, error.getMessage());
 
-        
         if (currentState == MfaState.MFA_RETRY_LIMIT_EXCEEDED) {
             log.warn("MFA retry limit exceeded for session: {}", sessionId);
             
         }
     }
 
-    
     private void recordStateChange(String fromState, String toState) {
         String transitionKey = fromState + "_TO_" + toState;
         stateChangeCounters.computeIfAbsent(transitionKey, k -> new AtomicLong(0)).incrementAndGet();
 
-        
-        log.debug("State transition {} recorded. Total count: {}",
-                transitionKey, stateChangeCounters.get(transitionKey).get());
-    }
+            }
 
-    
     private void handleStateMachineError(String machineId, Exception exception) {
-        
-        
 
         log.error("Handling state machine error for machine {}: {}",
                 machineId, exception.getClass().getSimpleName());
     }
 
-    
     public long getStateChangeCount(String fromState, String toState) {
         String key = fromState + "_TO_" + toState;
         AtomicLong counter = stateChangeCounters.get(key);

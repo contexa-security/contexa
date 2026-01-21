@@ -6,14 +6,12 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-
 public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
 
     private final String username;
     private final String deviceId;
     private final Map<String, String[]> oauth2Parameters;
 
-    
     public OAuth2TokenRequestWrapper(
             HttpServletRequest request,
             String username,
@@ -25,17 +23,13 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
         this.oauth2Parameters = buildOAuth2Parameters();
     }
 
-    
     private Map<String, String[]> buildOAuth2Parameters() {
         Map<String, String[]> params = new HashMap<>();
 
-        
         params.put("grant_type", new String[]{"urn:ietf:params:oauth:grant-type:authenticated-user"});
 
-        
         params.put("username", new String[]{username});
 
-        
         if (deviceId != null) {
             params.put("device_id", new String[]{deviceId});
         }
@@ -95,7 +89,6 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
         return oauth2Parameters.get(name);
     }
 
-    
     @Override
     public String getHeader(String name) {
         if ("Authorization".equalsIgnoreCase(name)) {
@@ -129,7 +122,6 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
         return Collections.enumeration(headerNames);
     }
 
-    
     @Override
     public String getMethod() {
         return "POST";

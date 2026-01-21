@@ -10,7 +10,6 @@ import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
-
 public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder<H>>
         extends AbstractFormAuthenticationConfigurer<MfaFormAuthenticationConfigurer<H>, H> {
 
@@ -47,7 +46,6 @@ public final class MfaFormAuthenticationConfigurer<H extends HttpSecurityBuilder
                 requestMatcher
         );
 
-        
         filter.setUsernameParameter(usernameParameter);
         filter.setPasswordParameter(passwordParameter);
 

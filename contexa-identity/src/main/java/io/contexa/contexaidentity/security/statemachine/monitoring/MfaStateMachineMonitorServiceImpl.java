@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-
 @Slf4j
 public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitorService{
 
@@ -32,19 +31,15 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         this.eventPublisher = eventPublisher;
     }
 
-    
     private final Map<String, Timer> transitionTimers = new ConcurrentHashMap<>();
     private final Map<MfaState, AtomicLong> stateDistribution = new ConcurrentHashMap<>();
 
-    
     private Counter totalTransitions;
     private Counter failedTransitions;
     private Gauge activeSessionsGauge;
 
-    
     private final AtomicLong activeSessions = new AtomicLong(0);
 
-    
     private static final double ERROR_RATE_THRESHOLD = 0.1;
     private static final long SLOW_TRANSITION_THRESHOLD_MS = 1000;
 
@@ -59,12 +54,10 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
                 .description("Failed MFA state transitions")
                 .register(meterRegistry);
 
-        
         activeSessionsGauge = Gauge.builder("mfa.sessions.active", activeSessions, AtomicLong::get)
                 .description("Active MFA sessions")
                 .register(meterRegistry);
 
-        
         for (MfaState state : MfaState.values()) {
             AtomicLong counter = new AtomicLong(0);
             stateDistribution.put(state, counter);
@@ -76,7 +69,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         }
     }
 
-    
     @EventListener
     @Async("mfaEventExecutor")
     public void handleStateChange(StateChangeEvent event) {
@@ -84,7 +76,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
             
             totalTransitions.increment();
 
-            
             String transitionKey = event.getTransitionKey();
             Timer timer = transitionTimers.computeIfAbsent(transitionKey, k ->
                     Timer.builder("mfa.transition.duration")
@@ -97,7 +88,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
             if (event.getDuration() != null) {
                 timer.record(event.getDuration());
 
-                
                 if (event.getDuration().toMillis() > SLOW_TRANSITION_THRESHOLD_MS) {
                     publishPerformanceAlert(
                             PerformanceAlertEvent.AlertType.SLOW_TRANSITION,
@@ -109,24 +99,19 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
                 }
             }
 
-            
             updateStateDistribution(event.getFromState(), event.getToState());
 
-            
             if (event.getToState() == MfaState.NONE) {
                 activeSessions.incrementAndGet();
             } else if (event.getToState().isTerminal()) {
                 activeSessions.decrementAndGet();
             }
 
-            log.debug("State transition recorded: {}", transitionKey);
-
         } catch (Exception e) {
             log.error("Error handling state change event", e);
         }
     }
 
-    
     @EventListener
     @Async("mfaEventExecutor")
     public void handleError(ErrorEvent event) {
@@ -134,14 +119,12 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
             
             failedTransitions.increment();
 
-            
             Counter.builder("mfa.errors")
                     .tag("type", event.getErrorType().name())
                     .tag("state", event.getCurrentState().name())
                     .register(meterRegistry)
                     .increment();
 
-            
             checkErrorRate();
 
             log.error("MFA error recorded: {} in state {} for session {}",
@@ -152,7 +135,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         }
     }
 
-    
     private void publishPerformanceAlert(PerformanceAlertEvent.AlertType type,
                                          String description,
                                          double threshold,
@@ -170,7 +152,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         eventPublisher.publishEvent(alert);
     }
 
-    
     private void updateStateDistribution(MfaState fromState, MfaState toState) {
         if (fromState != null) {
             stateDistribution.get(fromState).decrementAndGet();
@@ -178,7 +159,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         stateDistribution.get(toState).incrementAndGet();
     }
 
-    
     private void checkErrorRate() {
         double total = totalTransitions.count();
         double failed = failedTransitions.count();
@@ -198,7 +178,6 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         }
     }
 
-    
     private PerformanceAlertEvent.Severity calculateSeverity(double value, double threshold) {
         double ratio = value / threshold;
         if (ratio < 1.5) return PerformanceAlertEvent.Severity.LOW;
@@ -212,14 +191,12 @@ public class MfaStateMachineMonitorServiceImpl implements MfaStateMachineMonitor
         return Map.of();
     }
 
-    
     private double calculateErrorRate() {
         double total = totalTransitions.count();
         if (total == 0) return 0;
         return failedTransitions.count() / total;
     }
 
-    
     private Map<String, Long> getStateDistributionMap() {
         Map<String, Long> distribution = new ConcurrentHashMap<>();
         stateDistribution.forEach((state, count) -> {

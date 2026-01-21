@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
@@ -68,9 +67,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         String usernameForLog = extractUsernameForLogging(factorContext, exception);
         String sessionIdForLog = extractSessionIdForLogging(factorContext);
 
-        log.debug("Processing authentication failure using {} repository for user: {} session: {}",
-                sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog);
-
         AuthType currentProcessingFactor = (factorContext != null) ? factorContext.getCurrentProcessingFactor() : null;
 
         if (isMfaFactorFailure(factorContext, currentProcessingFactor)) {
@@ -81,13 +77,11 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                     usernameForLog, sessionIdForLog);
         }
 
-        
         long failureDuration = System.currentTimeMillis() - failureStartTime;
         logSecurityAudit(usernameForLog, sessionIdForLog, currentProcessingFactor,
                 exception, failureDuration, getClientInfo(request));
     }
 
-    
     private void handleMfaFactorFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, FactorContext factorContext,
                                         AuthType currentProcessingFactor, String usernameForLog,
@@ -109,7 +103,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
     }
 
-    
     private void handlePrimaryAuthOrGlobalMfaFailure(HttpServletRequest request, HttpServletResponse response,
                                                      AuthenticationException exception, FactorContext factorContext,
                                                      String usernameForLog, String sessionIdForLog)
@@ -143,15 +136,12 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         errorDetails.put("message", errorMessage);
         errorDetails.put("nextStepUrl", failureRedirectUrl);
 
-        
         executeDelegateHandler(request, response, exception, factorContext, failureType, errorDetails);
 
-        
         if (!response.isCommitted()) {
             onPrimaryAuthFailure(request, response, exception, errorDetails);
         }
 
-        
         if (!response.isCommitted()) {
             if (isApiRequest(request)) {
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
@@ -162,7 +152,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
     }
 
-    
     private void handleSessionNotFound(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext factorContext, AuthenticationException exception)
             throws IOException {
@@ -172,16 +161,13 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("mfaSessionId", factorContext.getMfaSessionId());
 
-        
         executeDelegateHandler(request, response, exception, factorContext,
                 FailureType.MFA_SESSION_NOT_FOUND, errorDetails);
 
-        
         if (!response.isCommitted()) {
             onMfaSessionNotFound(request, response, exception, factorContext, errorDetails);
         }
 
-        
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                     "SESSION_NOT_FOUND", "MFA 세션을 찾을 수 없습니다.",
@@ -189,9 +175,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
     }
 
-    
-
-    
     protected void onMfaMaxAttemptsExceeded(HttpServletRequest request, HttpServletResponse response,
                                             AuthenticationException exception, FactorContext factorContext,
                                             AuthType factor, Map<String, Object> errorDetails)
@@ -199,7 +182,6 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         
     }
 
-    
     protected void onMfaFactorFailure(HttpServletRequest request, HttpServletResponse response,
                                       AuthenticationException exception, FactorContext factorContext,
                                       AuthType factor, Map<String, Object> errorDetails)
@@ -207,14 +189,12 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         
     }
 
-    
     protected void onPrimaryAuthFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, Map<String, Object> errorDetails)
             throws IOException {
         
     }
 
-    
     protected void onMfaSessionNotFound(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, FactorContext factorContext,
                                         Map<String, Object> errorDetails)
@@ -222,16 +202,12 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         
     }
 
-    
-
     private void cleanupSessionUsingRepository(HttpServletRequest request, HttpServletResponse response,
                                                String mfaSessionId) {
         try {
             stateMachineIntegrator.releaseStateMachine(mfaSessionId);
             sessionRepository.removeSession(mfaSessionId, request, response);
-            log.debug("Session cleanup completed using {} repository for MFA session: {}",
-                    sessionRepository.getRepositoryType(), mfaSessionId);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("Failed to cleanup session using {} repository: {}",
                     sessionRepository.getRepositoryType(), mfaSessionId, e);
         }
@@ -313,15 +289,13 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 clientInfo.get("userAgent"),
                 clientInfo.get("xForwardedFor"));
     }
-    
-    
+
     private void publishAuthenticationFailureEvent(HttpServletRequest request,
                                                    AuthenticationException exception,
                                                    @Nullable FactorContext factorContext) {
         try {
             if (zeroTrustEventPublisher == null) {
-                log.debug("ZeroTrustEventPublisher not available, skipping failure event publication");
-                return;
+                                return;
             }
 
             String username = userIdentificationService.extractUserId(request, null, exception);
@@ -351,15 +325,11 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                     payload
             );
 
-            log.debug("Published authentication failure event via ZeroTrustEventPublisher for user: {}",
-                    username);
-
         } catch (Exception e) {
             log.error("Failed to publish authentication failure event", e);
         }
     }
 
-    
     private Integer extractFailureCount(FactorContext factorContext) {
         if (factorContext == null) {
             return 1;
@@ -372,8 +342,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
         return 1;
     }
-    
-    
+
     private Double calculateFailureRiskScore(Integer failureCount, AuthenticationException exception) {
         double score = 0.3;  
         
@@ -386,8 +355,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 score = 0.5;  
             }
         }
-        
-        
+
         String exceptionName = exception.getClass().getSimpleName();
         if (exceptionName.contains("Locked") || exceptionName.contains("Disabled")) {
             score = Math.min(1.0, score + 0.2);
@@ -395,8 +363,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         
         return score;
     }
-    
-    
+
     private boolean processErrorEventRecommendation(FactorContext factorContext,
                                                     HttpServletRequest request,
                                                     String sessionId) {
@@ -407,18 +374,14 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION);
 
         if (errorEvent != null) {
-            log.debug("Processing error event recommendation: {} for session: {}",
-                     errorEvent, sessionId);
-
+            
             try {
                 boolean errorEventSent = stateMachineIntegrator.sendEvent(errorEvent, factorContext, request);
 
                 if (errorEventSent) {
                     
                     factorContext.removeAttribute("errorEventRecommendation");
-                    log.debug("Error event {} processed successfully for session: {}",
-                             errorEvent, sessionId);
-                    return true;
+                                        return true;
                 } else {
                     log.error("Failed to send error event {} for session: {}", errorEvent, sessionId);
                 }
@@ -431,5 +394,4 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         return false;
     }
 
-    
 }

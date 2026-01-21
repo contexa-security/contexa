@@ -4,7 +4,6 @@ import lombok.Builder;
 import lombok.Getter;
 import java.util.List;
 
-
 @Getter
 @Builder
 public class CompletionDecision {
@@ -14,7 +13,6 @@ public class CompletionDecision {
     private final String errorMessage;
     private final List<String> missingRequiredStepIds;
 
-    
     public static CompletionDecision completed() {
         return CompletionDecision.builder()
             .completed(true)
@@ -22,7 +20,6 @@ public class CompletionDecision {
             .build();
     }
 
-    
     public static CompletionDecision needsFactorSelection(int attemptCount) {
         return CompletionDecision.builder()
             .completed(false)
@@ -31,7 +28,6 @@ public class CompletionDecision {
             .build();
     }
 
-    
     public static CompletionDecision incomplete(List<String> missingSteps) {
         return CompletionDecision.builder()
             .completed(false)
@@ -40,7 +36,6 @@ public class CompletionDecision {
             .build();
     }
 
-    
     public static CompletionDecision error(String message) {
         return CompletionDecision.builder()
             .completed(false)

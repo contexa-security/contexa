@@ -26,10 +26,8 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        
         String jsonResponse = objectMapper.writeValueAsString(data);
 
-        
         PrintWriter writer = response.getWriter();
         writer.write(jsonResponse);
         writer.flush();
@@ -50,7 +48,6 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
                            String message, String path, Map<String, Object> additionalData)
             throws IOException {
 
-        
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", LocalDateTime.now());
         errorResponse.put("status", status);
@@ -58,7 +55,6 @@ public class JsonAuthResponseWriter implements AuthResponseWriter {
         errorResponse.put("message", message);
         errorResponse.put("path", path);
 
-        
         if (additionalData != null) {
             errorResponse.putAll(additionalData);
         }

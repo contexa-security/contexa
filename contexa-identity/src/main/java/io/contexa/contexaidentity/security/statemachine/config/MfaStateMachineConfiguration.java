@@ -28,10 +28,8 @@ import java.util.EnumSet;
 @RequiredArgsConstructor
 public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdapter<MfaState, MfaEvent> {
 
-    
     private final StateMachineProperties properties;
 
-    
     private final InitializeMfaAction initializeMfaAction;
     private final SelectFactorAction selectFactorAction;
     private final InitiateChallengeAction initiateChallengeAction;
@@ -40,24 +38,11 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     private final HandleFailureAction handleFailureAction;
     private final DetermineNextFactorAction determineNextFactorAction;
 
-    
     private final AllFactorsCompletedGuard allFactorsCompletedGuard;
     private final RetryLimitGuard retryLimitGuard;
 
-    
     @Override
     public void configure(StateMachineConfigurationConfigurer<MfaState, MfaEvent> config) throws Exception {
-        
-        log.info("===================================================");
-        log.info("MFA StateMachine Configuration (Properties-based)");
-        log.info("  - MFA 최대 재시도: {}", properties.getMfa().getMaxRetries());
-        log.info("  - MFA 세션 타임아웃: {}분", properties.getMfa().getSessionTimeoutMinutes());
-        log.info("  - MFA 전이 타임아웃: {}초", properties.getMfa().getTransitionTimeoutSeconds());
-        log.info("  - MFA 동시 세션 제한: {}", properties.getMfa().getMaxConcurrentSessions());
-        log.info("  - MFA 메트릭 수집: {}", properties.getMfa().isEnableMetrics());
-        log.info("  - StateDoActionPolicy: TIMEOUT_CANCEL");
-        log.info("  - TransitionConflictPolicy: PARENT");
-        log.info("===================================================");
 
         config
                 .withConfiguration()
@@ -93,21 +78,18 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initializeMfaAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
                 .target(MfaState.MFA_NOT_REQUIRED)
                 .event(MfaEvent.MFA_NOT_REQUIRED)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)
                 .target(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
@@ -115,7 +97,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(selectFactorAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -123,7 +104,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initiateChallengeAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -131,21 +111,18 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initiateChallengeAction)
                 .and()
 
-                
                 .withInternal()
                 .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
                 .event(MfaEvent.INITIATE_CHALLENGE)
                 .action(initiateChallengeAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
                 .target(MfaState.FACTOR_VERIFICATION_PENDING)
                 .event(MfaEvent.SUBMIT_FACTOR_CREDENTIAL)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.FACTOR_VERIFICATION_COMPLETED)
@@ -153,16 +130,12 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(verifyFactorAction)
                 .and()
 
-                
                 .withInternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .event(MfaEvent.DETERMINE_NEXT_FACTOR)
                 .action(determineNextFactorAction)
                 .and()
 
-                
-
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -171,14 +144,12 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(handleFailureAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
                 .event(MfaEvent.RETRY_LIMIT_EXCEEDED)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.ALL_FACTORS_COMPLETED)
@@ -186,7 +157,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
 
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
@@ -194,14 +164,12 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .guard(allFactorsCompletedGuard.negate())
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
@@ -209,7 +177,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(selectFactorAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
@@ -217,7 +184,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(initiateChallengeAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.ALL_FACTORS_COMPLETED)
                 .target(MfaState.MFA_SUCCESSFUL)
@@ -225,7 +191,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(completeMfaAction)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)
                 .target(MfaState.MFA_CANCELLED)
@@ -242,7 +207,6 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.USER_ABORTED_MFA)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.AWAITING_FACTOR_SELECTION)
                 .target(MfaState.MFA_SESSION_EXPIRED)
@@ -259,14 +223,12 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.SESSION_TIMEOUT)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
                 .target(MfaState.AWAITING_FACTOR_SELECTION)
                 .event(MfaEvent.CHALLENGE_TIMEOUT)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.MFA_SYSTEM_ERROR)
@@ -298,24 +260,20 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.SYSTEM_ERROR)
                 .and()
 
-                
                 .withExternal()
                 .source(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
                 .target(MfaState.MFA_FAILED_TERMINAL)
                 .event(MfaEvent.SYSTEM_ERROR);
     }
 
-    
     @Bean
     public StateMachineListener<MfaState, MfaEvent> listener() {
         return new StateMachineListenerAdapter<MfaState, MfaEvent>() {
             @Override
             public void stateChanged(State<MfaState, MfaEvent> from, State<MfaState, MfaEvent> to) {
                 if (from != null) {
-                    log.info("[MFA SM] State changed: {} → {}", from.getId(), to.getId());
-                } else {
-                    log.info("[MFA SM] State machine started with state: {}", to.getId());
-                }
+                                    } else {
+                                    }
             }
 
             @Override
@@ -341,8 +299,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
             @Override
             public void stateMachineStopped(org.springframework.statemachine.StateMachine<MfaState, MfaEvent> stateMachine) {
                 String machineId = stateMachine.getId();
-                log.debug("[MFA SM] [{}] StateMachine 종료됨", machineId);
-            }
+                            }
         };
     }
 }

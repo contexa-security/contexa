@@ -3,7 +3,6 @@ package io.contexa.contexaidentity.security.exception;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 
-
 public class InvalidTransitionException extends RuntimeException {
     private final MfaState state;
     private final MfaEvent event;

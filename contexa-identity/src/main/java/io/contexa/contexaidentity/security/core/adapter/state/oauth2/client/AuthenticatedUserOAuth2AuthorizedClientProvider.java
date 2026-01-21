@@ -17,7 +17,6 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
 import org.springframework.util.Assert;
 
-
 @Slf4j
 public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2AuthorizedClientProvider {
 
@@ -27,11 +26,9 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
     private OAuth2AccessTokenResponseClient<OAuth2AuthenticatedUserGrantRequest> accessTokenResponseClient =
             new RestClientAuthenticatedUserTokenResponseClient();
 
-    
     public AuthenticatedUserOAuth2AuthorizedClientProvider() {
     }
 
-    
     public void setAccessTokenResponseClient(
             OAuth2AccessTokenResponseClient<OAuth2AuthenticatedUserGrantRequest> accessTokenResponseClient) {
         Assert.notNull(accessTokenResponseClient, "accessTokenResponseClient cannot be null");
@@ -45,18 +42,15 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
 
         ClientRegistration clientRegistration = context.getClientRegistration();
 
-        
         if (!AUTHENTICATED_USER.equals(clientRegistration.getAuthorizationGrantType())) {
             return null;
         }
 
-        
         OAuth2AuthorizedClient authorizedClient = context.getAuthorizedClient();
         if (authorizedClient != null) {
             return null;
         }
 
-        
         Authentication authentication = context.getPrincipal();
         if (authentication == null) {
             OAuth2Error error = new OAuth2Error("invalid_principal",
@@ -68,31 +62,22 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
         String deviceId = context.getAttribute("device_id");
 
         if (log.isDebugEnabled()) {
-            log.debug("Authorizing user '{}' with authenticated-user grant", username);
-        }
+                    }
 
         HttpServletRequest request = context.getAttribute(HttpServletRequest.class.getName());
         HttpServletResponse response = context.getAttribute(HttpServletResponse.class.getName());
 
-        log.debug("Extracted from OAuth2AuthorizationContext: request={}, response={}",
-                request != null ? request.getClass().getSimpleName() : "null",
-                response != null ? response.getClass().getSimpleName() : "null");
-
-        
         OAuth2AuthenticatedUserGrantRequest grantRequest =
                 new OAuth2AuthenticatedUserGrantRequest(clientRegistration, username, deviceId);
 
-        
         if (this.accessTokenResponseClient instanceof RestClientAuthenticatedUserTokenResponseClient client) {
-            log.debug("Setting request/response to RestClientAuthenticatedUserTokenResponseClient");
-            client.setRequest(request);
+                        client.setRequest(request);
             client.setResponse(response);
         } else {
             log.warn("accessTokenResponseClient is not an instance of RestClientAuthenticatedUserTokenResponseClient: {}",
                     this.accessTokenResponseClient.getClass().getName());
         }
 
-        
         OAuth2AccessTokenResponse tokenResponse;
         try {
             tokenResponse = this.accessTokenResponseClient.getTokenResponse(grantRequest);
@@ -102,10 +87,8 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Successfully obtained access token for user '{}'", username);
-        }
+                    }
 
-        
         return new OAuth2AuthorizedClient(
                 clientRegistration,
                 username,

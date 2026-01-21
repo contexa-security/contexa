@@ -13,7 +13,6 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class OAuth2AuthenticationEntryPoint implements AuthenticationEntryPoint {
 
@@ -22,9 +21,6 @@ public class OAuth2AuthenticationEntryPoint implements AuthenticationEntryPoint 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException, ServletException {
-
-        log.debug("OAuth2 Authentication failed for request [{}]: {}",
-                request.getRequestURI(), authException.getMessage());
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.mfa.exception;
 
-
 public class ContextPersistenceException extends RuntimeException {
 
     public ContextPersistenceException(String message) {

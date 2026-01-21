@@ -29,22 +29,18 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-
 @Slf4j
 public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
 
-    
     private final BytesKeyGenerator sessionIdGenerator;
     private final SecureRandom secureRandom;
 
-    
     private static final int MAX_SESSION_ID_GENERATION_ATTEMPTS = 5;
     private static final int MAX_COLLISION_RESOLUTION_ATTEMPTS = 3;
 
-    
     private String usernameParameter = "username";
     private String passwordParameter = "password";
 
@@ -60,15 +56,11 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         this.stateMachineIntegrator = applicationContext.getBean(MfaStateMachineIntegrator.class);
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
 
-        
         this.sessionIdGenerator = KeyGenerators.secureRandom(32);
         this.secureRandom = new SecureRandom();
 
-        log.info("MfaFormAuthenticationFilter initialized with {} repository. Distributed sync: {}",
-                sessionRepository.getRepositoryType(), sessionRepository.supportsDistributedSync());
-    }
+            }
 
-    
     @Override
     protected Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
             throws AuthenticationException {
@@ -85,14 +77,12 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
 
         username = username.trim();
 
-        
         UsernamePasswordAuthenticationToken authRequest =
                 UsernamePasswordAuthenticationToken.unauthenticated(username, password);
 
         return authenticationManager.authenticate(authRequest);
     }
 
-    
     @Override
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
                                           Authentication authentication) throws IOException, ServletException {
@@ -102,14 +92,11 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         securityContextHolderStrategy.setContext(context);
         securityContextRepository.saveContext(context, request, response);
 
-        
         cleanupExistingSession(request, response);
 
-        
         String mfaSessionId = generateSecureDistributedSessionId(request);
         String flowTypeNameForContext = AuthType.MFA_FORM.name().toLowerCase();
 
-        
         FactorContext factorContext = new FactorContext(
                 mfaSessionId,
                 authentication,
@@ -117,17 +104,11 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
                 flowTypeNameForContext
         );
 
-        
         enhanceFactorContextWithSecurityInfo(factorContext, request);
 
         try {
             
             stateMachineIntegrator.initializeStateMachine(factorContext, request, response);
-
-            log.info("State Machine initialized for Form MFA. FactorContext state: {} for user: {} (session: {})",
-                    factorContext.getCurrentState(),
-                    factorContext.getUsername(),
-                    factorContext.getMfaSessionId());
 
             MfaState actualState = stateMachineIntegrator.getCurrentState(factorContext.getMfaSessionId());
             if (actualState != factorContext.getCurrentState()) {
@@ -140,7 +121,6 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for Form MFA session: {}", mfaSessionId, e);
 
-            
             cleanupFailedSession(mfaSessionId, request, response);
 
             unsuccessfulAuthentication(request, response,
@@ -148,7 +128,6 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    
     private String generateSecureDistributedSessionId(HttpServletRequest request) {
         if (sessionRepository.supportsDistributedSync()) {
             return generateDistributedUniqueSessionId(request);
@@ -157,10 +136,8 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    
     private String generateDistributedUniqueSessionId(HttpServletRequest request) {
-        log.debug("Generating distributed unique session ID using repository: {}", sessionRepository.getRepositoryType());
-
+        
         for (int attempt = 0; attempt < MAX_SESSION_ID_GENERATION_ATTEMPTS; attempt++) {
             try {
                 String baseId = generateSecureSessionId();
@@ -173,7 +150,6 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
                     return resolveSessionIdGenerationFailure(request);
                 }
 
-                
                 try {
                     Thread.sleep(50L * (1L << Math.min(attempt, 4)));
                 } catch (InterruptedException ie) {
@@ -183,15 +159,12 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
             }
         }
 
-        
         log.warn("All distributed session ID generation attempts failed, using fallback method");
         return generateSecureSessionId();
     }
 
-    
     private String resolveSessionIdGenerationFailure(HttpServletRequest request) {
-        log.info("Attempting to resolve session ID generation failure using collision resolution");
-
+        
         try {
             String originalId = generateSecureSessionId();
             return sessionRepository.resolveSessionIdCollision(originalId, request, MAX_COLLISION_RESOLUTION_ATTEMPTS);
@@ -201,7 +174,6 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         }
     }
 
-    
     private void enhanceFactorContextWithSecurityInfo(FactorContext factorContext, HttpServletRequest request) {
         String deviceId = getOrCreateDeviceId(request);
         factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID, deviceId);
@@ -212,23 +184,18 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         factorContext.setAttribute(FactorContextAttributes.Timestamps.LOGIN_TIMESTAMP,
                                   System.currentTimeMillis());
 
-        log.debug("Enhanced FactorContext with security info: deviceId={}, repository={}",
-                deviceId, sessionRepository.getRepositoryType());
-    }
+            }
 
-    
     private void cleanupFailedSession(String mfaSessionId, HttpServletRequest request, HttpServletResponse response) {
         try {
             if (sessionRepository.existsSession(mfaSessionId)) {
                 sessionRepository.removeSession(mfaSessionId, request, response);
-                log.debug("Cleaned up failed session: {}", mfaSessionId);
-            }
+                            }
         } catch (Exception e) {
             log.warn("Failed to cleanup failed session: {}", mfaSessionId, e);
         }
     }
 
-    
     @Override
     public void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
                                             AuthenticationException failed) throws IOException, ServletException {
@@ -243,12 +210,10 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         failureHandler.onAuthenticationFailure(request, response, failed);
     }
 
-    
     private void cleanupExistingSession(HttpServletRequest request, HttpServletResponse response) {
         try {
             stateMachineIntegrator.cleanupSession(request, response);
-            log.debug("Existing session cleaned up using repository pattern: {}", sessionRepository.getRepositoryType());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("Failed to cleanup existing session using {}: {}", sessionRepository.getRepositoryType(), e.getMessage());
         }
     }
@@ -258,7 +223,6 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    
     private String getOrCreateDeviceId(HttpServletRequest request) {
         String deviceId = request.getHeader("X-Device-Id");
         if (StringUtils.hasText(deviceId) && isValidDeviceId(deviceId)) {
@@ -271,11 +235,9 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
             deviceId = generateSecureDeviceId();
         }
 
-        log.debug("Generated deviceId: {} using repository: {}", deviceId, sessionRepository.getRepositoryType());
-        return deviceId;
+                return deviceId;
     }
 
-    
     private String generateDistributedDeviceId(HttpServletRequest request) {
         String clientInfo = getClientIpAddress(request) + "|" +
                 (request.getHeader("User-Agent") != null ? request.getHeader("User-Agent") : "") + "|" +
@@ -302,7 +264,6 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    
     public void setUsernameParameter(String usernameParameter) {
         Assert.hasText(usernameParameter, "usernameParameter cannot be empty");
         this.usernameParameter = usernameParameter;

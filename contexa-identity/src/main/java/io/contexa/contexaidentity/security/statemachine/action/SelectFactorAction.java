@@ -9,7 +9,6 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
 
-
 @Slf4j
 public class SelectFactorAction extends AbstractMfaStateAction {
 
@@ -18,10 +17,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
                              FactorContext factorContext) throws Exception {
         String sessionId = factorContext.getMfaSessionId();
 
-        
         String selectedFactor = (String) context.getMessageHeader("selectedFactor");
 
-        
         if (selectedFactor == null && factorContext.getCurrentProcessingFactor() != null) {
             selectedFactor = factorContext.getCurrentProcessingFactor().name();
             log.warn("selectedFactor header missing for session: {}, using currentProcessingFactor: {}",
@@ -34,9 +31,6 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             throw new IllegalStateException("No factor selected for session: " + sessionId);
         }
 
-        log.info("Factor {} selected for session: {}", selectedFactor, sessionId);
-
-        
         AuthType authType;
         try {
             authType = AuthType.valueOf(selectedFactor.toUpperCase());
@@ -46,7 +40,6 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             throw new IllegalArgumentException("Invalid factor type: " + selectedFactor);
         }
 
-        
         if (!factorContext.getAvailableFactors().contains(authType)) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                                      MfaEvent.SYSTEM_ERROR);
@@ -54,37 +47,29 @@ public class SelectFactorAction extends AbstractMfaStateAction {
                     " is not available for user: " + factorContext.getUsername());
         }
 
-        
         factorContext.setCurrentProcessingFactor(authType);
 
-        
         long selectionTime = System.currentTimeMillis();
         factorContext.setAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT, selectionTime);
 
-        
         switch (authType) {
             case OTT:
                 
                 String ottDeliveryMethod = determineOttDeliveryMethod(context, factorContext);
                 factorContext.setAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD, ottDeliveryMethod);
-                log.debug("OTT delivery method set to: {} for session: {}", ottDeliveryMethod, sessionId);
-                break;
+                                break;
 
             case PASSKEY:
                 
                 String passkeyType = determinePasskeyType(context, factorContext);
                 factorContext.setAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE, passkeyType);
-                log.debug("Passkey type set to: {} for session: {}", passkeyType, sessionId);
-                break;
+                                break;
 
             default:
-                log.debug("No additional settings for factor: {}", authType);
-        }
+                        }
 
-        log.info("Factor selection completed for session: {}, factor: {}", sessionId, authType);
-    }
+            }
 
-    
     private String determineOttDeliveryMethod(StateContext<MfaState, MfaEvent> context,
                                               FactorContext factorContext) {
         
@@ -93,21 +78,18 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             return validateOttDeliveryMethod(requestedMethod);
         }
 
-        
         String userPreference = (String) factorContext.getAttribute(
             FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE);
         if (userPreference != null) {
             return validateOttDeliveryMethod(userPreference);
         }
 
-        
         String systemDefault = (String) context.getExtendedState().getVariables()
                 .getOrDefault("systemOttDeliveryMethod", "SMS");
 
         return validateOttDeliveryMethod(systemDefault);
     }
 
-    
     private String determinePasskeyType(StateContext<MfaState, MfaEvent> context,
                                         FactorContext factorContext) {
         
@@ -116,7 +98,6 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             return validatePasskeyType(requestedType);
         }
 
-        
         String userAgent = (String) factorContext.getAttribute(
             FactorContextAttributes.DeviceAndSession.USER_AGENT);
         if (userAgent != null) {
@@ -127,11 +108,9 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             }
         }
 
-        
         return "PLATFORM";
     }
 
-    
     private String validateOttDeliveryMethod(String method) {
         if (method == null) {
             return "EMAIL";
@@ -147,7 +126,6 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         };
     }
 
-    
     private String validatePasskeyType(String type) {
         if (type == null) {
             return "PLATFORM";
@@ -178,7 +156,6 @@ public class SelectFactorAction extends AbstractMfaStateAction {
                     factorContext.getUsername());
         }
 
-        
         if (factorContext.getCurrentState() != MfaState.AWAITING_FACTOR_SELECTION) {
             log.warn("Factor selection attempted in invalid state: {} for session: {}",
                     factorContext.getCurrentState(), factorContext.getMfaSessionId());

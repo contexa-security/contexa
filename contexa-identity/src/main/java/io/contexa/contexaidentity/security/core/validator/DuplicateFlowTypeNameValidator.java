@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-
 public class DuplicateFlowTypeNameValidator implements Validator<List<AuthenticationFlowConfig>> { 
 
     private static final Logger log = LoggerFactory.getLogger(DuplicateFlowTypeNameValidator.class);
@@ -21,11 +20,8 @@ public class DuplicateFlowTypeNameValidator implements Validator<List<Authentica
         ValidationResult result = new ValidationResult();
 
         if (CollectionUtils.isEmpty(allFlowConfigs)) {
-            log.debug("No AuthenticationFlowConfigs provided to DuplicateFlowTypeNameValidator. Validation successful by default.");
-            return result;
+                        return result;
         }
-
-        log.info("Starting validation for duplicate AuthenticationFlowConfig typeNames. Total flows configured: {}", allFlowConfigs.size());
 
         Set<String> uniqueNormalizedTypeNames = new HashSet<>();
         Set<String> duplicateOriginalTypeNames = new HashSet<>();
@@ -42,12 +38,10 @@ public class DuplicateFlowTypeNameValidator implements Validator<List<Authentica
                 log.warn("An AuthenticationFlowConfig (AuthType: {}) was found with a null or empty typeName (flow name). " +
                                 "This entry will be skipped for duplicate check, but it's a configuration issue that should be addressed.",
                         authType != null ? authType : "UNKNOWN");
-                
-                
+
                 continue;
             }
 
-            
             String normalizedTypeName = typeName.toLowerCase();
 
             if (!uniqueNormalizedTypeNames.add(normalizedTypeName)) {
@@ -69,15 +63,8 @@ public class DuplicateFlowTypeNameValidator implements Validator<List<Authentica
             log.error(errorMessage);
             result.addError(errorMessage); 
         } else {
-            log.info("Validation successful: All AuthenticationFlowConfig typeNames are unique (case-insensitive).");
-        }
+                    }
         return result;
     }
 
-    
-
-    
-    
-    
-    
 }

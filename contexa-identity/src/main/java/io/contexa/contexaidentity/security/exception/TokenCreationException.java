@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.exception;
 
-
 public class TokenCreationException extends RuntimeException {
 
     public TokenCreationException(String message) {

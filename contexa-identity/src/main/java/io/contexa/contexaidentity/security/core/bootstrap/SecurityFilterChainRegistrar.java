@@ -30,14 +30,12 @@ import org.springframework.util.StringUtils;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 @Slf4j
 public class SecurityFilterChainRegistrar {
     private final ConfiguredFactorFilterProvider configuredFactorFilterProvider;
     private final Map<String, Class<? extends Filter>> stepFilterClasses;
     private final AdapterRegistry adapterRegistry;
 
-    
     private static final Set<String> DEFAULT_FACTOR_TYPES = Set.of(
             AuthType.OTT.name().toLowerCase(),
             AuthType.PASSKEY.name().toLowerCase()
@@ -61,7 +59,6 @@ public class SecurityFilterChainRegistrar {
         BeanDefinitionRegistry registry = (BeanDefinitionRegistry) cac.getBeanFactory();
         AtomicInteger idx = new AtomicInteger(0);
 
-        
         Set<String> configuredFactorTypes = new HashSet<>();
 
         for (FlowContext fc : flows) {
@@ -69,7 +66,6 @@ public class SecurityFilterChainRegistrar {
             AuthenticationFlowConfig flowConfig = Objects.requireNonNull(fc.flow(), "AuthenticationFlowConfig in FlowContext cannot be null.");
             String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null.");
 
-            
             if (AuthType.MFA.name().equalsIgnoreCase(flowTypeName)) {
                 flowConfig.getStepConfigs().stream()
                         .map(step -> step.getType().toLowerCase())
@@ -85,24 +81,18 @@ public class SecurityFilterChainRegistrar {
                     .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                     .getBeanDefinition();
             registry.registerBeanDefinition(beanName, bd);
-            log.info("Registered SecurityFilterChain bean: {} for flow type: {}", beanName, flowTypeName);
-        }
+                    }
         
         DefaultFactorChainProvider defaultProvider = new DefaultFactorChainProvider(context, this, adapterRegistry); 
 
-
     }
 
-    
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {
         try {
             AuthenticationFlowConfig flowConfig = fc.flow();
-            log.debug("Building SecurityFilterChain and registering factor filters for flow: type='{}', order={}",
-                    flowConfig.getTypeName(), flowConfig.getOrder());
-
+            
             DefaultSecurityFilterChain builtChain = fc.http().build();
-            log.debug("Successfully built DefaultSecurityFilterChain for flow: {}", flowConfig.getTypeName());
-
+            
             replaceWebAuthnHandlersIfNeeded(builtChain, flowConfig, appContext);
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
@@ -117,11 +107,8 @@ public class SecurityFilterChainRegistrar {
                     continue;
                 }
 
-                
                 if (AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName()) && step.getOrder() == 0) {
-                    log.trace("Skipping filter registration for primary auth step '{}' (id: {}) in MFA flow '{}'",
-                            pureFactorType, stepId, flowConfig.getTypeName());
-                    continue;
+                                        continue;
                 }
 
                 Class<? extends Filter> filterClass = stepFilterClasses.get(pureFactorType);
@@ -159,7 +146,6 @@ public class SecurityFilterChainRegistrar {
         }
     }
 
-    
     private void replaceWebAuthnHandlersIfNeeded(DefaultSecurityFilterChain builtChain,
                                                   AuthenticationFlowConfig flowConfig,
                                                   ApplicationContext appContext) {
@@ -187,7 +173,6 @@ public class SecurityFilterChainRegistrar {
                         StateType stateType = (flowConfig.getStateConfig() != null && flowConfig.getStateConfig().stateType() != null) ?
                                 flowConfig.getStateConfig().stateType() : authProps.getStateType();
 
-                        
                         PlatformAuthenticationSuccessHandler customSuccessHandler = null;
                         PlatformAuthenticationFailureHandler customFailureHandler = null;
 
@@ -196,29 +181,24 @@ public class SecurityFilterChainRegistrar {
                             if (stateType == StateType.SESSION) {
                                 customSuccessHandler = appContext.getBean(SessionMfaSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(SessionMfaFailureHandler.class);
-                                log.debug("MFA Passkey + SESSION: Using SessionMfa* handlers");
-                            } else {
+                                                            } else {
                                 
                                 customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-                                log.debug("MFA Passkey + OAuth2/JWT: Using MfaFactorProcessing* + Unified* handlers");
-                            }
+                                                            }
                         } else {
                             
                             if (stateType == StateType.SESSION) {
                                 
                                 customSuccessHandler = null;
                                 customFailureHandler = null;
-                                log.debug("Single Passkey + SESSION: Using Spring Security default handlers (null)");
-                            } else {
+                                                            } else {
                                 
                                 customSuccessHandler = appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(OAuth2SingleAuthFailureHandler.class);
-                                log.debug("Single Passkey + OAuth2/JWT: Using OAuth2SingleAuth* handlers");
-                            }
+                                                            }
                         }
 
-                        
                         if (customSuccessHandler != null) {
                             authFilter.setAuthenticationSuccessHandler(customSuccessHandler);
                         }
@@ -226,18 +206,13 @@ public class SecurityFilterChainRegistrar {
                             authFilter.setAuthenticationFailureHandler(customFailureHandler);
                         }
 
-                        
                         if (isMfaFlow) {
                             String customLoginProcessingUrl = authProps.getUrls().getFactors().getPasskey().getLoginProcessing();
                             if (customLoginProcessingUrl != null && !customLoginProcessingUrl.isEmpty()) {
                                 RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, customLoginProcessingUrl);
                                 authFilter.setRequiresAuthenticationRequestMatcher(customMatcher);
-                                log.info("WebAuthn loginProcessingUrl changed to: {}", customLoginProcessingUrl);
-                            }
+                                                            }
                         }
-
-                        log.info("WebAuthnAuthenticationFilter handlers replacement completed for flow: {}, StateType: {}, MFA: {}",
-                                flowConfig.getTypeName(), stateType, isMfaFlow);
 
                         return;
 
@@ -253,7 +228,4 @@ public class SecurityFilterChainRegistrar {
                 flowConfig.getTypeName());
     }
 }
-
-
-
 

@@ -26,7 +26,6 @@ import org.springframework.util.Assert;
 import java.security.Principal;
 import java.util.*;
 
-
 @Slf4j
 public class AuthenticatedUserGrantAuthenticationProvider implements AuthenticationProvider {
 
@@ -58,31 +57,25 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
         AuthenticatedUserGrantAuthenticationToken authenticationToken =
                 (AuthenticatedUserGrantAuthenticationToken) authentication;
 
-        
         OAuth2ClientAuthenticationToken clientPrincipal =
                 getAuthenticatedClientElseThrowInvalidClient(authenticationToken);
         RegisteredClient registeredClient = clientPrincipal.getRegisteredClient();
 
         if (log.isTraceEnabled()) {
-            log.trace("Retrieved registered client: {}", registeredClient.getId());
-        }
+                    }
 
-        
         assert registeredClient != null;
         if (!registeredClient.getAuthorizationGrantTypes().contains(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)) {
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
         }
 
-        
         String username = authenticationToken.getUsername();
         Users user = loadUserFromDatabase(username);
         Authentication userAuthentication = createAuthenticatedUser(user, registeredClient.getScopes());
 
         if (log.isDebugEnabled()) {
-            log.debug("Created authenticated user with DB authorities for: {}", username);
-        }
+                    }
 
-        
         DefaultOAuth2TokenContext.Builder tokenContextBuilder = DefaultOAuth2TokenContext.builder()
                 .registeredClient(registeredClient)
                 .principal(userAuthentication)
@@ -92,12 +85,10 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 .tokenType(OAuth2TokenType.ACCESS_TOKEN)
                 .authorizationGrant(authenticationToken);
 
-        
         if (authenticationToken.getDeviceId() != null) {
             tokenContextBuilder.put("device_id", authenticationToken.getDeviceId());
         }
 
-        
         OAuth2TokenContext tokenContext = tokenContextBuilder.build();
         OAuth2Token generatedAccessToken = this.tokenGenerator.generate(tokenContext);
         if (generatedAccessToken == null) {
@@ -107,8 +98,7 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
         }
 
         if (log.isTraceEnabled()) {
-            log.trace("Generated access token");
-        }
+                    }
 
         OAuth2AccessToken accessToken = new OAuth2AccessToken(
                 OAuth2AccessToken.TokenType.BEARER,
@@ -117,7 +107,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 generatedAccessToken.getExpiresAt(),
                 tokenContext.getAuthorizedScopes());
 
-        
         OAuth2RefreshToken refreshToken = null;
         if (registeredClient.getAuthorizationGrantTypes().contains(AuthorizationGrantType.REFRESH_TOKEN) &&
                 !clientPrincipal.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.NONE)) {
@@ -134,13 +123,11 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
             }
 
             if (log.isTraceEnabled()) {
-                log.trace("Generated refresh token");
-            }
+                            }
 
             refreshToken = (OAuth2RefreshToken) generatedRefreshToken;
         }
 
-        
         OAuth2Authorization.Builder authorizationBuilder = OAuth2Authorization
                 .withRegisteredClient(registeredClient)
                 .principalName(userAuthentication.getName())
@@ -162,15 +149,12 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
 
         OAuth2Authorization authorization = authorizationBuilder.build();
 
-        
         transactionTemplate.executeWithoutResult(status -> {
             this.authorizationService.save(authorization);
             if (log.isDebugEnabled()) {
-                log.debug("Saved OAuth2Authorization for user: {} in transaction", userAuthentication.getName());
-            }
+                            }
         });
 
-        
         return new OAuth2AccessTokenAuthenticationToken(
                 registeredClient, clientPrincipal, accessToken, refreshToken, Collections.emptyMap());
     }
@@ -195,7 +179,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
         throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
     }
 
-    
     private Users loadUserFromDatabase(String username) {
         return userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
                 .orElseThrow(() -> {
@@ -206,27 +189,21 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 });
     }
 
-    
     private Authentication createAuthenticatedUser(Users user, Set<String> scopes) {
 
-        
         List<GrantedAuthority> allAuthorities = new ArrayList<>();
         user.getRoleNames().stream()
                 .map(MfaGrantedAuthority::new)
                 .forEach(allAuthorities::add);
 
-        
         if (scopes != null && !scopes.isEmpty()) {
             scopes.forEach(scope ->
                     allAuthorities.add(new MfaGrantedAuthority("SCOPE_" + scope)));
         }
 
         if (log.isTraceEnabled()) {
-            log.trace("Created authentication with DB authorities: {} and scopes: {}",
-                    user.getRoleNames(), scopes);
-        }
+                    }
 
-        
         return new UsernamePasswordAuthenticationToken(
                 user.getUsername(),
                 user.getPassword(),

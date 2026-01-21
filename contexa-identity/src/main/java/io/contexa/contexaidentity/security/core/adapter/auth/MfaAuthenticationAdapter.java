@@ -59,13 +59,9 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
         AuthenticationFlowConfig currentFlow = http.getSharedObject(AuthenticationFlowConfig.class);
 
         if (currentFlow == null || !ID.equalsIgnoreCase(currentFlow.getTypeName())) {
-            log.trace("MfaAuthenticationAdapter.apply() called, but current flow is not 'mfa' or FlowConfig not shared. Skipping MFA common filter setup.");
-            return;
+                        return;
         }
 
-        log.info("MfaAuthenticationAdapter: Applying MFA common filters for flow '{}'.", currentFlow.getTypeName());
-
-        
         if (this.applicationContext == null) {
             this.applicationContext = http.getSharedObject(ApplicationContext.class);
             Assert.notNull(this.applicationContext, "ApplicationContext not found in HttpSecurity sharedObjects and was not provided via constructor.");
@@ -94,25 +90,18 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                 applicationContext
         );
 
-        
         if (currentFlow.getRegisteredFactorOptions() != null && !currentFlow.getRegisteredFactorOptions().isEmpty()) {
             try {
                 AuthUrlProvider authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
-                
                 if (currentFlow.getPrimaryAuthenticationOptions() != null) {
                     authUrlProvider.setPrimaryAuthenticationOptions(currentFlow.getPrimaryAuthenticationOptions());
-                    log.info("✅ Primary authentication options injected to AuthUrlProvider");
-                }
+                                    }
 
-                
                 authUrlProvider.updateFactorOptions(currentFlow.getRegisteredFactorOptions());
-                log.info("✅ Factor options injected to AuthUrlProvider: {} factors", currentFlow.getRegisteredFactorOptions().size());
 
-                
                 mfaContinuationFilter.initializeUrlMatchers();
-                log.info("✅ MfaContinuationFilter URL matchers initialized");
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 
                 log.error("🚨 Critical: Failed to inject options or initialize URL matchers", e);
                 throw new IllegalStateException(
@@ -129,7 +118,6 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
         http.addFilterBefore(mfaContinuationFilter, LogoutFilter.class);
 
-        
         List<RequestMatcher> factorProcessingMatchers = new ArrayList<>();
         if (currentFlow.getStepConfigs() != null) {
             for (AuthenticationStepConfig step : currentFlow.getStepConfigs()) {
@@ -141,8 +129,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                         if (processingUrl != null) {
                             
                             factorProcessingMatchers.add(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, processingUrl));
-                            log.debug("MfaAuthenticationAdapter: Added AntPathRequestMatcher for MFA factor processing URL: POST {}", processingUrl);
-                        }
+                                                    }
                     }
                 }
             }
@@ -162,7 +149,6 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                                          applicationContext, authContextProperties, responseWriter);
         http.addFilterBefore(mfaStepFilterWrapper, LogoutFilter.class);
 
-        log.debug("MFA common filters (MfaContinuationFilter, MfaStepFilterWrapper) added for MFA flow.");
-    }
+            }
 }
 

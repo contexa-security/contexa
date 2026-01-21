@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private final JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
@@ -23,10 +22,8 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
         
         Collection<GrantedAuthority> scopeAuthorities = scopeConverter.convert(jwt);
 
-        
         Collection<GrantedAuthority> roleAuthorities = rolesConverter.convert(jwt);
 
-        
         Collection<GrantedAuthority> authorities = Stream.concat(
                 scopeAuthorities != null ? scopeAuthorities.stream() : Stream.empty(),
                 roleAuthorities != null ? roleAuthorities.stream() : Stream.empty()
@@ -35,7 +32,6 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
         return new JwtAuthenticationToken(jwt, authorities);
     }
 
-    
     private static class RolesClaimConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
 
         @Override
@@ -48,7 +44,6 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
                         .collect(Collectors.toSet());
             }
 
-            
             Collection<String> authorities = jwt.getClaimAsStringList("authorities");
             if (authorities != null && !authorities.isEmpty()) {
                 return authorities.stream()

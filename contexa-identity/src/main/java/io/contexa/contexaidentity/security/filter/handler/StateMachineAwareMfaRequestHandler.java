@@ -24,7 +24,6 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
@@ -47,8 +46,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         this.mfaSettings = authContextProperties.getMfa();
         this.authUrlProvider = authUrlProvider;
 
-        log.info("StateMachineAwareMfaRequestHandler initialized with unified State Machine");
-    }
+            }
 
     @Override
     public void handleRequest(MfaRequestType requestType, HttpServletRequest request,
@@ -58,17 +56,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String sessionId = context.getMfaSessionId();
         long startTime = System.currentTimeMillis();
 
-        log.debug("Unified State Machine handling {} request for session: {}", requestType, sessionId);
-
         try {
             
             processRequestByType(requestType, request, response, context, filterChain);
 
-            
-            
             long processingTime = System.currentTimeMillis() - startTime;
-            log.debug("Request processing completed for session: {} in {}ms", sessionId, processingTime);
-
+            
         } catch (Exception e) {
             log.error("Error in unified State Machine request handling for session: {}", sessionId, e);
             handleProcessingError(request, response, context, e);
@@ -81,10 +74,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String sessionId = context.getMfaSessionId();
         MfaState currentState = context.getCurrentState();
 
-        log.info("Handling terminal context for session: {}, state: {} via unified State Machine",
-                sessionId, currentState);
-
-        
         MfaState latestState = stateMachineIntegrator.getCurrentState(sessionId);
         if (latestState != currentState) {
             log.warn("State mismatch detected: context={}, stateMachine={}", currentState, latestState);
@@ -96,14 +85,11 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         responseBody.put("terminal", true);
         responseBody.put("finalState", currentState.name());
 
-        
         handleTerminalState(currentState, request, response, responseBody);
 
-        
         scheduleStateMachineCleanup(sessionId);
     }
 
-    
     private void handleTerminalState(MfaState state, HttpServletRequest request,
                                      HttpServletResponse response, Map<String, Object> responseBody) throws IOException {
         String contextPath = request.getContextPath();
@@ -165,7 +151,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String sessionId = context != null ? context.getMfaSessionId() : "unknown";
         log.error("Generic error in unified State Machine MFA handling for session: {}", sessionId, error);
 
-        
         if (context != null) {
             try {
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, context, request);
@@ -188,10 +173,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 "MFA_PROCESSING_ERROR", error.getMessage(), request.getRequestURI(), errorResponse);
     }
 
-    
-
-
-    
     private void processRequestByType(MfaRequestType requestType, HttpServletRequest request,
                                       HttpServletResponse response, FactorContext context,
                                       FilterChain filterChain) throws ServletException, IOException {
@@ -232,19 +213,13 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
     }
 
-    
-
-    
     private void handleFactorSelection(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context) throws IOException {
         String sessionId = context.getMfaSessionId();
-        log.debug("Handling factor selection for session: {}", sessionId);
 
-        
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
         if (selectedFactor == null) return; 
 
-        
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
             handleFactorSelectionSuccess(request, response, context, selectedFactor);
         } else {
@@ -252,33 +227,25 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
     }
 
-    
     private void handleChallengeInitiation(HttpServletRequest request, HttpServletResponse response,
                                            FactorContext context) throws IOException {
         String sessionId = context.getMfaSessionId();
         MfaSettings mfaSettings = authContextProperties.getMfa();
 
-        log.debug("Handling challenge initiation for session: {}", sessionId);
-
-        
         if (!isValidStateForChallengeInitiation(context)) {
             handleInvalidStateError(request, response, context, "INVALID_STATE_FOR_CHALLENGE",
                     "챌린지 시작이 불가능한 상태입니다. 현재 상태: " + context.getCurrentState());
             return;
         }
 
-        
         if (context.getCurrentProcessingFactor() == null) {
             handleInvalidStateError(request, response, context, "NO_PROCESSING_FACTOR",
                     "처리할 팩터가 선택되지 않았습니다.");
             return;
         }
 
-        
         if (hasActiveChallengeForFactor(context)) {
-            log.info("Active challenge exists for session: {}, reusing existing challenge", sessionId);
 
-            
             Object challengeTime = context.getAttribute("challengeInitiatedAt");
             Instant challengeStart = MfaTimeUtils.fromMillis((Long) challengeTime);
             Duration remaining = MfaTimeUtils.getRemainingChallengeTime(challengeStart, mfaSettings);
@@ -302,7 +269,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             context.setAttribute("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
             context.setAttribute("ottCodeSent", true); 
 
-            
             Instant challengeExpiryTime = MfaTimeUtils.calculateChallengeExpiry(challengeStartTime, mfaSettings);
             Duration challengeDuration = MfaTimeUtils.getRemainingChallengeTime(challengeStartTime, mfaSettings);
 
@@ -327,41 +293,33 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private boolean isValidStateForChallengeInitiation(FactorContext context) {
         MfaState currentState = context.getCurrentState();
-        
-        
+
         return currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
                currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
     }
 
-    
     private boolean hasActiveChallengeForFactor(FactorContext context) {
         AuthType currentFactor = context.getCurrentProcessingFactor();
         if (currentFactor == null) {
             return false;
         }
 
-        
-        
         if (!currentFactor.isAllowChallengeReuse()) {
             return false;
         }
 
-        
         Object challengeTime = context.getAttribute("challengeInitiatedAt");
         if (!(challengeTime instanceof Long)) {
             return false;
         }
 
-        
         return !mfaSettings.isChallengeExpired((Long) challengeTime);
     }
 
     private void handleCancelMfa(HttpServletRequest request, HttpServletResponse response,
                                  FactorContext context) throws IOException {
         String sessionId = context.getMfaSessionId();
-        log.info("Handling MFA cancellation for session: {}", sessionId);
 
-        
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.USER_ABORTED_MFA, context, request);
 
         if (accepted) {
@@ -372,15 +330,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
             responseWriter.writeSuccessResponse(response, cancelResponse, HttpServletResponse.SC_OK);
 
-            
             scheduleStateMachineCleanup(sessionId);
         } else {
             handleInvalidStateError(request, response, context, "CANCELLATION_FAILED",
                     "MFA 취소에 실패했습니다.");
         }
     }
-
-    
 
     private String extractAndValidateSelectedFactor(HttpServletRequest request, HttpServletResponse response,
                                                     FactorContext context) throws IOException {
@@ -401,21 +356,18 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             context.setAttribute("selectedFactor", selectedFactor);
             request.setAttribute("selectedFactor", selectedFactor);
 
-            
             String ottDeliveryMethod = request.getParameter("ottDeliveryMethod");
             if (ottDeliveryMethod != null) {
                 context.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
                 request.setAttribute("ottDeliveryMethod", ottDeliveryMethod);
             }
 
-            
             String passkeyType = request.getParameter("passkeyType");
             if (passkeyType != null) {
                 context.setAttribute("passkeyType", passkeyType);
                 request.setAttribute("passkeyType", passkeyType);
             }
 
-            
             return stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
         } catch (Exception e) {
             log.error("Failed to send factor selection event", e);
@@ -503,8 +455,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                     try {
                         Thread.sleep(5000); 
                         stateMachineIntegrator.releaseStateMachine(sessionId);
-                        log.info("State Machine cleanup completed for session: {}", sessionId);
-                    } catch (Exception e) {
+                                            } catch (Exception e) {
                         log.error("Error during State Machine cleanup for session: {}", sessionId, e);
                     }
                 });

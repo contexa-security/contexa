@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Slf4j
 public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTokenBasedSuccessHandler {
 
@@ -54,7 +53,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private RedisTemplate<String, Object> redisTemplate;
 
-    
     private BaselineLearningService baselineLearningService;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
@@ -67,13 +65,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         this.stateMachineIntegrator = stateMachineIntegrator;
     }
 
-    
     @Autowired(required = false)
     public void setBaselineLearningService(BaselineLearningService baselineLearningService) {
         this.baselineLearningService = baselineLearningService;
     }
 
-    
     protected final void handleFinalAuthenticationSuccess(HttpServletRequest request,
                                                           HttpServletResponse response,
                                                           Authentication finalAuthentication,
@@ -84,10 +80,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return;
         }
 
-        
         StateType stateType = determineStateType(factorContext);
-        log.debug("Determined StateType: {} for user: {}", stateType, finalAuthentication.getName());
-        
+                
         TokenPair tokenPair;
         TokenTransportResult transportResult = null;
 
@@ -97,29 +91,21 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             String accessToken = tokenPair.getAccessToken();
             String refreshToken = tokenPair.getRefreshToken();
 
-            
             transportResult = prepareTokenTransport(accessToken, refreshToken);
 
-            log.debug("Tokens created for StateType: {}", stateType);
-        } else {
-            log.debug("Token creation skipped for StateType: {} (Session mode)", stateType);
-        }
+                    } else {
+                    }
 
-        
         if (factorContext != null && factorContext.getMfaSessionId() != null) {
             stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
             sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
 
-            
             request.setAttribute("mfaSessionReleased", true);
-            log.debug("Set mfaSessionReleased flag for session: {}", factorContext.getMfaSessionId());
-        }
+                    }
 
-        
         String userId = finalAuthentication.getName();
         resetActionOnMfaSuccess(userId, request);
 
-        
         Map<String, Object> responseData = buildResponseData(
                 stateType, transportResult, finalAuthentication, request, response);
 
@@ -130,24 +116,19 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 .headers(transportResult != null ? transportResult.getHeaders() : null)
                 .build();
 
-        
         executeDelegateHandler(request, response, finalAuthentication, finalResult);
 
-        
         if (!response.isCommitted()) {
             onFinalAuthenticationSuccess(request, response, finalAuthentication, finalResult);
         }
 
-        
         if (!response.isCommitted()) {
             processDefaultResponse(response, finalResult);
         }
-        
-        
+
         publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
     }
 
-    
     protected void onFinalAuthenticationSuccess(HttpServletRequest request,
                                                 HttpServletResponse response,
                                                 Authentication authentication,
@@ -160,7 +141,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         
         setCookies(response, result);
 
-        
         writeJsonResponse(response, result.getBody());
     }
 
@@ -171,7 +151,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             this.requestCache.removeRequest(request, response);
             String redirectUrl = savedRequest.getRedirectUrl();
 
-            
             if (isValidRedirectUrl(redirectUrl)) {
                 return redirectUrl;
             } else {
@@ -179,17 +158,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
         }
 
-        
         return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
     }
 
-    
     private boolean isValidRedirectUrl(String url) {
         if (url == null || url.isBlank()) {
             return false;
         }
 
-        
         String[] invalidPatterns = {
             "/.well-known/",
             "/favicon.ico",
@@ -209,36 +185,29 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return true;
     }
 
-    
     @Override
     protected String determineTargetUrl(HttpServletRequest request) {
         return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
     }
 
-    
     @Override
     protected Map<String, Object> buildResponseData(TokenTransportResult transportResult,
                                                      Authentication authentication,
                                                      HttpServletRequest request) {
-        
-        
+
         return new HashMap<>();
     }
 
-    
     private StateType determineStateType(@Nullable FactorContext factorContext) {
         
         if (factorContext != null && factorContext.getStateConfig() != null) {
             return factorContext.getStateConfig().stateType();
         }
 
-        
         StateType globalDefault = authContextProperties.getStateType();
-        log.debug("StateConfig not found in FactorContext, using global default: {}", globalDefault);
-        return globalDefault;
+                return globalDefault;
     }
 
-    
     private Map<String, Object> buildResponseData(
             StateType stateType,
             @Nullable TokenTransportResult transportResult,
@@ -248,35 +217,28 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         Map<String, Object> responseData = new HashMap<>();
 
-        
         if (stateType == StateType.OAUTH2) {
             if (transportResult != null && transportResult.getBody() != null) {
                 responseData.putAll(transportResult.getBody());
             }
         }
 
-        
         responseData.put("authenticated", true);  
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "인증이 완료되었습니다.");
         responseData.put("redirectUrl", determineTargetUrl(request, response, authentication));
         responseData.put("stateType", stateType.name());
 
-        log.debug("Response data built for StateType: {}, contains tokens: {}",
-                stateType, responseData.containsKey("accessToken"));
-
         return responseData;
     }
-    
-    
+
     private void publishAuthenticationSuccessEvent(HttpServletRequest request,
                                                    Authentication authentication,
                                                    @Nullable FactorContext factorContext,
                                                    TokenTransportResult transportResult) {
         try {
             if (zeroTrustEventPublisher == null) {
-                log.debug("ZeroTrustEventPublisher not available, skipping event publication");
-                return;
+                                return;
             }
 
             UserDto userDto = (UserDto) authentication.getPrincipal();
@@ -305,15 +267,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     payload
             );
 
-            log.debug("Published authentication success event via ZeroTrustEventPublisher for user: {}",
-                    userDto.getUsername());
-
         } catch (Exception e) {
             log.error("Failed to publish authentication success event", e);
         }
     }
-    
-    
+
     protected Map<String, Object> createProgressInfo(int currentStep, int totalSteps) {
         Map<String, Object> progress = new HashMap<>();
         progress.put("current", currentStep);
@@ -322,12 +280,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return progress;
     }
 
-    
     protected Map<String, Object> createFactorDetail(String factorType) {
         Map<String, Object> detail = new HashMap<>();
         detail.put("type", factorType);
 
-        
         switch (factorType.toUpperCase()) {
             case "OTT":
                 detail.put("displayName", "이메일 인증 코드");
@@ -353,7 +309,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return detail;
     }
 
-    
     protected boolean processErrorEventRecommendation(FactorContext factorContext,
                                                       HttpServletRequest request,
                                                       String sessionId) {
@@ -364,18 +319,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION);
 
         if (errorEvent != null) {
-            log.debug("Processing error event recommendation: {} for session: {}",
-                     errorEvent, sessionId);
-
+            
             try {
                 boolean errorEventSent = stateMachineIntegrator.sendEvent(errorEvent, factorContext, request);
 
                 if (errorEventSent) {
                     
                     factorContext.removeAttribute("errorEventRecommendation");
-                    log.debug("Error event {} processed successfully for session: {}",
-                             errorEvent, sessionId);
-                    return true;
+                                        return true;
                 } else {
                     log.error("Failed to send error event {} for session: {}", errorEvent, sessionId);
                 }
@@ -388,7 +339,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return false;
     }
 
-    
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {
         if (userId == null || userId.isBlank() || redisTemplate == null) {
             return;
@@ -397,35 +347,24 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         try {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
 
-            
-            
-            
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
             redisTemplate.opsForHash().put(analysisKey, "previousAction",
                 previousAction != null ? previousAction.toString() : "NONE");
 
-            
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
 
-            
             redisTemplate.expire(analysisKey, Duration.ofHours(1));
 
-            
             learnBaselineOnMfaSuccess(userId, request);
-
-            log.info("[MFA][AI Native v6.8] Action set to ALLOW with previousAction={} for user: {}",
-                    previousAction, userId);
 
         } catch (Exception e) {
             log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
         }
     }
 
-    
     private void learnBaselineOnMfaSuccess(String userId, HttpServletRequest request) {
         if (baselineLearningService == null) {
-            log.debug("[MFA] BaselineLearningService not available, skipping baseline learning");
-            return;
+                        return;
         }
 
         try {
@@ -437,7 +376,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 .reasoning("MFA authentication completed successfully")
                 .build();
 
-            
             SecurityEvent event = SecurityEvent.builder()
                 .eventId(UUID.randomUUID().toString())
                 .source(SecurityEvent.EventSource.IAM)
@@ -450,14 +388,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 .description("MFA authentication success - baseline learning")
                 .build();
 
-            
             boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
 
             if (learned) {
-                log.info("[MFA][Baseline] Baseline learned on MFA success: userId={}", userId);
-            } else {
-                log.debug("[MFA][Baseline] Baseline learning skipped: userId={}", userId);
-            }
+                            } else {
+                            }
 
         } catch (Exception e) {
             log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);

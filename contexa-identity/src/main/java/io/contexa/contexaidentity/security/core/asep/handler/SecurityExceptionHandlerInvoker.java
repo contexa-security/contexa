@@ -36,9 +36,7 @@ public final class SecurityExceptionHandlerInvoker {
         Assert.notNull(returnValueHandlers, "ReturnValueHandlers must not be null");
         this.argumentResolvers = List.copyOf(argumentResolvers);
         this.returnValueHandlers = List.copyOf(returnValueHandlers);
-        log.debug("ASEP: SecurityExceptionHandlerInvoker initialized. ArgumentResolvers: {}, ReturnValueHandlers: {}",
-                this.argumentResolvers.size(), this.returnValueHandlers.size());
-    }
+            }
 
     public void invokeHandlerMethod(
             HttpServletRequest request,
@@ -54,7 +52,6 @@ public final class SecurityExceptionHandlerInvoker {
         Objects.requireNonNull(methodToInvoke, "Method in HandlerMethod cannot be null");
         Objects.requireNonNull(beanToInvoke, "Bean in HandlerMethod cannot be null");
 
-        
         List<Throwable> exceptionsToProvide = new ArrayList<>();
         Throwable exToExpose = originalException;
         while (exToExpose != null) {
@@ -62,17 +59,12 @@ public final class SecurityExceptionHandlerInvoker {
             Throwable cause = exToExpose.getCause();
             exToExpose = (cause != exToExpose ? cause : null);
         }
-        
-        
 
-        
         Object[] args = getMethodArgumentValues(request, response, authentication, originalException, handlerMethod, exceptionsToProvide.toArray());
 
         Object returnValue;
         if (log.isDebugEnabled()) {
-            log.debug("ASEP: Invoking exception handler method: {} on bean: {} with {} provided exception(s)/arg(s)",
-                    methodToInvoke.toGenericString(), beanToInvoke.getClass().getName(), exceptionsToProvide.size());
-        }
+                    }
         try {
             returnValue = methodToInvoke.invoke(beanToInvoke, args);
         } catch (InvocationTargetException ex) {
@@ -112,30 +104,21 @@ public final class SecurityExceptionHandlerInvoker {
             MethodParameter parameter = parameters[i];
             parameter.initParameterNameDiscovery(this.parameterNameDiscoverer);
 
-            
-            
             if (Throwable.class.isAssignableFrom(parameter.getParameterType()) &&
                     !parameter.hasParameterAnnotation(CaughtException.class)) { 
                 args[i] = findProvidedArgument(parameter, providedArgs);
                 if (args[i] != null) {
                     if (log.isTraceEnabled()) {
-                        log.trace("ASEP: Resolved exception parameter [{}] (type: {}) directly from provided exceptions.",
-                                parameter.getParameterName(), parameter.getParameterType().getSimpleName());
-                    }
+                                            }
                     continue; 
                 }
-                
-                
+
             }
 
-            
             SecurityHandlerMethodArgumentResolver selectedResolver = findSupportingResolver(parameter);
             if (selectedResolver != null) {
                 if (log.isTraceEnabled()) {
-                    log.trace("ASEP: Resolving argument for parameter [{}] (type: {}) with resolver [{}] in method [{}]",
-                            parameter.getParameterName(), parameter.getParameterType().getSimpleName(),
-                            selectedResolver.getClass().getSimpleName(), method.getName());
-                }
+                                    }
                 try {
                     
                     args[i] = selectedResolver.resolveArgument(
@@ -147,10 +130,7 @@ public final class SecurityExceptionHandlerInvoker {
                     throw ex;
                 }
             } else {
-                
-                
-                
-                
+
                 log.warn("ASEP: No suitable SecurityHandlerMethodArgumentResolver found (and not resolved from providedArgs) " +
                                 "for parameter type [{}] at index {} in method [{}]. Argument will be null if not optional.",
                         parameter.getParameterType().getName(), i, method.toGenericString());
@@ -160,7 +140,6 @@ public final class SecurityExceptionHandlerInvoker {
         return args;
     }
 
-    
     @Nullable
     private Object findProvidedArgument(MethodParameter parameter, @Nullable Object... providedArgs) {
         if (!ObjectUtils.isEmpty(providedArgs)) {
@@ -172,7 +151,6 @@ public final class SecurityExceptionHandlerInvoker {
         }
         return null;
     }
-
 
     @Nullable
     private SecurityHandlerMethodArgumentResolver findSupportingResolver(MethodParameter parameter) {
@@ -197,10 +175,7 @@ public final class SecurityExceptionHandlerInvoker {
 
         if (selectedHandler != null) {
             if (log.isTraceEnabled()) {
-                log.trace("ASEP: Handling return value of type [{}] with handler [{}] for method [{}]",
-                        (returnValue != null ? returnValue.getClass().getSimpleName() : "null"),
-                        selectedHandler.getClass().getSimpleName(), handlerMethod.getMethod().getName());
-            }
+                            }
             try {
                 selectedHandler.handleReturnValue(
                         returnValue, returnType, request, response, authentication, handlerMethod, resolvedMediaType
@@ -214,10 +189,7 @@ public final class SecurityExceptionHandlerInvoker {
             Class<?> paramType = returnType.getParameterType();
             if (returnValue == null && (paramType.equals(void.class) || paramType.equals(Void.class))) {
                 if (log.isDebugEnabled()) {
-                    log.debug("ASEP: Handler method [{}] returned void or null, and no specific ReturnValueHandler processed it. " +
-                                    "Assuming response was handled directly within the handler method or no content is intended.",
-                            handlerMethod.getMethod().getName());
-                }
+                                    }
                 return;
             }
             throw new IllegalStateException(

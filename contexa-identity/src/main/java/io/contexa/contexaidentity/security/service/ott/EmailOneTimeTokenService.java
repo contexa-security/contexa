@@ -30,9 +30,7 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
         this.emailService = emailService;
         this.transactionTemplate = transactionTemplate;
         this.authContextProperties = authContextProperties;
-        log.info("EmailOneTimeTokenService initialized. OTT Token Validity: {} seconds (from MfaSettings).",
-                authContextProperties.getMfa().getOtpTokenValiditySeconds());
-    }
+            }
 
     @Override
     public OneTimeToken generate(GenerateOneTimeTokenRequest request) {
@@ -49,9 +47,6 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
             internalOneTimeToken.set(delegate.generate(internalTokenRequest));
         });
 
-        log.info("Saved mapping: Internal token '{}' for user '{}'. Validity: {}s",
-                internalOneTimeToken.get().getTokenValue(), username, authContextProperties.getMfa().getOtpTokenValiditySeconds());
-
         long tokenValidityMinutes = Duration.ofSeconds(authContextProperties.getMfa().getOtpTokenValiditySeconds()).toMinutes();
 
         String emailSubject = String.format("[Spring Security Platform] Your %s Verification Code", emailPurpose);
@@ -63,10 +58,6 @@ public class EmailOneTimeTokenService implements OneTimeTokenService {
                         "<p>Thank you.</p>",
                 username, emailPurpose, internalOneTimeToken.get().getTokenValue(), tokenValidityMinutes
         );
-
-
-        log.info("Verification code ({}) for {} sent to {}. Token validity display: {} minutes.",
-                internalOneTimeToken.get().getTokenValue(), emailPurpose, username, tokenValidityMinutes);
 
         return internalOneTimeToken.get();
     }
