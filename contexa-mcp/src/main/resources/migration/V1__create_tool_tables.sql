@@ -1,5 +1,3 @@
--- Tool Metadata Table
--- 도구 메타데이터 저장
 CREATE TABLE IF NOT EXISTS tool_metadata (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tool_name VARCHAR(255) UNIQUE NOT NULL,
@@ -24,14 +22,11 @@ CREATE TABLE IF NOT EXISTS tool_metadata (
     modified_by VARCHAR(255)
 );
 
--- Indexes for tool_metadata
 CREATE INDEX idx_tool_metadata_name ON tool_metadata(tool_name);
 CREATE INDEX idx_tool_metadata_state ON tool_metadata(state);
 CREATE INDEX idx_tool_metadata_category ON tool_metadata(category);
 CREATE INDEX idx_tool_metadata_risk_level ON tool_metadata(risk_level);
 
--- Tool Execution History Table (Partitioned by date)
--- 도구 실행 이력 저장
 CREATE TABLE IF NOT EXISTS tool_execution_history (
     id UUID DEFAULT gen_random_uuid(),
     execution_id VARCHAR(255) UNIQUE NOT NULL,
@@ -51,7 +46,6 @@ CREATE TABLE IF NOT EXISTS tool_execution_history (
     PRIMARY KEY (id, executed_at)
 ) PARTITION BY RANGE (executed_at);
 
--- Create partitions for the next 12 months
 CREATE TABLE tool_execution_history_2025_01 PARTITION OF tool_execution_history
     FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
 
@@ -61,15 +55,12 @@ CREATE TABLE tool_execution_history_2025_02 PARTITION OF tool_execution_history
 CREATE TABLE tool_execution_history_2025_03 PARTITION OF tool_execution_history
     FOR VALUES FROM ('2025-03-01') TO ('2025-04-01');
 
--- Indexes for tool_execution_history
 CREATE INDEX idx_tool_execution_tool_name ON tool_execution_history(tool_name);
 CREATE INDEX idx_tool_execution_status ON tool_execution_history(status);
 CREATE INDEX idx_tool_execution_executed_by ON tool_execution_history(executed_by);
 CREATE INDEX idx_tool_execution_executed_at ON tool_execution_history(executed_at);
 CREATE INDEX idx_tool_execution_correlation_id ON tool_execution_history(correlation_id);
 
--- Approval Requests Table
--- 승인 요청 관리
 CREATE TABLE IF NOT EXISTS approval_requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     request_id VARCHAR(255) UNIQUE NOT NULL,
@@ -91,14 +82,11 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     resolved_by VARCHAR(255)
 );
 
--- Indexes for approval_requests
 CREATE INDEX idx_approval_requests_tool_name ON approval_requests(tool_name);
 CREATE INDEX idx_approval_requests_status ON approval_requests(status);
 CREATE INDEX idx_approval_requests_requestor ON approval_requests(requestor);
 CREATE INDEX idx_approval_requests_created_at ON approval_requests(created_at);
 
--- Tool Metrics Table
--- 도구 실행 메트릭
 CREATE TABLE IF NOT EXISTS tool_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tool_name VARCHAR(255) NOT NULL,
@@ -109,13 +97,10 @@ CREATE TABLE IF NOT EXISTS tool_metrics (
     recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexes for tool_metrics
 CREATE INDEX idx_tool_metrics_tool_name ON tool_metrics(tool_name);
 CREATE INDEX idx_tool_metrics_type ON tool_metrics(metric_type);
 CREATE INDEX idx_tool_metrics_recorded_at ON tool_metrics(recorded_at);
 
--- Tool Orchestration Workflows Table
--- 도구 오케스트레이션 워크플로우
 CREATE TABLE IF NOT EXISTS tool_workflows (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workflow_name VARCHAR(255) UNIQUE NOT NULL,
@@ -128,7 +113,6 @@ CREATE TABLE IF NOT EXISTS tool_workflows (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Workflow Execution History
 CREATE TABLE IF NOT EXISTS workflow_execution_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     workflow_id UUID REFERENCES tool_workflows(id),
@@ -143,13 +127,10 @@ CREATE TABLE IF NOT EXISTS workflow_execution_history (
     error_message TEXT
 );
 
--- Indexes for workflow tables
 CREATE INDEX idx_workflow_execution_workflow_id ON workflow_execution_history(workflow_id);
 CREATE INDEX idx_workflow_execution_status ON workflow_execution_history(status);
 CREATE INDEX idx_workflow_execution_started_at ON workflow_execution_history(started_at);
 
--- Tool Dependencies Table
--- 도구 간 의존성 관리
 CREATE TABLE IF NOT EXISTS tool_dependencies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tool_name VARCHAR(255) NOT NULL,
@@ -159,7 +140,6 @@ CREATE TABLE IF NOT EXISTS tool_dependencies (
     UNIQUE(tool_name, depends_on)
 );
 
--- Comments for tables
 COMMENT ON TABLE tool_metadata IS 'Central registry for all security tools metadata';
 COMMENT ON TABLE tool_execution_history IS 'Audit log of all tool executions partitioned by month';
 COMMENT ON TABLE approval_requests IS 'Tracks approval requests for high-risk tool operations';

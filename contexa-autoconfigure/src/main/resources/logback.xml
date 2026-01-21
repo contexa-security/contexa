@@ -13,15 +13,12 @@
         <appender-ref ref="CONSOLE"/>
     </root>
 
-    <!-- Contexa 패키지 로깅 레벨 -->
     <logger name="io.contexa" level="DEBUG"/>
     <logger name="io.contexa.contexacore.autonomous" level="DEBUG"/>
     <logger name="io.contexa.contexaidentity.security.statemachine" level="DEBUG"/>
 
-    <!-- Spring Framework 로깅 레벨 -->
     <logger name="org.springframework.statemachine" level="DEBUG"/>
     <logger name="org.springframework.security" level="INFO"/>
 
-    <!-- Hibernate SQL 로깅 -->
     <logger name="org.hibernate.SQL" level="DEBUG"/>
 </configuration>

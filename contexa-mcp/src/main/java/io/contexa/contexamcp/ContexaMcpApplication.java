@@ -16,7 +16,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EntityScan(basePackages = {"io.contexa.contexacommon.entity"})
 @SpringBootApplication(exclude = {
         SecurityAutoConfiguration.class,
-        UserDetailsServiceAutoConfiguration.class
+        UserDetailsServiceAutoConfiguration.class,
+        org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatAutoConfiguration.class
 })
 @RequiredArgsConstructor
 public class ContexaMcpApplication {
