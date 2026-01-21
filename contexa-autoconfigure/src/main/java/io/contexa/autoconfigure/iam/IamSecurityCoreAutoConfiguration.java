@@ -37,8 +37,7 @@ public class IamSecurityCoreAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             TieredStrategyProperties tieredStrategyProperties) {
         return new ZeroTrustSecurityService(redisTemplate,
-                threatScoreOrchestrator, redisAtomicOperations,
-                objectMapper, baselineLearningService, zeroTrustEventPublisher, tieredStrategyProperties);
+                threatScoreOrchestrator, objectMapper, baselineLearningService, zeroTrustEventPublisher, tieredStrategyProperties);
     }
 
     @Bean

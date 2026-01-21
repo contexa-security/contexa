@@ -15,7 +15,7 @@ repositories {
 }
 
 allprojects {
-    group = 'io.contexa.contexa'
+    group = 'io.contexa'
     version = '0.1.0-ALPHA'
     description = 'contexa'
 }
