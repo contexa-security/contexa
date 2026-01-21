@@ -15,6 +15,15 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "spring.ai.providers")
 public class ModelProviderProperties {
 
+    /**
+     * Provider 설정의 공통 인터페이스
+     */
+    public interface BaseProviderConfig {
+        boolean isEnabled();
+        String getBaseUrl();
+        Map<String, ModelSpec> getModels();
+    }
+
     @NestedConfigurationProperty
     private OllamaConfig ollama = new OllamaConfig();
 
@@ -34,7 +43,7 @@ public class ModelProviderProperties {
     private DefaultSpecs defaults = new DefaultSpecs();
 
     @Data
-    public static class OllamaConfig {
+    public static class OllamaConfig implements BaseProviderConfig {
         private String baseUrl = "http://127.0.0.1:11434";
         private boolean enabled = true;
         private ApiEndpoints api = new ApiEndpoints();
@@ -60,32 +69,23 @@ public class ModelProviderProperties {
     }
 
     @Data
-    public static class AnthropicConfig {
+    public static class AnthropicConfig implements BaseProviderConfig {
         private String baseUrl = "https://api.anthropic.com";
         private boolean enabled = true;
         private Map<String, ModelSpec> models = new HashMap<>();
-        private ApiConfig api = new ApiConfig();
-
-        @Data
-        public static class ApiConfig {
-            private String messagesEndpoint = "/v1/messages";
-            private String modelsEndpoint = "/v1/models";
-            private Integer maxRetries = 3;
-            private Integer retryDelayMs = 1000;
-        }
     }
 
     @Data
-    public static class OpenAIConfig {
+    public static class OpenAIConfig implements BaseProviderConfig {
         private String baseUrl = "https://api.openai.com";
         private boolean enabled = true;
         private Map<String, ModelSpec> models = new HashMap<>();
     }
 
     @Data
-    public static class VLLMConfig {
+    public static class VLLMConfig implements BaseProviderConfig {
         private String baseUrl = "http://localhost:8000";
-        private boolean enabled = false;  
+        private boolean enabled = false;
         private Map<String, ModelSpec> models = new HashMap<>();
         private PerformanceDefaults performance = new PerformanceDefaults();
 

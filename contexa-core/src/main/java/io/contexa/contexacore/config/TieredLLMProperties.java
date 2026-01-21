@@ -48,7 +48,7 @@ public class TieredLLMProperties {
 
         public String getModelWithFallback() {
             if (backup != null && backup.getModel() != null) {
-                return model; 
+                return model;
             }
             return model;
         }
@@ -94,8 +94,8 @@ public class TieredLLMProperties {
 
             public Double getDefaultTemperature(int tier) {
                 return switch (tier) {
-                    case 1 -> 0.3;  
-                    case 2 -> 0.7;  
+                    case 1 -> 0.3;
+                    case 2 -> 0.7;
                     default -> 0.5;
                 };
             }
@@ -116,12 +116,12 @@ public class TieredLLMProperties {
         String modelName = switch (tier) {
             case 1 -> layer1 != null ? layer1.getModel() : null;
             case 2 -> layer2 != null ? layer2.getModel() : null;
-            default -> layer1 != null ? layer1.getModel() : null; 
+            default -> layer1 != null ? layer1.getModel() : null;
         };
 
         if (modelName == null || modelName.trim().isEmpty()) {
-            log.warn("Tier {}에 대한 모델이 설정되지 않았습니다. 런타임 폴백 전략을 사용합니다", tier);
-            
+            log.warn("Model for Tier {} is not configured. Using runtime fallback strategy", tier);
+
             return null;
         }
 
@@ -140,11 +140,11 @@ public class TieredLLMProperties {
         if (config != null && config.hasBackupModel()) {
             String backupModel = config.getBackup().getModel();
             if (backupModel != null && !backupModel.trim().isEmpty()) {
-                                return backupModel.trim();
+                return backupModel.trim();
             }
         }
 
-                return null;
+        return null;
     }
 
     public Integer getTimeoutForTier(int tier) {
@@ -153,16 +153,16 @@ public class TieredLLMProperties {
         Integer timeout = switch (tier) {
             case 1 -> tiered.getLayer1().getTimeoutMs();
             case 2 -> tiered.getLayer2().getTimeoutMs();
-            default -> 1000; 
+            default -> 1000;
         };
 
         if (timeout == null || timeout <= 0) {
-            log.warn("유효하지 않은 타임아웃 값: {} (tier: {}), 기본값 사용", timeout, tier);
+            log.warn("Invalid timeout value: {} (tier: {}), using default", timeout, tier);
             return getDefaultTimeoutForTier(tier);
         }
 
         if (timeout > 30000) {
-            log.warn("타임아웃이 너무 깁니다: {}ms (tier: {}), 30초로 제한", timeout, tier);
+            log.warn("Timeout is too long: {}ms (tier: {}), limiting to 30s", timeout, tier);
             return 30000;
         }
 
@@ -179,7 +179,7 @@ public class TieredLLMProperties {
         };
 
         if (temperature == null || temperature < 0.0 || temperature > 1.0) {
-            log.warn("유효하지 않은 temperature 값: {} (tier: {}), 기본값 사용", temperature, tier);
+            log.warn("Invalid temperature value: {} (tier: {}), using default", temperature, tier);
             return getDefaultTemperatureForTier(tier);
         }
 
@@ -187,7 +187,8 @@ public class TieredLLMProperties {
     }
 
     public boolean isOllamaModel(String modelName) {
-        if (modelName == null) return false;
+        if (modelName == null)
+            return false;
 
         if (modelProviderProperties != null) {
             String provider = modelProviderProperties.getProviderForModel(modelName);
@@ -195,15 +196,16 @@ public class TieredLLMProperties {
         }
 
         return modelName.contains(":") ||
-               modelName.startsWith("llama") ||
-               modelName.startsWith("tinyllama") ||
-               modelName.startsWith("mistral") ||
-               modelName.startsWith("phi") ||
-               modelName.startsWith("qwen");
+                modelName.startsWith("llama") ||
+                modelName.startsWith("tinyllama") ||
+                modelName.startsWith("mistral") ||
+                modelName.startsWith("phi") ||
+                modelName.startsWith("qwen");
     }
 
     public boolean isCloudModel(String modelName) {
-        if (modelName == null) return false;
+        if (modelName == null)
+            return false;
 
         if (modelProviderProperties != null) {
             String provider = modelProviderProperties.getProviderForModel(modelName);
@@ -211,64 +213,64 @@ public class TieredLLMProperties {
         }
 
         return modelName.startsWith("claude") ||
-               modelName.startsWith("gpt") ||
-               modelName.startsWith("anthropic") ||
-               modelName.startsWith("openai");
+                modelName.startsWith("gpt") ||
+                modelName.startsWith("anthropic") ||
+                modelName.startsWith("openai");
     }
 
     /**
-     * Provider priority 설정을 List로 반환합니다.
-     * priority 설정에 따라 모델 선택 시 우선순위가 결정됩니다.
+     * Returns provider priority configuration as a List.
+     * Priority setting determines the order of model selection.
      *
-     * @return 프로바이더 우선순위 목록
+     * @return List of provider priorities
      */
     public List<String> getProviderPriorityList() {
         if (providerPriority == null || providerPriority.trim().isEmpty()) {
             return Arrays.asList(DEFAULT_PROVIDER_PRIORITY.split(","));
         }
         return Arrays.stream(providerPriority.split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .toList();
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
     }
 
     private void validateTier(int tier) {
         if (tier < 1 || tier > 2) {
-            throw new ModelSelectionException("유효하지 않은 tier 값: " + tier + " (1-2 사이여야 함)", tier);
+            throw new ModelSelectionException("Invalid tier value: " + tier + " (must be 1-2)", tier);
         }
     }
 
     private Integer getDefaultTimeoutForTier(int tier) {
-        
+
         if (modelProviderProperties != null) {
-            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
-                modelProviderProperties.getTierDefaults(tier);
+            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties
+                    .getTierDefaults(tier);
             if (tierDefaults != null && tierDefaults.getTimeoutMs() != null) {
                 return tierDefaults.getTimeoutMs();
             }
         }
 
         return switch (tier) {
-            case 1 -> 100;     
-            case 2 -> 5000;    
-            default -> 1000;   
+            case 1 -> 100;
+            case 2 -> 5000;
+            default -> 1000;
         };
     }
 
     private Double getDefaultTemperatureForTier(int tier) {
-        
+
         if (modelProviderProperties != null) {
-            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
-                modelProviderProperties.getTierDefaults(tier);
+            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties
+                    .getTierDefaults(tier);
             if (tierDefaults != null && tierDefaults.getTemperature() != null) {
                 return tierDefaults.getTemperature();
             }
         }
 
         return switch (tier) {
-            case 1 -> 0.3;    
-            case 2 -> 0.7;    
-            default -> 0.5;   
+            case 1 -> 0.3;
+            case 2 -> 0.7;
+            default -> 0.5;
         };
     }
 
@@ -282,41 +284,41 @@ public class TieredLLMProperties {
 
         validateTrafficDistribution();
 
-            }
+    }
 
     private void applyDefaultModels() {
-        
+
         if (layer1 == null) {
             layer1 = new LayerConfig();
         }
         if (layer1.getModel() == null || layer1.getModel().trim().isEmpty()) {
             layer1.setModel(DEFAULT_LAYER1_MODEL);
-                    }
+        }
 
         if (layer2 == null) {
             layer2 = new LayerConfig();
         }
         if (layer2.getModel() == null || layer2.getModel().trim().isEmpty()) {
             layer2.setModel(DEFAULT_LAYER2_MODEL);
-                    }
+        }
     }
 
     private void validateLayerConfig(int tier, LayerConfig config) {
         if (config == null) {
-            log.warn("Layer {} 설정이 없습니다. 런타임에 폴백 전략을 사용합니다", tier);
+            log.warn("Layer {} configuration missing. Using runtime fallback strategy", tier);
             return;
         }
 
         if (config.getModel() == null || config.getModel().trim().isEmpty()) {
-            log.warn("Layer {}의 모델이 설정되지 않았습니다. 런타임에 폴백 전략을 사용합니다", tier);
+            log.warn("Layer {} model not configured. Using runtime fallback strategy", tier);
             return;
         }
 
-            }
+    }
 
     private void validateTrafficDistribution() {
         if (tiered == null || tiered.getTrafficDistribution() == null) {
-            log.warn("트래픽 분배 설정이 없습니다. 기본값 사용 (Layer1=95%, Layer2=5%)");
+            log.warn("Traffic distribution configuration missing. Using defaults (Layer1=95%, Layer2=5%)");
             return;
         }
 
@@ -324,8 +326,8 @@ public class TieredLLMProperties {
         double total = dist.getLayer1Percentage() + dist.getLayer2Percentage();
 
         if (Math.abs(total - 100.0) > 0.01) {
-            log.warn("트래픽 분배 비율 합계가 100%가 아닙니다: {}%", total);
+            log.warn("Traffic distribution total is not 100%: {}%", total);
         }
 
-            }
+    }
 }

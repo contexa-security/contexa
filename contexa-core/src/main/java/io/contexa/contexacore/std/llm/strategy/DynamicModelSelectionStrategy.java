@@ -30,13 +30,13 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
     @Override
     public ChatModel selectModel(ExecutionContext context) {
-        
+
         try {
-            
+
             if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
                 ChatModel model = tryGetModel(context.getPreferredModel());
                 if (model != null) {
-                                        return model;
+                    return model;
                 }
             }
 
@@ -68,13 +68,13 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
             ChatModel defaultModel = selectDefaultModel();
             if (defaultModel == null) {
-                log.warn("모델 선택 불가 - RequestId: {}. LLM 기능이 비활성화됨.", context.getRequestId());
+                log.warn("Model selection unavailable - RequestId: {}. LLM features disabled.", context.getRequestId());
             }
             return defaultModel;
 
         } catch (Exception e) {
-            log.error("모델 선택 실패 - RequestId: {}", context.getRequestId(), e);
-            throw new ModelSelectionException("모델 선택 중 오류 발생: " + e.getMessage(), e);
+            log.error("Model selection failed - RequestId: {}", context.getRequestId(), e);
+            throw new ModelSelectionException("Error during model selection: " + e.getMessage(), e);
         }
     }
 
@@ -85,7 +85,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         ChatModel model = tryGetModelWithFallback(modelName, tier);
 
         if (model != null) {
-                    }
+        }
 
         return model;
     }
@@ -119,11 +119,10 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             for (ModelDescriptor desc : providerModels) {
                 Integer descTier = desc.getTier();
                 if (descTier != null && descTier == tier &&
-                    desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
+                        desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
                     model = tryGetModel(desc.getModelId());
                     if (model != null) {
-                        log.info("Priority 기반 모델 선택: {} (provider: {}, tier: {})",
-                            desc.getModelId(), provider, tier);
+
                         return model;
                     }
                 }
@@ -137,15 +136,14 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 if (desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
                     model = tryGetModel(desc.getModelId());
                     if (model != null) {
-                        log.info("Priority 기반 폴백 모델 선택: {} (provider: {}, 요청 tier: {})",
-                            desc.getModelId(), provider, tier);
+
                         return model;
                     }
                 }
             }
         }
 
-        log.warn("Tier {}에 사용 가능한 모델이 없습니다", tier);
+        log.warn("No available model for Tier {}", tier);
         return null;
     }
 
@@ -155,7 +153,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
         ChatModel model = tryGetModelWithFallback(modelName, tier);
         if (model != null) {
-                    }
+        }
 
         return model;
     }
@@ -165,46 +163,46 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
         if (Boolean.TRUE.equals(context.getRequireFastResponse())) {
             ModelDescriptor fastModel = allModels.stream()
-                .filter(m -> m.isFastResponse())
-                .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-                .min(Comparator.comparing(m -> m.getPerformance().getLatency()))
-                .orElse(null);
+                    .filter(m -> m.isFastResponse())
+                    .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
+                    .min(Comparator.comparing(m -> m.getPerformance().getLatency()))
+                    .orElse(null);
 
             if (fastModel != null) {
                 ChatModel model = tryGetModel(fastModel.getModelId());
                 if (model != null) {
-                                        return model;
+                    return model;
                 }
             }
         }
 
         if (Boolean.TRUE.equals(context.getPreferLocalModel())) {
             ModelDescriptor localModel = allModels.stream()
-                .filter(m -> "ollama".equals(m.getProvider()))
-                .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-                .findFirst()
-                .orElse(null);
+                    .filter(m -> "ollama".equals(m.getProvider()))
+                    .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
+                    .findFirst()
+                    .orElse(null);
 
             if (localModel != null) {
                 ChatModel model = tryGetModel(localModel.getModelId());
                 if (model != null) {
-                                        return model;
+                    return model;
                 }
             }
         }
 
         if (Boolean.TRUE.equals(context.getPreferCloudModel())) {
             ModelDescriptor cloudModel = allModels.stream()
-                .filter(m -> !"ollama".equals(m.getProvider()))
-                .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-                .filter(m -> m.supportsAdvancedFeatures())
-                .findFirst()
-                .orElse(null);
+                    .filter(m -> !"ollama".equals(m.getProvider()))
+                    .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
+                    .filter(m -> m.supportsAdvancedFeatures())
+                    .findFirst()
+                    .orElse(null);
 
             if (cloudModel != null) {
                 ChatModel model = tryGetModel(cloudModel.getModelId());
                 if (model != null) {
-                                        return model;
+                    return model;
                 }
             }
         }
@@ -213,12 +211,12 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     }
 
     private ChatModel selectDefaultModel() {
-        
+
         String defaultModel = tieredLLMProperties.getModelNameForTier(2);
         ChatModel model = tryGetModelWithFallback(defaultModel, 2);
 
         if (model != null) {
-                        return model;
+            return model;
         }
 
         Collection<ModelDescriptor> allModels = modelRegistry.getAllModels();
@@ -226,14 +224,14 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
                 model = tryGetModel(descriptor.getModelId());
                 if (model != null) {
-                    log.warn("최종 폴백 모델 선택: {}", descriptor.getModelId());
+                    log.warn("Final fallback model selected: {}", descriptor.getModelId());
                     return model;
                 }
             }
         }
 
-        log.warn("사용 가능한 모델이 없습니다. LLM 기능이 비활성화됩니다. " +
-            "등록된 모델 수: {}. spring.ai.* 설정을 확인하세요.", allModels.size());
+        log.warn("No available models. LLM features disabled. " +
+                "Registered models: {}. Check spring.ai.* settings.", allModels.size());
         return null;
     }
 
@@ -241,12 +239,12 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         try {
             return modelRegistry.getModel(modelId);
         } catch (Exception e) {
-                        return null;
+            return null;
         }
     }
 
     private ChatModel tryGetModelWithFallback(String modelId, int tier) {
-        
+
         ChatModel model = tryGetModel(modelId);
         if (model != null) {
             return model;
@@ -254,7 +252,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
         String backupModelId = tieredLLMProperties.getBackupModelNameForTier(tier);
         if (backupModelId != null && !backupModelId.equals(modelId)) {
-                        model = tryGetModel(backupModelId);
+            model = tryGetModel(backupModelId);
             if (model != null) {
                 return model;
             }
@@ -266,8 +264,8 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     @Override
     public Set<String> getSupportedModels() {
         return modelRegistry.getAllModels().stream()
-            .map(ModelDescriptor::getModelId)
-            .collect(Collectors.toSet());
+                .map(ModelDescriptor::getModelId)
+                .collect(Collectors.toSet());
     }
 
     @Override
@@ -283,20 +281,20 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     @Override
     public void recordModelPerformance(String modelName, long responseTime, boolean success) {
         ModelPerformanceMetric metric = modelPerformance.computeIfAbsent(modelName,
-            k -> new ModelPerformanceMetric());
+                k -> new ModelPerformanceMetric());
 
         metric.recordExecution(responseTime, success);
 
         if (metric.getSuccessRate() < 0.3 && metric.getTotalExecutions() > 10) {
-            log.warn("모델 {} 성능 불량으로 비활성화: 성공률 {}%",
-                modelName, metric.getSuccessRate() * 100);
+            log.warn("Model {} disabled due to poor performance: success rate {}%",
+                    modelName, metric.getSuccessRate() * 100);
             modelRegistry.updateModelStatus(modelName, ModelDescriptor.ModelStatus.UNAVAILABLE);
         }
 
-            }
+    }
 
     public void refreshModels() {
         modelRegistry.refreshModels();
-            }
+    }
 
 }

@@ -29,7 +29,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     @Override
     public Mono<String> execute(ExecutionContext context) {
-        
+
         if (context == null) {
             return Mono.error(new IllegalArgumentException("ExecutionContext cannot be null"));
         }
@@ -43,8 +43,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (selectedModel == null) {
                 throw new IllegalStateException(
-                    "LLM 모델이 설정되지 않았습니다. " +
-                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "LLM 모델이 설정되지 않았습니다. " +
+                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
             }
 
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
@@ -54,29 +54,29 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             if (context.getChatOptions() != null) {
                 promptSpec = promptSpec.options(context.getChatOptions());
             } else if (context.getTemperature() != null || context.getMaxTokens() != null ||
-                      context.getPreferredModel() != null || context.getTier() != null ||
-                      context.getAnalysisLevel() != null) {
-                
+                    context.getPreferredModel() != null || context.getTier() != null ||
+                    context.getAnalysisLevel() != null) {
+
                 if (selectedModel instanceof OllamaChatModel) {
                     String modelName = determineOllamaModelName(context);
                     if (modelName != null) {
                         OllamaOptions ollamaOptions = OllamaOptions.builder()
-                            .model(modelName)
-                            .temperature(context.getTemperature() != null ? context.getTemperature() : 0.7d)
-                            .build();
+                                .model(modelName)
+                                .temperature(context.getTemperature() != null ? context.getTemperature() : 0.7d)
+                                .build();
                         promptSpec = promptSpec.options(ollamaOptions);
-                                            }
+                    }
                 } else {
                     ChatOptions options = ChatOptions.builder()
-                        .temperature(context.getTemperature())
-                        .maxTokens(context.getMaxTokens())
-                        .build();
+                            .temperature(context.getTemperature())
+                            .maxTokens(context.getMaxTokens())
+                            .build();
                     promptSpec = promptSpec.options(options);
                 }
             }
 
             if (context.getToolExecutionEnabled() != null && context.getToolExecutionEnabled()) {
-                
+
                 if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
                     promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
                 } else if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
@@ -92,24 +92,24 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             modelSelectionStrategy.recordModelPerformance(modelName, executionTime, response != null);
 
             if (response == null || response.isBlank()) {
-                log.warn("LLM 응답이 null 또는 빈 문자열 - RequestId: {}", context.getRequestId());
-                return "{}";  
+                log.warn("LLM response is null or empty - RequestId: {}", context.getRequestId());
+                return "{}";
             }
 
             return response;
         })
-        
-        .retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
-            .filter(throwable -> throwable instanceof java.net.SocketTimeoutException
-                || throwable instanceof java.io.IOException)
-            .doBeforeRetry(retrySignal -> log.warn("LLM 재시도 #{} - RequestId: {}, 오류: {}",
-                retrySignal.totalRetries() + 1, context.getRequestId(), retrySignal.failure().getMessage())))
-        .doOnError(error -> log.error("LLM 실행 실패 - RequestId: {}", context.getRequestId(), error));
+
+                .retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
+                        .filter(throwable -> throwable instanceof java.io.IOException)
+                        .doBeforeRetry(retrySignal -> log.warn("LLM Retry #{} - RequestId: {}, Error: {}",
+                                retrySignal.totalRetries() + 1, context.getRequestId(),
+                                retrySignal.failure().getMessage())))
+                .doOnError(error -> log.error("LLM execution failed - RequestId: {}", context.getRequestId(), error));
     }
-    
+
     @Override
     public Flux<String> stream(ExecutionContext context) {
-                
+
         return Flux.defer(() -> {
             try {
 
@@ -117,35 +117,35 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
                 if (selectedModel == null) {
                     return Flux.error(new IllegalStateException(
-                        "LLM 모델이 설정되지 않았습니다. " +
-                        "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요."));
+                            "LLM model not configured. " +
+                                    "Check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings."));
                 }
 
                 ChatClient chatClient = ChatClient.builder(selectedModel).build();
 
                 long startTime = System.currentTimeMillis();
                 return streamingHandler.handleStreaming(chatClient, context)
-                    .doOnComplete(() -> {
-                        long executionTime = System.currentTimeMillis() - startTime;
-                        String modelName = selectedModel.getClass().getSimpleName();
-                        modelSelectionStrategy.recordModelPerformance(modelName, executionTime, true);
-                                            })
-                    .doOnError(error -> {
-                        long executionTime = System.currentTimeMillis() - startTime;
-                        String modelName = selectedModel.getClass().getSimpleName();
-                        modelSelectionStrategy.recordModelPerformance(modelName, executionTime, false);
-                        log.error("스트리밍 실패 - 모델: {}, 실행시간: {}ms", modelName, executionTime);
-                    });
+                        .doOnComplete(() -> {
+                            long executionTime = System.currentTimeMillis() - startTime;
+                            String modelName = selectedModel.getClass().getSimpleName();
+                            modelSelectionStrategy.recordModelPerformance(modelName, executionTime, true);
+                        })
+                        .doOnError(error -> {
+                            long executionTime = System.currentTimeMillis() - startTime;
+                            String modelName = selectedModel.getClass().getSimpleName();
+                            modelSelectionStrategy.recordModelPerformance(modelName, executionTime, false);
+                            log.error("Streaming failed - model: {}, execution time: {}ms", modelName, executionTime);
+                        });
             } catch (Exception e) {
-                log.error("LLM 스트리밍 실패 - RequestId: {}", context.getRequestId(), e);
+                log.error("LLM Streaming failed - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
             }
         });
     }
-    
+
     @Override
     public <T> Mono<T> executeEntity(ExecutionContext context, Class<T> targetType) {
-        
+
         if (context == null || context.getPrompt() == null) {
             return Mono.error(new IllegalArgumentException("ExecutionContext and Prompt cannot be null"));
         }
@@ -159,8 +159,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (selectedModel == null) {
                 throw new IllegalStateException(
-                    "LLM 모델이 설정되지 않았습니다. " +
-                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "LLM 모델이 설정되지 않았습니다. " +
+                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
             }
 
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
@@ -180,34 +180,35 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             return result;
         })
-        .doOnError(error -> log.error("LLM Entity 실행 실패 - RequestId: {}", context.getRequestId(), error));
+                .doOnError(error -> log.error("LLM Entity execution failed - RequestId: {}", context.getRequestId(),
+                        error));
     }
 
     private String determineOllamaModelName(ExecutionContext context) {
-        
+
         if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
-                        return context.getPreferredModel();
+            return context.getPreferredModel();
         }
 
         if (context.getAnalysisLevel() != null) {
             int tier = context.getAnalysisLevel().getDefaultTier();
             String modelName = tieredLLMProperties.getModelNameForTier(tier);
-                        return modelName;
+            return modelName;
         }
 
         if (context.getTier() != null) {
             String modelName = tieredLLMProperties.getModelNameForTier(context.getTier());
-                        return modelName;
+            return modelName;
         }
 
         if (context.getSecurityTaskType() != null) {
             int tier = context.getSecurityTaskType().getDefaultTier();
             String modelName = tieredLLMProperties.getModelNameForTier(tier);
-                        return modelName;
+            return modelName;
         }
 
-        String defaultModel = tieredLLMProperties.getModelNameForTier(1);  
-        log.warn("모델 선택 불가능, 기본 모델 사용: {}", defaultModel);
+        String defaultModel = tieredLLMProperties.getModelNameForTier(1);
+        log.warn("Model selection unavailable, using default model: {}", defaultModel);
         return defaultModel;
     }
 
@@ -217,17 +218,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         ExecutionContext context = ExecutionContext.from(prompt);
         return execute(context);
     }
-    
+
     @Override
     public <T> Mono<T> entity(Prompt prompt, Class<T> targetType) {
-                
+
         ExecutionContext context = ExecutionContext.from(prompt);
         return executeEntity(context, targetType);
     }
-    
+
     @Override
     public Flux<String> stream(Prompt prompt) {
-                
+
         ExecutionContext context = ExecutionContext.builder()
                 .prompt(prompt)
                 .streamingMode(true)
@@ -237,31 +238,31 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
     @Override
     public Mono<String> callTools(Prompt prompt, List<Object> toolProviders) {
-                
+
         ExecutionContext context = ExecutionContext.builder()
                 .prompt(prompt)
                 .toolProviders(toolProviders)
                 .toolExecutionEnabled(true)
                 .build();
-        
+
         return execute(context);
     }
-    
+
     @Override
     public Mono<String> callToolCallbacks(Prompt prompt, ToolCallback[] toolCallbacks) {
-                
+
         ExecutionContext context = ExecutionContext.builder()
                 .prompt(prompt)
                 .toolCallbacks(List.of(toolCallbacks))
                 .toolExecutionEnabled(true)
                 .build();
-        
+
         return execute(context);
     }
-    
+
     @Override
     public Mono<ChatResponse> callToolsResponse(Prompt prompt, List<Object> toolProviders) {
-                
+
         return Mono.fromCallable(() -> {
             ExecutionContext context = ExecutionContext.builder()
                     .prompt(prompt)
@@ -273,8 +274,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (model == null) {
                 throw new IllegalStateException(
-                    "LLM 모델이 설정되지 않았습니다. " +
-                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "LLM 모델이 설정되지 않았습니다. " +
+                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
             }
 
             ChatClient client = ChatClient.builder(model).build();
@@ -290,10 +291,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return promptSpec.call().chatResponse();
         });
     }
-    
+
     @Override
     public Mono<ChatResponse> callToolCallbacksResponse(Prompt prompt, ToolCallback[] toolCallbacks) {
-                
+
         return Mono.fromCallable(() -> {
             ExecutionContext context = ExecutionContext.builder()
                     .prompt(prompt)
@@ -305,8 +306,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (model == null) {
                 throw new IllegalStateException(
-                    "LLM 모델이 설정되지 않았습니다. " +
-                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "LLM 모델이 설정되지 않았습니다. " +
+                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
             }
 
             ChatClient client = ChatClient.builder(model).build();
@@ -322,47 +323,47 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             return promptSpec.call().chatResponse();
         });
     }
-    
+
     @Override
     public Flux<String> streamTools(Prompt prompt, List<Object> toolProviders) {
-                
+
         ExecutionContext context = ExecutionContext.builder()
                 .prompt(prompt)
                 .toolProviders(toolProviders)
                 .toolExecutionEnabled(true)
                 .streamingMode(true)
                 .build();
-        
+
         return stream(context);
     }
-    
+
     @Override
     public Flux<String> streamToolCallbacks(Prompt prompt, ToolCallback[] toolCallbacks) {
-                
+
         ExecutionContext context = ExecutionContext.builder()
                 .prompt(prompt)
                 .toolCallbacks(List.of(toolCallbacks))
                 .toolExecutionEnabled(true)
                 .streamingMode(true)
                 .build();
-        
+
         return stream(context);
     }
 
     public Mono<String> executeSecurityTask(int tier, String prompt, String requestId) {
-                
+
         ExecutionContext context = ExecutionContext.forTier(tier, new Prompt(prompt))
                 .setRequestId(requestId)
                 .addMetadata("security.tier", tier)
                 .addMetadata("security.timestamp", System.currentTimeMillis());
-        
+
         return execute(context);
     }
 
-    public Mono<String> executeSoarTask(ExecutionContext.SecurityTaskType taskType, 
-                                         Prompt prompt, 
-                                         List<ToolCallback> soarTools) {
-                
+    public Mono<String> executeSoarTask(ExecutionContext.SecurityTaskType taskType,
+            Prompt prompt,
+            List<ToolCallback> soarTools) {
+
         ExecutionContext context = ExecutionContext.builder()
                 .prompt(prompt)
                 .securityTaskType(taskType)
@@ -372,10 +373,10 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 .build();
 
         if (taskType == ExecutionContext.SecurityTaskType.SOAR_AUTOMATION ||
-            taskType == ExecutionContext.SecurityTaskType.APPROVAL_WORKFLOW) {
+                taskType == ExecutionContext.SecurityTaskType.APPROVAL_WORKFLOW) {
             context.setTier(3);
         }
-        
+
         return execute(context);
     }
 

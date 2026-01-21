@@ -58,20 +58,20 @@ public class TieredSecurityLLMConfiguration {
 
         if (ollamaChatModel != null) {
 
-                        return ollamaChatModel;
+            return ollamaChatModel;
         }
 
-        log.warn("  ⚠ Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
+        log.warn("  ⚠ Ollama ChatModel not configured. Attempting fallback model");
 
         if (anthropicChatModel != null) {
-                        return anthropicChatModel;
+            return anthropicChatModel;
         }
 
         if (openAiChatModel != null) {
-                        return openAiChatModel;
+            return openAiChatModel;
         }
 
-        log.warn("  ⚠ 모든 모델 제공자가 사용 불가능합니다. Layer 1 모델이 null로 설정됩니다");
+        log.warn("  ⚠ All model providers unavailable. Layer 1 model set to null");
         return null;
     }
 
@@ -84,20 +84,20 @@ public class TieredSecurityLLMConfiguration {
 
         if (ollamaChatModel != null) {
 
-                        return ollamaChatModel;
+            return ollamaChatModel;
         }
 
-        log.warn("  ⚠ Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
+        log.warn("  ⚠ Ollama ChatModel not configured. Attempting fallback model");
 
         if (anthropicChatModel != null) {
-                        return anthropicChatModel;
+            return anthropicChatModel;
         }
 
         if (openAiChatModel != null) {
-                        return openAiChatModel;
+            return openAiChatModel;
         }
 
-        log.warn("  ⚠ 모든 모델 제공자가 사용 불가능합니다. Layer 2 모델이 null로 설정됩니다");
+        log.warn("  ⚠ All model providers unavailable. Layer 2 model set to null");
         return null;
     }
 
@@ -108,10 +108,10 @@ public class TieredSecurityLLMConfiguration {
             @Value("${spring.ai.security.layer2.backup.model:claude-3-5-sonnet-20241022}") String modelName) {
 
         if (anthropicChatModel != null) {
-                        return anthropicChatModel;
+            return anthropicChatModel;
         }
 
-        log.warn("  - Anthropic ChatModel을 찾을 수 없습니다. API 키 확인 필요");
+        log.warn("  - Anthropic ChatModel not found. API key verification required");
         return null;
     }
 
@@ -122,10 +122,10 @@ public class TieredSecurityLLMConfiguration {
             @Value("${spring.ai.security.layer2.backup.model:gpt-4o}") String modelName) {
 
         if (openAiChatModel != null) {
-                        return openAiChatModel;
+            return openAiChatModel;
         }
 
-        log.warn("  - OpenAI ChatModel을 찾을 수 없습니다. API 키 확인 필요");
+        log.warn("  - OpenAI ChatModel not found. API key verification required");
         return null;
     }
 
@@ -158,25 +158,25 @@ public class TieredSecurityLLMConfiguration {
             String trimmedName = modelName.trim().toLowerCase();
             ChatModel model = availableModels.get(trimmedName);
             if (model != null) {
-                                return model;
+                return model;
             }
         }
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, ChatModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.warn("  ⚠ 우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
+            log.warn("  ⚠ No priority model found. Using {} (fallback)", firstEntry.getKey());
             return firstEntry.getValue();
         }
 
         log.warn("No ChatModel available. LLM features will be disabled. " +
-            "Configure spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
+                "Configure spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
         return null;
     }
 
     @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
     public StreamingHandler streamingHandler() {
-                return new DefaultStreamingHandler(tieredLLMProperties);
+        return new DefaultStreamingHandler(tieredLLMProperties);
     }
 
     @Bean
@@ -190,17 +190,17 @@ public class TieredSecurityLLMConfiguration {
 
     @Bean
     public LLMOperations llmOperations(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-                return unifiedLLMOrchestrator;
+        return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "llmClient")
     public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-                return unifiedLLMOrchestrator;
+        return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "toolCapableLLMClient")
     public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-                return unifiedLLMOrchestrator;
+        return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "primaryEmbeddingModel")
@@ -227,18 +227,18 @@ public class TieredSecurityLLMConfiguration {
             String trimmedName = modelName.trim().toLowerCase();
             EmbeddingModel model = availableModels.get(trimmedName);
             if (model != null) {
-                                return model;
+                return model;
             }
         }
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, EmbeddingModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.warn("  ⚠ 우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
+            log.warn("  ⚠ No prioritized model found. Using {} (fallback)", firstEntry.getKey());
             return firstEntry.getValue();
         }
 
         log.warn("No EmbeddingModel available. Embedding features will be disabled. " +
-            "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
+                "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
         return null;
     }
 
@@ -247,7 +247,7 @@ public class TieredSecurityLLMConfiguration {
     @ConditionalOnMissingBean(ChatClient.Builder.class)
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = true)
     public ChatClient.Builder chatClientBuilder(ChatModel primaryChatModel) {
-                return ChatClient.builder(primaryChatModel);
+        return ChatClient.builder(primaryChatModel);
     }
 
     @Bean
@@ -255,10 +255,10 @@ public class TieredSecurityLLMConfiguration {
     @ConditionalOnMissingBean(name = "defaultChatClient")
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false")
     public ChatClient defaultChatClient(ChatClient.Builder builder) {
-                return builder.build();
+        return builder.build();
     }
 
     @PostConstruct
     public void init() {
-                                                                                                                                                                            }
+    }
 }

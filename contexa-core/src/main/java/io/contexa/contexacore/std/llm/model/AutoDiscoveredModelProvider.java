@@ -9,9 +9,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Spring AI가 자동 생성한 ChatModel을 래핑하는 프로바이더입니다.
- * Gemini, Mistral 등 새로운 프로바이더가 Spring AI에 의해 자동 구성되면
- * 이 클래스가 해당 ChatModel을 래핑하여 DynamicModelRegistry에 등록합니다.
+ * Provider wrapping ChatModels auto-discovered by Spring AI.
+ * When new providers are auto-configured by Spring AI (e.g., Gemini, Mistral),
+ * this class wraps the corresponding ChatModel and registers it in
+ * DynamicModelRegistry.
  */
 @Slf4j
 public class AutoDiscoveredModelProvider implements ModelProvider {
@@ -27,45 +28,22 @@ public class AutoDiscoveredModelProvider implements ModelProvider {
         this.modelDescriptor = createModelDescriptor();
         this.ready = chatModel != null;
 
-        log.info("AutoDiscoveredModelProvider 생성: provider={}, model={}",
-            providerName, chatModel != null ? chatModel.getClass().getSimpleName() : "null");
     }
 
     private ModelDescriptor createModelDescriptor() {
         String modelId = providerName + "-default";
         String displayName = providerName.substring(0, 1).toUpperCase() +
-            providerName.substring(1) + " (Auto-discovered)";
+                providerName.substring(1) + " (Auto-discovered)";
 
+        // 자동 발견된 모델의 경우 최소 필수 정보만 설정
+        // 상세 정보(capabilities, performance, cost, options)는 알 수 없으므로 설정하지 않음
         return ModelDescriptor.builder()
-            .modelId(modelId)
-            .displayName(displayName)
-            .provider(providerName)
-            .status(chatModel != null ?
-                ModelDescriptor.ModelStatus.AVAILABLE :
-                ModelDescriptor.ModelStatus.UNAVAILABLE)
-            .capabilities(ModelDescriptor.ModelCapabilities.builder()
-                .streaming(true)
-                .toolCalling(true)
-                .functionCalling(true)
-                .supportsSystemMessage(true)
-                .build())
-            .performance(ModelDescriptor.PerformanceProfile.builder()
-                .latency(500)
-                .throughput(ModelDescriptor.ThroughputLevel.MEDIUM)
-                .concurrency(10)
-                .recommendedTimeout(30000)
-                .performanceScore(70.0)
-                .build())
-            .cost(ModelDescriptor.CostProfile.builder()
-                .costPerInputToken(0.0)
-                .costPerOutputToken(0.0)
-                .costEfficiency(100.0)
-                .build())
-            .options(ModelDescriptor.ModelOptions.builder()
-                .temperature(0.7)
-                .topP(0.9)
-                .build())
-            .build();
+                .modelId(modelId)
+                .displayName(displayName)
+                .provider(providerName)
+                .status(chatModel != null ? ModelDescriptor.ModelStatus.AVAILABLE
+                        : ModelDescriptor.ModelStatus.UNAVAILABLE)
+                .build();
     }
 
     @Override
@@ -96,7 +74,7 @@ public class AutoDiscoveredModelProvider implements ModelProvider {
 
     @Override
     public ChatModel createModel(ModelDescriptor descriptor, Map<String, Object> config) {
-        // 자동 발견된 ChatModel은 이미 생성되어 있으므로 그대로 반환
+        // Return pre-existing auto-discovered ChatModel
         return chatModel;
     }
 
@@ -120,17 +98,14 @@ public class AutoDiscoveredModelProvider implements ModelProvider {
 
     @Override
     public void initialize(Map<String, Object> config) {
-        // 자동 발견된 ChatModel은 Spring에 의해 이미 초기화되어 있음
+        // Auto-discovered ChatModel is already initialized by Spring
         ready = chatModel != null;
-        log.debug("AutoDiscoveredModelProvider 초기화: provider={}, ready={}",
-            providerName, ready);
     }
 
     @Override
     public void shutdown() {
-        // 자동 발견된 ChatModel의 생명주기는 Spring이 관리
+        // Lifecycle of auto-discovered ChatModel is managed by Spring
         ready = false;
-        log.debug("AutoDiscoveredModelProvider 종료: provider={}", providerName);
     }
 
     @Override
@@ -140,13 +115,13 @@ public class AutoDiscoveredModelProvider implements ModelProvider {
 
     @Override
     public void refreshModels() {
-        // 자동 발견된 모델은 새로고침 불필요
-        log.debug("AutoDiscoveredModelProvider 새로고침 (no-op): provider={}", providerName);
+        // No refresh needed for auto-discovered models
     }
 
     @Override
     public int getPriority() {
-        // 자동 발견된 프로바이더는 낮은 우선순위 (명시적 구성 우선)
+        // Auto-discovered providers have lower priority (explicit configuration
+        // preferred)
         return 50;
     }
 

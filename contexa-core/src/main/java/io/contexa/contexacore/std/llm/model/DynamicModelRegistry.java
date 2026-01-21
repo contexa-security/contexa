@@ -49,8 +49,8 @@ public class DynamicModelRegistry {
         // 5. 헬스 체크
         performHealthCheck();
 
-        log.info("DynamicModelRegistry 초기화 완료. 등록된 프로바이더: {}, 등록된 모델: {}",
-            providers.size(), modelDescriptors.size());
+        log.info("DynamicModelRegistry initialized. Providers: {}, Models: {}",
+                providers.size(), modelDescriptors.size());
     }
 
     /**
@@ -61,28 +61,25 @@ public class DynamicModelRegistry {
         Map<String, ChatModel> chatModels = applicationContext.getBeansOfType(ChatModel.class);
 
         for (Map.Entry<String, ChatModel> entry : chatModels.entrySet()) {
-            String beanName = entry.getKey();
+
             ChatModel model = entry.getValue();
             String provider = inferProviderFromModel(model);
 
             // 이미 등록된 프로바이더는 건너뜀
             if (!providers.containsKey(provider)) {
                 // 자동 래퍼 프로바이더 생성
-                AutoDiscoveredModelProvider autoProvider =
-                    new AutoDiscoveredModelProvider(provider, model);
+                AutoDiscoveredModelProvider autoProvider = new AutoDiscoveredModelProvider(provider, model);
                 providers.put(provider, autoProvider);
 
                 // 모델 디스크립터도 등록
                 ModelDescriptor descriptor = autoProvider.getAvailableModels().stream()
-                    .findFirst()
-                    .orElse(null);
+                        .findFirst()
+                        .orElse(null);
                 if (descriptor != null) {
                     registerModel(descriptor);
                     modelInstances.put(descriptor.getModelId(), model);
                 }
 
-                log.info("자동 발견된 ChatModel: {} (provider: {}, class: {})",
-                    beanName, provider, model.getClass().getSimpleName());
             }
         }
     }
@@ -93,24 +90,31 @@ public class DynamicModelRegistry {
     private String inferProviderFromModel(ChatModel model) {
         String className = model.getClass().getSimpleName().toLowerCase();
 
-        if (className.contains("ollama")) return "ollama";
-        if (className.contains("anthropic")) return "anthropic";
-        if (className.contains("openai")) return "openai";
-        if (className.contains("gemini") || className.contains("vertex")) return "gemini";
-        if (className.contains("mistral")) return "mistral";
-        if (className.contains("azure")) return "azure";
-        if (className.contains("bedrock")) return "bedrock";
-        if (className.contains("huggingface") || className.contains("hf")) return "huggingface";
+        if (className.contains("ollama"))
+            return "ollama";
+        if (className.contains("anthropic"))
+            return "anthropic";
+        if (className.contains("openai"))
+            return "openai";
+        if (className.contains("gemini") || className.contains("vertex"))
+            return "gemini";
+        if (className.contains("mistral"))
+            return "mistral";
+        if (className.contains("azure"))
+            return "azure";
+        if (className.contains("bedrock"))
+            return "bedrock";
+        if (className.contains("huggingface") || className.contains("hf"))
+            return "huggingface";
 
-        // 알 수 없는 프로바이더
-        log.warn("알 수 없는 ChatModel 타입: {}. 'unknown' 프로바이더로 등록됩니다.", className);
+        // Unknown provider
+        log.warn("Unknown ChatModel type: {}. Registering as 'unknown' provider.", className);
         return "unknown-" + className;
     }
 
     private void discoverAndRegisterProviders() {
 
-        Map<String, ModelProvider> providerBeans =
-            applicationContext.getBeansOfType(ModelProvider.class);
+        Map<String, ModelProvider> providerBeans = applicationContext.getBeansOfType(ModelProvider.class);
 
         for (Map.Entry<String, ModelProvider> entry : providerBeans.entrySet()) {
             ModelProvider provider = entry.getValue();
@@ -119,18 +123,18 @@ public class DynamicModelRegistry {
             providers.put(providerName, provider);
 
             try {
-                provider.initialize(getProviderConfig(providerName));
+                provider.initialize(Collections.emptyMap());
 
                 List<ModelDescriptor> models = provider.getAvailableModels();
                 for (ModelDescriptor model : models) {
                     registerModel(model);
                 }
             } catch (Exception e) {
-                log.error("ModelProvider 초기화 실패: {}", providerName, e);
+                log.error("ModelProvider initialization failed: {}", providerName, e);
             }
         }
 
-            }
+    }
 
     private void loadModelsFromConfiguration() {
 
@@ -168,126 +172,120 @@ public class DynamicModelRegistry {
         ModelProviderProperties.ModelSpec spec = modelProviderProperties.getModelSpec(provider, modelName);
 
         if (spec != null) {
-            
             return createDescriptorFromSpec(modelName, spec, provider);
-        } else {
-            
-            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults =
-                modelProviderProperties.getTierDefaults(tier);
+        }
 
-            if (tierDefaults == null) {
-                tierDefaults = new ModelProviderProperties.DefaultSpecs.TierDefaults();
-                tierDefaults.setTimeoutMs(tier == 1 ? 3000 : tier == 2 ? 10000 : 30000);
-                tierDefaults.setTemperature(0.3);
-                tierDefaults.setMaxTokens(tier == 1 ? 100 : tier == 2 ? 500 : 2000);
-                tierDefaults.setContextWindow(tier == 1 ? 4096 : tier == 2 ? 8192 : 32768);
-                tierDefaults.setLatencyMs(tier == 1 ? 50 : tier == 2 ? 500 : 2000);
-                tierDefaults.setConcurrency(tier == 1 ? 100 : tier == 2 ? 50 : 10);
-                tierDefaults.setPerformanceScore(tier == 1 ? 95.0 : tier == 2 ? 80.0 : 60.0);
-            }
+        // ModelSpec이 없는 경우 TierDefaults 사용
+        ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties
+                .getTierDefaults(tier);
 
+        // TierDefaults도 없으면 최소 필수 정보만으로 ModelDescriptor 생성
+        // 상세 정보(capabilities, performance, cost, options)는 알 수 없으므로 설정하지 않음
+        if (tierDefaults == null) {
             return ModelDescriptor.builder()
+                    .modelId(modelName)
+                    .displayName(modelName)
+                    .provider(provider)
+                    .tier(tier)
+                    .status(ModelDescriptor.ModelStatus.AVAILABLE)
+                    .build();
+        }
+
+        return ModelDescriptor.builder()
                 .modelId(modelName)
                 .displayName(modelName)
                 .provider(provider)
                 .tier(tier)
                 .capabilities(buildCapabilitiesFromDefaults(tierDefaults))
                 .performance(buildPerformanceFromDefaults(tierDefaults))
-                .cost(ModelDescriptor.CostProfile.builder()
-                    .costPerInputToken(0.0)
-                    .costPerOutputToken(0.0)
-                    .costEfficiency(100.0)
-                    .build())
                 .options(ModelDescriptor.ModelOptions.builder()
-                    .temperature(tierDefaults.getTemperature())
-                    .topP(0.9)
-                    .repetitionPenalty(1.0)
-                    .build())
+                        .temperature(tierDefaults.getTemperature())
+                        .build())
                 .status(ModelDescriptor.ModelStatus.AVAILABLE)
                 .build();
-        }
     }
 
-    private ModelDescriptor createDescriptorFromSpec(String modelName, ModelProviderProperties.ModelSpec spec, String provider) {
+    private ModelDescriptor createDescriptorFromSpec(String modelName, ModelProviderProperties.ModelSpec spec,
+            String provider) {
         ModelDescriptor.ThroughputLevel throughput = ModelDescriptor.ThroughputLevel.valueOf(
-            spec.getPerformance().getThroughputLevel());
+                spec.getPerformance().getThroughputLevel());
 
         return ModelDescriptor.builder()
-            .modelId(modelName)
-            .displayName(spec.getDisplayName())
-            .provider(provider)
-            .version(spec.getVersion())
-            .modelSize(spec.getModelSize())
-            .tier(spec.getTier())
-            .capabilities(ModelDescriptor.ModelCapabilities.builder()
-                .streaming(spec.getCapabilities().getStreaming())
-                .toolCalling(spec.getCapabilities().getToolCalling())
-                .functionCalling(spec.getCapabilities().getFunctionCalling())
-                .vision(spec.getCapabilities().getVision())
-                .multiModal(spec.getCapabilities().getMultiModal())
-                .maxTokens(spec.getCapabilities().getMaxTokens())
-                .contextWindow(spec.getCapabilities().getContextWindow())
-                .supportsSystemMessage(spec.getCapabilities().getSupportsSystemMessage())
-                .maxOutputTokens(spec.getCapabilities().getMaxOutputTokens())
-                .build())
-            .performance(ModelDescriptor.PerformanceProfile.builder()
-                .latency(spec.getPerformance().getLatencyMs())
-                .throughput(throughput)
-                .concurrency(spec.getPerformance().getConcurrency())
-                .recommendedTimeout(spec.getPerformance().getRecommendedTimeoutMs())
-                .performanceScore(spec.getPerformance().getPerformanceScore())
-                .build())
-            .cost(ModelDescriptor.CostProfile.builder()
-                .costPerInputToken(spec.getCost().getCostPerInputToken())
-                .costPerOutputToken(spec.getCost().getCostPerOutputToken())
-                .costEfficiency(spec.getCost().getCostEfficiency())
-                .build())
-            .options(ModelDescriptor.ModelOptions.builder()
-                .temperature(spec.getOptions().getTemperature())
-                .topP(spec.getOptions().getTopP())
-                .topK(spec.getOptions().getTopK())
-                .repetitionPenalty(spec.getOptions().getRepetitionPenalty())
-                .build())
-            .status(ModelDescriptor.ModelStatus.AVAILABLE)
-            .metadata(spec.getMetadata())
-            .build();
+                .modelId(modelName)
+                .displayName(spec.getDisplayName())
+                .provider(provider)
+                .version(spec.getVersion())
+                .modelSize(spec.getModelSize())
+                .tier(spec.getTier())
+                .capabilities(ModelDescriptor.ModelCapabilities.builder()
+                        .streaming(spec.getCapabilities().getStreaming())
+                        .toolCalling(spec.getCapabilities().getToolCalling())
+                        .functionCalling(spec.getCapabilities().getFunctionCalling())
+                        .vision(spec.getCapabilities().getVision())
+                        .multiModal(spec.getCapabilities().getMultiModal())
+                        .maxTokens(spec.getCapabilities().getMaxTokens())
+                        .contextWindow(spec.getCapabilities().getContextWindow())
+                        .supportsSystemMessage(spec.getCapabilities().getSupportsSystemMessage())
+                        .maxOutputTokens(spec.getCapabilities().getMaxOutputTokens())
+                        .build())
+                .performance(ModelDescriptor.PerformanceProfile.builder()
+                        .latency(spec.getPerformance().getLatencyMs())
+                        .throughput(throughput)
+                        .concurrency(spec.getPerformance().getConcurrency())
+                        .recommendedTimeout(spec.getPerformance().getRecommendedTimeoutMs())
+                        .performanceScore(spec.getPerformance().getPerformanceScore())
+                        .build())
+                .cost(ModelDescriptor.CostProfile.builder()
+                        .costPerInputToken(spec.getCost().getCostPerInputToken())
+                        .costPerOutputToken(spec.getCost().getCostPerOutputToken())
+                        .costEfficiency(spec.getCost().getCostEfficiency())
+                        .build())
+                .options(ModelDescriptor.ModelOptions.builder()
+                        .temperature(spec.getOptions().getTemperature())
+                        .topP(spec.getOptions().getTopP())
+                        .topK(spec.getOptions().getTopK())
+                        .repetitionPenalty(spec.getOptions().getRepetitionPenalty())
+                        .build())
+                .status(ModelDescriptor.ModelStatus.AVAILABLE)
+                .metadata(spec.getMetadata())
+                .build();
     }
 
-    private ModelDescriptor.ModelCapabilities buildCapabilitiesFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
+    private ModelDescriptor.ModelCapabilities buildCapabilitiesFromDefaults(
+            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
+        // 알 수 없는 기능은 false로 설정 (임의 threshold 사용하지 않음)
         return ModelDescriptor.ModelCapabilities.builder()
-            .streaming(true)
-            .toolCalling(tierDefaults.getMaxTokens() > 100000)
-            .functionCalling(tierDefaults.getMaxTokens() > 100000)
-            .vision(false)
-            .multiModal(false)
-            .maxTokens(tierDefaults.getMaxTokens())
-            .contextWindow(tierDefaults.getContextWindow())
-            .supportsSystemMessage(true)
-            .build();
+                .streaming(true)
+                .toolCalling(false)
+                .functionCalling(false)
+                .vision(false)
+                .multiModal(false)
+                .maxTokens(tierDefaults.getMaxTokens())
+                .contextWindow(tierDefaults.getContextWindow())
+                .supportsSystemMessage(true)
+                .build();
     }
 
-    private ModelDescriptor.PerformanceProfile buildPerformanceFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
+    private ModelDescriptor.PerformanceProfile buildPerformanceFromDefaults(
+            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
         int tier = inferTierFromDefaults(tierDefaults);
 
         return ModelDescriptor.PerformanceProfile.builder()
-            .latency(tierDefaults.getLatencyMs())
-            .throughput(tier == 1 ?
-                ModelDescriptor.ThroughputLevel.HIGH :
-                tier == 2 ?
-                ModelDescriptor.ThroughputLevel.MEDIUM :
-                ModelDescriptor.ThroughputLevel.LOW)
-            .concurrency(tierDefaults.getConcurrency())
-            .recommendedTimeout(tierDefaults.getTimeoutMs())
-            .performanceScore(tierDefaults.getPerformanceScore())
-            .build();
+                .latency(tierDefaults.getLatencyMs())
+                .throughput(tier == 1 ? ModelDescriptor.ThroughputLevel.HIGH
+                        : tier == 2 ? ModelDescriptor.ThroughputLevel.MEDIUM : ModelDescriptor.ThroughputLevel.LOW)
+                .concurrency(tierDefaults.getConcurrency())
+                .recommendedTimeout(tierDefaults.getTimeoutMs())
+                .performanceScore(tierDefaults.getPerformanceScore())
+                .build();
     }
 
     private int inferTierFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
-        
+
         if (tierDefaults.getPerformanceScore() >= 90.0 && tierDefaults.getLatencyMs() <= 100) {
-            return 1;  
+            return 1;
         } else {
-            return 2;  
+            return 2;
         }
     }
 
@@ -297,20 +295,20 @@ public class DynamicModelRegistry {
         for (ModelDescriptor descriptor : modelDescriptors.values()) {
             if (descriptor.getTier() != null) {
                 tierModels.computeIfAbsent(descriptor.getTier(), k -> new ArrayList<>())
-                    .add(descriptor.getModelId());
+                        .add(descriptor.getModelId());
             }
         }
 
-            }
+    }
 
     private void performHealthCheck() {
-        
+
         for (Map.Entry<String, ModelProvider> entry : providers.entrySet()) {
             String providerName = entry.getKey();
             ModelProvider provider = entry.getValue();
 
             if (!provider.isReady()) {
-                log.warn("ModelProvider {} 가 준비되지 않았습니다", providerName);
+                log.warn("ModelProvider {} is not ready", providerName);
                 continue;
             }
 
@@ -318,11 +316,11 @@ public class DynamicModelRegistry {
                 try {
                     ModelProvider.HealthStatus health = provider.checkHealth(model.getModelId());
                     if (!health.isHealthy()) {
-                        log.warn("모델 {} 상태 불량: {}", model.getModelId(), health.getMessage());
+                        log.warn("Model {} unhealthy: {}", model.getModelId(), health.getMessage());
                         model.setStatus(ModelDescriptor.ModelStatus.UNAVAILABLE);
                     }
                 } catch (Exception e) {
-                    log.error("모델 {} 헬스 체크 실패", model.getModelId(), e);
+                    log.error("Model {} health check failed", model.getModelId(), e);
                 }
             }
         }
@@ -334,11 +332,11 @@ public class DynamicModelRegistry {
         }
 
         modelDescriptors.put(descriptor.getModelId(), descriptor);
-            }
+    }
 
     public ChatModel getModel(String modelId) {
         if (modelId == null) {
-            throw new ModelSelectionException("모델 ID가 null입니다");
+            throw new ModelSelectionException("Model ID is null");
         }
 
         if (modelInstances.containsKey(modelId)) {
@@ -347,13 +345,13 @@ public class DynamicModelRegistry {
 
         ModelDescriptor descriptor = modelDescriptors.get(modelId);
         if (descriptor == null) {
-            throw new ModelSelectionException("모델을 찾을 수 없습니다: " + modelId, modelId);
+            throw new ModelSelectionException("Model not found: " + modelId, modelId);
         }
 
         ModelProvider provider = providers.get(descriptor.getProvider());
         if (provider == null) {
             throw new ModelSelectionException(
-                "모델 제공자를 찾을 수 없습니다: " + descriptor.getProvider(), modelId);
+                    "Model provider not found: " + descriptor.getProvider(), modelId);
         }
 
         try {
@@ -362,7 +360,7 @@ public class DynamicModelRegistry {
             return model;
         } catch (Exception e) {
             throw new ModelSelectionException(
-                "모델 생성 실패: " + modelId + " - " + e.getMessage(), modelId, e);
+                    "Model creation failed: " + modelId + " - " + e.getMessage(), modelId, e);
         }
     }
 
@@ -373,10 +371,10 @@ public class DynamicModelRegistry {
         }
 
         return modelIds.stream()
-            .map(modelDescriptors::get)
-            .filter(Objects::nonNull)
-            .filter(d -> d.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-            .collect(Collectors.toList());
+                .map(modelDescriptors::get)
+                .filter(Objects::nonNull)
+                .filter(d -> d.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
+                .collect(Collectors.toList());
     }
 
     public Collection<ModelDescriptor> getAllModels() {
@@ -397,16 +395,16 @@ public class DynamicModelRegistry {
 
         String normalizedProvider = provider.trim().toLowerCase();
         return modelDescriptors.values().stream()
-            .filter(d -> normalizedProvider.equalsIgnoreCase(d.getProvider()))
-            .filter(d -> d.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-            .toList();
+                .filter(d -> normalizedProvider.equalsIgnoreCase(d.getProvider()))
+                .filter(d -> d.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
+                .toList();
     }
 
     public void updateModelStatus(String modelId, ModelDescriptor.ModelStatus status) {
         ModelDescriptor descriptor = modelDescriptors.get(modelId);
         if (descriptor != null) {
             descriptor.setStatus(status);
-                    }
+        }
     }
 
     public void refreshModels() {
@@ -421,18 +419,12 @@ public class DynamicModelRegistry {
                     }
                 }
             } catch (Exception e) {
-                log.error("모델 새로고침 실패: {}", provider.getProviderName(), e);
+                log.error("Model refresh failed: {}", provider.getProviderName(), e);
             }
         }
 
         buildTierMapping();
 
-            }
-
-    private Map<String, Object> getProviderConfig(String providerName) {
-        Map<String, Object> config = new HashMap<>();
-
-        return config;
     }
 
     @PreDestroy
@@ -442,7 +434,7 @@ public class DynamicModelRegistry {
             try {
                 provider.shutdown();
             } catch (Exception e) {
-                log.error("ModelProvider 종료 실패: {}", provider.getProviderName(), e);
+                log.error("ModelProvider shutdown failed: {}", provider.getProviderName(), e);
             }
         }
 

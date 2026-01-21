@@ -11,8 +11,8 @@ spring:
   ai:
     chat:
       model:
-        # vLLM 사용 시: vllm,ollama,openai (vLLM 서버 실행 필요)
-        priority: ollama,openai  # Anthropic 제거 (enabled: false)
+        # When using vLLM: vllm,ollama,openai (vLLM server required)
+        priority: ollama,openai  # Anthropic removed (enabled: false)
 
       embedding:
         model:
@@ -47,28 +47,28 @@ spring:
         options:
           model: text-embedding-3-small
 #
-#    # TieredLLMProperties 매핑 (contexa-core/config/TieredLLMProperties.java)
-#    # AI Native v6.7 2-Tier LLM 시스템 (2026-01 리팩토링)
-#    # - Layer 1: 경량 로컬 모델 (llama3.1:8b, 95% 트래픽)
-#    # - Layer 2: 고성능 모델 (exaone3.5:latest, 5% 트래픽, ESCALATE)
+#    # TieredLLMProperties mapping (contexa-core/config/TieredLLMProperties.java)
+#    # AI Native v6.7 2-Tier LLM System (2026-01 Refactoring)
+#    # - Layer 1: Lightweight local model (llama3.1:8b, 95% traffic)
+#    # - Layer 2: High-performance model (exaone3.5:latest, 5% traffic, ESCALATE)
 #    security:
 #      layer1:
-#        model: qwen2.5:14b  # Layer 1: 경량 로컬 모델
+#        model: qwen2.5:14b  # Layer 1: Lightweight local model
 #      layer2:
-#        model: exaone3.5:latest  # Layer 2: 고성능 모델
+#        model: exaone3.5:latest  # Layer 2: High-performance model
 #      tiered:
 #        enabled: true
 #        traffic-distribution:
-#          layer1-percentage: 95.0  # Layer 1이 처리하는 트래픽 비율
-#          layer2-percentage: 5.0   # Layer 2가 처리하는 트래픽 비율
+#          layer1-percentage: 95.0  # Traffic percentage for Layer 1
+#          layer2-percentage: 5.0   # Traffic percentage for Layer 2
 #        layer1:
 #          enabled: true
-#          timeout-ms: 10000        # Layer 1: 컨텍스트 분석 (300ms~10s)
+#          timeout-ms: 10000        # Layer 1: Context analysis (300ms~10s)
 #          context-window-minutes: 30
 #          vector-search-limit: 10
 #        layer2:
 #          enabled: true
-#          timeout-ms: 30000        # Layer 2: 전문가 분석 (1~5s)
+#          timeout-ms: 30000        # Layer 2: Expert analysis (1~5s)
 #          enable-soar: false
 #        adaptive:
 #          enabled: true
@@ -78,8 +78,8 @@ spring:
 #
 #
 #
-#    # vLLM 설정 (OpenAI 호환 API - spring.ai.vllm)
-#    # vLLM 사용 시 아래 설정을 활성화하고 vLLM 서버 실행 필요
+#    # vLLM Configuration (OpenAI compatible API - spring.ai.vllm)
+#    # Enable below settings and run vLLM server when using vLLM
 #    # vllm:
 #    #   base-url: http://localhost:8000
 #    #   enabled: true
@@ -113,7 +113,7 @@ spring:
     type: redis
     redis:
       cache-null-values: false
-      time-to-live: 3600000  # 1시간 (밀리초)
+      time-to-live: 3600000  # 1 hour (milliseconds)
 
   data:
     redis:

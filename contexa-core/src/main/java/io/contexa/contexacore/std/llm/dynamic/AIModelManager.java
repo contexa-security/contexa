@@ -116,27 +116,20 @@ public class AIModelManager {
     }
 
     private ChatModel getChatModel(AIModelType type) {
-        switch (type) {
-            case ANTHROPIC:
-                return anthropicChatModel;
-            case OLLAMA:
-                return ollamaChatModel;
-            case OPENAI:
-                return openAiChatModel;
-            default:
-                return null;
-        }
+        return switch (type) {
+            case ANTHROPIC -> anthropicChatModel;
+            case OLLAMA -> ollamaChatModel;
+            case OPENAI -> openAiChatModel;
+            default -> null;
+        };
     }
 
     private EmbeddingModel getEmbeddingModel(AIModelType type) {
-        switch (type) {
-            case OLLAMA:
-                return ollamaEmbeddingModel;
-            case OPENAI:
-                return openAiEmbeddingModel;
-            default:
-                return null;
-        }
+        return switch (type) {
+            case OLLAMA -> ollamaEmbeddingModel;
+            case OPENAI -> openAiEmbeddingModel;
+            default -> null;
+        };
     }
 
     private ChatClient getChatClient(AIModelType type) {
