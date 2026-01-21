@@ -248,16 +248,16 @@ public class NetworkScanTool {
         List<String> recommendations = new ArrayList<>();
 
         if ("HIGH".equals(analysis.riskLevel)) {
-            recommendations.add("즉시 패치 적용 필요");
-            recommendations.add("취약한 서비스 격리 또는 차단");
-            recommendations.add("보안 모니터링 강화");
+            recommendations.add("Immediate patch application required");
+            recommendations.add("Isolate or block vulnerable services");
+            recommendations.add("Enhance security monitoring");
         } else if ("MEDIUM".equals(analysis.riskLevel)) {
-            recommendations.add("정기적인 패치 일정 수립");
-            recommendations.add("불필요한 서비스 비활성화");
+            recommendations.add("Establish regular patch schedule");
+            recommendations.add("Disable unnecessary services");
         }
 
-        recommendations.add("정기적인 보안 스캔 수행");
-        recommendations.add("네트워크 세그멘테이션 검토");
+        recommendations.add("Perform regular security scans");
+        recommendations.add("Review network segmentation");
 
         return recommendations;
     }
@@ -281,7 +281,7 @@ public class NetworkScanTool {
         }
 
         String lowerText = text.toLowerCase();
-        if (lowerText.contains("localhost") || lowerText.contains("로컬")) {
+        if (lowerText.contains("localhost") || lowerText.contains("local")) {
             return "127.0.0.1";
         }
 
