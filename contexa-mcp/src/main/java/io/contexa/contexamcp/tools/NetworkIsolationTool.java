@@ -12,7 +12,6 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -28,15 +27,12 @@ import java.util.*;
     allowedEnvironments = {"staging", "production"}
 )
 public class NetworkIsolationTool {
-    
-    
-    
+
     private static final Map<String, IsolationRule> ISOLATION_RULES = new HashMap<>();
     private static final Set<String> PROTECTED_HOSTS = Set.of(
         "127.0.0.1", "localhost", "dns-server", "domain-controller"
     );
-    
-    
+
     @Tool(
         name = "network_isolation",
         description = """
@@ -82,23 +78,17 @@ public class NetworkIsolationTool {
         Boolean confirmCritical
     ) {
         long startTime = System.currentTimeMillis();
-        
-        log.info("네트워크 격리 요청: action={}, target={}, type={}",
-            action, target, isolationType);
-        
+
         try {
             
             validateRequest(action, target, isolationType, overrideProtection);
-            
-            
+
             if (!hasRequiredPermissions()) {
                 throw new SecurityException("Insufficient permissions for network isolation");
             }
-            
-            
+
             ImpactAnalysis impact = analyzeImpact(action, target, isolationType, duration);
-            
-            
+
             if (impact.severity.equals("CRITICAL")) {
                 
                 if (confirmCritical == null) {
@@ -114,8 +104,7 @@ public class NetworkIsolationTool {
                 }
                 log.error("크리티컬 네트워크 격리 확인됨");
             }
-            
-            
+
             IsolationResult result = switch (action.toLowerCase()) {
                 case "isolate" -> performIsolation(target, isolationType, duration, reason, 
                     createBackup, impact);
@@ -125,8 +114,7 @@ public class NetworkIsolationTool {
                 case "emergency_shutdown" -> performEmergencyShutdown(confirmCritical);
                 default -> throw new IllegalArgumentException("Unknown action: " + action);
             };
-            
-            
+
             SecurityToolUtils.auditLog(
                 "network_isolation",
                 action,
@@ -135,19 +123,15 @@ public class NetworkIsolationTool {
                     target, isolationType, result.status, impact.severity),
                 "SUCCESS"
             );
-            
-            
+
             SecurityToolUtils.recordMetric("network_isolation", "execution_count", 1);
             SecurityToolUtils.recordMetric("network_isolation", action + "_count", 1);
             SecurityToolUtils.recordMetric("network_isolation", "affected_hosts", result.affectedCount);
             SecurityToolUtils.recordMetric("network_isolation", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
-            
-            
+
             sendNotification(result);
-            
-            log.info("네트워크 격리 작업 완료: {}", result.message);
-            
+
             return Response.builder()
                 .success(true)
                 .message(result.message)
@@ -157,8 +141,7 @@ public class NetworkIsolationTool {
             
         } catch (Exception e) {
             log.error("네트워크 격리 실패", e);
-            
-            
+
             SecurityToolUtils.recordMetric("network_isolation", "error_count", 1);
             
             return Response.builder()
@@ -168,8 +151,7 @@ public class NetworkIsolationTool {
                 .build();
         }
     }
-    
-    
+
     private void validateRequest(String action, String target, String isolationType, 
                                 Boolean overrideProtection) {
         if (action == null || action.trim().isEmpty()) {
@@ -179,8 +161,7 @@ public class NetworkIsolationTool {
         if (target == null || target.trim().isEmpty()) {
             throw new IllegalArgumentException("Target is required");
         }
-        
-        
+
         if (PROTECTED_HOSTS.contains(target.toLowerCase())) {
             if (!Boolean.TRUE.equals(overrideProtection)) {
                 throw new SecurityException(
@@ -188,8 +169,7 @@ public class NetworkIsolationTool {
                 );
             }
         }
-        
-        
+
         if (isolationType != null) {
             Set<String> validTypes = Set.of("full", "inbound", "outbound", "selective");
             if (!validTypes.contains(isolationType.toLowerCase())) {
@@ -199,18 +179,15 @@ public class NetworkIsolationTool {
             }
         }
     }
-    
-    
+
     private ImpactAnalysis analyzeImpact(String action, String target, String isolationType, 
                                         Integer duration) {
         ImpactAnalysis impact = new ImpactAnalysis();
-        
-        
+
         impact.affectedServices = identifyAffectedServices(target);
         impact.affectedHosts = identifyAffectedHosts(target);
         impact.estimatedDowntime = estimateDowntime(duration);
-        
-        
+
         if (impact.affectedServices.contains("critical-service") || 
             impact.affectedHosts.size() > 10) {
             impact.severity = "CRITICAL";
@@ -222,17 +199,14 @@ public class NetworkIsolationTool {
             impact.severity = "MEDIUM";
             impact.description = "Limited impact expected";
         }
-        
-        
+
         impact.recoveryDifficulty = calculateRecoveryDifficulty(action, isolationType);
-        
-        
+
         impact.alternatives = suggestAlternatives(action, impact);
         
         return impact;
     }
-    
-    
+
     private IsolationResult performIsolation(String target, String isolationType, Integer duration,
                                             String reason, Boolean createBackup, ImpactAnalysis impact) {
         String ruleId = UUID.randomUUID().toString();
@@ -245,8 +219,7 @@ public class NetworkIsolationTool {
         rule.expiresAt = duration != null ? 
             LocalDateTime.now().plusMinutes(duration) : null;
         rule.reason = reason;
-        
-        
+
         List<String> appliedRules = new ArrayList<>();
         
         switch (rule.type.toLowerCase()) {
@@ -266,8 +239,7 @@ public class NetworkIsolationTool {
         
         rule.appliedRules = appliedRules;
         ISOLATION_RULES.put(ruleId, rule);
-        
-        
+
         if (Boolean.TRUE.equals(createBackup)) {
             createNetworkConfigBackup();
         }
@@ -282,26 +254,22 @@ public class NetworkIsolationTool {
             impact.affectedHosts.size()
         );
     }
-    
-    
+
     private IsolationResult performBlock(String target, List<Integer> ports, List<String> protocols) {
         List<String> blockedItems = new ArrayList<>();
-        
-        
+
         if (target != null) {
             blockedItems.add("IP: " + target);
             addFirewallRule("block", target, null);
         }
-        
-        
+
         if (ports != null && !ports.isEmpty()) {
             for (Integer port : ports) {
                 blockedItems.add("Port: " + port);
                 addFirewallRule("block", null, port);
             }
         }
-        
-        
+
         if (protocols != null && !protocols.isEmpty()) {
             for (String protocol : protocols) {
                 blockedItems.add("Protocol: " + protocol);
@@ -318,14 +286,11 @@ public class NetworkIsolationTool {
             blockedItems.size()
         );
     }
-    
-    
+
     private IsolationResult performQuarantine(String target) {
         
         String quarantineVlan = "VLAN_999_QUARANTINE";
-        
-        log.info("호스트를 격리 VLAN으로 이동: {} -> {}", target, quarantineVlan);
-        
+
         return new IsolationResult(
             "quarantined",
             String.format("Host moved to quarantine VLAN: %s", target),
@@ -335,8 +300,7 @@ public class NetworkIsolationTool {
             1
         );
     }
-    
-    
+
     private IsolationResult performRestore(String target, Boolean confirmRestore) {
         
         IsolationRule rule = null;
@@ -353,13 +317,11 @@ public class NetworkIsolationTool {
         if (rule == null) {
             throw new IllegalArgumentException("No isolation rule found for: " + target);
         }
-        
-        
+
         if (!Boolean.TRUE.equals(confirmRestore)) {
             throw new SecurityException("Restore confirmation required");
         }
-        
-        
+
         ISOLATION_RULES.remove(ruleId);
         
         return new IsolationResult(
@@ -371,8 +333,7 @@ public class NetworkIsolationTool {
             0
         );
     }
-    
-    
+
     private IsolationResult performEmergencyShutdown(Boolean confirmCritical) {
         if (!Boolean.TRUE.equals(confirmCritical)) {
             throw new SecurityException(
@@ -381,8 +342,7 @@ public class NetworkIsolationTool {
         }
         
         log.error("🚨🚨긴급 네트워크 차단 실행 🚨🚨🚨");
-        
-        
+
         List<String> shutdownActions = Arrays.asList(
             "Block all external traffic",
             "Isolate all subnets",
@@ -399,8 +359,7 @@ public class NetworkIsolationTool {
             -1 
         );
     }
-    
-    
+
     private boolean hasRequiredPermissions() {
         
         return true;
@@ -458,43 +417,33 @@ public class NetworkIsolationTool {
     }
     
     private String blockAllTraffic(String target) {
-        log.info("모든 트래픽 차단: {}", target);
-        return "iptables -A INPUT -s " + target + " -j DROP";
+                return "iptables -A INPUT -s " + target + " -j DROP";
     }
     
     private String blockInboundTraffic(String target) {
-        log.info("인바운드 트래픽 차단: {}", target);
-        return "iptables -A INPUT -s " + target + " -j DROP";
+                return "iptables -A INPUT -s " + target + " -j DROP";
     }
     
     private String blockOutboundTraffic(String target) {
-        log.info("아웃바운드 트래픽 차단: {}", target);
-        return "iptables -A OUTPUT -d " + target + " -j DROP";
+                return "iptables -A OUTPUT -d " + target + " -j DROP";
     }
     
     private String blockPort(String target, int port) {
-        log.info("포트 차단: {} : {}", target, port);
-        return "iptables -A INPUT -s " + target + " -p tcp --dport " + port + " -j DROP";
+                return "iptables -A INPUT -s " + target + " -p tcp --dport " + port + " -j DROP";
     }
     
     private void addFirewallRule(String action, String ip, Integer port) {
-        log.info("방화벽 규칙 추가: {} {} {}", action, ip, port);
-    }
+            }
     
     private void addProtocolRule(String action, String protocol) {
-        log.info("프로토콜 규칙 추가: {} {}", action, protocol);
-    }
+            }
     
     private void createNetworkConfigBackup() {
-        log.info("네트워크 구성 백업 생성");
-    }
-    
-    
+            }
+
     private void sendNotification(IsolationResult result) {
-        log.info("알림 발송: 네트워크 격리 작업 - {}", result.message);
-    }
-    
-    
+            }
+
     @Data
     @Builder
     public static class Response {
@@ -504,8 +453,7 @@ public class NetworkIsolationTool {
         private ImpactAnalysis impact;
         private String error;
     }
-    
-    
+
     public static class IsolationResult {
         public String status;
         public String message;
@@ -524,8 +472,7 @@ public class NetworkIsolationTool {
             this.affectedCount = affectedCount;
         }
     }
-    
-    
+
     private static class IsolationRule {
         String id;
         String target;
@@ -535,8 +482,7 @@ public class NetworkIsolationTool {
         String reason;
         List<String> appliedRules;
     }
-    
-    
+
     public static class ImpactAnalysis {
         public String severity;
         public String description;

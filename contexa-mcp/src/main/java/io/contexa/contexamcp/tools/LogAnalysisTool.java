@@ -15,7 +15,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -31,8 +30,7 @@ import java.util.stream.Collectors;
     allowedEnvironments = {"development", "staging", "production"}
 )
 public class LogAnalysisTool {
-    
-    
+
     private static final Map<String, Pattern> SECURITY_PATTERNS = Map.of(
         "failed_login", Pattern.compile("(failed|failure|denied|invalid).*?(login|auth|password)", Pattern.CASE_INSENSITIVE),
         "privilege_escalation", Pattern.compile("(sudo|su |privilege|elevation|admin|root)", Pattern.CASE_INSENSITIVE),
@@ -43,8 +41,7 @@ public class LogAnalysisTool {
         "suspicious_user_agent", Pattern.compile("(scanner|nikto|nmap|sqlmap|burp|zap|metasploit)", Pattern.CASE_INSENSITIVE),
         "data_exfiltration", Pattern.compile("(upload|transfer|exfil|steal|download.*?(database|passwd|shadow))", Pattern.CASE_INSENSITIVE)
     );
-    
-    
+
     @Tool(
         name = "log_analysis",
         description = """
@@ -70,27 +67,19 @@ public class LogAnalysisTool {
         Boolean detailed
     ) {
         long startTime = System.currentTimeMillis();
-        
-        log.info("로그 분석 시작: logSource={}, timeRange={}", 
-            logSource, timeRange);
-        
+
         try {
             
             validateRequest(logSource);
-            
-            
+
             List<LogEntry> logs = collectLogs(logSource, timeRange, maxLines);
-            
-            
+
             AnalysisResult analysisResult = analyzeLogs(logs, searchPatterns);
-            
-            
+
             ThreatAssessment threatAssessment = assessThreats(analysisResult);
-            
-            
+
             List<TimelineEvent> timeline = buildTimeline(analysisResult.securityEvents);
-            
-            
+
             SecurityToolUtils.auditLog(
                 "log_analysis",
                 "analyze",
@@ -99,17 +88,13 @@ public class LogAnalysisTool {
                     logSource, timeRange, logs.size(), analysisResult.securityEvents.size()),
                 "SUCCESS"
             );
-            
-            
+
             SecurityToolUtils.recordMetric("log_analysis", "execution_count", 1);
             SecurityToolUtils.recordMetric("log_analysis", "logs_analyzed", logs.size());
             SecurityToolUtils.recordMetric("log_analysis", "events_detected", analysisResult.securityEvents.size());
             SecurityToolUtils.recordMetric("log_analysis", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
-            
-            log.info("로그 분석 완료: {} 개 로그 분석, {} 개 보안 이벤트 탐지", 
-                logs.size(), analysisResult.securityEvents.size());
-            
+
             return Response.builder()
                 .success(true)
                 .message(String.format("Analyzed %d logs, found %d security events", 
@@ -121,8 +106,7 @@ public class LogAnalysisTool {
             
         } catch (Exception e) {
             log.error("로그 분석 실패", e);
-            
-            
+
             SecurityToolUtils.recordMetric("log_analysis", "error_count", 1);
             
             return Response.builder()
@@ -132,20 +116,17 @@ public class LogAnalysisTool {
                 .build();
         }
     }
-    
-    
+
     private void validateRequest(String logSource) {
         if (logSource == null || logSource.trim().isEmpty()) {
             throw new IllegalArgumentException("Log source is required");
         }
     }
-    
-    
+
     private List<LogEntry> collectLogs(String logSource, String timeRange, Integer maxLines) {
         List<LogEntry> logs = new ArrayList<>();
         Random random = new Random();
-        
-        
+
         int logCount = maxLines != null ? 
             Math.min(maxLines, 1000) : 100;
         
@@ -160,14 +141,12 @@ public class LogAnalysisTool {
             
             logs.add(entry);
         }
-        
-        
+
         logs.sort(Comparator.comparing(e -> e.timestamp));
         
         return logs;
     }
-    
-    
+
     private AnalysisResult analyzeLogs(List<LogEntry> logs, List<String> searchPatterns) {
         AnalysisResult result = new AnalysisResult();
         result.totalLogs = logs.size();
@@ -195,31 +174,25 @@ public class LogAnalysisTool {
                     
                     result.securityEvents.add(event);
                     eventTypeCount.merge(entry.getKey(), 1, Integer::sum);
-                    
-                    
+
                     extractIndicators(log.message, result.indicators);
                 }
             }
-            
-            
+
             ipFrequency.merge(log.sourceIp, 1, Integer::sum);
             userActivity.merge(log.user, 1, Integer::sum);
         }
-        
-        
+
         detectAnomalies(ipFrequency, userActivity, result.anomalies);
-        
-        
+
         result.statistics = generateStatistics(logs, eventTypeCount);
         
         return result;
     }
-    
-    
+
     private ThreatAssessment assessThreats(AnalysisResult analysisResult) {
         ThreatAssessment assessment = new ThreatAssessment();
-        
-        
+
         int threatScore = 0;
         Map<String, Integer> severityCount = new HashMap<>();
         
@@ -231,20 +204,16 @@ public class LogAnalysisTool {
         assessment.threatScore = Math.min(threatScore, 100);
         assessment.threatLevel = calculateThreatLevel(assessment.threatScore);
         assessment.severityDistribution = severityCount;
-        
-        
+
         assessment.topThreats = identifyTopThreats(analysisResult.securityEvents);
-        
-        
+
         assessment.recommendations = generateRecommendations(assessment);
-        
-        
+
         assessment.affectedAssets = extractAffectedAssets(analysisResult.securityEvents);
         
         return assessment;
     }
-    
-    
+
     private List<TimelineEvent> buildTimeline(List<SecurityEvent> securityEvents) {
         return securityEvents.stream()
             .map(event -> {
@@ -261,8 +230,7 @@ public class LogAnalysisTool {
             .sorted(Comparator.comparing(e -> e.timestamp))
             .collect(Collectors.toList());
     }
-    
-    
+
     private String getRandomLogLevel() {
         String[] levels = {"DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"};
         return levels[new Random().nextInt(levels.length)];
@@ -321,15 +289,13 @@ public class LogAnalysisTool {
         while (ipMatcher.find()) {
             indicators.add("IP: " + ipMatcher.group());
         }
-        
-        
+
         Pattern domainPattern = Pattern.compile("\\b(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}\\b");
         Matcher domainMatcher = domainPattern.matcher(message);
         while (domainMatcher.find()) {
             indicators.add("Domain: " + domainMatcher.group());
         }
-        
-        
+
         Pattern pathPattern = Pattern.compile("(/[a-zA-Z0-9._-]+)+");
         Matcher pathMatcher = pathPattern.matcher(message);
         while (pathMatcher.find()) {
@@ -346,8 +312,7 @@ public class LogAnalysisTool {
             .forEach(e -> anomalies.add(
                 String.format("High activity from IP %s: %d events", e.getKey(), e.getValue())
             ));
-        
-        
+
         userActivity.entrySet().stream()
             .filter(e -> e.getValue() > 20)
             .forEach(e -> anomalies.add(
@@ -440,8 +405,7 @@ public class LogAnalysisTool {
         }
         return "Unknown";
     }
-    
-    
+
     @Data
     @Builder
     public static class Response {
@@ -452,8 +416,7 @@ public class LogAnalysisTool {
         private List<TimelineEvent> timeline;
         private String error;
     }
-    
-    
+
     public static class LogEntry {
         public LocalDateTime timestamp;
         public String source;
@@ -462,8 +425,7 @@ public class LogAnalysisTool {
         public String sourceIp;
         public String user;
     }
-    
-    
+
     public static class AnalysisResult {
         public int totalLogs;
         public List<SecurityEvent> securityEvents;
@@ -471,8 +433,7 @@ public class LogAnalysisTool {
         public Set<String> indicators;
         public Map<String, Object> statistics;
     }
-    
-    
+
     public static class SecurityEvent {
         public String timestamp;
         public String eventType;
@@ -482,8 +443,7 @@ public class LogAnalysisTool {
         public String description;
         public String matched;
     }
-    
-    
+
     public static class ThreatAssessment {
         public int threatScore;
         public String threatLevel;
@@ -492,8 +452,7 @@ public class LogAnalysisTool {
         public List<String> recommendations;
         public Set<String> affectedAssets;
     }
-    
-    
+
     public static class TimelineEvent {
         public String timestamp;
         public String eventType;

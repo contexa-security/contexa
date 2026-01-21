@@ -20,20 +20,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SecurityLogResource {
     
     private final ObjectMapper objectMapper;
-    
-    
+
     private static final String LOG_PATH = "./logs/security";
-    
-    
+
     public McpSchema.Resource getResourceDefinition() {
-        
-        
+
         return new McpSchema.Resource(
             "security://logs/current",  
             "Security Logs",  
@@ -42,24 +38,19 @@ public class SecurityLogResource {
             null  
         );
     }
-    
-    
+
     public McpServerFeatures.SyncResourceSpecification createSpecification() {
         return new McpServerFeatures.SyncResourceSpecification(
             getResourceDefinition(),
             (exchange, request) -> {
                 try {
-                    log.info("보안 로그 리소스 요청: {}", request.uri());
-                    
-                    
+
                     Map<String, String> params = parseUriParameters(request.uri());
                     String severity = params.getOrDefault("severity", "all");
                     int limit = Integer.parseInt(params.getOrDefault("limit", "1000"));
-                    
-                    
+
                     String logContent = readSecurityLogs(severity, limit);
-                    
-                    
+
                     return new McpSchema.ReadResourceResult(
                         List.of(new McpSchema.TextResourceContents(
                             request.uri(),
@@ -75,8 +66,7 @@ public class SecurityLogResource {
             }
         );
     }
-    
-    
+
     private String readSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
@@ -87,19 +77,16 @@ public class SecurityLogResource {
                 logs.addAll(actualLogs);
                 return String.join("\n", logs);
             }
-            
-            
+
             List<String> systemLogs = readSystemSecurityLogs(severity, limit);
             if (!systemLogs.isEmpty()) {
                 logs.addAll(systemLogs);
                 return String.join("\n", logs);
             }
-            
-            
+
             LocalDateTime now = LocalDateTime.now();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-            
-            
+
             for (int i = 0; i < Math.min(limit, 10); i++) {
                 LocalDateTime timestamp = now.minusMinutes(i * 5);
                 String logEntry = String.format(
@@ -114,8 +101,7 @@ public class SecurityLogResource {
                     logs.add(logEntry);
                 }
             }
-            
-            
+
             Path logFile = Paths.get(LOG_PATH, "security.log");
             if (Files.exists(logFile)) {
                 try (BufferedReader reader = new BufferedReader(new FileReader(logFile.toFile()))) {
@@ -132,8 +118,7 @@ public class SecurityLogResource {
         
         return String.join("\n", logs);
     }
-    
-    
+
     private Map<String, String> parseUriParameters(String uri) {
         Map<String, String> params = new java.util.HashMap<>();
         
@@ -171,10 +156,7 @@ public class SecurityLogResource {
         };
         return events[index % events.length];
     }
-    
-    
-    
-    
+
     private List<String> readActualSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
@@ -195,20 +177,17 @@ public class SecurityLogResource {
                 if (Files.exists(path)) {
                     logs = readLogFile(path, severity, limit);
                     if (!logs.isEmpty()) {
-                        log.info("실제 보안 로그 파일에서 {} 개 로그 읽음: {}", logs.size(), logPath);
-                        return logs;
+                                                return logs;
                     }
                 }
             }
             
         } catch (Exception e) {
-            log.debug("실제 보안 로그 파일 읽기 실패: {}", e.getMessage());
-        }
+                    }
         
         return logs;
     }
-    
-    
+
     private List<String> readSystemSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
@@ -224,17 +203,14 @@ public class SecurityLogResource {
             }
             
             if (!logs.isEmpty()) {
-                log.info("시스템 보안 로그에서 {} 개 로그 읽음", logs.size());
-            }
+                            }
             
         } catch (Exception e) {
-            log.debug("시스템 보안 로그 읽기 실패: {}", e.getMessage());
-        }
+                    }
         
         return logs;
     }
-    
-    
+
     private List<String> readLogFile(Path logFile, String severity, int limit) throws Exception {
         List<String> logs = new ArrayList<>();
         
@@ -253,8 +229,7 @@ public class SecurityLogResource {
         
         return logs;
     }
-    
-    
+
     private List<String> readWindowsSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
@@ -280,13 +255,11 @@ public class SecurityLogResource {
             }
             
         } catch (Exception e) {
-            log.debug("Windows 시스템 보안 로그 읽기 실패: {}", e.getMessage());
-        }
+                    }
         
         return logs;
     }
-    
-    
+
     private List<String> readLinuxSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
@@ -323,13 +296,11 @@ public class SecurityLogResource {
             }
             
         } catch (Exception e) {
-            log.debug("Linux 시스템 보안 로그 읽기 실패: {}", e.getMessage());
-        }
+                    }
         
         return logs;
     }
-    
-    
+
     private List<String> readMacSecurityLogs(String severity, int limit) {
         List<String> logs = new ArrayList<>();
         
@@ -357,13 +328,11 @@ public class SecurityLogResource {
             }
             
         } catch (Exception e) {
-            log.debug("macOS 시스템 보안 로그 읽기 실패: {}", e.getMessage());
-        }
+                    }
         
         return logs;
     }
-    
-    
+
     private boolean containsSeverity(String logLine, String severity) {
         if (severity.equals("all")) {
             return true;
@@ -371,8 +340,7 @@ public class SecurityLogResource {
         
         String lowerLine = logLine.toLowerCase();
         String lowerSeverity = severity.toLowerCase();
-        
-        
+
         switch (lowerSeverity) {
             case "critical":
                 return lowerLine.contains("critical") || lowerLine.contains("crit") || 

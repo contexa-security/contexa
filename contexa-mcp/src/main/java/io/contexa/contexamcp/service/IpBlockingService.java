@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,8 +29,7 @@ public class IpBlockingService {
     private static final String BLOCKED_RANGE_KEY_PREFIX = "blocked:range:";
     private static final String BLOCKED_RANGE_SET_KEY = "blocked:range:set";
     private static final String WHITELIST_IP_KEY = "whitelist:ip:set";
-    
-    
+
     public BlockResult blockIp(String ipAddress, String reason, Duration duration, String blockedBy) {
         try {
             
@@ -43,11 +41,9 @@ public class IpBlockingService {
                     .message("IP is whitelisted and cannot be blocked")
                     .build();
             }
-            
-            
+
             if (isBlocked(ipAddress)) {
-                log.info("IP already blocked: {}", ipAddress);
-                return BlockResult.builder()
+                                return BlockResult.builder()
                     .success(false)
                     .ipAddress(ipAddress)
                     .message("IP is already blocked")
@@ -62,20 +58,16 @@ public class IpBlockingService {
                 .blockedBy(blockedBy)
                 .active(true)
                 .build();
-            
-            
+
             String blockKey = BLOCKED_IP_KEY_PREFIX + ipAddress;
             if (duration != null) {
                 redisTemplate.opsForValue().set(blockKey, blockInfo, duration.toSeconds(), TimeUnit.SECONDS);
             } else {
                 redisTemplate.opsForValue().set(blockKey, blockInfo);
             }
-            
-            
+
             redisTemplate.opsForSet().add(BLOCKED_IP_SET_KEY, ipAddress);
-            
-            log.info("IP blocked: {} for reason: {} by: {}", ipAddress, reason, blockedBy);
-            
+
             return BlockResult.builder()
                 .success(true)
                 .ipAddress(ipAddress)
@@ -92,8 +84,7 @@ public class IpBlockingService {
                 .build();
         }
     }
-    
-    
+
     public BlockResult blockIpRange(String cidrRange, String reason, Duration duration, String blockedBy) {
         try {
             
@@ -113,20 +104,16 @@ public class IpBlockingService {
                 .blockedBy(blockedBy)
                 .active(true)
                 .build();
-            
-            
+
             String rangeKey = BLOCKED_RANGE_KEY_PREFIX + cidrRange.replace("/", "_");
             if (duration != null) {
                 redisTemplate.opsForValue().set(rangeKey, rangeInfo, duration.toSeconds(), TimeUnit.SECONDS);
             } else {
                 redisTemplate.opsForValue().set(rangeKey, rangeInfo);
             }
-            
-            
+
             redisTemplate.opsForSet().add(BLOCKED_RANGE_SET_KEY, cidrRange);
-            
-            log.info("IP range blocked: {} for reason: {} by: {}", cidrRange, reason, blockedBy);
-            
+
             return BlockResult.builder()
                 .success(true)
                 .ipAddress(cidrRange)
@@ -143,8 +130,7 @@ public class IpBlockingService {
                 .build();
         }
     }
-    
-    
+
     public boolean unblockIp(String ipAddress) {
         try {
             String blockKey = BLOCKED_IP_KEY_PREFIX + ipAddress;
@@ -152,8 +138,7 @@ public class IpBlockingService {
             
             if (Boolean.TRUE.equals(deleted)) {
                 redisTemplate.opsForSet().remove(BLOCKED_IP_SET_KEY, ipAddress);
-                log.info("IP unblocked: {}", ipAddress);
-                return true;
+                                return true;
             }
             
             log.warn("IP was not blocked: {}", ipAddress);
@@ -164,16 +149,14 @@ public class IpBlockingService {
             return false;
         }
     }
-    
-    
+
     public boolean isBlocked(String ipAddress) {
         
         String blockKey = BLOCKED_IP_KEY_PREFIX + ipAddress;
         if (Boolean.TRUE.equals(redisTemplate.hasKey(blockKey))) {
             return true;
         }
-        
-        
+
         Set<Object> blockedRanges = redisTemplate.opsForSet().members(BLOCKED_RANGE_SET_KEY);
         if (blockedRanges != null) {
             for (Object range : blockedRanges) {
@@ -185,21 +168,17 @@ public class IpBlockingService {
         
         return false;
     }
-    
-    
+
     public boolean isWhitelisted(String ipAddress) {
         return Boolean.TRUE.equals(
             redisTemplate.opsForSet().isMember(WHITELIST_IP_KEY, ipAddress)
         );
     }
-    
-    
+
     public void addToWhitelist(String ipAddress) {
         redisTemplate.opsForSet().add(WHITELIST_IP_KEY, ipAddress);
-        log.info("IP added to whitelist: {}", ipAddress);
-    }
-    
-    
+            }
+
     public List<BlockedIpInfo> getBlockedIps() {
         Set<Object> blockedIps = redisTemplate.opsForSet().members(BLOCKED_IP_SET_KEY);
         if (blockedIps == null) {
@@ -215,8 +194,7 @@ public class IpBlockingService {
             .filter(BlockedIpInfo::isActive)
             .collect(Collectors.toList());
     }
-    
-    
+
     public List<BlockedRangeInfo> getBlockedRanges() {
         Set<Object> blockedRanges = redisTemplate.opsForSet().members(BLOCKED_RANGE_SET_KEY);
         if (blockedRanges == null) {
@@ -232,8 +210,7 @@ public class IpBlockingService {
             .filter(BlockedRangeInfo::isActive)
             .collect(Collectors.toList());
     }
-    
-    
+
     public BlockingStatistics getStatistics() {
         int blockedIps = getBlockedIps().size();
         int blockedRanges = getBlockedRanges().size();
@@ -246,8 +223,7 @@ public class IpBlockingService {
             .retrievedAt(Instant.now())
             .build();
     }
-    
-    
+
     private boolean isValidCidr(String cidr) {
         if (cidr == null || !cidr.contains("/")) {
             return false;
@@ -257,13 +233,11 @@ public class IpBlockingService {
         if (parts.length != 2) {
             return false;
         }
-        
-        
+
         if (!isValidIpAddress(parts[0])) {
             return false;
         }
-        
-        
+
         try {
             int mask = Integer.parseInt(parts[1]);
             return mask >= 0 && mask <= 32;
@@ -271,8 +245,7 @@ public class IpBlockingService {
             return false;
         }
     }
-    
-    
+
     private boolean isValidIpAddress(String ip) {
         if (ip == null) {
             return false;
@@ -296,8 +269,7 @@ public class IpBlockingService {
         
         return true;
     }
-    
-    
+
     private boolean isIpInRange(String ip, String cidr) {
         try {
             String[] cidrParts = cidr.split("/");
@@ -314,8 +286,7 @@ public class IpBlockingService {
             return false;
         }
     }
-    
-    
+
     private long ipToLong(String ip) {
         String[] parts = ip.split("\\.");
         long result = 0;
@@ -324,8 +295,7 @@ public class IpBlockingService {
         }
         return result;
     }
-    
-    
+
     @Data
     @Builder
     public static class BlockResult {
@@ -334,8 +304,7 @@ public class IpBlockingService {
         private String message;
         private Instant blockedUntil;
     }
-    
-    
+
     @Data
     @Builder
     public static class BlockedIpInfo implements Serializable {
@@ -346,8 +315,7 @@ public class IpBlockingService {
         private String blockedBy;
         private boolean active;
     }
-    
-    
+
     @Data
     @Builder
     public static class BlockedRangeInfo implements Serializable {
@@ -358,8 +326,7 @@ public class IpBlockingService {
         private String blockedBy;
         private boolean active;
     }
-    
-    
+
     @Data
     @Builder
     public static class BlockingStatistics {

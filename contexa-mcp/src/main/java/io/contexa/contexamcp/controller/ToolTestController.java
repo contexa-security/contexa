@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 
 @RequestMapping("/api/tools")
@@ -32,13 +31,11 @@ public class ToolTestController {
     @GetMapping("/list")
     public Map<String, Object> listTools() {
         Map<String, Object> result = new HashMap<>();
-        
-        
+
         Map<String, Object> tools = applicationContext.getBeansWithAnnotation(
             org.springframework.stereotype.Component.class
         );
-        
-        
+
         Map<String, String> securityTools = new HashMap<>();
         for (Map.Entry<String, Object> entry : tools.entrySet()) {
             if (entry.getValue().getClass().getPackage().getName().contains("tools")) {
@@ -48,9 +45,7 @@ public class ToolTestController {
         
         result.put("totalTools", securityTools.size());
         result.put("tools", securityTools);
-        
-        log.info("Found {} security tools", securityTools.size());
-        
+
         return result;
     }
     
@@ -62,10 +57,7 @@ public class ToolTestController {
             String ipAddress = (String) request.get("ipAddress");
             String reason = (String) request.get("reason");
             Integer duration = (Integer) request.get("durationMinutes");
-            
-            log.info("Testing IP blocking tool: ip={}, reason={}", ipAddress, reason);
-            
-            
+
             IpBlockingTool.Response response = ipBlockingTool.blockIp(
                 ipAddress, 
                 reason, 
@@ -76,9 +68,7 @@ public class ToolTestController {
             result.put("success", response.isSuccess());
             result.put("message", response.getMessage());
             result.put("response", response);
-            
-            log.info("IP blocking test result: {}", response.isSuccess());
-            
+
         } catch (Exception e) {
             log.error("Error testing IP blocking tool", e);
             result.put("success", false);
@@ -100,10 +90,7 @@ public class ToolTestController {
             Boolean checkRelated = (Boolean) request.get("checkRelated");
             Integer maxAge = request.get("maxAge") != null ? 
                 ((Number) request.get("maxAge")).intValue() : null;
-            
-            log.info("Testing threat intelligence tool: indicator={}, type={}", indicator, indicatorType);
-            
-            
+
             ThreatIntelligenceTool.Response response = threatIntelligenceTool.queryThreatIntelligence(
                 indicator,
                 indicatorType,
@@ -115,9 +102,7 @@ public class ToolTestController {
             result.put("success", response.isSuccess());
             result.put("message", response.getMessage());
             result.put("response", response);
-            
-            log.info("Threat intelligence test result: success={}", response.isSuccess());
-            
+
         } catch (Exception e) {
             log.error("Error testing threat intelligence tool", e);
             result.put("success", false);
@@ -127,18 +112,15 @@ public class ToolTestController {
         
         return result;
     }
-    
-    
+
     @GetMapping("/test/extract-ip")
     public ResponseEntity<Map<String, Object>> testIPExtraction(@RequestParam String text) {
-        log.info("Testing IP extraction from text: {}", text);
-        
+                
         Map<String, Object> result = new HashMap<>();
         result.put("input", text);
         
         try {
-            
-            
+
             NetworkScanTool.Response scanResult = networkScanTool.scanNetwork(
                 text,  
                 "basic",
@@ -158,12 +140,10 @@ public class ToolTestController {
         
         return ResponseEntity.ok(result);
     }
-    
-    
+
     @PostMapping("/test/security-incident")
     public ResponseEntity<Map<String, Object>> testSecurityIncident(@RequestBody Map<String, Object> incident) {
-        log.info("Testing security incident analysis: {}", incident);
-        
+                
         Map<String, Object> response = new HashMap<>();
         response.put("incident", incident);
         
@@ -179,10 +159,8 @@ public class ToolTestController {
                 "ipAddress", ipAddress,
                 "description", description
             ));
-            
-            
-            log.info("Step 1: Performing network scan on {}", ipAddress);
-            NetworkScanTool.Response scanResult = networkScanTool.scanNetwork(
+
+                        NetworkScanTool.Response scanResult = networkScanTool.scanNetwork(
                 ipAddress,
                 "full",
                 null,
@@ -190,10 +168,8 @@ public class ToolTestController {
                 true
             );
             response.put("networkScan", scanResult);
-            
-            
-            log.info("Step 2: Checking threat intelligence for {}", ipAddress);
-            ThreatIntelligenceTool.Response threatResult = threatIntelligenceTool.queryThreatIntelligence(
+
+                        ThreatIntelligenceTool.Response threatResult = threatIntelligenceTool.queryThreatIntelligence(
                 ipAddress,
                 "ip",
                 true,  
@@ -201,10 +177,8 @@ public class ToolTestController {
                 7      
             );
             response.put("threatIntelligence", threatResult);
-            
-            
-            log.info("Step 3: Analyzing logs for user {}", username);
-            LogAnalysisTool.Response logResult = logAnalysisTool.analyzeLog(
+
+                        LogAnalysisTool.Response logResult = logAnalysisTool.analyzeLog(
                 "security",  
                 "last_24h",  
                 List.of(String.format("user:%s", username), String.format("ip:%s", ipAddress)),  
@@ -212,10 +186,8 @@ public class ToolTestController {
                 true         
             );
             response.put("logAnalysis", logResult);
-            
-            
-            log.info("Step 4: Querying audit logs");
-            AuditLogQueryTool.Response auditResult = auditLogQueryTool.queryAuditLogs(
+
+                        AuditLogQueryTool.Response auditResult = auditLogQueryTool.queryAuditLogs(
                 username,    
                 ipAddress,   
                 null,        
@@ -223,22 +195,18 @@ public class ToolTestController {
                 100          
             );
             response.put("auditLogs", auditResult);
-            
-            
+
             Map<String, Object> recommendations = generateRecommendations(
                 scanResult, threatResult, logResult, auditResult);
             response.put("recommendations", recommendations);
-            
-            
+
             response.put("summary", Map.of(
                 "severity", calculateSeverity(threatResult),
                 "status", "Analysis completed",
                 "toolsExecuted", 4,
                 "timestamp", System.currentTimeMillis()
             ));
-            
-            log.info("Security incident analysis completed successfully");
-            
+
         } catch (Exception e) {
             log.error("Security incident analysis failed", e);
             response.put("error", e.getMessage());
@@ -247,12 +215,10 @@ public class ToolTestController {
         
         return ResponseEntity.ok(response);
     }
-    
-    
+
     @PostMapping("/test/conversation-flow")
     public ResponseEntity<Map<String, Object>> testConversationFlow(@RequestBody Map<String, Object> request) {
-        log.info("Testing conversation history flow");
-        
+                
         Map<String, Object> response = new HashMap<>();
         
         try {
@@ -261,8 +227,7 @@ public class ToolTestController {
             
             response.put("scenario", scenario);
             response.put("steps", new HashMap<>());
-            
-            
+
             Map<String, Object> step1 = new HashMap<>();
             step1.put("action", "Network scan");
             NetworkScanTool.Response scan = networkScanTool.scanNetwork(
@@ -272,8 +237,7 @@ public class ToolTestController {
             );
             step1.put("result", scan);
             ((Map<String, Object>) response.get("steps")).put("step1", step1);
-            
-            
+
             Map<String, Object> step2 = new HashMap<>();
             step2.put("action", "Threat check based on scan");
             ThreatIntelligenceTool.Response threat = threatIntelligenceTool.queryThreatIntelligence(
@@ -283,13 +247,10 @@ public class ToolTestController {
             );
             step2.put("result", threat);
             ((Map<String, Object>) response.get("steps")).put("step2", step2);
-            
-            
+
             Map<String, Object> step3 = new HashMap<>();
             step3.put("action", "Decision based on threat level");
-            
-            
-            
+
             boolean isHighThreat = threat.getIntelligence() != null && 
                                   (threat.getIntelligence().getConfidenceScore() >= 0.8 ||
                                    threat.getMessage().contains("HIGH"));
@@ -308,8 +269,7 @@ public class ToolTestController {
                 step3.put("result", "Added to monitoring list");
             }
             ((Map<String, Object>) response.get("steps")).put("step3", step3);
-            
-            
+
             response.put("synthesis", Map.of(
                 "totalTools", 3,
                 "conversationMaintained", true,
@@ -328,8 +288,7 @@ public class ToolTestController {
     
     private Map<String, Object> generateRecommendations(Object scan, Object threat, Object logs, Object audit) {
         Map<String, Object> recommendations = new HashMap<>();
-        
-        
+
         String threatLevel = threat.toString().contains("HIGH") ? "HIGH" : 
                            threat.toString().contains("MEDIUM") ? "MEDIUM" : "LOW";
         

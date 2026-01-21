@@ -12,7 +12,6 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -28,12 +27,10 @@ import java.util.*;
     allowedEnvironments = {"staging", "production"}
 )
 public class FileQuarantineTool {
-    
-    
+
     private static final Map<String, QuarantinedFile> QUARANTINE_VAULT = new HashMap<>();
     private static final String QUARANTINE_PATH = "/var/quarantine/";
-    
-    
+
     @Tool(
         name = "file_quarantine",
         description = """
@@ -69,13 +66,11 @@ public class FileQuarantineTool {
         Boolean forceAction
     ) {
         long startTime = System.currentTimeMillis();
-        
-        
+
         if (!"list".equals(action.toLowerCase()) && (filePath == null || filePath.trim().isEmpty())) {
             log.warn("파일 경로가 지정되지 않음 - SOAR 시스템 기본 처리");
             filePath = "C:\\Windows\\Temp\\cryptominer.exe"; 
-            log.info("📁 의심스러운 파일로 기본 경로 사용: {}", filePath);
-        }
+                    }
         
         log.warn("파일 격리 요청 - Action: {}, Path: {}, Reason: {}", 
             action, filePath, reason);
@@ -83,13 +78,11 @@ public class FileQuarantineTool {
         try {
             
             validateRequest(action, filePath, forceAction);
-            
-            
+
             if (!hasRequiredPermissions()) {
                 throw new SecurityException("Insufficient permissions for file quarantine");
             }
-            
-            
+
             QuarantineResult result = switch (action.toLowerCase()) {
                 case "quarantine" -> performQuarantine(filePath, reason, createBackup, permanentQuarantine);
                 case "restore" -> performRestore(filePath, validateBeforeRestore);
@@ -97,8 +90,7 @@ public class FileQuarantineTool {
                 case "list" -> listQuarantined();
                 default -> throw new IllegalArgumentException("Unknown action: " + action);
             };
-            
-            
+
             SecurityToolUtils.auditLog(
                 "file_quarantine",
                 action,
@@ -107,15 +99,12 @@ public class FileQuarantineTool {
                     filePath, reason, result.getStatus()),
                 "SUCCESS"
             );
-            
-            
+
             SecurityToolUtils.recordMetric("file_quarantine", "execution_count", 1);
             SecurityToolUtils.recordMetric("file_quarantine", action + "_count", 1);
             SecurityToolUtils.recordMetric("file_quarantine", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
-            
-            log.info("파일 격리 작업 완료: {}", result.getMessage());
-            
+
             return Response.builder()
                 .success(true)
                 .message(result.getMessage())
@@ -138,8 +127,7 @@ public class FileQuarantineTool {
                 .build();
         } catch (Exception e) {
             log.error("파일 격리 실패", e);
-            
-            
+
             SecurityToolUtils.recordMetric("file_quarantine", "error_count", 1);
             
             return Response.builder()
@@ -149,8 +137,7 @@ public class FileQuarantineTool {
                 .build();
         }
     }
-    
-    
+
     private void validateRequest(String action, String filePath, Boolean forceAction) {
         if (action == null || action.trim().isEmpty()) {
             throw new IllegalArgumentException("Action is required");
@@ -162,8 +149,7 @@ public class FileQuarantineTool {
             }
         }
     }
-    
-    
+
     private QuarantineResult performQuarantine(String filePath, String reason, 
                                                Boolean createBackup, Boolean permanentQuarantine) {
         
@@ -174,11 +160,9 @@ public class FileQuarantineTool {
                 .filePath(filePath)
                 .build();
         }
-        
-        
+
         FileMetadata metadata = collectFileMetadata(filePath);
-        
-        
+
         String quarantineId = UUID.randomUUID().toString();
         String quarantinePath = QUARANTINE_PATH + quarantineId;
         
@@ -191,11 +175,9 @@ public class FileQuarantineTool {
             .metadata(metadata)
             .canRestore(!Boolean.TRUE.equals(permanentQuarantine))
             .build();
-        
-        
+
         QUARANTINE_VAULT.put(filePath, quarantinedFile);
-        
-        
+
         if (Boolean.TRUE.equals(createBackup)) {
             createBackup(quarantinedFile);
         }
@@ -208,8 +190,7 @@ public class FileQuarantineTool {
             .metadata(metadata)
             .build();
     }
-    
-    
+
     private QuarantineResult performRestore(String filePath, Boolean validateBeforeRestore) {
         QuarantinedFile quarantinedFile = QUARANTINE_VAULT.get(filePath);
         if (quarantinedFile == null) {
@@ -219,15 +200,13 @@ public class FileQuarantineTool {
         if (!quarantinedFile.isCanRestore()) {
             throw new SecurityException("File cannot be restored (permanent quarantine): " + filePath);
         }
-        
-        
+
         if (Boolean.TRUE.equals(validateBeforeRestore)) {
             if (!validateFile(quarantinedFile)) {
                 throw new SecurityException("File validation failed, cannot restore: " + filePath);
             }
         }
-        
-        
+
         QUARANTINE_VAULT.remove(filePath);
         
         return QuarantineResult.builder()
@@ -238,20 +217,17 @@ public class FileQuarantineTool {
             .metadata(quarantinedFile.getMetadata())
             .build();
     }
-    
-    
+
     private QuarantineResult performDelete(String filePath, Boolean confirmDelete) {
         QuarantinedFile quarantinedFile = QUARANTINE_VAULT.get(filePath);
         if (quarantinedFile == null) {
             throw new IllegalArgumentException("File not found in quarantine: " + filePath);
         }
-        
-        
+
         if (!Boolean.TRUE.equals(confirmDelete)) {
             throw new SecurityException("Delete confirmation required for permanent deletion");
         }
-        
-        
+
         QUARANTINE_VAULT.remove(filePath);
         
         return QuarantineResult.builder()
@@ -261,8 +237,7 @@ public class FileQuarantineTool {
             .quarantineId(quarantinedFile.getId())
             .build();
     }
-    
-    
+
     private QuarantineResult listQuarantined() {
         List<QuarantineInfo> quarantineList = new ArrayList<>();
         
@@ -286,8 +261,7 @@ public class FileQuarantineTool {
             .quarantineList(quarantineList)
             .build();
     }
-    
-    
+
     private boolean hasRequiredPermissions() {
         
         return true; 
@@ -327,16 +301,14 @@ public class FileQuarantineTool {
     }
     
     private void createBackup(QuarantinedFile file) {
-        log.info("백업 생성: {}", file.getOriginalPath());
-        
+                
     }
     
     private boolean validateFile(QuarantinedFile file) {
         
         return Math.random() > 0.2; 
     }
-    
-    
+
     @Data
     @Builder
     public static class Response {
@@ -345,8 +317,7 @@ public class FileQuarantineTool {
         private QuarantineResult result;
         private String error;
     }
-    
-    
+
     @Data
     @Builder
     public static class QuarantineResult {
@@ -357,8 +328,7 @@ public class FileQuarantineTool {
         private FileMetadata metadata;
         private List<QuarantineInfo> quarantineList;
     }
-    
-    
+
     @Data
     @Builder
     public static class FileMetadata {
@@ -371,8 +341,7 @@ public class FileQuarantineTool {
         private String createdTime;
         private String modifiedTime;
     }
-    
-    
+
     @Data
     @Builder
     private static class QuarantinedFile {
@@ -384,8 +353,7 @@ public class FileQuarantineTool {
         private FileMetadata metadata;
         private boolean canRestore;
     }
-    
-    
+
     @Data
     @Builder
     public static class QuarantineInfo {

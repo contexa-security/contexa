@@ -12,7 +12,6 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -28,8 +27,7 @@ import java.util.*;
     allowedEnvironments = {"development", "staging", "production"}
 )
 public class NetworkScanTool {
-    
-    
+
     @Tool(
         name = "network_scan",
         description = """
@@ -55,18 +53,13 @@ public class NetworkScanTool {
         Boolean verbose
     ) {
         long startTime = System.currentTimeMillis();
-        
-        
+
         String cleanedTarget = extractIPFromText(target);
-        
-        log.info("네트워크 스캔 시작: target={} (추출된 IP: {}), scanType={}", 
-            target, cleanedTarget, scanType);
-        
+
         try {
             
             validateRequest(cleanedTarget, ports);
-            
-            
+
             String effectiveScanType = scanType != null ? scanType : "basic";
             List<ScanResult> results = switch (effectiveScanType) {
                 case "port" -> performPortScan(cleanedTarget, ports, timeout);
@@ -75,11 +68,9 @@ public class NetworkScanTool {
                 case "full" -> performFullScan(cleanedTarget, ports, timeout);
                 default -> performBasicScan(cleanedTarget, timeout);
             };
-            
-            
+
             ThreatAnalysis threatAnalysis = analyzeThreat(results);
-            
-            
+
             SecurityToolUtils.auditLog(
                 "network_scan",
                 "scan",
@@ -88,16 +79,13 @@ public class NetworkScanTool {
                     target, effectiveScanType, results.size(), threatAnalysis.uniqueVulnerabilities),
                 "SUCCESS"
             );
-            
-            
+
             SecurityToolUtils.recordMetric("network_scan", "execution_count", 1);
             SecurityToolUtils.recordMetric("network_scan", "hosts_scanned", results.size());
             SecurityToolUtils.recordMetric("network_scan", "vulnerabilities_found", threatAnalysis.uniqueVulnerabilities);
             SecurityToolUtils.recordMetric("network_scan", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
-            
-            log.info("네트워크 스캔 완료: {} 개 호스트 스캔", results.size());
-            
+
             return Response.builder()
                 .success(true)
                 .message(results.size() + " hosts scanned successfully")
@@ -107,8 +95,7 @@ public class NetworkScanTool {
             
         } catch (Exception e) {
             log.error("네트워크 스캔 실패", e);
-            
-            
+
             SecurityToolUtils.recordMetric("network_scan", "error_count", 1);
             
             return Response.builder()
@@ -118,14 +105,12 @@ public class NetworkScanTool {
                 .build();
         }
     }
-    
-    
+
     private void validateRequest(String target, List<Integer> ports) {
         if (target == null || target.trim().isEmpty()) {
             throw new IllegalArgumentException("Target is required");
         }
-        
-        
+
         if (!isValidTarget(target)) {
             
             log.warn("유효하지 않은 타겟 형식: '{}'. IP 주소나 CIDR 형식이 필요합니다.", target);
@@ -134,8 +119,7 @@ public class NetworkScanTool {
                     target)
             );
         }
-        
-        
+
         if (ports != null && !ports.isEmpty()) {
             for (Integer port : ports) {
                 if (port < 1 || port > 65535) {
@@ -144,12 +128,10 @@ public class NetworkScanTool {
             }
         }
     }
-    
-    
+
     private List<ScanResult> performBasicScan(String target, Integer timeout) {
         List<ScanResult> results = new ArrayList<>();
-        
-        
+
         String[] hosts = expandTargetRange(target);
         
         for (String host : hosts) {
@@ -169,12 +151,10 @@ public class NetworkScanTool {
         
         return results;
     }
-    
-    
+
     private List<ScanResult> performPortScan(String target, List<Integer> ports, Integer timeout) {
         List<ScanResult> results = performBasicScan(target, timeout);
-        
-        
+
         for (ScanResult result : results) {
             if ("up".equals(result.status)) {
                 List<Integer> targetPorts = ports != null ? 
@@ -187,12 +167,10 @@ public class NetworkScanTool {
         
         return results;
     }
-    
-    
+
     private List<ScanResult> performServiceScan(String target, List<Integer> ports, Integer timeout) {
         List<ScanResult> results = performPortScan(target, ports, timeout);
-        
-        
+
         for (ScanResult result : results) {
             if (result.services != null) {
                 for (Map.Entry<Integer, String> entry : result.services.entrySet()) {
@@ -207,12 +185,10 @@ public class NetworkScanTool {
         
         return results;
     }
-    
-    
+
     private List<ScanResult> performVulnerabilityScan(String target, List<Integer> ports, Integer timeout) {
         List<ScanResult> results = performServiceScan(target, ports, timeout);
-        
-        
+
         for (ScanResult result : results) {
             result.vulnerabilities = new ArrayList<>();
             
@@ -228,13 +204,11 @@ public class NetworkScanTool {
         
         return results;
     }
-    
-    
+
     private List<ScanResult> performFullScan(String target, List<Integer> ports, Integer timeout) {
         return performVulnerabilityScan(target, ports, timeout);
     }
-    
-    
+
     private ThreatAnalysis analyzeThreat(List<ScanResult> results) {
         ThreatAnalysis analysis = new ThreatAnalysis();
         
@@ -258,21 +232,18 @@ public class NetworkScanTool {
         analysis.activeHosts = activeHosts;
         analysis.vulnerableHosts = vulnerableHosts;
         analysis.uniqueVulnerabilities = allVulnerabilities.size();
-        
-        
+
         if (vulnerableHosts > 0) {
             analysis.riskLevel = vulnerableHosts > activeHosts / 2 ? "HIGH" : "MEDIUM";
         } else {
             analysis.riskLevel = "LOW";
         }
-        
-        
+
         analysis.recommendations = generateRecommendations(analysis);
         
         return analysis;
     }
-    
-    
+
     private List<String> generateRecommendations(ThreatAnalysis analysis) {
         List<String> recommendations = new ArrayList<>();
         
@@ -290,37 +261,30 @@ public class NetworkScanTool {
         
         return recommendations;
     }
-    
-    
-    
+
     private String extractIPFromText(String text) {
         if (text == null) {
             return "";
         }
-        
-        
+
         if (isValidTarget(text)) {
             return text;
         }
-        
-        
+
         String ipPattern = "\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}(?:/[0-9]{1,2})?\\b";
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(ipPattern);
         java.util.regex.Matcher matcher = pattern.matcher(text);
         
         if (matcher.find()) {
             String extracted = matcher.group();
-            log.debug("📍 텍스트 '{}' 에서 IP '{}' 추출", text, extracted);
-            return extracted;
+                        return extracted;
         }
-        
-        
+
         String lowerText = text.toLowerCase();
         if (lowerText.contains("localhost") || lowerText.contains("로컬")) {
             return "127.0.0.1";
         }
-        
-        
+
         return text;
     }
     
@@ -328,13 +292,11 @@ public class NetworkScanTool {
         if (target == null || target.isEmpty()) {
             return false;
         }
-        
-        
+
         String ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}" +
                             "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" +
                             "(?:/(?:3[0-2]|[12]?[0-9]))?$";
-        
-        
+
         String hostnamePattern = "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*" +
                                 "[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$";
         
@@ -414,8 +376,7 @@ public class NetworkScanTool {
         }
         return vulns;
     }
-    
-    
+
     @Data
     @Builder
     public static class Response {
@@ -425,8 +386,7 @@ public class NetworkScanTool {
         private ThreatAnalysis threatAnalysis;
         private String error;
     }
-    
-    
+
     public static class ScanResult {
         public String host;
         public String status;
@@ -436,8 +396,7 @@ public class NetworkScanTool {
         public List<String> vulnerabilities;
         public String scanTime;
     }
-    
-    
+
     public static class ThreatAnalysis {
         public int totalHosts;
         public int activeHosts;

@@ -14,7 +14,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -32,13 +31,11 @@ import java.util.regex.Pattern;
 public class IpBlockingTool {
 
     private final IpBlockingService ipBlockingService;
-    
-    
+
     private static final Pattern IP_PATTERN = Pattern.compile(
         "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$"
     );
 
-    
     @Tool(
         name = "ip_blocking", 
         description = """
@@ -61,10 +58,7 @@ public class IpBlockingTool {
         String ticketId
     ) {
         long startTime = System.currentTimeMillis();
-        
-        log.info("🚫 IP 차단 요청 - IP: {}, Reason: {}, Duration: {} minutes, Ticket: {}", 
-            ipAddress, reason, durationMinutes, ticketId);
-        
+
         try {
             
             if (ipAddress == null || ipAddress.trim().isEmpty()) {
@@ -74,8 +68,7 @@ public class IpBlockingTool {
             if (reason == null || reason.trim().length() < 10) {
                 throw new IllegalArgumentException("Reason must be at least 10 characters");
             }
-            
-            
+
             if (!isValidIpAddress(ipAddress)) {
                 log.error("Invalid IP address format: {}", ipAddress);
                 return Response.builder()
@@ -85,8 +78,7 @@ public class IpBlockingTool {
                     .blocked(false)
                     .build();
             }
-            
-            
+
             if (isInternalIp(ipAddress)) {
                 log.warn("Cannot block internal IP address: {}", ipAddress);
                 return Response.builder()
@@ -96,8 +88,7 @@ public class IpBlockingTool {
                     .blocked(false)
                     .build();
             }
-            
-            
+
             Duration duration = durationMinutes != null && durationMinutes > 0
                 ? Duration.ofMinutes(durationMinutes)
                 : null;
@@ -110,8 +101,7 @@ public class IpBlockingTool {
             );
             
             boolean blockSuccess = blockResult.isSuccess();
-            
-            
+
             SecurityToolUtils.auditLog(
                 "ip_blocking",
                 "block",
@@ -120,15 +110,13 @@ public class IpBlockingTool {
                     ipAddress, reason, durationMinutes, ticketId),
                 blockSuccess ? "SUCCESS" : "FAILED"
             );
-            
-            
+
             SecurityToolUtils.recordMetric("ip_blocking", "execution_count", 1);
             SecurityToolUtils.recordMetric("ip_blocking", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
             
             if (blockSuccess) {
-                log.info("Successfully blocked IP: {}", ipAddress);
-                return Response.builder()
+                                return Response.builder()
                     .success(true)
                     .message(blockResult.getMessage())
                     .ipAddress(ipAddress)
@@ -159,8 +147,7 @@ public class IpBlockingTool {
                 .build();
         } catch (Exception e) {
             log.error("Error blocking IP address", e);
-            
-            
+
             SecurityToolUtils.recordMetric("ip_blocking", "error_count", 1);
             
             return Response.builder()
@@ -171,16 +158,14 @@ public class IpBlockingTool {
                 .build();
         }
     }
-    
-    
+
     private boolean isValidIpAddress(String ip) {
         if (ip == null || ip.isEmpty()) {
             return false;
         }
         return IP_PATTERN.matcher(ip).matches();
     }
-    
-    
+
     private boolean isInternalIp(String ip) {
         return ip.startsWith("10.") || 
                ip.startsWith("172.16.") || 
@@ -188,15 +173,13 @@ public class IpBlockingTool {
                ip.equals("127.0.0.1") ||
                ip.equals("0.0.0.0");
     }
-    
-    
+
     private String generateRuleId(String ipAddress, long timestamp) {
         return String.format("BLOCK_%s_%d", 
             ipAddress.replace(".", "_"), 
             timestamp);
     }
 
-    
     @Data
     @Builder
     public static class Response {

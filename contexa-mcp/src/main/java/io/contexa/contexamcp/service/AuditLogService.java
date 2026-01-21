@@ -17,15 +17,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuditLogService {
     
     private final JdbcTemplate jdbcTemplate;
-    
-    
+
     @Transactional
     public void saveAuditLog(AuditLog auditLog) {
         String sql = """
@@ -53,11 +51,8 @@ public class AuditLogService {
             auditLog.getResult()
         );
         
-        log.debug("Audit log saved: {} - {} by {}", 
-            auditLog.getAction(), auditLog.getResourceType(), auditLog.getUserId());
-    }
-    
-    
+            }
+
     public List<AuditLog> findByUserId(String userId, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -68,8 +63,7 @@ public class AuditLogService {
         
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), userId, limit);
     }
-    
-    
+
     public List<AuditLog> findByAction(String action, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -80,8 +74,7 @@ public class AuditLogService {
         
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), action, limit);
     }
-    
-    
+
     public List<AuditLog> findByResource(String resourceType, String resourceId, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -92,8 +85,7 @@ public class AuditLogService {
         
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), resourceType, resourceId, limit);
     }
-    
-    
+
     public List<AuditLog> findByTimeRange(Instant startTime, Instant endTime, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -105,8 +97,7 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), 
             Timestamp.from(startTime), Timestamp.from(endTime), limit);
     }
-    
-    
+
     public List<AuditLog> findByIpAddress(String ipAddress, int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -117,8 +108,7 @@ public class AuditLogService {
         
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), ipAddress, limit);
     }
-    
-    
+
     public List<AuditLog> findFailedActions(int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -129,8 +119,7 @@ public class AuditLogService {
         
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), limit);
     }
-    
-    
+
     public List<AuditLog> findSecurityEvents(int limit) {
         String sql = """
             SELECT * FROM audit_log 
@@ -142,8 +131,7 @@ public class AuditLogService {
         
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), limit);
     }
-    
-    
+
     public List<Map<String, Object>> getUserActionStatistics(Instant startTime, Instant endTime) {
         String sql = """
             SELECT principal_name, action, COUNT(*) as count 
@@ -156,8 +144,7 @@ public class AuditLogService {
         return jdbcTemplate.queryForList(sql, 
             Timestamp.from(startTime), Timestamp.from(endTime));
     }
-    
-    
+
     public List<Map<String, Object>> getHourlyActionStatistics(Instant startTime, Instant endTime) {
         String sql = """
             SELECT DATE_TRUNC('hour', timestamp) as hour, 
@@ -173,8 +160,7 @@ public class AuditLogService {
         return jdbcTemplate.queryForList(sql, 
             Timestamp.from(startTime), Timestamp.from(endTime));
     }
-    
-    
+
     public void auditToolExecution(String toolName, String userId, String action, 
                                   boolean success, Map<String, Object> metadata) {
         AuditLog auditLog = AuditLog.builder()
@@ -190,8 +176,7 @@ public class AuditLogService {
         
         saveAuditLog(auditLog);
     }
-    
-    
+
     private static class AuditLogRowMapper implements RowMapper<AuditLog> {
         @Override
         public AuditLog mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -221,8 +206,7 @@ public class AuditLogService {
             return Map.of("raw", json);
         }
     }
-    
-    
+
     @Data
     @Builder
     public static class AuditLog {

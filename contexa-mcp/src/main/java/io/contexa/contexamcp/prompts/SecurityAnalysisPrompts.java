@@ -11,12 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SecurityAnalysisPrompts {
-    
-    
+
     public McpSchema.Prompt getLogAnalysisPrompt() {
         return new McpSchema.Prompt(
             "analyze_security_logs",
@@ -45,38 +43,31 @@ public class SecurityAnalysisPrompts {
             )
         );
     }
-    
-    
+
     public McpServerFeatures.SyncPromptSpecification createLogAnalysisSpec() {
         return new McpServerFeatures.SyncPromptSpecification(
             getLogAnalysisPrompt(),
             (exchange, request) -> {
                 try {
-                    log.info("보안 로그 분석 프롬프트 요청: {}", request.name());
-                    
-                    
+
                     Map<String, Object> args = request.arguments();
                     String logType = (String) args.getOrDefault("log_type", "all");
                     String timeRange = (String) args.getOrDefault("time_range", "last_24h");
                     String severityFilter = (String) args.getOrDefault("severity_filter", "all");
                     String focusArea = (String) args.getOrDefault("focus_area", "general");
-                    
-                    
+
                     List<McpSchema.PromptMessage> messages = new ArrayList<>();
-                    
-                    
+
                     messages.add(new McpSchema.PromptMessage(
                             McpSchema.Role.USER,
                         new McpSchema.TextContent(buildSystemPrompt())
                     ));
-                    
-                    
+
                     messages.add(new McpSchema.PromptMessage(
                             McpSchema.Role.USER,
                         new McpSchema.TextContent(buildUserPrompt(logType, timeRange, severityFilter, focusArea))
                     ));
-                    
-                    
+
                     messages.add(new McpSchema.PromptMessage(
                             McpSchema.Role.ASSISTANT,
                         new McpSchema.TextContent(buildAssistantHint(logType))
@@ -94,8 +85,7 @@ public class SecurityAnalysisPrompts {
             }
         );
     }
-    
-    
+
     public McpSchema.Prompt getThreatAssessmentPrompt() {
         return new McpSchema.Prompt(
             "assess_threat_level",
@@ -119,8 +109,7 @@ public class SecurityAnalysisPrompts {
             )
         );
     }
-    
-    
+
     public McpServerFeatures.SyncPromptSpecification createThreatAssessmentSpec() {
         return new McpServerFeatures.SyncPromptSpecification(
             getThreatAssessmentPrompt(),
@@ -177,8 +166,7 @@ public class SecurityAnalysisPrompts {
             }
         );
     }
-    
-    
+
     private String buildSystemPrompt() {
         return """
             You are an expert security analyst specializing in log analysis and threat detection.
@@ -193,8 +181,7 @@ public class SecurityAnalysisPrompts {
             Be specific, technical, and action-oriented in your analysis.
             """;
     }
-    
-    
+
     private String buildUserPrompt(String logType, String timeRange, String severityFilter, String focusArea) {
         LocalDateTime now = LocalDateTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -225,8 +212,7 @@ public class SecurityAnalysisPrompts {
             focusArea
         );
     }
-    
-    
+
     private String buildAssistantHint(String logType) {
         return String.format(
             "I'll analyze the %s logs focusing on security threats and anomalies. " +

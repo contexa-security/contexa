@@ -14,14 +14,12 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class SystemInfoResource {
     
     private final ObjectMapper objectMapper;
-    
-    
+
     public McpSchema.Resource getResourceDefinition() {
         return new McpSchema.Resource(
             "security://system/info",  
@@ -31,23 +29,18 @@ public class SystemInfoResource {
             null  
         );
     }
-    
-    
+
     public McpServerFeatures.SyncResourceSpecification createSpecification() {
         return new McpServerFeatures.SyncResourceSpecification(
             getResourceDefinition(),
             (exchange, request) -> {
                 try {
-                    log.info("💻 시스템 정보 리소스 요청: {}", request.uri());
-                    
-                    
+
                     Map<String, Object> systemInfo = collectSystemInfo();
-                    
-                    
+
                     String jsonContent = objectMapper.writerWithDefaultPrettyPrinter()
                         .writeValueAsString(systemInfo);
-                    
-                    
+
                     return new McpSchema.ReadResourceResult(
                         List.of(new McpSchema.TextResourceContents(
                             request.uri(),
@@ -63,14 +56,12 @@ public class SystemInfoResource {
             }
         );
     }
-    
-    
+
     private Map<String, Object> collectSystemInfo() {
         try {
             OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
             RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
-            
-            
+
             Map<String, Object> system = Map.of(
                 "hostname", InetAddress.getLocalHost().getHostName(),
                 "os_name", System.getProperty("os.name"),
@@ -83,8 +74,7 @@ public class SystemInfoResource {
                 "uptime_ms", runtimeBean.getUptime(),
                 "timestamp", Instant.now().toString()
             );
-            
-            
+
             Map<String, Object> security = Map.of(
                 "security_manager_enabled", false,  
                 "tls_version", System.getProperty("https.protocols", "TLSv1.2,TLSv1.3"),
@@ -97,8 +87,7 @@ public class SystemInfoResource {
                 "antivirus_status", checkAntivirusStatus(),
                 "last_security_scan", getLastSecurityScan()
             );
-            
-            
+
             Runtime runtime = Runtime.getRuntime();
             Map<String, Object> memory = Map.of(
                 "total_memory", runtime.totalMemory(),
@@ -107,8 +96,7 @@ public class SystemInfoResource {
                 "max_memory", runtime.maxMemory(),
                 "memory_usage_percent", ((runtime.totalMemory() - runtime.freeMemory()) * 100.0) / runtime.maxMemory()
             );
-            
-            
+
             Map<String, Object> network = Map.of(
                 "hostname", InetAddress.getLocalHost().getHostName(),
                 "ip_address", InetAddress.getLocalHost().getHostAddress(),
@@ -117,8 +105,7 @@ public class SystemInfoResource {
                 "open_ports", getOpenPortsCount(),
                 "active_connections", getActiveConnectionsCount()
             );
-            
-            
+
             return Map.of(
                 "system", system,
                 "security", security,
@@ -137,8 +124,7 @@ public class SystemInfoResource {
             );
         }
     }
-    
-    
+
     private String checkFirewallStatus() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
@@ -161,8 +147,7 @@ public class SystemInfoResource {
             return "ERROR";
         }
     }
-    
-    
+
     private String checkAntivirusStatus() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
@@ -182,16 +167,14 @@ public class SystemInfoResource {
             return "ERROR";
         }
     }
-    
-    
+
     private String getLastSecurityScan() {
         try {
             
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
                 return getWindowsDefenderLastScan();
             }
-            
-            
+
             return Instant.now().minusSeconds(3600).toString();
             
         } catch (Exception e) {
@@ -207,8 +190,7 @@ public class SystemInfoResource {
             return 0;
         }
     }
-    
-    
+
     private int getOpenPortsCount() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
@@ -226,8 +208,7 @@ public class SystemInfoResource {
             return 0;
         }
     }
-    
-    
+
     private int getActiveConnectionsCount() {
         try {
             String osName = System.getProperty("os.name").toLowerCase();
@@ -265,10 +246,7 @@ public class SystemInfoResource {
             "last_audit", Instant.now().minusSeconds(86400 * 30).toString()
         );
     }
-    
-    
-    
-    
+
     private String checkWindowsFirewall() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netsh", "advfirewall", "show", "allprofiles", "state");
@@ -291,12 +269,10 @@ public class SystemInfoResource {
             }
             
         } catch (Exception e) {
-            log.debug("Windows 방화벽 상태 확인 실패: {}", e.getMessage());
-            return "UNKNOWN";
+                        return "UNKNOWN";
         }
     }
-    
-    
+
     private String checkLinuxFirewall() {
         try {
             
@@ -307,8 +283,7 @@ public class SystemInfoResource {
             if (exitCode == 0) {
                 return "ENABLED";
             }
-            
-            
+
             pb = new ProcessBuilder("iptables", "-L", "-n");
             process = pb.start();
             exitCode = process.waitFor();
@@ -316,12 +291,10 @@ public class SystemInfoResource {
             return exitCode == 0 ? "ENABLED" : "DISABLED";
             
         } catch (Exception e) {
-            log.debug("Linux 방화벽 상태 확인 실패: {}", e.getMessage());
-            return "UNKNOWN";
+                        return "UNKNOWN";
         }
     }
-    
-    
+
     private String checkMacFirewall() {
         try {
             ProcessBuilder pb = new ProcessBuilder("sudo", "pfctl", "-s", "info");
@@ -341,12 +314,10 @@ public class SystemInfoResource {
             return "DISABLED";
             
         } catch (Exception e) {
-            log.debug("macOS 방화벽 상태 확인 실패: {}", e.getMessage());
-            return "UNKNOWN";
+                        return "UNKNOWN";
         }
     }
-    
-    
+
     private String checkWindowsAntivirus() {
         try {
             
@@ -370,12 +341,10 @@ public class SystemInfoResource {
             return "UNKNOWN";
             
         } catch (Exception e) {
-            log.debug("Windows 안티바이러스 상태 확인 실패: {}", e.getMessage());
-            return "UNKNOWN";
+                        return "UNKNOWN";
         }
     }
-    
-    
+
     private String checkLinuxAntivirus() {
         try {
             
@@ -386,12 +355,10 @@ public class SystemInfoResource {
             return exitCode == 0 ? "ACTIVE" : "INACTIVE";
             
         } catch (Exception e) {
-            log.debug("Linux 안티바이러스 상태 확인 실패: {}", e.getMessage());
-            return "UNKNOWN";
+                        return "UNKNOWN";
         }
     }
-    
-    
+
     private String checkMacAntivirus() {
         try {
             
@@ -412,12 +379,10 @@ public class SystemInfoResource {
             return "UNKNOWN";
             
         } catch (Exception e) {
-            log.debug("macOS 안티바이러스 상태 확인 실패: {}", e.getMessage());
-            return "UNKNOWN";
+                        return "UNKNOWN";
         }
     }
-    
-    
+
     private String getWindowsDefenderLastScan() {
         try {
             ProcessBuilder pb = new ProcessBuilder("powershell", 
@@ -444,12 +409,10 @@ public class SystemInfoResource {
             }
             
         } catch (Exception e) {
-            log.debug("Windows Defender 마지막 스캔 시간 조회 실패: {}", e.getMessage());
-            return Instant.now().minusSeconds(3600).toString();
+                        return Instant.now().minusSeconds(3600).toString();
         }
     }
-    
-    
+
     private int getWindowsOpenPorts() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-an");
@@ -464,12 +427,10 @@ public class SystemInfoResource {
             }
             
         } catch (Exception e) {
-            log.debug("Windows 열린 포트 확인 실패: {}", e.getMessage());
-            return 0;
+                        return 0;
         }
     }
-    
-    
+
     private int getUnixOpenPorts() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-ln");
@@ -484,12 +445,10 @@ public class SystemInfoResource {
             }
             
         } catch (Exception e) {
-            log.debug("Unix 열린 포트 확인 실패: {}", e.getMessage());
-            return 0;
+                        return 0;
         }
     }
-    
-    
+
     private int getWindowsActiveConnections() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-an");
@@ -504,12 +463,10 @@ public class SystemInfoResource {
             }
             
         } catch (Exception e) {
-            log.debug("Windows 활성 연결 확인 실패: {}", e.getMessage());
-            return 0;
+                        return 0;
         }
     }
-    
-    
+
     private int getUnixActiveConnections() {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-n");
@@ -524,8 +481,7 @@ public class SystemInfoResource {
             }
             
         } catch (Exception e) {
-            log.debug("Unix 활성 연결 확인 실패: {}", e.getMessage());
-            return 0;
+                        return 0;
         }
     }
 }

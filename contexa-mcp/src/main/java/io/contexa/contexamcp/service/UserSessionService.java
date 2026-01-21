@@ -12,7 +12,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -23,8 +22,7 @@ public class UserSessionService {
     private static final String SESSION_KEY_PREFIX = "session:";
     private static final String USER_SESSIONS_KEY_PREFIX = "user:sessions:";
     private static final long SESSION_TIMEOUT_MINUTES = 30;
-    
-    
+
     public SessionInfo createSession(String userId, String ipAddress, String userAgent) {
         String sessionId = UUID.randomUUID().toString();
         
@@ -37,22 +35,17 @@ public class UserSessionService {
             .lastAccessedAt(Instant.now())
             .active(true)
             .build();
-        
-        
+
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         redisTemplate.opsForValue().set(sessionKey, session, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
-        
-        
+
         String userSessionsKey = USER_SESSIONS_KEY_PREFIX + userId;
         redisTemplate.opsForSet().add(userSessionsKey, sessionId);
         redisTemplate.expire(userSessionsKey, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
-        
-        log.info("Session created: {} for user: {}", sessionId, userId);
-        
+
         return session;
     }
-    
-    
+
     public List<SessionInfo> findActiveSessionsByUserId(String userId) {
         String userSessionsKey = USER_SESSIONS_KEY_PREFIX + userId;
         Set<Object> sessionIds = redisTemplate.opsForSet().members(userSessionsKey);
@@ -68,8 +61,7 @@ public class UserSessionService {
             .filter(SessionInfo::isActive)
             .collect(Collectors.toList());
     }
-    
-    
+
     public boolean terminateSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
@@ -78,22 +70,17 @@ public class UserSessionService {
             log.warn("Session not found: {}", sessionId);
             return false;
         }
-        
-        
+
         session.setActive(false);
         session.setTerminatedAt(Instant.now());
         redisTemplate.opsForValue().set(sessionKey, session, 1, TimeUnit.MINUTES); 
-        
-        
+
         String userSessionsKey = USER_SESSIONS_KEY_PREFIX + session.getUserId();
         redisTemplate.opsForSet().remove(userSessionsKey, sessionId);
-        
-        log.info("Session terminated: {} for user: {}", sessionId, session.getUserId());
-        
+
         return true;
     }
-    
-    
+
     public int terminateAllUserSessions(String userId) {
         List<SessionInfo> sessions = findActiveSessionsByUserId(userId);
         int terminated = 0;
@@ -103,13 +90,10 @@ public class UserSessionService {
                 terminated++;
             }
         }
-        
-        log.info("Terminated {} sessions for user: {}", terminated, userId);
-        
+
         return terminated;
     }
-    
-    
+
     public void refreshSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
@@ -119,21 +103,17 @@ public class UserSessionService {
             redisTemplate.opsForValue().set(sessionKey, session, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
         }
     }
-    
-    
+
     public Optional<SessionInfo> getSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
         return Optional.ofNullable(session);
     }
-    
-    
+
     public void cleanupExpiredSessions() {
         
-        log.debug("Session cleanup triggered (handled by Redis TTL)");
-    }
-    
-    
+            }
+
     @Data
     @Builder
     public static class SessionInfo {

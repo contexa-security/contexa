@@ -12,7 +12,6 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -28,8 +27,7 @@ import java.util.*;
     allowedEnvironments = {"development", "staging", "production"}
 )
 public class ThreatIntelligenceTool {
-    
-    
+
     private static final Map<String, ThreatInfo> THREAT_DATABASE = new HashMap<>();
     private static final Map<String, List<String>> THREAT_ACTOR_DATABASE = new HashMap<>();
     
@@ -38,8 +36,7 @@ public class ThreatIntelligenceTool {
         initializeThreatDatabase();
         initializeThreatActors();
     }
-    
-    
+
     @Tool(
         name = "threat_intelligence",
         description = """
@@ -65,15 +62,11 @@ public class ThreatIntelligenceTool {
         Integer maxAge
     ) {
         long startTime = System.currentTimeMillis();
-        
-        log.info("위협 인텔리전스 조회 시작: indicator={}, type={}", 
-            indicator, indicatorType);
-        
+
         try {
             
             validateRequest(indicator, indicatorType);
-            
-            
+
             String detectedType = null;
             if (indicatorType != null && !indicatorType.trim().isEmpty()) {
                 Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
@@ -86,29 +79,23 @@ public class ThreatIntelligenceTool {
             } else {
                 detectedType = detectIndicatorType(indicator);
             }
-            
-            
+
             ThreatIntelligence intelligence = lookupThreatIntelligence(
                 indicator, detectedType, maxAge);
-            
-            
+
             if (Boolean.TRUE.equals(includeContext) && intelligence != null) {
                 enrichWithContext(intelligence);
             }
-            
-            
+
             List<String> relatedIocs = new ArrayList<>();
             if (Boolean.TRUE.equals(checkRelated) && intelligence != null) {
                 relatedIocs = findRelatedIocs(indicator, detectedType);
             }
-            
-            
+
             ThreatAssessment assessment = assessThreat(intelligence, relatedIocs);
-            
-            
+
             List<String> recommendations = generateRecommendations(assessment);
-            
-            
+
             SecurityToolUtils.auditLog(
                 "threat_intelligence",
                 "query",
@@ -118,8 +105,7 @@ public class ThreatIntelligenceTool {
                     assessment != null ? assessment.threatLevel : "UNKNOWN"),
                 "SUCCESS"
             );
-            
-            
+
             SecurityToolUtils.recordMetric("threat_intelligence", "execution_count", 1);
             SecurityToolUtils.recordMetric("threat_intelligence", "queries_processed", 1);
             if (intelligence != null) {
@@ -127,10 +113,7 @@ public class ThreatIntelligenceTool {
             }
             SecurityToolUtils.recordMetric("threat_intelligence", "execution_time_ms", 
                 System.currentTimeMillis() - startTime);
-            
-            log.info("위협 인텔리전스 조회 완료: {}", 
-                intelligence != null ? "위협 정보 발견" : "위협 정보 없음");
-            
+
             return Response.builder()
                 .success(true)
                 .message(intelligence != null ? 
@@ -147,8 +130,7 @@ public class ThreatIntelligenceTool {
             
         } catch (Exception e) {
             log.error("위협 인텔리전스 조회 실패", e);
-            
-            
+
             SecurityToolUtils.recordMetric("threat_intelligence", "error_count", 1);
             
             return Response.builder()
@@ -159,8 +141,7 @@ public class ThreatIntelligenceTool {
                 .build();
         }
     }
-    
-    
+
     private void validateRequest(String indicator, String indicatorType) {
         if (indicator == null || indicator.trim().isEmpty()) {
             throw new IllegalArgumentException("Indicator is required");
@@ -168,17 +149,14 @@ public class ThreatIntelligenceTool {
         
         if (indicatorType != null && !indicatorType.trim().isEmpty()) {
             Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
-            
-            
+
             if (!validTypes.contains(indicatorType.toLowerCase())) {
                 log.warn("잘못된 indicator type '{}' - 자동 탐지로 대체", indicatorType);
-                
-                
+
             }
         }
     }
-    
-    
+
     private String detectIndicatorType(String indicator) {
         if (indicator.matches("^([0-9]{1,3}\\.){3}[0-9]{1,3}$")) {
             return "ip";
@@ -193,8 +171,7 @@ public class ThreatIntelligenceTool {
         }
         return "unknown";
     }
-    
-    
+
     private ThreatIntelligence lookupThreatIntelligence(String indicator, 
                                                         String type, 
                                                         Integer maxAge) {
@@ -208,8 +185,7 @@ public class ThreatIntelligenceTool {
             }
             return null;
         }
-        
-        
+
         if (maxAge != null) {
             LocalDateTime cutoffDate = LocalDateTime.now().minusDays(maxAge);
             if (info.lastSeen.isBefore(cutoffDate)) {
@@ -229,8 +205,7 @@ public class ThreatIntelligenceTool {
             .tags(info.tags)
             .build();
     }
-    
-    
+
     private void enrichWithContext(ThreatIntelligence intelligence) {
         intelligence.context = new HashMap<>();
         intelligence.context.put("geographic_location", "Russia");
@@ -239,12 +214,10 @@ public class ThreatIntelligenceTool {
         intelligence.context.put("threat_actor", "APT28");
         intelligence.context.put("ttps", Arrays.asList("T1566", "T1055", "T1003"));
     }
-    
-    
+
     private List<String> findRelatedIocs(String indicator, String type) {
         List<String> related = new ArrayList<>();
-        
-        
+
         if ("ip".equals(type)) {
             related.add("malware.badactor.com");
             related.add("5d41402abc4b2a76b9719d911017c592");
@@ -255,8 +228,7 @@ public class ThreatIntelligenceTool {
         
         return related;
     }
-    
-    
+
     private ThreatAssessment assessThreat(ThreatIntelligence intelligence, 
                                           List<String> relatedIocs) {
         if (intelligence == null) {
@@ -266,8 +238,7 @@ public class ThreatIntelligenceTool {
                 .verdict("SAFE")
                 .build();
         }
-        
-        
+
         int riskScore = calculateRiskScore(intelligence, relatedIocs);
         
         String threatLevel;
@@ -301,26 +272,21 @@ public class ThreatIntelligenceTool {
             ))
             .build();
     }
-    
-    
+
     private int calculateRiskScore(ThreatIntelligence intelligence, 
                                    List<String> relatedIocs) {
         int score = 0;
-        
-        
+
         if ("malicious".equals(intelligence.reputation)) {
             score += 50;
         } else if ("suspicious".equals(intelligence.reputation)) {
             score += 30;
         }
-        
-        
+
         score += (int)(intelligence.confidenceScore * 20);
-        
-        
+
         score += Math.min(relatedIocs.size() * 5, 20);
-        
-        
+
         LocalDateTime lastSeen = LocalDateTime.parse(intelligence.lastSeen);
         if (lastSeen.isAfter(LocalDateTime.now().minusDays(7))) {
             score += 10;
@@ -328,8 +294,7 @@ public class ThreatIntelligenceTool {
         
         return Math.min(score, 100);
     }
-    
-    
+
     private List<String> generateRecommendations(ThreatAssessment assessment) {
         List<String> recommendations = new ArrayList<>();
         
@@ -366,8 +331,7 @@ public class ThreatIntelligenceTool {
         
         return recommendations;
     }
-    
-    
+
     private ThreatIntelligence generateSampleThreatIntelligence(String indicator, String type) {
         return ThreatIntelligence.builder()
             .indicator(indicator)
@@ -381,8 +345,7 @@ public class ThreatIntelligenceTool {
             .tags(Arrays.asList("malware", "c2", "botnet"))
             .build();
     }
-    
-    
+
     private static void initializeThreatDatabase() {
         String emotetIP = generateRandomIP();
         THREAT_DATABASE.put(emotetIP, new ThreatInfo(
@@ -397,8 +360,7 @@ public class ThreatIntelligenceTool {
             Arrays.asList("apt29", "cobaltstrike", "c2")
         ));
     }
-    
-    
+
     private static void initializeThreatActors() {
         THREAT_ACTOR_DATABASE.put("APT28", Arrays.asList(
             generateRandomIP(), "apt28.badactor.com", "fancy.bear.ru"
@@ -408,8 +370,7 @@ public class ThreatIntelligenceTool {
             generateRandomIP(), "cozy.bear.com", "nobelium.actor"
         ));
     }
-    
-    
+
     @Data
     @Builder
     public static class Response {
@@ -424,8 +385,7 @@ public class ThreatIntelligenceTool {
         private String queryTime;
         private String error;
     }
-    
-    
+
     @Data
     @Builder
     public static class ThreatIntelligence {
@@ -440,8 +400,7 @@ public class ThreatIntelligenceTool {
         private List<String> tags;
         private Map<String, Object> context;
     }
-    
-    
+
     @Data
     @Builder
     public static class ThreatAssessment {
@@ -450,8 +409,7 @@ public class ThreatIntelligenceTool {
         private String verdict;
         private List<String> factors;
     }
-    
-    
+
     private static class ThreatInfo {
         String indicator;
         double confidenceScore;

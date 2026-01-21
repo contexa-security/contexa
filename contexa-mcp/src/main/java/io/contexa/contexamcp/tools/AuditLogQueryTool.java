@@ -14,7 +14,6 @@ import org.springframework.util.StringUtils;
 import java.util.Collections;
 import java.util.List;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
@@ -33,7 +32,6 @@ public class AuditLogQueryTool {
 
     private final AuditLogService auditLogService;
 
-    
     @Tool(
         name = "queryAuditLogs",
         description = """
@@ -60,10 +58,7 @@ public class AuditLogQueryTool {
         Integer limit
     ) {
         long startTime = System.currentTimeMillis();
-        
-        log.info("감사 로그 조회 - User: {}, IP: {}, From: {}, To: {}, Limit: {}", 
-            userId, ipAddress, dateFrom, dateTo, limit);
-        
+
         try {
             
             if (!StringUtils.hasText(userId) && !StringUtils.hasText(ipAddress)) {
@@ -75,11 +70,9 @@ public class AuditLogQueryTool {
                     .totalCount(0)
                     .build();
             }
-            
-            
+
             int effectiveLimit = (limit != null && limit > 0 && limit <= 1000) ? limit : 100;
-            
-            
+
             List<AuditLogService.AuditLog> logs;
             String searchCriteria;
             
@@ -93,14 +86,10 @@ public class AuditLogQueryTool {
                 logs = Collections.emptyList();
                 searchCriteria = "none";
             }
-            
-            log.info("Found {} audit logs for criteria: {}", logs.size(), searchCriteria);
-            
-            
+
             String threatLevel = analyzeThreatLevel(logs);
             ThreatAnalysis analysis = performDetailedAnalysis(logs);
-            
-            
+
             SecurityToolUtils.auditLog(
                 "audit_log_query",
                 "query",
@@ -109,8 +98,7 @@ public class AuditLogQueryTool {
                     searchCriteria, logs.size(), threatLevel),
                 "SUCCESS"
             );
-            
-            
+
             SecurityToolUtils.recordMetric("audit_log_query", "execution_count", 1);
             SecurityToolUtils.recordMetric("audit_log_query", "results_count", logs.size());
             SecurityToolUtils.recordMetric("audit_log_query", "execution_time_ms", 
@@ -127,8 +115,7 @@ public class AuditLogQueryTool {
                 
         } catch (Exception e) {
             log.error("Failed to query audit logs", e);
-            
-            
+
             SecurityToolUtils.recordMetric("audit_log_query", "error_count", 1);
             
             return Response.builder()
@@ -139,24 +126,20 @@ public class AuditLogQueryTool {
                 .build();
         }
     }
-    
-    
+
     private String analyzeThreatLevel(List<AuditLogService.AuditLog> logs) {
         if (logs.isEmpty()) {
             return "NONE";
         }
-        
-        
+
         long failedAttempts = logs.stream()
             .filter(log -> "FAILURE".equals(log.getResult()))
             .count();
-        
-        
+
         long errorCount = logs.stream()
             .filter(log -> log.getErrorMessage() != null)
             .count();
-        
-        
+
         if (failedAttempts > 10 || errorCount > 5) {
             return "HIGH";
         } else if (failedAttempts > 5 || errorCount > 2) {
@@ -167,8 +150,7 @@ public class AuditLogQueryTool {
         
         return "NONE";
     }
-    
-    
+
     private ThreatAnalysis performDetailedAnalysis(List<AuditLogService.AuditLog> logs) {
         if (logs.isEmpty()) {
             return ThreatAnalysis.builder()
@@ -179,8 +161,7 @@ public class AuditLogQueryTool {
                 .riskScore(0.0)
                 .build();
         }
-        
-        
+
         long failedLogins = logs.stream()
             .filter(log -> "LOGIN".equals(log.getAction()) && "FAILURE".equals(log.getResult()))
             .count();
@@ -202,8 +183,7 @@ public class AuditLogQueryTool {
                           (log.getAction().contains("EXPORT") || 
                            log.getAction().contains("DOWNLOAD")))
             .count();
-        
-        
+
         double riskScore = Math.min(1.0, 
             (failedLogins * 0.1 + 
              suspiciousActivities * 0.3 + 
@@ -219,7 +199,6 @@ public class AuditLogQueryTool {
             .build();
     }
 
-    
     @Data
     @Builder
     public static class Response {
@@ -230,8 +209,7 @@ public class AuditLogQueryTool {
         private String threatLevel;
         private ThreatAnalysis threatAnalysis;
     }
-    
-    
+
     @Data
     @Builder
     public static class ThreatAnalysis {

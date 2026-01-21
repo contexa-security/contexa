@@ -5,7 +5,6 @@ import lombok.Data;
 
 import java.time.Instant;
 
-
 @Data
 @Builder
 public class ToolExecutedEvent {
